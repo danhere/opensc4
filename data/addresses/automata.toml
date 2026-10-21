@@ -7147,42 +7147,6 @@ expect = "53 56 8B F1 8B 4C 24 10"
 source = "Name ours. The +0x10 part's window procedure (vtable 0x00A97E08), ret 8: 0xA2BF8AD5 and 0xA2BF8AD6 true; a button (3, 0x287259F6) 1: 0x00B43DC4's slot 57, then for a finished situation (0x00524580) 0x00525330 and 0x00524D10 0x6BB350E4, else 0x0052BF00 and 0x00525330; 6 slot 37; 7 0x0052BFB0; each closed (0x00525330), true. A link (0xE4A85D91): SC4UI::FollowLink, as button 1 with the status 1 or 2 tested inline, answering whether it failed. Ours in simulators.automata.situations.popup (src/core/automata_situations_3.cpp, part c3)."
 
 [[entry]]
-name = "cSC4CitySituationManager::SetStatus"
-address = 0x00524C40
-kind = "function"
-convention = "thiscall"
-signature = "void (void* this, uint32_t status)"
-expect = "8B 44 24 04 56 8B F1 3B"
-source = "Name ours. Ret 4: a new status (+0xA48); with a situation, for 1 and 2 the drive's time (+0xA88) from the situation's slot 11 (at least 1.0) when the automaton's flag 0x8000000 is set, else 1.0. Part c4, the game's. Called by address from src/core/automata_situations_3.cpp, part c3."
-
-[[entry]]
-name = "cSC4CitySituationManager::TargetReached"
-address = 0x0052C0E0
-kind = "function"
-convention = "thiscall"
-signature = "uint32_t (void* this)"
-expect = "56 8B F1 83 BE E4 0A 00"
-source = "Name ours. With the reference +0xAE4 at -2: by the situation's kind 1 the status 2, 3 0x0052BBC0 (else 1); else the target's slots 22 (0x5005, 0x5006) and 0x0052AD00 / 0x00528580. The status set and answered. Part c4, the game's. Called by address from src/core/automata_situations_3.cpp, part c3."
-
-[[entry]]
-name = "cSC4CitySituationManager::UpdateTarget"
-address = 0x0052C8F0
-kind = "function"
-convention = "thiscall"
-signature = "uint32_t (void* this, float dt)"
-expect = "51 53 56 8B F1 8B 8E F4"
-source = "Name ours. Ret 4: with a situation and an automaton, the targets checked by the kind (0x0052BD30, 0x00529B80, 0x00528C70, 0x0052BC50), the script (+0xAE4), the situation's time and the time limit (0x00524CF0); the status set and answered. Part c4, the game's. Called by address from src/core/automata_situations_3.cpp, part c3."
-
-[[entry]]
-name = "cSC4CitySituationManager::NextTarget"
-address = 0x0052BBC0
-kind = "function"
-convention = "thiscall"
-signature = "bool (void* this)"
-expect = "53 56 8B F1 8B 8E F4 09"
-source = "Name ours. With the situation's slot 17, the next of slot 16's targets (+0xA60) through 0x0052AD00, the automaton told 0x2C22D924, 0xAC083D7D sent (0x00524D80); whether one was found. Part c4, the game's. Called by address from src/core/automata_situations_3.cpp, part c3."
-
-[[entry]]
 name = "cSC4CitySituationManager::FillPopup"
 address = 0x0052CC50
 kind = "function"
@@ -7599,3 +7563,437 @@ convention = "thiscall"
 signature = "void (void* vector, void* position, const void* record, void* tag, uint32_t count, uint32_t atEnd)"
 expect = "51 53 55 56 8B F1 8B 16"
 source = "Name ours, not analysed (part aw5's): the route record vector's growing insert, ret 0x14. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+
+# Part c4 of the city situation manager: the targets and the situation's smaller steps (src/core/automata_situations_4.cpp; docs/automata.md, "Part c4").
+
+[[entry]]
+name = "cSC4CitySituationManager::UpdateTarget"
+address = 0x0052C8F0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, float dt)"
+expect = "51 53 56 8B F1 8B 8E F4"
+source = "Name ours. Ret 4, each frame of a running situation (4 without a situation or an automaton): with the situation's flag 2 0x0052BD30; at the status 3 with +0xAE4 at -2 by the kind (slot 4) 1 0x0052BC50 (with a target), 2 0x00528C70, 5 0x00529B80; with +0xAE4 the check_success script called with the situation's table (with its flag 0x20 +0xAF8's slot 68 first), its number (__ftol2) the status; at the status 3 the situation's time (+0xA8C) plus dt * 0.001, and a time limit (slot 13) of at least 1.0 that it reaches 0x00524CF0. The status set (0x00524C40) and answered. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CheckEdgeTarget"
+address = 0x00528C70
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, float dt)"
+expect = "83 EC 40 56 57 8B F9 8B"
+source = "Name ours. Ret 4 (dt unused), the kind 2: the distance (0x00526A20 with 0) to the overlay (0x00524660, 0x0046BF00); with the driver's position (0x005256E0), the city and 0x00B43D8C: in a cell within 2 of the city's edge (slots 95, 93, 94), when the point 32 along the automaton's direction (slot 15) leaves the city, the status 1 when the automaton has the flag 0x2000 or a link of 0x00B43D8C's slot 16 list (its slot 6 cell) is within 2 cells (unsigned squares). The status set and answered. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CheckCellTargets"
+address = 0x00529B80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, float dt)"
+expect = "83 EC 54 53 8B D9 8B 83"
+source = "Name ours. Ret 4 (dt unused), the kind 5: the distance to the overlay; with the driver's position, the cells (the city's slot 95 at the situation's slot 52 radius) that the set +0xAA8 holds: the map +0xAC4's object told to stop (slot 4 with 1) and dropped, the camera effect 0x00B09AE4 (0x00B09AEC for the situation's slot 36 kind 6) made into it (0x00B43D1C's slot 7; slot 12 with 0xC, the cell's rectangle, 4; slot 3 with 0), the cell erased (0x00526180), +0xABC counted. The situation's slot 45 into a local; the status 1 when +0xABC reaches slot 44 (or +0xAC0 for 0), else 0x00529560. The status set and answered. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CheckDistanceTarget"
+address = 0x0052BC50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, float dt)"
+expect = "51 53 56 57 8B F1 8B 9E"
+source = "Name ours. Ret 4, the kind 1: the distance (0x00526A20 with 0, rounded) less the situation's slot 52, rounded, to the overlay; above it the slot 7 runs the clock +0xA7C (dt added, kept rounded; times 0.001 rounded, the status 1 when slot 10 is at most it), else the clock zeroed; at the status 1 0x0052BBC0, 3 when it starts one. The status set and answered. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CheckEscort"
+address = 0x0052BD30
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, float dt)"
+expect = "83 EC 44 55 56 57 8B F9"
+source = "Name ours. Ret 4, the situation's flag 2: the situation's groups (slot 18) gathered (0x00525640) into a set; an occupant of the type 0x34 (slot 59) whose slot 56's +0x28 is the automaton within the situation's radius (slot 20, squared, rounded; SC4::DistanceSquared3 at the automaton's height) runs the clock +0xA80 (dt added, kept rounded; times 0.001 rounded, the status 2 when slot 21 is at most it); none zeroes it. The set released by 0x00B43D44's slot 33 and destroyed. The status set and answered. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::SetStatus"
+address = 0x00524C40
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t status)"
+expect = "8B 44 24 04 56 8B F1 3B"
+source = "Name ours. Ret 4: a new status (+0xA48); with a situation, for 1 and 2 the drive's time (+0xA88) from the situation's slot 11 (at least 1.0) when the automaton's flag 0x8000000 is set, else 1.0. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::TimeUp"
+address = 0x00524CF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 F4 09 00 00 85 C0"
+source = "Name ours. The status 2 with a situation, else as it is; set (0x00524C40) and answered. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::TargetIntensity"
+address = 0x00524660
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this, float distance)"
+expect = "D9 44 24 04 D8 0D 78 7D"
+source = "Name ours. Ret 4 (this not read): distance * 0.004 * 0.3 + 0.2, from 0.2 to 0.5, unrounded in ST0. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellSetErase"
+address = 0x00526180
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* set, const void* cell)"
+expect = "51 55 8B 6C 24 0C 0F B7"
+source = "Name ours. Ret 4: the cell set's nodes of the cell (two uint16, x low) erased and freed, the bucket's head last; how many. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::PlaceCellTarget"
+address = 0x00529560
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 10 56 8B F1 8B 86"
+source = "Name ours. With cells (+0xAB8): 0x00526960 for +0xAD8 (its nearest cell is dropped); the cell +0xAD8's center (the city's slot 97), the terrain's height (slot 13) plus 0x00B43CF0's slot 6 when above 0; the target's slot 9 with it, or a new cSC4PropOccupantAutomataController's +0xC slot 9 and 0x00528580. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::NearestCell"
+address = 0x00526960
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* cell, uint32_t* out)"
+expect = "83 EC 10 55 57 8B 7C 24"
+source = "Name ours. Ret 8: the cell when the set +0xAA8 holds it (0x00525A50), else the set's nearest (squared uint16 differences, a signed sum; the first of equals) into out; whether one was. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellSetCount"
+address = 0x00525A50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* set, const void* cell)"
+expect = "8B 44 24 04 53 55 8B 69"
+source = "Name ours. Ret 4: how many nodes of the cell's bucket hold it. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellSetNextBucket"
+address = 0x00525AA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* iterator)"
+expect = "8B 11 0F B7 42 06 83 C2"
+source = "Name ours. The first node of the buckets after the iterator's node's (two uint16 keys), or null. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::TargetReached"
+address = 0x0052C0E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 83 BE E4 0A 00"
+source = "Name ours. With +0xAE4 at -2: the kind 1 the status 2, 3 0x0052BBC0 (none left 1); else a target whose slot 22 answers 0x5005 or 0x5006 0x0052AD00 with 1, 0x00528580 with 0 when it fails. The status set and answered. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::NextTarget"
+address = 0x0052BBC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "53 56 8B F1 8B 8E F4 09"
+source = "Name ours. With the situation's slot 17, the next of slot 16's targets (+0xA60) through 0x0052AD00 with 1, the automaton told 0x2C22D924 (slot 61) when started, 0xAC083D7D sent (0x00524D80); whether one started. Ours in simulators.automata.situations.targets (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::LoadScripts"
+address = 0x00525800
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* situation)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Ret 4: with a situation and a script context, its table (slot 30) as a table (slot 72): on_success, on_failure, check_success, find_target, create_target, init and get_time_limit referenced (0x005254D0) into +0xADC..+0xAF4, the last from the global base_citysituation_advice (0x005FB6F0) when missing; the stack put back. Without one the seven unreferenced (slot 62) and -2. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::GetScriptRef"
+address = 0x005254D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const char* name, uint32_t table, int32_t* out)"
+expect = "8B 54 24 04 56 8B F1 8B"
+source = "Name ours. Ret 0xC: the table's field (SC4Script::GetField), when a function (slot 71), referenced (slot 50 with 1) into out. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::SetActiveAutomaton"
+address = 0x00525070
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* automaton)"
+expect = "56 8B F1 8B 8E 4C 0A 00"
+source = "Name ours. Ret 4: a new +0xA4C: the old one's slot 40 with the +4 part, referenced; the new one's slot 30 (0x4000, 1), slot 39 with the +4 part and slot 68. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellSetInsert"
+address = 0x005278E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* set, void* out, const void* cell)"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Name ours. Ret 8: 0x00526510 with the count + 1, then 0x005260C0, into out (node, set, inserted). Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellSetInsertUnique"
+address = 0x005260C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* set, void* out, const void* cell)"
+expect = "51 8B 44 24 0C 53 66 8B"
+source = "Name ours. Ret 8: the cell's node, or a new one (8 bytes) at the head of its bucket; out (node, set, inserted). Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellSetResize"
+address = 0x00526510
+kind = "function"
+convention = "thiscall"
+signature = "void (void* set, uint32_t hint)"
+expect = "83 EC 14 8B 44 24 18 53"
+source = "Name ours. Ret 4: more buckets for the hint (the next of SC4HashTable's primes, 0xFFFFFFFB past them), the nodes moved over. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellMapInsertUnique"
+address = 0x00526250
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, void* out, const void* value)"
+expect = "53 8B 5C 24 0C 55 56 8B"
+source = "Name ours. Ret 8: the cell's node of the cell -> object map, or a new one (0xC bytes, the object referenced) at the head of its bucket; out (node, map, inserted). Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellSetAssign"
+address = 0x005271D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* set, const void* other)"
+expect = "51 53 55 8B E9 8B 45 08"
+source = "Name ours. Ret 4: the buckets emptied, reserved and filled with nulls (PtrVector::Reserve, SC4PtrVector::FillInsert) to the other's count, each chain copied in order, the count taken over. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellFilter"
+address = 0x00524E90
+kind = "function"
+convention = "stdcall"
+signature = "bool (const uint16_t* cell, int32_t want, uint32_t, const uint32_t* count, uint32_t limit, int32_t width, int32_t height, void* object)"
+expect = "8B 44 24 10 8B 08 3B 4C"
+source = "Name ours. Ret 0x20: under the limit, inside the width and height (signed), the object's slot 7 at the cell (sign-extended) equal to want, and 0x00B43CF0's slot 8 (the cell, 2, 0). Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::CallTargetScript"
+address = 0x00524F00
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t ref, const void* ids)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Ret 8: with a situation, the reference pushed (slot 43) and, when a function, called with the situation's table and a new table (slot 44) of the IDs (slots 31 and 46), one result; its object (slot 76 with the framework's 0xEBE0E860 service) asked for 0x26BB767E; the stack put back. Answers the object after releasing it. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::GetTargetIds"
+address = 0x00529AF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* out)"
+expect = "51 53 56 8B F1 8B 8E F4"
+source = "Name ours. Ret 4: with the situation's slot 17 slot 16's ID at +0xA60 (zeroed past the end) as the vector's one element, else slot 13's IDs copied. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::Uint32SetInsert"
+address = 0x005278A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* set, void* out, const uint32_t* key)"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Name ours. Ret 8, a referenced set: SC4Uint32HashSet::Resize with the count + 1, then 0x00525FB0, into out. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::EndSituation"
+address = 0x005294C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B F1 8B 86 F4 09"
+source = "Name ours. Slot 38: with a situation, 0x00527800, 0x00525070 and 0x00528580 with 0, the set +0xA68 cleared, the status 4, +0xA5C 0, 0x00525800 with 0, 0xABBBCA64 sent (0x00524D80), +0xA98 0, the situation, +0xA64 and +0xAF8 dropped. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::RadiusFilterIncludes"
+address = 0x00524AB0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* filter, void* occupant)"
+expect = "83 EC 10 53 56 57 8B 7C"
+source = "Name ours. Ret 4, slot 4 of the occupant filter of vtable 0x00A97D90: the occupant's 0xA821EF94 interface's slot 9 for +0xC, and with +0x10 above 0 not nearer than it (squared) to +0x14 at the height +0x18. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::GroupRadiusFilterIncludes"
+address = 0x00526650
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* filter, void* occupant)"
+expect = "83 EC 0C 53 56 57 8B 7C"
+source = "Name ours. Ret 4, slot 4 of the occupant filter of vtable 0x00A97DE0: SC4OccupantGroupFilter::IsOccupantIncluded, and with +0x18 above 0 not nearer than it (squared) to +0x1C at the height +0x20. Ours in simulators.automata.situations.steps (src/core/automata_situations_4.cpp, part c4)."
+
+[[entry]]
+name = "cSC4CitySituationManager::StartTarget"
+address = 0x0052AD00
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t create)"
+expect = "83 EC 78 53 55 56 8B E9"
+source = "Name ours, not analysed. Ret 4: the next target of a situation made and started (part c5); the game's. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::SetTargetOccupant"
+address = 0x00528580
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant)"
+expect = "81 EC C0 00 00 00 53 8B"
+source = "Name ours, not analysed. Ret 4: the target (+0xA50) set. An SC4UIScale probe site; the game's. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::Uint32SetInsertUnique"
+address = 0x00525FB0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* set, void* out, const uint32_t* key)"
+expect = "8B 44 24 08 53 55 56 8B"
+source = "Name ours. Ret 8: the key's node of a referenced set, or a new one (8 bytes, the key referenced); shared with callers outside the class, the game's. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4OverlayManager::SetIntensity"
+address = 0x0046BF00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t overlay, bool on, float value)"
+expect = "8B 44 24 04 56 8B F1 50"
+source = "Name ours, not analysed. Ret 0xC: an overlay's value. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "SC4Script::PushGlobal"
+address = 0x005FB6F0
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* context, const char* name)"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. The global of the name pushed (slot 37); when nil (slot 74) popped and false. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::One"
+address = 0x00A97C30
+kind = "data"
+expect = "00 00 80 3F"
+source = "1.0f, the least drive's time and time limit. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::IntensityLow"
+address = 0x00A97C24
+kind = "data"
+expect = "CD CC 4C 3E"
+source = "0.2f, 0x00524660's base and least value. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::IntensityScale"
+address = 0x00A97D78
+kind = "data"
+expect = "6F 12 83 3B"
+source = "0.004f, 0x00524660's first factor. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::IntensityFactor"
+address = 0x00A97D74
+kind = "data"
+expect = "9A 99 99 3E"
+source = "0.3f, 0x00524660's second factor. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::Milli"
+address = 0x00A867A4
+kind = "data"
+expect = "6F 12 83 3A"
+source = "0.001f, ms to seconds. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::EdgeReach"
+address = 0x00A95690
+kind = "data"
+expect = "00 00 00 42"
+source = "32.0f, 0x00528C70's look-ahead along the automaton's direction. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::BaseAdviceName"
+address = 0x00A97DB0
+kind = "data"
+expect = "62 61 73 65 5F 63 69 74"
+source = "Name ours. \"base_citysituation_advice\", the global table 0x00525800 falls back on. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::CellEffectName"
+address = 0x00B09AE4
+kind = "data"
+source = "Name ours. A pointer to mission_selection_yellow_shrink, 0x00529B80's effect. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::WaterCellEffectName"
+address = 0x00B09AEC
+kind = "data"
+source = "Name ours. A pointer to mission_selection_water_yellow_shrink, 0x00529B80's effect for the kind 6. Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::CheckSuccessName"
+address = 0x00B09AC4
+kind = "data"
+source = "Name ours. A pointer to check_success (+0xAE4). Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::FindTargetName"
+address = 0x00B09AC8
+kind = "data"
+source = "Name ours. A pointer to find_target (+0xAE8). Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::CreateTargetName"
+address = 0x00B09ACC
+kind = "data"
+source = "Name ours. A pointer to create_target (+0xAEC). Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::OnSuccessName"
+address = 0x00B09AD0
+kind = "data"
+source = "Name ours. A pointer to on_success (+0xADC). Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::OnFailureName"
+address = 0x00B09AD4
+kind = "data"
+source = "Name ours. A pointer to on_failure (+0xAE0). Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::InitName"
+address = 0x00B09AD8
+kind = "data"
+source = "Name ours. A pointer to init (+0xAF0). Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::GetTimeLimitName"
+address = 0x00B09ADC
+kind = "data"
+source = "Name ours. A pointer to get_time_limit (+0xAF4). Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::RadiusFilterVtable"
+address = 0x00A97D90
+kind = "data"
+expect = "B0 95 5E 00 D0 95 5E 00"
+source = "Name ours. An occupant filter of the class (slot 4 0x00524AB0). Called by address from src/core/automata_situations_4.cpp, part c4."
+
+[[entry]]
+name = "cSC4CitySituationManager::GroupRadiusFilterVtable"
+address = 0x00A97DE0
+kind = "data"
+expect = "B0 95 5E 00 D0 95 5E 00"
+source = "Name ours. An occupant filter of the class, on SC4OccupantGroupFilter (slot 4 0x00526650). Called by address from src/core/automata_situations_4.cpp, part c4."
