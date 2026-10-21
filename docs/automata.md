@@ -661,7 +661,7 @@ The group is found by the three classes' vtables, less nothing shared outside th
 - **aw4 (35, about 9,500 bytes, done): the aircraft manager's behaviour and the watercraft manager's life cycle, save and messages.** Below ("Part aw4").
   - Aircraft (11): AddAutomaton 0x004FA6D0, Init 0x004FA9E0, HandleTuningParametersChanged 0x004FAA50, slots 17 and 18 (0x004FAAF0, 0x004FC440), Write 0x004FB5B0, Shutdown 0x004FB7D0, Read 0x004FBE70, DoMessage 0x004FC710 with 0x004FB8D0 and 0x004FB2B0.
   - Watercraft (24): Init 0x00567B90, Shutdown 0x005744A0, the tuning 0x00567BF0, AddAutomaton 0x0056F7C0, RemoveAutomaton 0x0056F800, Write 0x0056FA70, Read 0x005749E0 (1,917 bytes), DoMessage 0x00575500 with 0x00574520 and 0x00575170, and their helpers 0x00574340, 0x00574230, 0x005732F0, 0x005734E0, 0x00573520, 0x00574830, 0x00574260, 0x0056C850, 0x00570D10, 0x00570D60, 0x0056D7F0, 0x0056D6E0, 0x0056C910, 0x0056F740.
-- **aw5 (23, about 11,000 bytes): the watercraft manager's creation, routes and frames.** CreateAutomaton (15) 0x00568F30, GetRandomCreationPoint (16) 0x0056C990 (1,321 bytes), the frame update (63) 0x005736A0 (2,941), and 0x00566DA0, 0x00566E60, 0x00567C90, 0x00567CE0, 0x005684C0, 0x00568CE0, 0x00568FD0, 0x0056C940, 0x0056D5F0, 0x0056F510, 0x0056F670, 0x0056FD60, 0x00570CC0, 0x00570DF0, 0x005710A0 (1,417), 0x00571630, 0x00572360, 0x005723D0, 0x00573230, 0x00573580.
+- **aw5 (23, about 11,000 bytes, done): the watercraft manager's creation, routes and frames.** Below ("Part aw5"). CreateAutomaton (15) 0x00568F30, GetRandomCreationPoint (16) 0x0056C990 (1,321 bytes), the frame update (63) 0x005736A0 (2,941), and 0x00566DA0, 0x00566E60, 0x00567C90, 0x00567CE0, 0x005684C0, 0x00568CE0, 0x00568FD0, 0x0056C940, 0x0056D5F0, 0x0056F510, 0x0056F670, 0x0056FD60, 0x00570CC0, 0x00570DF0, 0x005710A0 (1,417), 0x00571630, 0x00572360, 0x005723D0, 0x00573230, 0x00573580.
 
 aw3 and aw5 run on frames, so the family's frame caveat applies (top of this page). The common base's functions are also the vehicle and pedestrian managers', so every aw part changes all four managers.
 
@@ -1052,6 +1052,139 @@ Every one of the 13 saves gave a single ` E` value in all its A and B runs, with
 
 An earlier run (r1, stopped) showed the original giving two values of ` E` on Making Money d0000 and Rush Hour t0000. That was the test's version 5 stream (above), not our code; after the fix (r2), Making Money and Rush Hour were the same on the first pair.
 
+## Part aw5: the watercraft manager's creation, routes and frames
+
+### What is ours
+
+23 functions in three more groups, off by default. With them and parts aw1 to aw4 on, the watercraft manager is ours, except for its kept helpers and the common base's SC4UIScale probe site.
+
+- **`simulators.automata.awmgr.water.create` (6), in [automata_awmgr_water_route.cpp](../src/core/automata_awmgr_water_route.cpp):**
+  - CreateAutomaton (slot 15) 0x00568F30 and GetRandomCreationPoint (16) 0x0056C990.
+  - The lot at an occupant 0x00567C90, a lot's water body 0x00567CE0, the dock search 0x00568CE0 and the open water test 0x00568FD0. Part aw4 called the first and the third at their addresses.
+- **`simulators.automata.awmgr.water.routes` (7), in the same file:**
+  - A terminal's boat 0x005710A0, with the path group test 0x00566DA0 and the boat's path 0x0056F510.
+  - A route record's two legs 0x0056FD60 and its new ferry 0x00570DF0.
+  - The boat's two legs 0x0056F670 (`cSC4Watercraft::SetFerryRoute`: its `this` is the boat) and a leg's constructor 0x0056C940.
+- **`simulators.automata.awmgr.water.frame` (10), in [automata_awmgr_water_frame.cpp](../src/core/automata_awmgr_water_frame.cpp):**
+  - The frame update (slot 63) 0x005736A0.
+  - The crossing rank 0x00566E60, the boat's step direction 0x005684C0 and its path cut 0x0056D5F0.
+  - The edge spawn 0x005723D0 and its edge cells 0x00571630.
+  - The route record vector's fill 0x00570CC0, copy constructor 0x00572360, erase 0x00573230 and growing insert 0x00573580. Part aw4 called the copy and the insert at their addresses.
+
+What they do:
+
+- **Creation.**
+  - **CreateAutomaton** refuses (null) when a boat is near the point (0x00568C10) or the city's slot 0x18C refuses its cell. Otherwise it calls the common base's CreateAutomaton 0x00505370 with the seventh argument 0.
+  - **GetRandomCreationPoint** needs the group (slot 30). When there is a lot at the position with a route (its dock) or a pair of the first pair table, it tries the cell twice the dock's facing out from the dock. Otherwise it walks a spiral over the city's cells for open water of the lot's water body, else the first open water cell. The city's slot 0x188 must take the cell. The point is the cell's centre at the sea level.
+  - **The dock search** reads the occupant's dock interface (0xE9793A65): its orientation picks a facing, and its model's box an extent. The point moves half the extent along the facing.
+  - **Open water** is the 0x00B43CF0 service's answer for the cell, with no automaton of the list nearer to its centre than its radius.
+- **Routes.**
+  - **A terminal's boat** (0x005710A0) makes a boat of the terminal's kind beside the dock. A ferry kind (the path groups 0x440F, 0x440A, 0x4411) is given a wait (30000 x (1 + a draw)) and a water path (0x00B43DA8's slot 0x84) to the first object of the 0x00B43D8C service's list 9 that has one. Other boats wait 60000.
+  - **A route record's legs** (0x0056FD60): the first from the route's dock, the second from the destination route's dock. When the ferry route walks, the second comes from its first open water step and the one after. **A new ferry** (0x00570DF0) makes a boat of the kind 0x4400 or 0x4402, places it at the leg its byte names, gives it both legs and flips the byte.
+- **Frames.** The frame update:
+  - Every 60000 it lets go of the routes' boats that no record holds.
+  - Out of the U-Drive, it cuts the path of one of two boats whose paths cross. It cuts the boat of the higher crossing rank, the second on a tie. Two boats of rank 0 stop the first.
+  - It runs the edge spawn. While the edge spawn's boats are 5 or fewer and the first pair table is not empty, every 10000 it draws for a boat at the next map edge (0.1, or 0.05 in the U-Drive, where a second draw above 0.5 makes the kind 0x4417).
+  - After message 0x2C06BA82 it fits the routes' records to the city's ferry routes (the city's slot 0x114).
+  - Every 35000 it gives the records without a boat a new ferry.
+  - It plans the terminals without a boat (0x4411, 0x4419 or 0x4416 by their type), then calls the common base's slot 63.
+
+Kept as the game's:
+
+- the common base's CreateAutomaton 0x00505370 (SC4UIScale's probe site), frame rate and slot 63;
+- the boat near a point 0x00568C10, and the boat's leg assignment 0x0056D920, copy 0x0056D8B0 and begin 0x0056F3F0;
+- part aw4's record helpers;
+- the ferry route's copy constructor and list clear;
+- the spiral walk, the route iterator, the hash table, vector, reference and byte vector helpers, the random draw and the allocators, all called at their addresses.
+
+No NAM site, and no SC4UIScale site other than 0x00505370, is among the 23.
+
+Oddities kept:
+
+- CreateAutomaton writes the point's z cell over its point argument's slot and hands the common base a seventh argument of 0 whatever the caller gave.
+- GetRandomCreationPoint reads neither its most nor its flags and makes no draw. Its seventh argument takes the dock's facing when not null. The spiral's least distance applies only without a lot.
+- The dock search's interface query writes into the occupant's argument slot. Its orientation indexes a table of four on the stack. Another value would read other stack slots in the game; ours logs a first-call line and takes 0. Every game caller passes the turned flag 0, so the turned offset never runs.
+- 0x00567CE0 answers AX 0 without a lot; the game keeps EAX's top half. Its one caller compares the word.
+- The frame update's crossing check skips each path's last point. Two boats of rank 0 stop the first boat again at every shared cell.
+- The step direction takes an index below the count less two, unsigned, so a path of one point takes any index and reads past the path. The path cut tests its index signed, then unsigned.
+- The record fill advances its destination even when it is null, so a count above 1 at a null place writes at 0x3C.
+- The edge spawn's timer starts at 10001 and is reset only when a boat is made. Its count test is unsigned. The edge cells compute the middle cell's point and never use it.
+- The ferry route sweep erases every record when the city has no ferry routes.
+- The record vectors divide by 0x3C signed. The growing insert grows to size + max(size, count), the max unsigned.
+
+Floats: 53-bit doubles, floats stored where the game stores them, the products added before a store kept unrounded or rounded per site as the asm does. The timers wait while strictly below their periods (equal and unordered run); the draws go on unless strictly above. The game's constants are read where it reads them.
+
+Stack leftovers:
+
+- The legs 0x00570DF0 makes on its stack, and the frame update's two ferry routes, keep the bytes 0x0056FD60 does not write: +0x28, +0x2C and +0x30 on some paths, and everything past 0x0056C940's 0x28 bytes. These reach the boat's +0x218 through 0x0056F670. In the game they are the stack's; in ours, 0. The frame update keeps them from one list entry to the next, as the game does.
+- The by-value copies' padding is 0 in ours.
+- 0x005710A0's first object's x cell slot is a leftover in the game (0 in ours); its z slot starts as the wait's bits, as in the game.
+- Argument slots the game reuses after their last read are locals in ours. No caller reads them back.
+
+Return values: the bools AL as the game sets it. The frame update answers the common base's slot 63's EAX, which no caller reads. The crossing rank, the step direction and the path group test answer EAX in full; the path cut AL over the index or over its copy's answer; the vector helpers their pointers.
+
+Random: the terminal's boat and the edge spawn draw from the manager's generator (0x00B22A78) at the game's address. None of the 23 seeds a generator.
+
+Reimplemented with two writers (creation and routes; frames) and an independent audit of each against the disassembly, instruction by instruction and against our object's stack layout. Neither audit found a defect. On the audits' notes, 0x0056F670's entry became `cSC4Watercraft::SetFerryRoute`, and the comments now name the dock search's orientation and the copies' padding.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_AWMGR=5` does everything `=4` does, plus the following, into the fingerprint as ` W<create>,<routes>,<frame>,<flags>` (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)).
+
+It uses fake boats: part aw4's fakes in a 0x400-byte block, with slots 16, 17 (the radius), 35 and 59. The boats' legs cover the fakes' state slot at +0x1F0, so their state is kept in a side table. Their occupants can answer a dock interface of the test's own: an orientation, a model and its box.
+
+- **The leaf helpers on data of the test's own:**
+  - the leg's constructor;
+  - the crossing rank and the path group test for each group;
+  - the step direction along a path of the eight unit steps and a longer one, and the path cut;
+  - the record vector's copy, fill, erase and growing insert (empty, inside a full vector with one and three, at the end);
+  - the city's edge cells for sides 0 to 3, 5 and -1.
+- **The city's watercraft manager, queries only:** the lot and water body at the controller table's first building, the dock search (none, without the interface, the building, the interface at four orientations), open water at four cells, and the creation point at three places for three groups.
+- **A new watercraft manager from the factory**, its generator seeded, its vtable a copy whose slot 15 answers fake boats (or none), so that no game boat is made:
+  - two routes, a pair and a terminal of the test's own;
+  - CreateAutomaton refused near a listed boat and outside the city;
+  - the creation point at the building's lot with a route of it (erased again: the lot's heap address would set the table's order);
+  - the boat's path and legs;
+  - a record's legs, a new ferry and a terminal's boat, each also with a refused creation;
+  - the edge spawn until a boat is made or 40 calls;
+  - the frame update with two listed boats whose paths cross and both timers due, then with the city's ferry routes asked.
+  - Then the game's vtable back, Shutdown and the release.
+
+The globals the part changes are put back. The flags: no building, no city watercraft manager, no new manager, a route not made, and a fake boat or a made one called at a slot it does not know.
+
+What the trials found:
+
+- The record fill at a null place with a count of 2 writes its second record at 0x3C, as the game does (the first trial ended in the game). The test fills one there.
+- The frame update's answer is the common base's slot 63's EAX: the game leaves 3 there and part aw3's frame group another value. No caller reads it; the test leaves it out, as part aw3's does.
+- The route keyed by the building's lot made the route table's order follow the heap, so the routes' and frame's hashes took two values per side. The test erases that route after use.
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days): all 23. The frame update and the edge spawn are the game's on every frame; the rest are reached by the test.
+
+### Parity
+
+2026-10-21, B was these groups, all on, against the original:
+
+- `simulators.automata.awmgr`;
+- the four part aw2 groups, the three part aw3 groups and the four part aw4 groups;
+- the three part aw5 groups.
+
+The switch list includes `determinism.dispatch_info=ours`, with `OPENSC4_MUTE=1` on both sides and two jobs (`harness.multi_instance=ours`). Env p4env-aw5, snapshot aw5-r1, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_AWMGR=5`.
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 11 same (Big City d0090 after three pairs, Rush Hour d1095 on a second leg); Rush Hour d0090 partly, each difference one the original shows too |
+
+All 27 B runs reached all 23 functions and carried the ` W` token, with flags 0. Its routes and frame fields take one of two values per run, on both sides: 50B695CD,0421E12D or 61F645AF,E92A3039.
+
+- Both sides gave both values on Rush Hour d0090 and d1095.
+- Some saves showed only one value in their runs: Making Money d1095 and Rush Hour d0000 the second, the others the first.
+
+That is the test's own two outcomes, like the ones the lot's route gave before it was erased (above). Its cause was not found by the end of the session (see the restart notes).
+
+In the first leg, Rush Hour d0090 and d1095 differed in tokens that have two outcomes on the original: part aw3's ` D` (4848E1FD, E75BEE79 or ECD4CDDD, its three known values), part aw1's ` A` (the vehicle field, 5B07DDF3 or 919E9993, both from the original on d0090) and the ` W` above. In three pairs no single run matched as a whole line, because each token took its value independently. Every token value B gave was one the original gave on the same save or the same city. A second leg of the two saves (up to five pairs) found Rush Hour d1095 the same after two pairs. Rush Hour d0090 came out partly: four outcomes on each side, two of them shared.
+
 ## Part s: the script system
 
 ### Survey
@@ -1432,7 +1565,7 @@ The class is found by its vtables, the constructor and the helpers only they cal
   - Slots 19 to 25, 35, 37 and 39: 0x00525CB0, 0x00525BC0, 0x0052A8B0, 0x00525DC0, 0x0052AB00, 0x00524E20, 0x0052A7A0, 0x005252D0, 0x005276A0 and 0x00529ED0.
   - Their helpers: 0x005245F0, 0x00525640, 0x005292F0, 0x00528360, 0x00526380, 0x00526610, 0x005291C0, 0x00524A50, 0x00528ED0, 0x005245A0, 0x00524A00, 0x00526EF0, 0x00526A20 (1,083 bytes), 0x005256E0 and 0x00524D80.
 - **c3 (28, 8,796 bytes, done): the messages and the popups' answers.** See "Part c3" below. DoMessage 0x0052EB80 and its handlers 0x0052E300, 0x0052E670, 0x0052E710, 0x0052E910, 0x0052C020, 0x0052A7D0, 0x0052A380, 0x0052A650, 0x0052A830, 0x0052A1E0, 0x00527920, 0x00525AF0, 0x00527300, 0x00526440, 0x00524DF0, 0x00524CC0, 0x00525330, 0x00524580, 0x0052C190, 0x00526720, 0x00525430, 0x00525130, 0x00525100 and 0x00524D10; the window procedure 0x0052CAB0 with 0x0052BF00 and 0x0052BFB0.
-- **c4 (30, 6,760 bytes): the targets and the situation's smaller steps.**
+- **c4 (30, 6,760 bytes, done): the targets and the situation's smaller steps.** See "Part c4" below.
   - The targets: 0x0052C8F0, 0x00528C70, 0x00529B80, 0x0052BC50, 0x0052BD30, 0x00524C40, 0x00524CF0, 0x00524660, 0x00526180, 0x00529560, 0x00526960, 0x00525A50, 0x00525AA0, 0x0052C0E0 and 0x0052BBC0.
   - The steps: 0x00525800, 0x005254D0, 0x00525070, 0x005278E0, 0x005260C0, 0x00526510, 0x00526250, 0x005271D0, 0x00524E90, 0x00524F00, 0x00529AF0, 0x005278A0, the end of a situation (slot 38) 0x005294C0, and the slot 4 of the two occupant filters of the class, 0x00524AB0 (vtable 0x00A97D90) and 0x00526650 (vtable 0x00A97DE0).
 - **c5 (11, 8,915 bytes): the running situation.** The start (slot 36) 0x0052E750, 0x0052C4E0, 0x0052B450 (1,883 bytes), 0x0052B200, 0x0052AD00 (1,252), 0x00529680, 0x005299C0, 0x00528140, 0x00527D30, 0x00527EA0 and 0x00554EA0 (1,083).
@@ -1721,3 +1854,108 @@ Not reached: 0x0052E910 (the popup shown), 0x00525330 (the popup closed) and 0x0
 - DoMessage's 0x2C16BDE7, 0xEBB67EF7 and 0x26D31EC1 with +0x9F1 set.
 - The window procedure's buttons and link.
 - The rewards and camera effects of 0x0052C190 and 0x00526720.
+
+## Part c4: the targets and the situation's smaller steps
+
+### What is ours
+
+30 functions in two groups, off by default ([automata_situations_4.cpp](../src/core/automata_situations_4.cpp)):
+
+- **`simulators.automata.situations.targets` (15):**
+  - The target update 0x0052C8F0 (each frame while a situation runs) and its checks by kind: the distance 0x0052BC50 (kind 1), the city's edge 0x00528C70 (kind 2), the cells 0x00529B80 (kind 5), and the escort 0x0052BD30 (the situation's flag 2).
+  - The status 0x00524C40, the time up 0x00524CF0, a target reached 0x0052C0E0, the next target 0x0052BBC0, the overlay's intensity 0x00524660.
+  - The kind 5's cells: the target placed 0x00529560, the nearest cell 0x00526960, the cell set's count 0x00525A50, erase 0x00526180 and bucket walk 0x00525AA0.
+- **`simulators.automata.situations.steps` (15):**
+  - The end of a situation (slot 38) 0x005294C0, the scripts' references 0x00525800 and 0x005254D0, the active automaton 0x00525070.
+  - The target IDs 0x00529AF0, the target script 0x00524F00, a cell filter 0x00524E90 (stdcall, 8 arguments).
+  - The slot 4 of the two occupant filters: 0x00524AB0 (vtable 0x00A97D90) and 0x00526650 (vtable 0x00A97DE0, on SC4OccupantGroupFilter).
+  - The cell set's insert 0x005278E0, unique insert 0x005260C0, resize 0x00526510 and copy 0x005271D0; the cell map's insert 0x00526250; the referenced set's insert 0x005278A0.
+
+What they do:
+
+- **The target update** answers the status (4 without a situation or an automaton):
+  - With the situation's flag 2, the escort first.
+  - At the status 3 without a check_success script (+0xAE4 at -2), by the situation's kind: 1 with a target, 2 or 5.
+  - With a check_success script, the script is called with the situation's table (with the situation's flag 0x20, +0xAF8's slot 68 first). The number it answers, truncated by __ftol2, is the status.
+  - At the status 3 the situation's time (+0xA8C) grows by dt / 1000. A time limit (the manager's slot 13) of at least 1.0 that the time reaches ends it (0x00524CF0: the status 2).
+  - Every step sets the status through 0x00524C40. For the statuses 1 and 2 it sets the drive's time (+0xA88): the situation's slot 11 (at least 1.0) when the automaton has the flag 0x8000000, else 1.0.
+- **The kinds:**
+  - 1: the distance to the target (0x00526A20) less the situation's slot 52. Within the situation's slot 7 the clock +0xA7C runs; at slot 10's seconds the status 1. At the status 1 the next target (0x0052BBC0), 3 when one starts.
+  - 2: in a cell within 2 of the city's edge, when the point 32 units along the automaton's direction (slot 15) leaves the city: the status 1 when the automaton has the flag 0x2000, or when a link of 0x00B43D8C's slot 16 list is within 2 cells.
+  - 5: each cell of the set +0xAA8 within the situation's radius (slot 52) is reached. Its object (the map +0xAC4) is told to stop and dropped, the camera effect mission_selection_yellow_shrink (the water one for the situation's slot 36 kind 6) is made over the cell, the cell is erased and +0xABC counted. At slot 44's goal (or +0xAC0's) the status 1, else the next cell is placed (0x00529560).
+  - The escort: an occupant of the type 0x34 of the situation's groups that the automaton controls, within the situation's radius (slot 20), runs the clock +0xA80; at slot 21's seconds the status 2.
+- **The overlay** (+0xA2C, +0xA30) is given the distance as an intensity from 0.2 to 0.5 (0x00524660, then 0x0046BF00, the game's).
+- **A target reached:** without a check_success script, the kind 1 fails (2) and the kind 3 goes on to the next target (none left: 1). With one, a target whose slot 22 answers 0x5005 or 0x5006 starts the next (0x0052AD00, part c5).
+- **The next target** (with the situation's slot 17): the next of slot 16's targets (+0xA60), started by 0x0052AD00. The automaton is told 0x2C22D924 and 0xAC083D7D is sent (0x00524D80).
+- **The cell target** (0x00529560) goes to the cell +0xAD8's center, at the terrain's height plus the water's depth: the target's slot 9, or a new prop occupant automata controller handed to 0x00528580.
+- **The scripts:** the situation's table's on_success, on_failure, check_success, find_target, create_target, init and get_time_limit are referenced into +0xADC to +0xAF4. get_time_limit falls back on the global table base_citysituation_advice. Without a situation they are unreferenced and set to -2.
+- **The end** (slot 38): the controlled objects released, no active automaton and no target, the referenced set +0xA68 cleared, the status 4, the scripts dropped, 0xABBBCA64 sent, the situation and +0xAF8 dropped.
+- **The active automaton** (0x00525070) takes the manager's +4 part as a listener (slots 39 and 40) and gets the flag 0x4000.
+
+Oddities kept:
+
+- 0x00529560 asks 0x00526960 for the cell of +0xAA8 nearest +0xAD8, then drops the answer and places the target at +0xAD8 itself.
+- 0x00524F00 answers its object after releasing it.
+- 0x00526960 squares the 16-bit differences into a signed 32-bit sum; 0x00528C70 sums its squared cell distances unsigned.
+- 0x00529B80 hands the situation's slot 45 a stack slot as its out pointer and never reads it.
+- 0x00525FB0, the referenced set's unique insert, stays the game's (it has callers outside the class).
+
+Floats: the clocks (+0xA7C, +0xA80, +0xA8C) are stored rounded; the seconds compared are the unrounded sums times 0.001, rounded. The distances and radii are rounded to floats where the game stores them, and the situation's floats are compared as the x87 holds them.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret`, then an independent audit of all 30 against the disassembly. The audit found no behavioural difference. Its notes are cosmetic:
+
+- 0x00528C70 and 0x00529B80 test the overlay's fields again before 0x0046BF00, where the game reads them again without a test (0x00526A20 does not change them).
+- 0x00528C70's link cells and 0x0052BD30's set head are zeroed, where the game leaves them uninitialized.
+- 0x00529B80's slot 45 gets a zeroed local of its own.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SITUATIONS=4` adds ` F<targets>,<steps>,<sets>,<filters>,<flags>` to the fingerprint (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It runs on part c3's day, on a fresh manager like part c3's (slots 24, 35, 36 and 38 the test's, the random reseeded). Only objects of the test's own are handed to the functions; the game's globals are read and never written.
+
+- The status over the statuses (the drive's time with and without the flag 0x8000000, a NaN), the time up, the overlay's intensity over ten distances.
+- Cell sets, a cell map and a referenced set of the test's own: inserts with shared buckets and duplicates, counts, a resize, a copy, erases, walks by 0x00525AA0.
+- The manager's cells: the nearest cell, and the target placed (always on a fake target) at cells of the city's middle and edge.
+- The next target (never when one would start), a target reached by the kinds and with a script.
+- The kinds' checks directly:
+  - the distance's clock;
+  - the escort: in, at the edge, out, another automaton, another type, none;
+  - the city's edge: the middle, heading out with the flag 0x2000 and with the links, heading in;
+  - the cells: reached, counted, placed below the goal, the status 1 at it.
+- The update by the kinds, with the escort, the check_success script's numbers (2, 3.7, -1, 5e9, 1e20, -0.5, NaN), the time limit.
+- The scripts' references (found, missing, the base table's, refused), the active automaton, the target IDs, the target script (the real framework's service is asked for), the cell filter (the real water query), the end without a situation, the two occupant filters.
+
+Not called by the test:
+
+- 0x005294C0 with a situation: it sends 0xABBBCA64 to the city view (0x00524D80).
+- 0x0052BBC0 and 0x0052C0E0 where a next target would start (0x0052AD00, part c5).
+- 0x00529560 without a target: it makes a prop controller for 0x00528580.
+- 0x00529B80 over a cell holding an object: it makes a camera effect.
+- 0x0046BF00 through the overlay: the fresh manager has no overlay manager.
+
+Flags: 1 ran, 2 the city's cells used, 0x10 a field left set (an error). `OPENSC4_TEST_C4_TRACE=1` logs each step's hash; 2 also logs the fakes' calls.
+
+### Parity
+
+2026-10-20, env p4env-c4, `OPENSC4_MUTE=1` on both sides, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SITUATIONS=4`. B is the eleven `simulators.automata.situations` groups (parts c1 to c4) against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides. Snapshot c4-r1, the final build (the audit changed nothing). All the same:
+
+| Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- |
+| 5 of 5 | 8 of 8 | 12 of 12 |
+
+Two saves of the batch, Making Money d0000 and Rush Hour d0365, were the same on the second pair. On the first, the original side gave two outcomes and B one, and they shared it.
+
+All 30 functions were reached in every one of the 14 B runs (our first-call log lines). Each run's ` F` token was the same on both sides. The tokens differ between cities only in the targets part, which uses the city's grid, water and links:
+
+- F97AF8D3,FF186641,23C8B4E5,F7BE54F0,3 for Big City;
+- 467950CB,... for Making Money;
+- F2E9857C,... for Rush Hour.
+
+The flags are 3 everywhere (the city's cells used).
+
+Not compared (see "Test"):
+
+- 0x005294C0's body with a situation.
+- The start of a next target in 0x0052BBC0 and 0x0052C0E0.
+- 0x00529560's new controller.
+- 0x00529B80's objects and camera effects.
+- The overlay's 0x0046BF00.

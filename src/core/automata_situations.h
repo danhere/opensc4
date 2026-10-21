@@ -110,6 +110,11 @@ inline constexpr std::size_t kDriveTime = 0xA88, kSetAA8Count = 0xAB8, kRefAF0 =
 // table references (two of the seven words from +0xADC).
 inline constexpr std::size_t kCheckTime = 0xA84, kTrackedBuckets = 0xA0C, kTrackedCount = 0xA18;
 inline constexpr std::size_t kSuccessRef = 0xADC, kFailureRef = 0xAE0, kTargetRef = 0xAE4;
+// Part c4 (src/core/automata_situations_4.cpp): the kind 1's clock, the
+// escort's clock, the cell of the kind 5's next target (two uint16, x low).
+// The set +0xAA8 holds the kind 5's cells, the map +0xAC4 their objects,
+// +0xABC counts the cells reached and +0xAC0 is the default goal.
+inline constexpr std::size_t kTargetTime = 0xA7C, kEscortTime = 0xA80, kCell = 0xAD8;
 } // namespace field
 
 } // namespace opensc4::automata_situations
