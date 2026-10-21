@@ -1432,7 +1432,7 @@ The class is found by its vtables, the constructor and the helpers only they cal
   - Slots 19 to 25, 35, 37 and 39: 0x00525CB0, 0x00525BC0, 0x0052A8B0, 0x00525DC0, 0x0052AB00, 0x00524E20, 0x0052A7A0, 0x005252D0, 0x005276A0 and 0x00529ED0.
   - Their helpers: 0x005245F0, 0x00525640, 0x005292F0, 0x00528360, 0x00526380, 0x00526610, 0x005291C0, 0x00524A50, 0x00528ED0, 0x005245A0, 0x00524A00, 0x00526EF0, 0x00526A20 (1,083 bytes), 0x005256E0 and 0x00524D80.
 - **c3 (28, 8,796 bytes, done): the messages and the popups' answers.** See "Part c3" below. DoMessage 0x0052EB80 and its handlers 0x0052E300, 0x0052E670, 0x0052E710, 0x0052E910, 0x0052C020, 0x0052A7D0, 0x0052A380, 0x0052A650, 0x0052A830, 0x0052A1E0, 0x00527920, 0x00525AF0, 0x00527300, 0x00526440, 0x00524DF0, 0x00524CC0, 0x00525330, 0x00524580, 0x0052C190, 0x00526720, 0x00525430, 0x00525130, 0x00525100 and 0x00524D10; the window procedure 0x0052CAB0 with 0x0052BF00 and 0x0052BFB0.
-- **c4 (30, 6,760 bytes): the targets and the situation's smaller steps.**
+- **c4 (30, 6,760 bytes, done): the targets and the situation's smaller steps.** See "Part c4" below.
   - The targets: 0x0052C8F0, 0x00528C70, 0x00529B80, 0x0052BC50, 0x0052BD30, 0x00524C40, 0x00524CF0, 0x00524660, 0x00526180, 0x00529560, 0x00526960, 0x00525A50, 0x00525AA0, 0x0052C0E0 and 0x0052BBC0.
   - The steps: 0x00525800, 0x005254D0, 0x00525070, 0x005278E0, 0x005260C0, 0x00526510, 0x00526250, 0x005271D0, 0x00524E90, 0x00524F00, 0x00529AF0, 0x005278A0, the end of a situation (slot 38) 0x005294C0, and the slot 4 of the two occupant filters of the class, 0x00524AB0 (vtable 0x00A97D90) and 0x00526650 (vtable 0x00A97DE0).
 - **c5 (11, 8,915 bytes): the running situation.** The start (slot 36) 0x0052E750, 0x0052C4E0, 0x0052B450 (1,883 bytes), 0x0052B200, 0x0052AD00 (1,252), 0x00529680, 0x005299C0, 0x00528140, 0x00527D30, 0x00527EA0 and 0x00554EA0 (1,083).
@@ -1721,3 +1721,108 @@ Not reached: 0x0052E910 (the popup shown), 0x00525330 (the popup closed) and 0x0
 - DoMessage's 0x2C16BDE7, 0xEBB67EF7 and 0x26D31EC1 with +0x9F1 set.
 - The window procedure's buttons and link.
 - The rewards and camera effects of 0x0052C190 and 0x00526720.
+
+## Part c4: the targets and the situation's smaller steps
+
+### What is ours
+
+30 functions in two groups, off by default ([automata_situations_4.cpp](../src/core/automata_situations_4.cpp)):
+
+- **`simulators.automata.situations.targets` (15):**
+  - The target update 0x0052C8F0 (each frame while a situation runs) and its checks by kind: the distance 0x0052BC50 (kind 1), the city's edge 0x00528C70 (kind 2), the cells 0x00529B80 (kind 5), and the escort 0x0052BD30 (the situation's flag 2).
+  - The status 0x00524C40, the time up 0x00524CF0, a target reached 0x0052C0E0, the next target 0x0052BBC0, the overlay's intensity 0x00524660.
+  - The kind 5's cells: the target placed 0x00529560, the nearest cell 0x00526960, the cell set's count 0x00525A50, erase 0x00526180 and bucket walk 0x00525AA0.
+- **`simulators.automata.situations.steps` (15):**
+  - The end of a situation (slot 38) 0x005294C0, the scripts' references 0x00525800 and 0x005254D0, the active automaton 0x00525070.
+  - The target IDs 0x00529AF0, the target script 0x00524F00, a cell filter 0x00524E90 (stdcall, 8 arguments).
+  - The slot 4 of the two occupant filters: 0x00524AB0 (vtable 0x00A97D90) and 0x00526650 (vtable 0x00A97DE0, on SC4OccupantGroupFilter).
+  - The cell set's insert 0x005278E0, unique insert 0x005260C0, resize 0x00526510 and copy 0x005271D0; the cell map's insert 0x00526250; the referenced set's insert 0x005278A0.
+
+What they do:
+
+- **The target update** answers the status (4 without a situation or an automaton):
+  - With the situation's flag 2, the escort first.
+  - At the status 3 without a check_success script (+0xAE4 at -2), by the situation's kind: 1 with a target, 2 or 5.
+  - With a check_success script, the script is called with the situation's table (with the situation's flag 0x20, +0xAF8's slot 68 first). The number it answers, truncated by __ftol2, is the status.
+  - At the status 3 the situation's time (+0xA8C) grows by dt / 1000. A time limit (the manager's slot 13) of at least 1.0 that the time reaches ends it (0x00524CF0: the status 2).
+  - Every step sets the status through 0x00524C40. For the statuses 1 and 2 it sets the drive's time (+0xA88): the situation's slot 11 (at least 1.0) when the automaton has the flag 0x8000000, else 1.0.
+- **The kinds:**
+  - 1: the distance to the target (0x00526A20) less the situation's slot 52. Within the situation's slot 7 the clock +0xA7C runs; at slot 10's seconds the status 1. At the status 1 the next target (0x0052BBC0), 3 when one starts.
+  - 2: in a cell within 2 of the city's edge, when the point 32 units along the automaton's direction (slot 15) leaves the city: the status 1 when the automaton has the flag 0x2000, or when a link of 0x00B43D8C's slot 16 list is within 2 cells.
+  - 5: each cell of the set +0xAA8 within the situation's radius (slot 52) is reached. Its object (the map +0xAC4) is told to stop and dropped, the camera effect mission_selection_yellow_shrink (the water one for the situation's slot 36 kind 6) is made over the cell, the cell is erased and +0xABC counted. At slot 44's goal (or +0xAC0's) the status 1, else the next cell is placed (0x00529560).
+  - The escort: an occupant of the type 0x34 of the situation's groups that the automaton controls, within the situation's radius (slot 20), runs the clock +0xA80; at slot 21's seconds the status 2.
+- **The overlay** (+0xA2C, +0xA30) is given the distance as an intensity from 0.2 to 0.5 (0x00524660, then 0x0046BF00, the game's).
+- **A target reached:** without a check_success script, the kind 1 fails (2) and the kind 3 goes on to the next target (none left: 1). With one, a target whose slot 22 answers 0x5005 or 0x5006 starts the next (0x0052AD00, part c5).
+- **The next target** (with the situation's slot 17): the next of slot 16's targets (+0xA60), started by 0x0052AD00. The automaton is told 0x2C22D924 and 0xAC083D7D is sent (0x00524D80).
+- **The cell target** (0x00529560) goes to the cell +0xAD8's center, at the terrain's height plus the water's depth: the target's slot 9, or a new prop occupant automata controller handed to 0x00528580.
+- **The scripts:** the situation's table's on_success, on_failure, check_success, find_target, create_target, init and get_time_limit are referenced into +0xADC to +0xAF4. get_time_limit falls back on the global table base_citysituation_advice. Without a situation they are unreferenced and set to -2.
+- **The end** (slot 38): the controlled objects released, no active automaton and no target, the referenced set +0xA68 cleared, the status 4, the scripts dropped, 0xABBBCA64 sent, the situation and +0xAF8 dropped.
+- **The active automaton** (0x00525070) takes the manager's +4 part as a listener (slots 39 and 40) and gets the flag 0x4000.
+
+Oddities kept:
+
+- 0x00529560 asks 0x00526960 for the cell of +0xAA8 nearest +0xAD8, then drops the answer and places the target at +0xAD8 itself.
+- 0x00524F00 answers its object after releasing it.
+- 0x00526960 squares the 16-bit differences into a signed 32-bit sum; 0x00528C70 sums its squared cell distances unsigned.
+- 0x00529B80 hands the situation's slot 45 a stack slot as its out pointer and never reads it.
+- 0x00525FB0, the referenced set's unique insert, stays the game's (it has callers outside the class).
+
+Floats: the clocks (+0xA7C, +0xA80, +0xA8C) are stored rounded; the seconds compared are the unrounded sums times 0.001, rounded. The distances and radii are rounded to floats where the game stores them, and the situation's floats are compared as the x87 holds them.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret`, then an independent audit of all 30 against the disassembly. The audit found no behavioural difference. Its notes are cosmetic:
+
+- 0x00528C70 and 0x00529B80 test the overlay's fields again before 0x0046BF00, where the game reads them again without a test (0x00526A20 does not change them).
+- 0x00528C70's link cells and 0x0052BD30's set head are zeroed, where the game leaves them uninitialized.
+- 0x00529B80's slot 45 gets a zeroed local of its own.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SITUATIONS=4` adds ` F<targets>,<steps>,<sets>,<filters>,<flags>` to the fingerprint (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It runs on part c3's day, on a fresh manager like part c3's (slots 24, 35, 36 and 38 the test's, the random reseeded). Only objects of the test's own are handed to the functions; the game's globals are read and never written.
+
+- The status over the statuses (the drive's time with and without the flag 0x8000000, a NaN), the time up, the overlay's intensity over ten distances.
+- Cell sets, a cell map and a referenced set of the test's own: inserts with shared buckets and duplicates, counts, a resize, a copy, erases, walks by 0x00525AA0.
+- The manager's cells: the nearest cell, and the target placed (always on a fake target) at cells of the city's middle and edge.
+- The next target (never when one would start), a target reached by the kinds and with a script.
+- The kinds' checks directly:
+  - the distance's clock;
+  - the escort: in, at the edge, out, another automaton, another type, none;
+  - the city's edge: the middle, heading out with the flag 0x2000 and with the links, heading in;
+  - the cells: reached, counted, placed below the goal, the status 1 at it.
+- The update by the kinds, with the escort, the check_success script's numbers (2, 3.7, -1, 5e9, 1e20, -0.5, NaN), the time limit.
+- The scripts' references (found, missing, the base table's, refused), the active automaton, the target IDs, the target script (the real framework's service is asked for), the cell filter (the real water query), the end without a situation, the two occupant filters.
+
+Not called by the test:
+
+- 0x005294C0 with a situation: it sends 0xABBBCA64 to the city view (0x00524D80).
+- 0x0052BBC0 and 0x0052C0E0 where a next target would start (0x0052AD00, part c5).
+- 0x00529560 without a target: it makes a prop controller for 0x00528580.
+- 0x00529B80 over a cell holding an object: it makes a camera effect.
+- 0x0046BF00 through the overlay: the fresh manager has no overlay manager.
+
+Flags: 1 ran, 2 the city's cells used, 0x10 a field left set (an error). `OPENSC4_TEST_C4_TRACE=1` logs each step's hash; 2 also logs the fakes' calls.
+
+### Parity
+
+2026-10-20, env p4env-c4, `OPENSC4_MUTE=1` on both sides, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SITUATIONS=4`. B is the eleven `simulators.automata.situations` groups (parts c1 to c4) against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides. Snapshot c4-r1, the final build (the audit changed nothing). All the same:
+
+| Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- |
+| 5 of 5 | 8 of 8 | 12 of 12 |
+
+Two saves of the batch, Making Money d0000 and Rush Hour d0365, were the same on the second pair. On the first, the original side gave two outcomes and B one, and they shared it.
+
+All 30 functions were reached in every one of the 14 B runs (our first-call log lines). Each run's ` F` token was the same on both sides. The tokens differ between cities only in the targets part, which uses the city's grid, water and links:
+
+- F97AF8D3,FF186641,23C8B4E5,F7BE54F0,3 for Big City;
+- 467950CB,... for Making Money;
+- F2E9857C,... for Rush Hour.
+
+The flags are 3 everywhere (the city's cells used).
+
+Not compared (see "Test"):
+
+- 0x005294C0's body with a situation.
+- The start of a next target in 0x0052BBC0 and 0x0052C0E0.
+- 0x00529560's new controller.
+- 0x00529B80's objects and camera effects.
+- The overlay's 0x0046BF00.
