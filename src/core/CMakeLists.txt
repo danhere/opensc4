@@ -418,6 +418,7 @@ add_library(opensc4_core SHARED
   framework_stringformat.cpp
   framework_stringhelpers.cpp
   gzui_autotest.cpp
+  gzui_propio.cpp
   gzui_propset.cpp
   protection_sim.cpp
   fire_sim.cpp
@@ -609,6 +610,7 @@ add_library(opensc4_core SHARED
   music_1.cpp
   music_2.cpp
   music_3.cpp
+  music_4.cpp
   audio_autotest.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp

@@ -4,7 +4,7 @@ The game's own sound code, rewritten piece by piece like the simulators ([parity
 
 "Ours" means rewritten here and hooked at the original's entry. "The game's" means left alone and called by address. Whatever is heard is the business of EA's sound library, which stays the game's (see the fence below): this page is about the code that decides what to ask of it.
 
-In total 575 functions are ours (573 under audio names, 2 under UI names: the options dialog's maker 0x004F2450 and its run function 0x004F25F0). The music player's first three pieces add 89 (`audio.music.part1` 42, `audio.music.part2` 20, `audio.music.part3` 27; see "Music player"). The other functions of the range are listed under "What is fenced off" and "Not done".
+In total 575 functions are ours (573 under audio names, 2 under UI names: the options dialog's maker 0x004F2450 and its run function 0x004F25F0). The music player's four pieces add 138 (`audio.music.part1` 42, `audio.music.part2` 20, `audio.music.part3` 27, `audio.music.part4` 49; see "Music player"). The other functions of the range are listed under "What is fenced off" and "Not done".
 
 ## The pieces
 
@@ -182,7 +182,9 @@ Both tests are in `src/core/audio_autotest.cpp`. They call the game's audio func
 
 `OPENSC4_TEST_MUSIC=<day>` adds the token ` music <stations> <switched> <hash>` and one log line `autotest: music stations driven:`. It gets the music player (service 0x1D07B39F, interface 0xE0510260) and hashes the number of stations and the current one (the interface's slots 17 and 10), each station's ID and whether it has something of each of the four kinds (station slots 9 and 20), then makes the next station current (slot 14: the old one stops, the new one starts when the player is on, which reads its folders and plays its welcome), reads it, and makes the first one current again. A muted run has no player: the token is ` music -1 0 <hash>`. It is the one test here that starts a sound.
 
-Both run on one day of the run (hooks `audio` and `audio.dialog`) and need build 641.
+`OPENSC4_TEST_PLAYLIST=<day>` adds the token ` playlist <entries> <hash>` and one log line `autotest: playlists driven:`. The stations of the install have no playlists, so the music player's reader (part 4) never runs in a game; this test runs it on files of its own. In `PlaylistTest\` of the run's user folder (the game's `-UserDir`, the same for both runs of a pair) it writes an extended `.m3u` (three pairs, with a drive path, a `sub\..\` part and a title with a comma), a plain `.m3u` (with a blank line, leading spaces, `.\`, `..\`, a path from the root and a zero byte), a `.pls` (one entry with title and length, one with a length only, one with a title only), a `.pls` with its `NumberOfEntries` line first, and names a missing one; each is read by a reader of its own (0x008D569F, 0x008D6B22, 0x008D56C8), and the result, the entries (title, path, length) and the folder are hashed. The entries of each are assigned into one vector in turn (0x008D56EB: it grows, shrinks and grows again within its capacity), which is freed at the end (0x008D51FC). Then 20 names of empty files with set modification times are sorted by time (0x008D5E50), reversed, partly sorted (0x008D5D06 with 5 of 20, the heap code) and shuffled (0x008D546F, which draws from the sound code's sequence under `determinism.fixed_seed`); the order is hashed after each. Everything is called by address; it needs no player and works muted. `<entries>` is the number of entries the five reads left (11).
+
+Each runs on one day of the run (hooks `audio`, `audio.dialog`, `audio.music` and `audio.playlist`) and needs build 641.
 
 ### What the tests cannot compare
 
@@ -304,7 +306,7 @@ The player does little by itself: its methods post a message to the message serv
 | `audio.music.part1` | 42 ours, 2 kept | the player service's life (constructor, destructor, deleting destructor), QueryInterface, AddRef, Release and their twelve this-adjustor thunks, Shutdown, OnTick, service slots 13, 15 and 19, the volume post 0x008D2C5F, and the interface's simple methods: slots 8, 9, 10, 12, 16, 17, 18, 20, 25 to 29, 31 to 33, 35, 36 |
 | `audio.music.part2` | 20 ours | the rest of the player: Init 0x008D4687, slot 16 0x008D49F8, DoMessage 0x008D319B and 0x008D3132, the interface's slots 5 (0x008D30D1, 0x008D2C7D), 7 (0x008D3DC6, 0x008D3BF8), 11 (0x008D484A), 13 (0x008D490B, 0x008D2BFF), 14 (0x008D3066), 19 (0x008D38E5), 21 (0x008D33FF with the find 0x008D335B, 0x008D2C96), 22 (0x008D3733), 23 (0x008D2F21), and the file filters 0x008D3D5D, 0x008D3D33 |
 | `audio.music.part3` | 27 ours | the station class: constructor 0x008D376E, destructor 0x008D3506, deleting destructor 0x008D38AD (slot 15), the station's own vtable slots 0, 5 to 7, 9, 10, 13, 14 and 16 to 26, the shuffle 0x008D3442, and the helpers 0x008D34D1, 0x008D34EC, 0x008D3EE0 and 0x008D3BE2 (see "Part 3") |
-| part 4 | 48 | the playlist readers (0x008D5F5B to 0x008D6B22, `.m3u` and `.pls`) and the string and tree container code they use (0x008D3C38, 0x008D3C67, 0x008D3DEF, 0x008D50B2 to 0x008D5E50); container code shared with other code will stay the game's |
+| `audio.music.part4` | 49 ours | the playlist reader (0x008D569F, 0x008D56C8, 0x008D5F5B to 0x008D6B22: `.m3u`, `.pls`, plain lists), its entries and their vector, and the sort of names by file time with the shuffle of names (0x008D3C38, 0x008D3C67, 0x008D3DEF, 0x008D50B2 to 0x008D5E50 but 0x008D51DB, 0x008D5409 and 0x008D5827); see "Part 4" |
 | not the player's | 3 | 0x008D6CF0 (6,749 bytes, called from 0x008FF8AB, 0x0099EF11 and 0x009B6AE5, none of them the player), 0x008D3333 (a vector erase with ten callers elsewhere), 0x008D3376 (an allocation helper also called from 0x00875337) |
 
 Part 1 in `src/core/music_1.cpp`. The group goes in when core.dll is injected (phase Attach), as the framework's service base does, because the player is made while the application starts, before PostAppInit; its constructor and Shutdown therefore run as ours. The thunk of Init (0x008D51DB) is ours and calls Init by address (ours when part 2 is on).
@@ -361,7 +363,7 @@ Reached unmuted (first-call lines in all three B runs), part 2: Init, slot 16, s
 
 `audio.music.part3`, `src/core/music_3.cpp`, phase Attach as parts 1 and 2 (the stations are made while the application starts). 27 functions, all ours: the constructor 0x008D376E, the destructor 0x008D3506, the deleting destructor 0x008D38AD (slot 15), the station's own slots of the vtable 0x00ACC290 (0 QueryInterface 0x008D2994, 5 Update 0x008D2CFD, 6 0x008D3593, 7 Start 0x008D29D0, 9 the ID 0x008D2E5F, 10 the name 0x008D2E88, 13 0x008D29FC, 14 the filter 0x008D5409, 16 the folders 0x008D3960, 17 0x008D4317, 18 0x008D5EC3, 19 0x008D3485, 20 0x008D2EB0, 21 0x008D338F, 22 0x008D4579, 23 0x008D4127, 24 the welcome 0x008D3E7E, 25 the playlists 0x008D5827, 26 0x008D3F8E), the shuffle 0x008D3442, and four helpers: 0x008D34D1 and 0x008D34EC (the play order's constructor and destructor), 0x008D3EE0 (slot 26's file check) and 0x008D3BE2 (a string copy for slot 18).
 
-Left the game's: slots 1 (AddRef 0x00968B60), 3 and 4 (0x00949ADE, return 1), 8 (0x00A6D837, a bare ret), 11 (0x00891D96, the byte +8) and 12 (0x00994E71, sets +0xF8), framework functions shared with other classes; and Release 0x008D29B9 (slot 2), which three other vtables hold too (0x00A82A28, 0x00AD16D0, 0x00AD4720): the first try had it ours, and its first call came before any station existed. Called by address: part 4's playlist reader (0x008D569F, 0x008D56C8, 0x008D6B22), its entries (0x008D56EB, 0x008D51FC), the sort by folder 0x008D5E50 and the shuffle of names 0x008D546F; the string, list, folder, file and stopwatch code.
+Left the game's: slots 1 (AddRef 0x00968B60), 3 and 4 (0x00949ADE, return 1), 8 (0x00A6D837, a bare ret), 11 (0x00891D96, the byte +8) and 12 (0x00994E71, sets +0xF8), framework functions shared with other classes; and Release 0x008D29B9 (slot 2), which three other vtables hold too (0x00A82A28, 0x00AD16D0, 0x00AD4720): the first try had it ours, and its first call came before any station existed. Called by address: part 4's playlist reader (0x008D569F, 0x008D56C8, 0x008D6B22), its entries (0x008D56EB, 0x008D51FC), the sort by file time 0x008D5E50 and the shuffle of names 0x008D546F; the string, list, folder, file and stopwatch code.
 
 The station:
 
@@ -385,7 +387,7 @@ The station:
 What the code does:
 
 - **Start** (slot 7, what the player calls when a station becomes current) reads the ID and name (slot 22), lists the four folders (slot 16), orders the lists (slot 17) and, once, plays the station's `Welcome.wav` (slot 24).
-- **Slot 16** empties the four lists and fills each with the folder's files that match `*.mp3,*.wav,*.xa,*.m3u,*.pls`, one pattern at a time, then has slot 25 replace every `.m3u` and `.pls` name by the files the playlist names. **Slot 17** orders each list (slot 18: sorted by folder when +0xFC is 1, else shuffled), swaps first and last when the name that was last came out first, and sets the list's place to the first.
+- **Slot 16** empties the four lists and fills each with the folder's files that match `*.mp3,*.wav,*.xa,*.m3u,*.pls`, one pattern at a time, then has slot 25 replace every `.m3u` and `.pls` name by the files the playlist names. **Slot 17** orders each list (slot 18: sorted by the files' modification times, newest first, when +0xFC is 1, else shuffled), swaps first and last when the name that was last came out first, and sets the list's place to the first.
 - **Update** (slot 5, which the player's slot 5 runs on every tick) waits until the player is done with a file, then four seconds more (the stopwatch), then takes the next kind of the play order. After music it plays more music with 75 in 100; DJ is played with 50 in 100, commercials and jingles with 10 in 100. A kind with nothing to play (slot 20: an empty list, or the player's options 0 to 2 off for DJ, commercials, jingles) is passed over. At the end of the order the order is shuffled again (slot 19), with the last kind not first again unless it is music. Slot 23 plays the next file of the kind through the player's slot 7; music with a filter goes to slot 26, which looks for the next name that is (mode other than 1) or is not (mode 1) in the filter.
 - Its `rand()` draws (Update and the shuffle) come from the sound code's own sequence through `fixed_seed::SoundRand()`, as the game's own draws do under `determinism.fixed_seed`, which tells them apart by the caller's address.
 
@@ -403,13 +405,63 @@ Batch `mus3` (2026-10-20), 7 days, `audio.*=ours` on side B (parts 1 to 9 and mu
 
 Big City d0000's first B run had other `adv` and `advisors` values from day 1 on, and the rest of the line was the same, the audio and music sub-hashes among them; its three repeats had A's values. This is the first-run advisor outcome of [parity.md](parity.md) ("The advisor system's generator"), not the sound test's exception above. The music token was ` music 2 1 825A73C3` in every unmuted run of both sides (two stations, the switch made) and ` music -1 0 6B0B6AB1` muted.
 
-Reached (first-call lines in every unmuted B run, the three saves and the retries): the constructor, both destructors, the play order's constructor and destructor, the shuffle, slots 5, 6, 7, 9, 13, 14, 16, 17, 18, 20, 22, 23, 24, 25 and 26, and slot 26's file check. 22 of 27. Not reached: QueryInterface (slot 0), the name (slot 10), the new order (slot 19, which needs the play order run through, longer than these runs), slot 21 (nothing in the player calls it), and the string copy 0x008D3BE2 (only slot 18's sort by folder, with the player's option bit +0x2C set). The muted legs log no first call: there is no player. Parts 1 and 2 reached what they did in `mus2`.
+Reached (first-call lines in every unmuted B run, the three saves and the retries): the constructor, both destructors, the play order's constructor and destructor, the shuffle, slots 5, 6, 7, 9, 13, 14, 16, 17, 18, 20, 22, 23, 24, 25 and 26, and slot 26's file check. 22 of 27. Not reached: QueryInterface (slot 0), the name (slot 10), the new order (slot 19, which needs the play order run through, longer than these runs), slot 21 (nothing in the player calls it), and the string copy 0x008D3BE2 (only slot 18's sort by file time, with the player's option bit +0x2C set). The muted legs log no first call: there is no player. Parts 1 and 2 reached what they did in `mus2`.
+
+### Part 4
+
+`audio.music.part4`, `src/core/music_4.cpp`, phase Attach as parts 1 to 3. 49 functions, all ours: every function of the piece's ranges but Init's thunk 0x008D51DB (part 1) and part 3's 0x008D5409 and 0x008D5827. Each is called only from the music player and none is in a vtable (Ghidra's references and a search of the exe for their addresses), and the shortest is 25 bytes, so none had to stay. The piece's table counted 48; the ranges hold 52 functions.
+
+| Group | Functions |
+| --- | --- |
+| The reader | constructor 0x008D569F, destructor 0x008D56C8, Read 0x008D6B22; the three formats: extended `.m3u` 0x008D64E3, `.pls` 0x008D6824, a plain list 0x008D66C9; the line reader 0x008D6258 with its searches 0x008D5F5B (first character not in a set) and 0x008D5FDC (first in a set); the paths: 0x008D6352 (a name made a full path), 0x008D6123 (a root), 0x008D6196 (a part added), 0x008D6056 (a part split off), 0x008D60C4 (a folder up) |
+| The entries | an entry made 0x008D6171, copied 0x008D3C38, assigned 0x008D50DB; their vector (STLport): copy into raw memory 0x008D50B2, fill 0x008D6230, destroy 0x008D51E3, free 0x008D51FC, allocate and copy 0x008D521A, assign ranges 0x008D5245 and 0x008D54C2, assign 0x008D56EB, the insert that grows it 0x008D63F3, push_back 0x008D64AB |
+| The sort | 0x008D5E50 (what part 3's slot 18 calls) and STLport's introsort under it: the comparator 0x008D3C67, the median 0x008D3DEF, the partition 0x008D5277, the loop 0x008D5D3F, the insertion sorts 0x008D5C8F, 0x008D5B62, 0x008D5A7D, 0x008D54DF, 0x008D52DF, 0x008D5102, the heap code 0x008D5D06, 0x008D5BBA, 0x008D57B9, 0x008D5580, 0x008D5355, 0x008D5158, 0x008D5B03, 0x008D57F1, 0x008D562B, 0x008D5515; and the shuffle of names 0x008D546F |
+
+Called by address and left the game's: the allocation of entries 0x008D3376 (also called from 0x00875337), the strings' copy_backward 0x005C82C0 and the destructor of a pair of strings 0x0091C947 (both shared), the framework's string, file and path code (the full path 0x0091AA3B, `RZFile::F91AA3B`, is not analysed), and the file time 0x00918CB1.
+
+The reader is 0x48 bytes: the vector of entries, the playlist's full path (+0x0C), its folder (+0x20) and the text still to read (+0x34). An entry is 0x2C bytes: the title, the path and the length in seconds. Part 3's slot 25 makes a reader for each `.m3u` or `.pls` name, reads it, and when the read returns 1 adds each entry's path to the list.
+
+What the code does:
+
+- **Read** keeps the full path (0x0091AA3B, else the path as given) and its folder, reads the whole file into the text with its zero bytes (but the last byte) made spaces, and reads the first line: `#EXTM3U` is an extended `.m3u`, `[playlist]` a `.pls`; anything else is a plain list, read from the start again. It returns what the format's reader returns, 0 when the file cannot be opened or read.
+- **A line** is what follows the white space (space, tab, line breaks) up to the next `\n` or `\r`, trimmed and converted (code page -1). The white space and the line are taken off the text; blank lines are skipped.
+- **Paths.** Each entry's path is made a full path: the playlist's folder, then each part of the name: a drive (`C:\`) or a leading backslash sets the root, a part of n dots goes n - 1 folders up, any other part is added.
+- **Extended `.m3u`.** Pairs of lines: `#EXTINF:<seconds>,<title>` and the path. Returns 1 at the end of the text; 0 when a first line is not `#EXTINF:` or the last pair has no path.
+- **Plain list.** A path a line; the title is the file's name without its extension, the length 0. Returns 1.
+- **`.pls`.** Lines are read up to the one that begins `NumberOfEntries`. A `File<n>=` line's path is taken with the `Title<n>=` and `Length<n>=` lines right after it when they are there; a line that is neither is kept for the next turn. Returns whether the number of entries read is the number after `NumberOfEntries=` (1 for an empty text, 0 when the text ends first).
+- **The sort** puts a name before another when the folder plus that name has the later modification time (`stat`'s, through 0x00918CB1 with 2; 0 for a missing file): newest first. Part 3's slot 18 uses it when the player's option bit +0x2C is set, which the game does not set in these tests.
+- **The shuffle** of names draws from the sound code's own sequence through `fixed_seed::SoundRand()`, as the game's does under `determinism.fixed_seed` (its range 0x008D546F to 0x008D54C3 is in `kSoundCallers`).
+
+Kept quirks:
+
+- A playlist whose last line has no line break: that line is not taken off the text, so it is read again and again. A plain list or a `.pls` without its `NumberOfEntries` line then never ends (the game hangs); an extended `.m3u` returns 0.
+- A `.pls` whose `NumberOfEntries` line comes before the entries (a common layout) returns 0, and part 3 then takes none of its entries.
+- An extended `.m3u` or a `.pls` that returns 0 has its entries read so far dropped the same way.
+- In a `.pls`, while it looks for the line after an entry, it tests whether the entry's path, not that line, begins with `File`.
+- The plain list joins a path to the playlist's when the line has `:` and `\\` at its first place (a "not found" of -1 was taken for 0), which no line can have; every path is made full from the folder anyway.
+- Read does not free its buffer when the read fails, and an empty file runs the loop that makes zero bytes spaces past its buffer (its count is the size minus 1, unsigned).
+- A part split off a path takes one character more than there is when it has no backslash (the string's end); the string's assignment stops at its end.
+- The insert that grows the vector is always asked for one entry, so the fill 0x008D6230 is never called.
+
+#### Parity of part 4
+
+Batch `mus4` (2026-10-21), 7 days, `audio.*=ours` on side B (parts 1 to 9 and music parts 1 to 4), the base list with `determinism.dispatch_info`, `OPENSC4_TEST_AUDIO=3`, `OPENSC4_TEST_AUDIO_DIALOG=4`, `OPENSC4_TEST_MUSIC=3` and `OPENSC4_TEST_PLAYLIST=2`, three jobs (another game running on the machine):
+
+| Leg | Saves | Result |
+| --- | --- | --- |
+| unmuted | 3 (Big City d0000, Making Money d0090, Rush Hour d0365) | 3 same on the first pair (8 of 8 days) |
+| muted trial | the same 3 | 3 same on the first pair |
+| muted | 12 | 12 same on the first pair |
+
+No retry was needed: neither the first-run advisor outcome nor the sound test's exception came up. The playlist token was the same on both sides of every pair (` playlist 11 <hash>`: 3 entries of the extended `.m3u`, 5 of the plain list, 3 of the `.pls`, none of the `.pls` with its count first or of the missing file). Its hash differs from save to save: the paths hold the job's user folder, and the shuffle's draws follow the sound sequence. The music token was ` music 2 1 825A73C3` unmuted and ` music -1 0 6B0B6AB1` muted, as in `mus3`.
+
+Reached (first-call lines in every B run of the three legs, muted ones too, since the playlist test needs no player): 48 of 49, all but the fill 0x008D6230, which nothing calls (see the quirks). In a game without the test only the shuffle of names is reached (part 3's slot 18; the stations have no playlists and the sort by file time needs the player's option bit). Parts 1 to 3 reached what they did in `mus3` in the unmuted leg and nothing muted.
 
 ## Not done
 
 - The functions in the fence table above that are shared with other classes or are generic container code. They could become ours only together with their other users.
 - The sound library (AEMS) and its pointer table. They are EA's code; a replacement would be a new sound engine, not a rewrite.
-- The framework's sound service, and the music player's piece 4 (see "Music player").
+- The framework's sound service. Of the music player's range, six functions stay the game's: the three in the "not the player's" row of its pieces table, the two 4-byte slots of part 1 and the shared Release of part 3 (see "Music player").
 - Playback checks. Everything above is compared by state; nothing here shows that the rewritten code sounds the same.
 - The director's start-up code is ours but is not run in a normal test: the game's versions have already run by PostAppInit (see above).
 - Tracks and sounds that are not the game's. New sounds and soundtracks are on the [roadmap](../ROADMAP.md) as an idea only and are not started.
