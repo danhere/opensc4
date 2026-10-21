@@ -36,7 +36,7 @@
 // Still the game's, called by address: the shared slots above (Release
 // 0x008D29B9 is in three other vtables: 0x00A82A28, 0x00AD16D0, 0x00AD4720); part 4's
 // playlist reader (0x008D569F, 0x008D56C8, 0x008D6B22), its entries
-// (0x008D56EB, 0x008D51FC), the folder sort 0x008D5E50 and the name shuffle
+// (0x008D56EB, 0x008D51FC), the sort by file time 0x008D5E50 and the name shuffle
 // 0x008D546F; the string, list, folder, file and stopwatch code.
 //
 // The kinds: 0 music, 1 DJ, 2 commercials, 3 jingles. Each has a folder
@@ -561,9 +561,10 @@ void __fastcall ShuffleLists(char* self, void*, uint32_t how)
 }
 
 // The game's 0x008D5EC3 (slot 18, ret 0xC): a list copied into a vector,
-// sorted by the folder (part 4's 0x008D5E50, which takes the folder by
-// value and destroys it) when `how` is 1, else shuffled (0x008D546F), and
-// copied back. The object is not used.
+// sorted by the files' modification times in the folder, newest first
+// (part 4's 0x008D5E50, which takes the folder by value and destroys it)
+// when `how` is 1, else shuffled (0x008D546F), and copied back. The object
+// is not used.
 void __fastcall OrderList(char*, void*, void* folder, StringNode** list, uint32_t how)
 {
     static bool logged = false;
@@ -580,7 +581,7 @@ void __fastcall OrderList(char*, void*, void* folder, StringNode** list, uint32_
     if (how == 1) {
         GameString copy;
         This<void*>(addr::GZRadioStation_CopyString, &copy, folder);
-        reinterpret_cast<void(__cdecl*)(char*, char*, GameString)>(addr::GZRadioStation_SortByFolder)(at, names.end, copy);
+        reinterpret_cast<void(__cdecl*)(char*, char*, GameString)>(addr::GZRadioStation_SortByFileTime)(at, names.end, copy);
     } else {
         Cdecl<void>(addr::GZRadioStation_ShuffleNames, at, names.end);
     }

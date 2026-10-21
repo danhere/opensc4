@@ -36,9 +36,9 @@ The framework is not one block. The linker kept each library's object files toge
 | 0x00930B02-0x00930BC3 | The critical section wrapper (constructor 0x00930B91, vtable 0x00AD1EF4) |
 | 0x00932000-0x00936000 | A callback service, the debug log (groups, back ends, levels) |
 | 0x00936000-0x00940000 | Resource manager set-up, the sound engine's tracks (not framework) |
-| 0x00939040-0x0095FFFF | The UI layer: the property set and its values, their readers and writers, the UI script tree, the framework window and the stock widgets ([gzui.md](gzui.md); the property set is ours) |
+| 0x00939040-0x0095FFFF | The UI layer: the property set and its values, their readers and writers, the UI script tree, the framework window and the stock widgets ([gzui.md](gzui.md); the property set, its readers and writers and the factory are ours) |
 
-The UI layer, from the property set at 0x00939040 to the widgets past 0x0095FFFF, has a document of its own: [gzui.md](gzui.md) (survey, split into pieces u1 to u17, and part u1, the property set and its values, `framework.propset.*`).
+The UI layer, from the property set at 0x00939040 to the widgets past 0x0095FFFF, has a document of its own: [gzui.md](gzui.md) (survey, split into pieces u1 to u17, part u1, the property set and its values, `framework.propset.*`, and part u2, the property sets' readers and writers, the factory and the classes it makes, `framework.propio.*`).
 
 About 34,556 functions make up the exe; the framework proper (framework object, COM object, director base, service base, message servers and queue, critical section, message) is about 300 of them.
 
