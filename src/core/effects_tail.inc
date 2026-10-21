@@ -227,3 +227,127 @@ uint32_t StopListening(char* tables)
     TlClearHash(tables + 0xC80);
     return TlClearTexts(tables);
 }
+
+// Slot 4 of the tables' interface (0x005900A0; this is the manager +
+// 0x94): the game first calls an empty function (0x00407990), left out
+// here. The list of floats at +0xD4 assigned to +0xC20 (0x00464430) and the
+// four words after it copied; the list read at the city view's zoom (its
+// +0xC, times 0.25, times the list's last index, floored by the 1.5 x
+// 2^23 rounding and the rest a fraction between two values) into +0xC3C.
+// Then for each 20-byte entry from +0xF0, the name map at +4's equal
+// range for it (0x00586EF0) walked: each node's value with the entry's
+// +0xC and +0x10 put into the pair hash at +0xC6C (grown first to one more
+// than its count, 0x0058F3C0; inserted, 0x0058F230), the walk going to the
+// next bucket's first node at the end of a chain (a name's hash h * 5 plus
+// each character). The messages (16 bytes each from +0xFC) numbered in the
+// map at +0xC80 (0x004F8D30) and, with the message server at 0x00B43CCC,
+// each listened for (slot 0x14) for the manager + 8.
+uint32_t StartListening(char* tables)
+{
+    LsAssignFloats(tables + 0xC20, tables + 0xD4);
+    for (uint32_t at = 0xC; at <= 0x18; at += 4)
+        At<uint32_t>(tables, 0xC20 + at) = At<uint32_t>(tables, 0xD4 + at);
+    float* const curve = At<float*>(tables, 0xC20);
+    const uint32_t last = static_cast<uint32_t>((At<char*>(tables, 0xC24) - reinterpret_cast<char*>(curve)) >> 2) - 1;
+    if (last == 0) {
+        At<float>(tables, 0xC3C) = curve[0];
+    } else {
+        const double place = static_cast<double>(At<int32_t>(M<char*>(0x00B43DD8), 0xC)) * M<float>(0x00A8821C) *
+                             HmUnsigned(last);
+        const uint32_t i = HmFloor(place);
+        const double fraction = place - HmUnsigned(i);
+        At<float>(tables, 0xC3C) =
+            fraction > 0.0
+                ? static_cast<float>((static_cast<double>(curve[i + 1]) - curve[i]) * fraction + curve[i])
+                : curve[i];
+    }
+    // The pair hash's count (+0xC7C), kept here: one more for each pair the
+    // insert says it put in (in a replay the insert's note has only that).
+    uint32_t pairs = At<uint32_t>(tables, 0xC7C);
+    for (uint32_t e = 0; e < static_cast<uint32_t>((At<char*>(tables, 0xF4) - At<char*>(tables, 0xF0)) / 20); ++e) {
+        char* const entry = At<char*>(tables, 0xF0) + e * 20;
+        char range[0x10] = {};
+        TlEqualRange(tables + 4, range, entry);
+        char* node = At<char*>(range, 0);
+        char* const map = At<char*>(range, 4);
+        while (node != At<char*>(range, 8)) {
+            uint32_t pair[3] = {At<uint32_t>(entry, 0xC), At<uint32_t>(entry, 0x10), At<uint32_t>(node, 0x10)};
+            TlGrowPairs(tables + 0xC6C, pairs + 1);
+            char out[0xC] = {};
+            TlInsertPair(tables + 0xC6C, out, pair);
+            if (At<uint8_t>(out, 8))
+                ++pairs;
+            if (At<char*>(node, 0)) {
+                node = At<char*>(node, 0);
+                continue;
+            }
+            uint32_t hash = 0;
+            const char* const name = At<char*>(node, 4);
+            const uint32_t length = static_cast<uint32_t>(At<char*>(node, 8) - name);
+            for (uint32_t c = 0; c < length; ++c)
+                hash = hash * 5 + static_cast<uint32_t>(static_cast<int32_t>(static_cast<signed char>(name[c])));
+            char** const buckets = At<char**>(map, 4);
+            const uint32_t count = static_cast<uint32_t>(At<char*>(map, 8) - reinterpret_cast<char*>(buckets)) >> 2;
+            uint32_t bucket = hash % count;
+            node = nullptr;
+            while (++bucket < count) {
+                if ((node = buckets[bucket]))
+                    break;
+            }
+        }
+    }
+    for (uint32_t i = 0; i < static_cast<uint32_t>((At<char*>(tables, 0x100) - At<char*>(tables, 0xFC)) >> 4); ++i) {
+        if (uint32_t* const number = TlLookup(tables + 0xC80, At<char*>(tables, 0xFC) + i * 0x10))
+            *number = i;
+    }
+    if (char* const server = M<char*>(0x00B43CCC)) {
+        for (uint32_t i = 0; i < static_cast<uint32_t>((At<char*>(tables, 0x100) - At<char*>(tables, 0xFC)) >> 4);
+             ++i)
+            VrCallSlot<uint32_t>(server, 0x14, tables - 0x94 ? tables - 0x8C : nullptr,
+                                 At<uint32_t>(At<char*>(tables, 0xFC) + i * 0x10, 0));
+    }
+    return 0;
+}
+
+// 0x00590380 (ret 4): an occupant going away. With a height map and +0x1AE
+// clear, an occupant that lifts (0x0058E260) has the map's first layer
+// cleared over its cell rectangle two cells wider on every side and three
+// to the high side (the map's slot 0x2C); then every occupant of type
+// 0x278128A0 in that rectangle two cells wider again (the occupant manager
+// at 0x00B43D0C, slot 0xA4, into a list made by the node allocator at
+// 0x00B207E4, slot 0xC) lifts it again (0x0058E720) and is let go (slot 8);
+// the list ended (0x00413FE0). The allocator is made first when there is
+// none (the framework's 0x3AE4BEA3/0x3AE4BEAB object, its holder let go,
+// 0x00411870).
+void RelieveUnderOccupant(char* manager, char* occupant)
+{
+    char* const map = At<char*>(manager, 0xD98);
+    if (!map || At<uint8_t>(manager, 0x1AE) || !TlOccupantLifts(occupant))
+        return;
+    float low[3] = {1.0f, 1.0f, 1.0f}, high[3] = {0.0f, 0.0f, 0.0f};
+    VrCallSlot<uint32_t>(occupant, 0x28, low, high);
+    int32_t rect[4] = {};
+    VrCallSlot<uint32_t>(occupant, 0x2C, rect);
+    rect[0] -= 2;
+    rect[1] -= 2;
+    rect[2] += 3;
+    rect[3] += 3;
+    VrCallSlot<uint32_t>(map, 0x2C, 1u, rect);
+    int32_t from[2] = {rect[0] - 2, rect[1] - 2}, to[2] = {rect[2] + 2, rect[3] + 2};
+    if (!M<char*>(0x00B207E4)) {
+        char* made = nullptr;
+        if (char* const framework = reinterpret_cast<char*(__cdecl*)()>(addr::RZGetFramework)())
+            VrCallSlot<uint32_t>(framework, 0x14, 0x3AE4BEA3u, 0x3AE4BEABu, &made);
+        M<char*>(0x00B207E4) = made;
+        TlReleaseRef(&made);
+    }
+    char* holder = VrCallSlot<char*>(M<char*>(0x00B207E4), 0xC, 0xCu);
+    At<char*>(holder, 0) = holder;
+    At<char*>(holder, 4) = holder;
+    VrCallSlot<uint32_t>(M<char*>(0x00B43D0C), 0xA4, &holder, from, to, 0x278128A0u, 0xFFFFFFFFu);
+    for (char* node = At<char*>(holder, 0); node != holder; node = At<char*>(node, 0)) {
+        TlLiftUnderOccupant(manager, At<char*>(node, 8));
+        VrCallSlot<uint32_t>(At<char*>(node, 8), 8);
+    }
+    TlDestroyList(&holder);
+}
