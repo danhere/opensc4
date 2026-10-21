@@ -1,0 +1,446 @@
+# The GZ framework's property sets and their values (src/core/gzui_propset.cpp, docs/gzui.md).
+
+[[entry]]
+name = "cGZPropertySet::Construct"
+address = 0x00939237
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 83 66 04 00 8D"
+source = "Name ours. The property set (0x18 bytes: vtable, count at +4, a map of uint32 keys to value blocks at +8 with its size at +0xC, the cursor at +0x14). No arguments, plain ret; returns the object. Called by the window constructors 0x0093EAA1 and 0x0093FE12 and the two subclasses 0x00939750 and 0x009396D8. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::QueryInterface"
+address = 0x00939254
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "83 7C 24 04 01 74 0E 81"
+source = "Name ours. Slot 0; `ret 8`. Answers 1 and 0xEBB10CDD. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::Release"
+address = 0x00939279
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 04 83 F8 01 77 0A"
+source = "Name ours. Slot 2; plain ret. At a count of 1 or less the deleting destructor (slot 11, flag 1) and 0; the count is not lowered first. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::SetProperty"
+address = 0x009393D4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const uint32_t* key, void* value)"
+expect = "55 8B EC 56 57 FF 75 08"
+source = "Name ours. Slot 3; `ret 8`. A key already there: the old value destroyed in place (its slot 0, flag 0), the block resized to the new value's size (slot 5) and the new value cloned into it (slot 3); otherwise Insert. Answers 1. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::Insert"
+address = 0x00939431
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key, void* value)"
+expect = "55 8B EC 83 EC 24 8B 45"
+source = "Name ours. `ret 8`; called by SetProperty only. A zeroed block of the value's size, the pair copied into the map (0x009394CF) and the value cloned into the node's block; returns the node's pair (node + 0x10), or 0 when the key was there. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::RemoveProperty"
+address = 0x0093934A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const uint32_t* key)"
+expect = "56 57 FF 74 24 0C 8D 79"
+source = "Name ours. Slot 4; `ret 4`. The value destroyed in place, then EraseNode. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::EraseNode"
+address = 0x00939380
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map, void* node)"
+expect = "56 57 8B F9 8B 07 8D 48"
+source = "Name ours. `ret 4`; this is the map at +8. The tree's erase (0x0040DAF0), the pair's block freed (0x009383F4), the node freed and the size lowered. Called by RemoveProperty only. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::RemoveAll"
+address = 0x00939040
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 57 8D 79 08 8B 07 8B"
+source = "Name ours. Slot 5; plain ret. Every value destroyed in place in key order, then the map's clear 0x00938C27 (a tail jump). Also called by the destructor. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::GetFirst"
+address = 0x00939290
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t* key, void** value)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Slot 6; `ret 8`. Either pointer null: 0 and the cursor untouched; else the cursor at the first node, and its key and value block. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::GetNext"
+address = 0x009392C7
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t* key, void** value)"
+expect = "56 8B F1 57 FF 76 14 E8"
+source = "Name ours. Slot 7; `ret 8`. The cursor moves on first, whatever the pointers. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::GetProperty"
+address = 0x00939306
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const uint32_t* key, void* out)"
+expect = "56 FF 74 24 08 8D 71 08"
+source = "Name ours. Slot 8; `ret 8`. The out value's slot 1 (CopyFrom, which checks the type) with the stored value. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::HasProperty"
+address = 0x0093932E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const uint32_t* key)"
+expect = "56 FF 74 24 08 8D 71 08"
+source = "Name ours. Slot 9; `ret 4`. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::Destruct"
+address = 0x009393BD
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 C7 06 D4 27 AD"
+source = "Name ours. Plain ret: the vtable, RemoveAll (0x00939040, called directly), the map's destructor 0x00938C85 (a tail jump). The subclasses' destructors call it too. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::DeletingDestructor"
+address = 0x00939607
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 AE FD FF FF"
+source = "Name ours. Slot 11; `ret 4`. Ours in framework.propset.set (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySet::Vtable"
+address = 0x00AD27D4
+kind = "vtable"
+expect = "54 92 93 00 60 8B 96 00"
+source = "Name ours. 12 slots: QueryInterface, AddRef (0x00968B60, shared), Release, SetProperty, RemoveProperty, RemoveAll, GetFirst, GetNext, GetProperty, HasProperty, Count (0x009CEDE1, shared: the map's size at +0xC), the deleting destructor. The subclasses' vtables 0x00AD2920 and 0x00AD2898 share slots 3 to 10."
+
+[[entry]]
+name = "GZPropertyMap::Clear"
+address = 0x00938C27
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map)"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. The property map's clear (the nodes freed through 0x009389EF, the header reset, the size 0). Also called by 0x00939DA1. Called by our RemoveAll; stays the game's."
+
+[[entry]]
+name = "GZPropertyMap::Destroy"
+address = 0x00938C85
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map)"
+expect = "56 8B F1 E8 9A FF FF FF"
+source = "Name ours. The clear 0x00938C27 and the header freed. Called by our property set destructor; stays the game's."
+
+[[entry]]
+name = "GZPropertyMap::InsertUnique"
+address = 0x009394CF
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, void* result, const void* pair)"
+expect = "55 8B EC 53 8B D9 8B 0B"
+source = "Name ours. `ret 8`: STLport insert_unique of a (uint32 key, byte vector) pair; the result is the node and a byte, inserted. Called by our Insert; stays the game's."
+
+[[entry]]
+name = "GZPropertyPair::Destroy"
+address = 0x009383F4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* pair, uint32_t flags)"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. `ret 4`: the pair's byte block freed (0x0090CF63) and, with flag 1, the pair. Also called by 0x009389EF. Called by our EraseNode; stays the game's."
+
+[[entry]]
+name = "GZRefPtr::Assign"
+address = 0x0094909A
+kind = "function"
+convention = "thiscall"
+signature = "void** (void** ref, void* object)"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. `ret 4`: a counted reference takes another object (AddRef of the new one, then Release of the old one); returns the reference. Called from all over the framework; stays the game's."
+
+[[entry]]
+name = "cGZPropertyValue::DeletingDestructor"
+address = 0x00940BC5
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "F6 44 24 04 01 56 8B F1"
+source = "Name ours. Slot 0 of the value base 0x00AD251C and of the uint32, sint32, float and bool values; `ret 4`. The base's vtable and, with flag 1, the object freed. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyValue::DataSize"
+address = 0x00940DAC
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 01 FF 50 14 83 E8 04"
+source = "Name ours. Slot 6 of all five values; plain ret. Slot 5 (the object's size) less 4. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyValue::CompareBytes"
+address = 0x009378D3
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const void* other)"
+expect = "8D 41 04 8B 4C 24 04 56"
+source = "Name ours. Slots 7 and 8 of the uint32, sint32, float and bool values; `ret 4`. The four bytes at +4 against the other's, in memory order, as signed chars: -1, 0 or 1 (a bool's three padding bytes are compared too). Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyNumber::CopyFrom"
+address = 0x00940DB5
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Slot 1 of the uint32, sint32 and float values; `ret 4`. Null or another type (slot 4 of each): 0; else the dword at +4 copied. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyNumber::Assign"
+address = 0x00937EC2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* other)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. Slot 2 of the uint32, sint32 and float values; `ret 4`. CopyFrom without the null test. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyUint32::Clone"
+address = 0x00937EF1
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* place)"
+expect = "8B 44 24 04 85 C0 74 0C"
+source = "Name ours. Slot 3; `ret 4`. A copy made at place; returns place (at null nothing is made and the game answers its caller's EAX, ours 0). Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyUint32::GetType"
+address = 0x009378CD
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 F7 E4 61 EB C3 8D 41"
+source = "Name ours. Slot 4: 0xEB61E4F7. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyUint32::Vtable"
+address = 0x00AD25FC
+kind = "vtable"
+expect = "C5 0B 94 00 B5 0D 94 00"
+source = "Name ours. 9 slots: the base's deleting destructor, CopyFrom, Assign, Clone, GetType, the size (0x00940DA8: 8, shared with unrelated code), DataSize, CompareBytes twice. The game makes these on the stack (0x00942F24, 0x009409E0, 0x009425A2)."
+
+[[entry]]
+name = "cGZPropertyFloat32::Clone"
+address = 0x0093BB22
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* place)"
+expect = "8B 44 24 04 85 C0 74 0C"
+source = "Name ours. Slot 3; `ret 4`. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyFloat32::GetType"
+address = 0x0093AAAF
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 08 87 C7 AB C3 56 8B"
+source = "Name ours. Slot 4: 0xABC78708. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyFloat32::Vtable"
+address = 0x00AD2BA4
+kind = "vtable"
+expect = "C5 0B 94 00 B5 0D 94 00"
+source = "Name ours. 9 slots, as the uint32 value's with its own Clone and GetType."
+
+[[entry]]
+name = "cGZPropertySint32::Clone"
+address = 0x00940DE8
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* place)"
+expect = "8B 44 24 04 85 C0 74 0C"
+source = "Name ours. Slot 3; `ret 4`. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySint32::GetType"
+address = 0x00940DA2
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 12 47 26 0C C3 6A 08"
+source = "Name ours. Slot 4: 0x0C264712. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertySint32::Vtable"
+address = 0x00AD4468
+kind = "vtable"
+expect = "C5 0B 94 00 B5 0D 94 00"
+source = "Name ours. 9 slots, as the uint32 value's with its own Clone and GetType."
+
+[[entry]]
+name = "cGZPropertyBool::CopyFrom"
+address = 0x00940BE2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Slot 1; `ret 4`. As the numbers' with the byte at +4. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyBool::Assign"
+address = 0x00940C15
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* other)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. Slot 2; `ret 4`. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyBool::Clone"
+address = 0x00940C44
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* place)"
+expect = "8B 44 24 04 85 C0 74 0C"
+source = "Name ours. Slot 3; `ret 4`. Only the byte at +4 is copied. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyBool::GetType"
+address = 0x00940BBF
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 E1 08 A9 CB C3 F6 44"
+source = "Name ours. Slot 4: 0xCBA908E1. Ours in framework.propset.values (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyBool::Vtable"
+address = 0x00AD4444
+kind = "vtable"
+expect = "C5 0B 94 00 E2 0B 94 00"
+source = "Name ours. 9 slots: the base's deleting destructor, CopyFrom, Assign, Clone, GetType, the size (0x00940DA8), DataSize, CompareBytes twice."
+
+[[entry]]
+name = "cGZPropertyString::Destruct"
+address = 0x0094002A
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 4E 04 85 C9"
+source = "Name ours. Plain ret: the string at +4 released (the pointer is left as it is), the base's vtable. Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::DeletingDestructor"
+address = 0x0094065E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 C4 F9 FF FF"
+source = "Name ours. Slot 0; `ret 4`. Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::CopyConstruct"
+address = 0x00940627
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "8B 44 24 04 56 8B F1 C7"
+source = "Name ours. `ret 4`: the other's string shared (AddRef). Called by Clone. Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::ConstructFromIGZString"
+address = 0x009407F4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const cIGZString* text)"
+expect = "56 8B F1 57 C7 06 D8 43"
+source = "Name ours. `ret 4`: a new game string (0x0040AE00) held at +4. Called by 0x009409E0, 0x00940C5B and 0x009425A2. Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::ConstructFromText"
+address = 0x0094082E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const char* text)"
+expect = "56 8B F1 57 C7 06 D8 43"
+source = "Name ours. `ret 4`: a new game string (0x00408480) held at +4. Called by 0x00942F24. Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::CopyFrom"
+address = 0x0094059B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Slot 1; `ret 4`. Null or another type: 0; else the other's string taken (unless the other is this value). Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::Assign"
+address = 0x009405D9
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* other)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours. Slot 2; `ret 4`. CopyFrom without the null test. Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::Clone"
+address = 0x00940613
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* place)"
+expect = "83 7C 24 04 00 74 0A 51"
+source = "Name ours. Slot 3; `ret 4`. CopyConstruct at place (nothing for null). Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::GetType"
+address = 0x0093FFCE
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 18 EA 8B 0B C3 FF 49"
+source = "Name ours. Slot 4: 0x0B8BEA18. Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::Compare"
+address = 0x00940649
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const void* other)"
+expect = "8B 44 24 04 8B 49 04 8B"
+source = "Name ours. Slots 7 and 8; `ret 4`. The string's slot 12 (CompareTo) with the other's string and 1. Ours in framework.propset.string (docs/gzui.md)."
+
+[[entry]]
+name = "cGZPropertyString::Vtable"
+address = 0x00AD43D8
+kind = "vtable"
+expect = "5E 06 94 00 9B 05 94 00"
+source = "Name ours. 9 slots: DeletingDestructor, CopyFrom, Assign, Clone, GetType, the size (0x00940DA8), DataSize, Compare twice."
+
+[[entry]]
+name = "cGZPropertyValue::Vtable"
+address = 0x00AD251C
+kind = "vtable"
+expect = "C5 0B 94 00 10 4A 5D 00"
+source = "Name ours. The value base: its deleting destructor 0x00940BC5 and eight pure slots."
