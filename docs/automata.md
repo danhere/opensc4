@@ -658,7 +658,7 @@ The group is found by the three classes' vtables, less nothing shared outside th
   - TranslateDispatchLocation and ChaseAutomaton (19 to 22): 0x00507120, 0x00506F50, 0x00511260, 0x005072E0.
   - The exemplar choices (25 to 27): 0x0050BE90, 0x0050C0D0, 0x0050C1D0. GetInstancesOfGroup (32) 0x00510040. SetCameraFollow (34) 0x0050A930.
   - Slots 40 to 43, 45 to 50, 53 to 57, 59 to 65 and 67: 0x00506600, 0x00507AC0, 0x0050C8B0, 0x00507B80, 0x00511990, 0x00510690, 0x0050A740, 0x00506CD0, 0x00505350, 0x0050A5D0, 0x0050C6A0, 0x00506D50, 0x0050C7E0, 0x0050F2C0, 0x0050A670, 0x0050F690, 0x0050A520, 0x005073D0, 0x00507430, the frame update 0x0050A7B0 with 0x00507BF0, 0x00507470 (1,606 bytes), 0x0050F930, 0x0050F9C0 (1,245).
-- **aw4 (35, about 9,500 bytes): the aircraft manager's behaviour and the watercraft manager's life cycle, save and messages.**
+- **aw4 (35, about 9,500 bytes, done): the aircraft manager's behaviour and the watercraft manager's life cycle, save and messages.** Below ("Part aw4").
   - Aircraft (11): AddAutomaton 0x004FA6D0, Init 0x004FA9E0, HandleTuningParametersChanged 0x004FAA50, slots 17 and 18 (0x004FAAF0, 0x004FC440), Write 0x004FB5B0, Shutdown 0x004FB7D0, Read 0x004FBE70, DoMessage 0x004FC710 with 0x004FB8D0 and 0x004FB2B0.
   - Watercraft (24): Init 0x00567B90, Shutdown 0x005744A0, the tuning 0x00567BF0, AddAutomaton 0x0056F7C0, RemoveAutomaton 0x0056F800, Write 0x0056FA70, Read 0x005749E0 (1,917 bytes), DoMessage 0x00575500 with 0x00574520 and 0x00575170, and their helpers 0x00574340, 0x00574230, 0x005732F0, 0x005734E0, 0x00573520, 0x00574830, 0x00574260, 0x0056C850, 0x00570D10, 0x00570D60, 0x0056D7F0, 0x0056D6E0, 0x0056C910, 0x0056F740.
 - **aw5 (23, about 11,000 bytes): the watercraft manager's creation, routes and frames.** CreateAutomaton (15) 0x00568F30, GetRandomCreationPoint (16) 0x0056C990 (1,321 bytes), the frame update (63) 0x005736A0 (2,941), and 0x00566DA0, 0x00566E60, 0x00567C90, 0x00567CE0, 0x005684C0, 0x00568CE0, 0x00568FD0, 0x0056C940, 0x0056D5F0, 0x0056F510, 0x0056F670, 0x0056FD60, 0x00570CC0, 0x00570DF0, 0x005710A0 (1,417), 0x00571630, 0x00572360, 0x005723D0, 0x00573230, 0x00573580.
@@ -890,6 +890,147 @@ Reached (our first-call log lines, trial Making Money d0000, 4 days): all 36. By
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Rush Hour t0000, Big City d1095 and Rush Hour d0090 needed more pairs: the original itself had two outcomes there, and each of B's outcomes was one of them. Every B run (18) carried the aw3 token (then ` C`; renamed ` D` when part c1 took ` C`) and reached all 36 functions. In two saves the controller table had a network occupant (flags 1), so slot 55's network branch ran there too.
+
+## Part aw4: the aircraft manager's behaviour and the watercraft manager's life cycle, save and messages
+
+### What is ours
+
+35 functions in four more groups, off by default. These are the two managers' own slots: each calls the common base's function of its slot at the game's address, so with parts aw2 and aw3 on as well the whole chain is ours.
+
+- **`simulators.automata.awmgr.air` (11), in [automata_awmgr_air.cpp](../src/core/automata_awmgr_air.cpp):**
+  - AddAutomaton (slot 7) 0x004FA6D0, Init (3) 0x004FA9E0, Shutdown (4) 0x004FB7D0.
+  - HandleTuningParametersChanged (24) 0x004FAA50.
+  - The two dispatch slots 17 (0x004FAAF0) and 18 (0x004FC440).
+  - Write 0x004FB5B0 and Read 0x004FBE70 (the serializable part's slots 3 and 4).
+  - DoMessage 0x004FC710 (the message target's slot 3), with the occupant removed handler 0x004FB8D0 and its list find 0x004FB2B0.
+- **`simulators.automata.awmgr.water.life` (5), in [automata_awmgr_water.cpp](../src/core/automata_awmgr_water.cpp):** Init 0x00567B90, Shutdown 0x005744A0, the tuning (24) 0x00567BF0, AddAutomaton 0x0056F7C0, RemoveAutomaton (8) 0x0056F800.
+- **`simulators.automata.awmgr.water.serial` (8):**
+  - Write 0x0056FA70 and Read 0x005749E0.
+  - The pair insert 0x0056C850 and the route insert without a resize 0x00574260.
+  - The record copies 0x00570D10 (into new storage) and 0x00570D60 (assigned), the ferry route's assignment 0x0056D7F0, and the records' destroy 0x0056F740 (which part aw1 called at its address).
+- **`simulators.automata.awmgr.water.messages` (11):**
+  - DoMessage 0x00575500, the occupant's addition 0x00575170 and its removal 0x00574520.
+  - The route table's erase 0x00574340 and node release 0x00574230, the route value's destructor 0x005732F0, the records' clear 0x005734E0, the route pair's constructor 0x00573520 and the route insert with its resize 0x00574830.
+  - The pair tables' erase 0x0056D6E0 and node release 0x0056C910.
+
+A helper that two groups call belongs to the group of its first user, in the order life, serial, messages.
+
+What they do:
+
+- **The aircraft manager.**
+  - **Init** runs once. It calls the common base's Init, keeps an occupant filter of its own at +0xA98, puts the generator's address (+0x50) into 0x00B21AF4 and runs slot 24.
+  - **Shutdown** releases the map's occupants and aircraft (+0xA88), frees the list of records at +0xA94 and releases the filter. Then it calls the common base's Shutdown and clears 0x00B21AF4.
+  - **The tuning** sets the most automata from 0x00B21BC8 and the least zoom from property 0x4998C91A, less one.
+  - **AddAutomaton** without an automaton makes one: a helicopter (0x0053C6E0) when the draw is below 0x7FFFFFFF, else the 0x200-byte aircraft of 0x00523F60.
+  - **Slots 17 and 18** send an aircraft 200 above the terrain at a dispatch location (slot 19), with a rate at +0x1E4 from the police simulator or the service 0x00B43D78, then its slot 52.
+    - Slot 17 takes the aircraft it is given.
+    - Slot 18 finds the aircraft in the map whose occupant is on the source's lot.
+  - **The save** is version 5. After the common base's part come the map's references and the list's points and bytes.
+  - **DoMessage** sends an occupant inserted to SC4UIScale's 0x004FBFE0 and an occupant removed to 0x004FB8D0, then always calls the common base's DoMessage. 0x004FB8D0 erases the occupant's map entry, and unlinks its list record of the byte property 0x8BFB1072 at its position.
+- **The watercraft manager.**
+  - **Init** runs once. It calls the common base's Init, subscribes to message 0x2C06BA82 (which sets +0xA88), puts the generator's address into 0x00B22A78, then runs slot 45 after a load, slot 23 with 500 and slot 24.
+  - **Shutdown** undoes Init, and clears the three tables and the reference vector with part aw1's clears.
+  - **The tuning** sets the most automata from 0x00B21BF0 and the least zoom from property 0x4998C91B, less one.
+  - **AddAutomaton** without an automaton makes a boat (0xDC8 bytes, 0x0056D9A0).
+  - **RemoveAutomaton** takes the automaton out of the place that holds it, by kind or by group, then calls the common base's RemoveAutomaton. The places are the route records (kinds 0x4400 and 0x4402), the second pair table (groups 0x4416, 0x4411, 0x440F and 0x440A) and the reference vector (group 0x4418).
+  - **The tables.**
+    - The routes (+0xA8C) are keyed by a dock's lot. Each holds a vector of 0x3C-byte records (an automaton and a ferry route in use) and the dock occupant at +0x1C.
+    - The first pair table (+0xAA0) maps a lot to an occupant of the type 0x8C392D39.
+    - The second pair table (+0xAB4) holds the occupants of ten terminal types.
+  - **The occupant handlers.** The occupant's addition fills these tables by the occupant's type. A route is made only when the dock search (0x00568CE0, part aw5) answers. The occupant's removal empties them; a route's automata are stopped (slot 52) before its records go.
+  - **The save** is version 6: the common base's part, then the three tables.
+
+Kept as the game's:
+
+- SC4UIScale's probe site 0x004FBFE0 (the aircraft manager's occupant inserted handler).
+- The common base's functions.
+- The helicopter's, the other aircraft's and the boat's constructors.
+- Part aw5's lot query 0x00567C90, dock search 0x00568CE0, record vector copy 0x00572360 and record insert 0x00573580.
+- Part aw1's table clears.
+- The map, tree, hash table, vector, reference and stream helpers, the property getter and the allocators, all called at their addresses.
+
+No NAM site is among the 35.
+
+Oddities kept:
+
+- **The aircraft manager.**
+  - Init references the filter without testing the allocation. Shutdown releases the map's objects and the filter without null tests, and frees the list's nodes without destroying their records.
+  - Slot 17 picks the police simulator or the service by whether the aircraft's occupant is in the group 0x4301. Slot 18 picks by the police simulator's own test of the source.
+  - Slot 18 never reads its first argument, and takes the first map entry, in key order, whose occupant is on the lot.
+  - DoMessage answers 1 for an occupant inserted whatever its type.
+  - Write and Read answer 1 when the stream has no error, not whether the common base's part worked.
+  - Read takes only version 5 as its own. A later version answers AL 0; an earlier one goes to the common base's body alone.
+  - The occupant removed handler releases the occupant (the map's reference) and then still reads its property and its position.
+  - The list find's tolerance test is strict: |a - b| < 0.0001, and false when unordered.
+- **The watercraft manager.**
+  - Read keeps no reference of those it reads: the tables take references of their own.
+  - Write saves neither a record's automaton nor the route value's +8 and +0xC.
+  - Write saves a record's ferry route word +0xC as 0, 1, or -1 for any other value. Read keeps the slot's earlier value for anything but 0 and 1, so a 2 comes back as the record before it.
+  - RemoveAutomaton drops the first place found and releases the vector's last element after the shift, although that element is still in the vector.
+  - The occupant's addition of the type 0x8C392D39 runs the dock search and never reads its answer.
+  - DoMessage null-tests the occupant of an addition but not of a removal.
+- **Both.** The common base's DoMessage does not test the occupant of 0x99EF1142 or 0x99EF1143, so the managers' own null tests never help for those messages.
+
+Floats: 53-bit doubles. The dispatch height is the terrain's answer plus the float 200, one sum rounded to the float the game stores. The list find compares the unrounded difference.
+
+Stack leftovers:
+
+- Both Reads read a word version into a dword slot, so the upper half is the caller's stack in the game and 0 in ours.
+- The aircraft list records' byte slot, and the watercraft records' ferry route slots, are read into before anything sets them. Both carry over from one record to the next, as in the game; the first time they are leftovers in the game and 0 in ours.
+- The counts are read into one slot, so a failed count read keeps the earlier count, as in the game.
+
+Return values: AL for Init, Shutdown and the tunings. EAX 0 or 1 for Write and Read. The common base's EAX where a slot ends in its call. The dispatch slots answer the aircraft or 0.
+
+Reimplemented with two writers (the aircraft and the watercraft halves) and an independent audit of each against the disassembly. Neither audit found a defect.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_AWMGR=4` does everything `=3` does, plus the following, into the fingerprint as ` E<aircraft>,<watercraft>,<flags>` (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It uses part aw3's fake automata, with two more slots (10, the point it is sent to; 67, a kind block) and a property holder that can answer a type and the byte property 0x8BFB1072.
+
+- **A new aircraft manager from its factory:**
+  - Init twice and slot 24.
+  - A Write; a Read of those bytes with two list records (Write must give them back); reads of versions 6 and 4, and of a stream cut inside a record.
+  - Map entries of the test's own: fakes, and the first building occupant of the controller table.
+  - DoMessage: an occupant inserted and removed of the type 0x029244DB; inserted of another type (0x004FBFE0, which finds no property and ends); removed twice (its entry and list record, then nothing); a type no one handles.
+  - Slot 17: no automaton, a refused location, a point, no object, and the building with the occupant in the group 0x4301 and not.
+  - Slot 18: a point, no object, and the building with a refused location, then a good one, then after its entry is removed.
+  - The list find on nodes of the test's own.
+  - AddAutomaton with a fake, then with none until both a helicopter and the other aircraft are made, each removed again.
+  - Shutdown twice, then the release.
+- **The city's watercraft manager:** a Write; its tables' sizes go into the token and the bytes to the log.
+- **A new watercraft manager:**
+  - Init twice and slot 24.
+  - A route of the test's own with three records (ferry route words 0, 1 and 2), a second pair table node and the reference vector.
+  - A Write, a Read of those bytes and a Write again; reads of versions 7 and 5.
+  - RemoveAutomaton by each kind and group (the vector's middle, then its end), and with none.
+  - The occupant handlers without an occupant, called at their addresses.
+  - DoMessage with 0x2C06BA82, and with occupants added and removed of the terminal, dock and pair types.
+  - On tables of the test's own with one bucket: the erases of a node behind another, which reach the node releases. On a value of the test's own: the route pair's constructor and the records' clear.
+  - AddAutomaton with a fake, then with none: the boat is left to Shutdown, because the game's RemoveAutomaton reads a block that a new boat does not have.
+  - Shutdown twice, then the release.
+
+The generator globals 0x00B21AF4 and 0x00B22A78 are put back after each part, and the city's managers are not changed. The flags bits are:
+
+- no building occupant;
+- a missing manager or missing bytes;
+- a round trip that did not come back the same;
+- a fake called at a slot it does not know.
+
+The occupant's addition does not reach its dock branch with a fake, because the dock search asks the occupant for an interface it does not have. The route pair's constructor and the records' clear are reached directly instead.
+
+Three things the first trials found, which the test now avoids:
+
+- The common base's DoMessage reads the occupant of 0x99EF1142 without a null test.
+- The watercraft manager's RemoveAutomaton reads its slot 67's block on a new boat that does not have one.
+- A version 5 stream that ends after the automata count gives the original two outcomes. The common base's body reads the source building table's count from the failed stream into a slot that holds the stream's address. It then adds a record whose value is a stack leftover (part aw2's oddity), which is sometimes 1. The test's stream now carries a count of 0.
+
+Making the fakes answer slot 10 changed part aw3's ` D` token: the base calls that slot on a fake, which until now landed in a trap. The value is the same on both sides.
+
+Reached (our first-call log lines, trial Making Money d0000, 4 days): all 35.
+
+### Parity
+
+PENDING
 
 ## Part s: the script system
 
