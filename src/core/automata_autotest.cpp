@@ -4800,11 +4800,11 @@ void Situations2Drive(cISC4City* city)
     // ---- The Lua callbacks.
     {
         using Callback = uint8_t(__cdecl*)(void*, void*, void*, void*);
-        Fake* const binding = Make(0, BindingVtable());
-        Fake* const arguments = Make(1, ArgumentsVtable());
-        Fake* const values = Make(2, ValueVtable());
+        c2::Fake* const binding = Make(0, BindingVtable());
+        c2::Fake* const arguments = Make(1, ArgumentsVtable());
+        c2::Fake* const values = Make(2, ValueVtable());
         Make(3, ValueVtable());
-        Fake* const results = Make(4, ResultsVtable());
+        c2::Fake* const results = Make(4, ResultsVtable());
         arguments->other = values;
         arguments->answer = 1;
         binding->other = m;
@@ -4892,13 +4892,13 @@ void Situations2Drive(cISC4City* city)
     }
 
     // ---- The starts (slots 21 to 23 with slot 36 the test's).
-    Fake* const advice = Make(6, SituationVtable());
-    Fake* const inner = Make(7, SituationVtable());
-    Fake* const candidate = Make(8, AutomatonVtable());
-    Fake* const reject = Make(9, AutomatonVtable());
-    Fake* const made = Make(10, AutomatonVtable());
-    Fake* const service = Make(11, ServiceVtable());
-    Fake* const service2 = Make(12, ServiceVtable());
+    c2::Fake* const advice = Make(6, SituationVtable());
+    c2::Fake* const inner = Make(7, SituationVtable());
+    c2::Fake* const candidate = Make(8, AutomatonVtable());
+    c2::Fake* const reject = Make(9, AutomatonVtable());
+    c2::Fake* const made = Make(10, AutomatonVtable());
+    c2::Fake* const service = Make(11, ServiceVtable());
+    c2::Fake* const service2 = Make(12, ServiceVtable());
     candidate->flags = 2;
     candidate->kind = 1;
     reject->flags = 2 | 1;
@@ -4979,7 +4979,7 @@ void Situations2Drive(cISC4City* city)
         };
         g_log = Hash{};
         // 0x005245F0 over the flags and kinds.
-        Fake* const occ = Make(13, AutomatonVtable());
+        c2::Fake* const occ = Make(13, AutomatonVtable());
         const uint32_t flagSets[] = {0, 2, 3, 2 | 0x8000000u, 2 | 0x10000000u, 2, 2};
         const uint32_t kinds[] = {0, 0, 0, 0, 0, 0x34, 0x14};
         for (int i = 0; i < 7; ++i) {
@@ -5020,9 +5020,9 @@ void Situations2Drive(cISC4City* city)
             service2->answer = 0;
             service->other2 = nullptr;
             // The class 0x193A through +0xAF8.
-            Fake* const holder = Make(14, HelperVtable());
-            Fake* const source = Make(15, AutomatonVtable());
-            Fake* const pick = Make(16, AutomatonVtable());
+            c2::Fake* const holder = Make(14, HelperVtable());
+            c2::Fake* const source = Make(15, AutomatonVtable());
+            c2::Fake* const pick = Make(16, AutomatonVtable());
             holder->other = source;
             source->other = pick;
             At<void*>(m, sf::kRefAF8) = holder;
@@ -5058,10 +5058,10 @@ void Situations2Drive(cISC4City* city)
         }
         // 0x00524A50 and 0x00524A00.
         {
-            Fake* const a = Make(17, SituationVtable());
-            Fake* const b = Make(18, SituationVtable());
-            Fake* const pa = Make(19, SituationVtable());
-            Fake* const pb = Make(20, SituationVtable());
+            c2::Fake* const a = Make(17, SituationVtable());
+            c2::Fake* const b = Make(18, SituationVtable());
+            c2::Fake* const pa = Make(19, SituationVtable());
+            c2::Fake* const pb = Make(20, SituationVtable());
             a->other = pa;
             b->other = pb;
             pa->value = 3;
@@ -5103,7 +5103,7 @@ void Situations2Drive(cISC4City* city)
         // 0x00528ED0, no icon added: no automaton, no template, hidden
         // without an ID.
         {
-            Fake* const a = Make(13, AutomatonVtable());
+            c2::Fake* const a = Make(13, AutomatonVtable());
             uint32_t id = 0;
             using Show = void(__thiscall*)(void*, void*, uint32_t*, uint32_t);
             const auto show = reinterpret_cast<Show>(addr::cSC4CitySituationManager_ShowAutomatonCsi);
@@ -5121,12 +5121,12 @@ void Situations2Drive(cISC4City* city)
         // Slot 25 and 0x005291C0 over list entries (the automaton tracked, so
         // no icon is added).
         {
-            Fake* const f = Make(13, AutomatonVtable());
-            Fake* const g = Make(14, AutomatonVtable());
-            Fake* const s1 = Make(17, SituationVtable());
-            Fake* const s2 = Make(18, SituationVtable());
-            Fake* const p1 = Make(19, SituationVtable());
-            Fake* const p2 = Make(20, SituationVtable());
+            c2::Fake* const f = Make(13, AutomatonVtable());
+            c2::Fake* const g = Make(14, AutomatonVtable());
+            c2::Fake* const s1 = Make(17, SituationVtable());
+            c2::Fake* const s2 = Make(18, SituationVtable());
+            c2::Fake* const p1 = Make(19, SituationVtable());
+            c2::Fake* const p2 = Make(20, SituationVtable());
             f->flags = 2;
             s1->other = p1;
             s2->other = p2;
@@ -5165,14 +5165,14 @@ void Situations2Drive(cISC4City* city)
         // 0x005256E0, 0x00526A20 and 0x00526EF0 over a situation of the
         // test's own.
         {
-            Fake* const sit = Make(17, SituationVtable());
-            Fake* const autom = Make(13, AutomatonVtable());
-            Fake* const target = Make(14, AutomatonVtable());
-            Fake* const driver = Make(15, HelperVtable());
-            Fake* const lots = Make(16, LotVtable());
-            Fake* const lot = Make(18, LotVtable());
+            c2::Fake* const sit = Make(17, SituationVtable());
+            c2::Fake* const autom = Make(13, AutomatonVtable());
+            c2::Fake* const target = Make(14, AutomatonVtable());
+            c2::Fake* const driver = Make(15, HelperVtable());
+            c2::Fake* const lots = Make(16, LotVtable());
+            c2::Fake* const lot = Make(18, LotVtable());
             lot->kind = 1;
-            Fake* const ctx = Make(19, ContextVtable());
+            c2::Fake* const ctx = Make(19, ContextVtable());
             SetPos(autom, 100.0f, 5.0f, 200.0f);
             SetPos(target, 180.5f, 9.0f, 260.25f);
             SetPos(driver, 90.0f, 4.0f, 210.0f);
@@ -5251,7 +5251,7 @@ void Situations2Drive(cISC4City* city)
             At<void*>(m, sf::kScriptContext) = ctx;
             sit->value = 9;
             sit->flags = 0x20;
-            Fake* const touch = Make(20, HelperVtable());
+            c2::Fake* const touch = Make(20, HelperVtable());
             At<void*>(m, sf::kRefAF8) = touch;
             mixLimit(); // not a table
             ctx->answer = 1;
@@ -5274,7 +5274,7 @@ void Situations2Drive(cISC4City* city)
             At<void*>(m, sf::kTarget) = nullptr;
             At<void*>(m, sf::kLotManager) = nullptr;
             // Slot 39 with the situation's list entry, its CSI ID 0.
-            Fake* const stopper = Make(21, HelperVtable());
+            c2::Fake* const stopper = Make(21, HelperVtable());
             At<void*>(m, sf::kRefAA0) = stopper;
             PushEntry(m, Make(22, SituationVtable()), nullptr, 0);
             char* const entry = PushEntry(m, sit, autom, 0);
