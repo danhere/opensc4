@@ -15,10 +15,15 @@
 //   OPENSC4_TEST_AUDIO_DIALOG=<day>  token "audiodlg": the audio options
 //     dialog made, run with a player in place of the modal loop that
 //     answers cancel, and let go. Nothing is saved.
+//   OPENSC4_TEST_MUSIC=<day>         token "music": the music player's
+//     stations read through the player interface, the next one made
+//     current and the first one again (it starts the next station, which
+//     plays its welcome). Nothing without a player (a muted run).
 //
 // What is left out, on purpose: voices (they end in real time), fades and
 // stamps, the listener's place (it follows the camera), heap addresses,
-// and everything that starts or stops a sound.
+// and everything that starts or stops a sound (but the station switch of
+// OPENSC4_TEST_MUSIC).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
@@ -956,10 +961,74 @@ void DriveAudioDialog(const Day& day)
 
 const DayHook kAudioDialog{"audio.dialog", 182, &DriveAudioDialog};
 
+// --- OPENSC4_TEST_MUSIC ------------------------------------------------------------------------------------------------
+
+char g_musicToken[100];
+
+// The music player's stations through the player interface: how many there
+// are and the current one (slots 17 and 10), each one's ID and whether it
+// has something of each kind to play (station slots 9 and 20), then the
+// next station made current (slot 14: the old one stops, the new one starts
+// when the player is on, which reads its folders and plays its welcome),
+// read again, and the first one made current again. Without a player (a
+// muted run never makes one) the token says so.
+void DriveMusicStations(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MUSIC") || !game::IsBuild641())
+        return;
+    Fnv f;
+    int stations = -1, switched = 0;
+    void* player = nullptr;
+    if (void* const framework = Cdecl<void*>(addr::RZGetFramework))
+        Virtual<uint8_t>(framework, 0x14, uint32_t{0x1D07B39F}, uint32_t{0xE0510260}, &player);
+    const auto readStation = [&f](void* station) {
+        if (!station) {
+            f.Missing();
+            return;
+        }
+        char id[4] = {};
+        Virtual<void>(station, 0x24, &id[0]);
+        f.Bytes(id, sizeof id);
+        for (uint32_t kind = 0; kind < 4; ++kind)
+            f.Add(Virtual<uint8_t>(station, 0x50, kind));
+    };
+    if (!player) {
+        f.Missing();
+    } else {
+        const uint32_t count = Virtual<uint32_t>(player, 0x44);
+        stations = static_cast<int>(count);
+        uint32_t current = 0;
+        const uint8_t has = Virtual<uint8_t>(player, 0x28, &current);
+        f.Add(count);
+        f.Add(has);
+        f.Add(current);
+        for (uint32_t i = 0; i < count; ++i)
+            readStation(Virtual<void*>(player, 0x30, i));
+        if (has && count > 1) {
+            const uint32_t next = (current + 1) % count;
+            uint32_t now = 0;
+            f.Add(Virtual<uint8_t>(player, 0x38, next));
+            Virtual<uint8_t>(player, 0x28, &now);
+            f.Add(now);
+            readStation(Virtual<void*>(player, 0x30, now));
+            f.Add(Virtual<uint8_t>(player, 0x38, current));
+            Virtual<uint8_t>(player, 0x28, &now);
+            f.Add(now);
+            switched = 1;
+        }
+        Virtual<uint32_t>(player, 0x8);
+    }
+    std::snprintf(g_musicToken, sizeof g_musicToken, " music %d %d %08X", stations, switched, f.h);
+    log::Write("autotest: music stations driven:%s", g_musicToken);
+}
+
+const DayHook kMusicStations{"audio.music", 183, &DriveMusicStations};
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_audioToken;
     line += g_dialogToken;
+    line += g_musicToken;
 }
 
 const FingerprintPart kFingerprint{"audio", 5, &Fingerprint};
