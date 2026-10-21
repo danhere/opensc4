@@ -7535,7 +7535,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, void* occupant)"
 expect = "8B 4C 24 04 83 EC 0C 85"
-source = "Name ours (part aw5's): ret 4 (this not read): null without one; else the occupant's point (its slot 8, the three floats starting as 0x00B22A80) and the city's (0x00B43CEC) slot 0x84 object's slot 5 at it. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+source = "Name ours: the lot at an occupant, ret 4 (this not read): null without one; else the occupant's point (its slot 0x20, the three floats starting as 0x00B22A80) and the city's (0x00B43CEC) slot 0x84 object's slot 0x14 at it. EAX. Ours in simulators.automata.awmgr.water.create (src/core/automata_awmgr_water_route.cpp, part aw5). Also called by address from src/core/automata_awmgr_water.cpp (part aw4)."
 
 [[entry]]
 name = "cSC4WatercraftManager::DockPoints"
@@ -7544,7 +7544,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* occupant, float* point, float* direction, uint32_t zero)"
 expect = "83 EC 64 57 8B 7C 24 6C"
-source = "Name ours, not analysed (part aw5's): ret 0x10: AL 0 without an occupant; else its point and a direction from its model (interface 0xE9793A65). Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+source = "Name ours: the dock search (occupant, point, direction, turned), ret 0x10 (this not read): AL 0 without an occupant; point its point (slot 0x20) at the sea level (terrain slot 0x74). Its interface 0xE9793A65 (queried into the occupant's argument slot; AL 0 without, released when the query failed): its orientation (slot 0x24) picks the facing (0,0,1), (-1,0,0), (0,0,-1) or (1,0,0) into direction; its model's (slot 0xC) box (slot 0x28) gives the extent along x when |z| < |x|, else along z; the facing is made a unit (1.0 at 0x00B0A18C over its length). Without turned the point moves half the extent along the facing; with it, a third of the extent along the facing turned to (z, 0.0, -x) and made a unit. Every game caller passes 0. AL 1. Ours in simulators.automata.awmgr.water.create (src/core/automata_awmgr_water_route.cpp, part aw5). Also called by address from src/core/automata_awmgr_water.cpp (part aw4)."
 
 [[entry]]
 name = "cSC4WatercraftManager::CopyRecordVector"
@@ -7553,7 +7553,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, const void* other)"
 expect = "53 8B 5C 24 08 8B 13 56"
-source = "Name ours (part aw5's): the route record vector's copy constructor, ret 4: storage for the count, the records copied by 0x00570D10; EAX this. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+source = "Name ours: the route record vector's copy constructor (other), ret 4: storage for the other's count (signed division by 0x3C; none for 0), the records copied in by 0x00570D10; EAX this. Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5). Also called by address from src/core/automata_awmgr_water.cpp (part aw4)."
 
 [[entry]]
 name = "cSC4WatercraftManager::InsertRecordOverflow"
@@ -7562,7 +7562,227 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* vector, void* position, const void* record, void* tag, uint32_t count, uint32_t atEnd)"
 expect = "51 53 55 56 8B F1 8B 16"
-source = "Name ours, not analysed (part aw5's): the route record vector's growing insert, ret 0x14. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+source = "Name ours: the route record vector's growing insert (position, record, tag, count, atEnd), ret 0x14: new storage for size + max(size, count) (the max unsigned; none for 0); the records before the position copied in (0x00570D10), the record once by hand or count times (0x00570CC0), then unless atEnd's byte the rest (0x00570D10); the old ones destroyed (0x0056F740) and freed. Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5). Also called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+
+# Part aw5 of the watercraft manager: creation and routes (src/core/automata_awmgr_water_route.cpp; docs/automata.md, "Part aw5"), and the game functions it calls by address that had no entry.
+
+[[entry]]
+name = "cSC4WatercraftManager::CreateAutomaton"
+address = 0x00568F30
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t group, const float* point, uint32_t flags, const void* target, uint32_t a5, uint32_t a6, uint32_t a7)"
+expect = "51 56 8B 74 24 10 57 6A"
+source = "Name ours (gzcom-dll's CreateAutomaton): the watercraft manager's slot 15, ret 0x1C: null when a boat is near the point (0x00568C10) or its cell (the city's slot 0x17C, the z cell written over the point argument's slot) fails the city's slot 0x18C; else the common base's CreateAutomaton 0x00505370 (SC4UIScale's probe site) with the same arguments but a7 0. EAX. Ours in simulators.automata.awmgr.water.create (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::GetRandomCreationPoint"
+address = 0x0056C990
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t group, const float* position, float least, float most, float* out, uint32_t flags, float* direction)"
+expect = "81 EC 84 00 00 00 53 8B"
+source = "Name ours (gzcom-dll's GetRandomCreationPoint): the watercraft manager's slot 16, ret 0x1C (most and flags not read): AL 0 when slot 30 refuses the group. The lot at the position (the city's slot 0x84 object's slot 0x14): its route's dock (+0xA8C) or first pair's object (+0xAA0), the dock search 0x00568CE0 and a point twice the facing times city slot 0x16C out; when that cell is open water (0x00568FD0) the point is its centre at the sea level (terrain slot 0x74) and the facing goes to direction. Else a spiral walk from the position's cell over the city: past least (without a lot), in the city (slot 0x18C) and open water, the first cell of the lot's water body (0x00567CE0, the 0x00B43CF0 service's) or else the first such cell, if the city's slot 0x188 takes it. No random draw. AL 1. Ours in simulators.automata.awmgr.water.create (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::LotWaterBody"
+address = 0x00567CE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* lot)"
+expect = "83 EC 10 57 8B 7C 24 18"
+source = "Name ours: a lot's water body, ret 4 (this not read): 0 (AX) without a lot or the 0x00B43CF0 service's slot 9 object; else that object's slot 7 word at the corners of the lot's slot 14 rectangle {a, b, c, d} as (b, a), (b, c), (d, a), (d, c), the first not 0 (EAX of the call). Ours in simulators.automata.awmgr.water.create (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::IsOpenWater"
+address = 0x00568FD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t x, int32_t z, uint32_t kind)"
+expect = "8B 54 24 0C 83 EC 18 53"
+source = "Name ours: whether a cell is open water, ret 0xC: AL 0 unless the 0x00B43CF0 service's slot 8 (x, z, kind, 0) answers; then AL 0 when an automaton of the list (+0x44) has its slot 17 radius above the distance from its point (slot 7) to the cell's centre at the sea level. The rounded distance is written over the kind argument's slot. Ours in simulators.automata.awmgr.water.create (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::PlanRoute"
+address = 0x005710A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, iterator it, uint32_t kind)"
+expect = "83 EC 64 A1 80 2A B2 00"
+source = "Name ours: a boat for a terminal of the second pair table (+0xAB4), ret 0xC (the node and table by value, the kind): AL 0 when the dock search fails or the dock's cell is within 3 (0x00B0A164) of the city's edge; a boat of the kind made by slot 15 half the facing out (and 32 to the side but for 0x4416), set 1.5 radii out along the facing (0x4416) or a radius to the side (slot 0x40) and held by the node's +8. A boat of the groups 0x440F, 0x440A, 0x4411 (0x00566DA0) gets the states 0x4E and 0x4C (30000 x (1 + a draw of 0x00B22A78)) and the first water path (the 0x00B43DA8 service's slot 0x84) to an object of the 0x00B43D8C service's list 9 (0x0056F510); without one, state 0x4C unless it has it, its +0x2B4 60000 and two points reset. AL 1. Ours in simulators.automata.awmgr.water.routes (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::IsPathBoat"
+address = 0x00566DA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 06 FF 50 14"
+source = "Name ours: whether the boat's slot 5 object is in the group 0x440F, 0x440A or 0x4411 (its slot 0x58), plain ret: EAX 1 or 0. Ours in simulators.automata.awmgr.water.routes (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::SetPath"
+address = 0x0056F510
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, SC4ByteVector path, void* target)"
+expect = "83 EC 24 53 8B 5C 24 38"
+source = "Name ours: the boat's path, ret 0x10 (a byte vector by value, freed here, and a target): +0x318 the target (referenced), +0x340 1, +0x31C the path, its route iterator +0x328 started; then while there is a target its steps are walked while each cell's centre at the sea level is within three of its radii (slot 17, a float written over the target's argument slot) of the target's point. Ours in simulators.automata.awmgr.water.routes (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::RouteFromDock"
+address = 0x0056FD60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, iterator it, void* record, void* first, void* second)"
+expect = "83 EC 64 53 55 8B 6C 24"
+source = "Name ours: the two legs of a route record's trip, ret 0x14 (the route node and table by value, the record, two 0x34-byte legs): the scale the record's boat's slot 17 (1.0 without one, written over the record's argument slot). First: the record's ferry route +0 and first byte vector, the dock's point (0x00568CE0) out by the facing times the scale and the facing. Second: without the route's byte, the route of the ferry route's +4 (found into the iterator's slots): its dock's point and facing the same way, the ferry route's +4 and second byte vector, else (no route) a copy of the first; with the byte, the first open water step (0x00568FD0) of the second byte vector, the cell after it, their centres and the step count. Ours in simulators.automata.awmgr.water.routes (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::NextFerryRoute"
+address = 0x00570DF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, iterator from, iterator to, void* record)"
+expect = "81 EC 94 00 00 00 53 55"
+source = "Name ours: a new ferry for a route record, ret 0x14 (two route iterators by value, to's table not read, and the record): AL 0 when the from dock's cell is within 3 (0x00B0A160) of the city's edge or slot 15 makes no boat of the kind 0x4400 (the ferry route's +8 is 1) or 0x4402; the boat stopped when its slot 0xEC answers, held by the record, its two legs made (0x0056C940, 0x0056FD60), set by slot 0x40 and 0x0056F670 in the direction of the record's byte +0x38 and held by that end's route node +8; the byte flipped. AL 1. Ours in simulators.automata.awmgr.water.routes (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::SetFerryRoute"
+address = 0x0056F670
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, Leg first, Leg second, bool start)"
+expect = "56 8B F1 57 8D 44 24 0C"
+source = "Name ours (a boat's function: this is the boat): its two legs, ret 0x6C (two 0x34-byte legs by value, freed here, and a byte): +0x1E4 and +0x218 assigned (0x0056D920); with the byte a copy of the first begun (0x0056F3F0) and +0x2B0 1. Ours in simulators.automata.awmgr.water.routes (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::ConstructLeg"
+address = 0x0056C940
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 33 C9 89 08 89 48"
+source = "Name ours: a leg's first 0x28 bytes, plain ret: the reference and the byte vector null, the two points (+0x10, +0x1C) the float 0x00B22A80. EAX this. Ours in simulators.automata.awmgr.water.routes (src/core/automata_awmgr_water_route.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4AutomataManager::CreateAutomaton"
+address = 0x00505370
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t group, const float* point, uint32_t flags, const void* target, uint32_t a5, uint32_t a6, uint32_t a7)"
+expect = "8B 54 24 10 56 57 8B F9"
+source = "Name ours (gzcom-dll's CreateAutomaton): the common base's slot 15, ret 0x1C; SC4UIScale's probe site. Left the game's. Called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::BoatNear"
+address = 0x00568C10
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, float x, float y, float z, void* except)"
+expect = "83 EC 0C 53 55 8B D9 8B"
+source = "Name ours: the first automaton of the list (+0x44), not except, whose slot 17 radius times 2.0 (0x00B0A158) is above its distance to the point (by value), ret 0x10; null for none. Left the game's. Called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::AssignLeg"
+address = 0x0056D920
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours: a boat's 0x34-byte leg assigned, ret 4: the reference +0 (skipped for itself), the byte vector +4 (SC4ByteVector::Assign), +0x10..+0x24, the byte +0x28, +0x2C, the bytes +0x30 and +0x31. Answers this. Left the game's. Called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::CopyLeg"
+address = 0x0056D8B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours: a boat's 0x34-byte leg copy-constructed, ret 4: the reference +0 (referenced), the byte vector +4 (SC4ByteVector::CopyConstruct), the rest copied. Answers this. Left the game's. Called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::BeginLeg"
+address = 0x0056F3F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, Leg leg)"
+expect = "56 8B F1 8D 44 24 08 50"
+source = "Name ours, not analysed: the boat begins a leg (by value, freed here), ret 0x34: +0x24C assigned, +0x274 1, +0x278 2 when 0, +0x27C 0, the route iterator +0x28C started on its byte vector, the path +0x2A4/+0x2A8 cleared. Left the game's. Called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
+
+# Part aw5 of the watercraft manager: the frame update and the route records (src/core/automata_awmgr_water_frame.cpp; docs/automata.md, "Part aw5").
+
+[[entry]]
+name = "cSC4WatercraftManager::FrameUpdate"
+address = 0x005736A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, float time)"
+expect = "81 EC D8 00 00 00 53 55"
+source = "Name ours: the watercraft manager's slot 63 (its frame update), ret 8: the rate; while paused (0x00B21B9C) only the common base's slot 63. Every 60000 (0x00B22AD4) the routes' +8/+0xC automata no record holds let go; out of the U-Drive the crossing paths of every two boats cut (0x00566E60, 0x0056D5F0) or the first stopped; the edge spawn 0x005723D0; after message 0x2C06BA82 (+0xA88) the routes' records matched to the city's ferry routes (city slot 0x114's slot 0x7C) and the rest stopped and erased; every 35000 (0x00B22AD0, out of the U-Drive) the idle records of the routes routed (0x00570DF0); the terminals without a boat planned (0x005710A0); then the common base's slot 63, whose answer it gives. Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::CrossingRank"
+address = 0x00566E60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* automaton)"
+expect = "56 8B 74 24 08 85 F6 74"
+source = "Name ours: a boat's rank where two paths cross, ret 4 (this not read): 0 for the kinds 0x4400 and 0x4402 (slot 67's +0x10), 1 in the group 0x4414, 2 in 0x4413, else (and for none) 3; EAX. Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::StepDirection"
+address = 0x005684C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t index)"
+expect = "8B 81 A4 02 00 00 8B 91"
+source = "Name ours: the direction 0..7 of the boat's path step index -> index + 1 (16-byte points at +0x2A4/+0x2A8, cells at +0 and +4), ret 4: the eight unit steps by (dx, dz), 0 for (-1, -1), any other step, and an index not below the count less two (unsigned). Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4Watercraft::CutPathAt"
+address = 0x0056D5F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t index)"
+expect = "8B 44 24 04 85 C0 56 8B"
+source = "Name ours: the boat's path (+0x2A4/+0x2A8) cut after the point index, ret 4: the point's byte +8 gets the bit of its step's direction (0x005684C0), the path's end set past it (0x007257C0); AL 0 for an index out of range, else 1. Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::FillRecords"
+address = 0x00570CC0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* dest, uint32_t count, const void* record, void* tag)"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours: uninitialized_fill_n of 0x3C-byte route records (the automaton referenced, the ferry route by 0x0056D770, the byte +0x38; nothing written at a null dest); the end. Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::EraseRecord"
+address = 0x00573230
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void* position)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours: a route record vector's erase of one record, ret 4: the ones after it copied down (0x00570D60), the last destroyed (its byte vectors freed, references released); EAX the position. Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::EdgeCells"
+address = 0x00571630
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t* side, void* cells)"
+expect = "83 EC 24 53 55 56 8B 74"
+source = "Name ours: the cells of one map edge, ret 8: the side made side % 4 (stored back); the rectangle of 0x00B43D54's slot 0x44, its centre's point computed (city slot 0x184) and never used; side 0 the low z row, 1 the high x column, 2 the high z row, 3 the low x column, each cell (x, z) pushed onto the vector of 8-byte cells (0x007C61A0 when full). Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5)."
+
+[[entry]]
+name = "cSC4WatercraftManager::SpawnAtEdge"
+address = 0x005723D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float time)"
+expect = "A0 C4 2A B2 00 83 EC 48"
+source = "Name ours: a boat made at the map's edge, ret 4: below 10000 the timer 0x00B22AC0 (first 10001) grows by the time; else with at most 0x00B0A170 boats (+0xAC8) and a first pair table entry, past the draws (U-Drive: above 0.05 none, above 0.5 the kind 0x4417; else above 0.1 none), the next edge (0x00571630, side 0x00B22ABC) cell by cell (city slot 0x18C, 0x00568FD0) until slot 15 makes one (0x4417 or 0x4418) at the cell's point, headed for the map's centre (slot 0x40, unit velocity), +0x2B4 45000, +0x2B8 0, +0x2CC the kind byte, pushed onto +0xAC8; the timer 0 then. Ours in simulators.automata.awmgr.water.frame (src/core/automata_awmgr_water_frame.cpp, part aw5)."
 
 # Part c4 of the city situation manager: the targets and the situation's smaller steps (src/core/automata_situations_4.cpp; docs/automata.md, "Part c4").
 
