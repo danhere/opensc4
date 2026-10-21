@@ -905,7 +905,7 @@ address = 0x008D569F
 kind = "function"
 convention = "thiscall"
 expect = "33 C0 56 8B F1 89 06 89"
-source = "Name ours (docs/audio.md, \"Music player\", part 4); a playlist reader, 0x48 bytes. The game's."
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a playlist reader, 0x48 bytes. Ours in audio.music.part4."
 
 [[entry]]
 name = "GZPlaylistReader::Destruct"
@@ -913,7 +913,7 @@ address = 0x008D56C8
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8D 4E 34 E8 7D"
-source = "Name ours (docs/audio.md, \"Music player\", part 4); the reader's three strings and its entries. The game's."
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the reader's three strings and its entries. Ours in audio.music.part4."
 
 [[entry]]
 name = "GZPlaylistReader::Read"
@@ -921,7 +921,7 @@ address = 0x008D6B22
 kind = "function"
 convention = "thiscall"
 expect = "55 8D 6C 24 8C 81 EC C0"
-source = "Name ours (docs/audio.md, \"Music player\", part 4); a .m3u or .pls file read (path; ret 4). The game's."
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a .m3u or .pls file read (path; ret 4). Ours in audio.music.part4."
 
 [[entry]]
 name = "GZPlaylistEntries::AssignFrom"
@@ -929,7 +929,7 @@ address = 0x008D56EB
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 51 56 57 8B 7D"
-source = "Name ours (docs/audio.md, \"Music player\", part 4); a vector of 0x2C-byte entries (the file name at +0x14) copied from a reader (ret 4). The game's."
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a vector of 0x2C-byte entries (the file name at +0x14) copied from a reader (ret 4). Ours in audio.music.part4."
 
 [[entry]]
 name = "GZPlaylistEntries::Destruct"
@@ -937,15 +937,15 @@ address = 0x008D51FC
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 FF 76 04 FF 36"
-source = "Name ours (docs/audio.md, \"Music player\", part 4); the vector of entries freed. The game's."
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the vector of entries freed. Ours in audio.music.part4."
 
 [[entry]]
-name = "GZRadioStation::SortByFolder"
+name = "GZRadioStation::SortByFileTime"
 address = 0x008D5E50
 kind = "function"
 convention = "cdecl"
 expect = "55 8B EC 56 8B 75 08 57"
-source = "Name ours (docs/audio.md, \"Music player\", part 4); cdecl (first, last, a folder string by value, which it destroys): slot 18's order 1. The game's."
+source = "Name ours (docs/audio.md, \"Music player\", part 4); cdecl (first, last, a folder string by value, which it destroys): the names sorted by their files' modification times, newest first; slot 18's order 1. Ours in audio.music.part4."
 
 [[entry]]
 name = "GZRadioStation::ShuffleNames"
@@ -953,7 +953,7 @@ address = 0x008D546F
 kind = "function"
 convention = "cdecl"
 expect = "55 8B EC 8B 45 08 3B 45"
-source = "Name ours (docs/audio.md, \"Music player\", part 4); cdecl (first, last): a shuffle of strings with rand(), slot 18's other order. The game's."
+source = "Name ours (docs/audio.md, \"Music player\", part 4); cdecl (first, last): a shuffle of strings with rand(), slot 18's other order. Ours in audio.music.part4."
 
 [[entry]]
 name = "GZRadioStation::Vtable"
@@ -982,3 +982,379 @@ address = 0x00B16060
 kind = "data"
 expect = "A0 C1 AC 00"
 source = "Name ours (docs/audio.md, \"Music player\"); a pointer to *.m3u,*.pls (0x00ACC1A0)."
+
+[[entry]]
+name = "GZPlaylistEntry::Copy"
+address = 0x008D3C38
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); an entry (0x2C bytes: title, path, length) copy-constructed (ret 4). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::Newer"
+address = 0x008D3C67
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 34 8B 45"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the sort's comparator (a folder string): whether the folder plus the first name has a later modification time than with the second (ret 8). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::Median"
+address = 0x008D3DEF
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 56 8B 75 0C 57"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the median of three names (a, b, c, the comparator by value). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::CopyInto"
+address = 0x008D50B2
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 10 57 8B 7C"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); entries copied into raw memory (first, last, result, tag). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntry::Assign"
+address = 0x008D50DB
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); an entry assigned (ret 4). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::LinearInsertUnguarded"
+address = 0x008D5102
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 56 57 8B 7D 08"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the unguarded linear insert (last, value by value, comparator by value). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::PushHeap"
+address = 0x008D5158
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 53 8B 5D 08 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); push_heap's step (first, hole, top, value, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::DestroyRange"
+address = 0x008D51E3
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 EB 0A 8B"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); entries destroyed (first, last). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::AllocateCopy"
+address = 0x008D521A
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 56 FF 75 08 83"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); memory for n entries with a range copied in (n, first, last; ret 0xC). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::AssignRange"
+address = 0x008D5245
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 45 0C 2B 45"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); entries assigned over others (first, last, result, tag, 0). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::Partition"
+address = 0x008D5277
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 53 8B 5D 08 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the unguarded partition (first, last, pivot, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::InsertionSortUnguardedAux"
+address = 0x008D52DF
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the unguarded insertion sort (first, last, tag, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::AdjustHeap"
+address = 0x008D5355
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 53 8B 5D 08 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); adjust_heap (first, hole, length, value, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::AssignOver"
+address = 0x008D54C2
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 51 6A 00 8D 45"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); entries assigned over others (first, last, result, tag). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::InsertionSortUnguarded"
+address = 0x008D54DF
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 8B CC"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the unguarded insertion sort (first, last, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::PopHeapStep"
+address = 0x008D5515
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 4D 10 56 FF"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); pop_heap's step (first, last, result, value, comparator, tag). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::MakeHeapAux"
+address = 0x008D5580
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 18 8B 45"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); make_heap (first, last, comparator, two tags). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::PopHeapAux"
+address = 0x008D562B
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); pop_heap (first, last, tag, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::MakeHeap"
+address = 0x008D57B9
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 6A 00 6A 00 83"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); make_heap (first, last, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::PopHeap"
+address = 0x008D57F1
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 8B CC"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); pop_heap (first, last, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::LinearInsert"
+address = 0x008D5A7D
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC FF 75 08 8D 45"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the linear insert (first, last, value, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::SortHeap"
+address = 0x008D5B03
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 4D 0C 2B 4D"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); sort_heap (first, last, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::InsertionSort"
+address = 0x008D5B62
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 56 57 8B 7D 08"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the insertion sort (first, last, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::PartialSortAux"
+address = 0x008D5BBA
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); partial_sort (first, middle, last, tag, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::FinalInsertionSort"
+address = 0x008D5C8F
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 8B 45 0C 56 57"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the final insertion sort (first, last, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::PartialSort"
+address = 0x008D5D06
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 8B CC"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); partial_sort (first, middle, last, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZFileTimeSort::IntrosortLoop"
+address = 0x008D5D3F
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); introsort's loop (first, last, tag, depth, comparator). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::FindNotOf"
+address = 0x008D5F5B
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 57"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the first character of a string not in a set (text, set, place*; ret 0xC); the reader is not used. Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::FindOf"
+address = 0x008D5FDC
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 57"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the first character of a string in a set (text, set, place*; ret 0xC); the reader is not used. Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::SplitPart"
+address = 0x008D6056
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a path's part up to and with the first backslash from a place taken into out (text, out, start; ret 0xC). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::FolderUp"
+address = 0x008D60C4
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B 74 24 0C 57 6A"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a path one folder up (path; ret 4). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::SplitRoot"
+address = 0x008D6123
+kind = "function"
+convention = "thiscall"
+expect = "56 8B 74 24 08 57 6A 01"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a path's root (a drive, or after a backslash) taken into out (text, out; ret 8). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntry::Construct"
+address = 0x008D6171
+kind = "function"
+convention = "thiscall"
+expect = "56 FF 74 24 0C 8B F1 E8"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); an entry from a length and two cIGZStrings, the title and the path (ret 0xC). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::AddPart"
+address = 0x008D6196
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 14 57 8B"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a path's first part added to another path; dots go up (text, path; ret 8). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::FillInto"
+address = 0x008D6230
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); n copies of an entry into raw memory (first, n, value, tag). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::ReadLine"
+address = 0x008D6258
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the next line of a text (text, out; ret 8). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::ResolvePath"
+address = 0x008D6352
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 28 56 57"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a name as a full path from a folder (folder, name, out; ret 0xC). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::InsertGrown"
+address = 0x008D63F3
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 51 51 53 56 57"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); an insert into a full vector of entries (position, value, tag, count, at end; ret 0x14). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::PushBack"
+address = 0x008D64AB
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 56 8B F1 8B 4E"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); push_back (ret 4). Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::ReadExtended"
+address = 0x008D64E3
+kind = "function"
+convention = "thiscall"
+expect = "55 8D 6C 24 88 81 EC A4"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); an extended .m3u's pairs of #EXTINF and path lines. Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::ReadPlain"
+address = 0x008D66C9
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 EC 74 53 56"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a plain list of paths. Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistReader::ReadPls"
+address = 0x008D6824
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 81 EC 84 00 00"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); a .pls's File, Title and Length lines up to NumberOfEntries. Ours in audio.music.part4."
+
+[[entry]]
+name = "GZPlaylistEntries::Allocate"
+address = 0x008D3376
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 85 C0 74 0C"
+source = "Name ours (docs/audio.md, \"Music player\", part 4); memory for n entries of 0x2C bytes, null for 0 (ret 4). Also called from 0x00875337; the game's. Called by address from src/core/music_4.cpp."
+
+[[entry]]
+name = "SC4String::CopyBackward"
+address = 0x005C82C0
+kind = "function"
+convention = "cdecl"
+expect = "51 8B 4C 24 10 8B 54 24"
+source = "Name ours. copy_backward of SC4Strings (first, last, result). Shared; the game's. Called by address from src/core/music_4.cpp."
+
+[[entry]]
+name = "SC4StringPair::Destruct"
+address = 0x0091C947
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8D 4E 14 E8 FE"
+source = "Name ours. The two strings at +0x14 and +0 destroyed (SC4String::Destroy). Shared; the game's. Called by address from src/core/music_4.cpp (a playlist entry's destructor)."
+
+[[entry]]
+name = "RZFile::GetFileTime"
+address = 0x00918CB1
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 83 EC 38 56 8D"
+source = "Name ours. (const cIGZString* path, uint32_t which): one of the file's stat times (2 the modification time); 0 when there is no file. The game's. Called by address from src/core/music_4.cpp."
+
+[[entry]]
+name = "RZFile::F91AA3B"
+address = 0x0091AA3B
+kind = "function"
+convention = "cdecl"
+expect = "55 8B EC 81 EC 38 01 00"
+source = "Placeholder name, not analysed. (const cIGZString* path, cIGZString* out): returns whether out was set; the playlist reader copies the path itself when not. The game's. Called by address from src/core/music_4.cpp."

@@ -19,6 +19,10 @@
 //     stations read through the player interface, the next one made
 //     current and the first one again (it starts the next station, which
 //     plays its welcome). Nothing without a player (a muted run).
+//   OPENSC4_TEST_PLAYLIST=<day>      token "playlist": the music player's
+//     playlist reader on playlists the test writes into its own user
+//     folder, the vector of entries it fills, and the sort and shuffle of
+//     names (docs/audio.md, part 4 of the music player). Muted runs too.
 //
 // What is left out, on purpose: voices (they end in real time), fades and
 // stamps, the listener's place (it follows the camera), heap addresses,
@@ -38,6 +42,8 @@
 #include <cstring>
 #include <string>
 #include <vector>
+
+#include <windows.h>
 
 namespace opensc4::autotest {
 namespace {
@@ -1024,11 +1030,184 @@ void DriveMusicStations(const Day& day)
 
 const DayHook kMusicStations{"audio.music", 183, &DriveMusicStations};
 
+// --- OPENSC4_TEST_PLAYLIST ---------------------------------------------------------------------------------------------
+
+char g_playlistToken[100];
+
+// A game string (SC4String, 0x14 bytes), trivially copyable so that one can
+// be passed by value as the sort's comparator.
+struct TestString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    uint32_t zero;
+};
+static_assert(sizeof(TestString) == 0x14);
+
+// The test's folder: "PlaylistTest\" in the run's user folder (the game's
+// -UserDir option), else in the temporary folder. The same for both runs of
+// a parity pair, which share a user folder.
+std::string PlaylistFolder()
+{
+    std::string folder;
+    const std::string line = GetCommandLineA();
+    const std::size_t at = line.find("-UserDir:");
+    if (at != std::string::npos) {
+        const std::size_t from = at + 9;
+        const bool quoted = at > 0 && line[at - 1] == '"';
+        std::size_t to = line.find(quoted ? '"' : ' ', from);
+        folder = line.substr(from, to == std::string::npos ? std::string::npos : to - from);
+    }
+    if (folder.empty()) {
+        char temp[MAX_PATH] = {};
+        GetTempPathA(MAX_PATH, temp);
+        folder = temp;
+    }
+    if (folder.back() != '\\' && folder.back() != '/')
+        folder += '\\';
+    folder += "PlaylistTest\\";
+    CreateDirectoryA(folder.c_str(), nullptr);
+    return folder;
+}
+
+// A file written whole, with its modification time set when `minutes` is
+// not negative (minutes after 2020-01-01).
+void WriteTestFile(const std::string& path, const char* text, std::size_t size, int minutes)
+{
+    const HANDLE file = CreateFileA(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+        return;
+    DWORD written = 0;
+    WriteFile(file, text, static_cast<DWORD>(size), &written, nullptr);
+    if (minutes >= 0) {
+        const uint64_t ticks = 132223104000000000ull + static_cast<uint64_t>(minutes) * 600000000ull;
+        FILETIME time{static_cast<DWORD>(ticks), static_cast<DWORD>(ticks >> 32)};
+        SetFileTime(file, nullptr, nullptr, &time);
+    }
+    CloseHandle(file);
+}
+
+void AddTestString(Fnv& f, const TestString& text)
+{
+    if (text.begin && text.end >= text.begin && text.end - text.begin < 0x1000)
+        f.Bytes(text.begin, static_cast<std::size_t>(text.end - text.begin));
+    f.Add(uint8_t{0});
+}
+
+// A vector of entries (0x2C bytes: title, path, length): its count and each.
+uint32_t AddEntries(Fnv& f, char* vector)
+{
+    char* const begin = At<char*>(vector, 0x0);
+    char* const end = At<char*>(vector, 0x4);
+    const uint32_t count = begin ? static_cast<uint32_t>((end - begin) / 0x2C) : 0;
+    f.Add(count);
+    for (uint32_t i = 0; i < count && i < 64; ++i) {
+        char* const entry = begin + i * 0x2C;
+        AddString(f, entry);
+        AddString(f, entry + 0x14);
+        f.Add(At<int32_t>(entry, 0x28));
+    }
+    return count;
+}
+
+// The music player's playlist reader and its sort, on files of the test's
+// own (nothing of the game's install is read): playlists in the three
+// formats, one with a zero byte, a .pls whose count is first, a missing
+// file; each read by the reader (0x008D569F, 0x008D6B22, 0x008D56C8), its
+// entries hashed and assigned into one vector in turn (0x008D56EB: growing,
+// shrinking and growing again in place), which is freed (0x008D51FC). Then
+// 20 names of files with set times sorted by time (0x008D5E50), the first 5
+// of them by a partial sort (0x008D5D06, the heap code) after the order is
+// reversed, and the 20 shuffled (0x008D546F: draws from the sound code's
+// sequence under determinism.fixed_seed). Works muted: no player is needed.
+void DrivePlaylists(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_PLAYLIST") || !game::IsBuild641())
+        return;
+    Fnv f;
+    const std::string folder = PlaylistFolder();
+    constexpr int kNames = 20;
+    char name[32];
+    for (int i = 0; i < kNames; ++i) {
+        std::snprintf(name, sizeof name, "t%02d.mp3", i);
+        WriteTestFile(folder + name, "", 0, (i * 7) % kNames);
+    }
+    static const char kExtended[] = "#EXTM3U\r\n#EXTINF:123,Song One\r\nt01.mp3\r\n#EXTINF:45,Two, with a comma\r\n"
+                                    "sub\\..\\t02.mp3\r\n#EXTINF:-1,Three\r\nC:\\Music\\three.mp3\r\n";
+    static const char kPlain[] = "t03.mp3\n\n  .\\t04.mp3\n..\\up.mp3\n\\root\\x.mp3\nlast\0zero.mp3\n";
+    static const char kPls[] = "[playlist]\nFile1=t05.mp3\nTitle1=Five\nLength1=300\nFile2=t06.mp3\nLength2=10\n"
+                               "File3=..\\t07.mp3\nTitle3=Seven\nNumberOfEntries=3\nVersion=2\n";
+    static const char kPlsCountFirst[] = "[playlist]\nNumberOfEntries=1\nFile1=t08.mp3\n";
+    struct Playlist {
+        const char* name;
+        const char* text;
+        std::size_t size;
+    };
+    const Playlist playlists[] = {
+        {"ext.m3u", kExtended, sizeof kExtended - 1},
+        {"plain.m3u", kPlain, sizeof kPlain - 1},
+        {"list.pls", kPls, sizeof kPls - 1},
+        {"first.pls", kPlsCountFirst, sizeof kPlsCountFirst - 1},
+        {"missing.pls", nullptr, 0},
+    };
+    alignas(4) char entries[0xC] = {};
+    uint32_t total = 0;
+    for (const Playlist& list : playlists) {
+        if (list.text)
+            WriteTestFile(folder + list.name, list.text, list.size, -1);
+        TestString path{};
+        This<void*>(addr::SC4String_FromText, &path, (folder + list.name).c_str());
+        alignas(4) char reader[0x48];
+        This<void*>(addr::GZPlaylistReader_Construct, reader);
+        f.Add(This<uint8_t>(addr::GZPlaylistReader_Read, reader, &path));
+        total += AddEntries(f, reader);
+        AddString(f, reader + 0x20);
+        This<void*>(addr::GZPlaylistEntries_AssignFrom, entries, reader);
+        AddEntries(f, entries);
+        This<void>(addr::GZPlaylistReader_Destruct, reader);
+        This<void>(addr::SC4String_Destroy, &path);
+    }
+    This<void>(addr::GZPlaylistEntries_Destruct, entries);
+
+    TestString names[kNames];
+    for (int i = 0; i < kNames; ++i) {
+        std::snprintf(name, sizeof name, "t%02d.mp3", (i * 3) % kNames);
+        This<void*>(addr::SC4String_FromText, &names[i], name);
+    }
+    TestString base{};
+    This<void*>(addr::SC4String_FromText, &base, folder.c_str());
+    using Sort = void(__cdecl*)(TestString*, TestString*, TestString);
+    using PartialSort = void(__cdecl*)(TestString*, TestString*, TestString*, TestString);
+    TestString order{};
+    This<void*>(addr::SC4String_Substring, &order, &base, uint32_t{0}, uint32_t{0xFFFFFFFF});
+    reinterpret_cast<Sort>(addr::GZRadioStation_SortByFileTime)(names, names + kNames, order);
+    for (const TestString& text : names)
+        AddTestString(f, text);
+    for (int i = 0; i < kNames / 2; ++i)
+        Cdecl<void>(addr::SC4String_Swap, &names[i], &names[kNames - 1 - i]);
+    This<void*>(addr::SC4String_Substring, &order, &base, uint32_t{0}, uint32_t{0xFFFFFFFF});
+    reinterpret_cast<PartialSort>(addr::GZFileTimeSort_PartialSort)(names, names + 5, names + kNames, order);
+    for (const TestString& text : names)
+        AddTestString(f, text);
+    Cdecl<void>(addr::GZRadioStation_ShuffleNames, names, names + kNames);
+    for (const TestString& text : names)
+        AddTestString(f, text);
+    for (TestString& text : names)
+        This<void>(addr::SC4String_Destroy, &text);
+    This<void>(addr::SC4String_Destroy, &base);
+    std::snprintf(g_playlistToken, sizeof g_playlistToken, " playlist %u %08X", total, f.h);
+    log::Write("autotest: playlists driven:%s", g_playlistToken);
+}
+
+const DayHook kPlaylists{"audio.playlist", 184, &DrivePlaylists};
+
 void Fingerprint(cISC4City*, std::string& line)
 {
     line += g_audioToken;
     line += g_dialogToken;
     line += g_musicToken;
+    line += g_playlistToken;
 }
 
 const FingerprintPart kFingerprint{"audio", 5, &Fingerprint};
