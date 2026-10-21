@@ -23,7 +23,15 @@ template <typename R, typename... Args>
 R VrCallSlot(char* object, uint32_t slot, Args... args)
 {
     if (g_stReplay && g_stDepth == 0 && GetCurrentThreadId() == g_stThread) {
-        VrProxy* const proxy = VrFind(object);
+        VrProxy* const proxy = object ? VrFind(object) : nullptr;
+        if (!object) {
+            // A replay gone wrong before (a call it could not answer): noted, never made.
+            const uint32_t result = StReplayed(StMake(0, nullptr, nullptr, nullptr, slot), nullptr);
+            if constexpr (std::is_pointer_v<R>)
+                return reinterpret_cast<R>(result);
+            else
+                return static_cast<R>(result);
+        }
         if (!proxy || At<uint32_t>(object, 0) != proxy->clone) {
             const uint32_t words[] = {VrWord(args)..., 0u, 0u, 0u};
             uint32_t rest = sizeof...(Args) > 2 ? StArg(Ptr(words[2])) : 0;
@@ -350,4 +358,96 @@ void RelieveUnderOccupant(char* manager, char* occupant)
         VrCallSlot<uint32_t>(At<char*>(node, 8), 8);
     }
     TlDestroyList(&holder);
+}
+
+// 0x005919B0 (no words): the effects manager made: 0xDF4 bytes (operator
+// new) and its constructor (jumps to 0x005912B0); null without memory.
+char* MakeEffectsManager()
+{
+    char* const memory = TlNew(0xDF4);
+    return memory ? TlConstructManager(memory) : nullptr;
+}
+
+// One of the two held effects of the options (+0xD90 and +0xD94): with its
+// option off, or the level changed, the one held stopped (slot 0x10 with
+// 1) and let go; with it on and none held, one started by name (the
+// manager's slot 0x1C) and told slot 0xC with 0.
+void ApplyHeldEffect(char* manager, uint32_t at, uint8_t on, uint32_t level, uint32_t name)
+{
+    char** const place = reinterpret_cast<char**>(manager + at);
+    if (*place && (!on || level != At<uint32_t>(manager, 0xB90))) {
+        VrCallSlot<uint32_t>(*place, 0x10, 1u);
+        if (char* const held = *place) {
+            *place = nullptr;
+            VrCallSlot<uint32_t>(held, 8);
+        }
+    }
+    if (on && !*place && VrCallSlot<uint8_t>(manager, 0x1C, name, place))
+        VrCallSlot<uint32_t>(*place, 0xC, 0u);
+}
+
+// 0x00593E10: the options applied, from the preferences at 0x00B43CC4. From
+// its +0x24: +0x94 to +0xCA0, +0xE4 to +0xCA4, +0x1D4 times the city view's
+// +0x150 to +0xCD4; from its +0x18: +0x10C to +0xC8C and +0x134 (the
+// level) to +0xB90. The byte at its +0xC's +0x2FC to the service at
+// 0x00B43CA0 (slot 0x44). The object the +0xDE0 one names (slot 0x28, its
+// +0x30) asked for 0x09CD86F9, held; every effect at +0xBE8 given it
+// (SC4Effect::SetObject) when the +0xC's +0x33C is set, else none. The
+// framework's 0x1AC0E11A/0xFAC0E219 object told the +0x24's +0x6C times a
+// million (truncated, slot 0x38), the +0x18's +0x94 (slot 0x24) and +0x6C
+// (slot 0x28). With the level changed the effects in use restarted
+// (0x00593B90, +0xB8C set around it); with the service at 0x00B43D5C the
+// two held effects by the +0xC's +0x9C and +0x7C. Then the +0xDE0 one's
+// slot 0x50, the framework object's holder ended (0x004495C0) and the
+// asked object let go.
+void ApplyEffectOptions(char* manager)
+{
+    const uint32_t before = At<uint32_t>(manager, 0xB90);
+    char* const preferences = M<char*>(0x00B43CC4);
+    char* const visual = At<char*>(preferences, 0x24);
+    At<uint32_t>(manager, 0xCA0) = At<uint32_t>(visual, 0x94);
+    At<uint32_t>(manager, 0xCA4) = At<uint32_t>(visual, 0xE4);
+    At<float>(manager, 0xCD4) = static_cast<float>(static_cast<double>(At<float>(visual, 0x1D4)) *
+                                                   At<float>(M<char*>(0x00B43DD8), 0x150));
+    char* const graphics = At<char*>(preferences, 0x18);
+    At<uint32_t>(manager, 0xC8C) = At<uint32_t>(graphics, 0x10C);
+    At<uint32_t>(manager, 0xB90) = At<uint32_t>(graphics, 0x134);
+    char* const settings = At<char*>(preferences, 0xC);
+    VrCallSlot<uint32_t>(M<char*>(0x00B43CA0), 0x44, static_cast<uint32_t>(At<uint8_t>(settings, 0x2FC)));
+    char* const owner = VrCallSlot<char*>(At<char*>(manager, 0xDE0), 0x28);
+    char* found = nullptr;
+    VrCallSlot<uint8_t>(At<char*>(owner, 0x30), 0, 0x09CD86F9u, &found);
+    char* const object = found;
+    if (object) {
+        VrCallSlot<uint32_t>(object, 4);
+        if (found)
+            VrCallSlot<uint32_t>(found, 8);
+    }
+    char* const given = At<uint8_t>(settings, 0x33C) && object ? object : nullptr;
+    for (uint32_t i = 0; i < static_cast<uint32_t>(At<char**>(manager, 0xBEC) - At<char**>(manager, 0xBE8)); ++i)
+        TlSetObject(At<char**>(manager, 0xBE8)[i], given);
+    char* holder = nullptr;
+    if (char* const framework = reinterpret_cast<char*(__cdecl*)()>(addr::RZGetFramework)())
+        VrCallSlot<uint32_t>(framework, 0x14, 0x1AC0E11Au, 0xFAC0E219u, &holder);
+    const uint32_t detail =
+        static_cast<uint32_t>(static_cast<int64_t>(static_cast<double>(At<float>(visual, 0x6C)) * M<double>(0x00A9F308)));
+    VrCallSlot<uint32_t>(holder, 0x38, detail);
+    VrCallSlot<uint32_t>(holder, 0x24, At<uint32_t>(graphics, 0x94));
+    VrCallSlot<uint32_t>(holder, 0x28, At<uint32_t>(graphics, 0x6C));
+    const uint8_t first = At<uint8_t>(settings, 0x7C), second = At<uint8_t>(settings, 0x9C);
+    uint32_t level = before;
+    if (level != At<uint32_t>(manager, 0xB90)) {
+        level = At<uint32_t>(manager, 0xB90);
+        At<uint8_t>(manager, 0xB8C) = 1;
+        TlRestartInUse(manager);
+        At<uint8_t>(manager, 0xB8C) = 0;
+    }
+    if (M<uint32_t>(0x00B43D5C)) {
+        ApplyHeldEffect(manager, 0xD90, second, level, 0x00A9F2F0);
+        ApplyHeldEffect(manager, 0xD94, first, level, 0x00A9F2E0);
+    }
+    VrCallSlot<uint32_t>(At<char*>(manager, 0xDE0), 0x50);
+    TlDestructHolder(&holder);
+    if (object)
+        VrCallSlot<uint32_t>(object, 8);
 }
