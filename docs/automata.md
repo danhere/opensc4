@@ -1270,7 +1270,7 @@ The class is found by its vtables, the constructor and the helpers only they cal
   - The eight Lua callbacks Init registers: 0x00524560, 0x00524760, 0x005247E0, 0x00524830, 0x00524880, 0x00524910, 0x00525550 and 0x0052DB50.
   - Slots 19 to 25, 35, 37 and 39: 0x00525CB0, 0x00525BC0, 0x0052A8B0, 0x00525DC0, 0x0052AB00, 0x00524E20, 0x0052A7A0, 0x005252D0, 0x005276A0 and 0x00529ED0.
   - Their helpers: 0x005245F0, 0x00525640, 0x005292F0, 0x00528360, 0x00526380, 0x00526610, 0x005291C0, 0x00524A50, 0x00528ED0, 0x005245A0, 0x00524A00, 0x00526EF0, 0x00526A20 (1,083 bytes), 0x005256E0 and 0x00524D80.
-- **c3 (28, 8,796 bytes): the messages and the popups' answers.** DoMessage 0x0052EB80 and its handlers 0x0052E300, 0x0052E670, 0x0052E710, 0x0052E910, 0x0052C020, 0x0052A7D0, 0x0052A380, 0x0052A650, 0x0052A830, 0x0052A1E0, 0x00527920, 0x00525AF0, 0x00527300, 0x00526440, 0x00524DF0, 0x00524CC0, 0x00525330, 0x00524580, 0x0052C190, 0x00526720, 0x00525430, 0x00525130, 0x00525100 and 0x00524D10; the window procedure 0x0052CAB0 with 0x0052BF00 and 0x0052BFB0.
+- **c3 (28, 8,796 bytes, done): the messages and the popups' answers.** See "Part c3" below. DoMessage 0x0052EB80 and its handlers 0x0052E300, 0x0052E670, 0x0052E710, 0x0052E910, 0x0052C020, 0x0052A7D0, 0x0052A380, 0x0052A650, 0x0052A830, 0x0052A1E0, 0x00527920, 0x00525AF0, 0x00527300, 0x00526440, 0x00524DF0, 0x00524CC0, 0x00525330, 0x00524580, 0x0052C190, 0x00526720, 0x00525430, 0x00525130, 0x00525100 and 0x00524D10; the window procedure 0x0052CAB0 with 0x0052BF00 and 0x0052BFB0.
 - **c4 (30, 6,760 bytes): the targets and the situation's smaller steps.**
   - The targets: 0x0052C8F0, 0x00528C70, 0x00529B80, 0x0052BC50, 0x0052BD30, 0x00524C40, 0x00524CF0, 0x00524660, 0x00526180, 0x00529560, 0x00526960, 0x00525A50, 0x00525AA0, 0x0052C0E0 and 0x0052BBC0.
   - The steps: 0x00525800, 0x005254D0, 0x00525070, 0x005278E0, 0x005260C0, 0x00526510, 0x00526250, 0x005271D0, 0x00524E90, 0x00524F00, 0x00529AF0, 0x005278A0, the end of a situation (slot 38) 0x005294C0, and the slot 4 of the two occupant filters of the class, 0x00524AB0 (vtable 0x00A97D90) and 0x00526650 (vtable 0x00A97DE0).
@@ -1451,3 +1451,112 @@ Not reached: StartJoyride 0x00524E20 and 0x00524D80 (see "Test"). Not compared:
 - 0x00528ED0's Add and Remove of an icon.
 
 Slot 36 (the start) and slot 38 (the end) were the test's own, so the real start of a situation was not run; it belongs to part c5.
+
+## Part c3: the messages, the CSI list and the popup
+
+### What is ours
+
+28 functions in three groups, off by default ([automata_situations_3.cpp](../src/core/automata_situations_3.cpp)):
+
+- **`simulators.automata.situations.messages` (15):**
+  - DoMessage 0x0052EB80 (the +4 part's slot 3) and the frame 0x0052E300.
+  - The events: an occupant removed 0x0052E670, the automata events 9 (0x0052E710) and 11 and 12 (0x0052C020), an occupant added 0x0052A7D0, an advice gone 0x00524DF0.
+  - The small steps: the drive aborted 0x00524CC0, IsFinished 0x00524580, the target check 0x00525130, the target's occupant 0x00525100, the message post 0x00524D10.
+  - The success 0x0052C190, the failure 0x00526720 and the script 0x00525430 (the RunScript part c2 called at its address).
+- **`simulators.automata.situations.list` (8):** an advice's list entry added 0x0052A380 and removed 0x0052A650, an automaton untracked 0x0052A830, the candidate 0x0052A1E0, and the list's sort 0x00527920, merge 0x00525AF0, construction 0x00527300 and insert 0x00526440.
+- **`simulators.automata.situations.popup` (5):** the popup shown 0x0052E910 and closed 0x00525330, its window procedure 0x0052CAB0 (the +0x10 part's slot), the dismiss 0x0052BF00 and the joyride button 0x0052BFB0.
+
+What they do:
+
+- **DoMessage** answers fifteen messages; the handlers get the manager (this - 4):
+
+  | Message | What it does |
+  | --- | --- |
+  | 0x230E27AC | The cheat csitrigger (data 1 0x8C4136DB): its second word, hex, posted as 0xAC1045EF. |
+  | 0x0BB324BD | Slot 39, unless the situation succeeded or failed. |
+  | 0x09D92FC3 | By data 2: 2 aborts the drive of the active automaton, 9 rechecks the target, 11 (and 12 with data 3 0x14) an automaton destroyed. |
+  | 0x26D31EC1 | After a load (+0x9F1), every advice of the advisor service put on the list. |
+  | 0x2C16BDE7, 0xEBB67EF7 | The popup closed and shown again (0xEBB67EF7 with an advice and data 1). |
+  | 0x6BB350E4 | An advice gone: slot 35 with 0, slot 39 for the active one. |
+  | 0x86AD10EE | The frame, dt in data 3. |
+  | 0x8A09FA64, 0x8A09FA65 | An advice's list entry added or removed. |
+  | 0x99EF1142, 0x99EF1143 | An occupant added (tracked) or removed. |
+  | 0xAC1045EF | Slot 21 with data 1, 2 and 3. |
+  | 0xCC0D905F | The driver (+0xA9C), with the situation's flag 8. |
+  | 0x8A09FA67 | Nothing. |
+
+  Other messages answer false.
+- **The frame:**
+  - The joyride's end (+0xA98): the services' slot 9, the countdown 4000, +0xAA0 stopped, and the U-Drive camera effect (0x00B43D1C's slot 7) placed at the U-Drive's position.
+  - Else the countdown (+0xA90; at its end the services' slot 10).
+  - Else the drive's time (+0xA88). At its end: 0x0052C190 for the status 1 or 0x00526720 for 2, then 0xEBB67EF7.
+  - The driver is dropped when its slot 5 is false.
+  - While a situation runs: the warning 0x6C32871F to the automaton 30 seconds before the time limit, the target update 0x0052C8F0 (part c4), and the target check. Every 5000 ms the target check hands the services that handle the situation's groups their slot 21 with a radius and the target's occupant or the automaton.
+- **The success:**
+  - The GUID's success count goes up (at most 0xFFFF). With the flag 0x40 the GUID is added to the preferences' done tutorials, which are saved.
+  - The camera effect is named by the situation. The money (0x00B43D60) and the budget's reward follow, then the script (+0xADC).
+  - The advisor service is told and the list entry removed.
+- **The failure:** the camera effect, the money and the budget's loss at the automaton or the target, then the script (+0xAE0) in any case.
+- **The list:**
+  - An added advice is inserted at the front and the list sorted (STLport's list sort and merge, by the advice's slot 3's slot 7, an entry without an advice first).
+  - An entry showing no automaton gets a candidate of its automata groups that is not tracked (0x0052A1E0), under the most CSIs. At the most, a later entry's CSI is taken instead. Without a candidate, a tracked automaton the advice answers true for is taken from a later entry.
+  - Removing an entry hands candidates to the entries without one.
+- **The popup:**
+  - The window 0x96A006B0 (by the status: 0x0BBC06B6, 0x4BBC080F or 0x2BB16D50) is loaded and filled by 0x0052CC50 (the game's, an SC4UIScale site) under a modal guard, and kept in +0xA28. The link of the data (its property 0x2BE8FBF3) is opened.
+  - The window procedure answers the buttons 1 (continue or dismiss), 6 (the drive, slot 37) and 7 (the joyride, slot 24) and the link, and closes the popup (0x00525330).
+
+Oddities kept:
+
+- DoMessage hands slot 21 the bool of 0xAC1045EF in the low byte of the message pointer.
+- 0x0052A380 passes the advice to the sort as its comparator, which the sort and the merge never read.
+- 0x0052A1E0's candidate set is released by 0x00B43D44's slot 33, not by the manager's services.
+- At the most CSIs, 0x0052A380 gives up the candidate it found and takes over a lower entry's CSI instead.
+- The window procedure answers the link's result inverted, and tests the status 1 or 2 inline where the button calls 0x00524580.
+- Several QueryInterface out pointers and the target check's subject live in argument slots; ours are locals.
+
+Floats: the countdown, the drive's time and the target check's clock are compared as the x87 register holds them (unrounded) and stored rounded. The target check's radius is compared unrounded and kept rounded.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret` (with the pushes that a call without arguments leaves to the next one), then an independent audit of all 28 against the disassembly. The audit found no behavioural difference. Its notes are cosmetic: locals the game leaves uninitialized (the pad bytes of the camera transforms, the money and reward outputs, a property out word, the new success pair's high word) are zeroed, and argument slots the game reuses are locals.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SITUATIONS=3` adds ` E<messages>,<frame>,<handlers>,<list>,<flags>` to the fingerprint (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It runs on part c2's day, on a fresh manager whose vtable is a copy with slots 24, 35, 36 and 38 the test's, with a reseeded random. Only objects of the test's own are handed to the functions; the game's globals are read and never written.
+
+- DoMessage for every message that posts nothing and opens no popup:
+  - an unknown one, 0x8A09FA67, the cheat with no ID or an ID of 0;
+  - the end (none, finished, running), the automata events 2, 9, 11, 12 and 5, the load without +0x9F1, an advice gone, the frame;
+  - occupants added and removed, a start by an unknown GUID, the driver.
+- The frame: the joyride's end (only when the U-Drive's camera would not be asked; flag 2), the countdown, the driver, the drive's time, the warning, the target update at the statuses 4 and 3, and the target check (the automaton, the target's occupant, a radius from the city's width and one of 24).
+- The handlers directly:
+  - 0x0052E670, 0x0052E710, 0x0052C020 and 0x0052A7D0, the first three over the kinds 1, 3 and 4;
+  - 0x00524DF0, 0x00524CC0 and 0x00524580 over the statuses, 0x00525130 and 0x00525100;
+  - 0x0052C190's early returns, 0x00526720 with the rewards' slots false, 0x00525430;
+  - 0x0052BF00 without a situation, 0x0052BFB0, 0x0052CAB0 for 0xA2BF8AD5, 0xA2BF8AD6 and two messages it refuses.
+- The list: advices added and removed by message, the untracking, a take-over, the most CSIs (flag 4), 0x0052A1E0, and a list of the test's own made, filled, sorted and merged.
+
+The tracked set's walk order follows the fakes' addresses, which move with the DLL's load address, so where it holds several fakes the calls on them are summed instead of hashed in order. Flags: 1 ran, 2 the joyride's end ran, 4 the most-CSIs step ran, 0x10 a field left set (an error). `OPENSC4_TEST_C3_TRACE=1` logs each step's hash; 2 also logs the fakes' calls in the list part.
+
+Not called by the test:
+
+- 0x0052E910, 0x00525330 and 0x00524D10: they open or close a real popup, or post a message.
+- 0x0052C190's body: it tells the advisor service.
+- DoMessage's 0x2C16BDE7 and 0xEBB67EF7, the frame's end of a drive, and the window procedure's buttons and link: they reach these.
+- The load with +0x9F1 set: it hands the real advices to the list.
+
+### Parity
+
+2026-10-20, env p4env-c3, `OPENSC4_MUTE=1` on both sides, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SITUATIONS=3`. B is the nine `simulators.automata.situations` groups (parts c1, c2 and c3) against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides. Snapshot c3-r1, the final build (the audit changed nothing). All the same, on the first pair:
+
+| Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- |
+| 5 of 5 | 8 of 8 | 12 of 12 |
+
+In every one of the 14 B runs, 25 of the 28 functions were reached (our first-call log lines). Every run, on both sides, carried the same token, E FF4CF095,3814C9A3,B254D375,EE1F3D29,5. The flags are 5 everywhere: the joyride's end was skipped, because the U-Drive's camera would have been asked.
+
+Not reached: 0x0052E910 (the popup shown), 0x00525330 (the popup closed) and 0x00524D10 (the message post). No mission popup opens in these runs, and the test does not call them (see "Test"). Not compared:
+
+- 0x0052C190's body. It is reached through the test's early returns only.
+- The frame's end of a drive and its joyride's end.
+- DoMessage's 0x2C16BDE7, 0xEBB67EF7 and 0x26D31EC1 with +0x9F1 set.
+- The window procedure's buttons and link.
+- The rewards and camera effects of 0x0052C190 and 0x00526720.
