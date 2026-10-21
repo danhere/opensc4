@@ -4212,8 +4212,13 @@ bool MxNoting();
 uint32_t MxSetObjectNoted(char* self, uint32_t object, uint32_t (*run)(char*, uint32_t));
 
 // While a maker is noted, its call is noted too.
+bool TlStNoting();
+uint32_t TlNoted1(uint32_t target, char* self, uint32_t word, uint32_t (*run)(char*, uint32_t));
+
 uint32_t __fastcall SetObjectByMode(char* self, void*, uint32_t object)
 {
+    if (TlStNoting())
+        return TlNoted1(addr::SC4Effect_SetObject, self, object, &SetObjectRun);
     return MxNoting() ? MxSetObjectNoted(self, object, &SetObjectRun) : SetObjectRun(self, object);
 }
 OPENSC4_THUNK(TSC4Effect_SetObject, SetObjectByMode, 4)
@@ -12214,7 +12219,17 @@ uint32_t SbRestartUnderNoting(char* self)
     return result;
 }
 
+uint32_t RestartInUseRun(char* self);
+uint32_t TlNoted0(uint32_t target, char* self, uint32_t (*run)(char*));
+
 uint32_t __fastcall RestartInUseByMode(char* self, void*)
+{
+    if (TlStNoting())
+        return TlNoted0(addr::SC4EffectsManager_RestartInUse, self, &RestartInUseRun);
+    return RestartInUseRun(self);
+}
+
+uint32_t RestartInUseRun(char* self)
 {
     if (SbNoting())
         return SbNotedStart(addr::SC4EffectsManager_RestartInUse, 0, 0, [&] { return SbRestartUnderNoting(self); });
@@ -12393,8 +12408,9 @@ bool InstallStarts(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
         !(Detour(addr::SC4EffectsManager_StartById, &TSC4EffectsManager_StartById, &g_SC4EffectsManager_StartById) &&
-          Detour(addr::SC4EffectsManager_RestartInUse, &TSC4EffectsManager_RestartInUse,
-                 &g_SC4EffectsManager_RestartInUse) &&
+          (g_SC4EffectsManager_RestartInUse || Detour(addr::SC4EffectsManager_RestartInUse,
+                                                      &TSC4EffectsManager_RestartInUse,
+                                                      &g_SC4EffectsManager_RestartInUse)) &&
           Detour(addr::SC4EffectsManager_StartByName, &TSC4EffectsManager_StartByName,
                  &g_SC4EffectsManager_StartByName) &&
           Detour(addr::SC4EffectsManager_OnZoomChanged, &TSC4EffectsManager_OnZoomChanged,
@@ -16062,7 +16078,7 @@ struct VrSlot {
     int in2 = -1;             // a second such word
     uint32_t in2Size = 0;
     bool outThrough = false;  // the first out is behind the pointer the word points at
-    void (*after)(const uint32_t* args) = nullptr; // after the call, noted or replayed
+    void (*after)(const uint32_t* args, uint32_t result) = nullptr; // after the call, noted or replayed
 };
 
 struct VrKind {
@@ -16272,7 +16288,7 @@ uint32_t VrDispatch(char* self, uint32_t slot, const uint32_t* args, const std::
     if (desc->resultKind)
         VrProxyObject(Ptr(result), *desc->resultKind);
     if (desc->after)
-        desc->after(args);
+        desc->after(args, result);
     return result;
 }
 
@@ -16376,7 +16392,7 @@ const VrKind kVrMessageServer{{VrPlain(0x18, 2, VR_SLOT(2, 0x18))}};
 const VrKind kVrMessageListen{{VrPlain(0x14, 2, VR_SLOT(2, 0x14))}};
 // The occupants a query put in its list (nodes of next, previous, object),
 // proxied for their let-go.
-void VrProxyListed(const uint32_t* args)
+void VrProxyListed(const uint32_t* args, uint32_t)
 {
     char* const holder = At<char*>(Ptr(args[0]), 0);
     for (char* node = holder ? At<char*>(holder, 0) : nullptr; node && node != holder; node = At<char*>(node, 0))
@@ -16387,6 +16403,22 @@ const VrKind kVrClearedMap{{{0x2C, 2, {{-1, 0}, {-1, 0}}, nullptr, nullptr, 1, 0
 const VrKind kVrNodeAllocator{{VrPlain(0xC, 1, VR_SLOT(1, 0xC))}};
 const VrKind kVrOccupantQuery{{{0xA4, 5, {{0, 8}, {-1, 0}}, nullptr, nullptr, 1, 8, VR_SLOT(5, 0xA4), 2, 8, true,
                                 VrProxyListed}}};
+// The options' objects.
+const VrKind kVrAsked{{VrPlain(4, 0, VR_SLOT(0, 4)), VrPlain(8, 0, VR_SLOT(0, 8))}};
+const VrKind kVrAskedSource{{{0, 2, {{1, 4}, {-1, 0}}, &kVrAsked, nullptr, -1, 0, VR_SLOT(2, 0)}}};
+void VrProxyOwnerSource(const uint32_t*, uint32_t result)
+{
+    if (result)
+        VrProxyObject(At<char*>(Ptr(result), 0x30), kVrAskedSource);
+}
+const VrKind kVrOptionsHost{{{0x28, 0, {{-1, 0}, {-1, 0}}, nullptr, nullptr, -1, 0, VR_SLOT(0, 0x28), -1, 0, false,
+                              VrProxyOwnerSource},
+                             VrPlain(0x50, 0, VR_SLOT(0, 0x50))}};
+const VrKind kVrOptionsService{{VrPlain(0x44, 1, VR_SLOT(1, 0x44))}};
+const VrKind kVrDetail{{VrPlain(0x38, 1, VR_SLOT(1, 0x38)), VrPlain(0x24, 1, VR_SLOT(1, 0x24)),
+                        VrPlain(0x28, 1, VR_SLOT(1, 0x28))}};
+const VrKind kVrDetailFramework{{{0x14, 3, {{2, 4}, {-1, 0}}, &kVrDetail, nullptr, -1, 0, VR_SLOT(3, 0x14)}}};
+const VrKind kVrHeldEffect{{VrPlain(0x10, 1, VR_SLOT(1, 0x10)), VrPlain(8, 0, VR_SLOT(0, 8))}};
 const VrKind kVrLiftedMap{{{0x28, 4, {{-1, 0}, {-1, 0}}, nullptr, nullptr, 1, 0x10, VR_SLOT(4, 0x28)}}};
 
 // What ours calls besides the proxied tables: in the replay the note.
@@ -16498,6 +16530,54 @@ void TlDestroyList(char** holder)
 {
     VrNotedInto(StMake(addr::SC4List_Destroy2, holder), {},
                 [&] { return CallThis<uint32_t>(addr::SC4List_Destroy2, holder); });
+}
+
+bool TlStNoting()
+{
+    return StNoting();
+}
+
+uint32_t TlNoted1(uint32_t target, char* self, uint32_t word, uint32_t (*run)(char*, uint32_t))
+{
+    return StNoted(StMake(target, self, Ptr(word)), nullptr, 0, [&] { return run(self, word); });
+}
+
+uint32_t TlNoted0(uint32_t target, char* self, uint32_t (*run)(char*))
+{
+    return StNoted(StMake(target, self), nullptr, 0, [&] { return run(self); });
+}
+
+void TlSetObject(char* effect, char* object)
+{
+    VrNotedInto(StMake(addr::SC4Effect_SetObject, effect, object), {},
+                [&] { return CallThis<uint32_t>(addr::SC4Effect_SetObject, effect, object); });
+}
+
+void TlRestartInUse(char* manager)
+{
+    VrNotedInto(StMake(addr::SC4EffectsManager_RestartInUse, manager), {},
+                [&] { return CallThis<uint32_t>(addr::SC4EffectsManager_RestartInUse, manager); });
+}
+
+void TlDestructHolder(char** holder)
+{
+    VrNotedInto(StMake(addr::SC4RefPtr_Destruct, holder), {},
+                [&] { return CallThis<uint32_t>(addr::SC4RefPtr_Destruct, holder); });
+}
+
+// The manager's memory: operator new, which the pool allocator (noted in
+// a noted run) gives; in a replay its note.
+char* TlNew(uint32_t size)
+{
+    if (g_stReplay && g_stDepth == 0 && GetCurrentThreadId() == g_stThread)
+        return Ptr(StReplayed({addr::SC4_PoolAllocate, size, 0, 0, 0, 0, {}}, nullptr));
+    return reinterpret_cast<char*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(size);
+}
+
+char* TlConstructManager(char* memory)
+{
+    return Ptr(VrNotedInto(StMake(addr::SC4EffectsManager_Construct, memory), {},
+                           [&] { return CallThis<uint32_t>(addr::SC4EffectsManager_Construct, memory); }));
 }
 
 uint32_t TlClearTexts(char* tables)
@@ -16788,6 +16868,56 @@ uint32_t __fastcall TlRelieveByMode(char* manager, void*, uint32_t occupant)
 }
 OPENSC4_THUNK(TTlRelieve, TlRelieveByMode, 4)
 
+Call0Fn g_SC4EffectsManager_Construct = nullptr, g_SC4RefPtr_Destruct = nullptr,
+        g_SC4EffectsManager_ApplyOptions = nullptr;
+using TlMakeFn = char*(__cdecl*)();
+TlMakeFn g_SC4EffectsManager_Make = nullptr;
+
+uint32_t __fastcall TlConstructNoted(char* memory, void*)
+{
+    return VrNotedInto(StMake(addr::SC4EffectsManager_Construct, memory), {},
+                       [&] { return g_SC4EffectsManager_Construct(memory, nullptr); });
+}
+OPENSC4_THUNK(TTlConstructNoted, TlConstructNoted, 0)
+
+uint32_t __fastcall TlDestructHolderNoted(char* holder, void*)
+{
+    return VrNotedInto(StMake(addr::SC4RefPtr_Destruct, holder), {},
+                       [&] { return g_SC4RefPtr_Destruct(holder, nullptr); });
+}
+OPENSC4_THUNK(TTlDestructHolderNoted, TlDestructHolderNoted, 0)
+
+char* __cdecl TlMakeByMode()
+{
+    const auto game = [&] { return Word(g_SC4EffectsManager_Make()); };
+    const auto ours = [&] { return Word(MakeEffectsManager()); };
+    return Ptr(StByModeOf(g_tlMode, StMake(addr::SC4EffectsManager_Make, nullptr), nullptr, 0, game, ours,
+                          [&] { return StSpansCompared("effects.tail.make", {}, true, game, ours); }));
+}
+
+uint32_t __fastcall TlOptionsByMode(char* manager, void*)
+{
+    const auto game = [&] { return g_SC4EffectsManager_ApplyOptions(manager, nullptr); };
+    const auto ours = [&] {
+        ApplyEffectOptions(manager);
+        return 0u;
+    };
+    return StByModeOf(g_tlMode, StMake(addr::SC4EffectsManager_ApplyOptions, manager), nullptr, 0, game, ours, [&] {
+        VrScope scope;
+        VrProxyObject(M<char*>(0x00B43CA0), kVrOptionsService);
+        VrProxyObject(At<char*>(manager, 0xDE0), kVrOptionsHost);
+        VrProxyObject(reinterpret_cast<char*(__cdecl*)()>(addr::RZGetFramework)(), kVrDetailFramework);
+        VrProxyObject(manager, kVrStarter);
+        VrProxyObject(At<char*>(manager, 0xD90), kVrHeldEffect);
+        VrProxyObject(At<char*>(manager, 0xD94), kVrHeldEffect);
+        return StSpansCompared("effects.tail.options",
+                               {{manager + 0xB8C, 8}, {manager + 0xC8C, 4}, {manager + 0xCA0, 8}, {manager + 0xCD4, 4},
+                                {manager + 0xD90, 8}},
+                               false, game, ours);
+    });
+}
+OPENSC4_THUNK(TTlOptions, TlOptionsByMode, 0)
+
 Call0Fn g_SC4EffectTables_StartListening = nullptr;
 
 uint32_t __fastcall TlStartByMode(char* tables, void*)
@@ -16843,7 +16973,9 @@ bool InstallTail(registry::Mode mode)
         !Detour(addr::SC4EffectsManager_HasDescriptionNamed, &TTlNamed, &g_SC4EffectsManager_HasDescriptionNamed) ||
         !Detour(addr::SC4EffectTables_StopListening, &TTlStop, &g_SC4EffectTables_StopListening) ||
         !Detour(addr::SC4EffectTables_StartListening, &TTlStart, &g_SC4EffectTables_StartListening) ||
-        !Detour(addr::SC4EffectsManager_RelieveUnderOccupant, &TTlRelieve, &g_SC4EffectsManager_RelieveUnderOccupant))
+        !Detour(addr::SC4EffectsManager_RelieveUnderOccupant, &TTlRelieve, &g_SC4EffectsManager_RelieveUnderOccupant) ||
+        !DetourCdecl(addr::SC4EffectsManager_Make, &TlMakeByMode, &g_SC4EffectsManager_Make) ||
+        !Detour(addr::SC4EffectsManager_ApplyOptions, &TTlOptions, &g_SC4EffectsManager_ApplyOptions))
         return false;
     if (mode == registry::Mode::Compare &&
         !(DetourCdecl(addr::SC4_QueryHeld, &TlQueryHeldNoted, &g_SC4_QueryHeld) &&
@@ -16854,7 +16986,13 @@ bool InstallTail(registry::Mode mode)
           HookTransformChars() && HookClearManagerTexts() && HookAssignFloats() && HookPairHashInsert() &&
           HookPairHashGrow() && HookNameEqualRange() &&
           Detour(addr::SC4Uint32HashMap_Lookup, &TTlLookupNoted, &g_SC4Uint32HashMap_Lookup) &&
-          Detour(addr::SC4List_Destroy2, &TTlDestroyListNoted, &g_SC4List_Destroy2)))
+          Detour(addr::SC4List_Destroy2, &TTlDestroyListNoted, &g_SC4List_Destroy2) && HookPoolAllocate() &&
+          Detour(addr::SC4EffectsManager_Construct, &TTlConstructNoted, &g_SC4EffectsManager_Construct) &&
+          Detour(addr::SC4RefPtr_Destruct, &TTlDestructHolderNoted, &g_SC4RefPtr_Destruct) &&
+          (g_SC4Effect_SetObject || Detour(addr::SC4Effect_SetObject, &TSC4Effect_SetObject, &g_SC4Effect_SetObject)) &&
+          (g_SC4EffectsManager_RestartInUse || Detour(addr::SC4EffectsManager_RestartInUse,
+                                                      &TSC4EffectsManager_RestartInUse,
+                                                      &g_SC4EffectsManager_RestartInUse))))
         return false;
     g_tlMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the manager's calls through other tables %s",

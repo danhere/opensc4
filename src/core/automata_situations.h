@@ -105,6 +105,16 @@ inline constexpr std::size_t kBeginDrive = 0x94, kStopSituation = 0x9C;
 // Part c2's fields (the rest of the layout above).
 namespace field {
 inline constexpr std::size_t kDriveTime = 0xA88, kSetAA8Count = 0xAB8, kRefAF0 = 0xAF0, kTableRef = 0xAF4;
+// Part c3 (src/core/automata_situations_3.cpp): the target check's clock, the
+// tracked automata's buckets and count, the success and failure scripts'
+// table references (two of the seven words from +0xADC).
+inline constexpr std::size_t kCheckTime = 0xA84, kTrackedBuckets = 0xA0C, kTrackedCount = 0xA18;
+inline constexpr std::size_t kSuccessRef = 0xADC, kFailureRef = 0xAE0, kTargetRef = 0xAE4;
+// Part c4 (src/core/automata_situations_4.cpp): the kind 1's clock, the
+// escort's clock, the cell of the kind 5's next target (two uint16, x low).
+// The set +0xAA8 holds the kind 5's cells, the map +0xAC4 their objects,
+// +0xABC counts the cells reached and +0xAC0 is the default goal.
+inline constexpr std::size_t kTargetTime = 0xA7C, kEscortTime = 0xA80, kCell = 0xAD8;
 } // namespace field
 
 } // namespace opensc4::automata_situations
