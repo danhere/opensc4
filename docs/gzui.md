@@ -268,3 +268,20 @@ The methods answer a byte; ours give the game's EAX where it comes from a call o
 A muted game (`OPENSC4_MUTE=1`, as the parity runs are) has no registry of sound kinds: Random reads through a null pointer there, in the game's code as in ours (the first trial crashed on both sides). The test then leaves out the draws, Random and the kinds' slot 5, and mixes that it did.
 
 With the groups on, each of the 29 logs its first call.
+
+The `pio` token is now C2AC1940 in a muted game (u2b's BB3FF4B6 plus these stages). An independent audit of all 29 against the disassembly (ret sizes, arguments, call order, EAX, the 5-byte entry rule) found no behavioural difference; its one EAX note (EndElement's EAX above the byte on the number check's refusal when the value has no body) is fixed.
+
+### Parity
+
+Batches `gzu3-r1` to `gzu3-r3` (2026-10-21), muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.propio.*` group (u2's and u3's) `=ours` on side B, two jobs. r1 ran the first test (it crashed on both sides at the draws, which led to the registry check) and the 4-day plain leg; r2 the test legs and Rush Hour; r3, the final build (the audit's fix), the 12 saves and the Making Money test leg again:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same, first pair (r1) |
+| Rush Hour t0000, 7 days | 1 | same, first pair (r2) |
+| 12 saves, 7 days | 12 | 12 same, first pair (r3) |
+| 12 saves, 7 days, `OPENSC4_TEST_PROPIO=2` | 12 | 12 same: 11 on the first pair, Rush Hour d0090 after 2 pairs (side A itself gave two outcomes; B matched one); `pio` C2AC1940 in all 24 runs (r2) |
+| Making Money d0000 and Rush Hour t0000, `OPENSC4_TEST_PROPIO=2` | 2 | same, first pair (r2; Making Money again in r3) |
+| Making Money d0000, 4 days, `OPENSC4_TEST_PROPIO=2`, not muted | 1 | same after 2 pairs (side A gave two outcomes); the shufflebag and kinds stages matched (F67C12BA, FB26BA1D) |
+
+**Reached:** in the plain legs, none of the 67 propio functions logs a first call: nothing calls this code while a parity run starts and plays, so those legs show only that the hooks change nothing. In the muted test legs 26 of the 29 were reached in every B run; Draw, Random and the 2D kind's slot 5 need the registry of sound kinds and were reached in the unmuted leg.

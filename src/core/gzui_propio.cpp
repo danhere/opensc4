@@ -1384,7 +1384,8 @@ uint32_t __fastcall ScriptHandlerEndElement(char* self, void*, const char* eleme
         }
     } else if (CallCdecl<int>(addr::SC4_strcmp, element, Text(addr::cGZUIScriptHandler_Uint32Uint32Text)) == 0) {
         if (!ScriptNumberText(value)) {
-            last = DestroyTemp(name, last);
+            // The game's EAX is the failed check's 0.
+            last = DestroyTemp(name, 0);
             return Answer(DestroyTemp(value, last), false);
         }
         if (Strlen(&name) != 0 || Strlen(&value) != 0) {
@@ -1395,7 +1396,8 @@ uint32_t __fastcall ScriptHandlerEndElement(char* self, void*, const char* eleme
         }
     } else if (CallCdecl<int>(addr::SC4_strcmp, element, Text(addr::cGZUIScriptHandler_Uint32Float32Text)) == 0) {
         if (!ScriptNumberText(value)) {
-            last = DestroyTemp(name, last);
+            // The game's EAX is the failed check's 0.
+            last = DestroyTemp(name, 0);
             return Answer(DestroyTemp(value, last), false);
         }
         if (Strlen(&name) != 0 || Strlen(&value) != 0) {
