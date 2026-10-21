@@ -354,6 +354,45 @@
 //   building occupant, a manager or bytes missing, a byte round trip that
 //   did not come back, a fake called at a slot it does not know. The
 //   generator globals are put back; the city's managers are not changed.
+// OPENSC4_TEST_AUTOMATA_AWMGR=5 (part aw5): also, on the same day, at the
+//   game's addresses or through the managers' vtables (ours when the
+//   simulators.automata.awmgr.water.create, .routes and .frame groups are
+//   on), into the fingerprint as ` W<create>,<routes>,<frame>,<flags>` from
+//   that day on. Fake boats of the test's own (part aw4's fakes in a
+//   0x400-byte block, with slots 16, 17 (the radius), 35 and 59; their
+//   occupants answer slot 35 and, when given one, the dock interface
+//   0xE9793A65 of the test's own: an orientation, a model and its box). The
+//   leaf helpers on data of the test's own: the leg's constructor; the
+//   crossing rank (none, the kinds 0x4400 and 0x4402, the groups 0x4414,
+//   0x4413, none) and the path group test (0x440F, 0x440A, 0x4411, none);
+//   the step direction at each index of a path of the eight unit steps and
+//   a longer one, and the path cut (-1, past the end, at 3); the route
+//   records' copy (empty and of three), fill (and at a null place), erase
+//   (the middle, the last) and growing insert (into an empty vector, inside
+//   a full one with one and three, at the end); the city's edge cells
+//   (sides 0 to 3, 5, -1). The city's watercraft manager, queries only: the
+//   lot at no occupant and at the controller table's first building, its
+//   water body; the dock search (none, without the interface, the
+//   building, the interface at four orientations); open water at four
+//   cells; the creation point (slot 16) at three places for three groups,
+//   near and not nearer than 200. A new watercraft manager from the
+//   factory, Init, its generator seeded, its vtable a copy whose slot 15
+//   answers the test's fake boats (or none): two routes, a pair and a
+//   terminal of the test's own; CreateAutomaton refused near a listed boat
+//   and outside the city; open water; the creation point at the building's
+//   lot with a route of it; the boat's path (a target, none) and its legs
+//   (start 0 and 1); a record's two legs (0x0056FD60: to a route there and
+//   not, with and without a boat, walking an empty path); a new ferry
+//   (0x00570DF0: two records, a refused creation); a boat for the terminal
+//   (0x005710A0: three kinds, a refused creation, no interface); the edge
+//   spawn until a boat is made or 40 calls; the frame update (slot 63) with
+//   two listed boats whose paths cross, both timers due, then with the
+//   city's ferry routes asked (+0xA88); the game's vtable back, Shutdown
+//   and the release. The globals the part changes (the generator, the edge
+//   spawn's side, timer and bit, the frame's timers) are put back. The
+//   flags: no building, no city watercraft manager, no new manager, a
+//   route not made, a fake boat (0x10) or a made one (0x20) called at a
+//   slot it does not know.
 // OPENSC4_TEST_AUTOMATA_SITUATIONS=1 (part c1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's situation manager (the city's slot
 //   0xC4) is called at the game's addresses (ours when the
@@ -3158,6 +3197,7 @@ struct FakeState {
     char* messageTarget = nullptr;  // QI 0x452294AA
     void* holder = nullptr;         // the occupant's slot 6 (null: FakeHolder; part aw4)
     uint32_t kind[8] = {};          // slot 67's block (+0x10 the kind; part aw4)
+    void* dock = nullptr;           // the occupant's QI 0xE9793A65 (part aw5)
     uint32_t unexpected = 0;
 };
 
@@ -3173,7 +3213,17 @@ uint32_t Canon(uint32_t value)
     return value ? 0xFFFFFFF0u : 0u;
 }
 
-FakeState* StateOf(char* base) { return At<FakeState*>(base, kFakeState); }
+// Fakes whose state is not in their block (part aw5's boats, whose fields
+// cover +0x1F0).
+std::vector<std::pair<const char*, FakeState*>> g_fakeStates;
+
+FakeState* StateOf(char* base)
+{
+    for (const auto& [b, s] : g_fakeStates)
+        if (b == base)
+            return s;
+    return At<FakeState*>(base, kFakeState);
+}
 
 // The fake occupant's property holder (what the automata filter of
 // 0x00B43DC4 asks for): no property (slots 3 and 9 answer 0).
@@ -3246,6 +3296,13 @@ uint32_t Answer(char* base, std::size_t part, std::size_t slot, const uint32_t* 
         case 0x18: return reinterpret_cast<uint32_t>(s->holder ? s->holder : FakeHolder());
         case 0x58: return (args[0] && (args[0] == s->groups[0] || args[0] == s->groups[1])) ? 1u : 0u;
         case 0x84: return s->occupantFlags;
+        case 0x00: // part aw5: the dock interface, referenced
+            if (args[0] == 0xE9793A65u && s->dock && args[1]) {
+                *reinterpret_cast<void**>(args[1]) = s->dock;
+                Virtual<uint32_t>(s->dock, 0x04);
+                return 1;
+            }
+            return 0;
         default: return 0;
         }
     }
@@ -4667,6 +4724,802 @@ void AwBehaviourDrive(cISC4City* city)
     text += part;
     g_aw4Text = text;
     log::Write("autotest: automata: aw4%s logged %08X", text.c_str(), logged.h);
+}
+
+// ====================================================================================
+// Part aw5's drive (OPENSC4_TEST_AUTOMATA_AWMGR=5), see the top of the file.
+
+std::string g_aw5Text;
+
+// A fake boat: part aw4's fake automaton in a 0x400-byte block (the boat's
+// fields up to +0x344: its legs +0x1E4 and +0x218, its path +0x2A4/+0x2A8 of
+// 16-byte points, its timers, target and route; its state in
+// g_fakeStates, as the legs cover +0x1F0), with slots 16 (a place and
+// facing), 17 (its radius, ST0: FakeState::value32), 35 and 59 answering 0;
+// its occupant answers slot 35 (0) too.
+constexpr std::size_t kBoatSize = 0x400;
+
+void** FakeBoatVtable()
+{
+    static void* table[0x1A0 / 4];
+    if (!table[0]) {
+        std::memcpy(table, FakeAutomatonVtable4(), sizeof table);
+        table[0x40 / 4] = reinterpret_cast<void*>(&Fake2<0, 0x40, 3u>);
+        table[0x44 / 4] = reinterpret_cast<void*>(&FakeDouble<0, 0x44>);
+        table[0x8C / 4] = reinterpret_cast<void*>(&Fake0<0, 0x8C>);
+        table[0xEC / 4] = reinterpret_cast<void*>(&Fake0<0, 0xEC>);
+    }
+    return table;
+}
+
+void** FakeBoatOccupantVtable()
+{
+    static void* table[0x90 / 4];
+    if (!table[0]) {
+        std::memcpy(table, FakeOccupantVtable(), sizeof table);
+        table[0x8C / 4] = reinterpret_cast<void*>(&Fake0<4, 0x8C>);
+    }
+    return table;
+}
+
+struct FakeBoat {
+    alignas(16) char block[kBoatSize] = {};
+    FakeState state;
+    char* Base() { return block; }
+    void Init(uint32_t id, Hash& calls)
+    {
+        std::memset(block, 0, sizeof block);
+        At<void**>(block, 0) = FakeBoatVtable();
+        At<void**>(block, 4) = FakeBoatOccupantVtable();
+        At<void**>(block, 0x20) = FakePart20Vtable();
+        At<void**>(block, 0x18C) = FakePart18CVtable();
+        state = FakeState{};
+        state.calls = &calls;
+        state.id = id;
+        bool listed = false;
+        for (auto& entry : g_fakeStates)
+            if (entry.first == block)
+                listed = true;
+        if (!listed)
+            g_fakeStates.push_back({block, &state});
+        g_known.push_back({block, id});
+        g_known.push_back({block + 4, id | 0x100});
+    }
+    // The storage the game's helpers gave its legs (+0x1E4, +0x218,
+    // +0x24C: a byte vector at +4) and its route (+0x31C), freed.
+    void Scrub()
+    {
+        using FreeFn = void(__cdecl*)(void*);
+        for (const std::size_t at : {0x1E8u, 0x21Cu, 0x250u, 0x31Cu})
+            if (void* const buffer = At<void*>(block, at)) {
+                reinterpret_cast<FreeFn>(addr::SC4_Free)(buffer);
+                At<void*>(block, at) = nullptr;
+            }
+    }
+};
+
+// A dock interface of the test's own (what 0x00568CE0 asks an occupant
+// for): slot 9 its orientation, slot 3 its model (itself), slot 10 the
+// model's box (two points).
+struct FakeDock {
+    void** vtable;
+    uint32_t refs;
+    uint32_t orientation;
+    float box[6];
+};
+uint32_t __fastcall DockAddRef(FakeDock* d, void*) { return ++d->refs; }
+uint32_t __fastcall DockRelease(FakeDock* d, void*) { return --d->refs; }
+void* __fastcall DockModel(FakeDock* d, void*) { return d; }
+uint32_t __fastcall DockOrientation(FakeDock* d, void*) { return d->orientation; }
+uint32_t __fastcall DockBox(FakeDock* d, void*, float* low, float* high)
+{
+    std::memcpy(low, d->box, 12);
+    std::memcpy(high, d->box + 3, 12);
+    return 1;
+}
+void** FakeDockVtable()
+{
+    static void* table[16];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&HolderNone);
+        table[1] = reinterpret_cast<void*>(&DockAddRef);
+        table[2] = reinterpret_cast<void*>(&DockRelease);
+        table[3] = reinterpret_cast<void*>(&DockModel);
+        table[9] = reinterpret_cast<void*>(&DockOrientation);
+        table[10] = reinterpret_cast<void*>(&DockBox);
+    }
+    return table;
+}
+
+// Slot 15 (CreateAutomaton) of the test's manager while its vtable is the
+// test's copy: the arguments into the hash, the next fake boat of the pool
+// (null when the pool is used up or `g_createRefuse`).
+FakeBoat* g_createPool = nullptr;
+uint32_t g_createCount = 0, g_createNext = 0;
+bool g_createRefuse = false;
+Hash* g_createHash = nullptr;
+
+void* __fastcall FakeCreate(char*, void*, uint32_t kind, const float* point, uint32_t flags, const float* target,
+                            uint32_t a5, uint32_t a6, uint32_t a7)
+{
+    Hash& h = *g_createHash;
+    h.Mix(0xC5EA0000u);
+    h.Mix(kind);
+    for (int i = 0; i < 3; ++i)
+        h.Mix(point ? Bits(point[i]) : 0xFFFFFFFFu);
+    h.Mix(flags);
+    for (int i = 0; i < 3; ++i)
+        h.Mix(target ? Bits(target[i]) : 0xFFFFFFFFu);
+    h.Mix(a5);
+    h.Mix(a6);
+    h.Mix(a7);
+    if (g_createRefuse || g_createNext >= g_createCount)
+        return nullptr;
+    return g_createPool[g_createNext++].Base();
+}
+
+struct LegBytes {
+    uint32_t words[13];
+};
+struct RouteIterator {
+    char* node;
+    char* table;
+};
+struct PathBytes {
+    char* begin;
+    char* end;
+    char* capacity;
+};
+
+// A leg into the hash: its reference as the fake it is, its byte vector's
+// size, its points and its last words.
+void MixLeg(Hash& h, const char* leg)
+{
+    h.Mix(Canon(At<uint32_t>(const_cast<char*>(leg), 0)));
+    h.Mix(static_cast<uint32_t>(At<char*>(const_cast<char*>(leg), 8) - At<char*>(const_cast<char*>(leg), 4)));
+    h.MixBytes(leg + 0x10, 0x24);
+}
+
+// The records of a vector (begin, end) into the hash: the count and each
+// record's automaton as the fake it is, its ferry route's +8 and its byte.
+void MixRecords(Hash& h, char* vector)
+{
+    char* const begin = At<char*>(vector, 0);
+    char* const end = At<char*>(vector, 4);
+    h.Mix(static_cast<uint32_t>(end - begin) / 0x3C);
+    for (char* r = begin; r < end; r += 0x3C) {
+        h.Mix(Canon(At<uint32_t>(r, 0)));
+        h.Mix(At<uint32_t>(r, 0xC));
+        h.Mix(At<uint8_t>(r, 0x38));
+    }
+}
+
+void AwWaterRouteDrive(cISC4City* city, void* building)
+{
+    namespace aw = automata_awmgr;
+    Hash create, routes, frame, logged;
+    uint32_t flags = 0;
+    using Alloc = void*(__cdecl*)(uint32_t);
+    using FreeFn = void(__cdecl*)(void*);
+    const auto allocate = [](uint32_t size) { return reinterpret_cast<Alloc>(addr::SC4_stl_allocate)(size); };
+    const auto release = [](void* p) { reinterpret_cast<FreeFn>(addr::SC4_Free)(p); };
+    // The game's globals the part changes: the generator, the edge spawn's
+    // side, timer and once bit, and the frame's two timers. Put back at the
+    // end.
+    constexpr uintptr_t kSaved[] = {0x00B22A78, 0x00B22ABC, 0x00B22AC0, 0x00B22AC4, 0x00B22AD0, 0x00B22AD4};
+    uint32_t saved[6];
+    for (int i = 0; i < 6; ++i)
+        saved[i] = *reinterpret_cast<uint32_t*>(kSaved[i]);
+
+    static FakeBoat boats[10];
+    static FakeBoat pool[10];
+    for (uint32_t i = 0; i < 10; ++i)
+        boats[i].Init(0x51 + i, routes);
+    for (uint32_t i = 0; i < 10; ++i)
+        pool[i].Init(0x61 + i, frame);
+    char* b[10];
+    for (int i = 0; i < 10; ++i)
+        b[i] = boats[i].Base();
+    static FakeDock docks[2];
+    docks[0] = {FakeDockVtable(), 0, 0, {-8.0f, 0.0f, -24.0f, 8.0f, 6.0f, 24.0f}};
+    docks[1] = {FakeDockVtable(), 0, 1, {-30.0f, 0.0f, -10.0f, 30.0f, 4.0f, 10.0f}};
+
+    // The city's span and middle (16 m cells).
+    const int32_t cellsX = Virtual<int32_t>(*reinterpret_cast<void**>(addr::SC4_City), 0x174);
+    const int32_t cellsZ = Virtual<int32_t>(*reinterpret_cast<void**>(addr::SC4_City), 0x178);
+    const float middle[3] = {static_cast<float>(cellsX) * 8.0f + 3.0f, 0.0f, static_cast<float>(cellsZ) * 8.0f + 5.0f};
+    logged.Mix(static_cast<uint32_t>(cellsX));
+    logged.Mix(static_cast<uint32_t>(cellsZ));
+
+    // ---- The leaf helpers ----
+    // The leg's constructor on a buffer of 0xAB: its 0x28 bytes and EAX.
+    {
+        alignas(4) char leg[0x34];
+        std::memset(leg, 0xAB, sizeof leg);
+        using Ctor = char*(__thiscall*)(void*);
+        routes.Mix(reinterpret_cast<Ctor>(addr::cSC4Watercraft_ConstructLeg)(leg) == leg ? 1u : 0u);
+        routes.MixBytes(leg, sizeof leg);
+    }
+    // The crossing rank: none, the kinds 0x4400 and 0x4402, the groups
+    // 0x4414 and 0x4413, none of them. The path group test: 0x440F, 0x440A,
+    // 0x4411 and none.
+    {
+        using Rank = uint32_t(__thiscall*)(void*, void*);
+        using Test = uint32_t(__thiscall*)(void*);
+        boats[0].state.kind[4] = 0x4400;
+        boats[1].state.kind[4] = 0x4402;
+        boats[2].state.groups[0] = 0x4414;
+        boats[3].state.groups[0] = 0x4413;
+        boats[4].state.groups[0] = 0x440F;
+        boats[5].state.groups[0] = 0x440A;
+        boats[6].state.groups[0] = 0x4411;
+        frame.Mix(reinterpret_cast<Rank>(addr::cSC4WatercraftManager_CrossingRank)(nullptr, nullptr));
+        for (int i = 0; i < 5; ++i)
+            frame.Mix(reinterpret_cast<Rank>(addr::cSC4WatercraftManager_CrossingRank)(nullptr, b[i == 4 ? 7 : i]));
+        for (int i = 4; i < 8; ++i)
+            routes.Mix(reinterpret_cast<Test>(addr::cSC4Watercraft_IsPathBoat)(b[i]) & 0xFF);
+    }
+    // A path of the eight unit steps and one of two cells: the step
+    // direction at each index and past the end; the cut at -1, past the end
+    // and at 3 (its bit, the new end).
+    {
+        alignas(16) static char points[10][16];
+        std::memset(points, 0, sizeof points);
+        const int32_t steps[9][2] = {{0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {2, 0}};
+        int32_t x = 5, z = 5;
+        for (int i = 0; i < 10; ++i) {
+            At<int32_t>(points[i], 0) = x;
+            At<int32_t>(points[i], 4) = z;
+            if (i < 9) {
+                x += steps[i][0];
+                z += steps[i][1];
+            }
+        }
+        char* const boat = b[8];
+        At<char*>(boat, 0x2A4) = points[0];
+        At<char*>(boat, 0x2A8) = points[0] + sizeof points;
+        At<char*>(boat, 0x2AC) = points[0] + sizeof points;
+        using Step = uint32_t(__thiscall*)(void*, uint32_t);
+        using Cut = uint32_t(__thiscall*)(void*, int32_t);
+        for (uint32_t i = 0; i < 10; ++i)
+            frame.Mix(reinterpret_cast<Step>(addr::cSC4Watercraft_StepDirection)(boat, i));
+        frame.Mix(reinterpret_cast<Step>(addr::cSC4Watercraft_StepDirection)(boat, 0xFFFFFFFFu));
+        for (const int32_t at : {-1, 10, 20, 3}) {
+            frame.Mix(reinterpret_cast<Cut>(addr::cSC4Watercraft_CutPathAt)(boat, at) & 0xFF);
+            frame.Mix(static_cast<uint32_t>(At<char*>(boat, 0x2A8) - points[0]));
+        }
+        frame.MixBytes(points, sizeof points);
+        At<char*>(boat, 0x2A4) = nullptr;
+        At<char*>(boat, 0x2A8) = nullptr;
+        At<char*>(boat, 0x2AC) = nullptr;
+    }
+    // The route records: three of the test's own (boats 0, 1 and 2, ferry
+    // route words 1, 0 and 1, bytes 1, 0, 1); their copy (0x00572360) and of
+    // an empty vector; the fill of two (and of one at a null place: the next
+    // place is not null); the erase of
+    // the middle and of the last; the growing insert into an empty vector
+    // (one), at the second place of a full one (one, then three) and at its
+    // end (atEnd); each vector destroyed and freed after.
+    {
+        alignas(4) static char records[3][0x3C];
+        std::memset(records, 0, sizeof records);
+        for (int i = 0; i < 3; ++i) {
+            At<void*>(records[i], 0) = b[i];
+            At<uint32_t>(records[i], 0xC) = static_cast<uint32_t>(i != 1);
+            At<uint8_t>(records[i], 0x38) = static_cast<uint8_t>(i != 1);
+        }
+        char* source[3] = {records[0], records[0] + sizeof records, records[0] + sizeof records};
+        char* none[3] = {};
+        using Copy = char*(__thiscall*)(void*, const void*);
+        using Destroy = void(__cdecl*)(char*, char*, void*);
+        using Fill = char*(__cdecl*)(char*, uint32_t, const char*, void*);
+        using Erase = char*(__thiscall*)(void*, char*);
+        using Insert = void(__thiscall*)(void*, char*, const char*, void*, uint32_t, uint32_t);
+        uint32_t tag = 0;
+        const auto destroy = [&](char** v) {
+            reinterpret_cast<Destroy>(addr::cSC4WatercraftManager_DestroyRecords)(v[0], v[1], &tag);
+            if (v[0])
+                release(v[0]);
+            v[0] = v[1] = v[2] = nullptr;
+        };
+        char* copy[3] = {};
+        char* const answer = reinterpret_cast<Copy>(addr::cSC4WatercraftManager_CopyRecordVector)(copy, none);
+        frame.Mix(answer == reinterpret_cast<char*>(copy) ? 1u : 0u);
+        frame.Mix(copy[0] ? 1u : 0u);
+        destroy(copy);
+        reinterpret_cast<Copy>(addr::cSC4WatercraftManager_CopyRecordVector)(copy, source);
+        MixRecords(frame, reinterpret_cast<char*>(copy));
+        frame.Mix(static_cast<uint32_t>(copy[2] - copy[0]));
+        char* const filled = static_cast<char*>(allocate(2 * 0x3C));
+        char* const end = reinterpret_cast<Fill>(addr::cSC4WatercraftManager_FillRecords)(filled, 2, records[2], &tag);
+        frame.Mix(static_cast<uint32_t>(end - filled));
+        char* range[2] = {filled, end};
+        MixRecords(frame, reinterpret_cast<char*>(range));
+        reinterpret_cast<Destroy>(addr::cSC4WatercraftManager_DestroyRecords)(filled, end, &tag);
+        release(filled);
+        frame.Mix(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+            reinterpret_cast<Fill>(addr::cSC4WatercraftManager_FillRecords)(nullptr, 1, records[2], &tag))));
+        frame.Mix(static_cast<uint32_t>(
+            reinterpret_cast<Erase>(addr::cSC4WatercraftManager_EraseRecord)(copy, copy[0] + 0x3C) - copy[0]));
+        MixRecords(frame, reinterpret_cast<char*>(copy));
+        frame.Mix(static_cast<uint32_t>(
+            reinterpret_cast<Erase>(addr::cSC4WatercraftManager_EraseRecord)(copy, copy[1] - 0x3C) - copy[0]));
+        MixRecords(frame, reinterpret_cast<char*>(copy));
+        destroy(copy);
+        char* grown[3] = {};
+        reinterpret_cast<Insert>(addr::cSC4WatercraftManager_InsertRecordOverflow)(grown, nullptr, records[0], &tag, 1,
+                                                                                  1);
+        MixRecords(frame, reinterpret_cast<char*>(grown));
+        frame.Mix(static_cast<uint32_t>(grown[2] - grown[0]));
+        reinterpret_cast<Copy>(addr::cSC4WatercraftManager_CopyRecordVector)(copy, source);
+        reinterpret_cast<Insert>(addr::cSC4WatercraftManager_InsertRecordOverflow)(copy, copy[0] + 0x3C, records[1],
+                                                                                  &tag, 1, 0);
+        MixRecords(frame, reinterpret_cast<char*>(copy));
+        frame.Mix(static_cast<uint32_t>(copy[2] - copy[0]));
+        reinterpret_cast<Insert>(addr::cSC4WatercraftManager_InsertRecordOverflow)(grown, grown[0] + 0x3C, records[2],
+                                                                                  &tag, 3, 1);
+        MixRecords(frame, reinterpret_cast<char*>(grown));
+        frame.Mix(static_cast<uint32_t>(grown[2] - grown[0]));
+        destroy(copy);
+        reinterpret_cast<Copy>(addr::cSC4WatercraftManager_CopyRecordVector)(copy, source);
+        reinterpret_cast<Insert>(addr::cSC4WatercraftManager_InsertRecordOverflow)(copy, copy[0] + 0x3C, records[1],
+                                                                                  &tag, 3, 0);
+        MixRecords(frame, reinterpret_cast<char*>(copy));
+        destroy(copy);
+        destroy(grown);
+        for (int i = 0; i < 3; ++i)
+            frame.Mix(boats[i].state.refs);
+    }
+    // The cells of the city's four edges (sides 0 to 3, 5 and -1): their
+    // count, the side as stored back and the cells' bytes.
+    {
+        using Edge = void(__thiscall*)(void*, int32_t*, void*);
+        for (const int32_t side : {0, 1, 2, 3, 5, -1}) {
+            char* cells[3] = {};
+            int32_t s = side;
+            reinterpret_cast<Edge>(addr::cSC4WatercraftManager_EdgeCells)(nullptr, &s, cells);
+            frame.Mix(static_cast<uint32_t>(s));
+            frame.Mix(static_cast<uint32_t>(cells[1] - cells[0]));
+            if (cells[0]) {
+                frame.MixBytes(cells[0], static_cast<std::size_t>(cells[1] - cells[0]));
+                release(cells[0]);
+            }
+        }
+    }
+
+    // ---- The city's watercraft manager: queries only ----
+    char* const water = Virtual<char*>(city, aw::kCitySlotWatercraft);
+    void* lot = nullptr;
+    {
+        using LotAt = void*(__thiscall*)(void*, void*);
+        using Body = uint32_t(__thiscall*)(void*, void*);
+        create.Mix(reinterpret_cast<LotAt>(addr::cSC4WatercraftManager_LotAtOccupant)(nullptr, nullptr) ? 1u : 0u);
+        create.Mix(reinterpret_cast<Body>(addr::cSC4WatercraftManager_LotWaterBody)(nullptr, nullptr) & 0xFFFF);
+        if (building) {
+            lot = reinterpret_cast<LotAt>(addr::cSC4WatercraftManager_LotAtOccupant)(nullptr, building);
+            create.Mix(lot ? 1u : 0u);
+            if (lot)
+                create.Mix(reinterpret_cast<Body>(addr::cSC4WatercraftManager_LotWaterBody)(nullptr, lot) & 0xFFFF);
+        } else {
+            flags |= 1;
+        }
+    }
+    // The dock search: none, a fake without the interface, the building,
+    // and the fake with each of four orientations (the two boxes).
+    {
+        using Dock = uint32_t(__thiscall*)(void*, void*, float*, float*, uint32_t);
+        auto dock = [&](void* occupant) {
+            float point[3] = {1.0f, 2.0f, 3.0f}, direction[3] = {4.0f, 5.0f, 6.0f};
+            create.Mix(reinterpret_cast<Dock>(addr::cSC4WatercraftManager_DockPoints)(nullptr, occupant, point,
+                                                                                     direction, 0) & 0xFF);
+            create.MixBytes(point, 12);
+            create.MixBytes(direction, 12);
+        };
+        dock(nullptr);
+        std::memcpy(boats[9].state.position, middle, 12);
+        dock(b[9] + 4);
+        if (building)
+            dock(building);
+        for (uint32_t o = 0; o < 4; ++o) {
+            boats[9].state.dock = &docks[o & 1];
+            docks[o & 1].orientation = o;
+            dock(b[9] + 4);
+        }
+        boats[9].state.dock = nullptr;
+        create.Mix(docks[0].refs);
+        create.Mix(docks[1].refs);
+    }
+    // Open water (kind 2) at four cells, and a creation point at three
+    // places (the middle, a corner, the building) for three groups, near
+    // and not nearer than 200.
+    if (water) {
+        using Open = uint32_t(__thiscall*)(void*, int32_t, int32_t, uint32_t);
+        const int32_t cells[4][2] = {{0, 0}, {cellsX / 2, cellsZ / 2}, {cellsX - 1, 3}, {-1, -1}};
+        for (const auto& c : cells)
+            create.Mix(reinterpret_cast<Open>(addr::cSC4WatercraftManager_IsOpenWater)(water, c[0], c[1], 2) & 0xFF);
+        float places[3][3] = {{middle[0], 0.0f, middle[2]}, {20.0f, 0.0f, 20.0f}, {0.0f, 0.0f, 0.0f}};
+        if (building)
+            Virtual<void>(building, kGetPosition, static_cast<void*>(places[2]));
+        for (const auto& p : places)
+            for (const uint32_t group : {0x4418u, 0x4400u, 0x12345u})
+                for (const float least : {0.0f, 200.0f}) {
+                    float out[3] = {-1.0f, -1.0f, -1.0f}, direction[3] = {-2.0f, -2.0f, -2.0f};
+                    create.Mix(Virtual<uint32_t>(water, 0x40, group, static_cast<const void*>(p), least, 900.0f,
+                                                 static_cast<void*>(out), 0u, static_cast<void*>(direction)) &
+                               0xFF);
+                    create.MixBytes(out, 12);
+                    create.MixBytes(direction, 12);
+                }
+    } else {
+        flags |= 2;
+    }
+
+    // ---- A new watercraft manager of the test's own ----
+    using Factory = void*(__cdecl*)();
+    void* const serial = reinterpret_cast<Factory>(addr::cSC4WatercraftManager_Create)();
+    if (!serial) {
+        flags |= 4;
+    } else {
+        char* const made = static_cast<char*>(serial) - aw::field::kSerializable;
+        g_known.push_back({made, 0x70});
+        Virtual<uint32_t>(made, aw::slot::kAddRef);
+        Virtual<uint32_t>(made, 0x0C); // Init
+        using Seed = void(__thiscall*)(void*, uint32_t);
+        reinterpret_cast<Seed>(addr::cRZRandomSuper_Seed)(made + aw::field::kRandom, 5150u);
+        // Its vtable: a copy of the game's with slot 15 the test's creator.
+        void** const original = At<void**>(made, 0);
+        static void* table[68];
+        std::memcpy(table, original, sizeof table);
+        table[15] = reinterpret_cast<void*>(&FakeCreate);
+        g_createPool = pool;
+        g_createCount = 10;
+        g_createNext = 0;
+        g_createRefuse = false;
+        g_createHash = &frame;
+
+        using Resize = void(__thiscall*)(void*, uint32_t);
+        using InsertFn = void*(__thiscall*)(void*, void*, const void*);
+        // Routes and pairs. Route A: key boat 7, dock boat 9's occupant (the
+        // dock interface), records of boats 0 (ferry route to the key, word 1,
+        // byte 1) and 1 (to boat 6, word 0) and one without a boat. Route B:
+        // key boat 6, dock boat 5's occupant (no interface), no records. The
+        // first pair table: boat 4's occupant; the second: boat 9's occupant
+        // of the type 0x6C36283C without a boat.
+        alignas(4) static char records[3][0x3C];
+        std::memset(records, 0, sizeof records);
+        At<void*>(records[0], 0) = b[0];
+        At<void*>(records[0], 4) = b[7];
+        At<void*>(records[0], 8) = b[7];
+        At<uint32_t>(records[0], 0xC) = 1;
+        At<uint8_t>(records[0], 0x38) = 1;
+        At<void*>(records[1], 0) = b[1];
+        At<void*>(records[1], 8) = b[6];
+        At<void*>(records[2], 8) = b[6];
+        char* nodeA = nullptr;
+        char* nodeB = nullptr;
+        char* terminal = nullptr;
+        {
+            alignas(4) char pair[0x1C] = {};
+            alignas(4) char result[12] = {};
+            At<void*>(pair, 0) = b[7];
+            At<char*>(pair, 0xC) = records[0];
+            At<char*>(pair, 0x10) = records[0] + sizeof records;
+            At<char*>(pair, 0x14) = records[0] + sizeof records;
+            At<void*>(pair, 0x18) = b[9] + 4;
+            reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable, result,
+                                                                                pair);
+            nodeA = At<char*>(result, 0);
+            alignas(4) char pairB[0x1C] = {};
+            At<void*>(pairB, 0) = b[6];
+            At<void*>(pairB, 0x18) = b[5] + 4;
+            reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable, result,
+                                                                                pairB);
+            nodeB = At<char*>(result, 0);
+            void* p2[2] = {b[4] + 4, b[4]};
+            char* const pairs2 = made + aw::field::kWaterTable2;
+            reinterpret_cast<Resize>(addr::SC4Uint32HashSet_Resize)(pairs2,
+                                                                    At<uint32_t>(pairs2, aw::table::kCount) + 1);
+            reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertPair)(pairs2, result, p2);
+            void* p3[2] = {b[9] + 4, nullptr};
+            char* const pairs3 = made + aw::field::kWaterTable3;
+            reinterpret_cast<Resize>(addr::SC4Uint32HashSet_Resize)(pairs3,
+                                                                    At<uint32_t>(pairs3, aw::table::kCount) + 1);
+            reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertPair)(pairs3, result, p3);
+            terminal = At<char*>(result, 0);
+        }
+        if (!nodeA || !nodeB || !terminal)
+            flags |= 8;
+        boats[9].state.dock = &docks[0];
+        docks[0].orientation = 2;
+        boats[9].state.type = 0x6C36283C;
+        std::memcpy(boats[5].state.position, middle, 12);
+        for (int i = 0; i < 10; ++i)
+            boats[i].state.value32 = 6.0 + i;
+        At<void**>(made, 0) = table;
+
+        // Creation on it: near boat 2 (in its list, radius 8) and outside
+        // the city: refused both times (no boat is made by the game).
+        Virtual<uint32_t>(made, 0x1C, static_cast<void*>(b[2]));
+        std::memcpy(boats[2].state.position, middle, 12);
+        {
+            using Create = void*(__thiscall*)(void*, uint32_t, const float*, uint32_t, const void*, uint32_t, uint32_t,
+                                              uint32_t);
+            const uint32_t zeros[3] = {};
+            const float farPoint[3] = {-500.0f, 0.0f, -700.0f};
+            const float nearPoint[3] = {middle[0] + 4.0f, 0.0f, middle[2]};
+            const auto refused = [&](const float* at) {
+                return reinterpret_cast<Create>(addr::cSC4WatercraftManager_CreateAutomaton)(made, 0x4418, at, 0x10002,
+                                                                                          zeros, 0, 0, 7);
+            };
+            create.Mix(refused(nearPoint) ? 1u : 0u);
+            create.Mix(refused(farPoint) ? 1u : 0u);
+            using Open = uint32_t(__thiscall*)(void*, int32_t, int32_t, uint32_t);
+            const auto open = reinterpret_cast<Open>(addr::cSC4WatercraftManager_IsOpenWater);
+            create.Mix(open(made, cellsX / 2, cellsZ / 2, 2) & 0xFF);
+            // A creation point at the building's lot with a route keyed by
+            // that lot (its dock the dock interface).
+            if (lot) {
+                alignas(4) char pair[0x1C] = {};
+                alignas(4) char result[12] = {};
+                At<void*>(pair, 0) = lot;
+                At<void*>(pair, 0x18) = b[9] + 4;
+                reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable,
+                                                                                    result, pair);
+                float at[3] = {};
+                Virtual<void>(building, kGetPosition, static_cast<void*>(at));
+                float out[3] = {-1.0f, -1.0f, -1.0f}, direction[3] = {-2.0f, -2.0f, -2.0f};
+                create.Mix(Virtual<uint32_t>(made, 0x40, 0x4418u, static_cast<const void*>(at), 0.0f, 900.0f,
+                                             static_cast<void*>(out), 0u, static_cast<void*>(direction)) &
+                           0xFF);
+                create.MixBytes(out, 12);
+                create.MixBytes(direction, 12);
+                // The route erased again: its key's address (the heap's)
+                // would set the table's order for the frame.
+                using EraseFn = void(__thiscall*)(void*, void*);
+                void* iterator[2] = {At<void*>(result, 0), made + aw::field::kWaterTable};
+                if (iterator[0])
+                    reinterpret_cast<EraseFn>(addr::cSC4WatercraftManager_EraseRoute)(made + aw::field::kWaterTable,
+                                                                                    iterator);
+                create.Mix(At<uint32_t>(made + aw::field::kWaterTable, aw::table::kCount));
+            }
+        }
+        // The boat's path (empty, a target then none) and its legs (start 0
+        // and 1).
+        {
+            using SetPath = void(__thiscall*)(void*, PathBytes, void*);
+            reinterpret_cast<SetPath>(addr::cSC4Watercraft_SetPath)(b[3], PathBytes{}, b[5] + 4);
+            routes.Mix(Canon(At<uint32_t>(b[3], 0x318)));
+            routes.Mix(At<uint8_t>(b[3], 0x340));
+            reinterpret_cast<SetPath>(addr::cSC4Watercraft_SetPath)(b[3], PathBytes{}, nullptr);
+            routes.Mix(Canon(At<uint32_t>(b[3], 0x318)));
+            using Ctor = char*(__thiscall*)(void*);
+            using SetLegs = void(__thiscall*)(void*, LegBytes, LegBytes, uint32_t);
+            for (const uint32_t start : {0u, 1u}) {
+                LegBytes one{}, two{};
+                reinterpret_cast<Ctor>(addr::cSC4Watercraft_ConstructLeg)(&one);
+                reinterpret_cast<Ctor>(addr::cSC4Watercraft_ConstructLeg)(&two);
+                one.words[4] = Bits(10.0f + static_cast<float>(start));
+                two.words[6] = Bits(20.0f);
+                reinterpret_cast<SetLegs>(addr::cSC4Watercraft_SetFerryRoute)(b[3], one, two, start);
+                MixLeg(routes, b[3] + 0x1E4);
+                MixLeg(routes, b[3] + 0x218);
+                MixLeg(routes, b[3] + 0x24C);
+                routes.Mix(At<uint8_t>(b[3], 0x2B0));
+            }
+        }
+        // A record's two legs (0x0056FD60): with a boat and without; to a
+        // route there (B) and not; walking an empty second path.
+        {
+            using FromDock = void(__thiscall*)(void*, RouteIterator, char*, char*, char*);
+            using Ctor = char*(__thiscall*)(void*);
+            const RouteIterator itA = {nodeA, made + aw::field::kWaterTable};
+            auto legs = [&](char* record) {
+                alignas(4) char one[0x34] = {}, two[0x34] = {};
+                reinterpret_cast<Ctor>(addr::cSC4Watercraft_ConstructLeg)(one);
+                reinterpret_cast<Ctor>(addr::cSC4Watercraft_ConstructLeg)(two);
+                reinterpret_cast<FromDock>(addr::cSC4WatercraftManager_RouteFromDock)(made, itA, record, one, two);
+                MixLeg(routes, one);
+                MixLeg(routes, two);
+                for (char* leg : {one, two}) {
+                    if (void* const buffer = At<void*>(leg, 4))
+                        release(buffer);
+                    if (void* const object = At<void*>(leg, 0))
+                        Virtual<uint32_t>(object, 0x08);
+                }
+            };
+            if (nodeA) {
+                alignas(4) char record[0x3C] = {};
+                At<void*>(record, 4) = b[8];
+                At<void*>(record, 8) = b[6];
+                legs(record);
+                At<void*>(record, 0) = b[3];
+                At<void*>(record, 8) = b[8];
+                legs(record);
+                At<uint8_t>(record, 0x18) = 1;
+                legs(record);
+            }
+        }
+        // A new ferry for route A's records (0x00570DF0): the record of byte
+        // 1 to nowhere, of byte 0 to route B, a refused creation.
+        if (nodeA && nodeB) {
+            using Next = uint32_t(__thiscall*)(void*, RouteIterator, RouteIterator, char*);
+            const RouteIterator itA = {nodeA, made + aw::field::kWaterTable};
+            const RouteIterator itB = {nodeB, made + aw::field::kWaterTable};
+            const RouteIterator none = {nullptr, made + aw::field::kWaterTable};
+            alignas(4) static char record[0x3C];
+            std::memset(record, 0, sizeof record);
+            At<void*>(record, 8) = b[6];
+            At<uint32_t>(record, 0xC) = 1;
+            At<uint8_t>(record, 0x38) = 1;
+            routes.Mix(reinterpret_cast<Next>(addr::cSC4WatercraftManager_NextFerryRoute)(made, itA, none, record) &
+                       0xFF);
+            routes.Mix(Canon(At<uint32_t>(record, 0)));
+            routes.Mix(At<uint8_t>(record, 0x38));
+            routes.Mix(Canon(At<uint32_t>(nodeA, 8)));
+            routes.Mix(reinterpret_cast<Next>(addr::cSC4WatercraftManager_NextFerryRoute)(made, itA, itB, record) &
+                       0xFF);
+            routes.Mix(Canon(At<uint32_t>(record, 0)));
+            routes.Mix(Canon(At<uint32_t>(nodeB, 8)));
+            g_createRefuse = true;
+            routes.Mix(reinterpret_cast<Next>(addr::cSC4WatercraftManager_NextFerryRoute)(made, itB, itA, record) &
+                       0xFF);
+            g_createRefuse = false;
+            if (void* const object = At<void*>(record, 0)) {
+                At<void*>(record, 0) = nullptr;
+                Virtual<uint32_t>(object, 0x08);
+            }
+        }
+        // A boat for the terminal (0x005710A0) for the three kinds; a
+        // refused creation; a dock without the interface.
+        if (terminal) {
+            using Plan = uint32_t(__thiscall*)(void*, RouteIterator, uint32_t);
+            const RouteIterator it = {terminal, made + aw::field::kWaterTable3};
+            for (const uint32_t kind : {0x4416u, 0x4411u, 0x4419u}) {
+                routes.Mix(reinterpret_cast<Plan>(addr::cSC4WatercraftManager_PlanRoute)(made, it, kind) & 0xFF);
+                routes.Mix(Canon(At<uint32_t>(terminal, 8)));
+            }
+            g_createRefuse = true;
+            routes.Mix(reinterpret_cast<Plan>(addr::cSC4WatercraftManager_PlanRoute)(made, it, 0x4416u) & 0xFF);
+            g_createRefuse = false;
+            boats[9].state.dock = nullptr;
+            routes.Mix(reinterpret_cast<Plan>(addr::cSC4WatercraftManager_PlanRoute)(made, it, 0x4416u) & 0xFF);
+            boats[9].state.dock = &docks[0];
+            // The terminal without a boat again for the frame.
+            if (void* const object = At<void*>(terminal, 8)) {
+                At<void*>(terminal, 8) = nullptr;
+                Virtual<uint32_t>(object, 0x08);
+            }
+        }
+        // The edge spawn: once (the timer started), then until a boat is
+        // made or 40 calls (the draws from the seeded generator).
+        {
+            using Spawn = void(__thiscall*)(void*, float);
+            *reinterpret_cast<uint32_t*>(0x00B22AC4) &= ~1u;
+            *reinterpret_cast<int32_t*>(0x00B22ABC) = 0;
+            const auto refs = [&] {
+                return static_cast<uint32_t>(At<char*>(made, aw::field::kWaterRefs + 4) -
+                                             At<char*>(made, aw::field::kWaterRefs));
+            };
+            uint32_t calls = 0;
+            const uint32_t before = refs();
+            while (calls < 40 && refs() == before) {
+                reinterpret_cast<Spawn>(addr::cSC4WatercraftManager_SpawnAtEdge)(made, 16.0f);
+                ++calls;
+            }
+            frame.Mix(calls);
+            frame.Mix(refs());
+            frame.Mix(*reinterpret_cast<uint32_t*>(0x00B22ABC));
+            frame.Mix(*reinterpret_cast<uint32_t*>(0x00B22AC0));
+            logged.Mix(calls);
+        }
+        // The frame update (slot 63): boats 0 and 2 in the list with paths
+        // crossing (ranks 0 and 1), both timers due (the routes' boats let
+        // go, route A's record without a boat given a ferry), the terminal
+        // planned; then the city's ferry routes asked (+0xA88: route A's
+        // records not in the city's list stopped and erased).
+        {
+            alignas(16) static char pathA[4][16], pathB[4][16];
+            std::memset(pathA, 0, sizeof pathA);
+            std::memset(pathB, 0, sizeof pathB);
+            for (int i = 0; i < 4; ++i) {
+                At<int32_t>(pathA[i], 0) = 10 + i;
+                At<int32_t>(pathA[i], 4) = 10;
+                At<int32_t>(pathB[i], 0) = 12;
+                At<int32_t>(pathB[i], 4) = 8 + i;
+            }
+            Virtual<uint32_t>(made, 0x1C, static_cast<void*>(b[0]));
+            At<char*>(b[0], 0x2A4) = pathA[0];
+            At<char*>(b[0], 0x2A8) = pathA[0] + sizeof pathA;
+            At<char*>(b[2], 0x2A4) = pathB[0];
+            At<char*>(b[2], 0x2A8) = pathB[0] + sizeof pathB;
+            boats[2].state.groups[0] = 0x4414;
+            if (nodeB && !At<void*>(nodeB, 8)) {
+                At<void*>(nodeB, 8) = b[8];
+                Virtual<uint32_t>(b[8], 0x04);
+            }
+            *reinterpret_cast<float*>(0x00B22AD4) = 60000.0f;
+            *reinterpret_cast<float*>(0x00B22AD0) = 35000.0f;
+            At<uint8_t>(made, aw::field::kWaterByte) = 0;
+            for (int pass = 0; pass < 2; ++pass) {
+                if (pass == 1)
+                    At<uint8_t>(made, aw::field::kWaterByte) = 1;
+                // Its EAX is the common base's slot 63's, which no caller
+                // reads (part aw3's test leaves it out too).
+                Virtual<void>(made, 0xFC, 0x11u, Bits(16.0f));
+                frame.Mix(At<uint8_t>(made, aw::field::kWaterByte));
+                for (const std::size_t at : {aw::field::kWaterTable, aw::field::kWaterTable2, aw::field::kWaterTable3})
+                    frame.Mix(At<uint32_t>(made + at, aw::table::kCount));
+                if (nodeA) {
+                    MixRecords(frame, nodeA + 0x10);
+                    frame.Mix(Canon(At<uint32_t>(nodeA, 8)));
+                    frame.Mix(Canon(At<uint32_t>(nodeA, 0xC)));
+                }
+                if (nodeB)
+                    frame.Mix(Canon(At<uint32_t>(nodeB, 8)));
+                if (terminal)
+                    frame.Mix(Canon(At<uint32_t>(terminal, 8)));
+                frame.Mix(static_cast<uint32_t>(At<char*>(b[0], 0x2A8) - pathA[0]));
+                frame.Mix(static_cast<uint32_t>(At<char*>(b[2], 0x2A8) - pathB[0]));
+                frame.Mix(RingCount(At<char*>(made, aw::field::kAutomata)));
+            }
+            for (char* boat : {b[0], b[2]}) {
+                At<char*>(boat, 0x2A4) = nullptr;
+                At<char*>(boat, 0x2A8) = nullptr;
+            }
+        }
+        frame.Mix(g_createNext);
+
+        // The game's vtable back, Shutdown (tables, vector and list), the
+        // release.
+        At<void**>(made, 0) = original;
+        frame.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+        frame.Mix(Virtual<uint32_t>(made, aw::slot::kRelease));
+        boats[9].state.dock = nullptr;
+    }
+    g_createHash = nullptr;
+    for (int i = 0; i < 6; ++i)
+        *reinterpret_cast<uint32_t*>(kSaved[i]) = saved[i];
+    for (FakeBoat& boat : boats) {
+        routes.Mix(boat.state.refs);
+        if (boat.state.unexpected)
+            flags |= 0x10;
+        boat.Scrub();
+    }
+    for (FakeBoat& boat : pool) {
+        frame.Mix(boat.state.refs);
+        if (boat.state.unexpected)
+            flags |= 0x20;
+        boat.Scrub();
+    }
+    routes.Mix(docks[0].refs);
+    routes.Mix(docks[1].refs);
+    char part[64];
+    std::snprintf(part, sizeof part, " W%08X,%08X,%08X,%X", create.h, routes.h, frame.h, flags);
+    g_aw5Text = part;
+    log::Write("autotest: automata: aw5%s logged %08X", part, logged.h);
+}
+
+void AwWaterDrive5(cISC4City* city)
+{
+    g_known.clear();
+    // The first building occupant of the controller table by its hash (part
+    // aw4's): its lot and position.
+    void* building = nullptr;
+    uint32_t best = 0xFFFFFFFFu;
+    if (char* const manager = Manager(city))
+        ForEach<ControllerNode>(Table(manager, field::kControllers), [&](ControllerNode* node) {
+            void* const occupant = node->occupant;
+            if (!occupant || Virtual<uint32_t>(occupant, kGetType) != 0x278128A0u)
+                return;
+            const uint32_t h = OccupantHash(occupant);
+            if (h < best) {
+                best = h;
+                building = occupant;
+            }
+        });
+    AwWaterRouteDrive(city, building);
+    g_known.clear();
 }
 
 // ====================================================================================
@@ -6149,6 +7002,8 @@ void Drive(const Day& day)
         AwAutoDrive(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 4 && day.city && game::IsBuild641() && g_aw4Text.empty())
         AwBehaviourDrive(day.city);
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 5 && day.city && game::IsBuild641() && g_aw5Text.empty())
+        AwWaterDrive5(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 1 && day.city && game::IsBuild641() && g_managerText.empty()) {
         ManagerDrive(day.city);
         if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 2)
@@ -6236,6 +7091,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += g_aw2Text;
     line += g_aw3Text;
     line += g_aw4Text;
+    line += g_aw5Text;
     line += g_situationText;
     line += g_situation2Text;
     // The automaton table: frame-driven, the log only.
