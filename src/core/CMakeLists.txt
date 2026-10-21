@@ -272,6 +272,7 @@ add_library(opensc4_core SHARED
   automata_scripts_4.cpp
   automata_situations.cpp
   automata_situations_2.cpp
+  automata_situations_3.cpp
   automata_autotest.cpp
   nettool_preview.cpp
   nettool_rul_1.cpp
