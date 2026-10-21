@@ -1176,7 +1176,7 @@ The switch list includes `determinism.dispatch_info=ours`, with `OPENSC4_MUTE=1`
 | Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
 | The 12-save batch | 7 | 11 same (Big City d0090 after three pairs, Rush Hour d1095 on a second leg); Rush Hour d0090 partly, each difference one the original shows too |
 
-All 38 B runs reached all 23 functions and carried the ` W` token, with flags 0. Its routes and frame fields take one of two values per run, on both sides: 50B695CD,0421E12D or 61F645AF,E92A3039.
+All 27 B runs reached all 23 functions and carried the ` W` token, with flags 0. Its routes and frame fields take one of two values per run, on both sides: 50B695CD,0421E12D or 61F645AF,E92A3039.
 
 - Both sides gave both values on Rush Hour d0090 and d1095.
 - Some saves showed only one value in their runs: Making Money d1095 and Rush Hour d0000 the second, the others the first.
