@@ -417,6 +417,7 @@ add_library(opensc4_core SHARED
   framework_stringformat.cpp
   framework_stringhelpers.cpp
   gzui_autotest.cpp
+  gzui_propio.cpp
   gzui_propset.cpp
   protection_sim.cpp
   fire_sim.cpp
