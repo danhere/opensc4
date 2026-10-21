@@ -19,6 +19,8 @@
 //                             their set (0x00940DFF, 0x00941636, 0x0094164D,
 //                             0x00941664) and the key interface's GetKey,
 //                             SetType and SetInstance
+//   framework.propio.tkdt     the Track objects' text form (part u2b): the
+//                             `TKDT` writer 0x00940E5C and reader 0x00941930
 //   framework.propio.window   the window of class 0xA3CD96CF: constructor,
 //                             QueryInterface, the destructors
 //   framework.propio.bag      the keyed shuffle bag 0x7B1ACFCD: constructor,
@@ -29,8 +31,7 @@
 // Still the game's: the 38 small thunks of these classes (a `this`
 // adjustment and a jump, or a jump alone, as docs/occbase.md leaves them;
 // they all end in the functions here or in the game's), the STLport list
-// code, the shared stubs, the TKDT text reader and writer (part u2b), and
-// the u3 pieces they call (the XML writer and StartElement, the factory's
+// code, the shared stubs, and the u3 pieces they call (the XML writer and StartElement, the factory's
 // Create, the shuffle bag's own slots). Ours call them by address.
 //
 // The game's methods answer a byte (AL) over whatever its last call left
@@ -53,6 +54,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 
 namespace opensc4::gzui {
 namespace {
@@ -656,6 +658,217 @@ uint32_t __fastcall KeySetInstance(char* self, void*, uint32_t instance)
 }
 
 // ====================================================================================
+// The Track objects' text form (part u2b)
+//
+// `TKDT,2,` and an empty name, then 27 values in a fixed order, each a
+// number followed by a comma (or a comma alone where the set has no uint32
+// under the key), then `ETKD`.
+
+enum class Print : uint8_t { Hex, Dec };
+
+struct TextField {
+    uint32_t key;
+    Print print;
+};
+
+// The writer's order; the reader's is the same, with the sixth field only
+// from version 1 and the last six only from version 2.
+constexpr TextField kTextFields[] = {
+    {0xFFAEC905, Print::Hex}, {0xFF5F15E1, Print::Hex}, {0xFF4DCD0D, Print::Dec}, {0xFF050A94, Print::Dec},
+    {0xFFB0333D, Print::Dec}, {0xFF706616, Print::Dec}, {0xFFCC156F, Print::Dec}, {0xFFCC3B29, Print::Dec},
+    {0xFF891EAA, Print::Hex}, {0xFFAE9DDB, Print::Dec}, {0xFFF7B8DF, Print::Dec}, {0xFF90AAC8, Print::Dec},
+    {0xFF3C2160, Print::Hex}, {0xFFD7EE4D, Print::Hex}, {0xFF59FDD8, Print::Hex}, {0xFF2D7CD1, Print::Hex},
+    {0xFF0246FE, Print::Dec}, {0xFFFF4E79, Print::Dec}, {0xFF595FFD, Print::Dec}, {0xFF8DCFD8, Print::Dec},
+    {0xFF69510B, Print::Dec}, {0xFF099DB2, Print::Dec}, {0xFF53DBF3, Print::Dec}, {0xFF3EC880, Print::Dec},
+    {0xFF47F685, Print::Dec}, {0xFFCAA344, Print::Dec}, {0xFF303B1B, Print::Dec},
+};
+constexpr std::size_t kTextFieldVersion1 = 5;  // 0xFF706616
+constexpr std::size_t kTextFieldFirstSet = 6;  // 0xFFCC156F
+constexpr std::size_t kTextFieldDefault = 8;   // 0xFF891EAA
+constexpr std::size_t kTextFieldVersion2 = 21; // 0xFF099DB2 on
+
+constexpr uint32_t kTagTkd2 = 0x544B4432;
+constexpr uint32_t kIID_cIGZString = 0x089B7DC8;
+constexpr uint32_t kTextDefault = 0x7DCDED2D;
+constexpr std::size_t kSetInstance = 0x24; // the key interface's instance
+
+uint32_t SetUint32(char* set, uint32_t key, uint32_t data)
+{
+    Value value{addr::cGZPropertyUint32_Vtable, data};
+    return Virtual<uint32_t>(set, 0xC, &key, &value);
+}
+
+// The game's 0x00940E5C: the writer's two static strings made on first use
+// (`ETKD` and `,`, destroyed at exit), the text built and written whole
+// through the stream's slot 0x44. Its result is not looked at: true.
+uint32_t __fastcall TrackWriteText(char* set, void*, void* stream, uint32_t, uint32_t)
+{
+    OPENSC4_FIRST("TrackWriteText");
+    TempString number;
+    CallThis<void*>(addr::SC4String_SC4String, &number);
+    TempString text;
+    CallThis<void*>(addr::SC4String_FromText, &text, reinterpret_cast<const char*>(addr::cGZPropSetTrack_TextHeader));
+    uint32_t& guard = *reinterpret_cast<uint32_t*>(addr::cGZPropSetTrack_TextStaticsGuard);
+    void* const end = reinterpret_cast<void*>(addr::cGZPropSetTrack_TextEnd);
+    void* const comma = reinterpret_cast<void*>(addr::cGZPropSetTrack_TextComma);
+    if (!(guard & 1)) {
+        guard |= 1;
+        CallThis<void*>(addr::SC4String_FromText, end, reinterpret_cast<const char*>(addr::cGZPropSetTrack_EndText));
+        CallCdecl<int>(addr::SC4_atexit, addr::cGZPropSetTrack_DestroyTextEnd);
+    }
+    if (!(guard & 2)) {
+        guard |= 2;
+        CallThis<void*>(addr::SC4String_FromText, comma, reinterpret_cast<const char*>(addr::SC4_CommaText));
+        CallCdecl<int>(addr::SC4_atexit, addr::cGZPropSetTrack_DestroyTextComma);
+    }
+    TempString unused;
+    CallThis<void*>(addr::SC4String_FromText, &unused, reinterpret_cast<const char*>(addr::MySim_ScriptEmpty));
+    // The name: empty.
+    CallThis<void*>(addr::cRZBaseString_AppendText, &text, CallThis<const char*>(addr::cRZBaseString_Data, comma));
+    Value value{addr::cGZPropertyUint32_Vtable, 0};
+    for (const TextField& field : kTextFields) {
+        uint32_t key = field.key;
+        void* from = comma;
+        if (Yes(Virtual<uint32_t>(set, 0x20, &key, &value))) {
+            const std::uintptr_t format = field.print == Print::Hex ? addr::cGZPropSetTrack_HexFormat
+                                                                     : addr::cGZPropSetTrack_DecFormat;
+            CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &number, reinterpret_cast<const char*>(format),
+                                value.data);
+            from = &number;
+        }
+        CallThis<void*>(addr::cRZBaseString_AppendText, &text, CallThis<const char*>(addr::cRZBaseString_Data, from));
+    }
+    CallThis<void*>(addr::cRZBaseString_AppendText, &text, CallThis<const char*>(addr::cRZBaseString_Data, end));
+    const uint32_t length = CallThis<uint32_t>(addr::cRZBaseString_Strlen, &text);
+    uint32_t last = Virtual<uint32_t>(stream, 0x44, CallThis<const char*>(addr::cRZBaseString_Data, &text), length);
+    value.vtable = addr::cGZPropertyValue_Vtable;
+    if (void* const body = At<void*>(&unused, 0x4))
+        last = CallCdecl<uint32_t>(addr::SC4_Free, body);
+    last = DestroyTemp(text, last);
+    last = DestroyTemp(number, last);
+    return Answer(last, true);
+}
+
+// The reader's strings and the stream's seekable interface, freed in the
+// game's order on either way out.
+struct TextReadState {
+    TempString body;   // the stream's bytes
+    TempString rest;   // what is left to split
+    TempString field;  // the field just split off
+    TempString name;   // the third field, kept and unused
+    void* seekable = nullptr;
+
+    uint32_t Finish(uint32_t last)
+    {
+        last = DestroyTemp(name, last);
+        last = DestroyTemp(field, last);
+        last = DestroyTemp(rest, last);
+        last = ReleaseIf(seekable, last);
+        return DestroyTemp(body, last);
+    }
+};
+
+// The next field off the text into `field`, as the game splits it (the
+// piece a temporary, assigned and destroyed).
+uint32_t NextField(TextReadState& state)
+{
+    TempString piece;
+    void* const split = CallThis<void*>(addr::SC4String_SplitOff, &state.rest, &piece,
+                                        reinterpret_cast<const char*>(addr::SC4_CommaText));
+    const uint32_t last = CallThis<uint32_t>(addr::cRZBaseString_Assign, &state.field, split);
+    return DestroyTemp(piece, last);
+}
+
+const char* FieldText(TextReadState& state) { return CallThis<const char*>(addr::cRZBaseString_Data, &state.field); }
+uint32_t FieldNumber(TextReadState& state) { return CallCdecl<uint32_t>(addr::SC4_TextToUint32, FieldText(state)); }
+
+// A field put in the set as a uint32 when it is not empty.
+uint32_t ReadField(TextReadState& state, char* set, uint32_t key)
+{
+    NextField(state);
+    const uint32_t length = CallThis<uint32_t>(addr::cRZBaseString_Strlen, &state.field);
+    if (length == 0)
+        return length;
+    return SetUint32(set, key, FieldNumber(state));
+}
+
+// The game's 0x00941930: the stream's bytes whole (a leading dword equal to
+// the size less 4 is skipped; the first dword read is not part of the text),
+// `TKD2` text starting 8 bytes on; split at commas. The first field is
+// skipped, the second is the version, the third (a name) kept and unused;
+// then the values in the writer's order, each one only when its field is
+// not empty. The first equal to the set's own instance stops it with false.
+// 0xFF891EAA is always set: its field when not 0, else 0x7DCDED2D (or
+// 0x7DCDED3D when 0xFFCC156F was given as a number other than 0).
+uint32_t __fastcall TrackReadText(char* set, void*, void* stream, uint32_t, uint32_t)
+{
+    OPENSC4_FIRST("TrackReadText");
+    TextReadState state;
+    CallThis<void*>(addr::SC4String_SC4String, &state.body);
+    uint32_t tag = 0;
+    if (Yes(Virtual<uint32_t>(stream, 0x0, kIID_Seekable, &state.seekable))) {
+        uint32_t size = Virtual<uint32_t>(state.seekable, 0xD0);
+        CallThis<void>(addr::cRZBaseString_Truncate, &state.body, size);
+        Virtual<uint32_t>(state.seekable, 0x34, &tag);
+        if (tag == size - 4) {
+            Virtual<uint32_t>(state.seekable, 0x34, &tag);
+            size -= 4;
+        }
+        Virtual<uint32_t>(state.seekable, 0x6C, At<char*>(&state.body, 0x4), size - 4);
+    }
+    const char* const bytes = At<char*>(&state.body, 0x4);
+    CallThis<void*>(addr::SC4String_FromText, &state.rest, bytes + (tag == kTagTkd2 ? 8 : 0));
+    CallThis<void*>(addr::SC4String_SC4String, &state.field);
+    const char* const comma = reinterpret_cast<const char*>(addr::SC4_CommaText);
+    {
+        TempString piece;
+        CallThis<void*>(addr::SC4String_SplitOff, &state.rest, &piece, comma);
+        DestroyTemp(piece, 0);
+    }
+    NextField(state);
+    const uint32_t version = FieldNumber(state);
+    {
+        TempString piece;
+        void* const split = CallThis<void*>(addr::SC4String_SplitOff, &state.rest, &piece, comma);
+        CallThis<void*>(addr::SC4String_Substring, &state.name, split, uint32_t{0}, uint32_t{0xFFFFFFFF});
+        DestroyTemp(piece, 0);
+    }
+    void* nameInterface = nullptr;
+    CallThis<uint32_t>(addr::cRZBaseString_QueryInterface, &state.name, kIID_cIGZString, &nameInterface);
+
+    uint32_t last = 0;
+    NextField(state);
+    if (CallThis<uint32_t>(addr::cRZBaseString_Strlen, &state.field) != 0) {
+        const uint32_t first = FieldNumber(state);
+        if (first == At<uint32_t>(set, kSetInstance))
+            return Answer(state.Finish(first), false);
+        SetUint32(set, kTextFields[0].key, first);
+    }
+    for (std::size_t i = 1; i < kTextFieldFirstSet; ++i)
+        if (i != kTextFieldVersion1 || version > 0)
+            ReadField(state, set, kTextFields[i].key);
+    uint32_t given = 0;
+    NextField(state);
+    if (CallThis<uint32_t>(addr::cRZBaseString_Strlen, &state.field) != 0) {
+        given = FieldNumber(state);
+        SetUint32(set, kTextFields[kTextFieldFirstSet].key, given);
+    }
+    ReadField(state, set, kTextFields[kTextFieldFirstSet + 1].key);
+    uint32_t fallback = kTextDefault + (given != 0 ? 0x10 : 0);
+    NextField(state);
+    if (CallThis<uint32_t>(addr::cRZBaseString_Strlen, &state.field) != 0) {
+        const uint32_t number = FieldNumber(state);
+        if (number != 0)
+            fallback = number;
+    }
+    last = SetUint32(set, kTextFields[kTextFieldDefault].key, fallback);
+    for (std::size_t i = kTextFieldDefault + 1; i < std::size(kTextFields); ++i)
+        if (i < kTextFieldVersion2 || version > 1)
+            last = ReadField(state, set, kTextFields[i].key);
+    return Answer(state.Finish(last), true);
+}
+
+// ====================================================================================
 // The window of class 0xA3CD96CF
 
 constexpr std::uintptr_t kWindowVtables[8] = {
@@ -832,6 +1045,8 @@ OPENSC4_THUNK(TrackReadResourceThunk, TrackReadResource, 12)
 OPENSC4_THUNK(TrackWriteXmlThunk, TrackWriteXml, 12)
 OPENSC4_THUNK(TrackWriteBinaryThunk, TrackWriteBinary, 12)
 OPENSC4_THUNK(TrackReadSetThunk, TrackReadSet, 12)
+OPENSC4_THUNK(TrackWriteTextThunk, TrackWriteText, 12)
+OPENSC4_THUNK(TrackReadTextThunk, TrackReadText, 12)
 OPENSC4_THUNK(KeyGetKeyThunk, KeyGetKey, 4)
 OPENSC4_THUNK(KeySetTypeThunk, KeySetType, 4)
 OPENSC4_THUNK(KeySetInstanceThunk, KeySetInstance, 4)
@@ -921,6 +1136,15 @@ bool InstallTrack(registry::Mode)
     return InstallAll(detours);
 }
 
+bool InstallTkdt(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZPropSetTrack_WriteText, &TrackWriteTextThunk},
+        {addr::cGZPropSetTrack_ReadText, &TrackReadTextThunk},
+    };
+    return InstallAll(detours);
+}
+
 bool InstallWindow(registry::Mode)
 {
     const Detour detours[] = {
@@ -969,6 +1193,11 @@ const bool g_registered[] = {
                         "Our Track objects' reads and writes of their set and the key interface's GetKey, SetType and "
                         "SetInstance (7 detours; part u2, docs/gzui.md)",
                         false, InstallTrack}),
+    registry::Register({"framework.propio.tkdt", "framework/propio", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::cGZPropSetTrack_ReadText,
+                        "Our Track objects' TKDT text form: the writer and the reader (2 detours; part u2b, "
+                        "docs/gzui.md)",
+                        false, InstallTkdt}),
     registry::Register({"framework.propio.window", "framework/propio", registry::Kind::Detour, registry::Phase::Attach,
                         addr::cGZKeyedWin_Construct,
                         "Our window of class 0xA3CD96CF: the constructor, QueryInterface and the destructors (4 "
