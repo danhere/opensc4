@@ -264,11 +264,14 @@ add_library(opensc4_core SHARED
   automata_vehmgr.cpp
   automata_awmgr.cpp
   automata_awmgr_life.cpp
+  automata_awmgr_auto.cpp
   automata_ctlquery.cpp
   automata_scripts.cpp
   automata_scripts_2.cpp
   automata_scripts_3.cpp
   automata_scripts_4.cpp
+  automata_situations.cpp
+  automata_situations_2.cpp
   automata_autotest.cpp
   nettool_preview.cpp
   nettool_rul_1.cpp
@@ -413,6 +416,8 @@ add_library(opensc4_core SHARED
   framework_string.cpp
   framework_stringformat.cpp
   framework_stringhelpers.cpp
+  gzui_autotest.cpp
+  gzui_propset.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp
@@ -602,6 +607,7 @@ add_library(opensc4_core SHARED
   audio_9.cpp
   music_1.cpp
   music_2.cpp
+  music_3.cpp
   audio_autotest.cpp
   ui_advice_text_2.cpp
   ui_mysim_tools_1.cpp
