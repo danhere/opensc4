@@ -267,6 +267,8 @@ add_library(opensc4_core SHARED
   automata_awmgr_auto.cpp
   automata_awmgr_air.cpp
   automata_awmgr_water.cpp
+  automata_awmgr_water_route.cpp
+  automata_awmgr_water_frame.cpp
   automata_ctlquery.cpp
   automata_scripts.cpp
   automata_scripts_2.cpp
