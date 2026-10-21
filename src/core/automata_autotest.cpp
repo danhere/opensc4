@@ -305,6 +305,55 @@
 //   called at a slot it does not know. A fake's unknown slot answers 0; the
 //   fakes' occupants give a property holder without properties (the
 //   automata filter asks for it).
+// OPENSC4_TEST_AUTOMATA_AWMGR=4 (part aw4): also, on the same day, at the
+//   game's addresses or through the managers' vtables (ours when the
+//   simulators.automata.awmgr.air and .water groups are on), into the
+//   fingerprint as ` E<aircraft>,<watercraft>,<flags>` from that day on,
+//   with fake automata and occupants of the test's own (part aw3's, with
+//   slots 10 and 67 in a vtable of their own, part aw3's fakes keeping
+//   their traps there, and a property holder that can answer a type and
+//   the byte property 0x8BFB1072). A new aircraft manager from its
+//   factory, held by one reference: Init twice (the filter, the generator
+//   global 0x00B21AF4, the tuning's most and least zoom) and slot 24; Write,
+//   Read of those bytes with two list records (Write must give them back),
+//   of version 6 (refused), 4 (the common base's body) and of a stream cut
+//   in a record; four map entries of the test's own (fakes and the first
+//   building occupant of the controller table by its hash); DoMessage with
+//   an occupant inserted and removed of the type 0x029244DB, inserted of
+//   another (SC4UIScale's 0x004FBFE0, which finds no property), removed
+//   twice (0x004FB8D0: the entry and the list record of the property byte),
+//   a type no one handles; slot 17 (no automaton, a refused location, a
+//   point, no object, the building with the automaton's occupant in the
+//   group 0x4301 and not) and slot 18 (a point, no object, the building with
+//   a refused and a good location, then without its entry), the answers and
+//   the automaton's +0x1E4; the list find 0x004FB2B0 on nodes of the test's
+//   own (another byte, an axis 0.001 off, a NaN, one 0.00005 off: found, an
+//   empty range); AddAutomaton with a fake and with none, the generator
+//   seeded until a helicopter and the other aircraft were made, each removed
+//   again (slot 8); Shutdown twice and the release. The city's watercraft
+//   manager's Write (the answer and its tables' sizes; the bytes to the
+//   log), then a new watercraft manager: Init twice and slot 24; a route of
+//   the test's own (three records, ferry route words 0, 1 and 2) by the
+//   route insert 0x00574830 (twice), a second pair table node and the
+//   reference vector; Write, Read of those bytes (the references come back
+//   as nothing) and Write again, reads of versions 7 (refused) and 5; the
+//   route, node and vector again; RemoveAutomaton of the kinds 0x4400 (in a
+//   record) and 0x4402 (not), of the groups 0x4411 (the node) and 0x4418
+//   (the vector's middle, then its end), of none of them and none; the
+//   occupant handlers without one (at their addresses: the common base's
+//   DoMessage does not test it); DoMessage with 0x2C06BA82, occupants added
+//   (of the type 0x029244DB, of a terminal type twice, the dock type, the
+//   pair type) and removed (the
+//   route's, the terminal and pair ones, 0x029244DB), a type no one handles;
+//   AddAutomaton with a fake and with none (a boat, left to Shutdown: the
+//   game's RemoveAutomaton reads a block a new boat has not); on tables of
+//   the test's own with one bucket the pair and route erases of a node
+//   behind another and of the first, and the route pair's constructor and
+//   the records' clear on a value of the test's own; Shutdown
+//   twice and the release. The tables' sizes after each step. The flags: no
+//   building occupant, a manager or bytes missing, a byte round trip that
+//   did not come back, a fake called at a slot it does not know. The
+//   generator globals are put back; the city's managers are not changed.
 // OPENSC4_TEST_AUTOMATA_SITUATIONS=1 (part c1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's situation manager (the city's slot
 //   0xC4) is called at the game's addresses (ours when the
@@ -354,6 +403,27 @@
 //   StartJoyride (0x00524E20) and 0x00524D80 are not called: they send a
 //   message to the city view, and the joyride starts the U-Drive. Flags: 1
 //   ran, 2 GUIDs found, 4 groups found, 0x10 a field left set (an error).
+// OPENSC4_TEST_AUTOMATA_SITUATIONS=3 (part c3) adds, on the same day,
+//   ` E<messages>,<frame>,<handlers>,<list>,<flags>`: a fresh manager as part
+//   c2's (slots 24, 35, 36 and 38 the test's), objects of the test's own.
+//   DoMessage for every message that posts nothing and opens no popup (an
+//   unknown one, 0x8A09FA67, the cheat with no ID or an ID of 0, the end, the
+//   automata's events 2, 9, 11, 12 and 5, the load without +0x9F1, an advice
+//   gone, the frame, occupants added and removed, a start by an unknown GUID,
+//   the driver); the frame 0x0052E300 (the joyride's end unless the U-Drive's
+//   camera would be asked, the countdown, the driver, the drive's time, the
+//   warning, the target update with the status 4 and 3, the target check);
+//   the handlers directly (0x0052E670, 0x0052E710, 0x0052C020, 0x0052A7D0,
+//   0x00524DF0, 0x00524CC0, 0x00524580, 0x00525130, 0x00525100, 0x0052C190's
+//   early returns, 0x00526720 with the rewards' slots false, 0x00525430,
+//   0x0052BF00 without a situation, 0x0052BFB0, 0x0052CAB0 for 0xA2BF8AD5,
+//   0xA2BF8AD6 and two it refuses); the list (advices added and removed by
+//   message, untracking, a take-over, the most CSIs, 0x0052A1E0, and a list
+//   of the test's own made, filled, sorted and merged). Not called:
+//   0x0052E910, 0x00525330, 0x00524D10 (they open or close a real popup or
+//   post a message) and 0x0052C190's body (it tells the advisor service).
+//   Flags: 1 ran, 2 the joyride's end ran, 4 the most-CSIs step ran, 0x10 a
+//   field left set. OPENSC4_TEST_C3_TRACE=1 logs each step's hash.
 // A remove and add round trip of one occupant's controllers is not done:
 // removing sends 0xEA298D50 to the automata, destroys the controllers and
 // can drop the occupant's automaton entry (its automata released), and the
@@ -380,6 +450,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -3106,6 +3177,8 @@ struct FakeState {
     double value32 = 0.0;           // slot 32 (ST0)
     char* controller = nullptr;     // slot 56
     char* messageTarget = nullptr;  // QI 0x452294AA
+    void* holder = nullptr;         // the occupant's slot 6 (null: FakeHolder; part aw4)
+    uint32_t kind[8] = {};          // slot 67's block (+0x10 the kind; part aw4)
     uint32_t unexpected = 0;
 };
 
@@ -3160,6 +3233,10 @@ uint32_t Answer(char* base, std::size_t part, std::size_t slot, const uint32_t* 
         case 0x08: return --s->refs;
         case 0x14: return reinterpret_cast<uint32_t>(base + 4);
         case 0x1C: write3(args[0], s->position); return 1;
+        case 0x28: // part aw4: the point it is sent to, kept as its position
+            if (args[0])
+                std::memcpy(s->position, reinterpret_cast<const void*>(args[0]), 12);
+            return 1;
         case 0x3C: write3(args[0], s->heading); return 1;
         case 0x78:
             if (args[1] & 0xFF)
@@ -3172,6 +3249,7 @@ uint32_t Answer(char* base, std::size_t part, std::size_t slot, const uint32_t* 
         case 0xE0: return reinterpret_cast<uint32_t>(s->controller);
         case 0xE4: return args[0] == 0x10 ? s->answer57a : s->answer57b;
         case 0xFC: return s->priority;
+        case 0x10C: return reinterpret_cast<uint32_t>(s->kind);
         case 0x118: return s->answer70;
         case 0x120: return s->answer72;
         case 0x154: return s->answer85;
@@ -3186,7 +3264,7 @@ uint32_t Answer(char* base, std::size_t part, std::size_t slot, const uint32_t* 
         case 0x14: return s->answerOccupant5;
         case 0x1C: return s->type;
         case 0x20: write3(args[0], s->position); return 1;
-        case 0x18: return reinterpret_cast<uint32_t>(FakeHolder());
+        case 0x18: return reinterpret_cast<uint32_t>(s->holder ? s->holder : FakeHolder());
         case 0x58: return (args[0] && (args[0] == s->groups[0] || args[0] == s->groups[1])) ? 1u : 0u;
         case 0x84: return s->occupantFlags;
         default: return 0;
@@ -3278,6 +3356,19 @@ void** FakeAutomatonVtable()
         OPENSC4_FAKEP(table, 0, 0x17C, Fake1, 1u);
         OPENSC4_FAKE(table, 0, 0x194, Fake0);
         OPENSC4_FAKE(table, 0, 0x198, Fake2);
+    }
+    return table;
+}
+
+// Part aw4's fakes: the same with slots 10 (the point it is sent to) and 67
+// (the kind block). Part aw3's keep their traps there.
+void** FakeAutomatonVtable4()
+{
+    static void* table[0x1A0 / 4];
+    if (!table[0]) {
+        std::memcpy(table, FakeAutomatonVtable(), sizeof table);
+        OPENSC4_FAKEP(table, 0, 0x28, Fake1, 1u);
+        OPENSC4_FAKE(table, 0, 0x10C, Fake0);
     }
     return table;
 }
@@ -3861,6 +3952,745 @@ void AwAutoDrive(cISC4City* city)
     log::Write("autotest: automata: aw3%s logged %08X", text.c_str(), logged.h);
 }
 
+// ====================================================================================
+// Part aw4's drive (OPENSC4_TEST_AUTOMATA_AWMGR=4), see the top of the file.
+
+std::string g_aw4Text;
+
+// A message of the test's own with an object: slot 0x10 the type, slot 0x24
+// a value, slot 0x28 the object, every other slot (up to 0x84) 0. The first
+// fields are FakeMessage's.
+struct FakeObjectMessage {
+    void** vtable;
+    uint32_t type;
+    uint32_t value;
+    void* object;
+};
+void* __fastcall FakeObjectOf(FakeObjectMessage* m, void*) { return m->object; }
+void** FakeObjectMessageVtable()
+{
+    static void* table[34];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&FakeZero);
+        table[0x10 / 4] = reinterpret_cast<void*>(&FakeType);
+        table[0x24 / 4] = reinterpret_cast<void*>(&FakeValue);
+        table[0x28 / 4] = reinterpret_cast<void*>(&FakeObjectOf);
+    }
+    return table;
+}
+
+// A fake occupant's property holder of the test's own (FakeState::holder),
+// which is its own property and variant: slot 3 answers whether it is of
+// the type 0x029244DB (`isType`) or of `type`, slot 9 for 0x8BFB1072 itself
+// when `byte` is not 0, slot 5 (the variant) itself, slot 13 (the byte
+// read) `byte`. Other slots take one argument and answer 0.
+struct FakeProps {
+    void** vtable;
+    uint8_t isType;
+    uint8_t byte;
+    uint32_t type;
+};
+uint32_t __fastcall PropsIsType(FakeProps* p, void*, uint32_t type)
+{
+    return (p->isType && type == 0x029244DBu) || (p->type && type == p->type);
+}
+void* __fastcall PropsGet(FakeProps* p, void*, uint32_t id) { return id == 0x8BFB1072u && p->byte ? p : nullptr; }
+void* __fastcall PropsVariant(FakeProps* p, void*) { return p; }
+uint32_t __fastcall PropsByte(FakeProps* p, void*, uint8_t* out)
+{
+    if (out)
+        *out = p->byte;
+    return 1;
+}
+void** FakePropsVtable()
+{
+    static void* table[16];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&HolderNone);
+        table[3] = reinterpret_cast<void*>(&PropsIsType);
+        table[5] = reinterpret_cast<void*>(&PropsVariant);
+        table[9] = reinterpret_cast<void*>(&PropsGet);
+        table[13] = reinterpret_cast<void*>(&PropsByte);
+    }
+    return table;
+}
+
+// The nodes of a circular list (the next pointer at +0), the head left out.
+uint32_t RingCount(char* head)
+{
+    uint32_t n = 0;
+    for (char* node = At<char*>(head, 0); node != head && n < 4096; node = At<char*>(node, 0))
+        ++n;
+    return n;
+}
+
+// The aircraft manager's part: on a new manager from its factory, held by
+// one reference.
+void AwAirDrive(void* building, Hash& air, Hash& logged, uint32_t& flags)
+{
+    namespace aw = automata_awmgr;
+    using Factory = void*(__cdecl*)();
+    void* const serial = reinterpret_cast<Factory>(addr::cSC4AircraftManager_Create)();
+    if (!serial) {
+        flags |= 0x100;
+        return;
+    }
+    char* const made = static_cast<char*>(serial) - aw::field::kSerializable;
+    Virtual<uint32_t>(made, aw::slot::kAddRef);
+    void*& generator = *reinterpret_cast<void**>(0x00B21AF4);
+    void* const savedGenerator = generator;
+    static Fake fakes[8];
+    for (uint32_t i = 0; i < 8; ++i)
+        fakes[i].Init(0x21 + i, air), At<void**>(fakes[i].block, 0) = FakeAutomatonVtable4();
+    g_known.push_back({made, 0x60});
+    if (building)
+        g_known.push_back({building, 0x61});
+    static FakeProps typed, plain, marked;
+    typed = {FakePropsVtable(), 1, 0, 0};
+    plain = {FakePropsVtable(), 0, 0, 0};
+    marked = {FakePropsVtable(), 0, 3, 0};
+    char* const f[8] = {fakes[0].Base(), fakes[1].Base(), fakes[2].Base(), fakes[3].Base(),
+                        fakes[4].Base(), fakes[5].Base(), fakes[6].Base(), fakes[7].Base()};
+    fakes[0].state.holder = &typed;
+    fakes[1].state.holder = &marked;
+    const float spot1[3] = {72.0f, 2.0f, 88.0f};
+    std::memcpy(fakes[1].state.position, spot1, 12);
+
+    // Init twice (the second does nothing), slot 24 again.
+    air.Mix(Virtual<uint32_t>(made, 0x0C) & 0xFF);
+    air.Mix(At<char*>(made, aw::field::kAirFilter) ? At<uint32_t>(At<char*>(made, aw::field::kAirFilter), 0) : 0u);
+    air.Mix(generator == made + aw::field::kRandom ? 1u : 0u);
+    air.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+    air.Mix(At<uint8_t>(made, aw::field::kMinZoom));
+    air.Mix(Virtual<uint32_t>(made, 0x0C) & 0xFF);
+    air.Mix(Virtual<uint32_t>(made, 0x60) & 0xFF);
+    air.Mix(At<uint8_t>(made, aw::field::kMinZoom));
+
+    // The save: Write of the new manager, then Read of it with two list
+    // records (the first at fake 2's occupant's position with the byte 3),
+    // which Write must give back; a read of version 6 (refused), of version 4
+    // (the common base's body), and of a stream cut in the second record.
+    auto write = [&](ByteOStream& out) { return Virtual<uint32_t>(serial, 0x0C, static_cast<void*>(&out)) & 0xFF; };
+    auto read = [&](const std::vector<uint8_t>& bytes) {
+        ByteIStream in(bytes);
+        return Virtual<uint32_t>(serial, 0x10, static_cast<void*>(&in)) & 0xFF;
+    };
+    ByteOStream empty;
+    air.Mix(write(empty));
+    air.Mix(static_cast<uint32_t>(empty.bytes.size()));
+    if (empty.bytes.size() >= 16) {
+        air.MixBytes(empty.bytes.data(), 2);
+        std::vector<uint8_t> two(empty.bytes.begin(), empty.bytes.end() - 4);
+        const auto put = [&](uint32_t v) {
+            for (int i = 0; i < 4; ++i)
+                two.push_back(static_cast<uint8_t>(v >> (8 * i)));
+        };
+        put(2);
+        for (const float v : spot1) {
+            uint32_t w;
+            std::memcpy(&w, &v, 4);
+            put(w);
+        }
+        two.push_back(3);
+        put(0x42000000u); // (32, 33, 34)
+        put(0x42040000u);
+        put(0x42080000u);
+        two.push_back(1);
+        air.Mix(read(two));
+        air.Mix(RingCount(At<char*>(made, aw::field::kAirList)));
+        ByteOStream again;
+        air.Mix(write(again));
+        if (again.bytes != two)
+            flags |= 0x200;
+        air.Mix(read(std::vector<uint8_t>{6, 0}));
+        std::vector<uint8_t> v4 = {4, 0};
+        v4.insert(v4.end(), empty.bytes.begin() + 4, empty.bytes.begin() + 4 + 4 + 2 + 4);
+        Put32(v4, 2, 17); // the most
+        Put32(v4, 8, 0);  // no automata
+        air.Mix(read(v4));
+        air.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+        air.Mix(At<uint8_t>(made, aw::field::kA78));
+        std::vector<uint8_t> cut(two.begin(), two.end() - 7);
+        air.Mix(read(cut));
+        air.Mix(RingCount(At<char*>(made, aw::field::kAirList)));
+        logged.MixBytes(empty.bytes.data(), empty.bytes.size());
+    } else {
+        flags |= 0x400;
+    }
+
+    // Map entries of the test's own (each holding a reference to its key
+    // and its value, as Read's are): fake 2's occupant to fake 3, the
+    // building to fake 4, fake 7's occupant to fake 8 and fake 8's to fake 7.
+    using MapAt = uint32_t*(__thiscall*)(void*, const uint32_t*);
+    char* const map = made + aw::field::kAirMap;
+    auto enter = [&](void* key, char* value) {
+        const uint32_t k = reinterpret_cast<uint32_t>(key);
+        *reinterpret_cast<MapAt>(addr::SC4Uint32Map_At)(map, &k) = reinterpret_cast<uint32_t>(value);
+        Virtual<uint32_t>(key, 0x04);
+        Virtual<uint32_t>(value, 0x04);
+    };
+    enter(f[1] + 4, f[2]);
+    if (building)
+        enter(building, f[3]);
+    enter(f[6] + 4, f[7]);
+    enter(f[7] + 4, f[6]);
+    air.Mix(At<uint32_t>(made, aw::field::kAirMapSize));
+
+    // Messages to the message target: inserted and removed of an occupant
+    // of the type 0x029244DB (nothing but the answer), inserted of fake 2's
+    // (SC4UIScale's 0x004FBFE0, which finds no property and ends), removed
+    // of fake 2's twice (0x004FB8D0: its entry erased and its list record of
+    // the property byte 3 unlinked; then neither is there), a type no one
+    // handles.
+    FakeObjectMessage message{FakeObjectMessageVtable(), 0, 0, nullptr};
+    auto send = [&](uint32_t type, void* object) {
+        message.type = type;
+        message.object = object;
+        air.Mix(Virtual<uint32_t>(made + aw::field::kMessage, 0x0C, static_cast<void*>(&message)) & 0xFF);
+        air.Mix(At<uint32_t>(made, aw::field::kAirMapSize));
+        air.Mix(RingCount(At<char*>(made, aw::field::kAirList)));
+    };
+    send(0x99EF1142, f[0] + 4);
+    send(0x99EF1143, f[0] + 4);
+    fakes[1].state.holder = &plain;
+    send(0x99EF1142, f[1] + 4);
+    fakes[1].state.holder = &marked;
+    send(0x99EF1143, f[1] + 4);
+    send(0x99EF1143, f[1] + 4);
+    send(0x12345678, nullptr);
+    air.Mix(fakes[1].state.refs);
+    air.Mix(fakes[2].state.refs);
+
+    // The dispatch slots. Locations: a point (kind 1), the building (kind
+    // 0), no object (kind 0, null) and a kind slot 19 refuses (9).
+    const uint32_t kOff = 0x7A5A0F0Fu;
+    const uint32_t toPoint[4] = {1, 0x42C00000u, 0, 0x42D00000u}; // (96, 0, 104)
+    const uint32_t toBad[4] = {9, 0, 0, 0};
+    const uint32_t fromPoint[4] = {1, 0x42800000u, 0, 0x42800000u};
+    const uint32_t fromBuilding[4] = {0, reinterpret_cast<uint32_t>(building), 0, 0};
+    const uint32_t fromNone[4] = {0, 0, 0, 0};
+    using Slot17 = void*(__thiscall*)(void*, void*, const void*, const void*, uint32_t, uint32_t);
+    using Slot18 = void*(__thiscall*)(void*, uint32_t, const void*, const void*, uint32_t, uint32_t, uint32_t,
+                                      uint32_t);
+    void** const vtable = *reinterpret_cast<void***>(made);
+    auto slot17 = [&](void* automaton, const void* from, const void* to) {
+        At<uint32_t>(f[4], 0x1E4) = kOff;
+        void* const answer = reinterpret_cast<Slot17>(vtable[17])(made, automaton, from, to, 0, 0);
+        air.Mix(Canon(reinterpret_cast<uint32_t>(answer)));
+        air.Mix(At<uint32_t>(f[4], 0x1E4));
+        air.MixBytes(fakes[4].state.position, 12);
+    };
+    slot17(nullptr, fromPoint, toPoint);
+    slot17(f[4], fromPoint, toBad);
+    slot17(f[4], fromPoint, toPoint);
+    slot17(f[4], fromNone, toPoint);
+    for (const uint32_t group : {0x4301u, 0u}) {
+        fakes[4].state.groups[0] = group;
+        if (building)
+            slot17(f[4], fromBuilding, toPoint);
+    }
+    auto slot18 = [&](const void* from, const void* to) {
+        At<uint32_t>(f[3], 0x1E4) = kOff;
+        void* const answer = reinterpret_cast<Slot18>(vtable[18])(made, kOff, from, to, 0, 0, 0, 0);
+        air.Mix(Canon(reinterpret_cast<uint32_t>(answer)));
+        air.Mix(At<uint32_t>(f[3], 0x1E4));
+        air.MixBytes(fakes[3].state.position, 12);
+    };
+    slot18(fromPoint, toPoint);
+    slot18(fromNone, toPoint);
+    if (building) {
+        slot18(fromBuilding, toBad);
+        slot18(fromBuilding, toPoint);
+        // The building's entry taken out (0x004FB8D0 at its address; it gives
+        // back the entry's references), then slot 18 finds nothing.
+        using Removed = void(__thiscall*)(void*, void*);
+        reinterpret_cast<Removed>(addr::cSC4AircraftManager_OccupantRemoved)(made, building);
+        air.Mix(At<uint32_t>(made, aw::field::kAirMapSize));
+        slot18(fromBuilding, toPoint);
+    } else {
+        flags |= 0x10;
+    }
+
+    // The list find 0x004FB2B0 on nodes of the test's own: a record at (1, 2,
+    // 3) with the byte 7; nodes with another byte, x 0.001 off, y NaN, z
+    // 0.00005 off (found), one more, and the end.
+    {
+        alignas(4) static char nodes[6][0x18];
+        std::memset(nodes, 0, sizeof nodes);
+        const float base3[3] = {1.0f, 2.0f, 3.0f};
+        for (int i = 0; i < 6; ++i) {
+            At<char*>(nodes[i], 0) = nodes[i + 1 < 6 ? i + 1 : 5];
+            std::memcpy(nodes[i] + 8, base3, 12);
+            At<uint8_t>(nodes[i], 0x14) = 7;
+        }
+        At<uint8_t>(nodes[0], 0x14) = 8;
+        At<float>(nodes[1], 8) = 1.001f;
+        At<float>(nodes[2], 0xC) = std::numeric_limits<float>::quiet_NaN();
+        At<float>(nodes[3], 0x10) = 3.00005f;
+        alignas(4) char record[0x10] = {};
+        std::memcpy(record, base3, 12);
+        At<uint8_t>(record, 0xC) = 7;
+        using Find = char**(__cdecl*)(char**, char*, char*, const char*);
+        const auto find = reinterpret_cast<Find>(addr::cSC4AircraftManager_FindRecord);
+        auto index = [&](char* n) {
+            for (uint32_t i = 0; i < 6; ++i)
+                if (n == nodes[i])
+                    return i;
+            return 0xFFu;
+        };
+        char* out = nullptr;
+        air.Mix(index(*find(&out, nodes[0], nodes[5], record)));
+        air.Mix(index(*find(&out, nodes[4], nodes[5], record)));
+        air.Mix(index(*find(&out, nodes[5], nodes[5], record)));
+        At<uint8_t>(record, 0xC) = 8;
+        air.Mix(index(*find(&out, nodes[0], nodes[5], record)));
+    }
+
+    // AddAutomaton: a fake (the common base's AddAutomaton puts it in the
+    // list), then none with the generator seeded until both kinds were made
+    // (a helicopter for a draw below 0x7FFFFFFF, else the 0x200-byte
+    // aircraft), each taken out again (slot 8 with 1).
+    air.Mix(Virtual<uint32_t>(made, 0x1C, static_cast<void*>(f[5])) & 0xFF);
+    air.Mix(RingCount(At<char*>(made, aw::field::kAutomata)));
+    {
+        using Seed = void(__thiscall*)(void*, uint32_t);
+        uint32_t kinds = 0;
+        for (uint32_t seed = 1; seed <= 8 && kinds != 3; ++seed) {
+            reinterpret_cast<Seed>(addr::cRZRandomSuper_Seed)(made + aw::field::kRandom, seed);
+            air.Mix(Virtual<uint32_t>(made, 0x1C, static_cast<void*>(nullptr)) & 0xFF);
+            char* const head = At<char*>(made, aw::field::kAutomata);
+            char* const last = At<char*>(head, 4);
+            void* const automaton = last != head ? At<void*>(last, 8) : nullptr;
+            if (!automaton || automaton == f[5]) {
+                flags |= 0x800;
+                break;
+            }
+            const uint32_t kind = At<uint32_t>(automaton, 0) == 0x00A991E0u   ? 1u
+                                  : At<uint32_t>(automaton, 0) == 0x00A97188u ? 2u
+                                                                              : 4u;
+            kinds |= kind;
+            air.Mix(seed);
+            air.Mix(kind);
+            air.Mix(Virtual<uint32_t>(made, 0x20, automaton, 1u) & 0xFF);
+            air.Mix(RingCount(At<char*>(made, aw::field::kAutomata)));
+        }
+        air.Mix(kinds);
+    }
+
+    // Shutdown (the map's two fake entries released and erased, the list
+    // freed, the fake automaton removed by slot 45), again (nothing), then
+    // the release; the generator global put back.
+    air.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+    air.Mix(generator ? 1u : 0u);
+    air.Mix(At<uint32_t>(made, aw::field::kAirMapSize));
+    air.Mix(RingCount(At<char*>(made, aw::field::kAirList)));
+    air.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+    for (const Fake& fake : fakes) {
+        air.Mix(fake.state.refs);
+        if (fake.state.unexpected)
+            flags |= 0x1000;
+    }
+    generator = savedGenerator;
+    air.Mix(Virtual<uint32_t>(made, aw::slot::kRelease));
+}
+
+// The watercraft manager's part: the city's manager's Write (its tables'
+// sizes into the token, the bytes to the log), then a new manager from its
+// factory, held by one reference.
+void AwWaterDrive(cISC4City* city, Hash& water, Hash& logged, uint32_t& flags)
+{
+    namespace aw = automata_awmgr;
+    auto write = [&](void* serial, ByteOStream& out) {
+        return Virtual<uint32_t>(serial, 0x0C, static_cast<void*>(&out)) & 0xFF;
+    };
+    auto read = [&](void* serial, const std::vector<uint8_t>& bytes) {
+        ByteIStream in(bytes);
+        return Virtual<uint32_t>(serial, 0x10, static_cast<void*>(&in)) & 0xFF;
+    };
+    if (char* const manager = Virtual<char*>(city, aw::kCitySlotWatercraft)) {
+        ByteOStream out;
+        water.Mix(write(manager + aw::field::kSerializable, out));
+        for (const std::size_t at : {aw::field::kWaterTable, aw::field::kWaterTable2, aw::field::kWaterTable3})
+            water.Mix(At<uint32_t>(manager + at, aw::table::kCount));
+        water.Mix(static_cast<uint32_t>(At<char*>(manager, aw::field::kWaterRefs + 4) -
+                                        At<char*>(manager, aw::field::kWaterRefs)));
+        water.Mix(At<uint8_t>(manager, aw::field::kWaterByte));
+        logged.Mix(static_cast<uint32_t>(out.bytes.size()));
+        logged.MixBytes(out.bytes.data(), out.bytes.size());
+    } else {
+        flags |= 0x10000;
+    }
+
+    using Factory = void*(__cdecl*)();
+    void* const serial = reinterpret_cast<Factory>(addr::cSC4WatercraftManager_Create)();
+    if (!serial) {
+        flags |= 0x20000;
+        return;
+    }
+    char* const made = static_cast<char*>(serial) - aw::field::kSerializable;
+    Virtual<uint32_t>(made, aw::slot::kAddRef);
+    void*& generator = *reinterpret_cast<void**>(0x00B22A78);
+    void* const savedGenerator = generator;
+    static Fake fakes[12];
+    for (uint32_t i = 0; i < 12; ++i)
+        fakes[i].Init(0x31 + i, water), At<void**>(fakes[i].block, 0) = FakeAutomatonVtable4();
+    g_known.push_back({made, 0x70});
+    char* f[12];
+    for (int i = 0; i < 12; ++i)
+        f[i] = fakes[i].Base();
+    constexpr uint32_t kTerminal = 0x4C18336Du, kDock = 0xEC39DD14u, kPair = 0x8C392D39u;
+    static FakeProps typed, plain, terminal, dock, pairType;
+    typed = {FakePropsVtable(), 1, 0, 0};
+    plain = {FakePropsVtable(), 0, 0, 0};
+    terminal = {FakePropsVtable(), 0, 0, kTerminal};
+    dock = {FakePropsVtable(), 0, 0, kDock};
+    pairType = {FakePropsVtable(), 0, 0, kPair};
+    fakes[0].state.holder = &typed;
+    fakes[1].state.holder = &terminal;
+    fakes[2].state.holder = &dock;
+    fakes[3].state.holder = &pairType;
+    fakes[7].state.holder = &plain;
+    const float spots[4][3] = {{40.0f, 3.0f, 40.0f}, {64.0f, 5.0f, 72.0f}, {20.0f, 1.0f, 24.0f}, {48.0f, 4.0f, 44.0f}};
+    for (int i = 0; i < 4; ++i)
+        std::memcpy(fakes[i].state.position, spots[i], 12);
+
+    // Init twice (the second does nothing): the generator global, the most
+    // (500, then the tuning's), the least zoom; slot 24 again.
+    water.Mix(Virtual<uint32_t>(made, 0x0C) & 0xFF);
+    water.Mix(generator == made + aw::field::kRandom ? 1u : 0u);
+    water.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+    water.Mix(At<uint8_t>(made, aw::field::kMinZoom));
+    water.Mix(Virtual<uint32_t>(made, 0x0C) & 0xFF);
+    water.Mix(Virtual<uint32_t>(made, 0x60) & 0xFF);
+    water.Mix(At<uint8_t>(made, aw::field::kMinZoom));
+
+    auto counts = [&]() {
+        for (const std::size_t at : {aw::field::kWaterTable, aw::field::kWaterTable2, aw::field::kWaterTable3})
+            water.Mix(At<uint32_t>(made + at, aw::table::kCount));
+        water.Mix(static_cast<uint32_t>(At<char*>(made, aw::field::kWaterRefs + 4) -
+                                        At<char*>(made, aw::field::kWaterRefs)));
+    };
+
+    // A route of the test's own put in by the route insert 0x00574830: its
+    // key fake 7, its +0x1C fake 8's occupant, three records (the automata
+    // fakes 1, 2 and 3; ferry route words 0, 1 and 2 and their fields).
+    {
+        alignas(4) static char records[3][0x3C];
+        std::memset(records, 0, sizeof records);
+        for (uint32_t i = 0; i < 3; ++i) {
+            char* const r = records[i];
+            At<void*>(r, 0) = f[i];
+            char* const fr = r + 4;
+            At<uint32_t>(fr, 8) = i;
+            for (std::size_t at = 0xC; at <= 0x12; at += 2)
+                At<uint16_t>(fr, at) = static_cast<uint16_t>(0x100 * (i + 1) + at);
+            At<uint8_t>(fr, 0x14) = static_cast<uint8_t>(i & 1);
+            At<uint16_t>(fr, 0x16) = static_cast<uint16_t>(0x7000 + i);
+            At<uint16_t>(fr, 0x18) = static_cast<uint16_t>(0x8000 + i);
+            At<uint8_t>(r, 0x38) = 1;
+        }
+        alignas(4) char pair[0x1C] = {};
+        At<void*>(pair, 0) = f[6];
+        At<char*>(pair, 0xC) = records[0];
+        At<char*>(pair, 0x10) = records[0] + 3 * 0x3C;
+        At<char*>(pair, 0x14) = records[0] + 3 * 0x3C;
+        At<void*>(pair, 0x18) = f[7] + 4;
+        alignas(4) char result[12] = {};
+        using InsertFn = void*(__thiscall*)(void*, void*, const void*);
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable, result,
+                                                                            pair);
+        water.Mix(At<uint8_t>(result, 8));
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable, result,
+                                                                            pair);
+        water.Mix(At<uint8_t>(result, 8));
+        // A second pair table node whose +8 is fake 5 (its occupant's key),
+        // and the reference vector of fakes 6, 7 and 8 (one reference each).
+        void* p3[2] = {f[4] + 4, f[4]};
+        using Resize = void(__thiscall*)(void*, uint32_t);
+        char* const pairs3 = made + aw::field::kWaterTable3;
+        reinterpret_cast<Resize>(addr::SC4Uint32HashSet_Resize)(pairs3, At<uint32_t>(pairs3, aw::table::kCount) + 1);
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertPair)(pairs3, result, p3);
+        water.Mix(At<uint8_t>(result, 8));
+        using Alloc = void*(__cdecl*)(uint32_t);
+        void** const refs = static_cast<void**>(reinterpret_cast<Alloc>(addr::SC4_stl_allocate)(12));
+        for (int i = 0; i < 3; ++i) {
+            refs[i] = f[5 + i];
+            Virtual<uint32_t>(f[5 + i], 0x04);
+        }
+        At<void**>(made, aw::field::kWaterRefs) = refs;
+        At<void**>(made, aw::field::kWaterRefs + 4) = refs + 3;
+        At<void**>(made, aw::field::kWaterRefs + 8) = refs + 3;
+        counts();
+    }
+
+    // The save: Write with the route, Read of those bytes (the references
+    // come back as nothing; the record word 2, written as -1, comes back as
+    // the one before it), Write again; reads of version 7 (refused) and 5
+    // (the common base's body).
+    ByteOStream first;
+    water.Mix(write(serial, first));
+    water.Mix(static_cast<uint32_t>(first.bytes.size()));
+    water.MixBytes(first.bytes.data(), first.bytes.size());
+    if (first.bytes.size() >= 16) {
+        water.Mix(read(serial, first.bytes));
+        counts();
+        ByteOStream again;
+        water.Mix(write(serial, again));
+        water.Mix(static_cast<uint32_t>(again.bytes.size()));
+        water.MixBytes(again.bytes.data(), again.bytes.size());
+        if (again.bytes.size() != first.bytes.size())
+            flags |= 0x40000;
+        water.Mix(read(serial, std::vector<uint8_t>{7, 0}));
+        std::vector<uint8_t> v5 = {5, 0};
+        v5.insert(v5.end(), first.bytes.begin() + 4, first.bytes.begin() + 4 + 4 + 2 + 4);
+        Put32(v5, 2, 23); // the most
+        Put32(v5, 8, 0);  // no automata
+        // No source building records. Without the count the common base's
+        // body would read it from a failed stream into a slot holding the
+        // stream's address and add records of a stack leftover (part aw2).
+        v5.insert(v5.end(), 4, uint8_t{0});
+        water.Mix(read(serial, v5));
+        water.Mix(At<uint32_t>(made, aw::field::kMaxCount));
+        water.Mix(At<uint8_t>(made, aw::field::kA78));
+    } else {
+        flags |= 0x80000;
+    }
+    counts();
+
+    // The route again (the round trip left one with a null key and no
+    // records' automata), the second pair table's node and the vector.
+    {
+        alignas(4) static char records2[2][0x3C];
+        std::memset(records2, 0, sizeof records2);
+        At<void*>(records2[0], 0) = f[0];
+        At<void*>(records2[1], 0) = f[1];
+        alignas(4) char pair[0x1C] = {};
+        At<void*>(pair, 0) = f[6];
+        At<char*>(pair, 0xC) = records2[0];
+        At<char*>(pair, 0x10) = records2[0] + 2 * 0x3C;
+        At<char*>(pair, 0x14) = records2[0] + 2 * 0x3C;
+        At<void*>(pair, 0x18) = f[7] + 4;
+        alignas(4) char result[12] = {};
+        using InsertFn = void*(__thiscall*)(void*, void*, const void*);
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRoute)(made + aw::field::kWaterTable, result,
+                                                                            pair);
+        void* p3[2] = {f[4] + 4, f[4]};
+        using Resize = void(__thiscall*)(void*, uint32_t);
+        char* const pairs3 = made + aw::field::kWaterTable3;
+        reinterpret_cast<Resize>(addr::SC4Uint32HashSet_Resize)(pairs3, At<uint32_t>(pairs3, aw::table::kCount) + 1);
+        reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertPair)(pairs3, result, p3);
+        using Alloc = void*(__cdecl*)(uint32_t);
+        void** const refs = static_cast<void**>(reinterpret_cast<Alloc>(addr::SC4_stl_allocate)(12));
+        for (int i = 0; i < 3; ++i) {
+            refs[i] = f[5 + i];
+            Virtual<uint32_t>(f[5 + i], 0x04);
+        }
+        // Read erased the vector's references; its storage is the game's to
+        // free, and is given back here before ours goes in.
+        using FreeFn = void(__cdecl*)(void*);
+        if (void* const old = At<void*>(made, aw::field::kWaterRefs))
+            reinterpret_cast<FreeFn>(addr::SC4_Free)(old);
+        At<void**>(made, aw::field::kWaterRefs) = refs;
+        At<void**>(made, aw::field::kWaterRefs + 4) = refs + 3;
+        At<void**>(made, aw::field::kWaterRefs + 8) = refs + 3;
+        counts();
+    }
+
+    // RemoveAutomaton (slot 8, with 1): fake 1 of the kind 0x4400 (in the
+    // route's records), fake 3 of the kind 0x4402 (not there), fake 5 in the
+    // group 0x4411 (the second pair table's node), fake 7 and then fake 8 in
+    // the group 0x4418 (the vector's middle, then its end), fake 10 in none,
+    // and none.
+    auto remove = [&](char* automaton) {
+        water.Mix(Virtual<uint32_t>(made, 0x20, static_cast<void*>(automaton), 1u) & 0xFF);
+        counts();
+    };
+    fakes[0].state.kind[4] = 0x4400;
+    fakes[2].state.kind[4] = 0x4402;
+    fakes[4].state.groups[0] = 0x4411;
+    fakes[6].state.groups[0] = 0x4418;
+    fakes[7].state.groups[0] = 0x4418;
+    remove(f[0]);
+    remove(f[2]);
+    remove(f[4]);
+    remove(f[6]);
+    remove(f[7]);
+    remove(f[9]);
+    remove(nullptr);
+
+    // Messages to the message target: 0x2C06BA82 (+0xA88), an occupant
+    // added without one, of the type 0x029244DB, of a terminal type (twice:
+    // put in, then found), of the dock type (no route: the dock search finds
+    // no lot interface on a fake), of the pair type; removed: the route's
+    // +0x1C (its records' automata stopped, the route erased), the terminal
+    // and pair ones; a type no one handles. Without an occupant the
+    // handlers are called at their addresses.
+    FakeObjectMessage message{FakeObjectMessageVtable(), 0, 0, nullptr};
+    auto send = [&](uint32_t type, void* object) {
+        message.type = type;
+        message.object = object;
+        water.Mix(Virtual<uint32_t>(made + aw::field::kMessage, 0x0C, static_cast<void*>(&message)) & 0xFF);
+        counts();
+    };
+    send(0x2C06BA82, nullptr);
+    water.Mix(At<uint8_t>(made, aw::field::kWaterByte));
+    {
+        // Without an occupant, at the handlers' addresses: the common base's
+        // DoMessage does not test it.
+        using Handler = void(__thiscall*)(void*, void*);
+        reinterpret_cast<Handler>(addr::cSC4WatercraftManager_OccupantAdded)(made, nullptr);
+        reinterpret_cast<Handler>(addr::cSC4WatercraftManager_OccupantRemoved)(made, nullptr);
+        counts();
+    }
+    send(0x99EF1142, f[0] + 4);
+    send(0x99EF1142, f[1] + 4);
+    send(0x99EF1142, f[1] + 4);
+    send(0x99EF1142, f[2] + 4);
+    send(0x99EF1142, f[3] + 4);
+    send(0x99EF1143, f[7] + 4);
+    send(0x99EF1143, f[1] + 4);
+    send(0x99EF1143, f[3] + 4);
+    send(0x99EF1143, f[0] + 4);
+    send(0x12345678, nullptr);
+
+    // AddAutomaton: a fake (in the list), then none (a new boat). The boat
+    // stays in the list for Shutdown's slot 45: the watercraft manager's
+    // RemoveAutomaton reads its slot 67's block, which a new boat has not.
+    water.Mix(Virtual<uint32_t>(made, 0x1C, static_cast<void*>(f[10])) & 0xFF);
+    water.Mix(Virtual<uint32_t>(made, 0x1C, static_cast<void*>(nullptr)) & 0xFF);
+    {
+        char* const head = At<char*>(made, aw::field::kAutomata);
+        char* const last = At<char*>(head, 4);
+        void* const boat = last != head ? At<void*>(last, 8) : nullptr;
+        if (boat && boat != f[10]) {
+            water.Mix(At<uint32_t>(boat, 0) == 0 ? 0u : 1u);
+        } else {
+            flags |= 0x100000;
+        }
+        water.Mix(RingCount(At<char*>(made, aw::field::kAutomata)));
+    }
+
+    // On tables of the test's own with one bucket (so that the second key
+    // goes in front of the first): the pair table's and the route table's
+    // erase of the older node (its release, 0x0056C910 and 0x00574230) and
+    // then of the first; and the route pair's constructor and the records'
+    // clear on a route value of the test's own, as the dock branch of the
+    // occupant's addition makes them.
+    {
+        using Ctor = void*(__thiscall*)(void*, uint32_t);
+        using InsertFn = void*(__thiscall*)(void*, void*, const void*);
+        using EraseFn = void(__thiscall*)(void*, void*);
+        using Alloc = void*(__cdecl*)(uint32_t);
+        using FreeFn = void(__cdecl*)(void*);
+        const auto oneBucket = [&](char* t) {
+            reinterpret_cast<Ctor>(addr::SC4Uint32HashSet_Construct)(t, 0x64);
+            if (void* const old = At<void*>(t, aw::table::kBegin))
+                reinterpret_cast<FreeFn>(addr::SC4_Free)(old);
+            char** const bucket = static_cast<char**>(reinterpret_cast<Alloc>(addr::SC4_stl_allocate)(4));
+            bucket[0] = nullptr;
+            At<char**>(t, aw::table::kBegin) = bucket;
+            At<char**>(t, aw::table::kEnd) = bucket + 1;
+            At<char**>(t, aw::table::kCapacity) = bucket + 1;
+        };
+        const auto erase = [&](uintptr_t fn, char* t, char* node) {
+            void* iterator[2] = {node, t};
+            reinterpret_cast<EraseFn>(fn)(t, iterator);
+            water.Mix(At<uint32_t>(t, aw::table::kCount));
+            water.Mix(At<char**>(t, aw::table::kBegin)[0] ? 1u : 0u);
+        };
+        alignas(4) char pairs[aw::table::kSize] = {};
+        oneBucket(pairs);
+        char* nodes[2] = {};
+        for (int i = 0; i < 2; ++i) {
+            void* pair[2] = {f[8 + i] + 4, f[8 + i]};
+            alignas(4) char result[12] = {};
+            reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertPair)(pairs, result, pair);
+            nodes[i] = At<char*>(result, 0);
+        }
+        erase(addr::cSC4WatercraftManager_ErasePair, pairs, nodes[0]);
+        erase(addr::cSC4WatercraftManager_ErasePair, pairs, nodes[1]);
+        reinterpret_cast<FreeFn>(addr::SC4_Free)(At<void*>(pairs, aw::table::kBegin));
+        alignas(4) char routes[aw::table::kSize] = {};
+        oneBucket(routes);
+        for (int i = 0; i < 2; ++i) {
+            alignas(4) char pair[0x1C] = {};
+            At<void*>(pair, 0) = f[8 + i];
+            At<void*>(pair, 0x18) = f[8 + i] + 4;
+            alignas(4) char result[12] = {};
+            reinterpret_cast<InsertFn>(addr::cSC4WatercraftManager_InsertRouteNode)(routes, result, pair);
+            nodes[i] = At<char*>(result, 0);
+        }
+        erase(addr::cSC4WatercraftManager_EraseRoute, routes, nodes[0]);
+        erase(addr::cSC4WatercraftManager_EraseRoute, routes, nodes[1]);
+        reinterpret_cast<FreeFn>(addr::SC4_Free)(At<void*>(routes, aw::table::kBegin));
+        alignas(4) char value[0x18] = {};
+        using Clear = void(__thiscall*)(void*);
+        reinterpret_cast<Clear>(addr::cSC4WatercraftManager_ClearRecords)(value + 8);
+        At<void*>(value, 0x14) = f[9] + 4;
+        void* key = f[8];
+        alignas(4) char pair[0x1C] = {};
+        using MakeFn = char*(__thiscall*)(void*, void* const*, const void*);
+        char* const madePair = reinterpret_cast<MakeFn>(addr::cSC4WatercraftManager_MakeRoutePair)(pair, &key, value);
+        water.Mix(madePair == pair ? 1u : 0u);
+        for (std::size_t at = 0; at < 0x1C; at += 4)
+            water.Mix(Canon(At<uint32_t>(pair, at)));
+        reinterpret_cast<Clear>(addr::cSC4WatercraftManager_DestroyRoute)(pair + 4);
+        if (void* const k = At<void*>(pair, 0))
+            Virtual<uint32_t>(k, 0x08);
+        At<void*>(value, 0x14) = nullptr;
+        reinterpret_cast<Clear>(addr::cSC4WatercraftManager_DestroyRoute)(value);
+    }
+
+    // Shutdown (the tables cleared, the vector erased, the fake automaton
+    // removed by slot 45), again (nothing), then the release; the generator
+    // global put back.
+    water.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+    water.Mix(generator ? 1u : 0u);
+    counts();
+    water.Mix(Virtual<uint32_t>(made, 0x10) & 0xFF);
+    for (const Fake& fake : fakes) {
+        water.Mix(fake.state.refs);
+        if (fake.state.unexpected)
+            flags |= 0x200000;
+    }
+    generator = savedGenerator;
+    water.Mix(Virtual<uint32_t>(made, aw::slot::kRelease));
+}
+
+void AwBehaviourDrive(cISC4City* city)
+{
+    std::string text = " E";
+    Hash air, water, logged;
+    uint32_t flags = 0;
+    g_known.clear();
+    // The first building occupant of the controller table by its hash (the
+    // aircraft dispatch slots' source and map key).
+    void* building = nullptr;
+    uint32_t best = 0xFFFFFFFFu;
+    if (char* const manager = Manager(city))
+        ForEach<ControllerNode>(Table(manager, field::kControllers), [&](ControllerNode* node) {
+            void* const occupant = node->occupant;
+            if (!occupant || Virtual<uint32_t>(occupant, kGetType) != 0x278128A0u)
+                return;
+            const uint32_t h = OccupantHash(occupant);
+            if (h < best) {
+                best = h;
+                building = occupant;
+            }
+        });
+    AwAirDrive(building, air, logged, flags);
+    AwWaterDrive(city, water, logged, flags);
+    g_known.clear();
+    char part[64];
+    std::snprintf(part, sizeof part, "%08X,%08X,%X", air.h, water.h, flags);
+    text += part;
+    g_aw4Text = text;
+    log::Write("autotest: automata: aw4%s logged %08X", text.c_str(), logged.h);
+}
+
+// ====================================================================================
 // Part c1's drive (OPENSC4_TEST_AUTOMATA_SITUATIONS=1), see the top of the file.
 
 std::string g_situationText;
@@ -4313,10 +5143,13 @@ struct Fake {
 
 constexpr int kFakes = 24;
 Fake g_fakes[kFakes];
+// Part c3's further fakes (its test only).
+Fake g_more[kFakes];
 char* g_fresh = nullptr;
 
-// A pointer as the hashes see it: a fake's index + 1, 0 for null, 0xFE for
-// the fresh manager (or one of its parts), 0xFF for anything else.
+// A pointer as the hashes see it: a fake's index + 1 (0x41 on for part c3's
+// further ones), 0 for null, 0xFE for the fresh manager (or one of its
+// parts), 0xFF for anything else.
 uint32_t Id(const void* p)
 {
     if (!p)
@@ -4324,13 +5157,20 @@ uint32_t Id(const void* p)
     for (int i = 0; i < kFakes; ++i)
         if (p == &g_fakes[i])
             return static_cast<uint32_t>(i + 1);
+    for (int i = 0; i < kFakes; ++i)
+        if (p == &g_more[i])
+            return static_cast<uint32_t>(0x41 + i);
     if (g_fresh && p >= g_fresh && p < g_fresh + automata_situations::kObjectSize)
         return 0xFE;
     return 0xFF;
 }
 
+bool g_logEach = false; // part c3's trace, level 2
+
 void Log(const Fake* f, uint32_t slot, uint32_t a = 0, uint32_t b = 0)
 {
+    if (g_logEach)
+        log::Write("autotest: c3 call %02X %03X %08X %08X", f->index, slot, a, b);
     g_log.Mix(f->index << 16 | slot);
     g_log.Mix(a);
     g_log.Mix(b);
@@ -5326,6 +6166,956 @@ void Situations2Drive(cISC4City* city)
                helpers.h, flags);
 }
 
+// Part c3's drive (OPENSC4_TEST_AUTOMATA_SITUATIONS=3), see the top of the
+// file. As part c2's: a fresh manager whose vtable is a copy (slots 24, 35,
+// 36 and 38 the test's), objects of the test's own as arguments, messages and
+// fields; the game's globals read, never written. No message is posted, no
+// popup opened, no camera effect made, no reward given.
+
+std::string g_situation3Text;
+
+namespace c3 {
+
+// A message (cIGZMessage2Standard's getters).
+struct Msg {
+    void** vtable;
+    uint32_t refs;
+    uint32_t type;
+    uint32_t has1;
+    uint32_t data1;
+    void* void1;
+    uint32_t data2;
+    void* void2;
+    uint32_t data3;
+    void* unknown;
+};
+
+void MsgLog(uint32_t slot) { c2::g_log.Mix(0x4D0000u | slot); }
+uint32_t __fastcall MsgType(Msg* m, void*)
+{
+    MsgLog(0x10);
+    return m->type;
+}
+uint32_t __fastcall MsgHas1(Msg* m, void*)
+{
+    MsgLog(0x20);
+    return m->has1;
+}
+uint32_t __fastcall MsgData1(Msg* m, void*)
+{
+    MsgLog(0x24);
+    return m->data1;
+}
+void* __fastcall MsgVoid1(Msg* m, void*)
+{
+    MsgLog(0x28);
+    return m->void1;
+}
+uint32_t __fastcall MsgData2(Msg* m, void*)
+{
+    MsgLog(0x38);
+    return m->data2;
+}
+void* __fastcall MsgVoid2(Msg* m, void*)
+{
+    MsgLog(0x3C);
+    return m->void2;
+}
+uint32_t __fastcall MsgData3(Msg* m, void*)
+{
+    MsgLog(0x4C);
+    return m->data3;
+}
+void* __fastcall MsgUnknown(Msg* m, void*)
+{
+    MsgLog(0x80);
+    return m->unknown;
+}
+
+// A cIGZString for the cheat's text (slot 5, the characters).
+struct Text {
+    void** vtable;
+    const char* chars;
+};
+const char* __fastcall TextChars(Text* t, void*)
+{
+    c2::g_log.Mix(0x54000014u);
+    return t->chars;
+}
+
+// Advices and situations: QueryInterface for 0x6BEB1E8A (refused with the
+// answer's bit 0x10), the radius (pos[0]) and drive time (pos[1]) floats,
+// the groups at slot 12, slots 17 and 19 (answer bits 4 and 8), and the
+// rewards' slots answering false.
+uint32_t __fastcall QIAdvice(c2::Fake* f, void*, uint32_t iid, void** out)
+{
+    c2::Log(f, 0x00, iid);
+    if (iid != 0x6BEB1E8Au || (f->answer & 0x10))
+        return 0;
+    *out = f;
+    ++f->refs;
+    return 1;
+}
+float __fastcall SitRadius(c2::Fake* f, void*)
+{
+    c2::Log(f, 0x24);
+    return f->pos[0];
+}
+float __fastcall SitDriveTime(c2::Fake* f, void*)
+{
+    c2::Log(f, 0x2C);
+    return f->pos[1];
+}
+void* __fastcall SitGroups30(c2::Fake* f, void*)
+{
+    c2::Log(f, 0x30);
+    return &f->groupsBegin;
+}
+uint32_t __fastcall SitHasTargets(c2::Fake* f, void*)
+{
+    c2::Log(f, 0x44);
+    return (f->answer >> 2) & 1;
+}
+uint32_t __fastcall SitChecks(c2::Fake* f, void*)
+{
+    c2::Log(f, 0x4C);
+    return (f->answer >> 3) & 1;
+}
+uint32_t __fastcall SitMoneyB8(c2::Fake* f, void*, uint32_t*, uint32_t*)
+{
+    c2::Log(f, 0xB8);
+    return 0;
+}
+uint32_t __fastcall SitNameBC(c2::Fake* f, void*, void*)
+{
+    c2::Log(f, 0xBC);
+    return 0;
+}
+uint32_t __fastcall SitBudgetC0(c2::Fake* f, void*, uint32_t*)
+{
+    c2::Log(f, 0xC0);
+    return 0;
+}
+uint32_t __fastcall SitMoneyC4(c2::Fake* f, void*, uint32_t*, uint32_t*)
+{
+    c2::Log(f, 0xC4);
+    return 0;
+}
+uint32_t __fastcall SitNameC8(c2::Fake* f, void*, void*)
+{
+    c2::Log(f, 0xC8);
+    return 0;
+}
+uint32_t __fastcall SitBudgetCC(c2::Fake* f, void*, uint32_t*)
+{
+    c2::Log(f, 0xCC);
+    return 0;
+}
+
+// Automata and occupants: QueryInterface for 0xA9B40F05 (refused with bit
+// 0x10), the properties (other), the flag set and the message slot 61.
+uint32_t __fastcall QIOccupant(c2::Fake* f, void*, uint32_t iid, void** out)
+{
+    c2::Log(f, 0x00, iid);
+    if (iid != 0xA9B40F05u || (f->answer & 0x10))
+        return 0;
+    *out = f;
+    ++f->refs;
+    return 1;
+}
+void* __fastcall AutoProps(c2::Fake* f, void*)
+{
+    c2::Log(f, 0x18);
+    return f->other;
+}
+// Slot 53 for an automaton. While the tracked set holds several fakes its
+// walk order follows their addresses (which move with the DLL's load
+// address): those calls are summed, not hashed in order.
+bool g_unordered = false;
+uint32_t g_unorderedSum = 0, g_unorderedCount = 0;
+uint32_t __fastcall SitRelevantAny(c2::Fake* f, void*, void* x)
+{
+    if (g_unordered) {
+        g_unorderedSum += (f->index << 16 | c2::Id(x)) * 2654435761u;
+        ++g_unorderedCount;
+        return f->answer & 1;
+    }
+    return c2::SitRelevant(f, nullptr, x);
+}
+void __fastcall AutoSetFlag(c2::Fake* f, void*, uint32_t flag, uint32_t on) { c2::Log(f, 0x78, flag, on); }
+void __fastcall AutoTell(c2::Fake* f, void*, uint32_t id) { c2::Log(f, 0xF4, id); }
+uint32_t __fastcall PropHas(c2::Fake* f, void*, uint32_t id)
+{
+    c2::Log(f, 0x0C, id);
+    return f->answer & 1;
+}
+
+// The services' slots 9, 10 and 21.
+void __fastcall SvcJoyrideEnd(c2::Fake* f, void*) { c2::Log(f, 0x24); }
+void __fastcall SvcCountdownEnd(c2::Fake* f, void*) { c2::Log(f, 0x28); }
+void __fastcall SvcCheck(c2::Fake* f, void*, uint32_t group, uint32_t radius, void* subject, uint32_t flag)
+{
+    c2::Log(f, 0x54, group, radius);
+    c2::g_log.Mix(c2::Id(subject) | flag << 8);
+}
+
+// A window: its child (other) for any ID with the answer's bit 1; a child's
+// object (other2).
+uint32_t __fastcall WinChild(c2::Fake* f, void*, uint32_t id, void** out)
+{
+    c2::Log(f, 0x1C4, id);
+    if (!(f->answer & 1))
+        return 0;
+    *out = f->other;
+    return 1;
+}
+void* __fastcall WinObject(c2::Fake* f, void*)
+{
+    c2::Log(f, 0x16C);
+    return f->other2;
+}
+
+void __fastcall StubUDrive(char* m, void*, uint32_t on)
+{
+    c2::g_log.Mix(0x350000 | c2::Id(m));
+    c2::g_log.Mix(on & 0xFF);
+}
+
+#define C3_SLOT(off, fn) c2::Slot{off, reinterpret_cast<void*>(&fn)}
+
+void** MsgVtable()
+{
+    static void* t[80] = {};
+    return c2::MakeVtable(t, {C3_SLOT(0x10, MsgType), C3_SLOT(0x20, MsgHas1), C3_SLOT(0x24, MsgData1),
+                              C3_SLOT(0x28, MsgVoid1), C3_SLOT(0x38, MsgData2), C3_SLOT(0x3C, MsgVoid2),
+                              C3_SLOT(0x4C, MsgData3), C3_SLOT(0x80, MsgUnknown)});
+}
+void** TextVtable()
+{
+    static void* t[8] = {};
+    t[5] = reinterpret_cast<void*>(&TextChars);
+    return t;
+}
+void** AdviceVtable()
+{
+    static void* t[80] = {};
+    return c2::MakeVtable(
+        t, {C3_SLOT(0x00, QIAdvice), C3_SLOT(0x0C, c2::SitInner), C3_SLOT(0x10, c2::SitKind),
+            C3_SLOT(0x1C, c2::SitValue1C), C3_SLOT(0x24, SitRadius), C3_SLOT(0x28, c2::SitValue28),
+            C3_SLOT(0x2C, SitDriveTime), C3_SLOT(0x30, SitGroups30), C3_SLOT(0x3C, c2::SitFlag),
+            C3_SLOT(0x44, SitHasTargets), C3_SLOT(0x48, c2::SitGroups), C3_SLOT(0x4C, SitChecks),
+            C3_SLOT(0x78, c2::SitTable), C3_SLOT(0xB8, SitMoneyB8), C3_SLOT(0xBC, SitNameBC),
+            C3_SLOT(0xC0, SitBudgetC0), C3_SLOT(0xC4, SitMoneyC4), C3_SLOT(0xC8, SitNameC8),
+            C3_SLOT(0xCC, SitBudgetCC), C3_SLOT(0xD4, SitRelevantAny)});
+}
+void** AutomatonVtable()
+{
+    static void* t[80] = {};
+    return c2::MakeVtable(
+        t, {C3_SLOT(0x00, QIOccupant), C3_SLOT(0x0C, c2::AutoOther), C3_SLOT(0x14, c2::AutoSelf),
+            C3_SLOT(0x18, AutoProps), C3_SLOT(0x1C, c2::AutoPos1C), C3_SLOT(0x20, c2::AutoPos20),
+            C3_SLOT(0x34, c2::AutoRemove), C3_SLOT(0x78, AutoSetFlag), C3_SLOT(0x7C, c2::AutoFlag),
+            C3_SLOT(0x9C, c2::AutoTarget9C), C3_SLOT(0xA0, c2::AutoTargetA0), C3_SLOT(0xEC, c2::AutoKind),
+            C3_SLOT(0xF4, AutoTell), C3_SLOT(0x10C, c2::AutoHolder)});
+}
+void** PropsVtable()
+{
+    static void* t[80] = {};
+    return c2::MakeVtable(t, {C3_SLOT(0x0C, PropHas)});
+}
+void** ServiceVtable()
+{
+    static void* t[80] = {};
+    return c2::MakeVtable(t, {C3_SLOT(0x24, SvcJoyrideEnd), C3_SLOT(0x28, SvcCountdownEnd),
+                              C3_SLOT(0x3C, c2::SvcMake), C3_SLOT(0x40, c2::SvcPlace), C3_SLOT(0x54, SvcCheck),
+                              C3_SLOT(0x78, c2::SvcHandles), C3_SLOT(0x80, c2::SvcAdd),
+                              C3_SLOT(0x84, c2::SvcDone)});
+}
+void** WindowVtable()
+{
+    static void* t[120] = {};
+    return c2::MakeVtable(t, {C3_SLOT(0x16C, WinObject), C3_SLOT(0x1C4, WinChild)});
+}
+
+#undef C3_SLOT
+
+c2::Fake* MakeMore(int i, void** vtable)
+{
+    c2::Fake& f = c2::g_more[i];
+    std::memset(&f, 0, sizeof f);
+    f.vtable = vtable;
+    f.refs = 100;
+    f.index = static_cast<uint32_t>(0x41 + i);
+    f.groupsBegin = f.groups;
+    f.groupsEnd = f.groups;
+    f.groupsCap = f.groups + 4;
+    return &f;
+}
+
+void SetGroups(c2::Fake* f, std::initializer_list<uint32_t> ids)
+{
+    uint32_t n = 0;
+    for (const uint32_t id : ids)
+        f->groups[n++] = id;
+    f->groupsEnd = f->groups + n;
+}
+
+Msg Message(uint32_t type)
+{
+    Msg m{};
+    m.vtable = MsgVtable();
+    m.refs = 1;
+    m.type = type;
+    return m;
+}
+
+} // namespace c3
+
+void Situations3Drive(cISC4City*)
+{
+    using c2::This;
+    using c3::Msg;
+    namespace sf = automata_situations::field;
+    namespace sl = automata_situations::slot;
+    Hash msgs, frame, handlers, list;
+    uint32_t flags = 0;
+    using Factory = char*(__cdecl*)();
+    char* const m = reinterpret_cast<Factory>(addr::cSC4CitySituationManager_Create)();
+    if (!m) {
+        g_situation3Text = " E-";
+        return;
+    }
+    c2::g_fresh = m;
+    Virtual<uint32_t>(m, sl::kAddRef);
+    // The constructor seeds the random (+0x28) from the clock: a fixed seed.
+    This<void*>(addr::SC4Random_ConstructSeeded, m + sf::kRandom, 0x7A5A1234u);
+    static void* table[40];
+    std::memcpy(table, reinterpret_cast<void*>(addr::cSC4CitySituationManager_Vtable), sizeof table);
+    table[sl::kStartJoyride / 4] = reinterpret_cast<void*>(&c2::StubJoyride);
+    table[sl::kSetUDrive / 4] = reinterpret_cast<void*>(&c3::StubUDrive);
+    table[sl::kStartSituation / 4] = reinterpret_cast<void*>(&c2::StubStart);
+    table[sl::kEndSituation / 4] = reinterpret_cast<void*>(&c2::StubEnd);
+    void* const vtable = At<void*>(m, 0);
+    At<void*>(m, 0) = table;
+
+    const bool trace = EnvInt("OPENSC4_TEST_C3_TRACE", 0) != 0;
+    uint32_t step = 0;
+    const auto state = [&]() {
+        Hash s;
+        s.Mix(At<uint32_t>(m, sf::kStatus));
+        s.Mix(c2::Id(At<void*>(m, sf::kSituation)) | c2::Id(At<void*>(m, sf::kAuto)) << 8 |
+              c2::Id(At<void*>(m, sf::kRefA9C)) << 16 | c2::Id(At<void*>(m, sf::kRefAA0)) << 24);
+        s.MixBytes(m + sf::kCheckTime, 0x14); // +0xA84 to +0xA94
+        s.Mix(At<uint8_t>(m, sf::kJoyride) | At<uint8_t>(m, sf::kByteA99) << 8);
+        return s.h;
+    };
+    const auto entries = [&]() {
+        Hash s;
+        char* const head = At<char*>(m, sf::kList);
+        uint32_t n = 0;
+        for (char* node = At<char*>(head, 0); node != head && n < 64; node = At<char*>(node, 0), ++n) {
+            s.Mix(c2::Id(At<void*>(node, 8)) | c2::Id(At<void*>(node, 0xC)) << 8);
+            s.Mix(At<uint32_t>(node, 0x10));
+        }
+        s.Mix(n);
+        s.Mix(At<uint32_t>(m, sf::kTrackedCount));
+        return s.h;
+    };
+    const auto mix = [&](Hash& h, uint32_t v) {
+        h.Mix(v);
+        h.Mix(c2::g_log.h);
+        h.Mix(c3::g_unorderedSum);
+        h.Mix(c3::g_unorderedCount);
+        c3::g_unorderedSum = 0;
+        c3::g_unorderedCount = 0;
+        if (trace) {
+            Hash refs;
+            for (int i = 0; i < c2::kFakes; ++i) {
+                refs.Mix(c2::g_fakes[i].refs);
+                refs.Mix(c2::g_more[i].refs);
+            }
+            log::Write("autotest: c3 trace %u: %08X %08X refs %08X list %08X", step, v, c2::g_log.h, refs.h,
+                       entries());
+        }
+        ++step;
+        c2::g_log = Hash{};
+    };
+    c2::g_log = Hash{};
+
+    c2::Fake* const ctx = c2::Make(0, c2::ContextVtable());
+    c2::Fake* const svc1 = c2::Make(1, c3::ServiceVtable());
+    c2::Fake* const svc2 = c2::Make(2, c3::ServiceVtable());
+    c2::Fake* const sit = c2::Make(3, c3::AdviceVtable());
+    c2::Fake* const sitInner = c2::Make(4, c3::AdviceVtable());
+    c2::Fake* const autom = c2::Make(5, c3::AutomatonVtable());
+    c2::Fake* const target = c2::Make(6, c3::AutomatonVtable());
+    c2::Fake* const other = c2::Make(7, c3::AutomatonVtable());
+    c2::Fake* const props = c2::Make(8, c3::PropsVtable());
+    c2::Fake* const stopper = c2::Make(9, c2::HelperVtable());
+    c2::Fake* const driver = c2::Make(10, c2::HelperVtable());
+    c2::Fake* const touch = c2::Make(11, c2::HelperVtable());
+    c2::Fake* const window = c2::Make(12, c3::WindowVtable());
+    c2::Fake* const child = c2::Make(13, c3::WindowVtable());
+    c2::Fake* advices[4];
+    c2::Fake* inners[4];
+    const uint32_t priorities[4] = {5, 2, 9, 2};
+    for (int i = 0; i < 4; ++i) {
+        advices[i] = c2::Make(14 + i, c3::AdviceVtable());
+        inners[i] = c2::Make(18 + i, c3::AdviceVtable());
+        advices[i]->other = inners[i];
+        inners[i]->value = priorities[i];
+    }
+    c2::Fake* const cand1 = c2::Make(22, c3::AutomatonVtable());
+    c2::Fake* const cand2 = c2::Make(23, c3::AutomatonVtable());
+    sit->other = sitInner;
+    sitInner->value = 0x7A5A0042u; // a GUID no advice has
+    sit->kind = 4;
+    c2::SetPos(sit, 8.0f, 2.5f, 0.0f);
+    c3::SetGroups(sit, {0x7A5A0007u, 0x7A5A0008u});
+    autom->flags = 0x8000000u; // SetStatus reads the situation's drive time
+    svc1->value = 0x7A5A0007u;
+    svc1->other = cand1;
+    svc2->value = 0x7A5A0009u;
+    svc2->other = cand2;
+    cand1->flags = 2;
+    cand2->flags = 2 | 1;
+    void* services[2] = {svc1, svc2};
+    At<void**>(m, sf::kServices) = services;
+    At<void**>(m, sf::kServices + 4) = services + 2;
+    At<void**>(m, sf::kServices + 8) = services + 2;
+
+    // ---- DoMessage, every message it answers that posts nothing and opens
+    // no popup.
+    {
+        using Do = uint8_t(__thiscall*)(void*, void*);
+        const auto doMessage = reinterpret_cast<Do>(addr::cSC4CitySituationManager_DoMessage);
+        const auto send = [&](Msg& x) {
+            const uint8_t answer = doMessage(m + 4, &x);
+            msgs.Mix(state());
+            mix(msgs, answer);
+        };
+        Msg x = c3::Message(0x7A5A0000u); // unknown
+        send(x);
+        x = c3::Message(0x8A09FA67u);
+        send(x);
+        // The cheat: another one, then csitrigger with no ID or an ID of 0.
+        x = c3::Message(0x230E27ACu);
+        x.data1 = 1;
+        send(x);
+        c3::Text text{c3::TextVtable(), "csitrigger"};
+        x.data1 = 0x8C4136DBu;
+        x.void2 = &text;
+        send(x);
+        text.chars = "csitrigger 0";
+        send(x);
+        text.chars = "csitrigger zz";
+        send(x);
+        // The end: no situation, finished, running (slot 39).
+        x = c3::Message(0x0BB324BDu);
+        send(x);
+        At<void*>(m, sf::kSituation) = sit;
+        At<uint32_t>(m, sf::kStatus) = 1;
+        send(x);
+        At<uint32_t>(m, sf::kStatus) = 4;
+        At<void*>(m, sf::kRefAA0) = stopper;
+        ++stopper->refs;
+        send(x);
+        // The automata's events.
+        At<void*>(m, sf::kAuto) = autom;
+        At<void*>(m, sf::kTarget) = target;
+        x = c3::Message(0x09D92FC3u);
+        At<uint32_t>(m, sf::kStatus) = 3;
+        x.void1 = autom;
+        x.data2 = 2;
+        send(x); // the drive aborted: the status 2
+        x.void1 = other;
+        send(x);
+        At<uint32_t>(m, sf::kStatus) = 4;
+        x.data2 = 9;
+        send(x);
+        x.void1 = autom;
+        send(x);
+        x.void1 = target;
+        send(x);
+        x.data2 = 11;
+        x.void1 = other;
+        send(x);
+        x.data2 = 12;
+        x.data3 = 0;
+        send(x);
+        x.data3 = 0x14;
+        x.void1 = target;
+        send(x); // the target's automaton destroyed: the status 2 (kind 4)
+        x.data2 = 5;
+        send(x);
+        // The load, +0x9F1 not set.
+        x = c3::Message(0x26D31EC1u);
+        send(x);
+        // An advice gone: none, another, the situation (slot 39), refused.
+        At<uint32_t>(m, sf::kStatus) = 4;
+        x = c3::Message(0x6BB350E4u);
+        send(x);
+        x.unknown = advices[0];
+        send(x);
+        x.unknown = sit;
+        send(x);
+        sit->answer = 0x10;
+        send(x);
+        sit->answer = 0;
+        // The frame through the message.
+        x = c3::Message(0x86AD10EEu);
+        x.data3 = c2::Bits32(16.0f);
+        send(x);
+        // Occupants added and removed.
+        other->other = props;
+        x = c3::Message(0x99EF1142u);
+        x.void1 = other;
+        send(x); // tracked by 0x005291C0 (not a candidate)
+        props->answer = 1;
+        send(x); // marked 0x029244DB
+        props->answer = 0;
+        other->answer = 0x10;
+        send(x); // refused
+        other->answer = 0;
+        x.void1 = nullptr;
+        send(x);
+        x = c3::Message(0x99EF1143u);
+        x.void1 = other;
+        send(x);
+        // A start by GUID (slot 21; no advice has it, slot 36 the test's).
+        x = c3::Message(0xAC1045EFu);
+        x.data1 = 0x7A5A0042u;
+        x.data2 = 1;
+        send(x);
+        // The driver: without and with the situation's flag 8, none.
+        x = c3::Message(0xCC0D905Fu);
+        x.unknown = driver;
+        send(x);
+        sit->flags = 8;
+        send(x);
+        x.unknown = nullptr;
+        send(x);
+        sit->flags = 0;
+        msgs.Mix(driver->refs);
+        msgs.Mix(stopper->refs);
+    }
+
+    // ---- The frame (0x0052E300), directly.
+    {
+        using Frame = uint8_t(__thiscall*)(void*, float);
+        const auto frameAt = reinterpret_cast<Frame>(addr::cSC4CitySituationManager_Frame);
+        const auto tick = [&](float dt) {
+            const uint8_t answer = frameAt(m, dt);
+            frame.Mix(state());
+            mix(frame, answer);
+        };
+        At<void*>(m, sf::kSituation) = nullptr;
+        At<void*>(m, sf::kAuto) = nullptr;
+        At<void*>(m, sf::kTarget) = nullptr;
+        if (void* const kept = At<void*>(m, sf::kRefA9C)) {
+            At<void*>(m, sf::kRefA9C) = nullptr;
+            Virtual<uint32_t>(kept, sl::kRelease);
+        }
+        At<uint32_t>(m, sf::kStatus) = 4;
+        // The joyride's end, unless the U-Drive's camera would be asked.
+        char* const udrive = Global<char*>(addr::SC4_UDriveMode);
+        void* const camera = Global<void*>(addr::SC4_Service43D1C);
+        if (udrive && (!camera || !At<void*>(udrive, 0x30))) {
+            At<uint8_t>(m, sf::kJoyride) = 1;
+            At<void*>(m, sf::kRefAA0) = stopper;
+            ++stopper->refs;
+            tick(16.0f);
+            flags |= 2;
+        }
+        // The countdown, running and ending.
+        At<float>(m, sf::kCountdown) = 100.0f;
+        tick(16.0f);
+        At<float>(m, sf::kCountdown) = 10.0f;
+        At<void*>(m, sf::kRefAA0) = stopper;
+        ++stopper->refs;
+        tick(16.0f);
+        // No situation: the driver kept, then dropped (slot 5 false).
+        At<float>(m, sf::kCountdown) = 0.0f;
+        At<void*>(m, sf::kRefA9C) = driver;
+        ++driver->refs;
+        driver->answer = 1;
+        tick(16.0f);
+        driver->answer = 0;
+        tick(16.0f);
+        // A situation: the drive's time running.
+        At<void*>(m, sf::kSituation) = sit;
+        At<void*>(m, sf::kAuto) = autom;
+        At<float>(m, sf::kDriveTime) = 5.0f;
+        tick(16.0f);
+        // Its update: the warning, the target update, the check (the
+        // automaton, the radius from the city's width).
+        At<float>(m, sf::kDriveTime) = 0.0f;
+        At<float>(m, sf::kTimeLimit) = 40.0f;
+        At<float>(m, sf::kSituationTime) = 15.0f;
+        At<float>(m, sf::kCheckTime) = 4990.0f;
+        sit->answer = 8;
+        tick(20.0f);
+        tick(20.0f); // no warning again, the check's clock low
+        // The target's occupant, a radius of 24; refused; slot 19 false.
+        At<float>(m, sf::kCheckTime) = 5000.0f;
+        sit->flags = 0x80;
+        sit->pos[0] = 24.0f;
+        At<void*>(m, sf::kTarget) = target;
+        tick(20.0f);
+        At<float>(m, sf::kCheckTime) = 5000.0f;
+        target->answer = 0x10;
+        tick(20.0f);
+        target->answer = 0;
+        At<float>(m, sf::kCheckTime) = 5000.0f;
+        sit->answer = 0;
+        tick(20.0f);
+        sit->flags = 0;
+        sit->pos[0] = 8.0f;
+        // The status 3 with a time limit under 1 (0x0052C8F0 adds the time).
+        At<uint32_t>(m, sf::kStatus) = 3;
+        At<float>(m, sf::kTimeLimit) = 0.0f;
+        At<uint8_t>(m, sf::kByteA99) = 0;
+        tick(20.0f);
+        At<uint32_t>(m, sf::kStatus) = 4;
+        frame.Mix(stopper->refs);
+        frame.Mix(driver->refs);
+        frame.Mix(autom->refs);
+        frame.Mix(target->refs);
+    }
+
+    // ---- The handlers, directly.
+    {
+        using H = void(__thiscall*)(void*, void*);
+        const auto call = [&](std::uintptr_t address, void* x) {
+            reinterpret_cast<H>(address)(m, x);
+            handlers.Mix(state());
+            mix(handlers, c2::Id(x));
+        };
+        At<void*>(m, sf::kSituation) = sit;
+        At<void*>(m, sf::kAuto) = autom;
+        At<void*>(m, sf::kTarget) = target;
+        // 0x0052E670: the target reached (kinds 1, 3, 4), the automaton's
+        // occupant, null, no situation.
+        for (const uint32_t kind : {1u, 3u, 4u}) {
+            sit->kind = kind;
+            At<uint32_t>(m, sf::kStatus) = 3;
+            call(addr::cSC4CitySituationManager_OccupantRemoved, target);
+        }
+        sit->kind = 4;
+        At<uint32_t>(m, sf::kStatus) = 3;
+        call(addr::cSC4CitySituationManager_OccupantRemoved, autom);
+        call(addr::cSC4CitySituationManager_OccupantRemoved, nullptr);
+        At<void*>(m, sf::kSituation) = nullptr;
+        call(addr::cSC4CitySituationManager_OccupantRemoved, other);
+        // 0x0052E710.
+        call(addr::cSC4CitySituationManager_RecheckTarget, autom);
+        At<void*>(m, sf::kSituation) = sit;
+        for (c2::Fake* const a : {autom, target, other})
+            call(addr::cSC4CitySituationManager_RecheckTarget, a);
+        // 0x0052C020: the automaton, the target's (kinds 1, 4), another, a
+        // tracked one, null without a situation.
+        At<uint32_t>(m, sf::kStatus) = 3;
+        call(addr::cSC4CitySituationManager_AutomatonDestroyed, autom);
+        for (const uint32_t kind : {1u, 4u}) {
+            sit->kind = kind;
+            At<uint32_t>(m, sf::kStatus) = 3;
+            call(addr::cSC4CitySituationManager_AutomatonDestroyed, target);
+        }
+        sit->kind = 4;
+        call(addr::cSC4CitySituationManager_AutomatonDestroyed, other);
+        ++other->refs;
+        PushNode(m + sf::kTracked, reinterpret_cast<std::uintptr_t>(other), nullptr, 8);
+        call(addr::cSC4CitySituationManager_AutomatonDestroyed, other);
+        This<void>(addr::cSC4CitySituationManager_ReleaseTracked, m);
+        At<void*>(m, sf::kSituation) = nullptr;
+        call(addr::cSC4CitySituationManager_AutomatonDestroyed, nullptr);
+        At<void*>(m, sf::kSituation) = sit;
+        // 0x0052A7D0 with null; 0x00524DF0 with another advice and the
+        // situation.
+        call(addr::cSC4CitySituationManager_TrackOccupant, nullptr);
+        call(addr::cSC4CitySituationManager_AdviceGone, advices[1]);
+        call(addr::cSC4CitySituationManager_AdviceGone, sit);
+        // 0x00524CC0 and 0x00524580 over the statuses.
+        for (const uint32_t status : {0u, 1u, 2u, 3u, 4u, 5u}) {
+            At<uint32_t>(m, sf::kStatus) = status;
+            handlers.Mix(This<uint32_t>(addr::cSC4CitySituationManager_IsFinished, m));
+            At<void*>(m, sf::kSituation) = status == 5 ? nullptr : sit;
+            At<uint32_t>(m, sf::kStatus) = status == 5 ? 3 : status;
+            handlers.Mix(This<uint32_t>(addr::cSC4CitySituationManager_AbortDrive, m));
+            mix(handlers, state());
+        }
+        At<void*>(m, sf::kSituation) = sit;
+        At<uint32_t>(m, sf::kStatus) = 4;
+        // 0x00525130: no automaton, slot 19 false.
+        using Check = void(__thiscall*)(void*, float);
+        const auto check = reinterpret_cast<Check>(addr::cSC4CitySituationManager_CheckTargets);
+        At<void*>(m, sf::kAuto) = nullptr;
+        At<float>(m, sf::kCheckTime) = 6000.0f;
+        check(m, 1.0f);
+        mix(handlers, state());
+        At<void*>(m, sf::kAuto) = autom;
+        check(m, 1.0f);
+        mix(handlers, state());
+        // 0x00525100: the target, refused, none.
+        handlers.Mix(c2::Id(This<void*>(addr::cSC4CitySituationManager_TargetOccupant, m)));
+        target->answer = 0x10;
+        handlers.Mix(c2::Id(This<void*>(addr::cSC4CitySituationManager_TargetOccupant, m)));
+        target->answer = 0;
+        At<void*>(m, sf::kTarget) = nullptr;
+        handlers.Mix(c2::Id(This<void*>(addr::cSC4CitySituationManager_TargetOccupant, m)));
+        mix(handlers, target->refs);
+        // 0x0052C190 for none and another advice (the active one tells the
+        // advisor service, not called).
+        call(addr::cSC4CitySituationManager_Succeed, nullptr);
+        call(addr::cSC4CitySituationManager_Succeed, advices[0]);
+        // 0x00526720: the automaton's place, the target's, none (the script
+        // in any case; the rewards' slots answer false).
+        At<void*>(m, sf::kScriptContext) = ctx;
+        At<uint32_t>(m, sf::kFailureRef) = 77;
+        ctx->answer = 1;
+        sit->value = 0x55;
+        c2::SetPos(autom, 100.0f, 5.0f, 200.0f);
+        c2::SetPos(target, 180.5f, 9.0f, 260.25f);
+        call(addr::cSC4CitySituationManager_Fail, sit);
+        At<void*>(m, sf::kAuto) = nullptr;
+        At<void*>(m, sf::kTarget) = target;
+        call(addr::cSC4CitySituationManager_Fail, sit);
+        At<void*>(m, sf::kTarget) = nullptr;
+        call(addr::cSC4CitySituationManager_Fail, sit);
+        call(addr::cSC4CitySituationManager_Fail, advices[0]);
+        call(addr::cSC4CitySituationManager_Fail, nullptr);
+        // 0x00525430: -2, no context, not a table, with the flag 0x20.
+        using Script = void(__thiscall*)(void*, uint32_t, uint32_t);
+        const auto script = reinterpret_cast<Script>(addr::cSC4CitySituationManager_RunScript);
+        script(m, 9, 0xFFFFFFFEu);
+        mix(handlers, 0);
+        At<void*>(m, sf::kScriptContext) = nullptr;
+        script(m, 9, 41);
+        mix(handlers, 1);
+        At<void*>(m, sf::kScriptContext) = ctx;
+        ctx->answer = 0;
+        script(m, 9, 41);
+        mix(handlers, 2);
+        ctx->answer = 1;
+        sit->flags = 0x20;
+        At<void*>(m, sf::kRefAF8) = touch;
+        script(m, 9, 41);
+        mix(handlers, 3);
+        sit->flags = 0;
+        At<void*>(m, sf::kRefAF8) = nullptr;
+        At<void*>(m, sf::kScriptContext) = nullptr;
+        At<uint32_t>(m, sf::kFailureRef) = 0xFFFFFFFEu;
+        // 0x0052BF00 without a situation (the advisor service is not
+        // told): +0xA64 with the target's occupant, refused.
+        At<void*>(m, sf::kSituation) = nullptr;
+        At<uint8_t>(m, sf::kByteA64) = 1;
+        At<void*>(m, sf::kTarget) = target;
+        This<void>(addr::cSC4CitySituationManager_Dismiss, m);
+        mix(handlers, state());
+        target->answer = 0x10;
+        This<void>(addr::cSC4CitySituationManager_Dismiss, m);
+        mix(handlers, state());
+        target->answer = 0;
+        At<uint8_t>(m, sf::kByteA64) = 0;
+        At<void*>(m, sf::kTarget) = nullptr;
+        // 0x0052BFB0: a child with an object (the joyride, slot 24 the
+        // test's), a child without one, none.
+        window->other = child;
+        child->other2 = cand1;
+        window->answer = 1;
+        call(addr::cSC4CitySituationManager_DismissForJoyride, window);
+        child->other2 = nullptr;
+        call(addr::cSC4CitySituationManager_DismissForJoyride, window);
+        window->answer = 0;
+        call(addr::cSC4CitySituationManager_DismissForJoyride, window);
+        // 0x0052CAB0 for the messages it answers without closing the popup.
+        using Proc = uint8_t(__thiscall*)(void*, void*, uint32_t*);
+        const auto proc = reinterpret_cast<Proc>(addr::cSC4CitySituationManager_PopupProc);
+        uint32_t words[][3] = {{0xA2BF8AD5u, 0, 0}, {0xA2BF8AD6u, 0, 0}, {0x55u, 0, 0}, {3, 0x12345678u, 1}};
+        for (auto& w : words)
+            mix(handlers, proc(m + sf::kVtable10, window, w));
+        handlers.Mix(cand1->refs);
+    }
+
+    // ---- The list (+0xA04).
+    {
+        c2::g_logEach = EnvInt("OPENSC4_TEST_C3_TRACE", 0) >= 2;
+        using Do = uint8_t(__thiscall*)(void*, void*);
+        const auto doMessage = reinterpret_cast<Do>(addr::cSC4CitySituationManager_DoMessage);
+        At<void*>(m, sf::kSituation) = nullptr;
+        At<void*>(m, sf::kAuto) = nullptr;
+        At<uint32_t>(m, sf::kStatus) = 4;
+        c3::SetGroups(advices[0], {0x7A5A0007u});
+        c3::SetGroups(advices[1], {0x7A5A0009u});
+        c3::SetGroups(advices[3], {0x7A5A0007u});
+        Msg add = c3::Message(0x8A09FA64u);
+        Msg remove = c3::Message(0x8A09FA65u);
+        const auto sendList = [&](Msg& x, void* advice) {
+            x.unknown = advice;
+            const uint8_t answer = doMessage(m + 4, &x);
+            list.Mix(entries());
+            mix(list, answer);
+        };
+        // Added in turn (a candidate for the first and the fourth), again.
+        for (int i = 0; i < 4; ++i)
+            sendList(add, advices[i]);
+        sendList(add, advices[0]);
+        sendList(add, nullptr);
+        // The candidate tracked: untracked from its first entry, which looks
+        // again (the tracked automaton, relevant, on a later entry of a lower
+        // priority value: not taken).
+        ++cand1->refs;
+        PushNode(m + sf::kTracked, reinterpret_cast<std::uintptr_t>(cand1), nullptr, 8);
+        advices[3]->answer = 1;
+        This<void>(addr::cSC4CitySituationManager_UntrackAutomaton, m, static_cast<void*>(cand1));
+        mix(list, entries());
+        This<void>(addr::cSC4CitySituationManager_UntrackAutomaton, m, static_cast<void*>(cand2)); // not tracked
+        mix(list, entries());
+        This<void>(addr::cSC4CitySituationManager_ReleaseTracked, m); // one tracked key at a time
+        // An entry of a higher priority at the end shows a tracked automaton:
+        // taken over.
+        c2::Fake* const late = c3::MakeMore(0, c3::AdviceVtable());
+        c2::Fake* const lateInner = c3::MakeMore(1, c3::AdviceVtable());
+        late->other = lateInner;
+        lateInner->value = 1;
+        ++late->refs;
+        ++cand2->refs;
+        c2::PushEntry(m, late, cand2, 0);
+        ++cand2->refs;
+        PushNode(m + sf::kTracked, reinterpret_cast<std::uintptr_t>(cand2), nullptr, 8);
+        This<void>(addr::cSC4CitySituationManager_AddEntry, m, static_cast<void*>(advices[3]));
+        mix(list, entries());
+        // At the most CSIs: a new advice's candidate given up for a later
+        // entry's CSI of a lower priority value.
+        const uint32_t most = Virtual<uint8_t>(m, sl::kGetMaxCsi);
+        list.Mix(most);
+        c2::Fake* const cand3 = c3::MakeMore(2, c3::AutomatonVtable());
+        cand3->flags = 2;
+        svc1->other = cand3;
+        if (most <= 16) {
+            for (uint32_t i = At<uint32_t>(m, sf::kTrackedCount); i < most; ++i) {
+                c2::Fake* const filler = c3::MakeMore(4 + static_cast<int>(i), c3::AutomatonVtable());
+                ++filler->refs;
+                PushNode(m + sf::kTracked, reinterpret_cast<std::uintptr_t>(filler), nullptr, 8);
+            }
+            c2::Fake* const fresh = c3::MakeMore(3, c3::AdviceVtable());
+            fresh->other = inners[1];
+            c3::SetGroups(fresh, {0x7A5A0007u});
+            ++cand2->refs;
+            char* const head = At<char*>(m, sf::kList);
+            At<void*>(At<char*>(head, 4), 0xC) = cand2; // the late entry shows it again
+            c3::g_unordered = true;
+            sendList(add, fresh);
+            sendList(add, advices[2]); // no candidate
+            // Removed while at the most: no candidates handed out.
+            sendList(remove, fresh);
+            c3::g_unordered = false;
+            flags |= 4;
+        }
+        // The tracked released; removals hand candidates to the entries
+        // without one.
+        This<void>(addr::cSC4CitySituationManager_ReleaseTracked, m);
+        list.Mix(entries());
+        sendList(remove, advices[0]);
+        sendList(remove, advices[1]);
+        sendList(remove, late);
+        sendList(remove, nullptr);
+        advices[3]->answer = 0;
+        // 0x0052A1E0 directly.
+        for (c2::Fake* const a : {advices[0], advices[1], advices[2]}) {
+            void* found = nullptr;
+            void** const out =
+                This<void**>(addr::cSC4CitySituationManager_FindCandidate, m, static_cast<void*>(&found),
+                             static_cast<void*>(a));
+            list.Mix(out == &found ? 1u : 0u);
+            mix(list, c2::Id(found));
+            if (found)
+                Virtual<uint32_t>(found, 0x08);
+        }
+        // A list of the test's own: made (0x00527300), filled at its end
+        // (0x00526440), sorted (0x00527920); merged with another
+        // (0x00525AF0); destroyed.
+        const auto makeList = [&]() {
+            char* own = nullptr;
+            This<void*>(addr::cSC4CitySituationManager_ListConstruct, static_cast<void*>(&own));
+            return own;
+        };
+        const auto insert = [&](char*& own, void* advice, uint32_t id) {
+            void* value[3] = {advice, nullptr, reinterpret_cast<void*>(static_cast<std::uintptr_t>(id))};
+            char* made = nullptr;
+            char** const out = This<char**>(addr::cSC4CitySituationManager_ListInsert, static_cast<void*>(&own),
+                                            static_cast<void*>(&made), own, static_cast<void*>(value));
+            list.Mix(out == &made ? 1u : 0u);
+        };
+        const auto order = [&](char* own) {
+            Hash s;
+            for (char* node = At<char*>(own, 0); node != own; node = At<char*>(node, 0)) {
+                s.Mix(c2::Id(At<void*>(node, 8)));
+                s.Mix(At<uint32_t>(node, 0x10));
+            }
+            return s.h;
+        };
+        const auto destroy = [&](char*& own) {
+            This<void>(addr::cSC4CitySituationManager_ClearList, static_cast<void*>(&own));
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(own);
+        };
+        using Sort = void(__cdecl*)(char**, uint32_t);
+        using Merge = void(__cdecl*)(char**, char**, uint32_t);
+        const auto sort = reinterpret_cast<Sort>(addr::cSC4CitySituationManager_SortList);
+        const auto merge = reinterpret_cast<Merge>(addr::cSC4CitySituationManager_MergeList);
+        char* a = makeList();
+        void* const items[] = {advices[2], advices[0], nullptr, advices[3], late, advices[1], nullptr, advices[0]};
+        uint32_t id = 1;
+        for (void* const item : items)
+            insert(a, item, id++);
+        mix(list, order(a));
+        sort(&a, 0);
+        mix(list, order(a));
+        sort(&a, 0); // sorted already
+        mix(list, order(a));
+        char* b = makeList();
+        sort(&b, 0); // empty
+        insert(b, advices[1], 20);
+        sort(&b, 0); // one
+        insert(b, late, 21);
+        insert(b, nullptr, 22);
+        insert(b, advices[2], 23);
+        sort(&b, 0);
+        mix(list, order(b));
+        merge(&a, &b, 0);
+        mix(list, order(a) ^ order(b) << 1);
+        destroy(a);
+        destroy(b);
+    }
+
+    c2::g_logEach = false;
+    // ---- Put the fresh manager back and release it.
+    c2::ClearEntries(m);
+    This<void>(addr::cSC4CitySituationManager_ReleaseTracked, m);
+    At<void**>(m, sf::kServices) = nullptr;
+    At<void**>(m, sf::kServices + 4) = nullptr;
+    At<void**>(m, sf::kServices + 8) = nullptr;
+    for (const std::size_t at : {sf::kSituation, sf::kAuto, sf::kTarget})
+        At<void*>(m, at) = nullptr;
+    At<void*>(m, 0) = vtable;
+    for (const std::size_t at : {sf::kRefA9C, sf::kRefAA0, sf::kRefAF8, sf::kScriptContext, sf::kRefA28,
+                                 sf::kRefA1C})
+        if (At<void*>(m, at))
+            flags |= 0x10;
+    list.Mix(Virtual<uint32_t>(m, sl::kRelease));
+    c2::g_fresh = nullptr;
+    for (int i = 0; i < c2::kFakes; ++i) {
+        handlers.Mix(c2::g_fakes[i].refs);
+        list.Mix(c2::g_more[i].refs);
+    }
+    flags |= 1;
+    char text[96];
+    std::snprintf(text, sizeof text, " E%08X,%08X,%08X,%08X,%X", msgs.h, frame.h, handlers.h, list.h, flags);
+    g_situation3Text = text;
+    log::Write("autotest: automata: situations3: messages %08X frame %08X handlers %08X list %08X flags %X", msgs.h,
+               frame.h, handlers.h, list.h, flags);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
@@ -5338,6 +7128,8 @@ void Drive(const Day& day)
         AwLifeDrive(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 3 && day.city && game::IsBuild641() && g_aw3Text.empty())
         AwAutoDrive(day.city);
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_AWMGR", 0) >= 4 && day.city && game::IsBuild641() && g_aw4Text.empty())
+        AwBehaviourDrive(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 1 && day.city && game::IsBuild641() && g_managerText.empty()) {
         ManagerDrive(day.city);
         if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 2)
@@ -5358,6 +7150,9 @@ void Drive(const Day& day)
     if (EnvInt("OPENSC4_TEST_AUTOMATA_SITUATIONS", 0) >= 2 && day.city && game::IsBuild641() &&
         g_situation2Text.empty())
         Situations2Drive(day.city);
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_SITUATIONS", 0) >= 3 && day.city && game::IsBuild641() &&
+        g_situation3Text.empty())
+        Situations3Drive(day.city);
     if (char* const manager = Manager(day.city)) {
         WriteDrive(manager);
         QueryDrive(manager);
@@ -5424,8 +7219,10 @@ void Fingerprint(cISC4City* city, std::string& line)
     line += g_awText;
     line += g_aw2Text;
     line += g_aw3Text;
+    line += g_aw4Text;
     line += g_situationText;
     line += g_situation2Text;
+    line += g_situation3Text;
     // The automaton table: frame-driven, the log only.
     uint32_t parked = 0, automata = 0, parkedSum = 0;
     ForEach<AutomatonNode>(Table(manager, field::kAutomata), [&](AutomatonNode* node) {
