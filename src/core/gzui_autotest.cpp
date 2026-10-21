@@ -1688,6 +1688,10 @@ void DriveWinCopy()
     ReleaseWindow(window);
 }
 
+// The registry of sound kinds, or null (the game's getter; a muted game has
+// none).
+void* SoundKindRegistry() { return reinterpret_cast<void*(__cdecl*)()>(addr::SC4_SoundKindRegistry)(); }
+
 // The bag's entries as Get finds them, in order.
 void MixEntries(void* bag)
 {
@@ -1814,28 +1818,31 @@ void DriveShuffleBag()
     MixBytes(w.bytes);
     MixEntries(bag);
     // Draws: a threshold not fixed, then fixed low and high, the first
-    // list run empty.
-    for (int i = 0; i < 12; ++i) {
+    // list run empty. They need the registry of sound kinds (its random
+    // numbers), which a muted game has not got.
+    const bool sound = SoundKindRegistry() != nullptr;
+    Mix(sound ? 1 : 0);
+    for (int i = 0; sound && i < 12; ++i) {
         const uint32_t drawn = Virtual<uint32_t>(bag, 0x20);
         Mix(drawn == 0 ? 0 : 1);
         MixLists(bag);
         MixContents(bag);
     }
     MixByte(Virtual<uint32_t>(bag, 0x1C, uint32_t{1}));
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; sound && i < 6; ++i) {
         Virtual<uint32_t>(bag, 0x20);
         MixLists(bag);
     }
     // A high threshold: the first list drawn empty, then whole rounds of
     // the second (each round sums to the total).
     MixByte(Virtual<uint32_t>(bag, 0x1C, uint32_t{100}));
-    for (uint32_t pending = ListSize(bag + 0x8); pending != 0; --pending) {
+    for (uint32_t pending = sound ? ListSize(bag + 0x8) : 0; pending != 0; --pending) {
         Virtual<uint32_t>(bag, 0x20);
         MixLists(bag);
     }
     const uint32_t count = Virtual<uint32_t>(bag, 0x24);
     uint32_t sum = 0;
-    for (uint32_t i = 0; i < 3 * count; ++i) {
+    for (uint32_t i = 0; sound && i < 3 * count; ++i) {
         sum += Virtual<uint32_t>(bag, 0x20);
         MixLists(bag);
     }
@@ -1848,8 +1855,9 @@ void DriveShuffleBag()
     MixLists(bag);
     MixEntries(bag);
     // Random on its own, by address: one entry, and a range.
-    Mix(CallThis<uint32_t>(addr::cGZShuffleBag_Random, bag, uint32_t{1}));
-    for (int i = 0; i < 8; ++i)
+    if (sound)
+        Mix(CallThis<uint32_t>(addr::cGZShuffleBag_Random, bag, uint32_t{1}));
+    for (int i = 0; sound && i < 8; ++i)
         Mix(CallThis<uint32_t>(addr::cGZShuffleBag_Random, nullptr, uint32_t{7}) < 7 ? 1 : 0);
     // The interfaces and the count.
     for (const uint32_t iid : {1u, 0xDB1ACFB2u, 0x3B93C5E7u, 0u}) {
@@ -1947,11 +1955,14 @@ FakeValues NewValues(uint32_t seed, uint32_t priority)
     return values;
 }
 
-// The framework's own 2D and 3D sound kinds' slots 5 and 6, by address.
+// The framework's own 2D and 3D sound kinds' slots 5 and 6, by address
+// (slot 5 only with the registry of sound kinds, which a muted game has
+// not got).
 void DriveKinds()
 {
-    void* const registry = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_SoundKindRegistry)();
-    const uint32_t limit = Virtual<uint32_t>(registry, 0x7C, 0xFFAE9DDBu);
+    void* const registry = SoundKindRegistry();
+    Mix(registry ? 1 : 0);
+    const uint32_t limit = registry ? Virtual<uint32_t>(registry, 0x7C, 0xFFAE9DDBu) : 0;
     Mix(limit);
     uint32_t unused = 0;
     const struct {
@@ -1971,8 +1982,10 @@ void DriveKinds()
         source.values[0x1F] = c.v1f;
         source.values[0x38] = c.v38;
         FakeValues voice = NewValues(0, 0);
-        MixByte(CallThis<uint32_t>(addr::cGZSoundKind2D_SetUpVoice, &unused, &source, &voice));
-        Mix(CallThis<uint32_t>(addr::cGZSoundKind3D_SetUpVoice, &unused, &source, &voice));
+        if (registry) {
+            MixByte(CallThis<uint32_t>(addr::cGZSoundKind2D_SetUpVoice, &unused, &source, &voice));
+            Mix(CallThis<uint32_t>(addr::cGZSoundKind3D_SetUpVoice, &unused, &source, &voice));
+        }
         MixByte(CallThis<uint32_t>(addr::cGZSoundKind2D_CopyValues, &unused, &source, &voice));
         MixByte(CallThis<uint32_t>(addr::cGZSoundKind3D_CopyValues, &unused, &source, &voice));
         for (const uint32_t v : voice.values)

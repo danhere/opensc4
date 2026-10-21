@@ -71,7 +71,7 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u1** | property set and values | 39 | 19 | **Ours** (below) |
 | **u2** | 0x00940000 to 0x00941FFF, less u1 | 36 of 83 | 7 | **Ours** (below): the binary reader and writer, the factory, the XML reader-writer object, the Track objects' slots, the window 0xA3CD96CF, the keyed shuffle bag; 38 thunks, 6 STLport list functions and a shared getter stay the game's |
 | **u2b** | 0x00940E5C, 0x00941930 | 2 | 1 | **Ours** (below): the Track objects' TKDT text form, the writer (2,010 bytes) and the reader (3,186 bytes, ran in all 12 coverage runs) |
-| u3 | 0x00942000 to 0x00944461 | 44 | 9 | The XML reader and writer, the factory's create, the container, the shuffle bag |
+| **u3** | 0x00942000 to 0x00944461 | 29 of 44 | 9 | **Ours** (below): the XML writer and StartElement, the UI script handler's StartElement and EndElement, the factory's Create, the window's Clone and copy, the shuffle bag, the framework's 2D and 3D sound kinds' slots 5 and 6; 15 STLport functions stay the game's |
 | u4 | 0x00944462 to 0x009456EB | 67 | 40 | The XML parser and its director (two pieces) |
 | u5 | 0x009456EC to 0x00945FFF | 58 | 25 | The second director, the table, the two classes after it (two pieces) |
 | u6, u7 | 0x00946000 to 0x00948E62 | 75 | 45 | The 65-slot class |
@@ -150,7 +150,7 @@ Not compared: the game's own use of these functions while the game starts and wh
 - **The window 0xA3CD96CF** is the script window 0x0093E8F4 (eight interfaces) with the key interface at +0x104; its QueryInterface answers 0x3B93C5E7 and 0x456B8F1D with the key interface.
 - **The keyed shuffle bag 0x7B1ACFCD** is the shuffle bag with the key interface at +0x18. Clone makes a bag with the same key and copies this one into it, the count at +4 included, so the clone's count starts one above the original's once its QueryInterface has run.
 
-Still the game's: the 38 small thunks of these classes (25 adjustor thunks of the window, 6 of the bag, 2 of the XML handler, 5 bare jumps), as [occbase.md](occbase.md) leaves them: a `this` adjustment and a jump, or a jump alone, that ends in a function here or in the game's; the STLport list code (0x00940695, 0x009406B5, 0x00941838, 0x009418A0, 0x009418D0, 0x009418F7); the shared getter 0x00940DA8; and the u3 pieces they call (the XML writer, StartElement, the factory's Create, the shuffle bag's own slots). Ours call them by address.
+Still the game's: the 38 small thunks of these classes (25 adjustor thunks of the window, 6 of the bag, 2 of the XML handler, 5 bare jumps), as [occbase.md](occbase.md) leaves them: a `this` adjustment and a jump, or a jump alone, that ends in a function here or in the game's; the STLport list code (0x00940695, 0x009406B5, 0x00941838, 0x009418A0, 0x009418D0, 0x009418F7); and the shared getter 0x00940DA8. The u3 pieces they call (the XML writer, StartElement, the factory's Create, the shuffle bag's own slots) are ours since part u3; the keyed bag calls the shuffle bag's constructor, QueryInterface and destructor directly.
 
 The methods answer a byte; ours give the game's EAX where it comes from the last call, and 0 above the byte where the game leaves its caller's EAX.
 
@@ -222,3 +222,49 @@ Batch `gzu2b-r1` (2026-10-20) ran in the same setup as u2: muted on both sides, 
 | 12 saves, 7 days, `OPENSC4_TEST_PROPIO=2` | 12 | 12 same: 11 on the first pair, Big City d0000 after 2 pairs (side A itself gave two outcomes, in the advisor tokens; B matched one); `pio` BB3FF4B6 and `tkdt` 7193D340 in all 26 runs |
 
 **Reached:** in the plain legs, none: no first-call line from any propio function, the TKDT reader included. The coverage runs' reader calls come from paths parity runs do not take, like the rest of u2. So the plain legs show only that the hooks change nothing. Both functions (and ReadResource) were reached in every B run of the test's leg.
+
+## Part u3: the XML writer, the script handler, Create, the window's copy, the shuffle bag, the sound kinds
+
+`src/core/gzui_propio.cpp`, entry detours, off by default, installed at Attach like u2:
+
+| Replacement | Functions |
+|---|---|
+| `framework.propio.xmltext` | the XML reader-writer's Write 0x0094286B (slot 4), its root name 0x00942D50, the XML handler's StartElement 0x00942D87 (3) |
+| `framework.propio.script` | the UI script property handler's StartElement 0x00943809 and EndElement 0x009425A2 (2) |
+| `framework.propio.create` | the factory's Create 0x00942F24 (slot 4) (1) |
+| `framework.propio.wincopy` | the window 0xA3CD96CF's Clone 0x0094309C (its key interface's slot 14) and CopyAssign 0x009430E1, the script window's Assign 0x00943112 and its part's 0x009436BF (4) |
+| `framework.propio.shufflebag` | the shuffle bag's constructor 0x009439CF, destructor 0x00943A0E, deleting destructor 0x00943BE5, QueryInterface 0x0094392E, Release 0x00943917, Add 0x00943C01, Remove 0x00943A2E, Clear 0x0094397E, Random 0x00943953, Draw 0x00943C46, Get 0x00943A9B, Set 0x00943B07, Erase 0x00943B71, Write 0x00943CF2, Read 0x00943DBC (15) |
+| `framework.propio.kinds` | the framework's own 2D sound kind's slots 5 and 6 (0x00944088, 0x00944117) and the 3D kind's (0x009441E3, 0x00944351) (4) |
+
+29 of the range's 44 functions, addresses in `data/addresses/gzui.toml` (the "Part u3" part) with the texts and game code they use. Every detour is entered through a thunk that keeps ECX and EDX. Ours call each other directly (u2's keyed bag calls the shuffle bag's constructor, QueryInterface and destructor, Create calls u2's window and keyed bag constructors, Clone the window's constructor and CopyAssign), so a group that is off still runs ours where another group's function calls it.
+
+Still the game's: 15 STLport functions. The script window's Assign copies its members with the containers' own assignments: the lists at +0x78 (0x009434EC, with 0x00943554 and 0x0094357B), +0x98 (0x009435B4, with 0x0094362B, 0x0094365F and 0x00943686) and the part's +0x34 (0x00943730, with 0x009437A7 and 0x009437DB), the vector at +0xA0 (0x00943376, with 0x009434B7 and 0x00943489) and the tree at +0xB4 (0x00943303); and the shuffle bag's Remove uses list::remove 0x00943995, which three other classes share. Ours call them by address (the internal ones are named in `data/names-641.txt`).
+
+The survey's "container" (0x0094309C to 0x009437DB) is the window's copy: Clone and its Assigns and the STLport code they use.
+
+### The classes
+
+- **The XML writer** (slot 4 of the XML reader-writer, `ret 0xC`): nothing for an empty set (GetFirst's EAX); else `<?xml version="1.0"?>`, `<cGZPropertySetUint32>`, then per value three spaces, `<AnyUint32 key="0x..." type="0x...">` (or AnySint32, AnyFloat32, AnyBoolean, AnyString), the value's text (`%d` for both integer types, `%f`, `true` or `false`, the string as it is, nothing escaped) and the closing tag, and the root's end: every piece one write through the stream's slot 0x44. A value of another type or a failed write stops it with false.
+- **StartElement** of the XML handler (`ret 0x10`) compares the first element's name with the root's and answers false unless it is; after the root it copies the `key` and `type` attributes (names compared with no case) and empties the text in place. It does not touch the depth that EndElement lowers (u2's "the depth raised" was wrong). With the parser never made (u2), neither runs in the game.
+- **The UI script property handler** (constructor 0x00935E15, 0x30 bytes: the handler interface 0x00AD22C4, a second interface at +4, the count at +8, the property set at +0xC, a map of attribute names to values at +0x10, the text at +0x1C; u2's SetText 0x00940868 is its Characters). StartElement empties the text and puts each attribute in the map. EndElement takes `Name` and `Value` from the map (the text when there is no `Value`) and, by the element's name, puts a string (`PropertyUint32String`), a uint32 (`PropertyUint32Uint32`) or a float (`PropertyUint32Float32`, through a script number) in the set under the name's ID (0x00932F76) with the top byte set; the two number elements answer false, keeping the map, when the value is empty or does not start with a digit. `PropertyStringString` and other names put nothing. Then the map is emptied.
+- **Create** makes the object of the type with the key (type, 0, 0) and holds it by a counted reference while it asks for the interface: the Track objects (the text form's class for 0x0B8D821A and 0x0B9EB87E, which gets 0xFF4C97BE = 0xAB903A1B and 0xFF1CDF6A = `Track`; 0x00AD2898 for 0xEBFEE345 and 0xEBFEE349), the window 0xA3CD96CF and the keyed shuffle bag. Another type: false.
+- **The window's Clone** makes a window with the key, copies this one into it (CopyAssign: the script window's members and the key) and asks it for the interface. The script window's reference count is at +0x50 among the plain members Assign copies, so a clone's count starts at the original's.
+- **The shuffle bag** (vtable 0x00AD4648, 0x18 bytes; interface 0xDB1ACFB2; a count of live bags at 0x00B633B8): two lists of uint32, the entries not yet drawn (+8) and the ones drawn (+0xC), a threshold (+0x10, 10 at first) and whether it is fixed (+0x14, SetThreshold fixes it). Add pushes onto the first list, Remove takes a value out of both; without a fixed threshold both make it half of both lists' sizes. Draw takes an entry at a random place of the first list (Random: the registry of sound kinds' generator, service 0x1B2CE671) and pushes it on the second; while the second holds more than the threshold its oldest go back to the first. With the first list empty it turns the second round by one. Get, Set and Erase count the first list, then the second. Write writes 1, the count and the entries; Read takes, by the stream's size, a text (entries split at commas, `a-b` adds each number of the range), version 1 with a count, or a count, and sets the threshold to a third of the first list plus 1.
+- **The framework's 2D and 3D sound kinds** (vtables 0x00AD2804 and 0x00AD2830; the game's own SC4K kinds replace them, [audio.md](audio.md)): slot 5 works out a voice's values from the sound's (0x15 as 0x15 * 0x14 / 1024, halved when the registry's 0xFFAE9DDB is not 0 and the sound's is below it; the 3D kind's 0x1E and 0x1F from 0x38 when the sound's 0x1F is 0), slot 6 copies a fixed set of values. `this` is not read.
+
+The methods answer a byte; ours give the game's EAX where it comes from a call or a value, and 0 above the byte where the game leaves its caller's EAX.
+
+### Testing
+
+`OPENSC4_TEST_PROPIO=<day>` has six new stages after u2's (`autotest: propio: xmltext`, `script`, `create`, `wincopy`, `shufflebag`, `kinds`):
+
+- xmltext: a set of every type (uint32 0, 0xFFFFFFFF; sint32; floats 2.5, -0, 1e30, the largest, a NaN, the smallest denormal, -1; bools with padding; strings with markup and empty) written through the object's slot and by address, with every write failing in turn; a type the writer does not know, last and in the middle; an empty set; a real set; the root name into a string with text; StartElement before the root (wrong names, a trailing space, another case), at the root, and after it with `key` and `type` in either order, in other cases, repeated, other attributes, none and null.
+- script: the handler made by its constructor with a set: elements of each property type, the value from the text, the refusals (`x12`, empty, `-5`, ` 7`) and the map they keep, `PropertyStringString`, an unknown element, no attributes, extra attributes, a hex value, `1e-3`.
+- create: every class with its interface and with one it has not got, an unknown type, through the slot and by address.
+- wincopy: a window with its plain members set, cloned through its key interface for three interfaces, copied into another window and into itself by CopyAssign and Assign, the part's Assign.
+- shufflebag: a bag filled, its entries got, set and erased (in both lists, past the end), removed (present, twice, absent), written; draws with the threshold free, fixed at 1 and at 100 (only what does not depend on the random numbers goes into the hash: the lists' sizes, the count, the sum and XOR of the entries, whole rounds' sums), Random by address; the interfaces; Read of the written bytes, the three forms, bad sizes and texts (`5-9`, `3-1`, `1,,2`, `,7`, `-4,8-,-`, a length that does not fit); the destructors on a bag on the stack.
+- kinds: fake value sets (every Get and Set into the hash) through both kinds' slots 5 and 6 with values that overflow and divide negative, the sound's 0xFFAE9DDB each side of the registry's, and the 3D slot 5 with the same object.
+
+A muted game (`OPENSC4_MUTE=1`, as the parity runs are) has no registry of sound kinds: Random reads through a null pointer there, in the game's code as in ours (the first trial crashed on both sides). The test then leaves out the draws, Random and the kinds' slot 5, and mixes that it did.
+
+With the groups on, each of the 29 logs its first call.
