@@ -1270,9 +1270,9 @@ void DrawDecals(char* manager, const float* matrix, char* context, char** list)
             CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
         else
             CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
-        float texture[16];
-        MultiplyMatrix(matrix, reinterpret_cast<const float*>(overlay + 0x1C), texture);
-        CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, texture, 0u);
+        float textureMatrix[16];
+        MultiplyMatrix(matrix, reinterpret_cast<const float*>(overlay + 0x1C), textureMatrix);
+        CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, textureMatrix, 0u);
         CallThis<void>(addr::cSC4OverlayManager_DrawRect, manager, context, overlay + 0xC);
         ++At<uint32_t>(manager, 0xD8);
     }
