@@ -9315,3 +9315,166 @@ address = 0x00A9D788
 kind = "data"
 expect = "20 6D 6F 64 65 6C 3A 30"
 source = "Name ours. \" model:0x%8x 0x%8x 0x%8x\". Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+# Part vb3: the automaton base's movement on frames (src/core/automata_vehicle.cpp, docs/automata.md "Part vb").
+
+[[entry]]
+name = "cSC4AutomatonBase::SetDestination"
+address = 0x0054E5B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const float* point)"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Name ours. Slot 10 (cISC4Automaton's 7), ret 4: the automata flag 4 cleared (slot 30), the destination +0x4C set; the heading +0x58 its unit vector in x and z (the y difference is the destination's y less itself), then slot 16 (null, heading); at a length not above 0 the flag 4 set and slot 102 (4, 0) instead. Answers the last call's EAX. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::MoveOnPath"
+address = 0x0054FDC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 10 A1 3C 29 B2 00"
+source = "Name ours. Slot 129 (cSC4Vehicle has its own, 0x0055CAF0), ret 4: the step (slot 125 x slot 34 x the seconds); slot 79 and true with slot 88, an empty route and +0x204 deque and the flag 0x20; else slot 161, the room ahead (slot 151; SetSpeed to +0xB0's speed at 0.5 below 16), the step at most that; at a step not above 0 the flag 0x20 and Remove(false) when minus the radius is above it and the flag 0x40 is off; else slot 133 into the destination, kept inside the city (slots 89, 90 less 0.5), its height from the occupant (slot 56) unless the network part is flat, slots 155 and 16. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::MoveToDestination"
+address = 0x00550190
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 3C 56 8B F1 D9 46"
+source = "Name ours. Slot 130, ret 4: straight to the destination (the position when a coordinate is below 0); arrived (the flags 0x20 and 4, slot 102 (4, 0), true) at a distance, step or move not below it (0 with the flag 8 and slot 123 at 1); else false outside the city, the traffic network map's slot 44 (Remove(false) when it says no) and height (slot 18), slots 155 and 16. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::PathTo"
+address = 0x0054E920
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant, uint32_t key, bool exact)"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Name ours. Slot 131 (cSC4Vehicle's 0x0055D210), ret 0xC: the occupant's network part (slot 49), its path for the key (slot 3) or, with exact, one from the position (slot 5); with two points or more slot 132 and the traffic network map's slot 19 word set to 0. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::EnterOccupant"
+address = 0x00550760
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, uint32_t groups, void* path, bool keep)"
+expect = "83 EC 30 53 55 56 8B F1"
+source = "Name ours. Slot 132 (cSC4Vehicle's 0x0055D5A0), ret 0x10: +0x1EC, +0x1F0 (the occupant's network part), +0x1F4, +0x1F8 the path, +0x1FC; without keep slot 16 and SetDestination at the path's first two points (sideways by slot 157, heights by the occupant's slot 56); into or out of a tunnel (0x8A4BD52B) slot 33 and the sound 0x00602640's slot 5 or 6 with 0xE; the traffic network map's slots 31 and 30, slot 160, +0xB0 from slot 148 with the flag 8. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::AdvanceOnPath"
+address = 0x005504E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float step, const float* from, float* out, int32_t* index, void* path, float* leftover)"
+expect = "83 EC 28 A1 3C 29 B2 00"
+source = "Name ours. Slot 133, ret 0x18: out = from moved along the path (+0x1F8 when null) from point index (+0x1FC when null) by step, each next point sideways by slot 157; true within the path; past its end false, leftover the rest and out moved by the step along the last segment. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::PlaceOnNetwork"
+address = 0x00550B60
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 3C 53 56 8B F1 D9"
+source = "Name ours. Slot 134 (Init calls it): false at the core's default point; the traffic network map's occupant at the position's cell (city slot 95, map slot 11), its network part, the best side of +0xA4 (slot 171), the part's path from the position (slot 5), slot 132, +0x1FC the index on it (slot 19), slot 16 with the path's direction. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::NextRouteCell"
+address = 0x00554AB0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, bool now)"
+expect = "83 EC 34 56 8B F1 8B 0D"
+source = "Name ours. Slot 142, ret 4: 0x00554640, slot 90 (1), the flag 0x2000 cleared; with now true; else the route's first cell popped (0x00551F70) and of the map's occupants at it (slot 14) the first whose network part finds a path (slot 9) towards the next cell's side: slot 132, slot 16 (the path's first point or end point, its direction). AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::ClearAhead"
+address = 0x00551300
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "83 EC 20 A1 3C 29 B2 00"
+source = "Name ours. Slot 151 (cSC4Vehicle's 0x0055D9D0): the smaller of 16 or the distance to the path's last point less the radius (0 below 1, with the flag 0x10) and 16 or the distance to +0xB0's point (slot 66) less the radius and 3 (with the flag 8). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::OffsetSideways"
+address = 0x005510D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float* point)"
+expect = "83 EC 44 56 8B F1 8B 86"
+source = "Name ours. Slot 157, ret 4: the point moved sideways by +0x200 (plus slot 56's object's +0x24's +0x4C; nothing below 1e-4) across the path's first-to-last direction (0x007F82F0, FSIN, FCOS). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::WeighSides"
+address = 0x0054E790
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* network, float* weights)"
+expect = "83 EC 08 53 55 8B 6C 24"
+source = "Name ours. Slot 170, ret 8: +0xA4 normalised, its best side (slot 171) and for each of four rows the network answers for (its slot 0xD4) a share (at least 100, times |+0xA0| x 0.01) of the opposite side's weight moved to that side. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::ChooseSide"
+address = 0x0054E6F0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t a, uint32_t b, uint8_t side, uint32_t d)"
+expect = "83 EC 44 53 55 56 8B F1"
+source = "Name ours. Ret 0x10: a 4 x 4 weight table from the vehicle manager (slots 42 and 72), slot 170, the traffic network map's slot 6 with the table's row side and d. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "SC4RouteDeque::PopFront"
+address = 0x00551F70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* deque)"
+expect = "56 8B F1 8B 4E 08 8B 06"
+source = "Name ours. pop_front of the route deque's 3-byte cells; at a block's last cell the block freed (SC4::Free) and the start on the next node's 0x7E-byte block. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb3)."
+
+[[entry]]
+name = "SC4::NegatedAtan2"
+address = 0x007F82F0
+kind = "function"
+convention = "cdecl"
+signature = "double (float a, float b)"
+expect = "D9 44 24 04 D9 E0 D9 44"
+source = "Name ours. FPATAN of -a and -b: atan2(-a, -b) in ST0. Called by address from src/core/automata_vehicle.cpp (part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::SideWeightLeast"
+address = 0x00A80AA0
+kind = "data"
+expect = "00 00 C8 42"
+source = "Name ours. The float 100: slot 170 moves a share of a weight of at least this. Called by address from src/core/automata_vehicle.cpp (part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::PlaceEpsilon"
+address = 0x00A9BCFC
+kind = "data"
+expect = "17 B7 D1 38"
+source = "Name ours. The float 1e-4: slot 134's test for the default point and slot 157's least offset. Called by address from src/core/automata_vehicle.cpp (part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::SideShare"
+address = 0x00A823A4
+kind = "data"
+expect = "0A D7 23 3C"
+source = "Name ours. The float 0.01 slot 170 scales |+0xA0| by. Called by address from src/core/automata_vehicle.cpp (part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::ArriveDistance"
+address = 0x00A867A4
+kind = "data"
+expect = "6F 12 83 3A"
+source = "Name ours. The float 0.001: slot 129 has arrived within it in x and z. Called by address from src/core/automata_vehicle.cpp (part vb3)."
+
+[[entry]]
+name = "cSC4AutomatonBase::FrontGap"
+address = 0x00A85074
+kind = "data"
+expect = "00 00 40 40"
+source = "Name ours. The float 3 slot 151 keeps behind +0xB0. Called by address from src/core/automata_vehicle.cpp (part vb3)."

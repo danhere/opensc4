@@ -199,6 +199,30 @@
 //   classes on the third and fourth (their deques and +0x258/+0x25C given
 //   objects of the test's that count their references), then slots 172 and
 //   135. Objects of the test's count their references into the hashes.
+//   Part vb3 adds `,<move>,<frame>,<enter>`: a base object (0x005544D0)
+//   whose vtable is a copy of the base's with slot 174 answering a vehicle
+//   manager of the test's, its byte +0x33's low bits cleared (else the
+//   core's slot 16 would index it in the occupant manager) and the automata
+//   flag 0x100000 on (else slot 16 would put it on the view's update list),
+//   driven with the city global 0x00B43CEC pointing at a city of the test's
+//   (a traffic network map of the test's, a size of 2048 x 1024, cells of
+//   16; other slots counted into the flags as 0x200). move: SetDestination for six targets, slot
+//   157 on two paths for five offsets, slot 133 along a five-point path for
+//   seven steps and five start indices (offsets 0 and 1.25), slot 151 at
+//   three places with the flags 0x10 and 8 and an automaton ahead of the
+//   test's, 50 route cells pushed and 49 popped (0x00551F70), slot 170 over
+//   three side masks and four directions, 0x0054E6F0 for four sides.
+//   enter: slot 132 into a lane, a tunnel (QueryInterface 0x8A4BD52B), no
+//   network part, a part without a path and none; slot 131 to four
+//   occupants, with a path and without, exact or not; slot 134 at the
+//   default point and over five occupants and three +0xA4 cases; slot 142
+//   over six route cells with a cell list of three occupants. frame: slot
+//   129 for 12 frames of 0.25 s, flat or not, with an automaton ahead or
+//   not, its early way out, steps of 0 and -2 (stopped, removed); slot 130
+//   towards five goals with the automata flag 0x20000 on and off and the
+//   map's slot 44 answering yes and no, four frames of 0.5 s each. The
+//   fakes' calls and reference counts go into the hashes; the base object
+//   is deleted with its references cleared and +0x98 and +0x33 put back.
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -588,6 +612,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <limits>
 #include <new>
 #include <string>
@@ -10660,6 +10685,826 @@ void LifeDrive(char* const v[4], Hash& setters, Hash& save, Hash& texts, Hash& l
     flags |= 0x40;
 }
 
+// ---- Part vb3's objects. They mix what they are asked into `calls`; the
+// bytes the game passes with stack above them are mixed as bytes.
+
+// A path: a vector of 12-byte points.
+struct Path {
+    float* begin;
+    float* end;
+};
+
+// A network part of the test's (slots 3, 5, 9, 13, 16, 19, 22).
+struct Part {
+    void** vtable;
+    int32_t references;
+    Path* path; // what slots 3, 5 and 9 answer
+    uint32_t out; // what slots 5 and 9 write to their out word
+    uint32_t flat;
+    int32_t index;
+    float end[3];
+    Hash calls;
+};
+
+uint32_t __fastcall PartAddRef(Part* p, void*) { return static_cast<uint32_t>(++p->references); }
+uint32_t __fastcall PartRelease(Part* p, void*) { return static_cast<uint32_t>(--p->references); }
+Path* __fastcall PartPath(Part* p, void*, uint32_t key, uint32_t word)
+{
+    p->calls.Mix(3);
+    p->calls.Mix(key);
+    p->calls.Mix(word);
+    return p->path;
+}
+Path* __fastcall PartFind(Part* p, void*, uint32_t a, uint32_t b, uint32_t c, const float* point, uint32_t* out,
+                          uint32_t f)
+{
+    p->calls.Mix(5);
+    p->calls.Mix(a);
+    p->calls.Mix(b & 0xFF);
+    p->calls.Mix(c & 0xFF);
+    p->calls.MixBytes(point, 12);
+    p->calls.Mix(f);
+    if (p->path)
+        *out = p->out;
+    return p->path;
+}
+Path* __fastcall PartFrom(Part* p, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t generator, uint32_t* out,
+                          uint32_t f)
+{
+    p->calls.Mix(9);
+    p->calls.Mix(a);
+    p->calls.Mix(b);
+    p->calls.Mix(c & 0xFF);
+    p->calls.Mix(generator == addr::cSC4AutomatonCore_Random ? 1u : 0u);
+    p->calls.Mix(f);
+    if (p->path)
+        *out = p->out;
+    return p->path;
+}
+uint32_t __fastcall PartKind(Part* p, void*, uint32_t kind)
+{
+    p->calls.Mix(13);
+    p->calls.Mix(kind);
+    return 0;
+}
+uint32_t __fastcall PartFlat(Part* p, void*) { return p->flat; }
+int32_t __fastcall PartIndex(Part* p, void*, const float* point, Path* path)
+{
+    p->calls.Mix(19);
+    p->calls.MixBytes(point, 12);
+    p->calls.Mix(path == p->path ? 1u : 0u);
+    return p->index;
+}
+uint32_t __fastcall PartEnd(Part* p, void*, Path* path, float* out)
+{
+    p->calls.Mix(22);
+    p->calls.Mix(path == p->path ? 1u : 0u);
+    std::memcpy(out, p->end, 12);
+    return 1;
+}
+
+void** PartVtable()
+{
+    static void* t[64] = {};
+    t[1] = reinterpret_cast<void*>(&PartAddRef);
+    t[2] = reinterpret_cast<void*>(&PartRelease);
+    t[av::part::kPath / 4] = reinterpret_cast<void*>(&PartPath);
+    t[av::part::kFindPath / 4] = reinterpret_cast<void*>(&PartFind);
+    t[av::part::kFindFrom / 4] = reinterpret_cast<void*>(&PartFrom);
+    t[0x34 / 4] = reinterpret_cast<void*>(&PartKind);
+    t[av::part::kFlat / 4] = reinterpret_cast<void*>(&PartFlat);
+    t[av::part::kIndexOf / 4] = reinterpret_cast<void*>(&PartIndex);
+    t[av::part::kEndPoint / 4] = reinterpret_cast<void*>(&PartEnd);
+    return t;
+}
+
+// An occupant of the test's: its network part (slot 49), a tunnel or not
+// (slot 8 and QueryInterface of 0x8A4BD52B), the sides it answers for (slot
+// 53), a height (slot 56) and the cell (-1, -1) (slot 59: the traffic network
+// map knows none there).
+struct Lane {
+    void** vtable;
+    int32_t references;
+    Part* part;
+    uint32_t tunnel;
+    uint32_t sides;
+    Hash calls;
+};
+
+uint32_t __fastcall LaneQuery(Lane* l, void*, uint32_t iid, void** out)
+{
+    l->calls.Mix(0);
+    l->calls.Mix(iid);
+    if (iid == av::kTunnelIid && l->tunnel) {
+        *out = l;
+        ++l->references;
+        return 1;
+    }
+    return 0;
+}
+uint32_t __fastcall LaneAddRef(Lane* l, void*) { return static_cast<uint32_t>(++l->references); }
+uint32_t __fastcall LaneRelease(Lane* l, void*) { return static_cast<uint32_t>(--l->references); }
+uint32_t __fastcall LaneFlag(Lane* l, void*, uint32_t flag)
+{
+    l->calls.Mix(8);
+    l->calls.Mix(flag);
+    return l->tunnel;
+}
+Part* __fastcall LanePart(Lane* l, void*) { return l->part; }
+uint32_t __fastcall LaneSide(Lane* l, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    l->calls.Mix(53);
+    l->calls.Mix(a);
+    l->calls.Mix(b & 0xFF);
+    l->calls.Mix(c & 0xFF);
+    return (l->sides >> (c & 3)) & 1;
+}
+double __fastcall LaneHeight(Lane* l, void*, float x, float z)
+{
+    l->calls.Mix(56);
+    l->calls.Mix(Bits(x));
+    l->calls.Mix(Bits(z));
+    return static_cast<double>(x * 0.03125f + z * 0.0625f + 2.0f);
+}
+void __fastcall LaneCells(Lane*, void*, int32_t* x, int32_t* z)
+{
+    *x = -1;
+    *z = -1;
+}
+
+void** LaneVtable()
+{
+    static void* t[64] = {};
+    t[0] = reinterpret_cast<void*>(&LaneQuery);
+    t[1] = reinterpret_cast<void*>(&LaneAddRef);
+    t[2] = reinterpret_cast<void*>(&LaneRelease);
+    t[av::kOccupantFlag / 4] = reinterpret_cast<void*>(&LaneFlag);
+    t[av::kNetworkPartSlot / 4] = reinterpret_cast<void*>(&LanePart);
+    t[av::kNeighbourSlot / 4] = reinterpret_cast<void*>(&LaneSide);
+    t[av::kOccupantHeight / 4] = reinterpret_cast<void*>(&LaneHeight);
+    t[av::kQueueKeySlot / 4] = reinterpret_cast<void*>(&LaneCells);
+    return t;
+}
+
+// The automaton ahead (+0xB0): its speed (slot 34) and its point (slot 66).
+struct Front {
+    void** vtable;
+    int32_t references;
+    float speed;
+    float point[3];
+};
+
+uint32_t __fastcall FrontRef(Front*, void*) { return 1; }
+double __fastcall FrontSpeed(Front* f, void*) { return f->speed; }
+uint32_t __fastcall FrontPoint(Front* f, void*, float* out)
+{
+    std::memcpy(out, f->point, 12);
+    return 1;
+}
+
+void** FrontVtable()
+{
+    static void* t[80] = {};
+    t[1] = reinterpret_cast<void*>(&FrontRef);
+    t[2] = reinterpret_cast<void*>(&FrontRef);
+    t[av::slot::kSmoothedNow / 4] = reinterpret_cast<void*>(&FrontSpeed);
+    t[av::slot::kFrontPoint / 4] = reinterpret_cast<void*>(&FrontPoint);
+    return t;
+}
+
+// The vehicle manager of the test's (slots 42, 68, 72).
+struct Vehicles {
+    void** vtable;
+    uint32_t kind;
+    Hash calls;
+};
+
+double __fastcall VehiclesWeight(Vehicles* m, void*, uint32_t state)
+{
+    m->calls.Mix(42);
+    m->calls.Mix(state);
+    return 1.5 + 0.25 * state;
+}
+uint32_t __fastcall VehiclesKind(Vehicles* m, void*, void*)
+{
+    m->calls.Mix(68);
+    return m->kind;
+}
+uint32_t __fastcall VehiclesWeights(Vehicles* m, void*, void* a, uint32_t b, uint32_t state, float weight,
+                                    float* table)
+{
+    m->calls.Mix(72);
+    m->calls.Mix(a ? 1u : 0u);
+    m->calls.Mix(b);
+    m->calls.Mix(state);
+    m->calls.Mix(Bits(weight));
+    for (int i = 0; i < 16; ++i)
+        table[i] = static_cast<float>((i * 37) % 11) * 20.0f + weight;
+    return 1;
+}
+
+void** VehiclesVtable()
+{
+    static void* t[80] = {};
+    t[av::manager::kStateWeight / 4] = reinterpret_cast<void*>(&VehiclesWeight);
+    t[av::manager::kKind / 4] = reinterpret_cast<void*>(&VehiclesKind);
+    t[av::manager::kWeights / 4] = reinterpret_cast<void*>(&VehiclesWeights);
+    return t;
+}
+
+// The traffic network map of the test's: the occupant at a cell (slot 11),
+// a cell's list (14), heights (18), the lane word (19), the automata
+// registered and forgotten (30, 31), the way test (44) and the side choice
+// (6: the weights mixed; the real map's reads its own state).
+struct CellNode {
+    Lane* occupant;
+    char unused[0x50];
+    CellNode* next; // +0x54
+};
+
+struct FakeMap {
+    void** vtable;
+    Lane* occupant;
+    CellNode* list;
+    uint32_t canGo;
+    uint32_t word;
+    Hash calls;
+};
+
+uint32_t __fastcall MapChoose(FakeMap* m, void*, const float* weights, uint8_t* out)
+{
+    m->calls.Mix(6);
+    m->calls.MixBytes(weights, 16);
+    for (int i = 0; i < 4; ++i)
+        out[i] = static_cast<uint8_t>(i * 3 + 1);
+    return 2;
+}
+Lane* __fastcall MapOccupantAt(FakeMap* m, void*, int32_t x, int32_t z)
+{
+    m->calls.Mix(11);
+    m->calls.Mix(static_cast<uint32_t>(x));
+    m->calls.Mix(static_cast<uint32_t>(z));
+    return m->occupant;
+}
+CellNode* __fastcall MapCellList(FakeMap* m, void*, uint32_t x, uint32_t z)
+{
+    m->calls.Mix(14);
+    m->calls.Mix(x);
+    m->calls.Mix(z);
+    return m->list;
+}
+double __fastcall MapHeight(FakeMap* m, void*, float x, float z)
+{
+    m->calls.Mix(18);
+    m->calls.Mix(Bits(x));
+    m->calls.Mix(Bits(z));
+    return static_cast<double>(x * 0.0078125f - z * 0.015625f + 7.0f);
+}
+uint32_t* __fastcall MapLaneWord(FakeMap* m, void*, void* occupant, uint32_t state, uint32_t kind, uint32_t entry,
+                                 uint32_t key)
+{
+    m->calls.Mix(19);
+    m->calls.Mix(occupant ? 1u : 0u);
+    m->calls.Mix(state);
+    m->calls.Mix(kind);
+    m->calls.Mix(entry & 0xFF); // a byte with three bytes of the game's stack above it
+    m->calls.Mix(key);
+    m->word = 0x5A5A5A5Au;
+    return &m->word;
+}
+uint32_t __fastcall MapAdd(FakeMap* m, void*, void* automaton, void* occupant)
+{
+    m->calls.Mix(30);
+    m->calls.Mix(automaton ? 1u : 0u);
+    m->calls.Mix(occupant == m->occupant ? 1u : occupant ? 2u : 0u);
+    return 1;
+}
+uint32_t __fastcall MapRemove(FakeMap* m, void*, void* automaton, void* occupant, uint32_t groups)
+{
+    m->calls.Mix(31);
+    m->calls.Mix(automaton ? 1u : 0u);
+    m->calls.Mix(occupant == m->occupant ? 1u : occupant ? 2u : 0u);
+    m->calls.Mix(groups);
+    return 1;
+}
+uint32_t __fastcall MapCanGo(FakeMap* m, void*, const float* from, const float* to, uint32_t kind)
+{
+    m->calls.Mix(44);
+    m->calls.MixBytes(from, 12);
+    m->calls.MixBytes(to, 12);
+    m->calls.Mix(kind);
+    return m->canGo;
+}
+
+void** FakeMapVtable()
+{
+    static void* t[64] = {};
+    t[av::map::kChoose / 4] = reinterpret_cast<void*>(&MapChoose);
+    t[av::map::kOccupantAt / 4] = reinterpret_cast<void*>(&MapOccupantAt);
+    t[av::map::kCellList / 4] = reinterpret_cast<void*>(&MapCellList);
+    t[av::map::kHeight / 4] = reinterpret_cast<void*>(&MapHeight);
+    t[av::map::kLaneWord / 4] = reinterpret_cast<void*>(&MapLaneWord);
+    t[av::map::kAddAutomaton / 4] = reinterpret_cast<void*>(&MapAdd);
+    t[av::map::kRemoveAutomaton / 4] = reinterpret_cast<void*>(&MapRemove);
+    t[av::map::kCanGo / 4] = reinterpret_cast<void*>(&MapCanGo);
+    return t;
+}
+
+// The city the vb3 calls see (the global 0x00B43CEC points at it while they
+// run): the map, the size (2048 x 1024) and the cell of a point. Any other
+// slot is counted and logged.
+struct FakeCity {
+    void** vtable;
+    FakeMap* map;
+    uint32_t traps;
+};
+
+template <std::size_t I>
+uint32_t __fastcall CityTrap(FakeCity* c, void*)
+{
+    if (!c->traps++)
+        log::Write("autotest: automata: vehicle: the fake city's slot 0x%X was called", static_cast<unsigned>(I * 4));
+    return 0;
+}
+FakeMap* __fastcall CityMap(FakeCity* c, void*) { return c->map; }
+double __fastcall CityWidth(FakeCity*, void*) { return 2048.0; }
+double __fastcall CityDepth(FakeCity*, void*) { return 1024.0; }
+uint32_t __fastcall CityCellOf(FakeCity*, void*, float x, float z, int32_t* cx, int32_t* cz)
+{
+    *cx = static_cast<int32_t>(x / 16.0f);
+    *cz = static_cast<int32_t>(z / 16.0f);
+    return 1;
+}
+
+template <std::size_t... I>
+void FillTraps(void** t, std::index_sequence<I...>)
+{
+    ((t[I] = reinterpret_cast<void*>(&CityTrap<I>)), ...);
+}
+
+void** FakeCityVtable()
+{
+    static void* t[128] = {};
+    static bool made = false;
+    if (!made) {
+        made = true;
+        FillTraps(t, std::make_index_sequence<128>{});
+        t[av::city::kTrafficNetwork / 4] = reinterpret_cast<void*>(&CityMap);
+        t[av::city::kWidth / 4] = reinterpret_cast<void*>(&CityWidth);
+        t[av::city::kDepth / 4] = reinterpret_cast<void*>(&CityDepth);
+        t[av::city::kCellOf / 4] = reinterpret_cast<void*>(&CityCellOf);
+    }
+    return t;
+}
+
+// The base object's vtable: the game's 176 slots with slot 174 (the vehicle
+// manager) answering the test's.
+Vehicles* g_vehicles = nullptr;
+Vehicles* __fastcall TestManager(char*, void*) { return g_vehicles; }
+
+void** MoveVtable()
+{
+    static void* t[176] = {};
+    std::memcpy(t, reinterpret_cast<void*>(addr::cSC4AutomatonBase_Vtable), sizeof t);
+    t[av::slot::kManager / 4] = reinterpret_cast<void*>(&TestManager);
+    return t;
+}
+
+// The moving parts of an automaton, pointers as indices into `known`.
+void MixMoving(Hash& h, char* o, std::initializer_list<const void*> known)
+{
+    auto id = [&](const void* p) {
+        if (!p)
+            return 0u;
+        uint32_t i = 1;
+        for (const void* k : known) {
+            if (k == p)
+                return i;
+            ++i;
+        }
+        return 0xFFu;
+    };
+    h.MixBytes(o + av::field::kPosition, 12);
+    h.MixBytes(o + av::field::kDestination, 12);
+    h.MixBytes(o + av::field::kHeading, 12);
+    h.Mix(At<uint32_t>(o, av::field::kAutomataFlags));
+    h.MixBytes(o + av::field::kSmoothed, 0x10);
+    h.MixBytes(o + av::field::kFloatA0, 0x10);
+    h.Mix(id(At<void*>(o, av::field::kObjectB0)));
+    h.Mix(At<uint32_t>(o, av::field::kState));
+    h.Mix(id(At<void*>(o, av::field::kOccupant)));
+    h.Mix(id(At<void*>(o, av::field::kNetwork)));
+    h.Mix(At<uint32_t>(o, av::field::kGroups1F4));
+    h.Mix(id(At<void*>(o, av::field::kPath)));
+    h.Mix(At<uint32_t>(o, av::field::kPathIndex));
+    h.MixBytes(o + av::field::kFloat200, 4);
+}
+
+void SetSmoothed(char* o, float speed)
+{
+    float* const s = &At<float>(o, av::field::kSmoothed);
+    s[0] = speed;
+    s[1] = speed;
+    s[2] = 0.0f;
+    s[3] = 0.0f;
+}
+
+// Part vb3 on a base object of the test's (its vtable the base's, slot 174
+// answering a manager of the test's), with the city global pointing at a
+// city of the test's for the calls: the moves on frames, the path's walk,
+// entering occupants, placing on the network and the route's cells. Nothing
+// of the real city is read or changed.
+void MoveDrive(Hash& move, Hash& frame, Hash& enter, uint32_t& flags)
+{
+    char* const o = static_cast<char*>(
+        reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(av::kVehicleSize));
+    if (!o) {
+        flags |= 0x100;
+        return;
+    }
+    This<char*>(addr::cSC4AutomatonBase_Construct, o, 0u, 0u, 0u, 0u);
+    At<void**>(o, 0) = MoveVtable();
+    // +0x98 is only tested for zero here; the destructor reads it.
+    const uint32_t word98 = At<uint32_t>(o, av::field::k98);
+    // The occupant byte +0x33's bits 1, 2 and 4 cleared while the test runs:
+    // with 4 set slot 16's slot 100 would put the object into the city's
+    // occupant manager (0x00B43D0C) or the view.
+    const uint8_t byte33 = At<uint8_t>(o, av::field::kFlags33);
+    At<uint8_t>(o, av::field::kFlags33) = static_cast<uint8_t>(byte33 & ~7u);
+
+    float points1[5][3] = {{100.0f, 5.0f, 200.0f},
+                           {104.0f, 5.5f, 200.0f},
+                           {104.0f, 6.0f, 207.5f},
+                           {96.25f, 6.0f, 211.0f},
+                           {96.25f, 4.0f, 230.0f}};
+    float points2[3][3] = {{50.0f, 1.0f, 60.0f}, {50.0f, 1.0f, 60.000001f}, {40.0f, 1.0f, 50.0f}};
+    Path path1{&points1[0][0], &points1[0][0] + 15};
+    Path path2{&points2[0][0], &points2[0][0] + 9};
+    Path path3{&points1[0][0], &points1[0][0] + 3}; // one point
+    Part part{PartVtable(), 0, &path1, 0x0102A305u, 0, 2, {3.0f, 4.0f, 5.0f}, {}};
+    Part part2{PartVtable(), 0, &path2, 0x0301C102u, 1, -3, {-1.0f, 0.0f, 9.0f}, {}};
+    Part none{PartVtable(), 0, nullptr, 0, 0, 0, {}, {}};
+    Lane lane{LaneVtable(), 0, &part, 0, 0xB, {}};
+    Lane tunnel{LaneVtable(), 0, &part2, 1, 0x6, {}};
+    Lane bare{LaneVtable(), 0, nullptr, 0, 0xF, {}};
+    Lane dead{LaneVtable(), 0, &none, 0, 0xF, {}};
+    Front front{FrontVtable(), 0, 3.5f, {101.0f, 5.0f, 209.0f}};
+    Vehicles vehicles{VehiclesVtable(), 0x2Au, {}};
+    void** const cityGlobal = reinterpret_cast<void**>(addr::SC4_City);
+    void* const realCity = *cityGlobal;
+    FakeMap fakeMap{FakeMapVtable(), nullptr, nullptr, 1, 0, {}};
+    FakeCity fakeCity{FakeCityVtable(), &fakeMap, 0};
+    const std::initializer_list<const void*> known = {&lane, &tunnel, &part, &part2, &path1, &path2, &front, &path3};
+    g_vehicles = &vehicles;
+    *cityGlobal = &fakeCity;
+
+    // The automata flag 0x100000 always on: slot 107 (which slot 16 calls)
+    // then leaves the view's update list alone (the object is freed after).
+    auto setFlags = [&](uint32_t value) { At<uint32_t>(o, av::field::kAutomataFlags) = value | 0x100000u; };
+    setFlags(0);
+    At<float>(o, av::field::kRadius) = 1.5f;
+    At<uint32_t>(o, av::field::kState) = 7;
+
+    // ---- SetDestination (slot 10).
+    SetPoint(o, av::field::kPosition, 100.0f, 5.0f, 200.0f);
+    {
+        const float targets[][3] = {{110.0f, 5.0f, 200.0f}, {100.0f, 5.0f, 190.0f},  {100.0f, 9.0f, 200.0f},
+                                    {103.5f, 2.0f, 207.25f}, {1e6f, 0.0f, -1e6f}, {100.000001f, 5.0f, 200.0f}};
+        for (const auto& t : targets) {
+            setFlags(0x800);
+            This<uint32_t>(addr::cSC4AutomatonBase_SetDestination, o, static_cast<const float*>(t));
+            MixMoving(move, o, known);
+        }
+    }
+
+    // ---- Slot 157, the sideways offset, on two paths.
+    {
+        At<Path*>(o, av::field::kPath) = &path1;
+        for (const float offset : {0.0f, 5e-5f, 2.5f, -1.75f, 0.0001f})
+            for (Path* path : {&path1, &path2}) {
+                At<float>(o, av::field::kFloat200) = offset;
+                At<Path*>(o, av::field::kPath) = path;
+                float p[3] = {10.0f, 20.0f, 30.0f};
+                This<void>(addr::cSC4AutomatonBase_OffsetSideways, o, static_cast<float*>(p));
+                move.MixBytes(p, sizeof p);
+            }
+    }
+
+    // ---- Slot 133 along path1 (offset 0 and 1.25).
+    {
+        const float steps[] = {0.5f, 3.0f, 10.0f, 100.0f, 0.0f, -1.0f, 4.0f};
+        const int32_t starts[] = {-1, 0, 1, 3, 7};
+        for (const float offset : {0.0f, 1.25f})
+            for (const float step : steps)
+                for (const int32_t start : starts) {
+                    At<float>(o, av::field::kFloat200) = offset;
+                    At<Path*>(o, av::field::kPath) = &path1;
+                    int32_t index = start;
+                    float leftover = 77.0f;
+                    float out[3] = {9.0f, 9.0f, 9.0f};
+                    using Advance = uint8_t(__thiscall*)(void*, float, const float*, float*, int32_t*, Path*, float*);
+                    const uint8_t answer = reinterpret_cast<Advance>(addr::cSC4AutomatonBase_AdvanceOnPath)(
+                        o, step, points1[0], out, &index, &path1, &leftover);
+                    move.Mix(answer);
+                    move.MixBytes(out, sizeof out);
+                    move.Mix(static_cast<uint32_t>(index));
+                    move.Mix(Bits(leftover));
+                }
+        // The object's own path and index, and none.
+        using Advance = uint8_t(__thiscall*)(void*, float, const float*, float*, int32_t*, Path*, float*);
+        At<int32_t>(o, av::field::kPathIndex) = 1;
+        float out[3] = {};
+        move.Mix(reinterpret_cast<Advance>(addr::cSC4AutomatonBase_AdvanceOnPath)(o, 2.0f, points1[1], out, nullptr,
+                                                                                  nullptr, nullptr));
+        move.MixBytes(out, sizeof out);
+        move.Mix(At<uint32_t>(o, av::field::kPathIndex));
+        At<Path*>(o, av::field::kPath) = nullptr;
+        move.Mix(reinterpret_cast<Advance>(addr::cSC4AutomatonBase_AdvanceOnPath)(o, 2.0f, points1[1], out, nullptr,
+                                                                                  nullptr, nullptr));
+        At<float>(o, av::field::kFloat200) = 0.0f;
+    }
+
+    // ---- Slot 151, the room ahead.
+    {
+        At<Path*>(o, av::field::kPath) = &path1;
+        const float places[][3] = {{100.0f, 5.0f, 200.0f}, {96.0f, 4.0f, 229.5f}, {96.25f, 4.0f, 229.0f}};
+        for (const auto& p : places)
+            for (const uint32_t f : {0u, 0x10u, 8u, 0x18u})
+                for (Front* ahead : {static_cast<Front*>(nullptr), &front}) {
+                    SetPoint(o, av::field::kPosition, p[0], p[1], p[2]);
+                    setFlags(f);
+                    At<Front*>(o, av::field::kObjectB0) = ahead;
+                    move.Mix(Bits(This<float>(addr::cSC4AutomatonBase_ClearAhead, o)));
+                }
+        At<void*>(o, av::field::kObjectB0) = nullptr;
+        setFlags(0);
+    }
+
+    // ---- 0x00551F70 on the route: 50 cells pushed, 49 popped.
+    {
+        char* const route = o + av::field::kRoute;
+        for (uint32_t i = 0; i < 50; ++i) {
+            uint8_t cell[3] = {static_cast<uint8_t>(10 + i), static_cast<uint8_t>(20 + i / 3),
+                               static_cast<uint8_t>(i * 7)};
+            char*& current = At<char*>(route, av::deque::kFinish + av::deque::kCurrent);
+            if (current && current != At<char*>(route, av::deque::kFinish + av::deque::kLast) - 3) {
+                std::memcpy(current, cell, 3);
+                current += 3;
+            } else {
+                This<void>(addr::SC4RouteDeque_PushBackSlow, route, static_cast<void*>(cell));
+            }
+        }
+        for (int i = 0; i < 49; ++i) {
+            This<char*>(addr::SC4RouteDeque_PopFront, route);
+            const uint8_t* const c = At<uint8_t*>(route, av::deque::kStart + av::deque::kCurrent);
+            move.MixBytes(c, 3);
+            move.Mix(static_cast<uint32_t>(c - At<uint8_t*>(route, av::deque::kStart + av::deque::kFirst)));
+        }
+    }
+
+    // ---- Slot 170, the side weights, and 0x0054E6F0.
+    {
+        for (const uint32_t sides : {0xFu, 0x5u, 0x0u})
+            for (const uint32_t way : {0u, 1u, 2u, 3u}) {
+                lane.sides = sides;
+                float weights[16];
+                for (int i = 0; i < 16; ++i)
+                    weights[i] = static_cast<float>(i * 30 + 50);
+                const float dirs[4][3] = {{-2.0f, 0.0f, 0.1f}, {0.2f, 0.0f, -3.0f}, {5.0f, 0.5f, 1.0f},
+                                          {0.0f, 0.0f, 0.75f}};
+                SetPoint(o, av::field::kVectorA4, dirs[way][0], dirs[way][1], dirs[way][2]);
+                At<uint32_t>(o, av::field::k98) = way & 1;
+                At<float>(o, av::field::kFloatA0) = way == 2 ? -250.0f : 1200.0f;
+                setFlags(way == 3 ? 0x4000u : 0u);
+                using Weigh = uint8_t(__thiscall*)(void*, void*, float*);
+                move.Mix(reinterpret_cast<Weigh>(addr::cSC4AutomatonBase_WeighSides)(o, &lane, weights));
+                move.MixBytes(weights, sizeof weights);
+                move.MixBytes(o + av::field::kVectorA4, 12);
+                move.Mix(At<uint32_t>(o, av::field::kFloatA0));
+            }
+        using Weigh = uint8_t(__thiscall*)(void*, void*, float*);
+        float weights[16] = {};
+        move.Mix(reinterpret_cast<Weigh>(addr::cSC4AutomatonBase_WeighSides)(o, nullptr, weights));
+        // 0x0054E6F0 for each side.
+        lane.sides = 0xF;
+        At<uint32_t>(o, av::field::k98) = 1;
+        setFlags(0);
+        for (uint32_t side = 0; side < 4; ++side) {
+            SetPoint(o, av::field::kVectorA4, 1.0f, 0.0f, 0.5f * side);
+            uint32_t out[4] = {0xEEEEEEEEu, 0xEEEEEEEEu, 0xEEEEEEEEu, 0xEEEEEEEEu};
+            using Choose = uint32_t(__thiscall*)(void*, void*, uint32_t, uint32_t, void*);
+            const uint32_t answer = reinterpret_cast<Choose>(addr::cSC4AutomatonBase_ChooseSide)(o, &lane, 0x77u,
+                                                                                                side, out);
+            move.Mix(answer & 0xFF);
+            move.MixBytes(out, sizeof out);
+        }
+        move.Mix(vehicles.calls.h);
+        move.Mix(fakeMap.calls.h);
+        move.Mix(lane.calls.h);
+        lane.sides = 0xB;
+    }
+
+    // ---- Slot 132, entering occupants.
+    {
+        At<void*>(o, av::field::kPath) = nullptr;
+        using Enter = void(__thiscall*)(void*, void*, uint32_t, Path*, uint32_t);
+        const auto enterFn = reinterpret_cast<Enter>(addr::cSC4AutomatonBase_EnterOccupant);
+        setFlags(0x800);
+        SetPoint(o, av::field::kPosition, 100.0f, 5.0f, 200.0f);
+        At<float>(o, av::field::kFloat200) = 0.75f;
+        enterFn(o, &lane, 0x00010203u, &path1, 0);
+        MixMoving(enter, o, known);
+        enterFn(o, &tunnel, 0x0A0B0C0Du, nullptr, 0);
+        MixMoving(enter, o, known);
+        enterFn(o, &lane, 0x0001FF02u, nullptr, 1);
+        MixMoving(enter, o, known);
+        enterFn(o, &bare, 0x11u, &path2, 0);
+        MixMoving(enter, o, known);
+        enterFn(o, &dead, 0x22u, nullptr, 0);
+        MixMoving(enter, o, known);
+        enterFn(o, &tunnel, 0x33u, &path2, 1);
+        MixMoving(enter, o, known);
+        enterFn(o, nullptr, 0u, nullptr, 0);
+        MixMoving(enter, o, known);
+        At<float>(o, av::field::kFloat200) = 0.0f;
+    }
+
+    // ---- Slot 131, a path to an occupant.
+    {
+        using PathTo = uint8_t(__thiscall*)(void*, void*, uint32_t, uint32_t);
+        const auto pathTo = reinterpret_cast<PathTo>(addr::cSC4AutomatonBase_PathTo);
+        for (Lane* to : {&lane, &tunnel, &bare, &dead})
+            for (const uint32_t exact : {0u, 1u}) {
+                Path* const before = to->part ? to->part->path : nullptr;
+                for (int miss = 0; miss < 2; ++miss) {
+                    if (to->part && miss)
+                        to->part->path = to == &lane ? &path3 : nullptr;
+                    enter.Mix(pathTo(o, to, 0x07A1B2C3u, exact));
+                    MixMoving(enter, o, known);
+                    if (to->part)
+                        to->part->path = before;
+                }
+            }
+        enter.Mix(fakeMap.word);
+    }
+
+    // ---- Slot 134, placing on the network.
+    {
+        using Place = uint8_t(__thiscall*)(void*);
+        const auto place = reinterpret_cast<Place>(addr::cSC4AutomatonBase_PlaceOnNetwork);
+        const float* const unset = reinterpret_cast<const float*>(addr::cSC4AutomatonCore_DefaultPoint);
+        SetPoint(o, av::field::kPosition, unset[0], unset[1], unset[2]);
+        enter.Mix(place(o));
+        SetPoint(o, av::field::kPosition, 100.0f, 5.0f, 200.0f);
+        SetPoint(o, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+        for (Lane* at : {static_cast<Lane*>(nullptr), &bare, &dead, &lane, &tunnel})
+            for (const uint32_t way : {0u, 1u, 2u}) {
+                fakeMap.occupant = at;
+                SetPoint(o, av::field::kVectorA4, 0.3f, 0.0f, way == 2 ? 0.0f : -0.9f);
+                At<uint32_t>(o, av::field::k98) = way;
+                setFlags(0x800);
+                enter.Mix(place(o));
+                MixMoving(enter, o, known);
+            }
+        // One point, then a path whose first segment is too short.
+        fakeMap.occupant = &lane;
+        part.path = &path3;
+        enter.Mix(place(o));
+        MixMoving(enter, o, known);
+        fakeMap.occupant = &tunnel;
+        enter.Mix(place(o));
+        MixMoving(enter, o, known);
+        part.path = &path1;
+        fakeMap.occupant = nullptr;
+    }
+
+    // ---- Slot 142, the next route cell (the route still holds one cell).
+    {
+        using Next = uint8_t(__thiscall*)(void*, uint32_t);
+        const auto next = reinterpret_cast<Next>(addr::cSC4AutomatonBase_NextRouteCell);
+        CellNode nodes[3] = {};
+        nodes[0] = {&bare, {}, &nodes[1]};
+        nodes[1] = {&dead, {}, &nodes[2]};
+        nodes[2] = {&lane, {}, nullptr};
+        fakeMap.list = nodes;
+        char* const route = o + av::field::kRoute;
+        auto push = [&](uint8_t x, uint8_t z) {
+            uint8_t cell[3] = {x, z, 0};
+            char*& current = At<char*>(route, av::deque::kFinish + av::deque::kCurrent);
+            if (current && current != At<char*>(route, av::deque::kFinish + av::deque::kLast) - 3) {
+                std::memcpy(current, cell, 3);
+                current += 3;
+            } else {
+                This<void>(addr::SC4RouteDeque_PushBackSlow, route, static_cast<void*>(cell));
+            }
+        };
+        enter.Mix(next(o, 1));
+        push(12, 30);
+        push(12, 29);
+        push(13, 29);
+        push(13, 29);
+        push(12, 29);
+        push(12, 31);
+        for (int i = 0; i < 7; ++i) {
+            setFlags(0x2800);
+            if (i == 5)
+                fakeMap.list = &nodes[1]; // a dead occupant only
+            enter.Mix(next(o, 0));
+            MixMoving(enter, o, known);
+        }
+        fakeMap.list = nullptr;
+    }
+
+    // ---- Slots 129 and 130 on frames of the test's.
+    {
+        using Move = uint8_t(__thiscall*)(void*, float);
+        const auto onPath = reinterpret_cast<Move>(addr::cSC4AutomatonBase_MoveOnPath);
+        const auto straight = reinterpret_cast<Move>(addr::cSC4AutomatonBase_MoveToDestination);
+        auto reset = [&](uint32_t f) {
+            At<void*>(o, av::field::kOccupant) = &lane;
+            At<void*>(o, av::field::kNetwork) = &part;
+            At<Path*>(o, av::field::kPath) = &path1;
+            At<int32_t>(o, av::field::kPathIndex) = 0;
+            SetPoint(o, av::field::kPosition, 100.0f, 5.0f, 200.0f);
+            SetPoint(o, av::field::kDestination, 100.0f, 5.0f, 200.0f);
+            setFlags(f);
+            SetSmoothed(o, 6.0f);
+        };
+        // The path: flat and not, ahead and not, frames of 0.25 s.
+        for (const uint32_t flat : {0u, 1u})
+            for (Front* ahead : {static_cast<Front*>(nullptr), &front}) {
+                reset(0x800);
+                part.flat = flat;
+                At<Front*>(o, av::field::kObjectB0) = ahead;
+                for (int i = 0; i < 12; ++i) {
+                    frame.Mix(onPath(o, 0.25f));
+                    MixMoving(frame, o, known);
+                }
+            }
+        part.flat = 0;
+        At<void*>(o, av::field::kObjectB0) = nullptr;
+        // The early way out (slot 88 with the flags 0x40 and 0x20, the route
+        // and the +0x204 deque empty: the route was popped empty above).
+        reset(0x860);
+        frame.Mix(onPath(o, 0.25f));
+        MixMoving(frame, o, known);
+        // A step not above 0: stopped, then removed.
+        reset(0x800);
+        frame.Mix(onPath(o, 0.0f));
+        MixMoving(frame, o, known);
+        reset(0x840);
+        frame.Mix(onPath(o, -2.0f));
+        MixMoving(frame, o, known);
+        reset(0x800);
+        frame.Mix(onPath(o, -2.0f));
+        MixMoving(frame, o, known);
+        // Straight to the destination.
+        const float goals[][3] = {{120.0f, 5.0f, 230.0f}, {100.5f, 9.0f, 200.25f}, {-5.0f, 5.0f, 200.0f},
+                                  {3000.0f, 0.0f, 100.0f}, {100.0f, 5.0f, 1100.0f}};
+        for (const auto& g : goals)
+            for (const uint32_t f : {0x20800u, 0x800u})
+                for (const uint32_t canGo : {1u, 0u}) {
+                    reset(f);
+                    fakeMap.canGo = canGo;
+                    SetPoint(o, av::field::kDestination, g[0], g[1], g[2]);
+                    for (int i = 0; i < 4; ++i) {
+                        frame.Mix(straight(o, 0.5f));
+                        MixMoving(frame, o, known);
+                    }
+                }
+        reset(0x20800);
+        frame.Mix(straight(o, 0.0f));
+        MixMoving(frame, o, known);
+    }
+
+    *cityGlobal = realCity;
+    g_vehicles = nullptr;
+    move.Mix(part.calls.h);
+    move.Mix(part2.calls.h);
+    frame.Mix(fakeMap.calls.h);
+    enter.Mix(lane.calls.h);
+    enter.Mix(tunnel.calls.h);
+    for (const int32_t r : {lane.references, tunnel.references, bare.references, dead.references, part.references,
+                            part2.references, none.references})
+        enter.Mix(static_cast<uint32_t>(r));
+    if (fakeCity.traps)
+        flags |= 0x200;
+    log::Write("autotest: automata: vehicle: vb3 byte +0x33 %02X, fake city traps %u, references %d %d %d %d %d %d %d",
+               byte33, fakeCity.traps, lane.references, tunnel.references, bare.references, dead.references,
+               part.references, part2.references, none.references);
+
+    // Released: the references the test's objects hold cleared first.
+    At<void*>(o, av::field::kOccupant) = nullptr;
+    At<void*>(o, av::field::kNetwork) = nullptr;
+    At<void*>(o, av::field::kObjectB0) = nullptr;
+    At<void*>(o, av::field::kPath) = nullptr;
+    At<uint32_t>(o, av::field::k98) = word98;
+    At<uint8_t>(o, av::field::kFlags33) = byte33;
+    At<void**>(o, 0) = reinterpret_cast<void**>(addr::cSC4AutomatonBase_Vtable);
+    This<void*>(addr::cSC4AutomatonBase_DeletingDestructor, o, 1u);
+    flags |= 4;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -10887,6 +11732,10 @@ void VehicleDrive(cISC4City* city)
     Hash setters, save, texts, life;
     LifeDrive(v, setters, save, texts, life, flags);
 
+    // ---- Part vb3.
+    Hash move, frame, enter;
+    MoveDrive(move, frame, enter, flags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -10939,13 +11788,14 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[160];
-    std::snprintf(text, sizeof text, " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X", object.h, access.h, queries.h,
-                  nearest.h, flags, setters.h, save.h, texts.h, life.h);
+    char text[192];
+    std::snprintf(text, sizeof text, " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X", object.h,
+                  access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h, enter.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
-               "%08X save %08X texts %08X life %08X",
-               object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h);
+               "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X",
+               object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
+               enter.h);
 }
 
 void Drive(const Day& day)
