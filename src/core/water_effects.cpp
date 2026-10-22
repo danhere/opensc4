@@ -256,140 +256,41 @@ bool Detour(std::uintptr_t address, void (*thunk)(), Fn* original)
 
 // --- The effects manager ---------------------------------------------------------------------
 
-// The machine the translated function runs on (effects_draw.inc): memory by
-// address, the x87 stack as doubles, its compare flags as the status word's
-// high byte holds them (C0 bit 0, C2 bit 2, C3 bit 6).
+// Memory by address.
 template <typename T>
 T& M(uint32_t address)
 {
     return *reinterpret_cast<T*>(static_cast<std::uintptr_t>(address));
 }
 
-[[maybe_unused]] bool Even(uint32_t value)
-{
-    value &= 0xFF;
-    value ^= value >> 4;
-    value ^= value >> 2;
-    value ^= value >> 1;
-    return (value & 1) == 0;
-}
-
-uint32_t CompareStatus(double a, double b)
-{
-    if (a != a || b != b)
-        return 0x45;
-    return a < b ? 0x01 : a == b ? 0x40 : 0x00;
-}
-
-// The effects manager's draw (0x00593120), translated instruction by
-// instruction. `self` is the interface the 3D render holds, the object + 4.
-// The effects in view from three lists go into a vector of {depth, effect}
-// (+0xDA0), those out of view into another (+0xDAC); the particle budget
-// (+0xC9C) follows the count of the last frame (+0xC8C); the vector is
-// sorted and each effect drawn (its slot 0x24), then the fourth list
-// (+0xBC0). The effects' own drawing is still the game's.
-uint32_t DrawEffects(char* self, char* context)
-{
-    uint32_t stackmem[160] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = reinterpret_cast<uint32_t>(context);
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effects_draw.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
 constexpr std::size_t kManagerSize = 0xDE4; // from the object, 4 below the interface
-
-using EffectsFn = uint32_t(__fastcall*)(char*, void*, char*);
-EffectsFn g_effects = nullptr;
-bool g_compareEffects = false;
-
-// The draw cannot be run twice in a frame: the effects move on when drawn.
-// So the comparison runs ours with the calls that draw or step something
-// only recorded, then the game's with the same calls recorded and made, and
-// compares the two records and what both left in the manager.
-enum class Trace { Off, Record, RecordAndCall };
-Trace g_trace = Trace::Off;
-std::vector<uint32_t> g_calls;
 
 using Call0Fn = uint32_t(__fastcall*)(char*, void*);
 using Call1Fn = uint32_t(__fastcall*)(char*, void*, uint32_t);
 using Call2Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t);
+using Call3Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t);
 
-// The comparison of an effect taking a description notes some calls of
-// functions that have detours of their own further up; defined with it.
-bool DescNoting();
-uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>& real);
-// The same for the second class's version, which notes the base class's as one call.
+// The noted comparisons' engine (the "B" notes): some calls of functions
+// with detours of their own further up are noted through it; defined below.
 bool BNoting();
 bool BBusy();
 uint32_t PartDescriptionByMode(char* part, uint32_t description);
 uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
                  uint32_t out = 0);
-Call1Fn g_beforeDraw = nullptr, g_stepShake = nullptr, g_decalDraw = nullptr;
-Call2Fn g_drawFlash = nullptr, g_effectDraw = nullptr;
 Call0Fn g_afterDraw = nullptr;
-
-template <typename Fn, typename... Args>
-uint32_t Traced(uint32_t id, Fn original, char* self, Args... args)
-{
-    if (g_trace != Trace::Off) {
-        g_calls.push_back(id);
-        g_calls.push_back(reinterpret_cast<uint32_t>(self));
-        (g_calls.push_back(args), ...);
-        if (g_trace == Trace::Record)
-            return 0;
-    }
-    return original(self, nullptr, args...);
-}
-
-uint32_t __fastcall DBeforeDraw(char* self, void*, uint32_t context)
-{
-    return Traced(1, g_beforeDraw, self, context);
-}
-
-uint32_t __fastcall DDrawFlash(char* self, void*, uint32_t context, uint32_t step)
-{
-    return Traced(2, g_drawFlash, self, context, step);
-}
-
-uint32_t __fastcall DStepShake(char* self, void*, uint32_t step)
-{
-    return Traced(3, g_stepShake, self, step);
-}
 
 // The clean-up by the mode of its own replacement, defined with it.
 uint32_t __fastcall AfterDrawByMode(char* self, void*);
 
-uint32_t __fastcall DAfterDraw(char* self, void*)
-{
-    return Traced(4, &AfterDrawByMode, self);
-}
-
 // --- An effect -----------------------------------------------------------------------------
 
-// The effect's draw changes the effect and frees memory, so it cannot run
-// twice. Its comparison runs the game's for real with the functions it calls
-// recorded (which, on what, with what, and what the two that steer it
-// answered), puts the effect back as it was, and runs ours with every call
-// only recorded and answered from the game's record; then the two records
-// and the two effects are compared, and the effect is put back as the game
-// left it.
+// Some of an effect's functions change the effect and free memory, so they
+// cannot run twice. Their comparison runs the game's for real with the
+// functions it calls recorded (which, on what, with what, and what the two
+// that steer it answered), puts the effect back as it was, and runs ours
+// with every call only recorded and answered from the game's record; then
+// the two records and the two effects are compared, and the effect is put
+// back as the game left it.
 struct EffectCall {
     uint32_t target, self, args[2];
     bool operator==(const EffectCall& other) const
@@ -402,12 +303,11 @@ int g_effectNested = 0;
 std::vector<EffectCall> g_effectGameCalls, g_effectOurCalls;
 std::vector<uint32_t> g_effectAnswers;
 std::size_t g_effectAnswer = 0;
-float g_effectClock = 0;
 
 // What a recorded call changed in the effect and its list nodes (the bytes
 // that differ after it, by their place in the saved copy), which the replay
-// applies at the same call: the effect's draw goes by what its steps leave
-// in the effect.
+// applies at the same call: ours goes by what those calls leave in the
+// effect.
 constexpr std::size_t kEffectSize = 0x220;
 char* g_effectSelf = nullptr;
 std::vector<char*> g_effectNodes;
@@ -459,15 +359,15 @@ void UnpokeParticles()
     g_effectPoked.clear();
 }
 
-// The recorded functions whose answer the caller goes by: the particle's
-// step and the end check (a byte), and taking a particle (a pointer).
+// The recorded functions whose answer the caller goes by: the end check (a
+// byte) and taking a particle (a pointer).
 bool g_poolHooked = false;
 // Letting go of what an effect holds records two more, once their detours are in.
 bool g_letGoHooked = false;
 
 bool Steers(uint32_t target)
 {
-    return target == addr::SC4Effect_StepParticle || target == addr::SC4EffectBase_Finish ||
+    return target == addr::SC4EffectBase_Finish ||
            (g_poolHooked &&
             (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle));
 }
@@ -476,15 +376,8 @@ bool Steers(uint32_t target)
 // particle pool's only once their detours are in).
 bool Recorded(uint32_t target)
 {
-    for (const uint32_t address :
-         {addr::SC4Effect_StepParticle, addr::SC4Effect_Emit, addr::SC4Effect_BeforeParticles,
-          addr::SC4Effect_DrawParticlesTextured, addr::SC4Effect_DrawParticles, addr::SC4EffectB_DrawParticles,
-          addr::SC4Effect_NotDrawn, addr::SC4EffectB_NotDrawn, addr::SC4Effect_StepFlag2000,
-          addr::SC4Effect_PathVelocity, addr::SC4Effect_StepFlag80000000, addr::SC4EffectBase_Finish,
-          addr::SC4Effect_StepFlag800000}) {
-        if (target == address)
-            return true;
-    }
+    if (target == addr::SC4EffectBase_Finish)
+        return true;
     return g_poolHooked &&
            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
             target == addr::SC4EffectBase_AddParticle || target == addr::SC4EffectBase_GiveBackParticle ||
@@ -524,26 +417,6 @@ uint32_t CallThisTraced(uint32_t target, void* self, Args... args)
     }
     ++g_effectAnswer;
     return answer;
-}
-
-// A random number (SC4Random::Uniform, 0x00913761: the generator, two
-// doubles as four words): in the replay the one the game's run drew.
-std::vector<double> g_effectRandoms;
-std::size_t g_effectRandom = 0;
-
-double CallRandomTraced(uint32_t target, void* self, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
-{
-    if (!g_effectReplay)
-        return reinterpret_cast<double(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, uint32_t)>(target)(self, a, b,
-                                                                                                           c, d);
-    return g_effectRandom < g_effectRandoms.size() ? g_effectRandoms[g_effectRandom++] : 0.0;
-}
-
-double CallFloatTraced(uint32_t target, void* self)
-{
-    if (!g_effectReplay)
-        return reinterpret_cast<double(__thiscall*)(void*)>(target)(self);
-    return g_effectClock;
 }
 
 uint32_t CallPlainTraced(uint32_t target, uint32_t argument)
@@ -623,1744 +496,20 @@ uint32_t EffectRecorded(uint32_t target, Fn original, char* self, Args... args)
     return result;
 }
 
-#define OPENSC4_EFFECT_HOOK0(Name)                                                                                     \
-    Call0Fn g_##Name = nullptr;                                                                                        \
-    uint32_t __fastcall D##Name(char* self, void*) { return EffectRecorded(addr::Name, g_##Name, self); }              \
-    OPENSC4_THUNK(T##Name, D##Name, 0)
 #define OPENSC4_EFFECT_HOOK1(Name)                                                                                     \
     Call1Fn g_##Name = nullptr;                                                                                        \
     uint32_t __fastcall D##Name(char* self, void*, uint32_t a) { return EffectRecorded(addr::Name, g_##Name, self, a); } \
     OPENSC4_THUNK(T##Name, D##Name, 4)
-#define OPENSC4_EFFECT_HOOK2(Name)                                                                                     \
-    Call2Fn g_##Name = nullptr;                                                                                        \
-    uint32_t __fastcall D##Name(char* self, void*, uint32_t a, uint32_t b)                                             \
-    {                                                                                                                  \
-        return EffectRecorded(addr::Name, g_##Name, self, a, b);                                                       \
-    }                                                                                                                  \
-    OPENSC4_THUNK(T##Name, D##Name, 8)
 
-// A particle's step (0x005B9BA0, slot 0x50 of both effect classes),
-// translated instruction by instruction: the particle's age (+4) grows by
-// the step, and past its life (+8) the particle ends (its first byte
-// cleared, the answer false); else its velocity (+0x1C) takes the effect's
-// (+0x13C) times the step and is scaled down by the description's +0x100,
-// and its position (+0xC) moves by the old and the new velocity.
-// Descriptions with a flag of the mask at 0x00B22E14 go to the game's
-// 0x005B9790 instead.
-uint32_t StepParticle(char* self, uint32_t particle, uint32_t step)
-{
-    uint32_t stackmem[160] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = particle;
-    M<uint32_t>(esp + 8) = step;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_step.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-constexpr std::size_t kParticleSize = 0x28;
-constexpr std::uintptr_t kStepOtherMask = 0x00B22E14;
 enum class StepMode { Original, Ours, Compare };
-StepMode g_stepMode = StepMode::Original;
-Call2Fn g_SC4Effect_StepParticle = nullptr;
-uint64_t g_stepsCompared = 0;
-
-// The step by its mode. It only reads the effect and writes the particle,
-// so the comparison runs ours on the particle, keeps what it left, puts the
-// particle back and runs the game's. The other step (0x005B9790) is not
-// compared: it is still the game's on both sides.
-uint32_t __fastcall StepByMode(char* self, void*, uint32_t particle, uint32_t step)
-{
-    if (g_stepMode == StepMode::Original)
-        return g_SC4Effect_StepParticle(self, nullptr, particle, step);
-    if (g_stepMode == StepMode::Ours)
-        return StepParticle(self, particle, step);
-    if (At<uint32_t>(At<char*>(self, 0x24), 0) & Global<uint32_t>(kStepOtherMask))
-        return g_SC4Effect_StepParticle(self, nullptr, particle, step);
-    char* const bytes = reinterpret_cast<char*>(particle);
-    char before[kParticleSize], mine[kParticleSize];
-    std::memcpy(before, bytes, kParticleSize);
-    const uint32_t ourResult = StepParticle(self, particle, step);
-    std::memcpy(mine, bytes, kParticleSize);
-    std::memcpy(bytes, before, kParticleSize);
-    const uint32_t result = g_SC4Effect_StepParticle(self, nullptr, particle, step);
-    ++g_stepsCompared;
-    if ((g_stepsCompared & (g_stepsCompared - 1)) == 0)
-        log::Write("water effects: effects.step: %llu steps compared so far",
-                   static_cast<unsigned long long>(g_stepsCompared));
-    const bool same = (result & 0xFF) == (ourResult & 0xFF) && std::memcmp(bytes, mine, kParticleSize) == 0;
-    if (same)
-        compare::Record("effects.step", true, std::string(), std::string());
-    else
-        compare::Record("effects.step", false, std::to_string(result & 0xFF) + " " + Hex(bytes, kParticleSize),
-                        std::to_string(ourResult & 0xFF) + " " + Hex(mine, kParticleSize));
-    return result;
-}
-
-uint32_t __fastcall DSC4Effect_StepParticle(char* self, void*, uint32_t particle, uint32_t step)
-{
-    return EffectRecorded(addr::SC4Effect_StepParticle, &StepByMode, self, particle, step);
-}
-OPENSC4_THUNK(TSC4Effect_StepParticle, DSC4Effect_StepParticle, 8)
-
-// An effect's emit (0x005B96E0, slot 0x3C of both effect classes),
-// translated instruction by instruction: nothing when +0x10 is set; a
-// countdown at +0x190 is lowered by the step (+0x108), and while it is above
-// zero nothing is emitted; then the step (what the countdown went below zero
-// by, at most a value from the description's +0x1C) goes to one of three
-// emitters by the description's flags: 4, 2, or neither.
-bool g_emitReplay = false;
-uint32_t g_emitTarget = 0, g_emitStep = 0;
-
-uint32_t CallEmitter(uint32_t target, void* self, uint32_t step)
-{
-    if (!g_emitReplay)
-        return reinterpret_cast<uint32_t(__thiscall*)(void*, uint32_t)>(target)(self, step);
-    g_emitTarget = target;
-    g_emitStep = step;
-    return 0;
-}
-
-uint32_t EmitParticles(char* self)
-{
-    uint32_t stackmem[160] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_emit.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-enum class EmitMode { Original, Ours, Compare };
-EmitMode g_emitMode = EmitMode::Original;
-Call0Fn g_SC4Effect_Emit = nullptr;
-Call1Fn g_emitToCount = nullptr, g_emitBurst = nullptr, g_emitStream = nullptr;
-uint64_t g_emitsCompared = 0;
-
-// The comparison: everything the emit does itself comes before its one call
-// to an emitter. Ours runs with that call only noted; the effect it left is
-// kept and the effect put back; then the game's runs for real, and a detour
-// on each emitter notes which was called, with what, and the effect as it
-// was on entry (or, when none was called, as the emit left it).
-bool g_emitWatch = false;
-uint32_t g_emitGameTarget = 0, g_emitGameStep = 0;
-char g_emitSeen[kEffectSize];
-char* g_emitSelf = nullptr;
-
-template <typename Fn>
-uint32_t EmitterWatched(uint32_t target, Fn original, char* self, uint32_t step)
-{
-    if (g_emitWatch && self == g_emitSelf && !g_emitGameTarget) {
-        g_emitGameTarget = target;
-        g_emitGameStep = step;
-        std::memcpy(g_emitSeen, self, kEffectSize);
-    }
-    return original(self, nullptr, step);
-}
-
-void TEmitToCount();
-void TEmitBurst();
-void TEmitStream();
-
-uint32_t __fastcall EmitByMode(char* self, void*)
-{
-    if (g_emitMode == EmitMode::Original || g_emitWatch)
-        return g_SC4Effect_Emit(self, nullptr);
-    if (g_emitMode == EmitMode::Ours)
-        return EmitParticles(self);
-    char before[kEffectSize], mine[kEffectSize];
-    std::memcpy(before, self, kEffectSize);
-    g_emitTarget = g_emitStep = 0;
-    g_emitReplay = true;
-    EmitParticles(self);
-    g_emitReplay = false;
-    std::memcpy(mine, self, kEffectSize);
-    std::memcpy(self, before, kEffectSize);
-    g_emitGameTarget = g_emitGameStep = 0;
-    g_emitSelf = self;
-    g_emitWatch = true;
-    const uint32_t result = g_SC4Effect_Emit(self, nullptr);
-    g_emitWatch = false;
-    if (!g_emitGameTarget)
-        std::memcpy(g_emitSeen, self, kEffectSize);
-    ++g_emitsCompared;
-    if ((g_emitsCompared & (g_emitsCompared - 1)) == 0)
-        log::Write("water effects: effects.emit: %llu emits compared so far",
-                   static_cast<unsigned long long>(g_emitsCompared));
-    char text[96];
-    if (g_emitTarget != g_emitGameTarget || g_emitStep != g_emitGameStep) {
-        std::snprintf(text, sizeof text, "emitter %08X, step %08X", g_emitGameTarget, g_emitGameStep);
-        const std::string game = text;
-        std::snprintf(text, sizeof text, "emitter %08X, step %08X", g_emitTarget, g_emitStep);
-        compare::Record("effects.emit", false, game, text);
-    } else if (std::memcmp(g_emitSeen, mine, kEffectSize) != 0) {
-        std::size_t at = 0;
-        while (g_emitSeen[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record("effects.emit", false, text + Hex(g_emitSeen + at, 8), text + Hex(mine + at, 8));
-    } else {
-        compare::Record("effects.emit", true, std::string(), std::string());
-    }
-    return result;
-}
-
-uint32_t __fastcall DSC4Effect_Emit(char* self, void*)
-{
-    return EffectRecorded(addr::SC4Effect_Emit, &EmitByMode, self);
-}
-OPENSC4_THUNK(TSC4Effect_Emit, DSC4Effect_Emit, 0)
-
-// What an effect does before it draws its particles (0x005B3B90, slot 0x38
-// of both effect classes), translated instruction by instruction: when the
-// rotation of the view (the context's +0x18) is not the one kept at +0x88,
-// the two axes the particles are drawn along (+0x70 and +0x7C) are taken
-// again: the camera view's two (its +0x60 and +0x6C), or for descriptions
-// whose byte at +0xD5 is 1 two worked out from the description's own
-// direction (+0x30).
-uint32_t SetEffectAxes(char* self, uint32_t context)
-{
-    uint32_t stackmem[160] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = context;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_axes.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-StepMode g_axesMode = StepMode::Original;
-Call1Fn g_SC4Effect_BeforeParticles = nullptr;
-uint64_t g_axesCompared = 0;
-
-// It reads the context and the description and writes only the effect, so
-// the comparison runs ours and the game's on the same effect.
-uint32_t __fastcall AxesByMode(char* self, void*, uint32_t context)
-{
-    if (g_axesMode == StepMode::Original || g_effectReplay)
-        return g_SC4Effect_BeforeParticles(self, nullptr, context);
-    if (g_axesMode == StepMode::Ours)
-        return SetEffectAxes(self, context);
-    char before[kEffectSize], mine[kEffectSize];
-    std::memcpy(before, self, kEffectSize);
-    SetEffectAxes(self, context);
-    std::memcpy(mine, self, kEffectSize);
-    std::memcpy(self, before, kEffectSize);
-    const uint32_t result = g_SC4Effect_BeforeParticles(self, nullptr, context);
-    ++g_axesCompared;
-    if ((g_axesCompared & (g_axesCompared - 1)) == 0)
-        log::Write("water effects: effects.axes: %llu calls compared so far",
-                   static_cast<unsigned long long>(g_axesCompared));
-    if (std::memcmp(self, mine, kEffectSize) == 0) {
-        compare::Record("effects.axes", true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (self[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        char text[32];
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record("effects.axes", false, text + Hex(self + at, 8), text + Hex(mine + at, 8));
-    }
-    return result;
-}
-
-uint32_t __fastcall DSC4Effect_BeforeParticles(char* self, void*, uint32_t context)
-{
-    return EffectRecorded(addr::SC4Effect_BeforeParticles, &AxesByMode, self, context);
-}
-OPENSC4_THUNK(TSC4Effect_BeforeParticles, DSC4Effect_BeforeParticles, 4)
-// The x87 sine and cosine, as the game executes them.
-double X87Sin(double x)
-{
-    double result;
-    __asm {
-        fld x
-        fsin
-        fstp result
-    }
-    return result;
-}
-
-double X87Atan2(double y, double x)
-{
-    double result;
-    __asm {
-        fld y
-        fld x
-        fpatan
-        fstp result
-    }
-    return result;
-}
-
-double X87Cos(double x)
-{
-    double result;
-    __asm {
-        fld x
-        fcos
-        fstp result
-    }
-    return result;
-}
-
-// The base effect class's particle draw (0x005B3DA0, slot 0x44; used when
-// +0x1EC is clear), translated instruction by instruction: nothing without a
-// texture (+0x68); else the effect's batch (+0x28: vertices and indices) is
-// emptied and given room for the particles (+0x18), each particle of the
-// list becomes a quad in it (its size, colour, turn and place worked out
-// from the description's curves and the two axes at +0x70 and +0x7C), a box
-// around them is kept at +0x1A0 to +0x1B4, and the batch is drawn with the
-// texture.
-uint32_t DrawParticles(char* self, uint32_t context)
-{
-    uint32_t stackmem[320] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[256]);
-    M<uint32_t>(esp + 4) = context;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_particles.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// What a particle draw may change, for a comparison that runs both: the
-// effect but for its batch (+0x28 to +0x68: the batch is emptied at the
-// start of every draw, and its storage may be moved by the first run), the
-// render context with its texture stage cache, and the S3D camera.
-constexpr std::size_t kBatchBegin = 0x28, kBatchEnd = 0x68;
-
-std::vector<Region> ParticleRegions(char* self, char* context)
-{
-    std::vector<Region> regions{{"effect", self, kBatchBegin},
-                                {"effect+68", self + kBatchEnd, kEffectSize - kBatchEnd},
-                                {"context", context, kContextSize}};
-    char* const render = At<char*>(context, 0x34);
-    if (char* const camera = render ? At<char*>(render, 0xD8) : nullptr)
-        regions.push_back({"camera", camera, kCameraSize});
-    if (char* const stages = At<char*>(context, 0xE0))
-        regions.push_back({"stages", stages, static_cast<std::size_t>(At<char*>(context, 0xE4) - stages)});
-    return regions;
-}
-
-// An effect's particle draw into the driver's dynamic vertex buffer
-// (0x005B4B90, slot 0x48 of both effect classes; used when the effect has
-// one, +0x1EC), translated instruction by instruction: nothing without a
-// texture (+0x68); else the texture is bound and the particles are drawn in
-// runs of at most the buffer's capacity: the batch (+0x28) gets the run's
-// indices, the buffer is locked for its vertices, each particle becomes a
-// quad of 0x20-byte vertices worked out as in the other draw, the buffer is
-// unlocked and drawn with the indices. The box around the particles is kept
-// at +0x1A0 to +0x1B4.
-uint32_t DrawParticlesBuffered(char* self, uint32_t context)
-{
-    static uint32_t stackmem[1024];
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[896]);
-    M<uint32_t>(esp + 4) = context;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_particles_buffered.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-StepMode g_bufferedMode = StepMode::Original;
-Call1Fn g_SC4Effect_DrawParticlesTextured = nullptr;
-
-uint32_t __fastcall BufferedByMode(char* self, void*, uint32_t context)
-{
-    if (g_bufferedMode == StepMode::Original || g_depth > 0 || g_effectReplay)
-        return g_SC4Effect_DrawParticlesTextured(self, nullptr, context);
-    if (g_bufferedMode == StepMode::Ours)
-        return DrawParticlesBuffered(self, context);
-    uint32_t result = 0;
-    DrawCompared(g_selfCheck ? "effects.particles_buffered.selfcheck" : "effects.particles_buffered",
-                 ParticleRegions(self, reinterpret_cast<char*>(context)),
-                 [&] {
-                     if (g_selfCheck)
-                         g_SC4Effect_DrawParticlesTextured(self, nullptr, context);
-                     else
-                         DrawParticlesBuffered(self, context);
-                 },
-                 [&] { result = g_SC4Effect_DrawParticlesTextured(self, nullptr, context); });
-    return result;
-}
-
-uint32_t __fastcall DSC4Effect_DrawParticlesTextured(char* self, void*, uint32_t context)
-{
-    return EffectRecorded(addr::SC4Effect_DrawParticlesTextured, &BufferedByMode, self, context);
-}
-OPENSC4_THUNK(TSC4Effect_DrawParticlesTextured, DSC4Effect_DrawParticlesTextured, 4)
-
-StepMode g_particlesMode = StepMode::Original;
-Call1Fn g_SC4Effect_DrawParticles = nullptr;
-
-uint32_t __fastcall ParticlesByMode(char* self, void*, uint32_t context)
-{
-    if (g_particlesMode == StepMode::Original || g_depth > 0 || g_effectReplay)
-        return g_SC4Effect_DrawParticles(self, nullptr, context);
-    if (g_particlesMode == StepMode::Ours)
-        return DrawParticles(self, context);
-    uint32_t result = 0;
-    DrawCompared(g_selfCheck ? "effects.particles.selfcheck" : "effects.particles",
-                 ParticleRegions(self, reinterpret_cast<char*>(context)),
-                 [&] {
-                     if (g_selfCheck)
-                         g_SC4Effect_DrawParticles(self, nullptr, context);
-                     else
-                         DrawParticles(self, context);
-                 },
-                 [&] { result = g_SC4Effect_DrawParticles(self, nullptr, context); });
-    return result;
-}
-
-uint32_t __fastcall DSC4Effect_DrawParticles(char* self, void*, uint32_t context)
-{
-    return EffectRecorded(addr::SC4Effect_DrawParticles, &ParticlesByMode, self, context);
-}
-OPENSC4_THUNK(TSC4Effect_DrawParticles, DSC4Effect_DrawParticles, 4)
-// What the base effect class does instead of drawing, when it has no render
-// context or no particle (0x005B6390, slot 0x4C), translated instruction by
-// instruction: the box around its particles (+0x1A0 to +0x1B4) is worked
-// out anew from each particle's position, taken through the effect's matrix
-// (+0xC8), and widened as after a draw.
-uint32_t UpdateEffectBox(char* self)
-{
-    uint32_t stackmem[160] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_box.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-StepMode g_boxMode = StepMode::Original;
-Call0Fn g_SC4Effect_NotDrawn = nullptr;
-uint64_t g_boxesCompared = 0;
-
-// It reads the particles and writes only the effect's box, so the
-// comparison runs ours and the game's on the same effect.
-uint32_t __fastcall BoxByMode(char* self, void*)
-{
-    if (g_boxMode == StepMode::Original || g_effectReplay)
-        return g_SC4Effect_NotDrawn(self, nullptr);
-    if (g_boxMode == StepMode::Ours)
-        return UpdateEffectBox(self);
-    char before[kEffectSize], mine[kEffectSize];
-    std::memcpy(before, self, kEffectSize);
-    UpdateEffectBox(self);
-    std::memcpy(mine, self, kEffectSize);
-    std::memcpy(self, before, kEffectSize);
-    const uint32_t result = g_SC4Effect_NotDrawn(self, nullptr);
-    ++g_boxesCompared;
-    if ((g_boxesCompared & (g_boxesCompared - 1)) == 0)
-        log::Write("water effects: effects.box: %llu calls compared so far",
-                   static_cast<unsigned long long>(g_boxesCompared));
-    if (std::memcmp(self, mine, kEffectSize) == 0) {
-        compare::Record("effects.box", true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (self[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        char text[32];
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record("effects.box", false, text + Hex(self + at, 8), text + Hex(mine + at, 8));
-    }
-    return result;
-}
-
-uint32_t __fastcall DSC4Effect_NotDrawn(char* self, void*)
-{
-    return EffectRecorded(addr::SC4Effect_NotDrawn, &BoxByMode, self);
-}
-OPENSC4_THUNK(TSC4Effect_NotDrawn, DSC4Effect_NotDrawn, 0)
-
-// The block of a particle of the second effect class (0x005ACA30; the
-// class's draw and its step out of view call it with the particle, a
-// word, a scale, a pointer to three floats and the block to fill),
-// translated instruction by instruction. The block is two bytes and
-// thirteen floats: a matrix of the particle's turning and size and its
-// place. How the particle is turned goes by the description's kind
-// (+0xD5): kinds 2 to 4 face the camera in one of three ways (the game's
-// 0x0080B910, 0x0080B530, 0x0080B830), the others turn about an angle
-// kept in the particle (+0x50), which follows the particle's velocity for
-// some descriptions. The effect's box (+0x1A0) is widened to hold the
-// particle.
-uint32_t ParticleBlockB(char* self, uint32_t particle, uint32_t a, uint32_t scale, uint32_t vector, uint32_t block)
-{
-    uint32_t stackmem[320] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[224]);
-    M<uint32_t>(esp + 4) = particle;
-    M<uint32_t>(esp + 8) = a;
-    M<uint32_t>(esp + 12) = scale;
-    M<uint32_t>(esp + 16) = vector;
-    M<uint32_t>(esp + 20) = block;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_block_b.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// It writes the particle, the effect's box, the block and perhaps the
-// three floats, and only does arithmetic, so the comparison runs ours,
-// keeps what it left, puts all four back and runs the game's.
 using Call5Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-StepMode g_blockModeB = StepMode::Original;
-Call5Fn g_SC4EffectB_ParticleBlock = nullptr;
-uint64_t g_blocksBCompared = 0;
-
-uint32_t __fastcall BlockBByMode(char* self, void*, uint32_t particle, uint32_t a, uint32_t scale, uint32_t vector,
-                                 uint32_t block)
-{
-    if (g_blockModeB == StepMode::Original)
-        return g_SC4EffectB_ParticleBlock(self, nullptr, particle, a, scale, vector, block);
-    if (g_blockModeB == StepMode::Ours)
-        return ParticleBlockB(self, particle, a, scale, vector, block);
-    constexpr std::size_t kParticleSize = 0x54, kEffectSize2 = 0x27C, kBlockSize = 0x38, kVectorSize = 12;
-    constexpr std::size_t kEffectAt = kParticleSize, kBlockAt = kEffectAt + kEffectSize2,
-                          kVectorAt = kBlockAt + kBlockSize, kTotal = kVectorAt + kVectorSize;
-    char before[kTotal], mine[kTotal], theirs[kTotal];
-    const auto save = [&](char* to) {
-        std::memcpy(to, reinterpret_cast<const void*>(particle), kParticleSize);
-        std::memcpy(to + kEffectAt, self, kEffectSize2);
-        std::memcpy(to + kBlockAt, reinterpret_cast<const void*>(block), kBlockSize);
-        std::memcpy(to + kVectorAt, reinterpret_cast<const void*>(vector), kVectorSize);
-    };
-    save(before);
-    ParticleBlockB(self, particle, a, scale, vector, block);
-    save(mine);
-    std::memcpy(reinterpret_cast<void*>(particle), before, kParticleSize);
-    std::memcpy(self, before + kEffectAt, kEffectSize2);
-    std::memcpy(reinterpret_cast<void*>(block), before + kBlockAt, kBlockSize);
-    std::memcpy(reinterpret_cast<void*>(vector), before + kVectorAt, kVectorSize);
-    const uint32_t result = g_SC4EffectB_ParticleBlock(self, nullptr, particle, a, scale, vector, block);
-    save(theirs);
-    ++g_blocksBCompared;
-    if ((g_blocksBCompared & (g_blocksBCompared - 1)) == 0)
-        log::Write("water effects: effects.block_b: %llu blocks compared so far",
-                   static_cast<unsigned long long>(g_blocksBCompared));
-    if (std::memcmp(theirs, mine, kTotal) == 0) {
-        compare::Record("effects.block_b", true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (theirs[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        const char* const part =
-            at < kEffectAt ? "particle" : at < kBlockAt ? "effect" : at < kVectorAt ? "block" : "vector";
-        const std::size_t offset =
-            at < kEffectAt ? at : at < kBlockAt ? at - kEffectAt : at < kVectorAt ? at - kBlockAt : at - kVectorAt;
-        char text[40];
-        std::snprintf(text, sizeof text, "%s+%zX ", part, offset);
-        compare::Record("effects.block_b", false, text + Hex(theirs + at, 8), text + Hex(mine + at, 8));
-    }
-    return result;
-}
-#define OPENSC4_REPUSH_20 OPENSC4_PUSH(20) OPENSC4_PUSH(20) OPENSC4_PUSH(20) OPENSC4_PUSH(20) OPENSC4_PUSH(20)
-OPENSC4_THUNK(TSC4EffectB_ParticleBlock, BlockBByMode, 20)
-
-// The second effect class's step when it is not drawn (0x005AE6E0, slot
-// 0x4C), translated instruction by instruction. The effect's box (+0x1A0)
-// is started again, and every particle of the list takes part in it. A
-// particle whose own effect (+0x44) is there and says so (its slot 0x14)
-// gives that effect where it is: a block of two bytes and thirteen floats
-// made from the particle and the effect's matrix (0x005ACA30, still the
-// game's), one value of the description's curve at the particle's age
-// (slot 0x30 with 3), and the block (slot 0x20), or for descriptions with
-// flag 8 of their third word a second block with its turning left out
-// (slot 0x1C). Last the box is widened by the effect's +0x274.
-uint32_t NotDrawnB(char* self)
-{
-    uint32_t stackmem[256] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[160]);
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_notdrawn_b.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison: what it does is the effect's box and the calls to the
-// particles' own effects. For the length of the comparison every such
-// effect is given a copy of its table of functions with the four slots
-// replaced, which note each call (the slot, the effect, and the values
-// behind the pointer, without the block's two unset bytes). Slot 0x14 only
-// asks, and is always passed on. Ours runs first with the other calls only
-// noted; the effect is put back and the game's runs with them passed on.
-// The calls and the effect must be the same.
-struct ChildCall {
-    uint32_t slot, child, a, b;
-    char data[0x38];
-    bool operator==(const ChildCall& other) const
-    {
-        return slot == other.slot && child == other.child && a == other.a && b == other.b &&
-               std::memcmp(data, other.data, sizeof data) == 0;
-    }
-};
-constexpr std::size_t kChildSlots = 64, kEffectSizeB = 0x27C;
-constexpr std::size_t kParticleBytesB = 0x54, kParticleChild = 0x44;
-std::map<uint32_t, std::vector<uint32_t>> g_childTables;
-std::unordered_map<char*, uint32_t> g_childReal;
-std::vector<ChildCall> g_childOurCalls, g_childGameCalls;
-bool g_childForward = false;
-StepMode g_notDrawnModeB = StepMode::Original;
-Call0Fn g_SC4EffectB_NotDrawn = nullptr;
-uint64_t g_notDrawnBCompared = 0, g_childCallsCompared = 0;
-
-uint32_t ChildSlot(char* child, uint32_t slot)
-{
-    return M<uint32_t>(g_childReal[child] + slot);
-}
-
-void NoteChildCall(const ChildCall& call)
-{
-    (g_childForward ? g_childGameCalls : g_childOurCalls).push_back(call);
-}
-
-void CopyBlock(char* to, uint32_t block)
-{
-    const char* const from = reinterpret_cast<const char*>(block);
-    std::memcpy(to, from, 2);
-    std::memcpy(to + 4, from + 4, 0x34);
-}
-
-uint32_t __fastcall ChildRunning(char* child, void*)
-{
-    const uint32_t result = CallThis<uint32_t>(ChildSlot(child, 0x14), child) & 0xFF;
-    NoteChildCall({0x14, reinterpret_cast<uint32_t>(child), result, 0, {}});
-    return result;
-}
-
-uint32_t __fastcall ChildValue(char* child, void*, uint32_t which, uint32_t values, uint32_t count)
-{
-    ChildCall call{0x30, reinterpret_cast<uint32_t>(child), which, count, {}};
-    std::memcpy(call.data, reinterpret_cast<const void*>(values), count <= 14 ? count * 4 : 0);
-    NoteChildCall(call);
-    return g_childForward ? CallThis<uint32_t>(ChildSlot(child, 0x30), child, which, values, count) : 0;
-}
-
-uint32_t __fastcall ChildBlockPlain(char* child, void*, uint32_t block)
-{
-    ChildCall call{0x1C, reinterpret_cast<uint32_t>(child), 0, 0, {}};
-    CopyBlock(call.data, block);
-    NoteChildCall(call);
-    return g_childForward ? CallThis<uint32_t>(ChildSlot(child, 0x1C), child, block) : 0;
-}
-
-uint32_t __fastcall ChildBlock(char* child, void*, uint32_t block)
-{
-    ChildCall call{0x20, reinterpret_cast<uint32_t>(child), 0, 0, {}};
-    CopyBlock(call.data, block);
-    NoteChildCall(call);
-    return g_childForward ? CallThis<uint32_t>(ChildSlot(child, 0x20), child, block) : 0;
-}
-
-// Every particle's own effect gets the noting table, or its own back.
-void SwapChildren(char* self, bool in)
-{
-    if (!in) {
-        for (const auto& [child, table] : g_childReal)
-            At<uint32_t>(child, 0) = table;
-        g_childReal.clear();
-        return;
-    }
-    char* const head = At<char*>(self, 0x14);
-    for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0)) {
-        char* const child = At<char*>(At<char*>(node, 8), kParticleChild);
-        if (!child || g_childReal.count(child))
-            continue;
-        const uint32_t real = At<uint32_t>(child, 0);
-        std::vector<uint32_t>& table = g_childTables[real];
-        if (table.empty()) {
-            table.assign(reinterpret_cast<const uint32_t*>(real), reinterpret_cast<const uint32_t*>(real) + kChildSlots);
-            table[0x14 / 4] = reinterpret_cast<uint32_t>(&ChildRunning);
-            table[0x30 / 4] = reinterpret_cast<uint32_t>(&ChildValue);
-            table[0x1C / 4] = reinterpret_cast<uint32_t>(&ChildBlockPlain);
-            table[0x20 / 4] = reinterpret_cast<uint32_t>(&ChildBlock);
-        }
-        g_childReal[child] = real;
-        At<uint32_t*>(child, 0) = table.data();
-    }
-}
-
-uint32_t __fastcall NotDrawnBByMode(char* self, void*)
-{
-    if (g_notDrawnModeB == StepMode::Original || g_effectRecord || g_effectReplay || !g_childReal.empty())
-        return g_SC4EffectB_NotDrawn(self, nullptr);
-    if (g_notDrawnModeB == StepMode::Ours)
-        return NotDrawnB(self);
-    char before[kEffectSizeB], mine[kEffectSizeB];
-    std::memcpy(before, self, kEffectSizeB);
-    // The game's 0x005ACA30 turns the particles as it goes (+0x48 to
-    // +0x50), so they are kept and put back as well.
-    std::vector<char*> particles;
-    char* const head = At<char*>(self, 0x14);
-    for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0))
-        particles.push_back(At<char*>(node, 8));
-    const auto saveParticles = [&] {
-        std::vector<char> bytes(particles.size() * kParticleBytesB);
-        for (std::size_t i = 0; i < particles.size(); ++i)
-            std::memcpy(bytes.data() + i * kParticleBytesB, particles[i], kParticleBytesB);
-        return bytes;
-    };
-    const std::vector<char> particlesBefore = saveParticles();
-    SwapChildren(self, true);
-    g_childOurCalls.clear();
-    g_childGameCalls.clear();
-    g_childForward = false;
-    NotDrawnB(self);
-    std::memcpy(mine, self, kEffectSizeB);
-    const std::vector<char> particlesMine = saveParticles();
-    std::memcpy(self, before, kEffectSizeB);
-    for (std::size_t i = 0; i < particles.size(); ++i)
-        std::memcpy(particles[i], particlesBefore.data() + i * kParticleBytesB, kParticleBytesB);
-    g_childForward = true;
-    const uint32_t result = g_SC4EffectB_NotDrawn(self, nullptr);
-    SwapChildren(self, false);
-    const bool sameParticles = saveParticles() == particlesMine;
-    ++g_notDrawnBCompared;
-    g_childCallsCompared += g_childGameCalls.size();
-    if ((g_notDrawnBCompared & (g_notDrawnBCompared - 1)) == 0)
-        log::Write("water effects: effects.notdrawn_b: %llu steps, %llu calls compared so far",
-                   static_cast<unsigned long long>(g_notDrawnBCompared),
-                   static_cast<unsigned long long>(g_childCallsCompared));
-    char text[80];
-    if (!(g_childGameCalls == g_childOurCalls)) {
-        std::size_t at = 0;
-        while (at < g_childGameCalls.size() && at < g_childOurCalls.size() &&
-               g_childGameCalls[at] == g_childOurCalls[at])
-            ++at;
-        const auto describe = [&](const std::vector<ChildCall>& calls) {
-            if (at >= calls.size()) {
-                std::snprintf(text, sizeof text, "%zu calls", calls.size());
-                return std::string(text);
-            }
-            std::snprintf(text, sizeof text, "call %zu of %zu: slot %X on %08X (%X, %X) ", at, calls.size(),
-                          calls[at].slot, calls[at].child, calls[at].a, calls[at].b);
-            return text + Hex(calls[at].data, sizeof calls[at].data);
-        };
-        const std::string game = describe(g_childGameCalls);
-        compare::Record("effects.notdrawn_b", false, game, describe(g_childOurCalls));
-    } else if (!sameParticles) {
-        compare::Record("effects.notdrawn_b", false, "particles", "particles differ");
-    } else if (std::memcmp(self, mine, kEffectSizeB) != 0) {
-        std::size_t at = 0;
-        while (self[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record("effects.notdrawn_b", false, text + Hex(self + at, 4), text + Hex(mine + at, 4));
-    } else {
-        compare::Record("effects.notdrawn_b", true, std::string(), std::string());
-    }
-    return result;
-}
-
-// The second effect class's draw (0x005ADD50, slot 0x44), translated
-// instruction by instruction. Its particles are drawn as one model each:
-// the effect keeps a model instance (+0x220) and the model (+0x224). The
-// box is kept as in the step out of view. Each particle in view (the
-// game's 0x005AD890 says, for descriptions with flag 2 of their third
-// word) gets its block from 0x005ACA30, scaled by a curve of the
-// description; the instance is given the block (slot 0x28) and the
-// particle's colour and opacity in the block the instance itself gave at
-// the start (slots 0x3C and 0x40), the model is set to the frame the
-// particle's own clock (+0x48) has reached (slot 0x28; the clock runs by
-// the effect's step or by the particle's speed), or the effect's timer
-// (+0x228) is used, and the instance is drawn (slot 0x30 with the
-// context). A particle's own effect is then told where it is, as out of
-// view. Last the context's colour is reset (0x007D3290).
-uint32_t DrawParticlesB(char* self, uint32_t context)
-{
-    uint32_t stackmem[320] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[224]);
-    M<uint32_t>(esp + 4) = context;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_draw_b.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison is the step's out of view, with the model instance and
-// the model given noting tables as well: what only asks (the instance's
-// slot 0x3C, the model's 0x30 and 0x44) is always passed on, and the
-// rest, the drawing of the instance among it, only when the game's runs.
-std::map<uint32_t, std::vector<uint32_t>> g_instanceTables, g_modelTables;
-StepMode g_drawModeB = StepMode::Original;
-Call1Fn g_SC4EffectB_DrawParticles = nullptr;
-uint64_t g_drawsBCompared = 0, g_drawBCallsCompared = 0;
-
-uint32_t __fastcall InstanceInfo(char* object, void*, uint32_t out)
-{
-    const uint32_t result = CallThis<uint32_t>(ChildSlot(object, 0x3C), object, out);
-    ChildCall call{0x3C, reinterpret_cast<uint32_t>(object), 0, 0, {}};
-    std::memcpy(call.data, reinterpret_cast<const void*>(result), 0x14);
-    NoteChildCall(call);
-    return result;
-}
-
-uint32_t __fastcall InstanceBlock(char* object, void*, uint32_t block)
-{
-    ChildCall call{0x28, reinterpret_cast<uint32_t>(object), 0, 0, {}};
-    CopyBlock(call.data, block);
-    NoteChildCall(call);
-    return g_childForward ? CallThis<uint32_t>(ChildSlot(object, 0x28), object, block) : 0;
-}
-
-uint32_t __fastcall InstanceSetInfo(char* object, void*, uint32_t info)
-{
-    ChildCall call{0x40, reinterpret_cast<uint32_t>(object), 0, 0, {}};
-    std::memcpy(call.data, reinterpret_cast<const void*>(info), 0x14);
-    NoteChildCall(call);
-    return g_childForward ? CallThis<uint32_t>(ChildSlot(object, 0x40), object, info) : 0;
-}
-
-uint32_t __fastcall InstanceDraw(char* object, void*, uint32_t context, uint32_t flag)
-{
-    NoteChildCall({0x30, reinterpret_cast<uint32_t>(object), context, flag, {}});
-    return g_childForward ? CallThis<uint32_t>(ChildSlot(object, 0x30), object, context, flag) : 0;
-}
-
-uint32_t __fastcall ModelFrames(char* object, void*)
-{
-    const uint32_t result = CallThis<uint32_t>(ChildSlot(object, 0x30), object);
-    NoteChildCall({0x130, reinterpret_cast<uint32_t>(object), result, 0, {}});
-    return result;
-}
-
-uint32_t __fastcall ModelInfo(char* object, void*)
-{
-    const uint32_t result = CallThis<uint32_t>(ChildSlot(object, 0x44), object);
-    NoteChildCall({0x144, reinterpret_cast<uint32_t>(object), M<uint16_t>(result + 2), 0, {}});
-    return result;
-}
-
-uint32_t __fastcall ModelSetFrame(char* object, void*, uint32_t frame)
-{
-    NoteChildCall({0x128, reinterpret_cast<uint32_t>(object), frame, 0, {}});
-    return g_childForward ? CallThis<uint32_t>(ChildSlot(object, 0x28), object, frame) : 0;
-}
-
-// The effect's part at +0x228 keeps memory of its own, so its two
-// functions the draw calls cannot run twice from the same bytes: during a
-// comparison they are noted as the calls above, and run only for the
-// game's.
-constexpr std::size_t kEffectPartB = 0x228, kEffectPartEndB = 0x26C;
-char* g_drawBPart = nullptr;
-Call2Fn g_SC4EffectPartB_Start = nullptr;
-Call1Fn g_SC4EffectPartB_Step = nullptr;
-
-uint32_t __fastcall DSC4EffectPartB_Start(char* part, void*, uint32_t a, uint32_t b)
-{
-    if (part != g_drawBPart)
-        return g_SC4EffectPartB_Start(part, nullptr, a, b);
-    NoteChildCall({0x803E10, 0, a, b, {}});
-    return g_childForward ? g_SC4EffectPartB_Start(part, nullptr, a, b) : 0;
-}
-OPENSC4_THUNK(TSC4EffectPartB_Start, DSC4EffectPartB_Start, 8)
-
-uint32_t __fastcall DSC4EffectPartB_Step(char* part, void*, uint32_t step)
-{
-    if (part != g_drawBPart)
-        return g_SC4EffectPartB_Step(part, nullptr, step);
-    NoteChildCall({0x5AC200, 0, step, 0, {}});
-    return g_childForward ? g_SC4EffectPartB_Step(part, nullptr, step) : 0;
-}
-OPENSC4_THUNK(TSC4EffectPartB_Step, DSC4EffectPartB_Step, 4)
-
-void SwapOne(char* object, std::map<uint32_t, std::vector<uint32_t>>& tables,
-             std::initializer_list<std::pair<uint32_t, uint32_t>> slots)
-{
-    if (!object || g_childReal.count(object))
-        return;
-    const uint32_t real = At<uint32_t>(object, 0);
-    std::vector<uint32_t>& table = tables[real];
-    if (table.empty()) {
-        table.assign(reinterpret_cast<const uint32_t*>(real), reinterpret_cast<const uint32_t*>(real) + kChildSlots);
-        for (const auto& [slot, function] : slots)
-            table[slot / 4] = function;
-    }
-    g_childReal[object] = real;
-    At<uint32_t*>(object, 0) = table.data();
-}
-
-uint32_t __fastcall DrawBByMode(char* self, void*, uint32_t context)
-{
-    if (g_drawModeB == StepMode::Original || g_effectRecord || g_effectReplay || !g_childReal.empty())
-        return g_SC4EffectB_DrawParticles(self, nullptr, context);
-    if (g_drawModeB == StepMode::Ours)
-        return DrawParticlesB(self, context);
-    char before[kEffectSizeB], mine[kEffectSizeB];
-    std::memcpy(before, self, kEffectSizeB);
-    std::vector<char*> particles;
-    char* const head = At<char*>(self, 0x14);
-    for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0))
-        particles.push_back(At<char*>(node, 8));
-    const auto saveParticles = [&] {
-        std::vector<char> bytes(particles.size() * kParticleBytesB);
-        for (std::size_t i = 0; i < particles.size(); ++i)
-            std::memcpy(bytes.data() + i * kParticleBytesB, particles[i], kParticleBytesB);
-        return bytes;
-    };
-    const std::vector<char> particlesBefore = saveParticles();
-    SwapChildren(self, true);
-    SwapOne(At<char*>(self, 0x220), g_instanceTables,
-            {{0x3C, reinterpret_cast<uint32_t>(&InstanceInfo)},
-             {0x28, reinterpret_cast<uint32_t>(&InstanceBlock)},
-             {0x40, reinterpret_cast<uint32_t>(&InstanceSetInfo)},
-             {0x30, reinterpret_cast<uint32_t>(&InstanceDraw)}});
-    SwapOne(At<char*>(self, 0x224), g_modelTables,
-            {{0x30, reinterpret_cast<uint32_t>(&ModelFrames)},
-             {0x44, reinterpret_cast<uint32_t>(&ModelInfo)},
-             {0x28, reinterpret_cast<uint32_t>(&ModelSetFrame)}});
-    g_drawBPart = self + kEffectPartB;
-    g_childOurCalls.clear();
-    g_childGameCalls.clear();
-    g_childForward = false;
-    DrawParticlesB(self, context);
-    std::memcpy(mine, self, kEffectSizeB);
-    const std::vector<char> particlesMine = saveParticles();
-    std::memcpy(self, before, kEffectSizeB);
-    for (std::size_t i = 0; i < particles.size(); ++i)
-        std::memcpy(particles[i], particlesBefore.data() + i * kParticleBytesB, kParticleBytesB);
-    g_childForward = true;
-    const uint32_t result = g_SC4EffectB_DrawParticles(self, nullptr, context);
-    SwapChildren(self, false);
-    g_drawBPart = nullptr;
-    const bool sameParticles = saveParticles() == particlesMine;
-    // The part is the game's alone: ours is given what the game's left.
-    std::memcpy(mine + kEffectPartB, self + kEffectPartB, kEffectPartEndB - kEffectPartB);
-    ++g_drawsBCompared;
-    g_drawBCallsCompared += g_childGameCalls.size();
-    if ((g_drawsBCompared & (g_drawsBCompared - 1)) == 0)
-        log::Write("water effects: effects.draw_b: %llu draws, %llu calls compared so far",
-                   static_cast<unsigned long long>(g_drawsBCompared),
-                   static_cast<unsigned long long>(g_drawBCallsCompared));
-    char text[80];
-    if (!(g_childGameCalls == g_childOurCalls)) {
-        std::size_t at = 0;
-        while (at < g_childGameCalls.size() && at < g_childOurCalls.size() &&
-               g_childGameCalls[at] == g_childOurCalls[at])
-            ++at;
-        const auto describe = [&](const std::vector<ChildCall>& calls) {
-            if (at >= calls.size()) {
-                std::snprintf(text, sizeof text, "%zu calls", calls.size());
-                return std::string(text);
-            }
-            std::snprintf(text, sizeof text, "call %zu of %zu: slot %X on %08X (%X, %X) ", at, calls.size(),
-                          calls[at].slot, calls[at].child, calls[at].a, calls[at].b);
-            return text + Hex(calls[at].data, sizeof calls[at].data);
-        };
-        const std::string game = describe(g_childGameCalls);
-        compare::Record("effects.draw_b", false, game, describe(g_childOurCalls));
-    } else if (!sameParticles) {
-        compare::Record("effects.draw_b", false, "particles", "particles differ");
-    } else if (std::memcmp(self, mine, kEffectSizeB) != 0) {
-        std::size_t at = 0;
-        while (self[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record("effects.draw_b", false, text + Hex(self + at, 4), text + Hex(mine + at, 4));
-    } else {
-        compare::Record("effects.draw_b", true, std::string(), std::string());
-    }
-    return result;
-}
-
-uint32_t __fastcall DSC4EffectB_DrawParticles(char* self, void*, uint32_t context)
-{
-    return EffectRecorded(addr::SC4EffectB_DrawParticles, &DrawBByMode, self, context);
-}
-OPENSC4_THUNK(TSC4EffectB_DrawParticles, DSC4EffectB_DrawParticles, 4)
-
-uint32_t __fastcall DSC4EffectB_NotDrawn(char* self, void*)
-{
-    return EffectRecorded(addr::SC4EffectB_NotDrawn, &NotDrawnBByMode, self);
-}
-OPENSC4_THUNK(TSC4EffectB_NotDrawn, DSC4EffectB_NotDrawn, 0)
-Call1Fn g_SC4Effect_StepFlag2000 = nullptr;
-uint32_t __fastcall DSC4Effect_StepFlag2000(char* self, void*, uint32_t a)
-{
-    if (DescNoting())
-        return DescCallee(addr::SC4Effect_StepFlag2000, a, [&] { return g_SC4Effect_StepFlag2000(self, nullptr, a); });
-    return EffectRecorded(addr::SC4Effect_StepFlag2000, g_SC4Effect_StepFlag2000, self, a);
-}
-OPENSC4_THUNK(TSC4Effect_StepFlag2000, DSC4Effect_StepFlag2000, 4)
-// The pull on an effect's particles from outside (0x005B6C40; called by the
-// effect's draw when its description lists any, +0x1A4), translated
-// instruction by instruction: for descriptions with flag 0x08000000 three
-// floats of the effect (+0xB4) are copied to +0x178; else a velocity is
-// worked out into +0x16C from the middle of
-// the effect's box and what a service of the game (0x00B43CEC, its slots
-// 0xBC and 0x58) answers for that place.
-uint32_t UpdateEffectPull(char* self)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_pull.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-StepMode g_pullMode = StepMode::Original;
-Call0Fn g_SC4Effect_PathVelocity = nullptr;
-uint64_t g_pullsCompared = 0;
-
-// It asks the game's service and writes only the effect, so the comparison
-// runs ours and the game's on the same effect (the service is asked twice).
-uint32_t __fastcall PullByMode(char* self, void*)
-{
-    if (g_pullMode == StepMode::Original || g_effectReplay)
-        return g_SC4Effect_PathVelocity(self, nullptr);
-    if (g_pullMode == StepMode::Ours)
-        return UpdateEffectPull(self);
-    char before[kEffectSize], mine[kEffectSize];
-    std::memcpy(before, self, kEffectSize);
-    if (g_selfCheck)
-        g_SC4Effect_PathVelocity(self, nullptr);
-    else
-        UpdateEffectPull(self);
-    std::memcpy(mine, self, kEffectSize);
-    std::memcpy(self, before, kEffectSize);
-    const uint32_t result = g_SC4Effect_PathVelocity(self, nullptr);
-    const char* const id = g_selfCheck ? "effects.pull.selfcheck" : "effects.pull";
-    ++g_pullsCompared;
-    if ((g_pullsCompared & (g_pullsCompared - 1)) == 0)
-        log::Write("water effects: %s: %llu calls compared so far", id,
-                   static_cast<unsigned long long>(g_pullsCompared));
-    if (std::memcmp(self, mine, kEffectSize) == 0) {
-        compare::Record(id, true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (self[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        char text[32];
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record(id, false, text + Hex(self + at, 8), text + Hex(mine + at, 8));
-    }
-    return result;
-}
-
-uint32_t __fastcall DSC4Effect_PathVelocity(char* self, void*)
-{
-    return EffectRecorded(addr::SC4Effect_PathVelocity, &PullByMode, self);
-}
-OPENSC4_THUNK(TSC4Effect_PathVelocity, DSC4Effect_PathVelocity, 0)
-OPENSC4_EFFECT_HOOK0(SC4Effect_StepFlag80000000)
 Call0Fn g_SC4EffectBase_Finish = nullptr;
 void TSC4EffectBase_Finish();
-// An effect's wandering (0x005B2730; the effect's draw calls it last for
-// descriptions with flag 0x800000, unless the effect has just ended),
-// translated instruction by instruction: a timer (+0x148) is lowered by the
-// step, and each time it runs out it is set again to a random time between
-// two values of the description (+0x174) and the effect's own velocity
-// (+0x150) is turned by a random amount; the random numbers come from the
-// generator at 0x00B22DF8.
-uint32_t WanderEffect(char* self, uint32_t step)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = step;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_wander.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
 
-StepMode g_wanderMode = StepMode::Original;
-Call1Fn g_SC4Effect_StepFlag800000 = nullptr;
-uint64_t g_wandersCompared = 0;
-constexpr std::uintptr_t kEffectGenerator = 0x00B22DF8;
-constexpr std::size_t kGeneratorSize = 0x10;
+// A particle's start (0x005B7580) is the game's; the pool's comparison
+// watches it.
+Call1Fn g_startParticle = nullptr;
 
-// It writes the effect and draws random numbers, so the comparison runs
-// ours, keeps the effect and the generator it left, puts both back and runs
-// the game's: the two then draw the same numbers.
-uint32_t __fastcall WanderByMode(char* self, void*, uint32_t step)
-{
-    if (g_wanderMode == StepMode::Original || g_effectReplay)
-        return g_SC4Effect_StepFlag800000(self, nullptr, step);
-    if (g_wanderMode == StepMode::Ours)
-        return WanderEffect(self, step);
-    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
-    char before[kEffectSize + kGeneratorSize], mine[kEffectSize + kGeneratorSize];
-    const auto save = [&](char* to) {
-        std::memcpy(to, self, kEffectSize);
-        std::memcpy(to + kEffectSize, generator, kGeneratorSize);
-    };
-    save(before);
-    if (g_selfCheck)
-        g_SC4Effect_StepFlag800000(self, nullptr, step);
-    else
-        WanderEffect(self, step);
-    save(mine);
-    std::memcpy(self, before, kEffectSize);
-    std::memcpy(generator, before + kEffectSize, kGeneratorSize);
-    const uint32_t result = g_SC4Effect_StepFlag800000(self, nullptr, step);
-    char game[kEffectSize + kGeneratorSize];
-    save(game);
-    const char* const id = g_selfCheck ? "effects.wander.selfcheck" : "effects.wander";
-    ++g_wandersCompared;
-    if ((g_wandersCompared & (g_wandersCompared - 1)) == 0)
-        log::Write("water effects: %s: %llu calls compared so far", id,
-                   static_cast<unsigned long long>(g_wandersCompared));
-    if (std::memcmp(game, mine, sizeof game) == 0) {
-        compare::Record(id, true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (game[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        char text[40];
-        std::snprintf(text, sizeof text, "%s+%zX ", at < kEffectSize ? "effect" : "generator",
-                      at < kEffectSize ? at : at - kEffectSize);
-        compare::Record(id, false, text + Hex(game + at, 8), text + Hex(mine + at, 8));
-    }
-    return result;
-}
-
-uint32_t __fastcall DSC4Effect_StepFlag800000(char* self, void*, uint32_t step)
-{
-    return EffectRecorded(addr::SC4Effect_StepFlag800000, &WanderByMode, self, step);
-}
-OPENSC4_THUNK(TSC4Effect_StepFlag800000, DSC4Effect_StepFlag800000, 4)
-
-// A particle's start (0x005B7580; taking a particle from the pool calls it
-// with the effect), translated instruction by instruction: the particle is
-// marked as running (its first byte), its age (+4) is 0 and its life (+8) a
-// random time between two values of the description, and its position,
-// velocity and the rest up to +0x40 come from the effect, its description
-// and random numbers of the generator at 0x00B22DF8. For descriptions with
-// a flag of the mask at 0x00B22E18 the game's 0x005B71E0 then places the
-// particle on the ground, and may end it at once.
-uint32_t StartParticle(char* self, uint32_t particle)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = particle;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_start.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-StepMode g_startMode = StepMode::Original, g_groundMode = StepMode::Original;
-Call1Fn g_startParticle = nullptr, g_SC4Effect_PlaceOnGround = nullptr;
-uint64_t g_startsCompared = 0;
-constexpr std::size_t kStartParticleBytes = 0x44;
-
-// The comparison of a function that writes a particle and draws random
-// numbers: ours runs, the particle, the effect and the generator it left
-// are kept, all three are put back and the game's runs: the two then draw
-// the same numbers. The answers are compared by their low byte.
-uint32_t ParticleCompared(const char* name, Call1Fn game, uint32_t (*ours)(char*, uint32_t), char* self,
-                          uint32_t particle)
-{
-    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
-    char* const bytes = reinterpret_cast<char*>(particle);
-    constexpr std::size_t kEffectAt = kStartParticleBytes, kGeneratorAt = kEffectAt + kEffectSize,
-                          kResultAt = kGeneratorAt + kGeneratorSize, kTotal = kResultAt + 4;
-    char before[kTotal] = {}, mine[kTotal] = {}, theirs[kTotal] = {};
-    const auto save = [&](char* to) {
-        std::memcpy(to, bytes, kStartParticleBytes);
-        std::memcpy(to + kEffectAt, self, kEffectSize);
-        std::memcpy(to + kGeneratorAt, generator, kGeneratorSize);
-    };
-    save(before);
-    mine[kResultAt] = static_cast<char>(g_selfCheck ? game(self, nullptr, particle) : ours(self, particle));
-    save(mine);
-    std::memcpy(bytes, before, kStartParticleBytes);
-    std::memcpy(self, before + kEffectAt, kEffectSize);
-    std::memcpy(generator, before + kGeneratorAt, kGeneratorSize);
-    const uint32_t result = game(self, nullptr, particle);
-    theirs[kResultAt] = static_cast<char>(result);
-    save(theirs);
-    const std::string id = std::string(name) + (g_selfCheck ? ".selfcheck" : "");
-    ++g_startsCompared;
-    if ((g_startsCompared & (g_startsCompared - 1)) == 0)
-        log::Write("water effects: %s: %llu particle calls compared so far", id.c_str(),
-                   static_cast<unsigned long long>(g_startsCompared));
-    if (std::memcmp(theirs, mine, kTotal) == 0) {
-        compare::Record(id.c_str(), true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (theirs[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        char text[40];
-        std::snprintf(text, sizeof text, "%s+%zX ",
-                      at < kEffectAt ? "particle" : at < kGeneratorAt ? "effect" : at < kResultAt ? "generator" : "result",
-                      at < kEffectAt ? at : at < kGeneratorAt ? at - kEffectAt : at < kResultAt ? at - kGeneratorAt : 0);
-        compare::Record(id.c_str(), false, text + Hex(theirs + at, 4), text + Hex(mine + at, 4));
-    }
-    return result;
-}
-
-// A new particle put on the ground (0x005B71E0; the start calls it for
-// descriptions with a flag of the mask at 0x00B22E18), translated
-// instruction by instruction: the particle's position is taken to the
-// terrain's grid, and the particle is ended (its first byte cleared, the
-// answer false) when that is off the map, when the height the terrain
-// answers (the object at +0x1F0, slot 0x34) is outside two values of the
-// description (flag 0x10000) or when the cell is of the wrong kind (flags
-// of the mask at 0x00B22E1C and 0x20000, asked of the object at
-// 0x00B43CEC). Else, for flags 0x4000 and 0x8000, the particle is put at
-// that height or the effect's own (+0x1FC) plus a random amount, and the
-// answer is true.
-uint32_t PlaceOnGround(char* self, uint32_t particle)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = particle;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_ground.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-uint32_t __fastcall StartByMode(char* self, void*, uint32_t particle)
-{
-    if (g_startMode == StepMode::Original || g_effectRecord || g_effectReplay)
-        return g_startParticle(self, nullptr, particle);
-    if (g_startMode == StepMode::Ours)
-        return StartParticle(self, particle);
-    return ParticleCompared("effects.start", g_startParticle, &StartParticle, self, particle);
-}
-
-uint32_t __fastcall GroundByMode(char* self, void*, uint32_t particle)
-{
-    if (g_groundMode == StepMode::Original || g_effectRecord || g_effectReplay)
-        return g_SC4Effect_PlaceOnGround(self, nullptr, particle);
-    if (g_groundMode == StepMode::Ours)
-        return PlaceOnGround(self, particle);
-    return ParticleCompared("effects.ground", g_SC4Effect_PlaceOnGround, &PlaceOnGround, self, particle);
-}
-OPENSC4_THUNK(TSC4Effect_PlaceOnGround, GroundByMode, 4)
-
-// A particle's step for descriptions with a flag of the mask at 0x00B22E14
-// (0x005B9790; the plain step jumps to it), translated instruction by
-// instruction: the particle's age (+4) grows by the step and past its life
-// (+8) the particle ends; else the step is done in parts of at most the
-// float at 0x00AA0CF4, each moving the particle (flag 0x10000000 through
-// the game's 0x005B6600), changing its velocity by the effect's and the
-// description's values, and ending it when it leaves the map (flag 0x800)
-// or when the game's 0x005B8DC0 says so (flags 0x100 and 0x400, on the
-// map); last, descriptions with bit 0 of their second word of flags go to
-// the game's 0x005B8020.
-uint32_t StepParticleFull(char* self, uint32_t particle, uint32_t step)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = particle;
-    M<uint32_t>(esp + 8) = step;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_step_full.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison: two of the functions it calls do more than write the
-// particle (0x005B8DC0 may start another effect, 0x005B8020 makes objects),
-// so the game's runs for real with each call of the two noted (what it was
-// given, what it answered and which bytes of the particle and the effect
-// it changed); then the particle and the effect are put back and ours runs
-// with those calls answered from the notes and only those bytes set. The calls, the answers and what is
-// left of the particle and the effect must be the same.
-struct FullStepCall {
-    uint32_t target, particle;
-    char point[12];
-    uint32_t step, result;
-    std::vector<std::pair<uint32_t, char>> changes;
-    bool operator==(const FullStepCall& other) const
-    {
-        return target == other.target && particle == other.particle && step == other.step &&
-               std::memcmp(point, other.point, sizeof point) == 0;
-    }
-};
-using Call3Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t);
-StepMode g_fullStepMode = StepMode::Original;
-Call2Fn g_SC4Effect_StepParticleFull = nullptr;
-Call3Fn g_SC4Effect_StepFlag100 = nullptr;
-Call1Fn g_SC4Effect_StepFlagB1 = nullptr;
-bool g_fullRecord = false, g_fullReplay = false;
-int g_fullNested = 0;
-char* g_fullSelf = nullptr;
-char* g_fullParticle = nullptr;
-std::vector<FullStepCall> g_fullGameCalls, g_fullOurCalls;
-uint64_t g_fullStepsCompared = 0, g_fullCallsCompared = 0;
-
-std::vector<char> SaveFullStep()
-{
-    std::vector<char> bytes(kStartParticleBytes + kEffectSize);
-    std::memcpy(bytes.data(), g_fullParticle, kStartParticleBytes);
-    std::memcpy(bytes.data() + kStartParticleBytes, g_fullSelf, kEffectSize);
-    return bytes;
-}
-
-void RestoreFullStep(const std::vector<char>& bytes)
-{
-    std::memcpy(g_fullParticle, bytes.data(), kStartParticleBytes);
-    std::memcpy(g_fullSelf, bytes.data() + kStartParticleBytes, kEffectSize);
-}
-
-// A particle meeting the water or the ground (0x005B8DC0; the other step
-// calls it for descriptions with flag 0x100 or 0x400, with the particle,
-// its place on the terrain's grid and the part of the step), translated
-// instruction by instruction. A particle at or below the water's height
-// (the effect's +0x1FC) may end there, by a random number against the
-// description's +0x154, and an effect with its +0x219 set starts another
-// effect there ("_water", through 0x005B8290). Otherwise the terrain is
-// asked (the service 0x00B43D1C's interface 0x0A5EAA1A and the object at
-// +0x1F0) for the height and the slope under the particle: a particle that
-// reached the ground bounces (its velocity turned about the ground's
-// normal and scaled by values of the description), slides, stays, or ends
-// (an effect with +0x218 set starts "_terrain" there), and some
-// descriptions scale the effect's own velocity (+0x150). False ends the
-// particle.
-uint32_t HitGround(char* self, uint32_t particle, uint32_t point, uint32_t step)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = particle;
-    M<uint32_t>(esp + 8) = point;
-    M<uint32_t>(esp + 12) = step;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_hit.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison: it writes the particle and the effect, draws random
-// numbers and asks the terrain, all of which can be done twice, but the
-// effect it may start cannot. So the game's runs for real with each start
-// noted (which, and where); the particle, the effect and the generator are
-// put back, and ours runs with the starts only noted. The starts, the
-// answer and what is left of the three must be the same.
-struct HitStart {
-    uint32_t which;
-    char place[12];
-    bool operator==(const HitStart& other) const
-    {
-        return which == other.which && std::memcmp(place, other.place, sizeof place) == 0;
-    }
-};
-StepMode g_hitMode = StepMode::Original;
-Call2Fn g_SC4Effect_StartNamed = nullptr;
-bool g_hitRecord = false, g_hitReplay = false;
-std::vector<HitStart> g_hitGameStarts, g_hitOurStarts;
-uint64_t g_hitsCompared = 0, g_hitStartsCompared = 0;
-
-uint32_t __fastcall DSC4Effect_StartNamed(char* self, void*, uint32_t which, uint32_t place)
-{
-    if (!g_hitRecord && !g_hitReplay)
-        return g_SC4Effect_StartNamed(self, nullptr, which, place);
-    HitStart start{which, {}};
-    std::memcpy(start.place, reinterpret_cast<const void*>(place), sizeof start.place);
-    if (g_hitReplay) {
-        g_hitOurStarts.push_back(start);
-        return 0;
-    }
-    g_hitGameStarts.push_back(start);
-    g_hitRecord = false;
-    const uint32_t result = g_SC4Effect_StartNamed(self, nullptr, which, place);
-    g_hitRecord = true;
-    return result;
-}
-OPENSC4_THUNK(TSC4Effect_StartNamed, DSC4Effect_StartNamed, 8)
-
-uint32_t HitByMode(char* self, uint32_t particle, uint32_t point, uint32_t step)
-{
-    if (g_hitMode == StepMode::Original || g_effectRecord || g_effectReplay || g_hitRecord || g_hitReplay)
-        return g_SC4Effect_StepFlag100(self, nullptr, particle, point, step);
-    if (g_hitMode == StepMode::Ours)
-        return HitGround(self, particle, point, step);
-    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
-    char* const bytes = reinterpret_cast<char*>(particle);
-    constexpr std::size_t kEffectAt = kStartParticleBytes, kGeneratorAt = kEffectAt + kEffectSize,
-                          kTotal = kGeneratorAt + kGeneratorSize;
-    char before[kTotal], mine[kTotal], theirs[kTotal];
-    const auto save = [&](char* to) {
-        std::memcpy(to, bytes, kStartParticleBytes);
-        std::memcpy(to + kEffectAt, self, kEffectSize);
-        std::memcpy(to + kGeneratorAt, generator, kGeneratorSize);
-    };
-    const auto restore = [&](const char* from) {
-        std::memcpy(bytes, from, kStartParticleBytes);
-        std::memcpy(self, from + kEffectAt, kEffectSize);
-        std::memcpy(generator, from + kGeneratorAt, kGeneratorSize);
-    };
-    // The place is the caller's, and the same for both runs.
-    char place[12];
-    std::memcpy(place, reinterpret_cast<const void*>(point), sizeof place);
-    save(before);
-    g_hitGameStarts.clear();
-    g_hitRecord = true;
-    const uint32_t result = g_SC4Effect_StepFlag100(self, nullptr, particle, point, step);
-    g_hitRecord = false;
-    save(theirs);
-    char placeAfter[12];
-    std::memcpy(placeAfter, reinterpret_cast<const void*>(point), sizeof placeAfter);
-    restore(before);
-    std::memcpy(reinterpret_cast<void*>(point), place, sizeof place);
-    g_hitOurStarts.clear();
-    g_hitReplay = true;
-    const uint32_t ourResult = HitGround(self, particle, point, step);
-    g_hitReplay = false;
-    save(mine);
-    const bool samePlace = std::memcmp(reinterpret_cast<const void*>(point), placeAfter, sizeof placeAfter) == 0;
-    restore(theirs);
-    std::memcpy(reinterpret_cast<void*>(point), placeAfter, sizeof placeAfter);
-    ++g_hitsCompared;
-    g_hitStartsCompared += g_hitGameStarts.size();
-    if ((g_hitsCompared & (g_hitsCompared - 1)) == 0)
-        log::Write("water effects: effects.hit: %llu calls, %llu starts compared so far",
-                   static_cast<unsigned long long>(g_hitsCompared),
-                   static_cast<unsigned long long>(g_hitStartsCompared));
-    char text[64];
-    if (!(g_hitGameStarts == g_hitOurStarts)) {
-        std::snprintf(text, sizeof text, "%zu starts", g_hitGameStarts.size());
-        const std::string game = text;
-        std::snprintf(text, sizeof text, "%zu starts", g_hitOurStarts.size());
-        compare::Record("effects.hit", false, game, text);
-    } else if ((result & 0xFF) != (ourResult & 0xFF) || !samePlace || std::memcmp(theirs, mine, kTotal) != 0) {
-        std::size_t at = 0;
-        while (at < kTotal && theirs[at] == mine[at])
-            ++at;
-        at = at < kTotal ? at & ~std::size_t{3} : 0;
-        const char* const part = at < kEffectAt ? "particle" : at < kGeneratorAt ? "effect" : "generator";
-        const std::size_t offset = at < kEffectAt ? at : at < kGeneratorAt ? at - kEffectAt : at - kGeneratorAt;
-        std::snprintf(text, sizeof text, "%u%s %s+%zX ", result & 0xFF, samePlace ? "" : " place", part, offset);
-        const std::string game = text + Hex(theirs + at, 8);
-        std::snprintf(text, sizeof text, "%u%s %s+%zX ", ourResult & 0xFF, samePlace ? "" : " place", part, offset);
-        compare::Record("effects.hit", false, game, text + Hex(mine + at, 8));
-    } else {
-        compare::Record("effects.hit", true, std::string(), std::string());
-    }
-    return result;
-}
-
-template <typename Real>
-uint32_t FullStepCallee(uint32_t target, uint32_t particle, const void* point, uint32_t step, Real&& real)
-{
-    if ((!g_fullRecord && !g_fullReplay) || g_fullNested)
-        return real();
-    FullStepCall call{target, particle, {}, step, 0, {}};
-    if (point)
-        std::memcpy(call.point, point, sizeof call.point);
-    if (g_fullReplay) {
-        const std::size_t at = g_fullOurCalls.size();
-        g_fullOurCalls.push_back(std::move(call));
-        if (at >= g_fullGameCalls.size())
-            return 0;
-        // Only the bytes the game's call changed are given to ours: what
-        // ours has worked out so far stays, and is compared at the end.
-        for (const auto& [offset, value] : g_fullGameCalls[at].changes)
-            (offset < kStartParticleBytes ? g_fullParticle + offset : g_fullSelf + (offset - kStartParticleBytes))[0] =
-                value;
-        return g_fullGameCalls[at].result;
-    }
-    // What the call itself steps is not part of this record.
-    const std::vector<char> before = SaveFullStep();
-    ++g_fullNested;
-    call.result = real();
-    --g_fullNested;
-    const std::vector<char> after = SaveFullStep();
-    for (std::size_t offset = 0; offset < after.size(); ++offset) {
-        if (after[offset] != before[offset])
-            call.changes.push_back({static_cast<uint32_t>(offset), after[offset]});
-    }
-    g_fullGameCalls.push_back(std::move(call));
-    return g_fullGameCalls.back().result;
-}
-
-uint32_t __fastcall DSC4Effect_StepFlag100(char* self, void*, uint32_t particle, uint32_t point, uint32_t step)
-{
-    return FullStepCallee(addr::SC4Effect_StepFlag100, particle, reinterpret_cast<const void*>(point), step,
-                          [&] { return HitByMode(self, particle, point, step); });
-}
-OPENSC4_THUNK(TSC4Effect_StepFlag100, DSC4Effect_StepFlag100, 12)
-
-uint32_t __fastcall DSC4Effect_StepFlagB1(char* self, void*, uint32_t particle)
-{
-    return FullStepCallee(addr::SC4Effect_StepFlagB1, particle, nullptr, 0,
-                          [&] { return g_SC4Effect_StepFlagB1(self, nullptr, particle); });
-}
-OPENSC4_THUNK(TSC4Effect_StepFlagB1, DSC4Effect_StepFlagB1, 4)
-
-uint32_t __fastcall FullStepByMode(char* self, void*, uint32_t particle, uint32_t step)
-{
-    if (g_fullStepMode == StepMode::Original || g_effectRecord || g_effectReplay || g_fullRecord || g_fullReplay)
-        return g_SC4Effect_StepParticleFull(self, nullptr, particle, step);
-    if (g_fullStepMode == StepMode::Ours)
-        return StepParticleFull(self, particle, step);
-    g_fullSelf = self;
-    g_fullParticle = reinterpret_cast<char*>(particle);
-    const std::vector<char> before = SaveFullStep();
-    g_fullGameCalls.clear();
-    g_fullRecord = true;
-    const uint32_t result = g_SC4Effect_StepParticleFull(self, nullptr, particle, step);
-    g_fullRecord = false;
-    const std::vector<char> after = SaveFullStep();
-    RestoreFullStep(before);
-    g_fullOurCalls.clear();
-    g_fullReplay = true;
-    const uint32_t ourResult = StepParticleFull(self, particle, step);
-    g_fullReplay = false;
-    const std::vector<char> mine = SaveFullStep();
-    RestoreFullStep(after);
-    ++g_fullStepsCompared;
-    g_fullCallsCompared += g_fullGameCalls.size();
-    if ((g_fullStepsCompared & (g_fullStepsCompared - 1)) == 0)
-        log::Write("water effects: effects.step_full: %llu steps, %llu calls compared so far",
-                   static_cast<unsigned long long>(g_fullStepsCompared),
-                   static_cast<unsigned long long>(g_fullCallsCompared));
-    char text[96];
-    if (!(g_fullOurCalls == g_fullGameCalls)) {
-        std::size_t at = 0;
-        while (at < g_fullOurCalls.size() && at < g_fullGameCalls.size() && g_fullOurCalls[at] == g_fullGameCalls[at])
-            ++at;
-        const auto describe = [&](const std::vector<FullStepCall>& calls) {
-            if (at < calls.size())
-                std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X, step %08X) ", at, calls.size(),
-                              calls[at].target, calls[at].particle, calls[at].step);
-            else
-                std::snprintf(text, sizeof text, "%zu calls", calls.size());
-            return at < calls.size() ? text + Hex(calls[at].point, sizeof calls[at].point) : std::string(text);
-        };
-        const std::string game = describe(g_fullGameCalls);
-        compare::Record("effects.step_full", false, game, describe(g_fullOurCalls));
-    } else if ((result & 0xFF) != (ourResult & 0xFF) || after != mine) {
-        std::size_t at = 0;
-        while (at < after.size() && after[at] == mine[at])
-            ++at;
-        at = at < after.size() ? at & ~std::size_t{3} : 0;
-        std::snprintf(text, sizeof text, "%u %s+%zX ", result & 0xFF, at < kStartParticleBytes ? "particle" : "effect",
-                      at < kStartParticleBytes ? at : at - kStartParticleBytes);
-        const std::string game = text + Hex(after.data() + at, 8);
-        std::snprintf(text, sizeof text, "%u %s+%zX ", ourResult & 0xFF,
-                      at < kStartParticleBytes ? "particle" : "effect",
-                      at < kStartParticleBytes ? at : at - kStartParticleBytes);
-        compare::Record("effects.step_full", false, game, text + Hex(mine.data() + at, 8));
-    } else {
-        compare::Record("effects.step_full", true, std::string(), std::string());
-    }
-    return result;
-}
-OPENSC4_THUNK(TSC4Effect_StepParticleFull, FullStepByMode, 8)
 // --- The effect's small functions ------------------------------------------------------------
 
 // Five of the effect's functions that only read or write a few of its
@@ -2496,9 +645,6 @@ uint32_t __fastcall HoldByMode(char* self, void*)
     if (BNoting())
         return BCallee(addr::SC4Effect_Hold, reinterpret_cast<uint32_t>(self), 0, 0,
                        [&] { return g_SC4Effect_Hold(self, nullptr); });
-    if (DescNoting())
-        return DescCallee(addr::SC4Effect_Hold, reinterpret_cast<uint32_t>(self),
-                          [&] { return g_SC4Effect_Hold(self, nullptr); });
     if (g_smallMode == StepMode::Original)
         return g_SC4Effect_Hold(self, nullptr);
     if (g_smallMode == StepMode::Ours)
@@ -2521,159 +667,6 @@ uint32_t __fastcall RestartByMode(char* base, void*)
         [&] { return g_SC4EffectBase_Restart(base, nullptr); });
 }
 OPENSC4_THUNK(TSC4EffectBase_Restart, RestartByMode, 0)
-
-// An effect's transform set (0x005B3430, slot 0xC of both classes; two
-// blocks of two bytes and thirteen floats, as the second class makes for
-// its particles), translated instruction by instruction. The first block
-// is kept at +0x90 and the second at +0xC8, each with a count of the
-// times it was set (+0x8C, +0xC4) and the block's second byte (+0x8D,
-// +0xC5). An effect without +0x21A whose
-// description has flag 0x1000 takes no place from the first block. Then
-// the effect's own values that go by the transform are worked out again,
-// up to its box (+0x194 to +0x1B4).
-uint32_t SetEffectTransform(char* self, uint32_t block, uint32_t back)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = block;
-    M<uint32_t>(esp + 8) = back;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_transform.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-StepMode g_transformMode = StepMode::Original;
-Call2Fn g_SC4Effect_SetTransform = nullptr;
-uint64_t g_transformsCompared = 0;
-
-// It reads the two blocks and writes only the effect: ours runs, what it
-// left is kept, the effect is put back and the game's runs.
-uint32_t __fastcall TransformByMode(char* self, void*, uint32_t block, uint32_t back)
-{
-    if (g_transformMode == StepMode::Original)
-        return g_SC4Effect_SetTransform(self, nullptr, block, back);
-    if (g_transformMode == StepMode::Ours)
-        return SetEffectTransform(self, block, back);
-    char before[kEffectSize], mine[kEffectSize];
-    std::memcpy(before, self, kEffectSize);
-    SetEffectTransform(self, block, back);
-    std::memcpy(mine, self, kEffectSize);
-    std::memcpy(self, before, kEffectSize);
-    const uint32_t result = g_SC4Effect_SetTransform(self, nullptr, block, back);
-    ++g_transformsCompared;
-    if ((g_transformsCompared & (g_transformsCompared - 1)) == 0)
-        log::Write("water effects: effects.transform: %llu calls compared so far",
-                   static_cast<unsigned long long>(g_transformsCompared));
-    if (std::memcmp(self, mine, kEffectSize) == 0) {
-        compare::Record("effects.transform", true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (self[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        char text[40];
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record("effects.transform", false, text + Hex(self + at, 8), text + Hex(mine + at, 8));
-    }
-    return result;
-}
-OPENSC4_THUNK(TSC4Effect_SetTransform, TransformByMode, 8)
-
-// An effect started (0x005B3000, slot 0 of both classes, with one word),
-// translated instruction by instruction. Nothing when the word is set and
-// the description has a count at +0x18 without flag 8, or when the
-// sub-object cannot be set going again (0x005B9CF0). Else the effect's
-// clocks (+0x110, +0x120) and counts are set back, its pull (+0x13C) is
-// the description's, and by the description's flags: a random delay and
-// speed (flag 0x800000, with the wander run once), nothing at all on a
-// cell of the wrong kind (the terrain's object at 0x00B43CEC, as for a
-// new particle), and random values for the emitter's clocks. The random
-// numbers come from the generator at 0x00B22DF8.
-uint32_t BeginEffect(char* self, uint32_t again)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = again;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_begin.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-StepMode g_beginMode = StepMode::Original;
-Call1Fn g_SC4Effect_Begin = nullptr;
-uint64_t g_beginsCompared = 0;
-
-// It writes the effect and draws random numbers: ours runs, the effect and
-// the generator it left are kept, both are put back and the game's runs.
-uint32_t __fastcall BeginByMode(char* self, void*, uint32_t again)
-{
-    if (g_beginMode == StepMode::Original || g_effectRecord || g_effectReplay)
-        return g_SC4Effect_Begin(self, nullptr, again);
-    if (g_beginMode == StepMode::Ours)
-        return BeginEffect(self, again);
-    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
-    constexpr std::size_t kTotal = kEffectSize + kGeneratorSize;
-    char before[kTotal], mine[kTotal], theirs[kTotal];
-    const auto save = [&](char* to) {
-        std::memcpy(to, self, kEffectSize);
-        std::memcpy(to + kEffectSize, generator, kGeneratorSize);
-    };
-    save(before);
-    BeginEffect(self, again);
-    save(mine);
-    std::memcpy(self, before, kEffectSize);
-    std::memcpy(generator, before + kEffectSize, kGeneratorSize);
-    const uint32_t result = g_SC4Effect_Begin(self, nullptr, again);
-    save(theirs);
-    ++g_beginsCompared;
-    if ((g_beginsCompared & (g_beginsCompared - 1)) == 0)
-        log::Write("water effects: effects.begin: %llu calls compared so far",
-                   static_cast<unsigned long long>(g_beginsCompared));
-    if (std::memcmp(theirs, mine, kTotal) == 0) {
-        compare::Record("effects.begin", true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (theirs[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        char text[40];
-        std::snprintf(text, sizeof text, "%s+%zX ", at < kEffectSize ? "effect" : "generator",
-                      at < kEffectSize ? at : at - kEffectSize);
-        compare::Record("effects.begin", false, text + Hex(theirs + at, 8), text + Hex(mine + at, 8));
-    }
-    return result;
-}
-OPENSC4_THUNK(TSC4Effect_Begin, BeginByMode, 4)
 
 // An effect's render state by its kind (0x005B2260; taking a description
 // calls it with the description's kind, 0 to 7; other values do nothing):
@@ -2736,98 +729,8 @@ uint32_t __fastcall KindStateByMode(char* self, void*, uint32_t kind)
 }
 OPENSC4_THUNK(TSC4Effect_SetKindState, KindStateByMode, 4)
 
-// An effect taking a description (0x005B7C90, slot 0x28 of the base
-// class), translated instruction by instruction. A new description is
-// held and the old one let go (0x005AF940, 0x005B1C80). Then, whether the
-// description is new or not: the byte +0x21A is cleared, the render state
-// is set by the description's kind (+0xD4), its texture is loaded
-// (0x005B74C0 with +0xD0), the batch at +0x28 is set up (slot 0x40), and
-// the effect's values that come from the description are set: the rate
-// of its clock (+0x130), colours and scales back to 1, the box cleared,
-// the limits of where particles start (+0x200 to +0x214, with the
-// terrain's height for descriptions with flag 0x1000, or 0x005B7030 for
-// flag 0x2000), and whether the description has a pull of its own
-// (+0x15C, +0x160). For flag 0x100 the effects manager is asked whether
-// there are effects named after this one with "_terrain" and "_water"
-// (+0x218, +0x219).
-uint32_t SetEffectDescription(char* self, uint32_t description)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = description;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_description.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison. Five of the functions it calls cannot run twice (the
-// old description may be destroyed, the texture is counted, the batch
-// keeps memory), so the game's runs first, for real, with each of their
-// calls noted: which, with what, what it answered and which bytes of the
-// effect it changed. The effect is put back and ours runs with those
-// calls not made: the answer and only the changed bytes are given to it.
-// Everything else ours does for real (the render state, the terrain's
-// height, the names asked of the manager). The calls and what is left of
-// the effect must be the same.
-struct DescCall {
-    uint32_t target, a, result;
-    std::vector<std::pair<uint32_t, char>> changes;
-    bool operator==(const DescCall& other) const { return target == other.target && a == other.a; }
-};
-StepMode g_descMode = StepMode::Original;
-Call1Fn g_SC4Effect_SetDescription = nullptr, g_SC4Effect_LoadTexture = nullptr, g_SC4Effect_SortBatch = nullptr;
+Call1Fn g_SC4Effect_LoadTexture = nullptr;
 Call0Fn g_SC4EffectDescription_Release = nullptr;
-bool g_descRecord = false, g_descReplay = false;
-int g_descNested = 0;
-char* g_descSelf = nullptr;
-DWORD g_descThread = 0;
-std::vector<DescCall> g_descGameCalls, g_descOurCalls;
-uint64_t g_descsCompared = 0, g_descCallsCompared = 0;
-
-bool DescNoting()
-{
-    return (g_descRecord || g_descReplay) && g_descNested == 0 && GetCurrentThreadId() == g_descThread;
-}
-
-uint32_t DescCallee(uint32_t target, uint32_t a, const std::function<uint32_t()>& real)
-{
-    DescCall call{target, a, 0, {}};
-    if (g_descReplay) {
-        const std::size_t at = g_descOurCalls.size();
-        g_descOurCalls.push_back(call);
-        if (at >= g_descGameCalls.size())
-            return 0;
-        for (const auto& [offset, value] : g_descGameCalls[at].changes)
-            g_descSelf[offset] = value;
-        return g_descGameCalls[at].result;
-    }
-    char before[kEffectSize];
-    std::memcpy(before, g_descSelf, kEffectSize);
-    ++g_descNested;
-    call.result = real();
-    --g_descNested;
-    for (std::size_t offset = 0; offset < kEffectSize; ++offset) {
-        if (g_descSelf[offset] != before[offset])
-            call.changes.push_back({static_cast<uint32_t>(offset), g_descSelf[offset]});
-    }
-    g_descGameCalls.push_back(std::move(call));
-    return g_descGameCalls.back().result;
-}
 
 // A description let go (0x005B1C80), written by hand: its count of holders
 // (+0x204) goes down by one, and at none it is destroyed (0x0059ECB0) and
@@ -2874,9 +777,6 @@ uint32_t __fastcall DSC4EffectDescription_Release(char* self, void*)
     if (BNoting())
         return BCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self), 0, 0,
                        [&] { return g_SC4EffectDescription_Release(self, nullptr); });
-    if (DescNoting())
-        return DescCallee(addr::SC4EffectDescription_Release, reinterpret_cast<uint32_t>(self),
-                          [&] { return g_SC4EffectDescription_Release(self, nullptr); });
     return EffectRecorded(addr::SC4EffectDescription_Release, &ReleaseByMode, self);
 }
 OPENSC4_THUNK(TSC4EffectDescription_Release, DSC4EffectDescription_Release, 0)
@@ -2971,96 +871,21 @@ uint32_t LoadTextureByMode(char* self, uint32_t which)
 
 uint32_t __fastcall DSC4Effect_LoadTexture(char* self, void*, uint32_t which)
 {
-    if (DescNoting())
-        return DescCallee(addr::SC4Effect_LoadTexture, which,
-                          [&] { return g_SC4Effect_LoadTexture(self, nullptr, which); });
     return LoadTextureByMode(self, which);
 }
 OPENSC4_THUNK(TSC4Effect_LoadTexture, DSC4Effect_LoadTexture, 4)
 
-uint32_t __fastcall DSC4Effect_SortBatch(char* self, void*, uint32_t batch)
-{
-    if (DescNoting())
-        return DescCallee(addr::SC4Effect_SortBatch, batch - reinterpret_cast<uint32_t>(self),
-                          [&] { return g_SC4Effect_SortBatch(self, nullptr, batch); });
-    return g_SC4Effect_SortBatch(self, nullptr, batch);
-}
-OPENSC4_THUNK(TSC4Effect_SortBatch, DSC4Effect_SortBatch, 4)
+// The second effect class: its size, and its part at +0x228.
+constexpr std::size_t kEffectSizeB = 0x27C, kEffectPartB = 0x228;
 
-uint32_t __fastcall DescriptionByMode(char* self, void*, uint32_t description)
+// A block's two bytes and thirteen floats (its two unset bytes left out).
+void CopyBlock(char* to, uint32_t block)
 {
-    if (BNoting())
-        return BCallee(addr::SC4Effect_SetDescription, description, 0, 0,
-                       [&] { return g_SC4Effect_SetDescription(self, nullptr, description); });
-    if (g_descMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
-        BBusy())
-        return g_SC4Effect_SetDescription(self, nullptr, description);
-    if (g_descMode == StepMode::Ours)
-        return SetEffectDescription(self, description);
-    char before[kEffectSize], after[kEffectSize], mine[kEffectSize];
-    std::memcpy(before, self, kEffectSize);
-    g_descSelf = self;
-    g_descThread = GetCurrentThreadId();
-    g_descGameCalls.clear();
-    g_descRecord = true;
-    const uint32_t result = g_SC4Effect_SetDescription(self, nullptr, description);
-    g_descRecord = false;
-    std::memcpy(after, self, kEffectSize);
-    std::memcpy(self, before, kEffectSize);
-    g_descOurCalls.clear();
-    g_descReplay = true;
-    SetEffectDescription(self, description);
-    g_descReplay = false;
-    std::memcpy(mine, self, kEffectSize);
-    std::memcpy(self, after, kEffectSize);
-    ++g_descsCompared;
-    g_descCallsCompared += g_descGameCalls.size();
-    if ((g_descsCompared & (g_descsCompared - 1)) == 0)
-        log::Write("water effects: effects.description: %llu calls, %llu noted calls compared so far",
-                   static_cast<unsigned long long>(g_descsCompared),
-                   static_cast<unsigned long long>(g_descCallsCompared));
-    char text[80];
-    if (!(g_descGameCalls == g_descOurCalls)) {
-        std::size_t at = 0;
-        while (at < g_descGameCalls.size() && at < g_descOurCalls.size() && g_descGameCalls[at] == g_descOurCalls[at])
-            ++at;
-        const auto describe = [&](const std::vector<DescCall>& calls) {
-            if (at < calls.size())
-                std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X)", at, calls.size(), calls[at].target,
-                              calls[at].a);
-            else
-                std::snprintf(text, sizeof text, "%zu calls", calls.size());
-            return std::string(text);
-        };
-        const std::string game = describe(g_descGameCalls);
-        compare::Record("effects.description", false, game, describe(g_descOurCalls));
-    } else if (std::memcmp(after, mine, kEffectSize) != 0) {
-        std::size_t at = 0;
-        while (after[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record("effects.description", false, text + Hex(after + at, 8), text + Hex(mine + at, 8));
-    } else {
-        compare::Record("effects.description", true, std::string(), std::string());
-    }
-    return result;
+    const char* const from = reinterpret_cast<const char*>(block);
+    std::memcpy(to, from, 2);
+    std::memcpy(to + 4, from + 4, 0x34);
 }
-OPENSC4_THUNK(TSC4Effect_SetDescription, DescriptionByMode, 4)
 
-// The second class taking a description (0x005AEC90, its slot 0x28),
-// translated instruction by instruction; nothing for a description without
-// bit 0 of its third word of flags. After the base class's: the model
-// instance (+0x220) and the model (+0x224) are released and the object at
-// +0x278 ended (its slot 0x20), the part at +0x228 is cleared (0x008038D0
-// with 0), and a model is loaded (slot 0x54, 0x005AC610) by the
-// description's +0xD0 or one picked at random from its list at +0x1E0.
-// With a model: the instance is told when the description has flag 1 (its
-// slot 0x40), and for flags 0x100 or 4 of the third word the part is set
-// up on the instance (0x005AC110, 0x00989A60 with 10, 0x008038D0,
-// 0x00802DB0), the byte +0x26C saying whether that worked. Last the
-// effects manager is asked for effects named after this one with two
-// more suffixes (+0x26D, +0x26E).
 // What a note keeps of the values behind a pointer: so many bytes, a
 // string, or a block of two bytes and thirteen floats (its two unset bytes
 // left out).
@@ -3074,9 +899,7 @@ struct BCall {
         return target == other.target && a == other.a && std::memcmp(data, other.data, sizeof data) == 0;
     }
 };
-StepMode g_descModeB = StepMode::Original;
-Call1Fn g_SC4EffectB_SetDescription = nullptr, g_SC4EffectB_LoadModel = nullptr, g_SC4EffectPartB_Attach = nullptr,
-        g_SC4EffectPartB_Place = nullptr, g_SC4EffectPartB_SetDescription = nullptr;
+Call1Fn g_SC4EffectPartB_SetDescription = nullptr;
 bool g_bRecord = false, g_bReplay = false;
 int g_bNested = 0;
 // The memory whose bytes a noted call may change, one piece after another.
@@ -3088,7 +911,6 @@ std::vector<BRegion> g_bRegions;
 char* g_bSelf = nullptr;
 DWORD g_bThread = 0;
 std::vector<BCall> g_bGameCalls, g_bOurCalls;
-uint64_t g_bCompared = 0, g_bCallsCompared = 0;
 
 bool BNoting()
 {
@@ -3158,45 +980,16 @@ uint32_t BCallee(uint32_t target, uint32_t a, uint32_t data, std::size_t size, c
     return g_bGameCalls.back().result;
 }
 
-// What the translation's ten calls go through: the real call, or in the
-// comparison's replay the note of the game's.
+// What ours calls go through: the real call, or in the comparison's
+// replay the note of the game's.
 uint32_t BOurs(uint32_t target, uint32_t a, uint32_t data, std::size_t size, const std::function<uint32_t()>& real,
                uint32_t out = 0)
 {
     return g_bReplay ? BCallee(target, a, data, size, real, out) : real();
 }
 
-uint32_t SetEffectDescriptionB(char* self, uint32_t description)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = description;
-    [[maybe_unused]] double st[8] = {};
-    [[maybe_unused]] int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_description_b.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison is the base class's, the game's first, with more to
-// note. The objects it releases or ends, and the instance the loaded
-// model gives, are seen through copies of their tables of functions (one
-// slot each: 8, 0x20 or 0x40); the part's functions and the model's
-// loading through detours. The pick among the description's models is
-// made again by ours from the same generator.
+// The objects a noted function releases or ends are seen through copies
+// of their tables of functions (one slot each, 8 or 0x20).
 struct BStandIn {
     uint32_t real, slot;
     int times;
@@ -3255,15 +1048,6 @@ uint32_t __fastcall BEnd(char* object, void*)
     });
 }
 
-uint32_t __fastcall BInfo(char* object, void*, uint32_t info)
-{
-    const uint32_t real = BRealSlot(object, 0x40);
-    if (!BNoting())
-        return CallThis<uint32_t>(real, object, info);
-    return BCallee(0x40, reinterpret_cast<uint32_t>(object), info, 0x14,
-                   [&] { return CallThis<uint32_t>(real, object, info); });
-}
-
 // An object given a copy of its table of functions with some slots
 // replaced; `role` names the set of slots.
 void BSwapRole(char* object, uint32_t role, std::initializer_list<std::pair<uint32_t, uint32_t>> slots)
@@ -3308,158 +1092,6 @@ void BGiveBackOwn()
     }
 }
 
-// The second class loading its model (0x005AC610, slot 0x54, with the
-// model's instance ID; nothing for 0), translated instruction by
-// instruction. The resource manager (0x00B43CA8, slot 0xC) is asked for
-// the resource of type 0x5AD0E817, group 0xBADB57F1 and that instance; the
-// old model (+0x224) is released and a new one made from the resource (its
-// slot 0x10), whose part that counts its holders is kept at +0x220. The
-// model's slot 0x40 is called with 3, the largest side of its box (slot
-// 0x1C of the instance) is kept at +0x274, and each of its materials (the
-// interface 0x26A68448) has its flags set by two flags of the description
-// and the description's kind.
-uint32_t LoadModelB(char* self, uint32_t which)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = which;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_model_b.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison runs both for real, on an effect that has no model yet
-// (as its one caller leaves it): ours first, whose model's materials are
-// read (eight bytes each, the flags it sets) and whose model is then
-// released twice, as the class lets go of one; the effect is put back and
-// the game's runs. The effect but for the two pointers, whether there is a
-// model, and the materials must be the same.
-StepMode g_modelModeB = StepMode::Original;
-uint64_t g_modelsBCompared = 0;
-
-std::vector<char> ModelMaterials(char* instance)
-{
-    std::vector<char> bytes;
-    if (!instance)
-        return bytes;
-    char* materials = nullptr;
-    CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0), instance, 0x26A68448u, &materials);
-    if (!materials)
-        return bytes;
-    const uint32_t count = CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0xC), materials);
-    for (uint32_t i = 0; i < count; ++i) {
-        const char* const material =
-            reinterpret_cast<const char*>(
-                CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0x18), materials, i));
-        bytes.insert(bytes.end(), material + 4, material + 12);
-    }
-    CallThis<uint32_t>(At<uint32_t>(At<char*>(materials, 0), 0x8), materials);
-    return bytes;
-}
-
-uint32_t LoadModelBByMode(char* self, uint32_t which)
-{
-    if (g_modelModeB == StepMode::Original)
-        return g_SC4EffectB_LoadModel(self, nullptr, which);
-    if (g_modelModeB == StepMode::Ours)
-        return LoadModelB(self, which);
-    if (At<char*>(self, 0x220) || At<char*>(self, 0x224)) {
-        compare::Record("effects.model_b.skipped", true, std::string(), std::string());
-        return g_SC4EffectB_LoadModel(self, nullptr, which);
-    }
-    char before[kEffectSizeB], mine[kEffectSizeB], theirs[kEffectSizeB];
-    std::memcpy(before, self, kEffectSizeB);
-    LoadModelB(self, which);
-    std::memcpy(mine, self, kEffectSizeB);
-    char* const ourInstance = At<char*>(self, 0x220);
-    char* const ourModel = At<char*>(self, 0x224);
-    const std::vector<char> ourMaterials = ModelMaterials(ourInstance);
-    if (ourInstance)
-        CallThis<uint32_t>(At<uint32_t>(At<char*>(ourInstance, 0), 0x8), ourInstance);
-    if (ourModel) {
-        char* const part = ourModel + 4 + At<int32_t>(At<char*>(ourModel, 4), 4);
-        CallThis<uint32_t>(At<uint32_t>(At<char*>(part, 0), 0x8), part);
-    }
-    std::memcpy(self, before, kEffectSizeB);
-    const uint32_t result = g_SC4EffectB_LoadModel(self, nullptr, which);
-    std::memcpy(theirs, self, kEffectSizeB);
-    const std::vector<char> theirMaterials = ModelMaterials(At<char*>(self, 0x220));
-    const bool sameModel = (ourInstance != nullptr) == (At<char*>(self, 0x220) != nullptr) &&
-                           (ourModel != nullptr) == (At<char*>(self, 0x224) != nullptr);
-    std::memset(mine + 0x220, 0, 8);
-    std::memset(theirs + 0x220, 0, 8);
-    ++g_modelsBCompared;
-    if ((g_modelsBCompared & (g_modelsBCompared - 1)) == 0)
-        log::Write("water effects: effects.model_b: %llu loads compared so far",
-                   static_cast<unsigned long long>(g_modelsBCompared));
-    const char* const id = theirMaterials.empty() ? "effects.model_b.none" : "effects.model_b";
-    char text[64];
-    if (!sameModel) {
-        compare::Record(id, false, At<char*>(self, 0x220) ? "a model" : "no model",
-                        ourInstance ? "a model" : "no model");
-    } else if (theirMaterials != ourMaterials) {
-        std::snprintf(text, sizeof text, "%zu materials ", theirMaterials.size() / 8);
-        const std::string game = text + Hex(theirMaterials.data(), std::min<std::size_t>(theirMaterials.size(), 32));
-        std::snprintf(text, sizeof text, "%zu materials ", ourMaterials.size() / 8);
-        compare::Record(id, false, game,
-                        text + Hex(ourMaterials.data(), std::min<std::size_t>(ourMaterials.size(), 32)));
-    } else if (std::memcmp(theirs, mine, kEffectSizeB) != 0) {
-        std::size_t at = 0;
-        while (theirs[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record(id, false, text + Hex(theirs + at, 8), text + Hex(mine + at, 8));
-    } else {
-        compare::Record(id, true, std::string(), std::string());
-    }
-    return result;
-}
-
-uint32_t __fastcall DSC4EffectB_LoadModel(char* self, void*, uint32_t which)
-{
-    if (!BNoting() || self != g_bSelf)
-        return BBusy() ? g_SC4EffectB_LoadModel(self, nullptr, which) : LoadModelBByMode(self, which);
-    const uint32_t result = BCallee(addr::SC4EffectB_LoadModel, which, 0, 0,
-                                    [&] { return g_SC4EffectB_LoadModel(self, nullptr, which); });
-    BSwap(At<char*>(self, 0x220), 0x40, reinterpret_cast<uint32_t>(&BInfo));
-    return result;
-}
-OPENSC4_THUNK(TSC4EffectB_LoadModel, DSC4EffectB_LoadModel, 4)
-
-uint32_t __fastcall DSC4EffectPartB_Attach(char* part, void*, uint32_t instance)
-{
-    if (!BNoting() || part != g_bSelf + kEffectPartB)
-        return g_SC4EffectPartB_Attach(part, nullptr, instance);
-    return BCallee(addr::SC4EffectPartB_Attach, instance, 0, 0,
-                   [&] { return g_SC4EffectPartB_Attach(part, nullptr, instance); });
-}
-OPENSC4_THUNK(TSC4EffectPartB_Attach, DSC4EffectPartB_Attach, 4)
-
-uint32_t __fastcall DSC4EffectPartB_Place(char* part, void*, uint32_t place)
-{
-    if (!BNoting() || part != g_bSelf + kEffectPartB)
-        return g_SC4EffectPartB_Place(part, nullptr, place);
-    return BCallee(addr::SC4EffectPartB_Place, 0, place, 12,
-                   [&] { return g_SC4EffectPartB_Place(part, nullptr, place); });
-}
-OPENSC4_THUNK(TSC4EffectPartB_Place, DSC4EffectPartB_Place, 4)
-
 uint32_t __fastcall DSC4EffectPartB_SetDescription(char* part, void*, uint32_t description)
 {
     if (!BNoting() || part != g_bSelf + kEffectPartB)
@@ -3469,84 +1101,6 @@ uint32_t __fastcall DSC4EffectPartB_SetDescription(char* part, void*, uint32_t d
                    [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); });
 }
 OPENSC4_THUNK(TSC4EffectPartB_SetDescription, DSC4EffectPartB_SetDescription, 4)
-
-uint32_t __fastcall DescriptionBByMode(char* self, void*, uint32_t description)
-{
-    if (g_descModeB == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
-        BBusy())
-        return g_SC4EffectB_SetDescription(self, nullptr, description);
-    if (g_descModeB == StepMode::Ours)
-        return SetEffectDescriptionB(self, description);
-    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
-    char before[kEffectSizeB], after[kEffectSizeB], mine[kEffectSizeB];
-    char generatorBefore[kGeneratorSize], generatorAfter[kGeneratorSize];
-    std::memcpy(before, self, kEffectSizeB);
-    std::memcpy(generatorBefore, generator, kGeneratorSize);
-    if (char* const model = At<char*>(self, 0x224)) {
-        BSwap(At<char*>(self, 0x220), 0x8, reinterpret_cast<uint32_t>(&BRelease));
-        BSwap(model + 4 + At<int32_t>(At<char*>(model, 4), 4), 0x8, reinterpret_cast<uint32_t>(&BRelease));
-    } else {
-        BSwap(At<char*>(self, 0x220), 0x8, reinterpret_cast<uint32_t>(&BRelease));
-    }
-    BSwap(At<char*>(self, 0x278), 0x20, reinterpret_cast<uint32_t>(&BEnd));
-    g_bSelf = self;
-    g_bRegions = {{self, kEffectSizeB}};
-    g_bThread = GetCurrentThreadId();
-    g_bGameCalls.clear();
-    g_bRecord = true;
-    const uint32_t result = g_SC4EffectB_SetDescription(self, nullptr, description);
-    g_bRecord = false;
-    std::memcpy(after, self, kEffectSizeB);
-    std::memcpy(generatorAfter, generator, kGeneratorSize);
-    std::memcpy(self, before, kEffectSizeB);
-    std::memcpy(generator, generatorBefore, kGeneratorSize);
-    g_bOurCalls.clear();
-    g_bReplay = true;
-    SetEffectDescriptionB(self, description);
-    g_bReplay = false;
-    std::memcpy(mine, self, kEffectSizeB);
-    const bool sameGenerator = std::memcmp(generator, generatorAfter, kGeneratorSize) == 0;
-    std::memcpy(self, after, kEffectSizeB);
-    std::memcpy(generator, generatorAfter, kGeneratorSize);
-    // What is still wearing a copy was not released: its own table back.
-    BGiveBackOwn();
-    ++g_bCompared;
-    g_bCallsCompared += g_bGameCalls.size();
-    if ((g_bCompared & (g_bCompared - 1)) == 0)
-        log::Write("water effects: effects.description_b: %llu calls, %llu noted calls compared so far",
-                   static_cast<unsigned long long>(g_bCompared), static_cast<unsigned long long>(g_bCallsCompared));
-    const char* const id = g_bGameCalls.empty() ? "effects.description_b.none" : "effects.description_b";
-    char text[96];
-    if (!(g_bGameCalls == g_bOurCalls)) {
-        std::size_t at = 0;
-        while (at < g_bGameCalls.size() && at < g_bOurCalls.size() && g_bGameCalls[at] == g_bOurCalls[at])
-            ++at;
-        const auto describe = [&](const std::vector<BCall>& calls) {
-            if (at >= calls.size()) {
-                std::snprintf(text, sizeof text, "%zu calls", calls.size());
-                return std::string(text);
-            }
-            std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X) ", at, calls.size(), calls[at].target,
-                          calls[at].a);
-            return text + Hex(calls[at].data, sizeof calls[at].data);
-        };
-        const std::string game = describe(g_bGameCalls);
-        compare::Record(id, false, game, describe(g_bOurCalls));
-    } else if (!sameGenerator) {
-        compare::Record(id, false, "generator", "generator differs");
-    } else if (std::memcmp(after, mine, kEffectSizeB) != 0) {
-        std::size_t at = 0;
-        while (after[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        std::snprintf(text, sizeof text, "effect+%zX ", at);
-        compare::Record(id, false, text + Hex(after + at, 8), text + Hex(mine + at, 8));
-    } else {
-        compare::Record(id, true, std::string(), std::string());
-    }
-    return result;
-}
-OPENSC4_THUNK(TSC4EffectB_SetDescription, DescriptionBByMode, 4)
 
 // --- The particle pool ---------------------------------------------------------------------
 
@@ -3634,7 +1188,7 @@ uint32_t __fastcall DStartParticle(char* effect, void*, uint32_t particle)
         g_takeGameFree = Global<uint32_t>(kParticleFree);
         std::memcpy(g_takeGameBytes, reinterpret_cast<char*>(particle), kParticleBytes);
     }
-    return StartByMode(effect, nullptr, particle);
+    return g_startParticle(effect, nullptr, particle);
 }
 OPENSC4_THUNK(TStartParticle, DStartParticle, 4)
 
@@ -3746,366 +1300,19 @@ OPENSC4_THUNK(TSC4EffectBase_TakeParticle, DSC4EffectBase_TakeParticle, 0)
 OPENSC4_THUNK(TSC4EffectBase_AddParticle, DSC4EffectBase_AddParticle, 4)
 OPENSC4_THUNK(TSC4EffectBase_GiveBackParticle, DSC4EffectBase_GiveBackParticle, 4)
 
-// The second effect class taking a particle (0x005AEF20, slot 0x3C of its
-// sub-object), translated instruction by instruction. Its particles are
-// 0x54 bytes, from a pool of their own (0x00B0A5C0, free list 0x00B0A5CC):
-// the first of the list is cleared (0x005ADCB0) and started as any
-// particle. One that is running then gets its two words at +0x48 zeroed
-// and an angle at +0x50 (from the effect's matrix, or -999 for some kinds
-// of the description's +0xD5), and, when the description names one
-// (+0x160), an effect of its own at +0x44: made by the effects manager
-// (0x00B43D1C, slot 0x1C) by that name, its slot 0x34 called with 0xD and
-// the effect's +0x270 when the byte +0x26F is set, and its slot 0xC called
-// with the effect's +0x188.
-uint32_t TakeParticleB(char* base)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(base);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_take_b.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-constexpr std::uintptr_t kParticleFreeB = 0x00B0A5CC;
-StepMode g_poolModeB = StepMode::Original;
 Call0Fn g_SC4EffectBaseB_TakeParticle = nullptr;
-
-// Its comparison runs both for real, from the same particle, free list,
-// effect and generator: the game's first; then ours, whose particle must be
-// the same but for the effect of its own (one each, or none each), which
-// is taken off as giving the particle back would (slot 0x10 with the
-// effect's +0x188, then released). What the game's left is put back.
-uint32_t __fastcall TakeBByMode(char* base, void*)
-{
-    const uint32_t first = Global<uint32_t>(kParticleFreeB);
-    if (g_poolModeB == StepMode::Original || g_effectRecord || g_effectReplay ||
-        (g_poolModeB == StepMode::Compare && !first))
-        return g_SC4EffectBaseB_TakeParticle(base, nullptr);
-    if (g_poolModeB == StepMode::Ours)
-        return TakeParticleB(base);
-    char* const self = base - 4;
-    char* const generator = reinterpret_cast<char*>(kEffectGenerator);
-    char* const bytes = reinterpret_cast<char*>(first);
-    constexpr std::size_t kEffectAt = kParticleBytesB, kGeneratorAt = kEffectAt + kEffectSize,
-                          kFreeAt = kGeneratorAt + kGeneratorSize, kTotal = kFreeAt + 4;
-    char before[kTotal], mine[kTotal], theirs[kTotal];
-    const auto save = [&](char* to) {
-        std::memcpy(to, bytes, kParticleBytesB);
-        std::memcpy(to + kEffectAt, self, kEffectSize);
-        std::memcpy(to + kGeneratorAt, generator, kGeneratorSize);
-        std::memcpy(to + kFreeAt, reinterpret_cast<const void*>(kParticleFreeB), 4);
-    };
-    const auto restore = [&](const char* from) {
-        std::memcpy(bytes, from, kParticleBytesB);
-        std::memcpy(self, from + kEffectAt, kEffectSize);
-        std::memcpy(generator, from + kGeneratorAt, kGeneratorSize);
-        std::memcpy(reinterpret_cast<void*>(kParticleFreeB), from + kFreeAt, 4);
-    };
-    save(before);
-    const uint32_t result = g_SC4EffectBaseB_TakeParticle(base, nullptr);
-    save(theirs);
-    restore(before);
-    const uint32_t ourResult = TakeParticleB(base);
-    save(mine);
-    char* const child = At<char*>(bytes, kParticleChild);
-    if (child) {
-        CallThis<void>(At<uint32_t>(At<char*>(child, 0), 0x10), child, At<uint32_t>(self, 0x188));
-        CallThis<void>(At<uint32_t>(At<char*>(child, 0), 0x8), child);
-    }
-    restore(theirs);
-    const bool gameChild = At<uint32_t>(theirs, kParticleChild) != 0, ourChild = child != nullptr;
-    static uint64_t withChild = 0;
-    if (gameChild)
-        ++withChild;
-    if (gameChild && (withChild & (withChild - 1)) == 0)
-        log::Write("water effects: effects.pool_b.take: %llu particles with an effect of their own so far",
-                   static_cast<unsigned long long>(withChild));
-    std::memset(theirs + kParticleChild, 0, 4);
-    std::memset(mine + kParticleChild, 0, 4);
-    const bool same = result == ourResult && gameChild == ourChild && std::memcmp(theirs, mine, kTotal) == 0;
-    if (same) {
-        PoolCompared("effects.pool_b.take", true, std::string(), std::string());
-    } else {
-        std::size_t at = 0;
-        while (at < kTotal && theirs[at] == mine[at])
-            ++at;
-        at = at < kTotal ? at & ~std::size_t{3} : 0;
-        const char* const part =
-            at < kEffectAt ? "particle" : at < kGeneratorAt ? "effect" : at < kFreeAt ? "generator" : "free";
-        const std::size_t offset =
-            at < kEffectAt ? at : at < kGeneratorAt ? at - kEffectAt : at < kFreeAt ? at - kGeneratorAt : 0;
-        char text[80];
-        std::snprintf(text, sizeof text, "%08X child %d %s+%zX ", result, gameChild, part, offset);
-        const std::string game = text + Hex(theirs + at, 4);
-        std::snprintf(text, sizeof text, "%08X child %d %s+%zX ", ourResult, ourChild, part, offset);
-        PoolCompared("effects.pool_b.take", false, game, text + Hex(mine + at, 4));
-    }
-    return result;
-}
 
 uint32_t __fastcall DSC4EffectBaseB_TakeParticle(char* base, void*)
 {
-    return EffectRecorded(addr::SC4EffectBaseB_TakeParticle, &TakeBByMode, base);
+    return EffectRecorded(addr::SC4EffectBaseB_TakeParticle, g_SC4EffectBaseB_TakeParticle, base);
 }
 OPENSC4_THUNK(TSC4EffectBaseB_TakeParticle, DSC4EffectBaseB_TakeParticle, 0)
 
-// The second class given a particle back (0x005AF390, slot 0x40 of its
-// sub-object), translated instruction by instruction. An effect with an
-// object at +0x274 whose particle has not outlived its life starts the
-// particle again instead (0x005AF060). Otherwise the particle's own effect
-// is stopped (its slot 0x10 with the effect's +0x188) and released; an
-// effect with its byte +0x26A set and nothing at +0x188 has the effects
-// manager make the effect named after it with "_death" where the particle
-// was (placed by a block built from the particle and the effect's matrix,
-// its slot 0x34 called when the byte +0x26B is set, started with 0, and
-// let go); and the particle goes back on the free list (0x00B0A5CC). Last,
-// an effect with the object at +0x274, no particle left and its byte +0xC
-// set tells that object (its slot 4 with 0).
-uint32_t GiveBackParticleB(char* base, uint32_t particle)
-{
-    uint32_t stackmem[320] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(base);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[224]);
-    M<uint32_t>(esp + 4) = particle;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_giveback_b.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison is the one of the class taking a description: the game's
-// first, with its calls noted, then ours replayed from the notes. Noted
-// here: the restart (a detour), the particle's own effect stopped and
-// released, the object at +0x274 told, and the effects manager asked to
-// make an effect, all through copies of their tables of functions; the
-// effect the manager makes gets a copy too, so what is done to it is seen.
-// The bytes a noted call may change are the effect's, the particle's and
-// the free list's head.
-constexpr std::size_t kManagerSlotsB = 1024;
-std::vector<uint32_t> g_bManagerTable;
-uint32_t g_bManagerTableReal = 0, g_bManagerReal = 0;
-StepMode g_giveBackModeB = StepMode::Original;
-Call1Fn g_SC4EffectBaseB_GiveBackParticle = nullptr, g_SC4EffectB_RestartParticle = nullptr;
-uint64_t g_giveBacksBCompared = 0, g_giveBackBCallsCompared = 0;
-
-uint32_t __fastcall BChildStop(char* object, void*, uint32_t owner)
-{
-    const uint32_t real = BRealSlot(object, 0x10);
-    if (!BNoting())
-        return CallThis<uint32_t>(real, object, owner);
-    return BCallee(0x10, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&owner), 4,
-                   [&] { return CallThis<uint32_t>(real, object, owner); });
-}
-
-uint32_t __fastcall BOwnerTell(char* object, void*, uint32_t value)
-{
-    const uint32_t real = BRealSlot(object, 0x4);
-    if (!BNoting())
-        return CallThis<uint32_t>(real, object, value);
-    return BCallee(0x4, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&value), 4,
-                   [&] { return CallThis<uint32_t>(real, object, value); });
-}
-
-uint32_t __fastcall BMadeBlock(char* object, void*, uint32_t block)
-{
-    const uint32_t real = BRealSlot(object, 0x20);
-    if (!BNoting())
-        return CallThis<uint32_t>(real, object, block);
-    return BCallee(0x2020, reinterpret_cast<uint32_t>(object), block, kBBlock,
-                   [&] { return CallThis<uint32_t>(real, object, block); });
-}
-
-uint32_t __fastcall BMadeValue(char* object, void*, uint32_t which, uint32_t values, uint32_t count)
-{
-    const uint32_t real = BRealSlot(object, 0x34);
-    if (!BNoting())
-        return CallThis<uint32_t>(real, object, which, values, count);
-    return BCallee(0x2034, reinterpret_cast<uint32_t>(object), values, 4,
-                   [&] { return CallThis<uint32_t>(real, object, which, values, count); });
-}
-
-uint32_t __fastcall BMadeStart(char* object, void*, uint32_t owner)
-{
-    const uint32_t real = BRealSlot(object, 0xC);
-    if (!BNoting())
-        return CallThis<uint32_t>(real, object, owner);
-    return BCallee(0x200C, reinterpret_cast<uint32_t>(object), reinterpret_cast<uint32_t>(&owner), 4,
-                   [&] { return CallThis<uint32_t>(real, object, owner); });
-}
-
-uint32_t __fastcall BMadeRelease(char* object, void*)
-{
-    const uint32_t real = BRealSlot(object, 0x8);
-    if (!BNoting()) {
-        BGiveBack(object, true);
-        return CallThis<uint32_t>(real, object);
-    }
-    return BCallee(0x2008, reinterpret_cast<uint32_t>(object), 0, 0, [&] {
-        BGiveBack(object, true);
-        return CallThis<uint32_t>(real, object);
-    });
-}
-
-uint32_t __fastcall BManagerMake(char* manager, void*, uint32_t name, uint32_t out)
-{
-    const uint32_t real = M<uint32_t>(g_bManagerTableReal + 0x1C);
-    if (!BNoting())
-        return CallThis<uint32_t>(real, manager, name, out);
-    const uint32_t result = BCallee(0x1C, 0, name, kBString,
-                                    [&] { return CallThis<uint32_t>(real, manager, name, out); }, out);
-    if ((result & 0xFF) && M<char*>(out))
-        BSwapRole(M<char*>(out), 0x2000,
-                  {{0x20, reinterpret_cast<uint32_t>(&BMadeBlock)},
-                   {0x34, reinterpret_cast<uint32_t>(&BMadeValue)},
-                   {0xC, reinterpret_cast<uint32_t>(&BMadeStart)},
-                   {0x8, reinterpret_cast<uint32_t>(&BMadeRelease)}});
-    return result;
-}
-
-void BSwapManager(bool in)
-{
-    char* const manager = Global<char*>(0x00B43D1C);
-    if (!manager)
-        return;
-    if (!in) {
-        if (g_bManagerReal)
-            At<uint32_t>(manager, 0) = g_bManagerReal;
-        g_bManagerReal = 0;
-        return;
-    }
-    const uint32_t real = At<uint32_t>(manager, 0);
-    if (g_bManagerTableReal != real) {
-        g_bManagerTable.assign(reinterpret_cast<const uint32_t*>(real),
-                               reinterpret_cast<const uint32_t*>(real) + kManagerSlotsB);
-        g_bManagerTable[0x1C / 4] = reinterpret_cast<uint32_t>(&BManagerMake);
-        g_bManagerTableReal = real;
-    }
-    g_bManagerReal = real;
-    At<uint32_t*>(manager, 0) = g_bManagerTable.data();
-}
-
-uint32_t __fastcall DSC4EffectB_RestartParticle(char* self, void*, uint32_t particle)
-{
-    if (!BNoting())
-        return g_SC4EffectB_RestartParticle(self, nullptr, particle);
-    return BCallee(addr::SC4EffectB_RestartParticle, particle, 0, 0,
-                   [&] { return g_SC4EffectB_RestartParticle(self, nullptr, particle); });
-}
-OPENSC4_THUNK(TSC4EffectB_RestartParticle, DSC4EffectB_RestartParticle, 4)
-
-uint32_t __fastcall GiveBackBByMode(char* base, void*, uint32_t particle)
-{
-    if (g_giveBackModeB == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
-        BBusy())
-        return g_SC4EffectBaseB_GiveBackParticle(base, nullptr, particle);
-    if (g_giveBackModeB == StepMode::Ours)
-        return GiveBackParticleB(base, particle);
-    char* const self = base - 4;
-    char* const bytes = reinterpret_cast<char*>(particle);
-    g_bSelf = self;
-    g_bRegions = {{self, kEffectSizeB}, {bytes, kParticleBytesB}, {reinterpret_cast<char*>(kParticleFreeB), 4}};
-    g_bThread = GetCurrentThreadId();
-    const std::vector<char> before = BSaveRegions();
-    BSwapRole(At<char*>(bytes, kParticleChild), 0x1000,
-              {{0x10, reinterpret_cast<uint32_t>(&BChildStop)}, {0x8, reinterpret_cast<uint32_t>(&BRelease)}});
-    BSwap(At<char*>(base, 0x274), 0x4, reinterpret_cast<uint32_t>(&BOwnerTell));
-    BSwapManager(true);
-    g_bGameCalls.clear();
-    g_bRecord = true;
-    const uint32_t result = g_SC4EffectBaseB_GiveBackParticle(base, nullptr, particle);
-    g_bRecord = false;
-    const std::vector<char> after = BSaveRegions();
-    for (std::size_t offset = 0; offset < before.size(); ++offset)
-        *BRegionByte(offset) = before[offset];
-    g_bOurCalls.clear();
-    g_bReplay = true;
-    GiveBackParticleB(base, particle);
-    g_bReplay = false;
-    const std::vector<char> mine = BSaveRegions();
-    for (std::size_t offset = 0; offset < after.size(); ++offset)
-        *BRegionByte(offset) = after[offset];
-    BSwapManager(false);
-    BGiveBackOwn();
-    ++g_giveBacksBCompared;
-    g_giveBackBCallsCompared += g_bGameCalls.size();
-    if ((g_giveBacksBCompared & (g_giveBacksBCompared - 1)) == 0)
-        log::Write("water effects: effects.giveback_b: %llu calls, %llu noted calls compared so far",
-                   static_cast<unsigned long long>(g_giveBacksBCompared),
-                   static_cast<unsigned long long>(g_giveBackBCallsCompared));
-    // One name for each way it can go, so the totals show which a city has.
-    bool restarted = false, made = false;
-    for (const BCall& call : g_bGameCalls) {
-        restarted = restarted || call.target == addr::SC4EffectB_RestartParticle;
-        made = made || call.target == 0x1C;
-    }
-    const char* const id = restarted ? "effects.giveback_b.restart"
-                           : made    ? "effects.giveback_b.death"
-                                     : "effects.giveback_b";
-    char text[96];
-    if (!(g_bGameCalls == g_bOurCalls)) {
-        std::size_t at = 0;
-        while (at < g_bGameCalls.size() && at < g_bOurCalls.size() && g_bGameCalls[at] == g_bOurCalls[at])
-            ++at;
-        const auto describe = [&](const std::vector<BCall>& calls) {
-            if (at >= calls.size()) {
-                std::snprintf(text, sizeof text, "%zu calls", calls.size());
-                return std::string(text);
-            }
-            std::snprintf(text, sizeof text, "call %zu of %zu: %08X (%08X) ", at, calls.size(), calls[at].target,
-                          calls[at].a);
-            return text + Hex(calls[at].data, sizeof calls[at].data);
-        };
-        const std::string game = describe(g_bGameCalls);
-        compare::Record(id, false, game, describe(g_bOurCalls));
-    } else if (after != mine) {
-        std::size_t at = 0;
-        while (after[at] == mine[at])
-            ++at;
-        const char* const part =
-            at < kEffectSizeB ? "effect" : at < kEffectSizeB + kParticleBytesB ? "particle" : "free";
-        const std::size_t offset =
-            (at < kEffectSizeB ? at : at < kEffectSizeB + kParticleBytesB ? at - kEffectSizeB : 0) & ~std::size_t{3};
-        std::snprintf(text, sizeof text, "%s+%zX %02X", part, offset, static_cast<unsigned char>(after[at]));
-        const std::string game = text;
-        std::snprintf(text, sizeof text, "%s+%zX %02X", part, offset, static_cast<unsigned char>(mine[at]));
-        compare::Record(id, false, game, text);
-    } else {
-        compare::Record(id, true, std::string(), std::string());
-    }
-    return result;
-}
+Call1Fn g_SC4EffectBaseB_GiveBackParticle = nullptr;
 
 uint32_t __fastcall DSC4EffectBaseB_GiveBackParticle(char* base, void*, uint32_t particle)
 {
-    return EffectRecorded(addr::SC4EffectBaseB_GiveBackParticle, &GiveBackBByMode, base, particle);
+    return EffectRecorded(addr::SC4EffectBaseB_GiveBackParticle, g_SC4EffectBaseB_GiveBackParticle, base, particle);
 }
 OPENSC4_THUNK(TSC4EffectBaseB_GiveBackParticle, DSC4EffectBaseB_GiveBackParticle, 4)
 
@@ -4194,7 +1401,7 @@ uint32_t HolderCompared(const char* id, char* at, std::size_t size, Game&& game,
 
 uint32_t SetObjectRun(char* self, uint32_t object)
 {
-    if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+    if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay ||
         BBusy())
         return g_SC4Effect_SetObject(self, nullptr, object);
     if (g_holdersMode == StepMode::Ours)
@@ -4225,7 +1432,7 @@ OPENSC4_THUNK(TSC4Effect_SetObject, SetObjectByMode, 4)
 
 uint32_t PartDescriptionByMode(char* part, uint32_t description)
 {
-    if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay)
+    if (g_holdersMode == StepMode::Original || g_effectRecord || g_effectReplay)
         return g_SC4EffectPartB_SetDescription(part, nullptr, description);
     if (g_holdersMode == StepMode::Ours)
         return SetPartDescription(part, description);
@@ -4235,39 +1442,6 @@ uint32_t PartDescriptionByMode(char* part, uint32_t description)
         [&] { return SetPartDescription(part, description); });
 }
 OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
-
-// A particle effect's draw (0x005B8540, slot 0x24 of both effect classes),
-// translated instruction by instruction: the step added to the effect's
-// clock (+0x110), its velocity worked out (+0x13C), each particle of the
-// list at +0x14 stepped (the class's slot 0x50; one that ends is unlinked
-// and released), new ones emitted (slot 0x3C), then with a render context
-// and particles the drawing (slot 0x38, the render state at +0x1C, slot 0x48
-// or 0x44), else slot 0x4C. Everything it calls is still the game's.
-uint32_t DrawEffect(char* self, uint32_t step, uint32_t context)
-{
-    uint32_t stackmem[160] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = step;
-    M<uint32_t>(esp + 8) = context;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_draw.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
 
 // While the game's run is recorded, what it frees is only noted and freed
 // once the comparison is over: until then the replay reads and writes the
@@ -4314,9 +1488,6 @@ __declspec(noinline) bool TryReplay(uint32_t (*run)(void*), void* argument, uint
     }
 }
 
-enum class EffectMode { Original, Ours, Compare };
-EffectMode g_effectMode = EffectMode::Original;
-
 // The effect's particle list: the head node (+0x14) and each node (next,
 // previous, the particle).
 std::vector<char*> EffectNodes(char* self)
@@ -4351,8 +1522,6 @@ uint32_t RecordAndReplay(const char* id, char* self, bool checkResult, Game&& ga
     const std::vector<char> before = SaveEffect();
     g_effectGameCalls.clear();
     g_effectAnswers.clear();
-    g_effectRandoms.clear();
-    g_effectRandom = 0;
     g_effectTaken.clear();
     g_effectChanges.clear();
     g_effectThread = GetCurrentThreadId();
@@ -4367,7 +1536,6 @@ uint32_t RecordAndReplay(const char* id, char* self, bool checkResult, Game&& ga
     g_effectNested = nested;
     const std::vector<char> after = SaveEffect();
     const std::vector<char*> gameNodes = EffectNodes(self);
-    g_effectClock = At<float>(self, 0x1FC);
     RestoreEffect(before);
     g_effectOurCalls.clear();
     g_effectAnswer = 0;
@@ -4449,213 +1617,6 @@ uint32_t RecordAndReplay(const char* id, char* self, bool checkResult, Game&& ga
     compare::Record(id, true, std::string(), std::string());
     return result;
 }
-
-uint32_t EffectDraw(char* self, uint32_t step, uint32_t context)
-{
-    if (g_effectMode == EffectMode::Original || g_effectRecord || g_effectReplay)
-        return g_effectDraw(self, nullptr, step, context);
-    if (g_effectMode == EffectMode::Ours)
-        return DrawEffect(self, step, context);
-    struct Arguments {
-        char* self;
-        uint32_t step, context;
-    } arguments{self, step, context};
-    return RecordAndReplay(
-        "effects.effect", self, true, [&] { return g_effectDraw(self, nullptr, step, context); },
-        [](void* a) {
-            const Arguments& args = *static_cast<Arguments*>(a);
-            return DrawEffect(args.self, args.step, args.context);
-        },
-        &arguments);
-}
-
-// The emitter that keeps a count of particles (0x005B3CF0, for descriptions
-// with flag 4), translated instruction by instruction: the step times a rate
-// (+0x130) is added to a double at +0x120, and once that has passed +0x128
-// the number of particles (+0x18) is brought up to a count worked out from
-// the description's +0x88: each one taken from the sub-object (slot 0x3C)
-// and added to the list when its first byte is set (slot 0x2C), else given
-// back (slot 0x40).
-uint32_t EmitToCount(char* self, uint32_t step)
-{
-    uint32_t stackmem[160] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = step;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_emit_count.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// The random numbers the recorded function itself draws (not those its
-// callees draw) are noted for the replay.
-using UniformFn = double(__fastcall*)(void*, void*, double, double);
-UniformFn g_uniform = nullptr;
-
-double __fastcall DUniform(void* self, void*, double low, double high)
-{
-    const double value = g_uniform(self, nullptr, low, high);
-    if (g_effectRecord && g_effectNested == 0 && GetCurrentThreadId() == g_effectThread)
-        g_effectRandoms.push_back(value);
-    return value;
-}
-
-// The emitter that emits a steady stream (0x005B87B0, for descriptions with
-// neither flag 4 nor flag 2), translated instruction by instruction: for
-// each particle due in the time it is given, one is taken from the
-// sub-object; when its first byte is set it is stepped by the time since it
-// was due (the class's slot 0x50) and, when it is still running, added to
-// the list (after 0x005B84C0 for descriptions with flag 0x80000000), else it
-// is given back. What is left of the time, less a random delay for some
-// descriptions, becomes the countdown at +0x190.
-uint32_t EmitStream(char* self, uint32_t step)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = step;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_emit_stream.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// The emitter that emits in bursts (0x005B8B50, for descriptions with flag
-// 2 and not 4), translated instruction by instruction. It calls what the
-// stream emitter calls: a particle taken, stepped, added or given back, a
-// random number drawn, the effect's slot 4.
-uint32_t EmitBurst(char* self, uint32_t step)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = step;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_emit_burst.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-EmitMode g_emitBurstMode = EmitMode::Original;
-
-uint32_t __fastcall EmitBurstByMode(char* self, void*, uint32_t step)
-{
-    if (g_emitBurstMode == EmitMode::Original || g_effectRecord || g_effectReplay)
-        return g_emitBurst(self, nullptr, step);
-    if (g_emitBurstMode == EmitMode::Ours)
-        return EmitBurst(self, step);
-    struct Arguments {
-        char* self;
-        uint32_t step;
-    } arguments{self, step};
-    return RecordAndReplay(
-        "effects.emit_burst", self, false, [&] { return g_emitBurst(self, nullptr, step); },
-        [](void* a) {
-            const Arguments& args = *static_cast<Arguments*>(a);
-            return EmitBurst(args.self, args.step);
-        },
-        &arguments);
-}
-
-uint32_t __fastcall DEmitBurst(char* self, void*, uint32_t step)
-{
-    return EmitterWatched(addr::SC4Effect_EmitBurst, &EmitBurstByMode, self, step);
-}
-OPENSC4_THUNK(TEmitBurst, DEmitBurst, 4)
-
-EmitMode g_emitStreamMode = EmitMode::Original;
-
-uint32_t __fastcall EmitStreamByMode(char* self, void*, uint32_t step)
-{
-    if (g_emitStreamMode == EmitMode::Original || g_effectRecord || g_effectReplay)
-        return g_emitStream(self, nullptr, step);
-    if (g_emitStreamMode == EmitMode::Ours)
-        return EmitStream(self, step);
-    struct Arguments {
-        char* self;
-        uint32_t step;
-    } arguments{self, step};
-    return RecordAndReplay(
-        "effects.emit_stream", self, false, [&] { return g_emitStream(self, nullptr, step); },
-        [](void* a) {
-            const Arguments& args = *static_cast<Arguments*>(a);
-            return EmitStream(args.self, args.step);
-        },
-        &arguments);
-}
-
-uint32_t __fastcall DEmitStream(char* self, void*, uint32_t step)
-{
-    return EmitterWatched(addr::SC4Effect_EmitStream, &EmitStreamByMode, self, step);
-}
-OPENSC4_THUNK(TEmitStream, DEmitStream, 4)
-
-EmitMode g_emitCountMode = EmitMode::Original;
-
-uint32_t __fastcall EmitToCountByMode(char* self, void*, uint32_t step)
-{
-    if (g_emitCountMode == EmitMode::Original || g_effectRecord || g_effectReplay)
-        return g_emitToCount(self, nullptr, step);
-    if (g_emitCountMode == EmitMode::Ours)
-        return EmitToCount(self, step);
-    struct Arguments {
-        char* self;
-        uint32_t step;
-    } arguments{self, step};
-    return RecordAndReplay(
-        "effects.emit_count", self, false, [&] { return g_emitToCount(self, nullptr, step); },
-        [](void* a) {
-            const Arguments& args = *static_cast<Arguments*>(a);
-            return EmitToCount(args.self, args.step);
-        },
-        &arguments);
-}
-
-uint32_t __fastcall DEmitToCount(char* self, void*, uint32_t step)
-{
-    return EmitterWatched(addr::SC4Effect_EmitToCount, &EmitToCountByMode, self, step);
-}
-OPENSC4_THUNK(TEmitToCount, DEmitToCount, 4)
 
 // Whether an effect is over (0x005B9D40, on the sub-object at the effect's
 // +4; the effect's draw asks it last): with a particle left (+0x14) it is
@@ -5069,322 +2030,7 @@ uint32_t __fastcall DSC4EffectB_SetStopped(char* self, void*, uint32_t value)
 }
 OPENSC4_THUNK(TSC4EffectB_SetStopped, DSC4EffectB_SetStopped, 4)
 
-uint32_t __fastcall DEffectDraw(char* self, void*, uint32_t step, uint32_t context)
-{
-    if (g_trace != Trace::Off) {
-        g_calls.insert(g_calls.end(), {5u, reinterpret_cast<uint32_t>(self), step, context});
-        if (g_trace == Trace::Record)
-            return 0;
-    }
-    return EffectDraw(self, step, context);
-}
-
-// A decal's step (0x00582920, slot 0x24 of the class 0x00A9EE78, the
-// objects of the manager's fourth list), translated instruction by
-// instruction. Nothing for a decal without a handle (+0x70 is -1). Its
-// time (+0x114) grows by the step, and the time times +0x118 is where it
-// is in its life: a looping decal (+0x15 is 1) wraps, one past its end
-// that is of kind 2 ends itself (its slot 4 with 0) and any other stays at
-// the end. Then the description's curves (three vectors of floats from
-// +0x34, and one of positions at +0x40) are read at that point and given
-// to the owner (+0x120) for the handle: by the flags at +0xC only an
-// opacity (slot 0x44), or a block of nine values (slot 0x34) and the
-// opacity, and last a position (slot 0x48).
-uint32_t StepDecal(char* self, uint32_t step)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = step;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_decal.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison: what it does is its own time and the calls it makes, to
-// its owner and to its own slot 4. For the length of the comparison the
-// decal is given a stand-in owner and a copy of its table of functions
-// with slot 4 replaced, which note each call (the slot, the handle and the
-// values behind the pointers). Ours runs first with the calls only noted;
-// the decal is put back and the game's runs with the calls noted and
-// passed on. The calls and what is left of the decal must be the same. A
-// decal that ends itself is compared as it is when it asks to.
-enum class DecalMode { Original, Ours, Compare };
-DecalMode g_decalMode = DecalMode::Original;
-constexpr std::uintptr_t kDecalVtable = 0x00A9EE78;
-constexpr std::size_t kDecalBytes = 0x124, kDecalOwner = 0x120, kDecalSlots = 64;
-struct DecalCall {
-    uint32_t slot, handle;
-    char data[0x24];
-    bool operator==(const DecalCall& other) const
-    {
-        return slot == other.slot && handle == other.handle && std::memcmp(data, other.data, sizeof data) == 0;
-    }
-};
-std::vector<DecalCall> g_decalOurCalls, g_decalGameCalls;
-bool g_decalForward = false, g_decalEnded = false;
-char* g_decalSelf = nullptr;
-char* g_decalRealOwner = nullptr;
-char g_decalAtEnd[kDecalBytes];
-uint32_t g_decalFakeVtable[kDecalSlots], g_decalSelfVtable[kDecalSlots];
-uint32_t* g_decalFakeOwner = g_decalFakeVtable;
-uint64_t g_decalsCompared = 0, g_decalCallsCompared = 0;
-
-void NoteDecalCall(uint32_t slot, uint32_t handle, const void* data, std::size_t size)
-{
-    DecalCall call{slot, handle, {}};
-    std::memcpy(call.data, data, size);
-    (g_decalForward ? g_decalGameCalls : g_decalOurCalls).push_back(call);
-}
-
-void UnswapDecal()
-{
-    At<uint32_t>(g_decalSelf, 0) = kDecalVtable;
-    At<char*>(g_decalSelf, kDecalOwner) = g_decalRealOwner;
-}
-
-uint32_t __fastcall DecalOwnerBlock(void*, void*, uint32_t handle, uint32_t block)
-{
-    NoteDecalCall(0x34, handle, reinterpret_cast<const void*>(block), 0x24);
-    return g_decalForward
-               ? CallThis<uint32_t>(At<uint32_t>(At<char*>(g_decalRealOwner, 0), 0x34), g_decalRealOwner, handle, block)
-               : 0;
-}
-
-uint32_t __fastcall DecalOwnerOpacity(void*, void*, uint32_t handle, uint32_t value)
-{
-    NoteDecalCall(0x44, handle, &value, 4);
-    return g_decalForward
-               ? CallThis<uint32_t>(At<uint32_t>(At<char*>(g_decalRealOwner, 0), 0x44), g_decalRealOwner, handle, value)
-               : 0;
-}
-
-uint32_t __fastcall DecalOwnerPlace(void*, void*, uint32_t handle, uint32_t place)
-{
-    NoteDecalCall(0x48, handle, reinterpret_cast<const void*>(place), 12);
-    return g_decalForward
-               ? CallThis<uint32_t>(At<uint32_t>(At<char*>(g_decalRealOwner, 0), 0x48), g_decalRealOwner, handle, place)
-               : 0;
-}
-
-uint32_t __fastcall DecalEnd(char* self, void*, uint32_t value)
-{
-    NoteDecalCall(0x4, value, &value, 0);
-    std::memcpy(g_decalAtEnd, self, kDecalBytes);
-    g_decalEnded = true;
-    if (!g_decalForward)
-        return 0;
-    // The decal may be gone when this returns: it is given its own back
-    // first, and not touched again.
-    UnswapDecal();
-    return CallThis<uint32_t>(Global<uint32_t>(kDecalVtable + 4), self, value);
-}
-
-uint32_t __fastcall DecalByMode(char* self, void*, uint32_t step)
-{
-    if (g_decalMode == DecalMode::Original)
-        return g_decalDraw(self, nullptr, step);
-    if (g_decalMode == DecalMode::Ours)
-        return StepDecal(self, step);
-    if (At<uint32_t>(self, 0) != kDecalVtable || g_decalSelf)
-        return g_decalDraw(self, nullptr, step);
-    g_decalSelf = self;
-    g_decalRealOwner = At<char*>(self, kDecalOwner);
-    std::memcpy(g_decalSelfVtable, reinterpret_cast<const void*>(kDecalVtable), sizeof g_decalSelfVtable);
-    g_decalSelfVtable[1] = reinterpret_cast<uint32_t>(&DecalEnd);
-    std::memset(g_decalFakeVtable, 0, sizeof g_decalFakeVtable);
-    g_decalFakeVtable[0x34 / 4] = reinterpret_cast<uint32_t>(&DecalOwnerBlock);
-    g_decalFakeVtable[0x44 / 4] = reinterpret_cast<uint32_t>(&DecalOwnerOpacity);
-    g_decalFakeVtable[0x48 / 4] = reinterpret_cast<uint32_t>(&DecalOwnerPlace);
-    At<uint32_t*>(self, 0) = g_decalSelfVtable;
-    At<uint32_t**>(self, kDecalOwner) = &g_decalFakeOwner;
-    char before[kDecalBytes], mine[kDecalBytes], theirs[kDecalBytes];
-    std::memcpy(before, self, kDecalBytes);
-    g_decalOurCalls.clear();
-    g_decalGameCalls.clear();
-    g_decalForward = false;
-    g_decalEnded = false;
-    StepDecal(self, step);
-    std::memcpy(mine, g_decalEnded ? g_decalAtEnd : self, kDecalBytes);
-    std::memcpy(self, before, kDecalBytes);
-    g_decalForward = true;
-    g_decalEnded = false;
-    const uint32_t result = g_decalDraw(self, nullptr, step);
-    if (g_decalEnded) {
-        std::memcpy(theirs, g_decalAtEnd, kDecalBytes);
-    } else {
-        std::memcpy(theirs, self, kDecalBytes);
-        UnswapDecal();
-    }
-    g_decalSelf = nullptr;
-    ++g_decalsCompared;
-    g_decalCallsCompared += g_decalGameCalls.size();
-    if ((g_decalsCompared & (g_decalsCompared - 1)) == 0)
-        log::Write("water effects: effects.decal: %llu steps, %llu calls compared so far",
-                   static_cast<unsigned long long>(g_decalsCompared),
-                   static_cast<unsigned long long>(g_decalCallsCompared));
-    char text[80];
-    if (!(g_decalGameCalls == g_decalOurCalls)) {
-        std::size_t at = 0;
-        while (at < g_decalGameCalls.size() && at < g_decalOurCalls.size() &&
-               g_decalGameCalls[at] == g_decalOurCalls[at])
-            ++at;
-        const auto describe = [&](const std::vector<DecalCall>& calls) {
-            if (at >= calls.size()) {
-                std::snprintf(text, sizeof text, "%zu calls", calls.size());
-                return std::string(text);
-            }
-            std::snprintf(text, sizeof text, "call %zu of %zu: slot %X (%08X) ", at, calls.size(), calls[at].slot,
-                          calls[at].handle);
-            return text + Hex(calls[at].data, sizeof calls[at].data);
-        };
-        const std::string game = describe(g_decalGameCalls);
-        compare::Record("effects.decal", false, game, describe(g_decalOurCalls));
-    } else if (std::memcmp(theirs, mine, kDecalBytes) != 0) {
-        std::size_t at = 0;
-        while (theirs[at] == mine[at])
-            ++at;
-        at &= ~std::size_t{3};
-        std::snprintf(text, sizeof text, "decal+%zX ", at);
-        compare::Record("effects.decal", false, text + Hex(theirs + at, 4), text + Hex(mine + at, 4));
-    } else {
-        compare::Record("effects.decal", true, std::string(), std::string());
-    }
-    return result;
-}
-
-uint32_t __fastcall DDecalDraw(char* self, void*, uint32_t step)
-{
-    return Traced(6, &DecalByMode, self, step);
-}
-
-
-OPENSC4_THUNK(TBeforeDraw, DBeforeDraw, 4)
-OPENSC4_THUNK(TDrawFlash, DDrawFlash, 8)
-OPENSC4_THUNK(TStepShake, DStepShake, 4)
-OPENSC4_THUNK(TAfterDraw, DAfterDraw, 0)
-OPENSC4_THUNK(TEffectDraw, DEffectDraw, 8)
-OPENSC4_THUNK(TDecalDraw, DDecalDraw, 4)
-
-// Gives the two vectors the draw fills room for every effect (from the
-// game's allocator, as their own growth would), so that neither compared
-// run reallocates them: a copy cannot undo that.
-void ReserveEffects(char* self)
-{
-    std::size_t count = 0;
-    for (const std::size_t list : {std::size_t{0xBF0}, std::size_t{0xC38}, std::size_t{0xC5C}})
-        count += static_cast<std::size_t>(At<char*>(self, list + 4) - At<char*>(self, list)) / 4;
-    for (const auto& [vector, size] :
-         {std::pair{std::size_t{0xDA0}, std::size_t{8}}, std::pair{std::size_t{0xDAC}, std::size_t{4}}}) {
-        char* const begin = At<char*>(self, vector);
-        const std::size_t used = static_cast<std::size_t>(At<char*>(self, vector + 4) - begin);
-        if (static_cast<std::size_t>(At<char*>(self, vector + 8) - begin) >= count * size)
-            continue;
-        char* const grown = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(count * size);
-        if (used)
-            std::memcpy(grown, begin, used);
-        if (begin)
-            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin);
-        At<char*>(self, vector) = grown;
-        At<char*>(self, vector + 4) = grown + used;
-        At<char*>(self, vector + 8) = grown + count * size;
-    }
-}
-
-uint32_t __fastcall DEffects(char* self, void*, char* context)
-{
-    if (g_depth > 0 || g_trace != Trace::Off)
-        return g_effects(self, nullptr, context);
-    if (!g_compareEffects)
-        return DrawEffects(self, context);
-    const char* const id = g_selfCheck ? "effects.draw.selfcheck" : "effects.draw";
-    ReserveEffects(self);
-    char* const manager = self - 4;
-    const std::vector<char> before(manager, manager + kManagerSize);
-    g_calls.clear();
-    g_trace = Trace::Record;
-    if (g_selfCheck)
-        g_effects(self, nullptr, context);
-    else
-        DrawEffects(self, context);
-    const std::vector<char> mine(manager, manager + kManagerSize);
-    const std::vector<char> ourSorted(At<char*>(self, 0xDA0), At<char*>(self, 0xDA4));
-    const std::vector<char> ourHidden(At<char*>(self, 0xDAC), At<char*>(self, 0xDB0));
-    const std::vector<uint32_t> ourCalls = std::move(g_calls);
-    std::memcpy(manager, before.data(), kManagerSize);
-    g_calls.clear();
-    g_trace = Trace::RecordAndCall;
-    const uint32_t result = g_effects(self, nullptr, context);
-    g_trace = Trace::Off;
-    const std::vector<uint32_t> gameCalls = std::move(g_calls);
-    g_calls.clear();
-    ++g_passesCompared;
-    g_drawsCompared += gameCalls.size();
-    if ((g_passesCompared & (g_passesCompared - 1)) == 0)
-        log::Write("water effects: %s: %llu passes, %llu call words compared so far", id,
-                   static_cast<unsigned long long>(g_passesCompared), static_cast<unsigned long long>(g_drawsCompared));
-    // Drawing an effect changes the fourth list (an effect leaves a mark on
-    // the ground, or takes one away) and counts particles, which only the
-    // game's run does. So the fourth list's draws are left out, every other
-    // call is compared exactly, and of the manager what the draw itself
-    // works out: the two vectors and their contents, the budget and the
-    // number of effects drawn.
-    const auto split = [](const std::vector<uint32_t>& calls, std::vector<uint32_t>& decals) {
-        static const uint8_t kWords[7] = {0, 3, 4, 3, 2, 4, 3};
-        std::vector<uint32_t> rest;
-        for (std::size_t i = 0; i < calls.size() && calls[i] < 7; i += kWords[calls[i]])
-            (calls[i] == 6 ? decals : rest).insert((calls[i] == 6 ? decals : rest).end(), calls.begin() + i,
-                                                   calls.begin() + i + kWords[calls[i]]);
-        return rest;
-    };
-    std::vector<uint32_t> ourDecals, gameDecals;
-    const std::vector<uint32_t> ourRest = split(ourCalls, ourDecals), gameRest = split(gameCalls, gameDecals);
-    char text[96];
-    if (ourRest != gameRest) {
-        std::size_t at = 0;
-        while (at < ourRest.size() && at < gameRest.size() && ourRest[at] == gameRest[at])
-            ++at;
-        std::snprintf(text, sizeof text, "call word %zu of %zu: %08X", at, gameRest.size(),
-                      at < gameRest.size() ? gameRest[at] : 0u);
-        const std::string gameText = text;
-        std::snprintf(text, sizeof text, "call word %zu of %zu: %08X", at, ourRest.size(),
-                      at < ourRest.size() ? ourRest[at] : 0u);
-        compare::Record(id, false, gameText, text);
-        return result;
-    }
-    for (const auto& [from, to] : {std::pair{std::size_t{0xC94}, std::size_t{0xC98}},
-                                   std::pair{std::size_t{0xC9C}, std::size_t{0xCA0}},
-                                   std::pair{std::size_t{0xDA0}, std::size_t{0xDB8}}}) {
-        if (std::memcmp(self + from, mine.data() + 4 + from, to - from) == 0)
-            continue;
-        std::snprintf(text, sizeof text, "manager+%zX ", from);
-        compare::Record(id, false, text + Hex(self + from, to - from), text + Hex(mine.data() + 4 + from, to - from));
-        return result;
-    }
-    if (ourSorted != std::vector<char>(At<char*>(self, 0xDA0), At<char*>(self, 0xDA4)) ||
-        ourHidden != std::vector<char>(At<char*>(self, 0xDAC), At<char*>(self, 0xDB0))) {
-        compare::Record(id, false, "the effects in view, sorted, and those out of view", "another order or set");
-        return result;
-    }
-    compare::Record(id, true, std::string(), std::string());
-    return result;
-}
-
-OPENSC4_THUNK(TEffects, DEffects, 4)
+OPENSC4_THUNK(TAfterDraw, AfterDrawByMode, 0)
 
 bool InstallShore(registry::Mode mode)
 {
@@ -5407,44 +2053,6 @@ const bool g_registeredShore = registry::Register({
     "quietly, then the game's, and compares the draws (docs/renderer.md, \"Water effects\")",
     true,
     InstallShore,
-});
-
-// The effect's draw has one detour, which the manager's comparison and the
-// effect's replacement share.
-bool HookEffectDraw()
-{
-    return g_effectDraw || Detour(addr::SC4Effect_Draw, &TEffectDraw, &g_effectDraw);
-}
-
-// The particle's step has one detour too, shared by the effect's comparison
-// (which records it) and its own replacement.
-bool HookStepParticle()
-{
-    return g_SC4Effect_StepParticle ||
-           Detour(addr::SC4Effect_StepParticle, &TSC4Effect_StepParticle, &g_SC4Effect_StepParticle);
-}
-
-bool InstallStep(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookStepParticle())
-        return false;
-    g_stepMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: particle step %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredStep = registry::Register({
-    "renderer.effects.step",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_StepParticle,
-    "A particle's step: its age, its end, its velocity and position (the other step, for flagged descriptions, "
-    "is renderer.effects.step_full); compare mode runs ours and the game's on the same particle (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallStep,
 });
 
 // --- Making an effect ----------------------------------------------------------------------
@@ -5470,35 +2078,6 @@ uint32_t ConstructEffectBase(char* base)
     At<uint32_t>(base, 0x18) = 0;
     At<uint32_t>(base, 0x1C) = 0;
     return reinterpret_cast<uint32_t>(base);
-}
-
-// The effect's constructor (0x005B2B50), translated instruction by
-// instruction: the sub-object at +4 and the batch at +0x28 (0x005EC690)
-// constructed, the two tables of functions set (0x00AA0EA0, 0x00AA0E58),
-// and the effect's fields given their first values. It leaves some of the
-// object's bytes as they were.
-uint32_t ConstructEffect(char* self)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_ctor.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
 }
 
 // Their comparison: ours on the object's memory, what it left kept, its
@@ -5551,21 +2130,13 @@ bool MxNoting();
 template <typename Real>
 uint32_t MxConstructNoted(uint32_t constructor, char* object, Real&& real);
 
-uint32_t EffectCtorRun(char* self)
-{
-    if (g_ctorMode == StepMode::Original)
-        return g_SC4Effect_Construct(self, nullptr);
-    if (g_ctorMode == StepMode::Ours)
-        return ConstructEffect(self);
-    return CtorCompared("effects.ctor", self, kEffectSize, 0x14, g_SC4Effect_Construct, &ConstructEffect);
-}
-
-// While a maker is noted, its constructor call is noted too.
+// The effect's own constructor (0x005B2B50) is the game's. While a maker
+// is noted, its constructor call is noted too.
 uint32_t __fastcall EffectCtorByMode(char* self, void*)
 {
     if (!MxNoting())
-        return EffectCtorRun(self);
-    return MxConstructNoted(addr::SC4Effect_Construct, self, [&] { return EffectCtorRun(self); });
+        return g_SC4Effect_Construct(self, nullptr);
+    return MxConstructNoted(addr::SC4Effect_Construct, self, [&] { return g_SC4Effect_Construct(self, nullptr); });
 }
 OPENSC4_THUNK(TSC4Effect_Construct, EffectCtorByMode, 0)
 
@@ -5621,6 +2192,31 @@ bool HookEffectConstructors()
            (g_SC4EffectB_Construct ||
             Detour(addr::SC4EffectB_Construct, &TSC4EffectB_Construct, &g_SC4EffectB_Construct));
 }
+
+bool InstallCtor(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectBase_Construct, &TSC4EffectBase_Construct, &g_SC4EffectBase_Construct) &&
+          HookEffectConstructors()))
+        return false;
+    g_ctorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: effects' constructors %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredCtor = registry::Register({
+    "renderer.effects.ctor",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Construct,
+    "The second effect class's constructor and the sub-object's (the base class's own is still the game's): the "
+    "tables of functions, an empty particle list and the fields' first values; compare mode runs ours and the "
+    "game's on the same memory (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallCtor,
+});
 
 // An effect's destructor (0x005A62B0, also the end of a third class's at
 // 0x005A90xx), written by hand: the objects at +0x1F0 and +0x1EC released
@@ -5734,7 +2330,7 @@ void DtorCompared(const char* id, char* self, std::size_t size, Game&& game, Our
 
 bool DtorPassed()
 {
-    return g_dtorMode == StepMode::Original || g_effectRecord || g_effectReplay || g_descRecord || g_descReplay ||
+    return g_dtorMode == StepMode::Original || g_effectRecord || g_effectReplay ||
            BBusy();
 }
 
@@ -5826,10 +2422,6 @@ bool HookPool()
         Detour(addr::SC4EffectBase_SetEnding, &TSC4EffectBase_SetEnding, &g_SC4EffectBase_SetEnding) &&
         Detour(addr::SC4EffectBase_LetGo, &TSC4EffectBase_LetGo, &g_SC4EffectBase_LetGo) &&
         Detour(addr::SC4EffectBaseB_LetGo, &TSC4EffectBaseB_LetGo, &g_SC4EffectBaseB_LetGo);
-    if (g_poolHooked) {
-        const addr::Entry* const uniform = addr_check::Find(addr::SC4Random_Uniform);
-        g_poolHooked = uniform && hook::Install(*uniform, &DUniform, &g_uniform);
-    }
     return g_poolHooked;
 }
 
@@ -5837,192 +2429,6 @@ bool HookStart()
 {
     return g_startParticle || Detour(addr::SC4Effect_StartParticle, &TStartParticle, &g_startParticle);
 }
-
-bool InstallStart(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookStart())
-        return false;
-    g_startMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: particle start %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredStart = registry::Register({
-    "renderer.effects.start",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_StartParticle,
-    "A particle's start: its life, position, velocity and the rest from the effect, its description and random "
-    "numbers; compare mode runs ours and the game's on the same particle and generator (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallStart,
-});
-
-bool InstallFullStep(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4Effect_StepParticleFull ||
-          Detour(addr::SC4Effect_StepParticleFull, &TSC4Effect_StepParticleFull, &g_SC4Effect_StepParticleFull)))
-        return false;
-    if (mode == registry::Mode::Compare &&
-        !((g_SC4Effect_StepFlag100 ||
-           Detour(addr::SC4Effect_StepFlag100, &TSC4Effect_StepFlag100, &g_SC4Effect_StepFlag100)) &&
-          (g_SC4Effect_StepFlagB1 ||
-           Detour(addr::SC4Effect_StepFlagB1, &TSC4Effect_StepFlagB1, &g_SC4Effect_StepFlagB1))))
-        return false;
-    g_fullStepMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: particles' other step %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredFullStep = registry::Register({
-    "renderer.effects.step_full",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_StepParticleFull,
-    "A particle's step for flagged descriptions: done in parts, with the effect's pull, the map's edge and the "
-    "ground; compare mode runs the game's with two of its calls noted and replays ours (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallFullStep,
-});
-
-bool InstallHit(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4Effect_StepFlag100 ||
-          Detour(addr::SC4Effect_StepFlag100, &TSC4Effect_StepFlag100, &g_SC4Effect_StepFlag100)))
-        return false;
-    if (mode == registry::Mode::Compare &&
-        !(g_SC4Effect_StartNamed ||
-          Detour(addr::SC4Effect_StartNamed, &TSC4Effect_StartNamed, &g_SC4Effect_StartNamed)))
-        return false;
-    g_hitMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: particles meeting the water or the ground %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredHit = registry::Register({
-    "renderer.effects.hit",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_StepFlag100,
-    "A particle meeting the water or the ground: it ends, bounces, slides or stays, and may start another effect "
-    "there; compare mode runs the game's with those starts noted and ours with them held back (docs/renderer.md, "
-    "\"Water effects, sky and clouds\")",
-    true,
-    InstallHit,
-});
-
-bool InstallPoolB(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookPool())
-        return false;
-    g_poolModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: second effect class's take of a particle %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredPoolB = registry::Register({
-    "renderer.effects.pool_b",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectBaseB_TakeParticle,
-    "The second effect class taking a particle from its pool: started as any particle, then given an angle and an "
-    "effect of its own; compare mode runs the game's and ours from the same state (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallPoolB,
-});
-
-bool InstallNotDrawnB(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4EffectB_NotDrawn ||
-          Detour(addr::SC4EffectB_NotDrawn, &TSC4EffectB_NotDrawn, &g_SC4EffectB_NotDrawn)))
-        return false;
-    g_notDrawnModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: second effect class's step out of view %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredNotDrawnB = registry::Register({
-    "renderer.effects.notdrawn_b",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectB_NotDrawn,
-    "The second effect class's step when it is not drawn: its box, and where each particle's own effect is; "
-    "compare mode notes the calls of ours and of the game's through stand-in tables of functions "
-    "(docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallNotDrawnB,
-});
-
-bool InstallDrawB(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4EffectB_DrawParticles ||
-          Detour(addr::SC4EffectB_DrawParticles, &TSC4EffectB_DrawParticles, &g_SC4EffectB_DrawParticles)))
-        return false;
-    if (mode == registry::Mode::Compare &&
-        !((g_SC4EffectPartB_Start ||
-           Detour(addr::SC4EffectPartB_Start, &TSC4EffectPartB_Start, &g_SC4EffectPartB_Start)) &&
-          (g_SC4EffectPartB_Step ||
-           Detour(addr::SC4EffectPartB_Step, &TSC4EffectPartB_Step, &g_SC4EffectPartB_Step))))
-        return false;
-    g_drawModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: second effect class's draw %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredDrawB = registry::Register({
-    "renderer.effects.draw_b",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectB_DrawParticles,
-    "The second effect class's draw: each particle in view drawn as the effect's model, at the frame its clock "
-    "has reached; compare mode notes the calls of ours and of the game's through stand-in tables of functions "
-    "(docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallDrawB,
-});
-
-bool InstallBlockB(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4EffectB_ParticleBlock ||
-          Detour(addr::SC4EffectB_ParticleBlock, &TSC4EffectB_ParticleBlock, &g_SC4EffectB_ParticleBlock)))
-        return false;
-    g_blockModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: second effect class's particle block %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredBlockB = registry::Register({
-    "renderer.effects.block_b",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectB_ParticleBlock,
-    "The block of a particle of the second effect class: its turning, size and place as a matrix, and the "
-    "effect's box widened; compare mode runs ours and the game's from the same particle, effect and block "
-    "(docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallBlockB,
-});
 
 bool InstallSmall(registry::Mode mode)
 {
@@ -6052,54 +2458,6 @@ const bool g_registeredSmall = registry::Register({
     InstallSmall,
 });
 
-bool InstallTransform(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4Effect_SetTransform ||
-          Detour(addr::SC4Effect_SetTransform, &TSC4Effect_SetTransform, &g_SC4Effect_SetTransform)))
-        return false;
-    g_transformMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: effects' transform %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredTransform = registry::Register({
-    "renderer.effects.transform",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_SetTransform,
-    "An effect's transform set: the two blocks kept, and the effect's values that go by them worked out again, up "
-    "to its box; compare mode runs ours and the game's on the same effect (docs/renderer.md, \"Water effects, sky "
-    "and clouds\")",
-    true,
-    InstallTransform,
-});
-
-bool InstallBegin(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4Effect_Begin || Detour(addr::SC4Effect_Begin, &TSC4Effect_Begin, &g_SC4Effect_Begin)))
-        return false;
-    g_beginMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: effects' start %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredBegin = registry::Register({
-    "renderer.effects.begin",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_Begin,
-    "An effect started: its clocks and counts set back, its pull, and the random delays and speeds its "
-    "description asks for; compare mode runs ours and the game's on the same effect and generator "
-    "(docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallBegin,
-});
-
 bool InstallKindState(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
@@ -6124,103 +2482,6 @@ const bool g_registeredKindState = registry::Register({
     InstallKindState,
 });
 
-bool InstallDescription(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4Effect_SetDescription ||
-          Detour(addr::SC4Effect_SetDescription, &TSC4Effect_SetDescription, &g_SC4Effect_SetDescription)))
-        return false;
-    if (mode == registry::Mode::Compare &&
-        !((g_SC4Effect_Hold || Detour(addr::SC4Effect_Hold, &TSC4Effect_Hold, &g_SC4Effect_Hold)) &&
-          (g_SC4EffectDescription_Release ||
-           Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
-                  &g_SC4EffectDescription_Release)) &&
-          (g_SC4Effect_LoadTexture ||
-           Detour(addr::SC4Effect_LoadTexture, &TSC4Effect_LoadTexture, &g_SC4Effect_LoadTexture)) &&
-          (g_SC4Effect_SortBatch || Detour(addr::SC4Effect_SortBatch, &TSC4Effect_SortBatch, &g_SC4Effect_SortBatch)) &&
-          (g_SC4Effect_StepFlag2000 ||
-           Detour(addr::SC4Effect_StepFlag2000, &TSC4Effect_StepFlag2000, &g_SC4Effect_StepFlag2000))))
-        return false;
-    g_descMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: effects taking a description %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredDescription = registry::Register({
-    "renderer.effects.description",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_SetDescription,
-    "An effect taking a description: the description held, its texture and render state, and the effect's values "
-    "that come from it; compare mode runs the game's with five of its calls noted and replays ours "
-    "(docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallDescription,
-});
-
-bool InstallDescriptionB(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4EffectB_SetDescription ||
-          Detour(addr::SC4EffectB_SetDescription, &TSC4EffectB_SetDescription, &g_SC4EffectB_SetDescription)))
-        return false;
-    if (mode == registry::Mode::Compare &&
-        !((g_SC4Effect_SetDescription ||
-           Detour(addr::SC4Effect_SetDescription, &TSC4Effect_SetDescription, &g_SC4Effect_SetDescription)) &&
-          (g_SC4EffectB_LoadModel ||
-           Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel)) &&
-          Detour(addr::SC4EffectPartB_Attach, &TSC4EffectPartB_Attach, &g_SC4EffectPartB_Attach) &&
-          Detour(addr::SC4EffectPartB_Place, &TSC4EffectPartB_Place, &g_SC4EffectPartB_Place) &&
-          (g_SC4EffectPartB_SetDescription ||
-           Detour(addr::SC4EffectPartB_SetDescription, &TSC4EffectPartB_SetDescription,
-                  &g_SC4EffectPartB_SetDescription))))
-        return false;
-    g_descModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: second effect class taking a description %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredDescriptionB = registry::Register({
-    "renderer.effects.description_b",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectB_SetDescription,
-    "The second effect class taking a description: its old model released, a model loaded and its instance set "
-    "up; compare mode runs the game's with its calls noted and replays ours (docs/renderer.md, \"Water effects, "
-    "sky and clouds\")",
-    true,
-    InstallDescriptionB,
-});
-
-bool InstallModelB(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4EffectB_LoadModel ||
-          Detour(addr::SC4EffectB_LoadModel, &TSC4EffectB_LoadModel, &g_SC4EffectB_LoadModel)))
-        return false;
-    g_modelModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: second effect class's model loading %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredModelB = registry::Register({
-    "renderer.effects.model_b",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectB_LoadModel,
-    "The second effect class loading its model: the resource asked for, the model made, its size kept and its "
-    "materials' flags set; compare mode runs ours and the game's for real and compares the effect and the "
-    "materials (docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallModelB,
-});
-
 bool InstallTexture(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
@@ -6243,33 +2504,6 @@ const bool g_registeredTexture = registry::Register({
     "ours and the game's for real (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallTexture,
-});
-
-bool InstallGiveBackB(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookPool())
-        return false;
-    if (mode == registry::Mode::Compare &&
-        !(g_SC4EffectB_RestartParticle ||
-          Detour(addr::SC4EffectB_RestartParticle, &TSC4EffectB_RestartParticle, &g_SC4EffectB_RestartParticle)))
-        return false;
-    g_giveBackModeB = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: second effect class given a particle back %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredGiveBackB = registry::Register({
-    "renderer.effects.giveback_b",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectBaseB_GiveBackParticle,
-    "The second effect class given a particle back: started again, or its own effect stopped, a last effect made "
-    "where it was, and the particle put on the free list; compare mode runs the game's with its calls noted and "
-    "replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallGiveBackB,
 });
 
 bool InstallHolders(registry::Mode mode)
@@ -6304,31 +2538,6 @@ const bool g_registeredHolders = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallHolders,
-});
-
-bool InstallCtor(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(Detour(addr::SC4EffectBase_Construct, &TSC4EffectBase_Construct, &g_SC4EffectBase_Construct) &&
-          HookEffectConstructors()))
-        return false;
-    g_ctorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: effects' constructors %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredCtor = registry::Register({
-    "renderer.effects.ctor",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_Construct,
-    "The two effect classes' constructors and the sub-object's: the tables of functions, an empty particle list "
-    "and the fields' first values; compare mode runs ours and the game's on the same memory (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallCtor,
 });
 
 // --- A description's lists read from the effects file ---------------------------------------
@@ -6709,112 +2918,6 @@ uint32_t __fastcall DResizeListB(char* list, void*, uint32_t count)
 }
 OPENSC4_THUNK(TSC4EffectDescription_ResizeListB, DResizeListB, 4)
 
-// A description's constructor (0x005B0FE0, the first thing the whole
-// object's constructor 0x005B1660 calls), translated instruction by
-// instruction: the first values of its fields, an empty string (eight
-// bytes of the game's memory), and one value put in each of seven lists
-// (the game's growing inserts 0x00676CC0 and 0x0050C3B0 for a list with
-// no room, which is every one here).
-uint32_t ConstructDescription(char* self)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_desc_ctor.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Its comparison: ours on the object's memory, what it left kept, the
-// memory put back as it was, and the game's. Where the two differ, the
-// words must be the three pointers of a list or string (begin, end, end
-// of the memory) of the same length and room and with the same bytes;
-// ours' memory is then freed.
-constexpr std::size_t kDescriptionCtorSize = 0x200;
-StepMode g_descCtorMode = StepMode::Original;
-Call0Fn g_SC4EffectDescription_Construct = nullptr;
-
-uint32_t __fastcall DescriptionCtorByMode(char* self, void*)
-{
-    if (g_descCtorMode == StepMode::Original)
-        return g_SC4EffectDescription_Construct(self, nullptr);
-    if (g_descCtorMode == StepMode::Ours)
-        return ConstructDescription(self);
-    uint32_t before[kDescriptionCtorSize / 4], mine[kDescriptionCtorSize / 4];
-    std::memcpy(before, self, sizeof before);
-    const uint32_t ourResult = ConstructDescription(self);
-    std::memcpy(mine, self, sizeof mine);
-    std::memcpy(self, before, sizeof before);
-    const uint32_t result = g_SC4EffectDescription_Construct(self, nullptr);
-    const uint32_t* const theirs = reinterpret_cast<const uint32_t*>(self);
-    bool same = result == ourResult;
-    std::size_t lists = 0, wrongAt = 0;
-    for (std::size_t i = 0; i < kDescriptionCtorSize / 4; ++i) {
-        if (mine[i] == theirs[i])
-            continue;
-        const bool list = i + 2 < kDescriptionCtorSize / 4 && mine[i] && theirs[i] &&
-                          mine[i + 1] - mine[i] == theirs[i + 1] - theirs[i] &&
-                          mine[i + 2] - mine[i] == theirs[i + 2] - theirs[i] && mine[i + 1] - mine[i] <= 0x100 &&
-                          std::memcmp(reinterpret_cast<const void*>(mine[i]), reinterpret_cast<const void*>(theirs[i]),
-                                      mine[i + 1] - mine[i] ? mine[i + 1] - mine[i] : 1) == 0;
-        if (!list) {
-            if (same)
-                wrongAt = i * 4;
-            same = false;
-            continue;
-        }
-        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(reinterpret_cast<void*>(mine[i]));
-        ++lists;
-        i += 2;
-    }
-    char text[48];
-    std::snprintf(text, sizeof text, "differs at +%zX", wrongAt);
-    compare::Record(lists == 8 ? "effects.description_ctor" : "effects.description_ctor.lists", same && lists == 8,
-                    same && lists == 8 ? std::string() : std::string("8 lists"),
-                    same && lists == 8 ? std::string() : (same ? std::to_string(lists) + " lists" : std::string(text)));
-    return result;
-}
-OPENSC4_THUNK(TSC4EffectDescription_Construct, DescriptionCtorByMode, 0)
-
-bool InstallDescriptionCtor(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !Detour(addr::SC4EffectDescription_Construct, &TSC4EffectDescription_Construct,
-                &g_SC4EffectDescription_Construct))
-        return false;
-    g_descCtorMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: a description's constructor %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredDescriptionCtor = registry::Register({
-    "renderer.effects.description_ctor",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectDescription_Construct,
-    "An effect description's constructor: its fields' first values, an empty string and one value in each of seven "
-    "lists; compare mode runs ours and the game's on the same memory (docs/renderer.md, \"Water effects, sky and "
-    "clouds\")",
-    true,
-    InstallDescriptionCtor,
-});
-
 // The third list: records of a string (the three pointers of the game's
 // own) and a float, 0x10 bytes. Its reader (0x005B1D60, (stream, list)
 // like the others) reads the count, resizes (0x005B1CD0), then for each
@@ -7002,145 +3105,6 @@ uint32_t __fastcall DescriptionWholeByMode(char* self, void*)
     return result;
 }
 OPENSC4_THUNK(TSC4EffectDescription_ConstructWhole, DescriptionWholeByMode, 0)
-
-// A description read from a stream (0x005B1DC0, (stream, description)
-// answering the stream), translated instruction by instruction: its
-// numbers one after another (the stream's slots 0x14, 0x1C, 0x24 and
-// 0x30), its lists through their readers (among them the three above and
-// the game's for lists of floats, of points and of IDs) and its string
-// (0x005811F0).
-uint32_t ReadDescription(uint32_t stream, uint32_t description)
-{
-    uint32_t stackmem[192] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[128]);
-    M<uint32_t>(esp + 4) = stream;
-    M<uint32_t>(esp + 8) = description;
-    [[maybe_unused]] double st[8] = {};
-    [[maybe_unused]] int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effect_desc_read.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
-
-// Two descriptions' first 0x200 bytes compared: where they differ the
-// words must be the three pointers of a list or string of the same length
-// and room and with the same bytes, or at +0x1CC of the list of named
-// records, compared record by record.
-constexpr std::size_t kDescriptionNamed = 0x1CC;
-
-bool SameDescription(const char* a, const char* b, std::size_t* wrongAt)
-{
-    const uint32_t* const x = reinterpret_cast<const uint32_t*>(a);
-    const uint32_t* const y = reinterpret_cast<const uint32_t*>(b);
-    for (std::size_t i = 0; i < kDescriptionCtorSize / 4; ++i) {
-        if (x[i] == y[i])
-            continue;
-        *wrongAt = i * 4;
-        if (i + 2 >= kDescriptionCtorSize / 4 || !x[i] || !y[i] || x[i + 1] - x[i] != y[i + 1] - y[i] ||
-            x[i + 2] - x[i] != y[i + 2] - y[i])
-            return false;
-        const uint32_t used = x[i + 1] - x[i];
-        if (i * 4 == kDescriptionNamed) {
-            for (uint32_t offset = 0; offset < used; offset += 0x10) {
-                const uint32_t p = x[i] + offset, q = y[i] + offset;
-                const uint32_t length = M<uint32_t>(p + 4) - M<uint32_t>(p);
-                if (length != M<uint32_t>(q + 4) - M<uint32_t>(q) || M<uint32_t>(p + 0xC) != M<uint32_t>(q + 0xC) ||
-                    (length && std::memcmp(M<void*>(p), M<void*>(q), length) != 0))
-                    return false;
-            }
-        } else if (std::memcmp(reinterpret_cast<const void*>(x[i]), reinterpret_cast<const void*>(y[i]),
-                               used ? used : 1) != 0) {
-            return false;
-        }
-        i += 2;
-    }
-    return true;
-}
-
-// Its comparison: a description of our own is made by the game's
-// constructor; if the game's description is not as new as that one, the
-// game's alone reads it. Else the game's reads its description with the
-// stream's reads noted, ours reads the same into ours, and the two must be
-// the same; ours is then let go. The readers of the lists are the game's
-// in both runs.
-StepMode g_descReadMode = StepMode::Original;
-ListReadFn g_SC4EffectDescription_Read = nullptr;
-
-uint32_t __cdecl ReadDescriptionByMode(uint32_t stream, uint32_t description)
-{
-    if (g_descReadMode == StepMode::Original || g_listGame || g_listReplay)
-        return g_SC4EffectDescription_Read(stream, description);
-    if (g_descReadMode == StepMode::Ours)
-        return ReadDescription(stream, description);
-    char* const mine = reinterpret_cast<char*(__cdecl*)(std::size_t)>(0x005E55E0)(0x208);
-    CallThis<uint32_t>(addr::SC4EffectDescription_ConstructWhole, mine);
-    std::size_t wrongAt = 0;
-    const bool fresh = SameDescription(reinterpret_cast<const char*>(description), mine, &wrongAt);
-    uint32_t result = 0;
-    if (!fresh) {
-        compare::Record("effects.description_read.not_new", true, std::string(), std::string());
-        result = g_SC4EffectDescription_Read(stream, description);
-    } else {
-        const std::vector<uint32_t>& table = ListStreamNoted(stream);
-        M<const uint32_t*>(stream) = table.data();
-        g_listGame = true;
-        result = g_SC4EffectDescription_Read(stream, description);
-        g_listGame = false;
-        g_listReplay = true;
-        const uint32_t ourResult = ReadDescription(stream, reinterpret_cast<uint32_t>(mine));
-        g_listReplay = false;
-        M<uint32_t>(stream) = g_listStreamReal;
-        const bool same = !g_listWrong && g_listReplayed == g_listReads.size() && result == ourResult &&
-                          SameDescription(reinterpret_cast<const char*>(description), mine, &wrongAt);
-        char text[64];
-        std::snprintf(text, sizeof text, "%zu reads", g_listReads.size());
-        const std::string theirs = text;
-        std::snprintf(text, sizeof text, "%zu reads%s, differs at +%zX", g_listReplayed,
-                      g_listWrong ? " then another" : "", wrongAt);
-        compare::Record("effects.description_read", same, same ? std::string() : theirs,
-                        same ? std::string() : std::string(text));
-    }
-    At<uint32_t>(mine, 0x204) = 1;
-    CallThis<uint32_t>(addr::SC4EffectDescription_Release, mine);
-    return result;
-}
-
-bool InstallDescriptionRead(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !Detour(addr::SC4EffectDescription_Read, reinterpret_cast<void (*)()>(&ReadDescriptionByMode),
-                &g_SC4EffectDescription_Read))
-        return false;
-    g_descReadMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: a description's reading %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredDescriptionRead = registry::Register({
-    "renderer.effects.description_read",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectDescription_Read,
-    "An effect description read from the effects file, number by number and list by list; compare mode notes what "
-    "the game's reads from the stream and has ours read the same into a description of its own (docs/renderer.md, "
-    "\"Water effects, sky and clouds\")",
-    true,
-    InstallDescriptionRead,
-});
 
 // --- The compound descriptions read from the effects file -----------------------------------
 //
@@ -7717,30 +3681,6 @@ const bool g_registeredDtor = registry::Register({
     InstallDtor,
 });
 
-bool InstallGround(registry::Mode mode)
-{
-    if (!game::IsBuild641() ||
-        !(g_SC4Effect_PlaceOnGround ||
-          Detour(addr::SC4Effect_PlaceOnGround, &TSC4Effect_PlaceOnGround, &g_SC4Effect_PlaceOnGround)))
-        return false;
-    g_groundMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: particles' placing on the ground %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredGround = registry::Register({
-    "renderer.effects.ground",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_PlaceOnGround,
-    "A new particle put on the ground or ended, by the terrain's height and the kind of its cell; compare mode runs "
-    "ours and the game's on the same particle and generator (docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallGround,
-});
-
 bool InstallPool(registry::Mode mode)
 {
     if (!game::IsBuild641() || !HookPool())
@@ -7785,8 +3725,8 @@ const bool g_registeredEnding = registry::Register({
     registry::Phase::PostAppInit,
     addr::SC4EffectBase_SetEnding,
     "An effect stopped, started again or ended: both classes' stop setters and the sub-object's routine that keeps "
-    "the marks or gives every particle back; compare mode records the game's run and replays ours, as "
-    "renderer.effects.effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    "the marks or gives every particle back; compare mode records the game's run and replays ours "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallEnding,
 });
@@ -7845,8 +3785,7 @@ const bool g_registeredStop = registry::Register({
     registry::Phase::PostAppInit,
     addr::SC4EffectBase_Stop,
     "An effect stopped outright: its marks cleared, every particle given back, no longer in use; compare mode "
-    "records the game's run and replays ours, as renderer.effects.effect (docs/renderer.md, \"Water effects, sky "
-    "and clouds\")",
+    "records the game's run and replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallStop,
 });
@@ -7876,415 +3815,15 @@ const bool g_registeredFinish = registry::Register({
     registry::Phase::PostAppInit,
     addr::SC4EffectBase_Finish,
     "Whether an effect is over: with no particle left, a marked effect is ended or released; compare mode records "
-    "the game's run and replays ours, as renderer.effects.effect (docs/renderer.md, \"Water effects, sky and "
-    "clouds\")",
+    "the game's run and replays ours (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallFinish,
-});
-
-bool HookWander()
-{
-    return g_SC4Effect_StepFlag800000 ||
-           Detour(addr::SC4Effect_StepFlag800000, &TSC4Effect_StepFlag800000, &g_SC4Effect_StepFlag800000);
-}
-
-bool InstallWander(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookWander())
-        return false;
-    g_wanderMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: effect wandering %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredWander = registry::Register({
-    "renderer.effects.wander",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_StepFlag800000,
-    "An effect's wandering: a timer, and at its end a random turn of the effect's own velocity; compare mode runs "
-    "ours and the game's from the same effect and the same generator state (docs/renderer.md, \"Water effects, "
-    "sky and clouds\")",
-    true,
-    InstallWander,
-});
-
-bool HookPull()
-{
-    return g_SC4Effect_PathVelocity ||
-           Detour(addr::SC4Effect_PathVelocity, &TSC4Effect_PathVelocity, &g_SC4Effect_PathVelocity);
-}
-
-bool InstallPull(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookPull())
-        return false;
-    g_pullMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: effect pull %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredPull = registry::Register({
-    "renderer.effects.pull",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_PathVelocity,
-    "The pull on an effect's particles from outside, worked out each frame for descriptions that list any; "
-    "compare mode runs ours and the game's on the same effect (docs/renderer.md, \"Water effects, sky and "
-    "clouds\")",
-    true,
-    InstallPull,
-});
-
-bool HookBox()
-{
-    return g_SC4Effect_NotDrawn || Detour(addr::SC4Effect_NotDrawn, &TSC4Effect_NotDrawn, &g_SC4Effect_NotDrawn);
-}
-
-bool InstallBox(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookBox())
-        return false;
-    g_boxMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: effect box %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredBox = registry::Register({
-    "renderer.effects.box",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_NotDrawn,
-    "What the base effect class does when it is not drawn: the box around its particles; compare mode runs ours "
-    "and the game's on the same effect (docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallBox,
-});
-
-bool HookBuffered()
-{
-    return g_SC4Effect_DrawParticlesTextured ||
-           Detour(addr::SC4Effect_DrawParticlesTextured, &TSC4Effect_DrawParticlesTextured,
-                  &g_SC4Effect_DrawParticlesTextured);
-}
-
-bool InstallBuffered(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookBuffered())
-        return false;
-    g_bufferedMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: buffered particle draw %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredBuffered = registry::Register({
-    "renderer.effects.particles_buffered",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_DrawParticlesTextured,
-    "An effect's particle draw into the driver's dynamic vertex buffer: each particle a quad, drawn in runs of the "
-    "buffer's capacity; compare mode runs ours quietly, then the game's, and compares the draws (docs/renderer.md, "
-    "\"Water effects, sky and clouds\")",
-    true,
-    InstallBuffered,
-});
-
-bool HookParticles()
-{
-    return g_SC4Effect_DrawParticles ||
-           Detour(addr::SC4Effect_DrawParticles, &TSC4Effect_DrawParticles, &g_SC4Effect_DrawParticles);
-}
-
-bool InstallParticles(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookParticles())
-        return false;
-    g_particlesMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: particle draw %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredParticles = registry::Register({
-    "renderer.effects.particles",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_DrawParticles,
-    "The base effect class's particle draw: each particle a quad in the effect's batch, the batch drawn with the "
-    "texture; compare mode runs ours quietly, then the game's, and compares the draws (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallParticles,
-});
-
-bool HookAxes()
-{
-    return g_SC4Effect_BeforeParticles ||
-           Detour(addr::SC4Effect_BeforeParticles, &TSC4Effect_BeforeParticles, &g_SC4Effect_BeforeParticles);
-}
-
-bool InstallAxes(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookAxes())
-        return false;
-    g_axesMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: effect axes %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredAxes = registry::Register({
-    "renderer.effects.axes",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_BeforeParticles,
-    "What an effect does before it draws: the two axes its particles are drawn along, taken again when the view's "
-    "rotation changed; compare mode runs ours and the game's on the same effect (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallAxes,
-});
-
-bool HookEmitBurst()
-{
-    return g_emitBurst || Detour(addr::SC4Effect_EmitBurst, &TEmitBurst, &g_emitBurst);
-}
-
-bool InstallEmitBurst(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookEmitBurst())
-        return false;
-    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool() && HookStepParticle()))
-        return false;
-    g_emitBurstMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
-    log::Write("water effects: burst emitter %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredEmitBurst = registry::Register({
-    "renderer.effects.emit_burst",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_EmitBurst,
-    "The emitter that emits particles in bursts (taking, stepping, adding and giving back particles still the "
-    "game's); compare mode records the game's run and replays ours, as renderer.effects.effect "
-    "(docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallEmitBurst,
-});
-
-bool HookEmitStream()
-{
-    return g_emitStream || Detour(addr::SC4Effect_EmitStream, &TEmitStream, &g_emitStream);
-}
-
-bool InstallEmitStream(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookEmitStream())
-        return false;
-    // The stream emitter steps each new particle: that call is recorded too.
-    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool() && HookStepParticle()))
-        return false;
-    g_emitStreamMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
-    log::Write("water effects: stream emitter %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredEmitStream = registry::Register({
-    "renderer.effects.emit_stream",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_EmitStream,
-    "The emitter that emits a steady stream of particles (taking, stepping, adding and giving back particles "
-    "still the game's); compare mode records the game's run and replays ours, as renderer.effects.effect "
-    "(docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallEmitStream,
-});
-
-bool HookEmitToCount()
-{
-    return g_emitToCount || Detour(addr::SC4Effect_EmitToCount, &TEmitToCount, &g_emitToCount);
-}
-
-bool InstallEmitCount(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookEmitToCount())
-        return false;
-    if (mode == registry::Mode::Compare && !(HookFrees() && HookPool()))
-        return false;
-    g_emitCountMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
-    log::Write("water effects: count emitter %s",
-               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredEmitCount = registry::Register({
-    "renderer.effects.emit_count",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_EmitToCount,
-    "The emitter that keeps a count of particles (taking, adding and giving back particles still the game's); "
-    "compare mode records the game's run and replays ours, as renderer.effects.effect (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallEmitCount,
-});
-
-bool HookEmit()
-{
-    return g_SC4Effect_Emit || Detour(addr::SC4Effect_Emit, &TSC4Effect_Emit, &g_SC4Effect_Emit);
-}
-
-bool InstallEmit(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookEmit())
-        return false;
-    if (mode == registry::Mode::Compare &&
-        !(HookEmitToCount() &&
-          HookEmitBurst() &&
-          HookEmitStream()))
-        return false;
-    g_emitMode = mode == registry::Mode::Compare ? EmitMode::Compare : EmitMode::Ours;
-    log::Write("water effects: emit %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredEmit = registry::Register({
-    "renderer.effects.emit",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_Emit,
-    "An effect's emit: the countdown to the next emission and the choice of emitter (the three emitters still the "
-    "game's); compare mode runs ours with the emitter only noted, then the game's (docs/renderer.md, \"Water "
-    "effects, sky and clouds\")",
-    true,
-    InstallEmit,
-});
-
-bool InstallEffect(registry::Mode mode)
-{
-    if (!game::IsBuild641())
-        return false;
-    if (mode == registry::Mode::Compare) {
-        // OPENSC4_EFFECT_HOOKS=<bits, hex> leaves recording hooks out (to
-        // find one that disturbs the game); OPENSC4_EFFECT_NOCOMPARE=1
-        // installs them without comparing.
-        const char* const pick = std::getenv("OPENSC4_EFFECT_HOOKS");
-        const uint32_t bits = pick ? std::strtoul(pick, nullptr, 16) : 0xFFFFFFFFu;
-        uint32_t bit = 1;
-        bool ok = true;
-        const auto hook = [&](std::uintptr_t address, void (*thunk)(), auto* original) {
-            if (bits & bit)
-                ok = (*original || Detour(address, thunk, original)) && ok;
-            bit <<= 1;
-        };
-        if (bits & bit)
-            ok = HookStepParticle() && ok;
-        bit <<= 1;
-        if (bits & bit)
-            ok = HookEmit() && ok;
-        bit <<= 1;
-        if (bits & bit)
-            ok = HookAxes() && ok;
-        bit <<= 1;
-        if (bits & bit)
-            ok = HookBuffered() && ok;
-        bit <<= 1;
-        if (bits & bit)
-            ok = HookParticles() && ok;
-        bit <<= 1;
-        hook(addr::SC4EffectB_DrawParticles, &TSC4EffectB_DrawParticles, &g_SC4EffectB_DrawParticles);
-        if (bits & bit)
-            ok = HookBox() && ok;
-        bit <<= 1;
-        hook(addr::SC4EffectB_NotDrawn, &TSC4EffectB_NotDrawn, &g_SC4EffectB_NotDrawn);
-        hook(addr::SC4Effect_StepFlag2000, &TSC4Effect_StepFlag2000, &g_SC4Effect_StepFlag2000);
-        if (bits & bit)
-            ok = HookPull() && ok;
-        bit <<= 1;
-        hook(addr::SC4Effect_StepFlag80000000, &TSC4Effect_StepFlag80000000, &g_SC4Effect_StepFlag80000000);
-        if (bits & bit)
-            ok = HookFinish() && ok;
-        bit <<= 1;
-        if (bits & bit)
-            ok = HookWander() && ok;
-        bit <<= 1;
-        if (!ok || !HookFrees() || !HookPool())
-            return false;
-        const char* const off = std::getenv("OPENSC4_EFFECT_NOCOMPARE");
-        if (off && *off == '1') {
-            log::Write("water effects: effect hooks %08X installed, no comparison", bits);
-            return true;
-        }
-    }
-    if (!HookEffectDraw())
-        return false;
-    g_effectMode = mode == registry::Mode::Compare ? EffectMode::Compare : EffectMode::Ours;
-    log::Write("water effects: effect draw %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredEffect = registry::Register({
-    "renderer.effects.effect",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4Effect_Draw,
-    "A particle effect's draw: its clock, its particles stepped and ended, new ones emitted, then the drawing (the "
-    "steps themselves still the game's); compare mode runs the game's with its calls recorded, puts the effect "
-    "back, then ours answered from the record (docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallEffect,
-});
-
-bool HookDecalDraw()
-{
-    return g_decalDraw || Detour(addr::SC4EffectDecal_Draw, &TDecalDraw, &g_decalDraw);
-}
-
-bool InstallDecal(registry::Mode mode)
-{
-    if (!game::IsBuild641() || !HookDecalDraw())
-        return false;
-    g_decalMode = mode == registry::Mode::Compare ? DecalMode::Compare : DecalMode::Ours;
-    log::Write("water effects: decals' step %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredDecal = registry::Register({
-    "renderer.effects.decal",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectDecal_Draw,
-    "A decal's step: its time, and the opacity, values and position its curves give at that time, passed to its "
-    "owner; compare mode notes the calls of ours and of the game's through a stand-in owner (docs/renderer.md, "
-    "\"Water effects, sky and clouds\")",
-    true,
-    InstallDecal,
 });
 
 // --- The effects manager's clean-up ----------------------------------------------------------
 
 // The clean-up after the draw and the three functions under it
-// (effects_cleanup.inc). The clean-up cannot run twice: a compound effect
+// (effects_cleanup.h). The clean-up cannot run twice: a compound effect
 // that has ended lets go of its effects, and the other lists go by who still
 // holds what. So its comparison runs the game's first, noting the answers of
 // the end test (0x005BFD70) and the erases, and stops it at its last call
@@ -8429,7 +3968,7 @@ void QueueStart(char* self, char* compound)
         AssignWords(self + 0xBA0, g_queueAfter[at]);
 }
 
-#include "core/effects_cleanup.inc"
+#include "core/effects_cleanup.h"
 
 WordVector CloneWords(const WordVector& vector)
 {
@@ -8847,13 +4386,13 @@ const bool g_registeredCleanup = registry::Register({
 // --- The effects manager's sort by depth -----------------------------------------------------
 
 // The six functions the draw sorts the effects in view with
-// (effects_sort.inc). Each only moves entries of the manager's vector at
+// (effects_sort.h). Each only moves entries of the manager's vector at
 // +0xDA4, so each is compared by running the game's and then ours from the
 // same vector; the game's calls of the ones under it are compared on the
 // way.
 constexpr uint32_t kDepthHeapSort = 0x0058F9D0; // cdecl (first, middle, last, unused, unused)
 
-#include "core/effects_sort.inc"
+#include "core/effects_sort.h"
 
 StepMode g_sortMode = StepMode::Original;
 using Sort3Fn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t);
@@ -9025,7 +4564,7 @@ const bool g_registeredSort = registry::Register({
 
 // --- The start of a compound effect ----------------------------------------------------------
 
-// The start and the four small functions under it (effects_compound.inc).
+// The start and the four small functions under it (effects_compound.h).
 // The start makes effects, so it cannot run twice. Its comparison runs the
 // game's first, noting each call it makes that ours makes too: the level's
 // values, the assign and the erase of records, the grow of the vector, the
@@ -9240,7 +4779,7 @@ void ScGrow(char* records, char* at, char* record, uint8_t* tag)
     }
     const char* const end = At<char*>(records, 4);
     ScReplayed(ScGrowCall(at, record));
-    // The translation goes on to the record before the end: one there must be.
+    // The game's goes on to the record before the end: one there must be.
     if (At<char*>(records, 4) == end)
         At<char*>(records, 4) += kScRecord;
 }
@@ -9279,7 +4818,7 @@ void ScValues(char* compound)
         ApplyCompoundValues(compound);
 }
 
-#include "core/effects_compound.inc"
+#include "core/effects_compound.h"
 
 // The stand-ins for six of a held effect's functions. The four the start
 // calls are noted; the values (slot 0x14) and the hold (slot 0x1C) are
@@ -9782,7 +5321,7 @@ const bool g_registeredCompoundStart = registry::Register({
 
 // --- The making of a record's effect ---------------------------------------------------------
 
-// The making and the small function under it (effects_make.inc). The
+// The making and the small function under it (effects_make.h). The
 // making makes effects, so it cannot run twice. Its comparison is the
 // start's kind: the game's first, noting each call it makes that ours
 // makes too: the six makers, the taking of a description, the value and
@@ -10020,7 +5559,7 @@ void MkAssign(char* holder, char* object)
     }
 }
 
-#include "core/effects_make.inc"
+#include "core/effects_make.h"
 
 // The stand-ins for five functions of what the making makes. The hold and
 // the letting go are also what the small function's own comparison looks
@@ -10514,7 +6053,7 @@ const bool g_registeredMake = registry::Register({
 // --- The makers of what a record holds ------------------------------------------------------
 
 // The four makers the test cities use and the decal's reset
-// (effects_makers.inc). A maker that takes a free one only moves an index
+// (effects_makers.h). A maker that takes a free one only moves an index
 // between two vectors, so its comparison runs the game's and ours on the
 // same memory: the manager's vectors and their storage, put back as they
 // were between the two. One that makes a new one allocates and constructs
@@ -10665,8 +6204,8 @@ void MxGrowTable(bool compound, char* table, char** at, char* object)
         CallThis<void>(insert, table, at, &object, &tag, 1u, 1u);
 }
 
-#include "core/effects_makers.inc"
-#include "core/effects_lookup.inc"
+#include "core/effects_makers.h"
+#include "core/effects_lookup.h"
 
 // The stand-ins for the calls on what is made and on the manager. The
 // letting go may be an object's last: it gets its own table back first.
@@ -11053,7 +6592,7 @@ const bool g_registeredMakers = registry::Register({
 // --- The look-up by name and the compound effect's description -----------------------------
 
 // The look-up, the name map's equal range and the compound effect's
-// taking of its description (effects_lookup.inc). All three only read, or
+// taking of its description (effects_lookup.h). All three only read, or
 // write plain values into the compound effect, so compare mode runs the
 // game's and then ours: the look-up's answers, the equal range's sixteen
 // bytes and answer, and the compound effect's bytes (put back as the game
@@ -11183,7 +6722,7 @@ const bool g_registeredCompoundDescription = registry::Register({
 
 // --- A decal's taking of its description ----------------------------------------------------
 
-// The decal's description (effects_decal_description.inc). It copies the
+// The decal's description (effects_decal_description.h). It copies the
 // description in, which can allocate, and lets go of a texture, so it
 // cannot run twice. Its comparison runs the game's first, noting the copy
 // with what it changed in the decal (through a detour), then puts the
@@ -11243,7 +6782,7 @@ double DsCityFloat(char* city, uint32_t slot)
     return reinterpret_cast<double(__thiscall*)(void*)>(At<uint32_t>(At<char*>(city, 0), slot))(city);
 }
 
-#include "core/effects_decal_description.inc"
+#include "core/effects_decal_description.h"
 
 // The copy of the game's while a decal's description is noted.
 uint32_t __fastcall DecalDescriptionAssignNoted(char* to, void*, uint32_t description)
@@ -11378,7 +6917,7 @@ const bool g_registeredDecalDescription = registry::Register({
 
 // --- The constructors of a decal and a compound effect -------------------------------------
 
-// The three constructors (effects_ctors.inc). Each allocates (the decal's
+// The three constructors (effects_ctors.h). Each allocates (the decal's
 // description five vectors of one value, the compound effect the room of
 // its name), so their comparison runs ours on a copy of the memory, then
 // the game's on the object itself: the two are compared byte for byte but
@@ -11442,7 +6981,7 @@ uint32_t CtCompared(const char* id, char* object, std::size_t size, Game&& game,
     return result;
 }
 
-#include "core/effects_ctors.inc"
+#include "core/effects_ctors.h"
 
 uint32_t DecalDescriptionCtorRun(char* self)
 {
@@ -11510,7 +7049,7 @@ const bool g_registeredCtors = registry::Register({
 
 // --- A compound effect's records: the assign and the growth --------------------------------
 
-// The assign, the destroy and the growth (effects_records.inc). The first
+// The assign, the destroy and the growth (effects_records.h). The first
 // two hold or let go of effects, so
 // their comparisons are the small holder's (renderer.effects.make's): the
 // game's first with the holds and the endings noted and made, through
@@ -11618,7 +7157,7 @@ void GrFree(char* storage)
         reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(storage);
 }
 
-#include "core/effects_records.inc"
+#include "core/effects_records.h"
 
 uint32_t GrAllocateNoted(char* pool, uint32_t size)
 {
@@ -11826,7 +7365,7 @@ const bool g_registeredRecords = registry::Register({
 
 // --- The look-up by IDs and the manager's starts ------------------------------------------
 
-// The ID map's equal range, the look-up by IDs (effects_starts.inc, in
+// The ID map's equal range, the look-up by IDs (effects_starts.h, in
 // renderer.effects.lookup with the look-up by name: only read, so compare
 // mode runs the game's and then ours), and the starts by IDs and by name,
 // the restart of those in use and the change of zoom that restarts them
@@ -11986,7 +7525,7 @@ void SbRestart(char* self)
         CallThis<void>(addr::SC4EffectsManager_RestartInUse, self);
 }
 
-#include "core/effects_starts.inc"
+#include "core/effects_starts.h"
 
 // The game's calls the starts' comparison notes.
 uint32_t __fastcall SbHoldStub(char* object, void*)
@@ -12446,7 +7985,7 @@ const bool g_registeredStarts = registry::Register({
 // --- The store of compound descriptions -------------------------------------------------
 //
 // The objects the effects file reader reads into the store, their copy and
-// end, the store's growth, insert and two resizes (effects_store.inc).
+// end, the store's growth, insert and two resizes (effects_store.h).
 // They allocate and free, so the comparison is the noted kind, nested: the
 // game's runs with each call it makes noted (the allocations in the pool
 // allocator, the frees, the game's helpers and these functions; a call to
@@ -12814,7 +8353,7 @@ char* StCopyCompoundsDown(char* first, char* last, char* to)
         reinterpret_cast<uint32_t>(&tag), 0));
 }
 
-#include "core/effects_store.inc"
+#include "core/effects_store.h"
 
 uint32_t StAllocateNoted(char* pool, uint32_t size)
 {
@@ -13131,7 +8670,7 @@ const bool g_registeredStore = registry::Register({
 //
 // The vectors of pointers in an effect description, of three kinds by how
 // an element is held and let go: a list's copy, fill, assignment, end and
-// growth (effects_pointers.inc). The comparison is the store's, sharing
+// growth (effects_pointers.h). The comparison is the store's, sharing
 // its engine: the game's runs with each call it makes noted, these
 // compared where they are called, ours replayed; the ends run ours first.
 // A hold and a let-go are noted at the function the game reaches them by:
@@ -13232,7 +8771,7 @@ void PtDestroyPointers(Held kind, char* list)
         DestroyPointers(kind, list);
 }
 
-#include "core/effects_pointers.inc"
+#include "core/effects_pointers.h"
 
 // The game's side: each of the fourteen by the group's mode (inside a noted
 // run noted, and compared where it is called). What a copy, fill or
@@ -13462,7 +9001,7 @@ const bool g_registeredPointers = registry::Register({
 // 0x28 and 0x1C bytes, texts of 0x14 and 0x10 bytes; their copies, fills,
 // copies down, ends, growth, inserts, the decal descriptions' resize, the
 // texts' erase, the manager's emptying of its two texts' lists and the end
-// of a range of name tables (effects_vectors.inc). The comparison is the
+// of a range of name tables (effects_vectors.h). The comparison is the
 // store's, sharing its engine: the game's runs with each call it makes
 // noted (the lists' copies and assignments of floats, 12-byte items and
 // strings among them), these compared where they are called, ours
@@ -13670,7 +9209,7 @@ char* LsEraseTexts(Ls kind, char* list, char* first, char* last)
     return EraseTexts(kind, list, first, last);
 }
 
-#include "core/effects_vectors.inc"
+#include "core/effects_vectors.h"
 
 // The game's side: each of the thirty by the group's mode (inside a noted
 // run noted, and compared where it is called). What a copy, fill or copy
@@ -14098,7 +9637,7 @@ const bool g_registeredVectors = registry::Register({
 // constructor, end and take, the list of name tables and its fill, a name
 // hash's copy and insert, the zoom distances, a compound description's
 // record copies and copy down; and the manager's AddRef, QueryInterface and
-// render states (effects_tables.inc). The comparison is the store's,
+// render states (effects_tables.h). The comparison is the store's,
 // sharing its engine: the game's runs with each call it makes noted, these
 // compared where they are called, ours replayed; the end runs ours first.
 // Besides the bytes a function writes in place, a comparison may name
@@ -14350,7 +9889,7 @@ uint32_t TbQueryOther(char* other, uint32_t id, char** out)
     return CallThis<uint32_t>(query, other, id, out) & 0xFF;
 }
 
-#include "core/effects_tables.inc"
+#include "core/effects_tables.h"
 
 // The game's side: each of the sixteen by the group's mode (inside a noted
 // run noted, and compared where it is called).
@@ -14775,7 +10314,7 @@ const bool g_registeredTables = registry::Register({
 // end, a hash of key pairs' insert and growth, a hash of names' growth, the
 // clear of a hash of lists and of a list of events, the 0x40-byte counted
 // object's constructor and destructors, the character transform
-// (effects_hashes.inc); and the manager's lists of held effects (the
+// (effects_hashes.h); and the manager's lists of held effects (the
 // fourth kind of the lists of held pointers, by this group's mode). The
 // comparison is the store's, sharing its engine: the game's runs with each
 // call it makes noted, these compared where they are called, ours
@@ -14816,7 +10355,7 @@ void HsDelete(char* object)
         reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(object);
 }
 
-#include "core/effects_hashes.inc"
+#include "core/effects_hashes.h"
 
 // A comparison whose game's run frees what is put back for ours: the
 // frees kept until it is done (inside another's, for that one).
@@ -15220,7 +10759,7 @@ const bool g_registeredHashes = registry::Register({
 
 // --- The particles' height map -------------------------------------------------------------
 //
-// The height map a particle meeting the ground asks (effects_heightmap.inc):
+// The height map a particle meeting the ground asks (effects_heightmap.h):
 // its query, the height at a place, a vertex's height and the normal, the
 // three changes of a layer, the constructor, the init, the shutdown and the
 // deleting destructor with its thunk. The comparison runs both on what each
@@ -15250,7 +10789,7 @@ char* g_hmDeleted = nullptr;
 char* g_hmDestroyed = nullptr;
 uint32_t g_hmDestroyedFlags = 0;
 
-#include "core/effects_heightmap.inc"
+#include "core/effects_heightmap.h"
 
 void HmDelete(void* object)
 {
@@ -15667,12 +11206,11 @@ const bool g_registeredHeightMap = registry::Register({
 
 // --- A decal's small functions ---------------------------------------------------------------
 //
-// A decal's parameter setter, update and Release, its description's end
-// and assignment (effects_decal.inc, effects_decal_update.inc), and two of
-// the manager's: its fill of held pointers and the AddRef thunks of two of
-// its interfaces. The setter and the update only write the decal: the
-// game's, the decal put back, ours, the two compared and the game's left
-// (an update that would call the object at +0x120 runs the game's only).
+// A decal's parameter setter and Release, its description's end and
+// assignment (effects_decal.h), and two of the manager's: its fill of held
+// pointers and the AddRef thunks of two of its interfaces (the decal's
+// update is still the game's). The setter only writes the decal: the
+// game's, the decal put back, ours, the two compared and the game's left.
 // The assignment, the end and Release are the store's kind, sharing its
 // engine: the assignment's game's run noted (its list assignments noted
 // with the bytes they leave) and ours replayed on the description put
@@ -15687,7 +11225,6 @@ const bool g_registeredHeightMap = registry::Register({
 // ours; the answers and the counts compared.
 StepMode g_dcMode = StepMode::Original;
 Call3Fn g_SC4EffectDecal_SetParameter = nullptr;
-Call2Fn g_SC4EffectDecal_Update = nullptr;
 Call1Fn g_SC4Float3Vector_Assign = nullptr;
 Call0Fn g_SC4TextureBinding_Release = nullptr, g_SC4EffectsManager_AddRefThunk4 = nullptr,
         g_SC4EffectsManager_AddRefThunk8 = nullptr;
@@ -15722,35 +11259,7 @@ void DcDelete(char* object)
     HsDelete(object);
 }
 
-#include "core/effects_decal.inc"
-
-// The update (effects_decal_update.inc), on the machine of the manager's
-// draw.
-uint32_t UpdateDecal(char* self, uint32_t first, uint32_t second)
-{
-    uint32_t stackmem[64] = {};
-    [[maybe_unused]] uint32_t eax = 0, ebx = 0, edx = 0, esi = 0, edi = 0, ebp = 0, fa = 0, fb = 0;
-    uint32_t ecx = reinterpret_cast<uint32_t>(self);
-    uint32_t esp = reinterpret_cast<uint32_t>(&stackmem[40]);
-    M<uint32_t>(esp + 4) = first;
-    M<uint32_t>(esp + 8) = second;
-    double st[8] = {};
-    int top = -1;
-    [[maybe_unused]] uint32_t status = 0;
-#define ST(i) st[top - (i)]
-#define PUSH(value)                                                                                                      \
-    do {                                                                                                                 \
-        const double pushed = (value);                                                                                   \
-        st[++top] = pushed;                                                                                              \
-    } while (0)
-#define POP() --top
-#define FCOM(value) status = CompareStatus(ST(0), (value))
-#include "core/effects_decal_update.inc"
-#undef ST
-#undef PUSH
-#undef POP
-#undef FCOM
-}
+#include "core/effects_decal.h"
 
 bool DcGameOnly()
 {
@@ -15794,20 +11303,6 @@ uint32_t __fastcall DcSetByMode(char* decal, void*, uint32_t id, uint32_t value,
     return DcDecalCompared("effects.decal_parts.parameter", decal, true, game, ours);
 }
 OPENSC4_THUNK(TDcSet, DcSetByMode, 12)
-
-uint32_t __fastcall DcUpdateByMode(char* decal, void*, uint32_t first, uint32_t second)
-{
-    const auto ours = [&] { return UpdateDecal(decal, first, second); };
-    const auto game = [&] { return g_SC4EffectDecal_Update(decal, nullptr, first, second); };
-    if (g_dcMode == StepMode::Ours)
-        return ours();
-    const bool calls = !At<uint8_t>(decal, 0x110) && (At<uint32_t>(decal, 0xC) >> 6 & 1) &&
-                       At<int32_t>(decal, 0x70) != -1;
-    if (DcGameOnly() || calls)
-        return game();
-    return DcDecalCompared("effects.decal_parts.update", decal, false, game, ours);
-}
-OPENSC4_THUNK(TDcUpdate, DcUpdateByMode, 8)
 
 // The three shared with other groups' noting.
 uint32_t __fastcall DcAssignByMode(char* to, void*, uint32_t from)
@@ -15941,8 +11436,7 @@ bool InstallDecalParts(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
         !Detour(addr::SC4EffectDecal_SetParameter, &TDcSet, &g_SC4EffectDecal_SetParameter) ||
-        !Detour(addr::SC4EffectDecal_Update, &TDcUpdate, &g_SC4EffectDecal_Update) || !HookDecalDescriptionAssign() ||
-        !HookDecalDescriptionDestroy() || !HookDecalRelease() ||
+        !HookDecalDescriptionAssign() || !HookDecalDescriptionDestroy() || !HookDecalRelease() ||
         !DetourCdecl(addr::SC4EffectsManager_FillHeld, &DcFillByMode, &g_SC4EffectsManager_FillHeld) ||
         !Detour(addr::SC4EffectsManager_AddRefThunk4, &TDcAddRef4, &g_SC4EffectsManager_AddRefThunk4) ||
         !Detour(addr::SC4EffectsManager_AddRefThunk8, &TDcAddRef8, &g_SC4EffectsManager_AddRefThunk8))
@@ -15964,8 +11458,8 @@ const bool g_registeredDecalParts = registry::Register({
     "renderer/effects",
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
-    addr::SC4EffectDecal_Update,
-    "A decal's parameter setter, update and Release, its description's end and assignment, and the manager's fill of "
+    addr::SC4EffectDecal_SetParameter,
+    "A decal's parameter setter and Release (its update is still the game's), its description's end and assignment, and the manager's fill of "
     "held pointers and two AddRef thunks; compare mode runs the game's and ours on what each may change, the "
     "assignment, end and Release the store's way, noted and replayed (docs/renderer.md, \"Water effects, sky and "
     "clouds\")",
@@ -16601,7 +12095,7 @@ void TlLiftUnderOccupant(char* manager, char* occupant)
         CallThis<void>(addr::SC4EffectsManager_LiftUnderOccupant, manager, occupant);
 }
 
-#include "core/effects_tail.inc"
+#include "core/effects_tail.h"
 
 using TlRegisterFn = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, char*, uint32_t, uint32_t, char*);
 using TlUnregisterFn = uint32_t(__cdecl*)(char*, char*);
@@ -17016,7 +12510,7 @@ const bool g_registeredTail = registry::Register({
 
 // --- The effects' time step and start actions -----------------------------------------------
 //
-// The manager's time step and an effect's start actions (effects_time.inc),
+// The manager's time step and an effect's start actions (effects_time.h),
 // compared as the tail is: the objects they call through proxied (the
 // speed service's slot answering a double kept in the note), the direct
 // helpers noted by detours of this group's in compare mode (the city
@@ -17070,7 +12564,7 @@ void TmFlash(char* manager, char* shake)
                 [&] { return CallThis<uint32_t>(addr::SC4EffectsManager_Flash, manager, shake); });
 }
 
-#include "core/effects_time.inc"
+#include "core/effects_time.h"
 
 // The compound effects in use, in order (the step's comparison needs them
 // the same after the game's run).
@@ -17210,38 +12704,6 @@ const bool g_registeredTime = registry::Register({
     "helpers and compares the store's way (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallTime,
-});
-
-bool InstallEffects(registry::Mode mode)
-{
-    if (!game::IsBuild641())
-        return false;
-    g_compareEffects = mode == registry::Mode::Compare;
-    if (g_compareEffects &&
-        !(Detour(addr::SC4EffectsManager_BeforeDraw, &TBeforeDraw, &g_beforeDraw) &&
-          Detour(addr::SC4EffectsManager_DrawFlash, &TDrawFlash, &g_drawFlash) &&
-          Detour(addr::SC4EffectsManager_StepShake, &TStepShake, &g_stepShake) &&
-          HookAfterDraw() &&
-          HookEffectDraw() &&
-          HookDecalDraw()))
-        return false;
-    if (!Detour(addr::SC4EffectsManager_Draw, &TEffects, &g_effects))
-        return false;
-    log::Write("water effects: effects draw %s", g_compareEffects ? "compared with the game's" : "ours");
-    return true;
-}
-
-const bool g_registeredEffects = registry::Register({
-    "renderer.effects.draw",
-    "renderer/effects",
-    registry::Kind::Detour,
-    registry::Phase::PostAppInit,
-    addr::SC4EffectsManager_Draw,
-    "The effects manager's draw: the effects in view collected, sorted by depth and drawn (each effect's own "
-    "drawing still the game's); compare mode runs ours with the calls that draw only recorded, then the game's, and "
-    "compares the calls and the manager (docs/renderer.md, \"Water effects, sky and clouds\")",
-    true,
-    InstallEffects,
 });
 
 } // namespace

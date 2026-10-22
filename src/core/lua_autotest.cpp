@@ -24,7 +24,7 @@ namespace opensc4::autotest {
 namespace {
 
 const char* const kNames[] = {
-#include "core/lua_global_names.inc"
+#include "core/lua_global_names.h"
 };
 
 struct Fnv {
