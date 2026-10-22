@@ -2,12 +2,12 @@
 // docs/renderer.md, "The overlays", "Bookkeeping").
 //
 //   OPENSC4_TEST_OVERLAYS=<day>   token "ovl": on that day, drives every
-//                                 function of renderer.overlays.manage1 on
-//                                 the city's four overlay managers (the
-//                                 terrain view's +0x6C to +0x78) through
-//                                 their vtables, or by address for the ones
-//                                 the vtable does not reach, and hashes what
-//                                 they give back.
+//                                 function of renderer.overlays.manage1 and
+//                                 manage2 on the city's four overlay
+//                                 managers (the terrain view's +0x6C to
+//                                 +0x78) through their vtables, or by address
+//                                 for the ones the vtable does not reach, and
+//                                 hashes what they give back.
 //
 // Every call leaves the managers as they were, apart from the order of the
 // nodes in the buckets of the overlays it moves and places (a moved decal
@@ -22,9 +22,18 @@
 // (its matrix and flags put back after), Place (its nodes then taken out and
 // put back once), QueryInterface for the manager's interface and for
 // cIGZUnknown, GetStatsString into a stand-in string and the options message
-// to the message target at +0x10. Works muted and in the original game.
-// The token leaves out what frames change (alphas, decal descriptions, the
-// draw counts in the stats text).
+// to the message target at +0x10. Then the adds (part 2): slots 3 to 11
+// once each with the shadow texture (0xAA592B77) at the terrain's middle
+// (slot 3 with a stand-in texture source, slot 11 twice, the second time with
+// fewer than five texture stages), the ring decal's handle through part 1's
+// getters, setters, MoveDecal and UpdateDecalInfo (a target that is a group),
+// a decal moved east and back; on the first manager with buckets the range
+// helpers by address on scratch records and ring decals until all three
+// vectors have grown; then everything added removed again, last first, which
+// leaves the overlays in use as they were (the vectors larger, their free
+// lists longer). Works muted and in the original game. The token leaves out
+// what frames change (alphas, decal descriptions, the draw counts in the
+// stats text).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
@@ -40,6 +49,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace opensc4::autotest {
 namespace {
@@ -219,6 +229,239 @@ void Drive(void* m)
     Mix(static_cast<char*>(m) + 0x18, 9);
 }
 
+// Part 2: the adds.
+
+constexpr std::size_t kGroups = 0xC0, kGroupSize = 0x24, kTextures = 0x90;
+constexpr uint32_t kShadowTexture = 0xAA592B77; // the shadow texture Init loads by ID
+constexpr uint32_t kFshType = 0x7AB50E44;
+constexpr uint32_t kNone = 0xFFFFFFFF;
+
+uint32_t g_added = 0, g_grown = 0;
+
+// A stand-in texture source (slot 3's argument): its references counted, a
+// size of 64 by 32. Static: a removed overlay keeps its reference until the
+// record is used again.
+struct Source {
+    void** vtable;
+    int32_t references;
+};
+
+uint32_t __fastcall SourceQuery(Source*, void*, uint32_t, void**)
+{
+    return 0;
+}
+
+uint32_t __fastcall SourceAddRef(Source* self, void*)
+{
+    return static_cast<uint32_t>(++self->references);
+}
+
+uint32_t __fastcall SourceRelease(Source* self, void*)
+{
+    return static_cast<uint32_t>(--self->references);
+}
+
+void __fastcall SourceSize(Source*, void*, uint32_t* out)
+{
+    out[0] = 64;
+    out[1] = 32;
+}
+
+void* g_sourceVtable[4] = {};
+Source g_source{g_sourceVtable, 0};
+
+// An added ID's records mixed in: the overlay (or a group's eight) and the
+// handle's description.
+void MixAdded(void* m, uint32_t id)
+{
+    Mix(id);
+    if (id == kNone)
+        return;
+    const auto overlay = [&](uint32_t index) {
+        const char* const r = At<char*>(m, kOverlays) + index * kOverlaySize;
+        Mix(r + kFlags, 1);
+        Mix(r + kCells, kOverlaySize - kCells - 8);
+    };
+    if (static_cast<int32_t>(id) >= 0) {
+        overlay(id);
+        return;
+    }
+    const char* const handle = At<char*>(m, kHandles) + (id & 0x7FFFFFFF) * kHandleSize;
+    Mix(handle + 4, kHandleSize - 4);
+    const uint32_t target = At<uint32_t>(const_cast<char*>(handle), kTarget);
+    if (static_cast<int32_t>(target) >= 0) {
+        overlay(target);
+        return;
+    }
+    const uint32_t* ids = reinterpret_cast<const uint32_t*>(At<char*>(m, kGroups) + (target & 0x7FFFFFFF) * kGroupSize + 4);
+    for (int i = 0; i < 8; ++i)
+        overlay(ids[i]);
+}
+
+// The range helpers no caller in the game reaches with other arguments than
+// one record at a vector's end (or Clear's empty assigns), called by address
+// on scratch records from the manager's first ones; the copies of overlays
+// destroyed again (0x00737E10).
+void DriveRanges(void* m)
+{
+    using RangeFn = char*(__cdecl*)(const char*, const char*, char*);
+    using FillFn = char*(__cdecl*)(char*, uint32_t, const char*);
+    using DestroyFn = void(__cdecl*)(char*, char*, void*);
+    const auto range = [](std::uintptr_t a) { return reinterpret_cast<RangeFn>(a); };
+    const auto fill = [](std::uintptr_t a) { return reinterpret_cast<FillFn>(a); };
+    const auto destroy = reinterpret_cast<DestroyFn>(addr::cSC4OverlayManager_DestroyOverlays);
+    const auto mixOverlays = [](const char* r, int n) {
+        for (int i = 0; i < n; ++i, r += kOverlaySize) {
+            Mix(r, 8);
+            Mix(r + kCells, 0xAC - kCells);
+        }
+    };
+    char tag = 0;
+    if (Used(m, kOverlays, kOverlaySize) >= 2) {
+        const char* const first = At<char*>(m, kOverlays);
+        alignas(8) char scratch[3 * kOverlaySize] = {};
+        char* end = range(addr::cSC4OverlayManager_CopyOverlays)(first, first + 2 * kOverlaySize, scratch);
+        Mix(static_cast<uint32_t>(end - scratch));
+        mixOverlays(scratch, 2);
+        destroy(scratch, scratch + 2 * kOverlaySize, &tag);
+        end = fill(addr::cSC4OverlayManager_FillOverlays)(scratch, 3, first + kOverlaySize);
+        Mix(static_cast<uint32_t>(end - scratch));
+        mixOverlays(scratch, 3);
+        end = range(addr::cSC4OverlayManager_AssignOverlays)(first, first + 2 * kOverlaySize, scratch);
+        Mix(static_cast<uint32_t>(end - scratch));
+        mixOverlays(scratch, 3);
+        destroy(scratch, scratch + 3 * kOverlaySize, &tag);
+    }
+    if (Used(m, kHandles, kHandleSize) >= 2) {
+        const char* const first = At<char*>(m, kHandles);
+        alignas(8) char scratch[3 * kHandleSize] = {};
+        char* end = fill(addr::cSC4OverlayManager_FillHandles)(scratch, 3, first);
+        Mix(static_cast<uint32_t>(end - scratch));
+        end = range(addr::cSC4OverlayManager_CopyHandles)(first, first + 2 * kHandleSize, scratch);
+        Mix(static_cast<uint32_t>(end - scratch));
+        end = range(addr::cSC4OverlayManager_AssignHandles)(first + kHandleSize, first + 2 * kHandleSize, scratch + 2 * kHandleSize);
+        Mix(static_cast<uint32_t>(end - scratch));
+        Mix(scratch, sizeof scratch);
+    }
+    if (Used(m, kGroups, kGroupSize) >= 1) {
+        const uint32_t* const first = reinterpret_cast<const uint32_t*>(At<char*>(m, kGroups));
+        uint32_t scratch[2 * kGroupSize / 4] = {};
+        const uint32_t* const end = reinterpret_cast<uint32_t*(__cdecl*)(const uint32_t*, const uint32_t*, uint32_t*)>(
+            addr::cSC4OverlayManager_CopyGroups)(first, first + kGroupSize / 4, scratch);
+        Mix(static_cast<uint32_t>(end - scratch));
+        Mix(scratch, sizeof scratch);
+    }
+}
+
+// Each of the interface's slots 3 to 11 once with the shadow texture at the
+// terrain's middle, the ring decal's handle through part 1's group paths,
+// a decal moved, then (on the first manager) ring decals until all three
+// vectors have grown; everything added removed again, last first.
+void DriveAdds(void* m, bool grow)
+{
+    void* const textures = At<void*>(m, kTextures);
+    void* texture = nullptr;
+    Virtual<void>(textures, 0x14, kShadowTexture, static_cast<void*>(&texture));
+    if (!texture)
+        return;
+    const float cell = At<float>(m, 0x64);
+    const float at[2] = {static_cast<float>(At<int32_t>(m, 0x5C)) * cell * 0.5f, static_cast<float>(At<int32_t>(m, 0x60)) * cell * 0.5f};
+    const uint32_t key[3] = {kFshType, Virtual<uint32_t>(textures, 0x2C), kShadowTexture};
+    std::vector<uint32_t> ids;
+    const auto add = [&](uint32_t id) {
+        ids.push_back(id);
+        MixAdded(m, id);
+        return id;
+    };
+    add(Virtual<uint32_t>(m, 0x0C, static_cast<void*>(&g_source), static_cast<const void*>(at), 64.0f, 0.0f));
+    add(Virtual<uint32_t>(m, 0x10, texture, static_cast<const void*>(at), 32.0f, 0.0f));
+    const uint32_t moved = add(Virtual<uint32_t>(m, 0x14, static_cast<const void*>(key), static_cast<const void*>(at), 48.0f, 0.125f));
+    add(Virtual<uint32_t>(m, 0x18, kShadowTexture, static_cast<const void*>(at), 16.0f, 0.3f));
+    const uint32_t ring = add(Virtual<uint32_t>(m, 0x1C, kShadowTexture, static_cast<const void*>(at), 96.0f, 0.0f));
+    const uint32_t height = add(Virtual<uint32_t>(m, 0x20, kShadowTexture));
+    add(Virtual<uint32_t>(m, 0x24, static_cast<const void*>(key), static_cast<const void*>(at), 24.0f, 0.25f, 1u));
+    add(Virtual<uint32_t>(m, 0x28, kShadowTexture, static_cast<const void*>(at), 24.0f, 0.0f, 0u));
+    const float points2[8] = {at[0] - 8, at[1] - 8, at[0] + 8, at[1] - 8, at[0] + 8, at[1] + 8, at[0] - 8, at[1] + 8};
+    const float points3[12] = {at[0] - 8, 30, at[1] - 8, at[0] + 8, 30, at[1] - 8, at[0] + 8, 30, at[1] + 8, at[0] - 8, 30, at[1] + 8};
+    const float box[6] = {at[0] - 8, 0, at[1] - 8, at[0] + 8, 30, at[1] + 8};
+    // cS3DTransform: flags, a rotation (rows), a translation, a scale.
+    const float transform[14] = {0, 1, 0, 0, 0, 1, 0, 0, 0, 1, at[0], 0, at[1], 1};
+    const auto shadow = [&] {
+        return add(Virtual<uint32_t>(m, 0x2C, texture, 4, static_cast<const void*>(points3), static_cast<const void*>(points2),
+                                     static_cast<const void*>(box), static_cast<const void*>(transform)));
+    };
+    shadow();
+    // Again with fewer than five texture stages, for the cells from the
+    // bounds (0x007354E0).
+    int32_t& stages = At<int32_t>(At<char*>(Global<char*>(addr::SC4_App43CC4), 0x18), 0x1FC);
+    const int32_t saved = stages;
+    stages = 4;
+    shadow();
+    stages = saved;
+    if (grow) {
+        std::string text;
+        for (uint32_t id : ids) {
+            char word[12];
+            std::snprintf(word, sizeof word, " %08X", id);
+            text += word;
+        }
+        log::Write("autotest: overlays added (slots 3 to 11, two shadows):%s", text.c_str());
+    }
+    if (height != kNone)
+        Virtual<void>(m, 0x54, height, 2.0f, 0.5f);
+    if (moved != kNone) {
+        const float east[2] = {at[0] + 32.0f, at[1]};
+        Virtual<void>(m, 0x30, moved, static_cast<const void*>(east));
+        Virtual<void>(m, 0x30, moved, static_cast<const void*>(at));
+        MixAdded(m, moved);
+    }
+    if (ring != kNone) {
+        // A handle whose target is a group: part 1's getters, setters, a
+        // move, a new description with texture scales and the old one again.
+        WriteBack(m, ring, Read(m, ring));
+        uint32_t info[9];
+        Virtual<void>(m, 0x38, ring, static_cast<void*>(info));
+        Mix(info);
+        const float east[2] = {at[0] + 48.0f, at[1] + 16.0f};
+        Virtual<void>(m, 0x30, ring, static_cast<const void*>(east));
+        MixAdded(m, ring);
+        uint32_t scaled[9];
+        std::memcpy(scaled, info, sizeof scaled);
+        const float scale = 2.0f, turn = 0.2f;
+        std::memcpy(&scaled[3], &turn, 4);
+        std::memcpy(&scaled[5], &scale, 4);
+        Virtual<void>(m, 0x34, ring, static_cast<const void*>(scaled));
+        MixAdded(m, ring);
+        Virtual<void>(m, 0x34, ring, static_cast<const void*>(info));
+        MixAdded(m, ring);
+    }
+    if (grow)
+        DriveRanges(m);
+    if (grow) {
+        char* begins[3] = {At<char*>(m, kOverlays), At<char*>(m, kHandles), At<char*>(m, kGroups)};
+        for (int i = 0; i < 20000; ++i) {
+            const bool grown = At<char*>(m, kOverlays) != begins[0] && At<char*>(m, kHandles) != begins[1]
+                               && At<char*>(m, kGroups) != begins[2];
+            if (grown)
+                break;
+            const uint32_t id = Virtual<uint32_t>(m, 0x1C, kShadowTexture, static_cast<const void*>(at), 32.0f + (i % 7), 0.0f);
+            ids.push_back(id);
+            Mix(id);
+        }
+        g_grown += (At<char*>(m, kOverlays) != begins[0]) + (At<char*>(m, kHandles) != begins[1]) + (At<char*>(m, kGroups) != begins[2]);
+        for (std::size_t v : {kOverlays, kHandles, kGroups}) {
+            const uint32_t capacity = static_cast<uint32_t>(At<char*>(m, v + 8) - At<char*>(m, v));
+            Mix(capacity);
+        }
+    }
+    for (auto it = ids.rbegin(); it != ids.rend(); ++it)
+        if (*it != kNone) {
+            ++g_added;
+            Virtual<void>(m, 0x3C, *it);
+        }
+    reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::SC4TextureBinding_Release)(texture);
+}
+
 void DriveOverlays(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_OVERLAYS") || !game::IsBuild641())
@@ -232,26 +475,36 @@ void DriveOverlays(const Day& day)
         return;
     }
     g_on = true;
+    g_sourceVtable[0] = reinterpret_cast<void*>(&SourceQuery);
+    g_sourceVtable[1] = reinterpret_cast<void*>(&SourceAddRef);
+    g_sourceVtable[2] = reinterpret_cast<void*>(&SourceRelease);
+    g_sourceVtable[3] = reinterpret_cast<void*>(&SourceSize);
     void* seen[4] = {};
+    bool grown = false;
     for (uint32_t kind = 0; kind < 4; ++kind) {
         void* const m = At<void*>(view, 0x6C + 4 * kind);
         bool again = !m;
         for (void* s : seen)
             again = again || s == m;
         seen[kind] = m;
-        if (!again)
-            Drive(m);
+        if (again)
+            continue;
+        Drive(m);
+        const bool grow = !grown && !At<uint8_t>(m, kWaterRows);
+        DriveAdds(m, grow);
+        grown = grown || grow;
     }
-    log::Write("autotest: overlays driven: %u managers, %u overlays, %u handles (%u with groups), hash %08X", g_managers, g_overlays,
-               g_handles, g_groups, g_hash);
+    log::Write("autotest: overlays driven: %u managers, %u overlays, %u handles (%u with groups), %u added (%u vectors grown, "
+               "source references %d), hash %08X",
+               g_managers, g_overlays, g_handles, g_groups, g_added, g_grown, g_source.references, g_hash);
 }
 
 void Fingerprint(cISC4City*, std::string& line)
 {
     if (!g_on)
         return;
-    char text[64];
-    std::snprintf(text, sizeof text, " | ovl %u %u %u %08X", g_overlays, g_handles, g_groups, g_hash);
+    char text[80];
+    std::snprintf(text, sizeof text, " | ovl %u %u %u %u %u %08X", g_overlays, g_handles, g_groups, g_added, g_grown, g_hash);
     line += text;
 }
 

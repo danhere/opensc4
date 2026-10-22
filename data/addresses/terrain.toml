@@ -1116,7 +1116,7 @@ address = 0x0073A1B0
 kind = "function"
 convention = "thiscall"
 expect = "81 EC F4 00 00 00 53 55"
-source = "Name ours, not analysed. (handle, bool buckets), ret 8: builds a decal's overlay or overlays from the handle's description (the texture matrix, the cells through 0x00735380, 0x007394B0 and SetCells). 2,769 bytes. Called by address from src/core/overlay_manage_1.cpp (MoveDecal, UpdateDecalInfo)."
+source = "Name ours. (handle, bool buckets), ret 8: a decal's texture matrix from the handle's description (centre +4, size +0xC, turn +0x10 in turns, aspect +0x14 times the texture's +0x28, texture scales +0x18 and +0x1C, offset +0x20) given to its overlay (+0x2C), or to a group's eight with their cells from 0x007394B0; else the cells from the decal's bounds (0x00735380) through SetCells with buckets, or cut to the terrain in place. Flag 2 unless both scales are 1. Called by the adds and by MoveDecal and UpdateDecalInfo (by address). Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
 
 [[entry]]
 name = "cSC4OverlayManager::MoveDecal"
@@ -1133,6 +1133,284 @@ kind = "function"
 convention = "thiscall"
 expect = "8B 44 24 04 83 F8 FF 74"
 source = "Slot 13, (id, nine values), ret 8: a handle's description replaced and the decal built again (a tail jump to 0x0073A1B0). Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyGroups"
+address = 0x00735350
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 04 8B 44 24 0C"
+source = "Name ours. (first, last, to, tag): 0x24-byte groups copied to new memory (none written at a null place); EAX the end. Called by GrowGroups (0x007386A0). Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddShadowDecalIid"
+address = 0x00735480
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Slot 10, (texture ID, float[2] position, size, turn, bool mirror), ret 0x14: -1 while +0x18 is 0; else slot 9 with the key {0x7AB50E44, the texture manager's (+0x90) slot 0x2C, ID}. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::ShadowCells"
+address = 0x007354E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 8B 54 24 20 D9"
+source = "Name ours. (float[3] light direction, count, points, float[6] bounds, out int32[4]), ret 0x14: the bounds' ground rectangle 0.07 in (0x00AA27E8), in cells (+0x68), stretched away from the light by the height times 1/16 (0x00A8E174), cut to the terrain (+0x78). Called by AddShadow below five stages. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AssignOverlay"
+address = 0x00735820
+kind = "function"
+convention = "thiscall"
+expect = "53 55 56 8B F1 57 8B 7C"
+source = "Name ours. (from), ret 4: an overlay record assigned: everything but the byte at +9, the texture (+0xAC, 0x004664A0 and 0x008090E0) and texture source (+0xB0, slots 1 and 2) swapped by reference; EAX this. Called by NewOverlay and AssignOverlays. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyOverlay"
+address = 0x007359F0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8B 7C 24 0C"
+source = "Name ours. (from), ret 4: an overlay record made as a copy (the byte at +9 not copied), its texture and source referenced once more; EAX this. Called by CopyOverlays, FillOverlays, GrowOverlays and NewOverlay. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AssignOverlays"
+address = 0x00735CB0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. (first, last, to, ...): overlay records assigned over a range (0x00735820); EAX the end. Called by Clear (0x0073AC90) with an empty range. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AssignHandles"
+address = 0x00735D10
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 08 53 56 8B 74"
+source = "Name ours. (first, last, to, ...): 0x30-byte handles copied over a range; EAX the end. Called by Clear (0x0073AC90) with an empty range. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::ResetOverlay"
+address = 0x00735F40
+kind = "function"
+convention = "thiscall"
+expect = "8B C1 33 D2 89 50 04 88"
+source = "Name ours. No arguments: an overlay record made empty (flags 1, draw mode 0, identity first matrix, the second all 0x00B4B3C8, alpha 1, the colour 0x00B0D4E4, no texture or source); the index, the byte at +9 and the cells left as they were. EAX this. Called by the adds. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddDecalKey"
+address = 0x00736150
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D 54 24 04 8B F1"
+source = "Slot 5, (texture key, float[2] position, size, turn), ret 0x10: the texture manager's (+0x90) slot 0x18 for the key, then slot 4 with it; the texture released. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddDecalIid"
+address = 0x007361B0
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8D 54 24 04 8B F1"
+source = "Slot 6, (texture ID, float[2] position, size, turn), ret 0x10: the texture manager's slot 0x14 for the ID, then slot 4 with it; the texture released. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyHandle"
+address = 0x00736280
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 04 85 C0 74 4A"
+source = "Name ours. (to, from): a 0x30-byte handle copied unless to is null; EAX to. Called by GrowHandles and NewHandle. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyOverlays"
+address = 0x007362E0
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first, last, to, tag): overlay records copied to new memory (0x007359F0; none at a null place); EAX the end. Called by GrowOverlays. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::FillOverlays"
+address = 0x00736320
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. (to, count, from, tag): count overlay records made from one (0x007359F0); EAX the end. Called by GrowOverlays. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyHandles"
+address = 0x00736350
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 0C 56 8B 74 24"
+source = "Name ours. (first, last, to, tag): handles copied to new memory; EAX the end. Called by GrowHandles. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::FillHandles"
+address = 0x007363D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 54 24 08 85 D2 8B 44"
+source = "Name ours. (to, count, from, tag): count handles made from one; EAX the end. Called by GrowHandles. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::GrowHandles"
+address = 0x007385C0
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 06"
+source = "Name ours. this = the handles' vector (+0xAC); (at, from, tag, count, bool at end), ret 0x14: STLport's insert overflow: room for max(size, count) more (0x0090CF54), the old block freed. Called by NewHandle. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::GrowGroups"
+address = 0x007386A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B D9 8B 03"
+source = "Name ours. this = the groups' vector (+0xC0); as GrowHandles for 0x24-byte groups (the copies inlined, the tail through 0x00735350). Called by NewGroup. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::BuildRing"
+address = 0x007394B0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC DC 00 00 00 8B 84"
+source = "Name ours. (group, float[4] bounds in cells, bool buckets), ret 0xC: a ring decal's eight cell rectangles from its bounds (outer radius half the width, the inner (1 - 0x00B0D4D8) of it, rows 0x00B0D4D4 and 0x00B0D4D0 of half the depth in from the ends), each through SetCells with buckets, else cut to the terrain in place. Called by BuildDecal. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::NewHandle"
+address = 0x00739EC0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 46 0C 83 F8"
+source = "Name ours. this = the handles' vector (+0xAC); (from), ret 4: the first free handle (+0xC, +0x10) or a new one at the end (GrowHandles when full) copied from the given, its link -1; EAX its index. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::NewGroup"
+address = 0x00739FC0
+kind = "function"
+convention = "thiscall"
+expect = "53 8B D9 8B 43 0C 83 F8"
+source = "Name ours. this = the groups' vector (+0xC0); as NewHandle for groups. Called by AddRingDecal. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::GrowOverlays"
+address = 0x0073A070
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 8B F1 8B 16"
+source = "Name ours. this = the overlays' vector (+0x98); as GrowHandles for overlay records, the old ones destroyed (0x00737E10). Called by NewOverlay. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::NewOverlay"
+address = 0x0073AEC0
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 8B 5E 0C 83"
+source = "Name ours. this = the overlays' vector (+0x98); (from), ret 4: as NewHandle for overlay records (assigned from the free list, 0x00735820; copied at the end, 0x007359F0). Called by the adds. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddDecalFrom"
+address = 0x0073AF80
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 0C 01 00 00 55 8B"
+source = "Name ours. (texture source, texture, float[2] position, size, turn), ret 0x14: a decal (flags 0x90) with the aspect of the texture (the texture manager's slot 0x20) or else the source (its slot 0xC); built without buckets, put into its buckets and redrawn, given a handle. -1 with neither. Called by slot 3. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddRingDecal"
+address = 0x0073B170
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 3C 01 00 00 55 57"
+source = "Slot 7, (texture ID, float[2] position, size, turn), ret 0x10: eight overlays (flags 0x10), a group of them and a handle for it; the decal built on the group, each overlay put into its buckets and its cells redrawn (the terrain's slot 0x110 inline). Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddShadowDecalKey"
+address = 0x0073B3B0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 54 01 00 00 56 8B"
+source = "Slot 9, (texture key, float[2] position, size, turn, bool mirror), ret 0x14: -1 while +0x18 is 0; a decal (flags 8), mirrored by the fourth column less the second, with a second matrix of the first halved plus a quarter of its fourth column; placed (0x00738A10) and given a handle. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddOverlay"
+address = 0x0073B8A0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC B4 00 00 00 56 8B"
+source = "Name ours. (texture, int32[4] cells, float[16] matrix, flags), ret 0x10: an overlay as given (flags or'd with 1), put into its buckets and redrawn; -1 with no texture. Called by AddHeightMap and AddShadow. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddDecalTexture"
+address = 0x0073BF10
+kind = "function"
+convention = "thiscall"
+expect = "81 EC 04 01 00 00 56 57"
+source = "Slot 4, (texture, float[2] position, size, turn), ret 0x10: as 0x0073AF80 with a texture; -1 with none. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddDecalSource"
+address = 0x0073C0B0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 10 8B 54 24 0C"
+source = "Slot 3, (texture source, float[2] position, size, turn), ret 0x10: 0x0073AF80 with no texture. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddShadow"
+address = 0x0073C0D0
+kind = "function"
+convention = "thiscall"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Slot 11, (texture, count, float[3] points, float[2] points, float[6] bounds, transform), ret 0x18: -1 while +0x18 is 0; the light (0x00B43DD0 slot 0x24) projects the points into the first matrix (slot 0x44), the cells from it (slot 0x48) at five stages or more, else from the bounds (slot 0x34, 0x007354E0); AddOverlay with flags 8; the second matrix from the ground points' bounds. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AddHeightMap"
+address = 0x0073C9A0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 54 56 8B F1 8B 46"
+source = "Slot 8, (texture ID), ret 4: AddOverlay over the whole terrain (0, 0, +0x5C, +0x60) with flags 0x12 and a matrix of 2 / +0x5C in its sixth place and 1 in the eleventh and sixteenth. Ours in renderer.overlays.manage2 (src/core/overlay_manage_2.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::DestroyOverlays"
+address = 0x00737E10
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last, tag): overlay records destroyed over a range (their textures and sources released). Called by GrowOverlays and Clear; stays the game's (part 3), called by ours."
+
+[[entry]]
+name = "STE::UnsetMatrixFloat"
+address = 0x00B4B3C8
+kind = "data"
+source = "Name ours. The word the game's matrix code fills a new matrix with before it is set (an overlay record's second matrix keeps it; read as bits)."
+
+[[entry]]
+name = "STE::RingRowNear"
+address = 0x00B0D4D4
+kind = "data"
+source = "Name ours. float 0.2: a ring decal's first rows in from its top and bottom, of half its depth (0x007394B0)."
+
+[[entry]]
+name = "STE::RingRowFar"
+address = 0x00B0D4D0
+kind = "data"
+source = "Name ours. float 0.4: a ring decal's second rows in, of half its depth (0x007394B0)."
+
+[[entry]]
+name = "STE::RingThickness"
+address = 0x00B0D4D8
+kind = "data"
+source = "Name ours. float 0.1: a ring decal's width, of its outer radius (0x007394B0)."
+
+[[entry]]
+name = "STE::OverlayColour"
+address = 0x00B0D4E4
+kind = "data"
+source = "Name ours. float[3] (1, 1, 1): a new overlay's colour (0x00735F40)."
 
 [[entry]]
 name = "STE::DynamicBuffersFor"

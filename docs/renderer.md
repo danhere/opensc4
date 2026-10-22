@@ -414,7 +414,7 @@ The manager (0xFC bytes; constructor 0x0073BC20, set up by Init 0x0073CB60, whic
 
 An ID is an overlay's index, or with the top bit set a handle's; a handle's target is an overlay's index, or with the top bit set a group's (a decal drawn as eight overlays). The getters read a group's first ID; the setters pass the call to each of the eight through the manager's own slot. The buckets (+0xF0, a vector of list heads) are a grid of the terrain's cells shifted right by +0xE4 (Init makes it 0: one bucket a cell), +0xE8 a row; each list holds the indices of the overlays that touch the bucket, nodes {next, index} from the STL allocator 0x0090CF54. A manager that draws the water's rows (+0x15) has no buckets, and its setters do not ask for a redraw. Every change that shows asks the terrain (+0x88, its slot 0x110) to redraw the overlay's cells.
 
-The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no function in Ghidra (its bytes follow DecalInfo's). The last eight (0x0073CD40 on) belong to the next class. Status: *ours (draw)* the draws above, *part 1* `renderer.overlays.manage1`, *part 2* and *part 3* the batches proposed for the rest.
+The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no function in Ghidra (its bytes follow DecalInfo's). The last eight (0x0073CD40 on) belong to the next class. Status: *ours (draw)* the draws above, *part 1* `renderer.overlays.manage1`, *part 2* `renderer.overlays.manage2`, *part 3* the batch proposed for the rest.
 
 | Address | Bytes | What | Status |
 |---|---|---|---|
@@ -423,29 +423,29 @@ The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no f
 | 0x007352A0 | 37 | slot 27 GetStatsString | part 1 |
 | 0x007352D0 | 75 | DecalMoved: a centre moved by 1e-4 or more (cdecl) | part 1 |
 | 0x00735320 | 36 | STLport `fill` of 8-byte pairs; its callers are elsewhere (0x00638E80, 0x00711DB0) | not the manager's |
-| 0x00735350 | 48 | copy of 0x24-byte groups (the groups' vector growing) | part 2 (adding) |
+| 0x00735350 | 48 | copy of 0x24-byte groups (the groups' vector growing) | part 2 |
 | 0x00735380 | 246 | CellRect: a rectangle in cell units to cells (cdecl) | part 1 |
-| 0x00735480 | 93 | slot 10 AddShadowDecal(key) | part 2 (adding) |
-| 0x007354E0 | 484 | the shadow's rectangle and matrix for AddShadow | part 2 (adding) |
+| 0x00735480 | 93 | slot 10 AddShadowDecal(ID): slot 9 with the key {FSH, the texture manager's group, ID} | part 2 |
+| 0x007354E0 | 484 | ShadowCells: a shadow's cells from its bounds and the light (AddShadow below five stages) | part 2 |
 | 0x007356D0 | 80 | DrawRectPartial | ours (draw) |
 | 0x00735720 | 194 | DrawRect | ours (draw) |
 | 0x0073576A | 28 | a tail of DrawRect (Ghidra splits it) | ours (draw) |
 | 0x007357FE | 28 | a tail of DrawRect | ours (draw) |
-| 0x00735820 | 457 | an overlay record assigned (texture references) | part 2 (adding) |
-| 0x007359F0 | 695 | an overlay record copied | part 2 (adding) |
-| 0x00735CB0 | 83 | overlay records assigned over a range | part 2 (adding) |
-| 0x00735D10 | 554 | handles assigned over a range | part 2 (adding) |
-| 0x00735F40 | 442 | an overlay record reset | part 2 (adding) |
+| 0x00735820 | 457 | an overlay record assigned (texture references) | part 2 |
+| 0x007359F0 | 695 | an overlay record copied | part 2 |
+| 0x00735CB0 | 83 | overlay records assigned over a range | part 2 |
+| 0x00735D10 | 554 | handles assigned over a range | part 2 |
+| 0x00735F40 | 442 | an overlay record reset | part 2 |
 | 0x00736100 | 66 | the message target's slot 3 (0xC9F775BB: the options read again) | part 1 |
-| 0x00736150 | 82 | slot 5 AddDecal(texture binding) | part 2 (adding) |
-| 0x007361B0 | 82 | slot 6 AddDecal(cached string texture) | part 2 (adding) |
+| 0x00736150 | 82 | slot 5 AddDecal(key): the texture by key, then slot 4 | part 2 |
+| 0x007361B0 | 82 | slot 6 AddDecal(ID): the texture by ID, then slot 4 | part 2 |
 | 0x00736210 | 62 | FreeHandle | part 1 |
 | 0x00736250 | 44 | a bucket list cut after a node (its nodes freed) | part 3 (set-up, containers) |
-| 0x00736280 | 83 | a handle copied (0x30 bytes) | part 2 (adding) |
-| 0x007362E0 | 53 | overlay records copied into new memory | part 2 (adding) |
-| 0x00736320 | 48 | n overlay records made from one | part 2 (adding) |
-| 0x00736350 | 124 | handles copied into new memory | part 2 (adding) |
-| 0x007363D0 | 108 | n handles made from one | part 2 (adding) |
+| 0x00736280 | 83 | a handle copied (0x30 bytes) | part 2 |
+| 0x007362E0 | 53 | overlay records copied into new memory | part 2 |
+| 0x00736320 | 48 | n overlay records made from one | part 2 |
+| 0x00736350 | 124 | handles copied into new memory | part 2 |
+| 0x007363D0 | 108 | n handles made from one | part 2 |
 | 0x00736440 | 67 | a bucket list's nodes copied | part 3 (set-up, containers) |
 | 0x00736490 | 95 | slot 14 DecalInfo | part 1 |
 | 0x007364F0 | 134 | slot 20 SetOverlayFlags (not in the census's list: no function in Ghidra) | part 1 |
@@ -470,8 +470,8 @@ The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no f
 | 0x007382E0 | 166 | BucketRemove | part 1 |
 | 0x00738390 | 504 | ListVisible | ours (draw) |
 | 0x00738590 | 42 | a bucket list emptied | part 3 (set-up, containers) |
-| 0x007385C0 | 220 | the handles' vector grown by an insert | part 2 (adding) |
-| 0x007386A0 | 295 | the groups' vector grown by an insert | part 2 (adding) |
+| 0x007385C0 | 220 | the handles' vector grown by an insert | part 2 |
+| 0x007386A0 | 295 | the groups' vector grown by an insert | part 2 |
 | 0x007387D0 | 38 | bucket lists filled from one | part 3 (set-up, containers) |
 | 0x00738800 | 61 | bucket lists copied | part 3 (set-up, containers) |
 | 0x00738840 | 62 | n bucket lists made from one | part 3 (set-up, containers) |
@@ -482,21 +482,21 @@ The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no f
 | 0x007393B0 | 157 | SetCells: new cells cut to the terrain, the buckets moved | part 1 |
 | 0x00739450 | 64 | bucket lists copied into new memory | part 3 (set-up, containers) |
 | 0x00739490 | 18 | the view interface's draw (slot 3 of 0x00AB39D0), a jump to Draw | part 3 (set-up, containers) |
-| 0x007394B0 | 2573 | a decal's cells from its matrix, for one overlay or a group of eight | part 2 (adding) |
-| 0x00739EC0 | 242 | a new handle (from the free list or the vector) | part 2 (adding) |
-| 0x00739FC0 | 174 | a new group | part 2 (adding) |
-| 0x0073A070 | 253 | the overlays' vector grown by an insert | part 2 (adding) |
+| 0x007394B0 | 2573 | a decal's cells from its matrix, for one overlay or a group of eight | part 2 |
+| 0x00739EC0 | 242 | a new handle (from the free list or the vector) | part 2 |
+| 0x00739FC0 | 174 | a new group | part 2 |
+| 0x0073A070 | 253 | the overlays' vector grown by an insert | part 2 |
 | 0x0073A170 | 56 | bucket lists destroyed over a range | part 3 (set-up, containers) |
-| 0x0073A1B0 | 2769 | BuildDecal: a decal's texture matrix and cells from its description | part 2 (adding) |
+| 0x0073A1B0 | 2769 | BuildDecal: a decal's texture matrix and cells from its description | part 2 |
 | 0x0073AC90 | 225 | every overlay removed (the terrain view's 0x007560F0) | part 3 (set-up, containers) |
 | 0x0073AD80 | 94 | slot 12 MoveDecal | part 1 |
 | 0x0073ADE0 | 115 | slot 13 UpdateDecalInfo | part 1 |
 | 0x0073AE60 | 85 | the render states' vector resized | part 3 (set-up, containers) |
-| 0x0073AEC0 | 188 | a new overlay record (from the free list or the vector) | part 2 (adding) |
-| 0x0073AF80 | 494 | a decal added from a texture (slots 3 and 4) | part 2 (adding) |
-| 0x0073B170 | 563 | slot 7 AddRingDecal | part 2 (adding) |
-| 0x0073B3B0 | 1254 | slot 9 AddShadowDecal(iid) | part 2 (adding) |
-| 0x0073B8A0 | 359 | a height map added (slot 8, AddShadow) | part 2 (adding) |
+| 0x0073AEC0 | 188 | a new overlay record (from the free list or the vector) | part 2 |
+| 0x0073AF80 | 494 | AddDecalFrom: a decal from a texture source or a texture (slot 3) | part 2 |
+| 0x0073B170 | 563 | slot 7 AddRingDecal | part 2 |
+| 0x0073B3B0 | 1254 | slot 9 AddShadowDecal(key) | part 2 |
+| 0x0073B8A0 | 359 | AddOverlay: an overlay from a texture, cells, a matrix and flags (AddHeightMap, AddShadow) | part 2 |
 | 0x0073BA10 | 259 | the five render states set up | part 3 (set-up, containers) |
 | 0x0073BB20 | 245 | the buckets' vector reallocated | part 3 (set-up, containers) |
 | 0x0073BC20 | 380 | the constructor | part 3 (set-up, containers) |
@@ -507,12 +507,12 @@ The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no f
 | 0x0073BDE0 | 8 | an adjustor thunk (AddRef) | thunk, stays |
 | 0x0073BDF0 | 8 | an adjustor thunk (Release) | thunk, stays |
 | 0x0073BE00 | 267 | the destructor's body | part 3 (set-up, containers) |
-| 0x0073BF10 | 415 | slot 4 AddDecal(key) | part 2 (adding) |
-| 0x0073C0B0 | 30 | slot 3 AddDecal(iid), a call of 0x0073AF80 | part 2 (adding) |
-| 0x0073C0D0 | 1897 | slot 11 AddShadow | part 2 (adding) |
+| 0x0073BF10 | 415 | slot 4 AddDecal(texture) | part 2 |
+| 0x0073C0B0 | 30 | slot 3 AddDecal(texture source), a call of 0x0073AF80 | part 2 |
+| 0x0073C0D0 | 1897 | slot 11 AddShadow | part 2 |
 | 0x0073C840 | 314 | the buckets' vector: n lists inserted | part 3 (set-up, containers) |
 | 0x0073C980 | 30 | the deleting destructor | part 3 (set-up, containers) |
-| 0x0073C9A0 | 257 | slot 8 AddHeightMap | part 2 (adding) |
+| 0x0073C9A0 | 257 | slot 8 AddHeightMap | part 2 |
 | 0x0073CAB0 | 91 | the buckets' vector resized | part 3 (set-up, containers) |
 | 0x0073CB10 | 72 | the bucket grid set up (one bucket a cell) | part 3 (set-up, containers) |
 | 0x0073CB60 | 476 | Init (the terrain view's 0x0075C420, four managers) | part 3 (set-up, containers) |
@@ -537,9 +537,28 @@ Checked 2026-10-22, all runs muted:
 - Screenshots with ours on, against the stock DirectX 7 baselines: Making Money 20 of 20, Rush Hour 20 of 20, Big City 19 of 20. The odd one (z1-r3, 1.34% of the pixels against a limit of 1.2%) fails the same way with the game's code (1.36%), and ours against that run is 20 of 20. Again on the final build (rebased onto main): 60 of 60.
 - Parity (`renderer.overlays.manage1=ours` on side B, the base list with `determinism.dispatch_info`, 7 days, three jobs, every save on its first pair): plain 12 of 12; with `OPENSC4_TEST_OVERLAYS=2` and `OPENSC4_TEST_PROPKINDS=2` 12 of 12; with the propkinds edit (`OPENSC4_TEST_PROPKINDS_EDIT=1`) and `OPENSC4_TEST_OVERLAYS=3` 12 of 12; the same on `saves-plopped` 3 of 3. Every B run of the test legs logs a first call of 24 of the 26 (the plain legs: 11), the ` ovl` token is the same on both sides (373 to 5,784 overlays, 96 to 232 handles a city), and every edit run logs `restored yes`. Again on the final build: plain 12 of 12 and the edit leg 12 of 12, first pair; compare mode with the edit test 0 divergences in 35,047 calls, all 26 reached. Result folders `%LOCALAPPDATA%\opensc4\parity\ov1-*`.
 
-Not reached by any run: a handle whose target is a group (no city in the corpus has one: the test counts 0), so the group branches of the setters, the getters and RemoveOverlay are not verified. In ours mode FreeHandle and DecalMoved are called by ours directly and log no first call; the compare runs reached them. The U-Drive marker is not this class's: it goes to the situation code's overlay manager (`SC4OverlayManager`, 0x0046xxxx), and its draw's second slot is the shared stub 0x00735290.
+No city in the corpus has a handle whose target is a group (the test counts 0); part 2's test makes one (a ring decal), and its runs reach and compare the group branches of the setters, the getters, MoveDecal, UpdateDecalInfo and RemoveOverlay (below). In ours mode FreeHandle and DecalMoved are called by ours directly and log no first call; the compare runs reached them. The U-Drive marker is not this class's: it goes to the situation code's overlay manager (`SC4OverlayManager`, 0x0046xxxx), and its draw's second slot is the shared stub 0x00735290.
 
-Next: part 2, the adding (31 functions: slots 3 to 11, the new records from the free lists or the vectors, the vectors' growth and the record copies, and the two decal builders 0x0073A1B0 and 0x007394B0, about 12 KB with the float code), whose test can make ring decals and so reach the groups; then part 3, the set-up and the containers (23 functions: constructor, Init, destructor, render states, the buckets' vector and list helpers, Clear).
+**Part 2** (`renderer.overlays.manage2`, [overlay_manage_2.cpp](../src/core/overlay_manage_2.cpp) for ours and [overlay_manage_2_hooks.cpp](../src/core/overlay_manage_2_hooks.cpp) for the detours and compare mode, 31 functions, 15,419 bytes, translated by hand from the listing): the adding. The interface's slots 3 to 11 and what is under them: the two decal adds 0x0073AF80 and 0x0073B8A0, the new records from the free lists or the vectors' ends, the vectors' growth (STLport's insert overflow) with the record copies, fills and assigns and the empty record, the shadow's cells 0x007354E0 and the two decal builders, BuildDecal 0x0073A1B0 and the ring's 0x007394B0. Part 1's MoveDecal and UpdateDecalInfo call BuildDecal by address, so they reach ours when manage2 is on and the game's when it is off. The two parts share which side a compared call is on ([overlay_manage.h](../src/core/overlay_manage.h)), so a call one part compares reaches the other part's functions on the same side.
+
+What the slots do. The decals: slot 3 from a texture source (an object with references and a size, its slot 0xC), slot 4 from a texture, slots 5 and 6 from the texture the texture manager (+0x90) finds by key (its slot 0x18) or by ID (0x14), through slot 4: a decal is an overlay with flags 0x90, built from a handle's description (the position, size and turn given, unit aspect and texture scales, no offset, the texture's height over its width at +0x28) without buckets, then put into its buckets and redrawn, and a handle for it. Slot 7, a ring decal: eight overlays (flags 0x10), a group of them and the handle's target the group; built on the group, each piece put into its buckets and redrawn (the terrain's slot 0x110 called inline). Slot 8, a height map over the whole terrain (flags 0x12). Slots 9 and 10, a shadow decal (flags 8) by key or by ID (slot 10 builds the key {FSH, the texture manager's group, ID} and calls slot 9): mirrored when asked, each row of the first matrix gets its fourth value less its second in place of the second; its second matrix is the first halved in its first two columns with a quarter of the fourth added; placed with part 1's Place. Slot 11, a shadow (flags 8): the lighting object (0x00B43DD0's slot 0x24) projects the points into the first matrix (its slot 0x44, nothing when that fails) and, at five texture stages or more (the driver's +0x1FC), gives the cells (0x48); below five the cells come from the bounds, 0.07 in from each side and stretched by the height away from the light (0x34, then 0x007354E0). The second matrix maps the ground points' bounds to the middle half of the texture. The shadow adds give -1 while the manager has no shadow stages (+0x18). BuildDecal: the texture matrix that maps the decal's square to its texture (turned about the centre by the turn, in turns), given to the overlay or to each of a group's eight; the cells from the decal's bounds (grown to hold a turned decal when its texture scales are 1) through CellRect, then through SetCells with buckets or cut to the terrain in place; for a group the ring's cells (outer radius half the width, the inner 0.9 of it; rows 0.2 and 0.4 of half the depth in from each end, 0x00B0D4D4 and 0x00B0D4D0; a band across the top and the bottom, the middle rows' sides, four pieces between). Flag 2 is set unless both texture scales are 1.
+
+Some details the translation keeps: a turned decal's cosine and sine are the x87's own fcos and fsin of the angle, each rounded once to a float (their results do not follow the precision control); the decal and shadow matrices keep the game's products by zero (its matrix code is generic) and its sums in its order, with what the game keeps on the register stack at double precision and what it stores rounded, so a value is sometimes used unrounded after it was stored (the decal's fourth-row offset, the ring's last inner half-width, the shadow's inverse spans); a ring's square distances are compared before they are rounded and used rounded; the ratio of two sizes is of their unsigned values; the record copies never write the byte at +9 (a new record has what the memory held); a removed overlay keeps its texture's reference until its record is used again (part 1); the growth makes room for as many more as there are, or for the inserted count when larger. The game only ever inserts one record at a vector's end, so FillOverlays, FillHandles (an insert of more than one) and CopyGroups (the records after the insert point) run only from the test; Clear (0x0073AC90, part 3) calls the two range assigns with empty ranges.
+
+Compare mode runs ours on a copy of the manager, then the game's on the manager itself, and compares the manager's fields, the vectors' sizes and capacities, the records the call can reach (the free records an add may take, the last free one, every record past the old end; a vector that may grow, whole), every bucket list, the terrain redraws and the result. The copy holds its own references to the textures and texture sources of the overlay records it copies, so what ours assigns and releases there leaves the game's counts alone; a vector that may grow is copied into a block from the game's allocator, which ours may free. An overlay's byte at +9 is left out. The range helpers called at the top (Clear's assigns, the test's direct calls) are compared on a scratch copy of their destination, ours' overlay copies destroyed after.
+
+`OPENSC4_TEST_OVERLAYS` (token ` ovl`) now also drives part 2 on each manager after part 1: slots 3 to 11 once each with the shadow texture (0xAA592B77, the one Init loads) at the terrain's middle (slot 3 with a stand-in texture source; slot 11 twice, the second time with the stage count set to four for the call, so 0x007354E0 runs), SetHeightMapParams on the height map, a decal moved east and back (BuildDecal with buckets); the ring decal's handle through part 1's getters, setters, DecalInfo, MoveDecal and two UpdateDecalInfo (turned with a texture scale of 2, then its own), which is the group path of all of them and BuildDecal's into SetCells; on the first manager with buckets the range helpers by address on scratch records and ring decals until all three vectors have grown. Then everything added is removed again, last first (part 1's RemoveOverlay, the ring's through its group branch): the overlays in use are as they were, the vectors larger and their free lists longer. The token gains the count of added IDs and of vectors grown.
+
+Checked 2026-10-22, all runs muted:
+
+- Compare mode (manage1 ours, so part 1's MoveDecal and UpdateDecalInfo reach BuildDecal at the top), the three test cities with the camera workout: 0 divergences. Making Money 78,687 AddShadow, 86 AddDecal by ID and 86 BuildDecal; Big City 379,837 AddShadow, 945,050 BuildDecal, 1,046 AddDecal by ID; Rush Hour 27,837 AddShadow, 309,206 BuildDecal, 104 AddDecal by ID; the two range assigns 4 each (Clear). 17 of the 31 reached in each (the rest only by the test).
+- Compare mode, Making Money for four days with `OPENSC4_TEST_PROPKINDS=1`, `OPENSC4_TEST_PROPKINDS_EDIT=1` and `OPENSC4_TEST_OVERLAYS=2`, with manage1 compared too: 0 divergences, all 31 of part 2 reached (AddShadow 959, AddDecal by ID 100, from a texture source 30, by key 5, from a texture, the height map and both shadow decals 4 each, the ring decal 12, the range assigns 5, the fills and copies 1 each; BuildDecal inside part 1's compared calls) and all 26 of part 1, whose compared calls now include a target that is a group (RemoveOverlay 1,122, the setters and getters, MoveDecal 302, UpdateDecalInfo 1,374); `restored yes`; 48 IDs added and removed, three vectors grown. Again with manage1 ours: 0 divergences, BuildDecal 15,832, all 31 reached. A bug put in on purpose (the shadow's v shift from the rounded inverse span) gave 9 divergences in 951 AddShadow calls in two days of Making Money, so the comparison sees a difference in the last bit.
+- Screenshots with manage1 and manage2 ours, against the stock DirectX 7 baselines: Making Money 20 of 20, Big City 20 of 20 (z1-r3 too this time), Rush Hour 20 of 20.
+- Parity (`renderer.overlays.manage1=ours,renderer.overlays.manage2=ours` on side B, the base list with `determinism.dispatch_info`, 7 days, three jobs, every save on its first pair): plain 12 of 12; with `OPENSC4_TEST_OVERLAYS=2` and `OPENSC4_TEST_PROPKINDS=2` 12 of 12; with the propkinds edit (`OPENSC4_TEST_PROPKINDS_EDIT=1`) and `OPENSC4_TEST_OVERLAYS=3` 12 of 12; the same on `saves-plopped` 3 of 3. Every B run of the test legs logs a first call of 17 of the 31 (the others are called by ours directly), the ` ovl` token is the same on both sides (373 to 5,784 overlays, 48 to 365 IDs added and removed a city, all three vectors grown in each), and every edit run logs `restored yes`. Result folders `%LOCALAPPDATA%\opensc4\parity\ov2-*`.
+
+Not reached by the game in any run: FillOverlays, FillHandles and CopyGroups (no caller inserts more than one record or away from the end) and 0x007354E0 (every driver in the tests reports five stages or more); the test reaches them, and only its calls compare them. Slot 11's transform in the test is made up (identity rotation at the terrain's middle, scale 1); the lighting object reads it, the comparison does not depend on what it means. In ours mode the functions under the slots are called by ours directly and log no first call; the compare runs reached them.
+
+Next: part 3, the set-up and the containers (23 functions: constructor, Init, destructor, render states, the buckets' vector and list helpers, Clear).
 
 ## Models and lots
 
