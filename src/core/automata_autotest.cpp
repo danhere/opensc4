@@ -184,7 +184,21 @@
 //   slot 22: the deques, the pool). To the log only: for up to 24 of the
 //   city's vehicles (manager +0x44; which there are follows frames) slots
 //   146, 150, 138, 0x0054EA30 and slot 123 with margins 0 and 2, and the
-//   first one's network part's vtable and slot 0x90.
+//   first one's network part's vtable and slot 0x90. Part vb2 adds
+//   `,<setters>,<save>,<texts>,<life>` to the token, on the same four
+//   vehicles before their release: the setters (slots 154, 178, 180, 158
+//   of both classes, 184, 159, 160, 149, 124; 0x0055CA60 with null, a pool
+//   block and another size); 25 elements pushed on the +0x204 deque
+//   (0x00554230, 0x00553780) and released (0x00554640), 12 more emptied
+//   (0x00554280); three records on a record list of the test's
+//   (0x00554160); Write (0x0055F640) into a ByteOStream with three +0x27C
+//   elements (the core's part to the log only), the stream given 50 route
+//   cells and read into the second vehicle (0x0055BCF0; and twice with a
+//   wrong version), the second written again; both debug texts on two
+//   vehicles with and without a model key; Init and Shutdown of both
+//   classes on the third and fourth (their deques and +0x258/+0x25C given
+//   objects of the test's that count their references), then slots 172 and
+//   135. Objects of the test's count their references into the hashes.
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -10202,6 +10216,450 @@ void MixFields(Hash& h, char* o, const std::uintptr_t* vtables, bool vehicle)
     h.MixBytes(o + av::field::kVehicle2A4, 0x11);
 }
 
+// ---- Part vb2's objects.
+
+// A referenced object of the test's: AddRef and Release count; slot 0xEC
+// (two int outs, ret 8) answers 3 x its id and minus its id.
+struct Counted {
+    void** vtable;
+    int32_t references;
+    int32_t id;
+    uint32_t keys;
+};
+
+uint32_t __fastcall CountedAddRef(Counted* c, void*) { return static_cast<uint32_t>(++c->references); }
+uint32_t __fastcall CountedRelease(Counted* c, void*) { return static_cast<uint32_t>(--c->references); }
+void __fastcall CountedKey(Counted* c, void*, int32_t* first, int32_t* second)
+{
+    ++c->keys;
+    *first = c->id * 3;
+    *second = -c->id;
+}
+
+void** CountedVtable()
+{
+    static void* t[64] = {};
+    t[1] = reinterpret_cast<void*>(&CountedAddRef);
+    t[2] = reinterpret_cast<void*>(&CountedRelease);
+    t[av::kQueueKeySlot / 4] = reinterpret_cast<void*>(&CountedKey);
+    return t;
+}
+
+// An object held through a virtual base, as +0x258 and +0x25C are: +4 a
+// vbtable whose second word (4) leads from +4 to the counted part at +8.
+struct Held {
+    void** vtable;
+    const int32_t* vbtable;
+    Counted counted;
+};
+
+void MakeHeld(Held& held, int32_t id)
+{
+    static const int32_t kVbtable[2] = {0, 4};
+    held.vtable = CountedVtable();
+    held.vbtable = kVbtable;
+    held.counted = {CountedVtable(), 0, id, 0};
+}
+
+// The elements of a deque from start to finish (size, block), each mixed
+// with `mix`; answers the count.
+template <typename Mix>
+uint32_t WalkDeque(char* d, std::size_t size, std::size_t block, Mix mix)
+{
+    char* current = At<char*>(d, av::deque::kStart + av::deque::kCurrent);
+    char* last = At<char*>(d, av::deque::kStart + av::deque::kLast);
+    char** node = At<char**>(d, av::deque::kStart + av::deque::kNode);
+    uint32_t count = 0;
+    while (current != At<char*>(d, av::deque::kFinish + av::deque::kCurrent) && count < 4096) {
+        mix(current);
+        ++count;
+        current += size;
+        if (current == last) {
+            ++node;
+            current = *node;
+            last = current + block;
+        }
+    }
+    return count;
+}
+
+// A +0x27C element put at the finish of its block when there is room (the
+// object referenced); false without room.
+bool PutQueueElement(char* o, Counted* object, uint32_t word)
+{
+    char* const d = o + av::field::kDeque27C;
+    char*& current = At<char*>(d, av::deque::kFinish + av::deque::kCurrent);
+    if (!current || current + 8 >= At<char*>(d, av::deque::kFinish + av::deque::kLast))
+        return false;
+    At<Counted*>(current, 0) = object;
+    ++object->references;
+    At<uint32_t>(current, 4) = word;
+    current += 8;
+    return true;
+}
+
+// A string's text into a hash (cIGZString's ToChar), its length bounded.
+void MixText(Hash& h, void* text)
+{
+    const char* const s = text ? Virtual<const char*>(text, av::kStringToChar) : nullptr;
+    if (!s) {
+        h.Mix(0xFFFFFFFFu);
+        return;
+    }
+    const std::size_t length = strnlen(s, 512);
+    h.Mix(static_cast<uint32_t>(length));
+    h.MixBytes(s, length);
+}
+
+// Part vb2 on the four vehicles of the test's (the generator seeded by the
+// caller): the setters, the +0x204 deque's push and release, the record
+// list's push, the operator delete, Write then Read into a memory stream,
+// the debug texts and Init and Shutdown. Frame-dependent values go to the
+// log only.
+void LifeDrive(char* const v[4], Hash& setters, Hash& save, Hash& texts, Hash& life, uint32_t& flags)
+{
+    char* const a = v[0];
+    char* const b = v[1];
+    Counted counted[4];
+    for (int i = 0; i < 4; ++i)
+        counted[i] = {CountedVtable(), 0, i + 1, 0};
+    auto mixCounts = [&](Hash& h) {
+        for (const Counted& c : counted) {
+            h.Mix(static_cast<uint32_t>(c.references));
+            h.Mix(c.keys);
+        }
+    };
+
+    // ---- The setters.
+    for (const uint32_t value : {0x1FFu, 0x80u, 0u}) {
+        This<void>(addr::cSC4AutomatonBase_SetByte1E8, a, value);
+        setters.Mix(At<uint8_t>(a, av::field::kByte1E8));
+    }
+    {
+        const float p[3] = {12.5f, -3.0f, 700.25f};
+        const float q[3] = {-1.0f, 2.0f, 0.125f};
+        This<void>(addr::cSC4Vehicle_SetPoint264, a, static_cast<const float*>(p));
+        This<void>(addr::cSC4Vehicle_SetPoint270, a, static_cast<const float*>(q));
+        setters.MixBytes(a + av::field::kPoint264, 24);
+    }
+    At<float>(a, av::field::kFloat200) = 2.5f;
+    This<void>(addr::cSC4AutomatonBase_ClearFloat200, a);
+    setters.Mix(At<uint32_t>(a, av::field::kFloat200));
+    setters.Mix(Global<uint32_t>(addr::cSC4Vehicle_Float200Low));
+    setters.Mix(Global<uint32_t>(addr::cSC4Vehicle_Float200High));
+    for (int i = 0; i < 2; ++i) {
+        This<void>(addr::cSC4Vehicle_DrawFloat200, a);
+        setters.Mix(At<uint32_t>(a, av::field::kFloat200));
+    }
+    {
+        const uint32_t saved = At<uint32_t>(a, av::field::kAutomataFlags);
+        const uint32_t answer = This<uint32_t>(addr::cSC4Vehicle_DrawByte1E8, a);
+        setters.Mix(answer & 0xFF);
+        setters.Mix(At<uint8_t>(a, av::field::kByte1E8));
+        setters.Mix(At<uint32_t>(a, av::field::kAutomataFlags));
+        At<uint32_t>(a, av::field::kAutomataFlags) = saved;
+        At<uint8_t>(a, av::field::kByte1E8) = 0;
+    }
+    // Stop and Go (slots 159, 160): slot 125 without an occupant answers by
+    // the automata flag 0x80; the smoothed value's +0xC stays 0 on the
+    // test's vehicles, so all four words are the same on both sides.
+    for (const uint32_t flag : {0u, 0x80u}) {
+        At<uint32_t>(a, av::field::kAutomataFlags) = flag;
+        This<void>(addr::cSC4AutomatonBase_Stop, a);
+        setters.MixBytes(a + av::field::kSmoothed, 0x10);
+        This<void>(addr::cSC4AutomatonBase_Go, a);
+        setters.MixBytes(a + av::field::kSmoothed, 0x10);
+    }
+    At<uint32_t>(a, av::field::kAutomataFlags) = 0;
+    // Slot 149: the same byte (nothing), then set, then a word whose byte is
+    // clear (the flag set with the whole word), then clear.
+    for (const uint32_t value : {0u, 1u, 0x100u, 1u, 0u}) {
+        This<uint32_t>(addr::cSC4AutomatonBase_SetFlag8, a, value);
+        setters.Mix(At<uint32_t>(a, av::field::kAutomataFlags));
+        setters.Mix(At<void*>(a, av::field::kObjectB0) ? 1u : 0u);
+    }
+    At<uint32_t>(a, av::field::kAutomataFlags) = 0;
+    This<uint32_t>(addr::cSC4Vehicle_Forget, a);
+    // The operator delete of the derived classes.
+    {
+        using Allocate = void*(__cdecl*)(std::size_t);
+        using Delete = void(__cdecl*)(void*, uint32_t);
+        reinterpret_cast<Delete>(addr::cSC4Vehicle_Delete)(nullptr, av::kVehicleSize);
+        char* const page = Global<char*>(addr::cSC4Vehicle_Pool + 4);
+        void* const block = reinterpret_cast<Allocate>(addr::cSC4Vehicle_PoolAllocate)(av::kVehicleSize);
+        char* const blockPage =
+            reinterpret_cast<char*>(reinterpret_cast<std::uintptr_t>(block) & 0xFFFF0000u);
+        const uint32_t before = block ? At<uint32_t>(blockPage, 0xC) : 0;
+        if (block)
+            reinterpret_cast<Delete>(addr::cSC4Vehicle_Delete)(block, av::kVehicleSize);
+        setters.Mix(block ? before - At<uint32_t>(blockPage, 0xC) : 9u);
+        setters.Mix(blockPage == page ? 1u : 0u);
+        void* const other = reinterpret_cast<Allocate>(addr::SC4_operator_new)(0x20);
+        if (other)
+            reinterpret_cast<Delete>(addr::cSC4Vehicle_Delete)(other, 0x20);
+    }
+
+    // ---- The +0x204 deque: 25 elements pushed (three blocks), walked, then
+    // released (0x00554640); 12 more pushed and emptied (0x00554280).
+    {
+        char* const d = a + av::field::kDeque204;
+        auto push = [&](uint32_t i) {
+            alignas(4) char element[0xC] = {};
+            At<Counted*>(element, 0) = i % 5 == 4 ? nullptr : &counted[i % 4];
+            At<uint32_t>(element, 4) = i * 7 + 1;
+            At<uint8_t>(element, 8) = static_cast<uint8_t>(i);
+            This<void>(addr::SC4AutomatonDeque204_PushBack, d, static_cast<void*>(element));
+        };
+        for (uint32_t i = 0; i < 25; ++i)
+            push(i);
+        mixCounts(life);
+        life.Mix(WalkDeque(d, 0xC, 0x78, [&](char* e) {
+            Counted* const c = At<Counted*>(e, 0);
+            life.Mix(c ? static_cast<uint32_t>(c->id) : 0u);
+            life.Mix(At<uint32_t>(e, 4));
+            life.Mix(At<uint8_t>(e, 8));
+        }));
+        This<void>(addr::cSC4AutomatonBase_ReleaseDeque204, a);
+        mixCounts(life);
+        life.Mix(WalkDeque(d, 0xC, 0x78, [](char*) {}));
+        for (uint32_t i = 0; i < 12; ++i)
+            push(i + 100);
+        mixCounts(life);
+        This<void>(addr::SC4AutomatonDeque204_Clear, d);
+        mixCounts(life);
+        life.Mix(WalkDeque(d, 0xC, 0x78, [](char*) {}));
+    }
+
+    // ---- The record list (0x00554160) on a list of the test's.
+    {
+        alignas(4) char headNode[0x40] = {};
+        At<char*>(headNode, 0) = headNode;
+        At<char*>(headNode, 4) = headNode;
+        char* list = headNode;
+        using Push = char*(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, void*);
+        for (uint32_t i = 0; i < 3; ++i) {
+            char* const record = reinterpret_cast<Push>(addr::cSC4VehPedManagerBase_PushRecordListBack)(
+                &list, 10 + i, 20 + 3 * i, i + 1, i == 1 ? nullptr : &counted[i]);
+            life.MixBytes(record, 0x2C);
+            life.Mix(At<uint8_t>(record, 0x30));
+            life.Mix(At<uint32_t>(record, 0x34));
+            life.Mix(At<Counted*>(record, 0x2C) == (i == 1 ? nullptr : &counted[i]) ? 1u : 0u);
+            life.Mix(record == At<char*>(headNode, 4) + 8 ? 1u : 0u);
+        }
+        mixCounts(life);
+        for (char* node = At<char*>(headNode, 0); node != headNode;) {
+            char* const next = At<char*>(node, 0);
+            if (Counted* const c = At<Counted*>(node, 8 + 0x2C))
+                --c->references;
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(node);
+            node = next;
+        }
+    }
+
+    // ---- Write then Read: a's fields and three +0x27C elements written,
+    // the route given 50 cells in the stream, read into b, b written again.
+    {
+        At<uint32_t>(a, av::field::kState) = 5;
+        At<uint8_t>(a, av::field::kByte1E8) = 9;
+        At<uint32_t>(a, av::field::kBytes1F4) = 0x01020304u;
+        At<uint32_t>(a, av::field::k1FC) = 0x11223344u;
+        At<float>(a, av::field::kFloat260) = 3.75f;
+        uint32_t put = 0;
+        for (uint32_t i = 0; i < 3; ++i)
+            put += PutQueueElement(a, &counted[i], 0xA0 + i) ? 1u : 0u;
+        save.Mix(put);
+        using Serialize = uint32_t(__thiscall*)(void*, void*);
+        ByteOStream core;
+        reinterpret_cast<Serialize>(addr::cSC4AutomatonCore_Write)(a + av::field::kSerializable,
+                                                                    static_cast<cIGZOStream*>(&core));
+        ByteOStream out;
+        const uint32_t wrote = reinterpret_cast<Serialize>(addr::cSC4Vehicle_Write)(
+            a + av::field::kSerializable, static_cast<cIGZOStream*>(&out));
+        save.Mix(wrote & 0xFF);
+        mixCounts(save);
+        // Bytes 0-3 the two versions, then the core's (log only).
+        const std::size_t coreEnd = 4 + core.bytes.size();
+        const std::vector<uint8_t>& w = out.bytes;
+        const bool fits = w.size() > coreEnd + 17;
+        save.Mix(static_cast<uint32_t>(fits ? w.size() - coreEnd : 0));
+        if (fits) {
+            save.MixBytes(w.data(), 4);
+            save.Mix(std::equal(core.bytes.begin(), core.bytes.end(), w.begin() + 4) ? 1u : 0u);
+            save.MixBytes(w.data() + coreEnd, w.size() - coreEnd);
+        }
+        Hash coreHash;
+        coreHash.MixBytes(core.bytes.data(), core.bytes.size());
+        // The stream to read: the route's count (0) at coreEnd + 13 made 50,
+        // and 50 cells after it.
+        std::vector<uint8_t> in = w;
+        const std::size_t countAt = coreEnd + 13;
+        if (fits && U32(in, countAt) == 0) {
+            const uint32_t cells = 50;
+            std::memcpy(in.data() + countAt, &cells, 4);
+            std::vector<uint8_t> bytes;
+            for (uint32_t i = 0; i < cells * 3; ++i)
+                bytes.push_back(static_cast<uint8_t>(i * 5 + 1));
+            in.insert(in.begin() + static_cast<std::ptrdiff_t>(countAt + 4), bytes.begin(), bytes.end());
+            flags |= 0x20;
+        }
+        // A wrong version each, b unchanged.
+        for (const std::size_t at : {std::size_t{0}, std::size_t{2}}) {
+            std::vector<uint8_t> wrong = in;
+            if (wrong.size() > at + 1)
+                wrong[at] = 3;
+            ByteIStream bad(wrong);
+            save.Mix(reinterpret_cast<Serialize>(addr::cSC4Vehicle_Read)(b + av::field::kSerializable,
+                                                                         static_cast<cIGZIStream*>(&bad)) &
+                     0xFF);
+            save.Mix(static_cast<uint32_t>(bad.at));
+        }
+        ByteIStream reader(in);
+        const uint32_t read = reinterpret_cast<Serialize>(addr::cSC4Vehicle_Read)(
+            b + av::field::kSerializable, static_cast<cIGZIStream*>(&reader));
+        save.Mix(read & 0xFF);
+        save.Mix(static_cast<uint32_t>(reader.at == in.size() ? 1u : 0u));
+        save.Mix(static_cast<uint32_t>(reader.error));
+        save.Mix(At<uint32_t>(b, av::field::kState));
+        save.Mix(At<uint8_t>(b, av::field::kByte1E8));
+        save.Mix(At<uint32_t>(b, av::field::kBytes1F4));
+        save.Mix(At<uint32_t>(b, av::field::k1FC));
+        save.Mix(At<void*>(b, av::field::kObjectB0) ? 1u : 0u);
+        save.Mix(At<void*>(b, av::field::kOccupant) ? 1u : 0u);
+        save.MixBytes(b + av::field::kPoint264, 24);
+        save.Mix(At<uint32_t>(b, av::field::kFloat260));
+        save.Mix(WalkDeque(b + av::field::kRoute, 3, 0x7E, [&](char* cell) { save.MixBytes(cell, 3); }));
+        save.Mix(WalkDeque(b + av::field::kDeque27C, 8, 0x80, [](char*) {}));
+        ByteOStream again;
+        reinterpret_cast<Serialize>(addr::cSC4Vehicle_Write)(b + av::field::kSerializable,
+                                                             static_cast<cIGZOStream*>(&again));
+        const std::vector<uint8_t>& r = again.bytes;
+        // The base's part (to the vehicle's count) as read; the vehicle's
+        // part without the three elements.
+        const std::size_t baseEnd = countAt + 4 + 150;
+        save.Mix(r.size() >= baseEnd && in.size() >= baseEnd && std::equal(in.begin(), in.begin() + baseEnd, r.begin())
+                     ? 1u
+                     : 0u);
+        if (r.size() > coreEnd)
+            save.MixBytes(r.data() + coreEnd, r.size() - coreEnd);
+        log::Write("autotest: automata: vehicle: save %zu bytes (core %zu, %08X), read %zu of %zu, again %zu",
+                   w.size(), core.bytes.size(), coreHash.h, reader.at, in.size(), r.size());
+        // a's elements given back to the test (its objects are local).
+        char* const q = a + av::field::kDeque27C;
+        WalkDeque(q, 8, 0x80, [](char* e) {
+            if (Counted* const k = At<Counted*>(e, 0)) {
+                At<Counted*>(e, 0) = nullptr;
+                --k->references;
+            }
+        });
+        This<void>(addr::SC4VehicleDeque27C_Clear, q);
+        mixCounts(save);
+    }
+
+    // ---- The debug texts: b with its cells, a without; b with a model key.
+    {
+        uint32_t keys[3] = {0x12345678u, 0x9ABCDEF0u, 0x0F0F0F0Fu};
+        At<uint8_t>(b, av::field::kByte1F5) = 6;
+        uint32_t savedKeys[2] = {At<uint32_t>(b, av::field::kModelKeys), At<uint32_t>(b, av::field::kModelKeys + 4)};
+        for (int withKey = 0; withKey < 2; ++withKey) {
+            if (withKey) {
+                At<uint32_t*>(b, av::field::kModelKeys) = keys;
+                At<uint32_t*>(b, av::field::kModelKeys + 4) = keys + 3;
+            }
+            for (char* o : {a, b}) {
+                MixText(texts, This<void*>(addr::cSC4AutomatonBase_DebugText, o));
+                MixText(texts, This<void*>(addr::cSC4Vehicle_DebugText, o));
+            }
+        }
+        At<uint32_t>(b, av::field::kModelKeys) = savedKeys[0];
+        At<uint32_t>(b, av::field::kModelKeys + 4) = savedKeys[1];
+        void* const text = This<void*>(addr::cSC4Vehicle_DebugText, b);
+        const char* const s = text ? Virtual<const char*>(text, av::kStringToChar) : nullptr;
+        log::Write("autotest: automata: vehicle: debug text \"%s\"", s ? s : "(null)");
+    }
+
+    // ---- Init and Shutdown: c by cSC4Vehicle's, d by the base's; each with
+    // +0x204 and +0x27C elements and, on c, objects at +0x258 and +0x25C.
+    {
+        char* const c = v[2];
+        char* const d = v[3];
+        Held held[2];
+        MakeHeld(held[0], 7);
+        MakeHeld(held[1], 8);
+        using Bool = uint32_t(__thiscall*)(void*);
+        auto mixState = [&](char* o) {
+            life.Mix(Virtual<uint8_t>(o + av::field::kVtable4, av::slot::kIsInitialised));
+            life.Mix(At<uint32_t>(o, av::field::kAutomataFlags));
+            life.Mix(At<uint32_t>(o, av::field::kFloat200));
+            for (const std::size_t at : {av::field::kVirtual258, av::field::kVirtual25C})
+                life.Mix(At<void*>(o, at) == nullptr ? 0u : At<void*>(o, at) == &held[0] || At<void*>(o, at) == &held[1] ? 1u : 2u);
+            for (std::size_t i = 0; i < av::field::kModelCount; ++i)
+                life.Mix(At<void*>(o, av::field::kModels + 4 * i) ? 1u : 0u);
+            life.Mix(WalkDeque(o + av::field::kDeque204, 0xC, 0x78, [](char*) {}));
+            life.Mix(WalkDeque(o + av::field::kDeque27C, 8, 0x80, [](char*) {}));
+        };
+        const uint32_t first = reinterpret_cast<Bool>(addr::cSC4Vehicle_Init)(c);
+        const uint32_t again = reinterpret_cast<Bool>(addr::cSC4Vehicle_Init)(c);
+        life.Mix(first & 0xFF);
+        life.Mix(again & 0xFF);
+        mixState(c);
+        const uint32_t baseFirst = reinterpret_cast<Bool>(addr::cSC4AutomatonBase_Init)(d);
+        life.Mix(baseFirst & 0xFF);
+        mixState(d);
+        for (char* o : {c, d}) {
+            for (uint32_t i = 0; i < 4; ++i) {
+                alignas(4) char element[0xC] = {};
+                At<Counted*>(element, 0) = &counted[i];
+                At<uint32_t>(element, 4) = i;
+                This<void>(addr::SC4AutomatonDeque204_PushBack, o + av::field::kDeque204, static_cast<void*>(element));
+            }
+            PutQueueElement(o, &counted[3], 0x77);
+        }
+        for (int i = 0; i < 2; ++i)
+            if (!At<void*>(c, i ? av::field::kVirtual25C : av::field::kVirtual258)) {
+                At<Held*>(c, i ? av::field::kVirtual25C : av::field::kVirtual258) = &held[i];
+                ++held[i].counted.references;
+            }
+        mixCounts(life);
+        const uint32_t down = reinterpret_cast<Bool>(addr::cSC4Vehicle_Shutdown)(c);
+        life.Mix(down & 0xFF);
+        mixState(c);
+        mixCounts(life);
+        life.Mix(static_cast<uint32_t>(held[0].counted.references));
+        life.Mix(static_cast<uint32_t>(held[1].counted.references));
+        const uint32_t baseDown = reinterpret_cast<Bool>(addr::cSC4AutomatonBase_Shutdown)(d);
+        life.Mix(baseDown & 0xFF);
+        mixState(d);
+        mixCounts(life);
+        // Whatever the base's Shutdown left on d's deques (it releases the
+        // +0x204 deque only when initialised; +0x27C is cSC4Vehicle's).
+        This<void>(addr::cSC4AutomatonBase_ReleaseDeque204, d);
+        {
+            char* const q = d + av::field::kDeque27C;
+            WalkDeque(q, 8, 0x80, [](char* e) {
+                if (Counted* const k = At<Counted*>(e, 0)) {
+                    At<Counted*>(e, 0) = nullptr;
+                    --k->references;
+                }
+            });
+            This<void>(addr::SC4VehicleDeque27C_Clear, q);
+        }
+        mixCounts(life);
+        This<void>(addr::cSC4Vehicle_ReleaseModels, d);
+        // Slot 135 and slot 172 (its occupant argument null), then the
+        // flags.
+        life.Mix(This<uint32_t>(addr::cSC4AutomatonBase_Slot172, d, 0u, 5u, 7u, 9u) & 0xFF);
+        life.Mix(At<uint32_t>(d, av::field::kAutomataFlags));
+        This<uint32_t>(addr::cSC4AutomatonBase_RemoveNow, c);
+        life.Mix(At<uint32_t>(c, av::field::kAutomataFlags));
+        // AL only (the rest of EAX differs between the game and ours).
+        log::Write("autotest: automata: vehicle: init %X %X base %X, shutdown %X base %X", first & 0xFF, again & 0xFF,
+                   baseFirst & 0xFF, down & 0xFF, baseDown & 0xFF);
+    }
+    // The test's objects given back by the vehicles' release below: a's
+    // +0x27C elements stay until then.
+    flags |= 0x40;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -10425,6 +10883,10 @@ void VehicleDrive(cISC4City* city)
             At<uint32_t>(o, av::field::kAutomataFlags) = 0;
     }
 
+    // ---- Part vb2.
+    Hash setters, save, texts, life;
+    LifeDrive(v, setters, save, texts, life, flags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -10477,11 +10939,13 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[96];
-    std::snprintf(text, sizeof text, " V%08X,%08X,%08X,%08X,%X", object.h, access.h, queries.h, nearest.h, flags);
+    char text[160];
+    std::snprintf(text, sizeof text, " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X", object.h, access.h, queries.h,
+                  nearest.h, flags, setters.h, save.h, texts.h, life.h);
     g_vehicleText = text;
-    log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X", object.h,
-               access.h, queries.h, nearest.h, flags);
+    log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
+               "%08X save %08X texts %08X life %08X",
+               object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h);
 }
 
 void Drive(const Day& day)

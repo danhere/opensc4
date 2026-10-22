@@ -2150,9 +2150,9 @@ The group is found by the two classes' vtables less the core's slots, plus the f
   - Two plain jumps into the core: 0x0055B6C0 (slot 60) and 0x0055B740 (slot 120).
   - Three accessors folded with other classes' code: 0x00504F70 (slot 136, +0x1F4; cSC4City::GetTerrain), 0x00505100 (slot 137, +0x1EC; cSC4City::GetCitySituationManager) and 0x00520080 (slot 143, +0x4C; four other classes).
 - **vb1 (36, 3,155 bytes, done): the object and its queries.** Below.
-- **vb2 (30, about 4,300 bytes): life cycle, save and the setters.**
+- **vb2 (30, 4,317 bytes, done): life cycle, save and the setters.** Below.
   - Init (slot 3) 0x0054D790 and 0x0055B9B0; Shutdown (4) 0x00555310 and 0x005602F0 with 0x00554640, 0x00554280, 0x0055BE00 (the renderer 0x00B43DD0) and 0x0055AC20 (shared with the trains).
-  - Write and Read (+8 slots 3 and 4): 0x00551DE0, 0x00554D20, 0x0055F640, 0x0055BCF0, with the state stack's 0x00553780, 0x00554230 and 0x00554160.
+  - Write and Read (+8 slots 3 and 4): 0x00551DE0, 0x00554D20, 0x0055F640, 0x0055BCF0, with the +0x204 deque's push 0x00554230 and 0x00553780 and the managers' record list push 0x00554160 (both called by vb4's code).
   - The setters: 0x00504FC0 (154), 0x00505110 (178), 0x00505140 (180), 0x0053CC00 (158), 0x0055B690 (cSC4Vehicle's 158, a random float from 0x00B21D78), 0x0055B750 (184, a random byte), 0x0054DA00 (159) and 0x0054DA50 (160, the speeds), 0x0054EB20 (149), 0x0054D820 (135), 0x0054D830 (172), 0x0055BE70 (124, the vehicle manager's slot 69) and 0x0055CA60.
   - The debug texts (slot 93): 0x00553CF0 and 0x00562AC0 (static strings, `State: %d`).
 - **vb3 (13, about 6,800 bytes): the base's movement on frames.** SetDestination (10) 0x0054E5B0; slots 129 to 134 (0x0054FDC0, 0x00550190, 0x0054E920, 0x00550760, 0x005504E0, 0x00550B60), 142 0x00554AB0, 151 0x00551300, 157 0x005510D0, 170 0x0054E790; helpers 0x0054E6F0 and 0x00551F70.
@@ -2169,7 +2169,9 @@ Mods: no NAM site and none of SC4UIScale's addresses is in the group. SC4UIScale
 
 ### What is ours
 
-36 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)).
+66 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)): vb1's 36 (kObject) and vb2's 30 (kLife).
+
+#### vb1
 
 - **The object (16):**
   - The factory 0x005148E0 with the vehicle pool's allocate 0x0055B970 and free 0x0055F600.
@@ -2207,21 +2209,57 @@ Floats: 53-bit doubles, as the game's x87 runs. The distances keep the asm's ord
 
 Reimplemented like the earlier parts: one writer, then an independent audit of all 36 against the disassembly, every vtable call's argument count checked against the callee's `ret`. The audit found no defect in the 36 functions. It found one in the test: the fingerprint read the word at +0x1E8, of which only the byte is written; that is fixed. The audit could not see the class of every object the queries call (slot 171's network, the occupant's slot 0x58); the argument counts are the game's. In a city the network part is of vtable 0x00A99E70, whose slot 0x90 (0x0053D060) is `ret 0x14` and reads the third argument's byte only.
 
+#### vb2
+
+- **The life cycle (9):**
+  - Init (slot 3) 0x0054D790 (base: the core's Init 0x005101D0, then slots 105 and 134 unless the automata flags 0x4000 and 0x2000 are on) and 0x0055B9B0 (cSC4Vehicle: the flag 8 from the byte 0x00B0A0A8, slot 158, the base's Init, slot 176 when 0x00B43DDC's slot 9 or the byte 0x00B2296C says so). Both answer 1 at once when the occupant part says initialised.
+  - Shutdown (slot 4) 0x00555310 (base: slot 132 and 0x00554640 when initialised, then the core's Shutdown 0x0050BA50) and 0x005602F0 (cSC4Vehicle: the base's, +0x258 and +0x25C released through their virtual base, the +0x27C deque's objects released and the deque emptied, the models).
+  - 0x00554640 (the +0x204 deque's objects cleared and released, then the deque emptied), the two deques' clear 0x00554280 and 0x0055AC20 (the latter shared with the trains), 0x0055BE00 (the four models +0x2A4 taken off the view 0x00B43DD0 through its slot 0x74 and released) and 0x0055CA60 (the derived classes' operator delete: a 0x2B8-byte block to the vehicle pool, any other to SC4::operator_delete).
+- **The save (4):** Write and Read (+8 slots 3 and 4, this = object + 8) 0x00551DE0 and 0x00554D20 (base: version 2, the core's, the references +0xB0 and +0x1EC, +0x1E4, the byte +0x1E8, +0x1F4, +0x1FC, the route's 3-byte cells) and 0x0055F640 and 0x0055BCF0 (cSC4Vehicle: version 2, the base's, the +0x27C deque's elements, the point +0x264, a second point, the float +0x260).
+- **The pushes (3):** the +0x204 deque's push_back 0x00554230 and its slow path 0x00553780 (a new block, room in the map through 0x008EC5B0); the managers' record list push 0x00554160 (a 0x40-byte node, the record's rectangles by cSC4VehPedManagerBase::RecordRect).
+- **The setters (12):** slots 154 0x00504FC0 (+0x1E8); cSC4Vehicle's 178 0x00505110 and 180 0x00505140 (+0x264, +0x270); the base's 158 0x0053CC00 (+0x200 zero) and cSC4Vehicle's 0x0055B690 (+0x200 drawn between the floats 0x00B21CF0 and 0x00B21CF4); 184 0x0055B750 (the flags 0x0201180A, +0x1E8 drawn below 50); 159 0x0054DA00 and 160 0x0054DA50 (SetSpeed to 0 or to the default speed, at 1.5 or 0.3 over slot 125's answer, 0.1 when that is not above 0); 149 0x0054EB20 (the flag 8, +0xB0 from slot 148, slot 124); 135 0x0054D820 (Remove(false)); 172 0x0054D830 (slot 173, Remove(false)); cSC4Vehicle's 124 0x0055BE70 (the vehicle manager's slot 69).
+- **The debug texts (2):** slot 93 0x00553CF0 (base: "layer: %d  lifespan: %d  %s %s %s" with +0x1E4, slot 153, "edge: %d-%d", "route: %d, %d" and the core's text) and 0x00562AC0 (cSC4Vehicle: the base's text and " model:0x%8x 0x%8x 0x%8x" with the first model key), each into a function-local static string (0x00B22924, 0x00B22988) made on first use, its destructor given to SC4::atexit.
+
+Kept as the game's for vb2: the core's Init, Shutdown, Write, Read and debug text (0x005101D0, 0x0050BA50, 0x0050AC00, 0x0050DFD0, 0x0050F0A0); the deque map's reserve 0x008EC5B0; SC4Stream's references and vectors, SC4CellDeque::Clear and SC4RouteDeque::PushBackSlow; the string code (cRZBaseString::Sprintf and Data, SC4String::AssignRange and AppendRange); the generator (cRZRandom::Range, SC4Random::Below); the renderer (the view 0x00B43DD0, 0x00B43DDC); the managers' CopyRecord and RecordRect; all called at their addresses.
+
+vb2's oddities kept:
+
+- cSC4Vehicle's Write writes the core's default point 0x00B09A04 where +0x270 would be; its Read reads the +0x27C deque's elements and the second point and drops them (the object its loop would release is a local it sets to null). After a load the deque and +0x270 are as the constructor left them.
+- The base's Read takes +0x1E4 and +0x1FC through one local word: a failed read of the second leaves the first's value in +0x1FC.
+- cSC4Vehicle's Write calls slot 0xEC of each +0x27C element's object without a null test.
+- Slot 149 compares its argument's byte with the flag but sets the flag with the whole word.
+- The base's Shutdown releases the +0x204 deque only when initialised; cSC4Vehicle's releases +0x27C always.
+
+Locals the game leaves as stack garbage before a read that may fail (the version words, Read's words and cells, cSC4Vehicle's Write's two key words) and the allocator byte the debug texts pass to SC4String are zeros in ours; they differ only on a failed stream read.
+
+Return values: the game sets only AL in both Inits, the four Writes and Reads and slots 172 and 184; ours zero-extends. cSC4Vehicle's Shutdown has EAX's upper bytes zero in the game too (0x0055BE00 leaves EAX 0); the base's Shutdown passes the core's EAX on, as slots 124, 135 and 149 pass their last call's. The void functions (the clears, 0x0055BE00, 0x0055CA60, the setters) leave EAX otherwise than the game; no caller the audit found reads it. One case: with 0x005602F0 skipped through OPENSC4_AUTOMATA_SKIP and our 0x0055BE00 kept, the game's 0x005602F0 no longer gets EAX 0 from it (its AL is still right).
+
+Floats: slots 159 and 160 divide 1.0 by slot 125's answer and multiply by the factor in doubles, stored as a float; FCOM's below, equal and unordered all take 0.1. 0x0055B690 passes the two floats as doubles to cRZRandom::Range and stores its answer as a float.
+
+Reimplemented the same way: one writer, then an independent audit of all 30 against the disassembly, every call's argument count checked against the callee's `ret`. The audit found no defect in the 30 functions. It corrected the address database: the +0x204 push's caller is slot 166 (0x00554870), not 165, and slot 149's argument is a word. The classes it could not see (the stream, the view's slot 0x74, the model's slot 0, 0x00B43DDC's slot 9, the +0x27C element's slot 0xEC): the game's own code reads its locals relative to ESP right after each call, which fixes their argument counts, and ours passes the same.
+
 ### Test
 
 `OPENSC4_TEST_AUTOMATA_VEHICLE=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, drives the base and cSC4Vehicle on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). Vehicles run on frames, so everything in the fingerprint comes from objects the test makes and removes itself. The automata's generator (0x00B21D78) is saved and seeded first and put back after: the drawn times are the same on both sides, and the game's own draws do not change.
 
-Into the fingerprint as ` V<object>,<accessors>,<queries>,<nearest>,<flags>`:
+Into the fingerprint as ` V<object>,<accessors>,<queries>,<nearest>,<flags>,<setters>,<save>,<texts>,<life>` (the last four vb2's):
 
 - Four vehicles from the factory, each held by one reference: their fields after construction; a base object built and deleted (0x005544D0, 0x005552F0); QueryInterface for six interfaces at both addresses and through the occupant part (each AddRef given back) and GetGZCLSID.
 - The accessors (addresses as offsets; the manager compared with city slot 43; the deque's back with its expected address).
 - Slot 146 at points around its distance, slot 155 at points near and far, 0x0054EA30 over its byte, state, flag and an occupant of the test's, slot 171 for nine directions with and without a network of the test's, slot 152 with a network part of the test's answering yes and no.
 - 0x0050AAF0 on a manager of the test's whose list holds the four vehicles at set positions, radii and flags, for five margins.
+- vb2's setters on the first vehicle: slot 154 with three values, 178 and 180, the base's and cSC4Vehicle's 158 (twice: the generator is seeded), 184 (the flags put back), 159 and 160 with and without the automata flag 0x80 (the smoothed value's four words: its elapsed time stays 0 on the test's vehicles), 149 with five values (the flags, +0xB0 set or not), 124, and the operator delete 0x0055CA60 with null, a pool block (the page's count) and another size.
+- 25 elements pushed on the +0x204 deque (three blocks; objects of the test's that count their references), walked and released by 0x00554640; 12 more pushed and the deque emptied by 0x00554280. Three records pushed on a record list of the test's (0x00554160).
+- Write then Read: the first vehicle's fields and three +0x27C elements (objects of the test's answering slot 0xEC) written by 0x0055F640 into a memory stream, the bytes after the core's part into the fingerprint (the core's own part, which 0x0050AC00 writes alone into a second stream to find its length, to the log only); the stream given 50 route cells (two blocks) and read into the second vehicle by 0x0055BCF0, and twice with a wrong version (cSC4Vehicle's, the base's); the second vehicle's fields, route and empty +0x27C deque; the second vehicle written again and the base's part compared with what was read.
+- The debug texts of both classes on both vehicles, with and without a model key.
+- Init and Shutdown: the third vehicle by cSC4Vehicle's (Init twice), the fourth by the base's, each given +0x204 and +0x27C elements and the third objects at +0x258 and +0x25C held through a virtual base; their answers (AL), flags, fields, deques and the reference counts after Shutdown. Then slot 172 on the fourth and slot 135 on the third.
 - Then each vehicle's last reference is released: the deleting destructor through +0xC's slot 22, the deques, the pool.
 
-To the log only: for up to 24 of the city's vehicles, slots 146, 150, 138, 0x0054EA30, slot 123 with margins 0 and 2 and 0x0054FC30 on the vehicle's occupant; and the first one's network part's vtable.
+To the log only: the core's part of the save (its size and a hash), the sizes read and written, the second vehicle's debug text, and the Init and Shutdown answers (AL); for up to 24 of the city's vehicles, slots 146, 150, 138, 0x0054EA30, slot 123 with margins 0 and 2 and 0x0054FC30 on the vehicle's occupant; and the first one's network part's vtable.
 
 Reached (our first-call log lines): all 36 in every B run of Making Money and Rush Hour; 34 in the four Big City runs, where slot 123 (0x005573C0) and 0x0054FC30 are never called (the test calls them on the city's vehicles only, and Big City has none). The factory, the pool's allocate, both constructors, QueryInterface, slot 150, 0x0054FC30, slot 140, slot 175, 0x0054EA30 and slot 174 run by the game at the load; the rest by the test. In the trial (Making Money d0000, 4 days) the token and the city log were the same on both sides.
+
+vb2 reached: all 30 in every B run of vb2-r1 (Making Money, Rush Hour and Big City alike: the test makes its own vehicles). Both Reads (0x0055BCF0, 0x00554D20), both Inits and cSC4Vehicle's slot 158 (0x0055B690) run by the game at the load; the rest by the test. In the trial the token and the log were the same on both sides.
 
 Not covered by the fingerprint: slot 152's branch through the next occupant (with no occupant 0x00B43D54's slot 0x3C answers null at once), 0x0054FC30 and slot 123 (the log only), a tie in 0x0050AAF0.
 
@@ -2236,3 +2274,13 @@ Not covered by the fingerprint: slot 152's branch through the next occupant (wit
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run carried the ` V` token. A first batch (vb1-r1) was stopped before it finished, when the audit found the test's uninitialised bytes; vb1-r2 has the fixed test.
+
+vb2, 2026-10-22, the same lists and setup, env p4env-vb2, snapshot vb2-r1 (66 detours), with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` V` token with vb2's four hashes, equal to the A run's, and the first-call lines of all 30 vb2 functions (64 of the 66 in Big City, as in vb1). The audit's corrections after vb2-r1 are to the address database's descriptions only.
