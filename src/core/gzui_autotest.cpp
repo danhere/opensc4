@@ -1,8 +1,9 @@
 // The GZ framework UI layer's part of the autotest (src/core/autotest_hooks.h,
 // docs/gzui.md): the property set test (OPENSC4_TEST_PROPSETS, part u1) and
 // the readers, writers and factory test (OPENSC4_TEST_PROPIO, parts u2,
-// u2b and u3), the UI file parser test (OPENSC4_TEST_XMLPARSE, part u4) and
-// the framework sound classes' test (OPENSC4_TEST_GZSOUND, part u5).
+// u2b and u3), the UI file parser test (OPENSC4_TEST_XMLPARSE, part u4),
+// the framework sound classes' test (OPENSC4_TEST_GZSOUND, part u5) and
+// the sound service's test (OPENSC4_TEST_GZSOUNDSVC, part u6).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -3562,6 +3563,568 @@ void GsFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kGsFingerprint{"gzsound", 4, &GsFingerprint};
 const DayHook kGsDrive{"gzsound", 4, &DriveGzSound};
+
+// ====================================================================================
+// Part u6: the framework's sound service 0x3C1CF59E and the sound table's
+// loader (OPENSC4_TEST_GZSOUNDSVC)
+
+bool g_svOn = false;
+uint32_t g_svHash = 2166136261u;
+
+void SvStage(const char* name) { log::Write("autotest: gzsoundsvc: %s %08X", name, g_svHash); }
+
+// An EAX: addresses (above 0x10000) by their low byte only.
+void MixWord(uint32_t eax)
+{
+    if (eax > 0x10000 && eax < 0xFFFF0000u)
+        Mix(0xA0000000u | (eax & 0xFF));
+    else
+        Mix(eax);
+}
+
+constexpr std::size_t kSvTable = 0x1C;
+constexpr std::size_t kSvInstances = 0x74;
+
+char* NewService()
+{
+    char* const service = static_cast<char*>(New(0x4144));
+    MixIs(CallThis<char*>(addr::cGZSoundService_Construct, service), service);
+    return service;
+}
+
+char* NewTable() { return static_cast<char*>(reinterpret_cast<void*(__cdecl*)()>(addr::cGZSoundDirector_New4048)()); }
+
+// A description's list of pairs (STLport nodes: next, previous, the pair).
+void MixPairs(char* desc)
+{
+    char* const head = At<char*>(desc, 0x64);
+    uint32_t count = 0;
+    for (char* node = At<char*>(head, 0); node != head && count < 64; node = At<char*>(node, 0), ++count) {
+        Mix(At<uint32_t>(node, 0x8));
+        Mix(At<uint32_t>(node, 0xC));
+    }
+    Mix(count);
+}
+
+// The table's settings, and every cell's description (its fields, name and
+// pairs) by its place.
+void MixCells(char* table)
+{
+    MixTable(table);
+    for (uint32_t i = 0; i < 64 * 64; ++i) {
+        char* const desc = At<char*>(table, 0x48 + i * 4);
+        if (!desc)
+            continue;
+        Mix(i);
+        MixDesc(desc, false);
+        MixPairs(desc);
+    }
+}
+
+void MixService(char* service)
+{
+    Mix(At<std::uintptr_t>(service, 0) == addr::cGZSoundService_Vtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(service, 4) == addr::cGZSoundService_TargetVtable ? 1u : 0u);
+    Mix(At<uint8_t>(service, 0x8));
+    Mix(At<uint32_t>(service, 0xC));
+    Mix(At<void*>(service, 0x10) ? 1u : 0u);
+    Mix(At<uint32_t>(service, 0x14));
+    Mix(At<void*>(service, 0x18) ? 1u : 0u);
+    char* const table = At<char*>(service, kSvTable);
+    Mix(table ? 1u : 0u);
+    Mix(At<uint8_t>(service, 0x20));
+    Mix(At<uint8_t>(service, 0x21));
+    // +0x50 is left unset by the constructor (the cell count writes it).
+    for (std::size_t offset = 0x24; offset < 0x74; offset += 4) {
+        if (offset != 0x50)
+            Mix(At<uint32_t>(service, offset));
+    }
+    uint32_t instances = 0;
+    for (uint32_t i = 0; i < 64 * 64; ++i) {
+        char* const instance = At<char*>(service, kSvInstances + i * 4);
+        if (!instance)
+            continue;
+        ++instances;
+        Mix(i);
+        MixIs(At<void*>(instance, 0x18), service);
+        if (table)
+            MixIs(At<void*>(instance, 0x24), At<void*>(table, 0x48 + i * 4));
+        Mix(At<uint32_t>(instance, 0x34));
+    }
+    Mix(instances);
+    MixString(service + 0x4074);
+    Mix(At<uint32_t>(service, 0x4088));
+    Mix(At<uint32_t>(service, 0x408C));
+    Mix(At<uint8_t>(service, 0x4090));
+    Mix(At<uint8_t>(service, 0x4091));
+    Mix(At<void*>(service, 0x4094) ? 1u : 0u);
+    Mix(At<uint32_t>(service, 0x4098));
+    Mix(At<uint32_t>(service, 0x409C));
+    // The byte +0x40A0 is left unset by the constructor too (Fade writes it).
+    for (std::size_t offset = 0x40A4; offset <= 0x40B8; offset += 4)
+        Mix(At<uint32_t>(service, offset));
+    for (std::size_t offset = 0x40BC; offset < 0x40C6; ++offset)
+        Mix(At<uint8_t>(service, offset));
+    for (std::size_t offset = 0x40C8; offset < 0x4140; offset += 4)
+        Mix(At<uint32_t>(service, offset));
+    Mix(At<void*>(service, 0x4140) ? 1u : 0u);
+}
+
+// A file as the table's reader uses it: slot 5 a close, 7 the size, 14 a
+// read; every call goes into the hash.
+struct SvFile {
+    void* const* vtable;
+    const char* text;
+    uint32_t size;
+};
+uint32_t __fastcall SvFileClose(SvFile*, void*)
+{
+    Mix(0x7514);
+    return 0x14;
+}
+uint32_t __fastcall SvFileSize(SvFile* self, void*)
+{
+    Mix(0x751C);
+    return self->size;
+}
+uint32_t __fastcall SvFileRead(SvFile* self, void*, void* to, uint32_t size)
+{
+    Mix(0x7538);
+    Mix(size);
+    std::memcpy(to, self->text, size);
+    return 1;
+}
+
+void* const* SvFileVtable()
+{
+    static void* table[16];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[5] = reinterpret_cast<void*>(&SvFileClose);
+        table[7] = reinterpret_cast<void*>(&SvFileSize);
+        table[14] = reinterpret_cast<void*>(&SvFileRead);
+    }
+    return table;
+}
+
+// One cell line: tab-separated numbers, then the rest as written.
+std::string CellLine(std::initializer_list<int32_t> numbers, const char* rest)
+{
+    std::string line;
+    for (int32_t n : numbers)
+        line += "\t" + std::to_string(n);
+    line += "\t";
+    line += rest;
+    line += "\n";
+    return line;
+}
+
+std::string TableHeader(const char* version, int32_t rows, int32_t columns, int32_t grid)
+{
+    std::string text = version;
+    text += "\na comment\n";
+    for (int32_t n : {0x300, grid, 3, 4, rows, columns, 120, 5, 1, 1, 7, 8, 9, 10})
+        text += "\t" + std::to_string(n);
+    text += "\nthe cells\n";
+    return text;
+}
+
+// The text form in versions 7, 6 and 5, edge cells (NONE in either case,
+// names with and without pairs, adjacent pairs, a short line keeping the
+// last cell's flags), other versions, none, no cells. Each text loaded into
+// a new table by the loader's address; the table and what is left of the
+// text go into the hash.
+void LoadText(const std::string& text)
+{
+    char* const table = NewTable();
+    GameText input(text.c_str());
+    MixWord(CallThis<uint32_t>(addr::cGZSoundTable_Load, table, input.get()) & 0xFF);
+    MixCells(table);
+    MixString(input.get());
+    Mix(Virtual<uint32_t>(table, 0x4));
+    Mix(Virtual<uint32_t>(table, 0x8));
+}
+
+std::string Version7(int32_t grid)
+{
+    std::string text = TableHeader("version 7", 2, 3, grid);
+    text += CellLine({0x400, 1, 0x200, 0x100, 0, 11, 250, 12, 1, 3, 1, 13, 14, 15, 16, 1, 0, 1}, "Bird\t(1,2)\t(3,4)");
+    text += CellLine({0x300, 0, 0x210, 0x110, 1, 21, 0, 22, 0, 4, 0, 23, 24, 25, 26, 0, 1, 0}, "NONE\t(5,6)");
+    text += CellLine({0x200, 1, 0x220, 0x120, 1, 31, 100, 32, 1, 5, 1, 33, 34, 35, 36, 1, 1, 1}, "none");
+    text += CellLine({0x100, 0, 0x230, 0x130, 0, 41, 200, 42, 0, 6, 0, 43, 44, 45, 46, 0, 2, 0}, "Wind(7,8)");
+    text += CellLine({0x080, 1, 0x240, 0x140, 1, 51, 300, 52, 1, 7, 1, 53, 54, 55, 56, 1, 31, 1}, "Rain\t(9,10)(11,12)");
+    text += "\t77\t1\n";
+    return text;
+}
+
+void DriveLoad()
+{
+    LoadText(Version7(0));
+    LoadText(Version7(1));
+    std::string six = TableHeader("version\t6", 2, 2, 0);
+    for (int i = 0; i < 4; ++i)
+        six += CellLine({0x100 * i, i & 1, 0x200, 0x200, 1, i, 50 * i, 3, 0, 2, 1, 4, 5, 6, 7, i & 1, i, 1},
+                        i == 2 ? "NONE" : "Six\t(1,1)\t(2,2)\t(3,3)");
+    LoadText(six);
+    std::string five = TableHeader("version5", 1, 2, 1);
+    five += CellLine({1, 0, 2, 3, 0, 4, 5, 6, 0, 7, 0, 8, 9, 10, 11, 0, 12}, "Five");
+    five += CellLine({1, 1, 2, 3, 1, 4, 5, 6, 1, 7, 1, 8, 9, 10, 11, 1, 12}, "fIVE\t(4,4)");
+    LoadText(five);
+    LoadText(TableHeader("version 8", 1, 1, 0) + CellLine({1}, "Eight"));
+    LoadText(TableHeader("Version 7", 1, 1, 0) + CellLine({1}, "Upper"));
+    LoadText("no version here\n");
+    LoadText(TableHeader("version 7", 0, 3, 0) + CellLine({1}, "Nothing"));
+    LoadText(TableHeader("version 7", 3, 0, 0) + CellLine({1}, "Nothing"));
+    LoadText("");
+
+    // The reader: an empty file, then texts through it. (A text whose first
+    // cell leaves a flag unread is not tried: the game's flag is whatever its
+    // stack held.)
+    const std::string solo =
+        TableHeader("version 6", 1, 1, 0) + CellLine({9, 1, 8, 7, 1, 6, 5, 4, 1, 3, 1, 2, 1, 0, 1, 1, 3}, "Solo");
+    for (const std::string& text : {std::string(), Version7(1), solo}) {
+        SvFile file{SvFileVtable(), text.c_str(), static_cast<uint32_t>(text.size())};
+        char* const table = NewTable();
+        MixWord(CallThis<uint32_t>(addr::cGZSoundTable_Read, table, static_cast<void*>(&file)));
+        MixCells(table);
+        Mix(Virtual<uint32_t>(table, 0x4));
+        Mix(Virtual<uint32_t>(table, 0x8));
+    }
+}
+
+// Init (slot 3) with a key that has no record and with a score the audio
+// layer loads (an LTEXT record), which makes the table and prepares the
+// service; then the table and the service.
+char* DriveInit()
+{
+    char* const service = NewService();
+    const uint32_t missing[3] = {0x2026960B, 0x12345678, 0x9ABCDEF0};
+    MixWord(Virtual<uint32_t>(service, 0xC, missing) & 0xFF);
+    MixService(service);
+    const uint32_t score[3] = {0x2026960B, 0x0A5BCDA5, 0x7EC82BF0};
+    MixWord(Virtual<uint32_t>(service, 0xC, score) & 0xFF);
+    MixService(service);
+    if (char* const table = At<char*>(service, kSvTable))
+        MixCells(table);
+    return service;
+}
+
+// A service over a table of our own text, prepared.
+char* PreparedService(const std::string& text)
+{
+    char* const service = NewService();
+    char* const table = NewTable();
+    GameText input(text.c_str());
+    CallThis<uint32_t>(addr::cGZSoundTable_Load, table, input.get());
+    At<char*>(service, kSvTable) = table;
+    MixWord(Virtual<uint32_t>(service, 0x10));
+    MixService(service);
+    MixWord(Virtual<uint32_t>(service, 0x10));
+    return service;
+}
+
+std::string WideText()
+{
+    std::string text = TableHeader("version 7", 6, 7, 0);
+    for (int32_t i = 0; i < 42; ++i) {
+        const int32_t group = i % 9 == 0 ? 0 : (i % 5) + (i % 7 == 0 ? 20 : 0);
+        text += CellLine({0x40 * (i % 16), i & 1, 0x200, 0x200, 0, i, 10 * i, 0, 0, 2, i % 3 == 0, 0, 0, 0, 0, 0,
+                          group, 0},
+                         i % 6 == 5 ? "NONE" : "Cell");
+    }
+    return text;
+}
+
+// Play, the tempo and the beat time, the level, the fade and its steps
+// (with the lock held too), Stop, Reseed, the cell count over windows,
+// Shutdown; the service counted down to its deletion.
+void DrivePlay(char* service)
+{
+    MixWord(Virtual<uint32_t>(service, 0x20));
+    MixService(service);
+    MixWord(Virtual<uint32_t>(service, 0x20));
+    MixService(service);
+
+    MixWord(Virtual<uint32_t>(service, 0x44, At<uint32_t>(service, 0x24)));
+    MixWord(Virtual<uint32_t>(service, 0x44, 90u));
+    MixService(service);
+    for (uint32_t beat : {0u, 1u, 5u, 1000u, 0x80000000u, 0xFFFFFFFFu})
+        Mix(CallThis<uint32_t>(addr::cGZSoundService_BeatTime, service, beat));
+    const uint32_t tempo = At<uint32_t>(service, 0x24);
+    At<uint32_t>(service, 0x24) = 0;
+    Mix(CallThis<uint32_t>(addr::cGZSoundService_BeatTime, service, 7u));
+    At<uint32_t>(service, 0x24) = tempo;
+
+    MixWord(Virtual<uint32_t>(service, 0x2C, 0x280u));
+    MixService(service);
+
+    // The fade: to the same level (at once), then up with a timer (a long
+    // one: its first call would come after this test), a second fade while
+    // it runs, its steps by the callback's address.
+    const uint32_t level = At<uint32_t>(service, 0x14);
+    MixWord(Virtual<uint32_t>(service, 0x30, 200000, level, 0u));
+    Mix(At<uint8_t>(service, 0x40A0));
+    MixService(service);
+    MixWord(Virtual<uint32_t>(service, 0x30, 200000, level + 0x100, 0u));
+    Mix(At<uint8_t>(service, 0x40A0));
+    MixService(service);
+    MixWord(Virtual<uint32_t>(service, 0x30, 400000, level + 0x40, 1u));
+    Mix(At<uint8_t>(service, 0x40A0));
+    MixService(service);
+    struct Step {
+        uint32_t level;
+        int32_t step, target;
+    };
+    const Step steps[] = {{0x100, 0x14, 0x200}, {0x300, 0x300, 0x500}, {0x100, -0x400, -5}, {0x300, -0x10, 0x100},
+                          {0x200, 0, 0x100},    {0x180, 0x100, 0x200}};
+    for (const Step& s : steps) {
+        At<uint32_t>(service, 0x14) = s.level;
+        At<int32_t>(service, 0x4098) = s.step;
+        At<int32_t>(service, 0x409C) = s.target;
+        MixWord(CallThis<uint32_t>(addr::cGZSoundService_FadeStep, service));
+        MixService(service);
+    }
+    // Not fading any more: nothing.
+    MixWord(CallThis<uint32_t>(addr::cGZSoundService_FadeStep, service));
+    // With the lock held: nothing, the count answered.
+    {
+        alignas(4) char guard[8];
+        CallThis<void*>(addr::SC4LockGuard_Construct, guard, reinterpret_cast<void*>(addr::cGZSoundService_Lock));
+        Mix(CallThis<uint32_t>(addr::cGZSoundService_FadeStep, service));
+        Virtual<uint32_t>(At<void*>(guard, 4), 0x8);
+    }
+    // A fade down to a stop: the timer, then the step past the target.
+    MixWord(Virtual<uint32_t>(service, 0x30, 200000, 0x100u, 1u));
+    Mix(At<uint8_t>(service, 0x40A0));
+    At<uint32_t>(service, 0x14) = 0x110;
+    MixWord(CallThis<uint32_t>(addr::cGZSoundService_FadeStep, service));
+    MixService(service);
+    // Not playing: refused.
+    MixWord(Virtual<uint32_t>(service, 0x30, 200000, 0x300u, 0u));
+    MixService(service);
+
+    MixWord(Virtual<uint32_t>(service, 0x20));
+    MixWord(Virtual<uint32_t>(service, 0x28));
+    MixService(service);
+    MixWord(Virtual<uint32_t>(service, 0x6C, 12345u));
+    Mix(static_cast<uint32_t>(CallThis<uint64_t>(addr::cRZRandom_Advance, At<void*>(service, 0x10))));
+    MixService(service);
+    MixWord(Virtual<uint32_t>(service, 0x20));
+    MixWord(Virtual<uint32_t>(service, 0x6C, 777u));
+    Mix(static_cast<uint32_t>(CallThis<uint64_t>(addr::cRZRandom_Advance, At<void*>(service, 0x10))));
+    MixService(service);
+    MixWord(Virtual<uint32_t>(service, 0x28));
+
+    // The count over windows (column, row, spreads).
+    const int32_t windows[][4] = {{1, 1, 3, 3}, {3, 2, 1, 1}, {0, 0, 0, 0},  {6, 5, 0, 0},
+                                  {2, 3, 9, 9}, {4, 4, 1, 2}, {-3, 2, 1, 1}, {2, 2, -1, -1}};
+    for (const auto& w : windows) {
+        At<int32_t>(service, 0x28) = w[0];
+        At<int32_t>(service, 0x2C) = w[1];
+        At<int32_t>(service, 0x54) = w[2];
+        At<int32_t>(service, 0x58) = w[3];
+        MixWord(CallThis<uint32_t>(addr::cGZSoundService_CountCells, service));
+        Mix(At<uint32_t>(service, 0x38));
+        Mix(At<uint32_t>(service, 0x50));
+    }
+
+    MixWord(Virtual<uint32_t>(service, 0x1C));
+    MixService(service);
+    MixWord(Virtual<uint32_t>(service, 0x1C));
+    MixService(service);
+    Mix(Virtual<uint32_t>(service, 0x4));
+    Mix(Virtual<uint32_t>(service, 0x4));
+    Mix(Virtual<uint32_t>(service, 0x8));
+    Mix(CallThis<uint32_t>(addr::cGZSoundService_Release, service));
+}
+
+// The row and column from places (with and without the grid, over
+// spreads), the plain setters before and after Prepare, the window's edges,
+// the instance and table getters, LoadByName with a name that is not there.
+void DriveWindow()
+{
+    char* const fresh = NewService();
+    // Not prepared: AL 1 over the caller's EAX (ours 1), so AL only.
+    for (std::size_t slot : {0x34u, 0x38u, 0x3Cu, 0x40u, 0x54u})
+        MixByte(Virtual<uint32_t>(fresh, slot, 0x1234u));
+    MixService(fresh);
+
+    char* const service = PreparedService(WideText());
+    char* const table = At<char*>(service, kSvTable);
+    MixIs(Virtual<void*>(service, 0x18, 0xDEADu), table);
+    for (uint32_t grid : {0u, 1u}) {
+        At<uint32_t>(table, 0xC) = grid;
+        for (int32_t spread : {0, 1, 3, -1}) {
+            At<int32_t>(service, 0x54) = spread;
+            At<int32_t>(service, 0x58) = spread;
+            for (uint32_t place : {0u, 1u, 166u, 499u, 500u, 833u, 999u, 1000u, 2000u, 0xFFFFFFFFu}) {
+                MixWord(Virtual<uint32_t>(service, 0x34, place));
+                Mix(At<uint32_t>(service, 0x2C));
+                MixWord(Virtual<uint32_t>(service, 0x38, place));
+                Mix(At<uint32_t>(service, 0x28));
+                Mix(At<uint32_t>(service, 0x38));
+                Mix(At<uint32_t>(service, 0x50));
+            }
+        }
+    }
+    At<uint32_t>(table, 0xC) = 0;
+    MixWord(Virtual<uint32_t>(service, 0x3C, 0x77u));
+    MixWord(Virtual<uint32_t>(service, 0x40, 0x88u));
+    MixByte(Virtual<uint32_t>(service, 0x54, 0x1FFu));
+    MixService(service);
+
+    const int32_t edges[][4] = {{1, 1, 3, 3},
+                                {5, 6, 1, 1},
+                                {0, 0, 0, 0},
+                                {9, 9, 2, 2},
+                                {0x7FFFFFFF, 0x7FFFFFFF, 1, 1},
+                                {0, 0, -0x7FFFFFFF - 1, -0x7FFFFFFF - 1},
+                                {3, 2, -2, -1}};
+    for (const auto& e : edges) {
+        At<int32_t>(service, 0x28) = e[0];
+        At<int32_t>(service, 0x2C) = e[1];
+        At<int32_t>(service, 0x54) = e[2];
+        At<int32_t>(service, 0x58) = e[3];
+        for (std::size_t slot : {0x58u, 0x5Cu, 0x60u, 0x64u})
+            Mix(Virtual<uint32_t>(service, slot));
+    }
+    const uint32_t cells[][2] = {{0, 0}, {0, 5}, {1, 3}, {5, 6}, {2, 0}, {63, 63}, {0, 64}};
+    for (const auto& c : cells) {
+        void* const got = Virtual<void*>(service, 0x68, c[0], c[1], 0xBEEFu);
+        MixIs(got, At<void*>(service, kSvInstances + (c[0] * 64 + c[1]) * 4));
+    }
+
+    Virtual<uint32_t>(service, 0x1C);
+    Virtual<uint32_t>(service, 0x4);
+    Mix(Virtual<uint32_t>(service, 0x8));
+
+    char* const named = NewService();
+    GameText name("no such score.txt");
+    MixWord(Virtual<uint32_t>(named, 0x14, name.get(), 0xDEADu) & 0xFF);
+    MixService(named);
+    MixWord(Virtual<uint32_t>(named, 0x18, 0u) ? 1u : 0u);
+    Virtual<uint32_t>(named, 0x4);
+    Mix(Virtual<uint32_t>(named, 0x8));
+    Virtual<uint32_t>(fresh, 0x4);
+    Mix(Virtual<uint32_t>(fresh, 0x8));
+}
+
+// Slots 28 to 35 over edge values.
+void DriveSettings()
+{
+    char* const service = NewService();
+    MixByte(Virtual<uint32_t>(service, 0x70, 0x1FEu));
+    MixWord(Virtual<uint32_t>(service, 0x74, 0x11u, 0x22334455u));
+    for (uint32_t value : {0u, 1u, 2u, 3u, 0x102u, 0xFFFFFFFFu}) {
+        MixWord(Virtual<uint32_t>(service, 0x78, value));
+        MixWord(Virtual<uint32_t>(service, 0x7C, value));
+    }
+    for (uint32_t row : {0u, 1u, 2u, 3u, 0x100u}) {
+        for (uint32_t column : {0u, 2u, 3u, 0x201u}) {
+            MixWord(Virtual<uint32_t>(service, 0x80, row, column, 0x100u + row * 3 + column));
+            const uint32_t eax = Virtual<uint32_t>(service, 0x84, row, column, row, column, 0xFFFFFFF0u + row);
+            MixWord(row < 3 ? eax : eax & 0xFF);
+        }
+    }
+    const uint32_t key[3] = {0x11111111, 0x22222222, 0x33333333};
+    MixOffset(Virtual<void*>(service, 0x88, key), service);
+    MixOffset(Virtual<void*>(service, 0x8C), service);
+    MixService(service);
+    Virtual<uint32_t>(service, 0x4);
+    Mix(Virtual<uint32_t>(service, 0x8));
+}
+
+// The objects: the interface (also through the part at +4), the count, the
+// destructor with a reference held, the deleting destructor without its
+// flag, the table's deleting destructor by its slot and its address.
+void DriveSvObjects()
+{
+    char* const service = NewService();
+    MixService(service);
+    for (uint32_t iid : {0xDC1CF595u, 1u, 0x3C1CF59Eu, 0u}) {
+        void* out = nullptr;
+        MixWord(Virtual<uint32_t>(service, 0x0, iid, &out) & 0xFF);
+        MixIs(out, service);
+        out = nullptr;
+        MixWord(Virtual<uint32_t>(service + 4, 0x0, iid, &out) & 0xFF);
+        MixIs(out, service);
+        Mix(At<uint32_t>(service, 0xC));
+    }
+    // Two references from the two QueryInterfaces: one released, then the
+    // count past the end (0 to -1) and from 5.
+    Mix(Virtual<uint32_t>(service + 4, 0x8));
+    Mix(At<uint32_t>(service, 0xC));
+    At<uint32_t>(service, 0xC) = 0;
+    Mix(Virtual<uint32_t>(service, 0x8));
+    At<uint32_t>(service, 0xC) = 5;
+    Mix(Virtual<uint32_t>(service, 0x8));
+
+    // The destructor with a reference held (Shutdown lets it go first).
+    FakeCounted held{kCountedVtable, 1};
+    At<void*>(service, 0x4140) = &held;
+    MixWord(CallThis<uint32_t>(addr::cGZSoundService_Destruct, service));
+    Mix(static_cast<uint32_t>(held.refs));
+    Mix(At<void*>(service, 0x10) ? 1u : 0u);
+    Mix(At<void*>(service, 0x4140) ? 1u : 0u);
+    Mix(At<std::uintptr_t>(service, 0) == addr::cGZSoundService_Vtable ? 1u : 0u);
+    MixIs(CallThis<char*>(addr::cGZSoundService_Construct, service), service);
+    MixIs(CallThis<char*>(addr::cGZSoundService_DeletingDestructor, service, 0u), service);
+    Mix(At<void*>(service, 0x10) ? 1u : 0u);
+    CallThis<char*>(addr::cGZSoundService_Construct, service);
+    MixIs(CallThis<char*>(addr::cGZSoundService_DeletingDestructor, service, 1u), service);
+
+    char* const table = NewTable();
+    At<char*>(table, 0x48) = NewDesc();
+    MixIs(Virtual<char*>(table, 0x10, 1u), table);
+    char* const other = NewTable();
+    At<char*>(other, 0x48 + 77 * 4) = NewDesc();
+    MixIs(CallThis<char*>(addr::cGZSoundTable_DeletingDestructor, other, 0u), other);
+    MixTable(other);
+    CallThis<char*>(addr::cGZSoundTable_DeletingDestructor, other, 1u);
+}
+
+// OPENSC4_TEST_GZSOUNDSVC=<day>: part u6's functions through their slots
+// and addresses: the loader over texts and a file of our own, Init with a
+// score the game has, Play and the fade, the window, the settings, the
+// objects. Every result goes into the fingerprint's `gzv` part; addresses
+// never do.
+void DriveGzSoundSvc(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_GZSOUNDSVC") || !game::IsBuild641())
+        return;
+    g_svOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_svHash;
+    DriveLoad();
+    SvStage("load");
+    char* const scored = DriveInit();
+    SvStage("init");
+    DrivePlay(scored);
+    SvStage("play");
+    DrivePlay(PreparedService(WideText()));
+    SvStage("play2");
+    DriveWindow();
+    SvStage("window");
+    DriveSettings();
+    SvStage("settings");
+    DriveSvObjects();
+    SvStage("objects");
+    g_into = saved;
+    log::Write("autotest: gzsoundsvc driven (hash %08X)", g_svHash);
+}
+
+void SvFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_svOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | gzv %08X", g_svHash);
+    line += text;
+}
+
+const FingerprintPart kSvFingerprint{"gzsoundsvc", 4, &SvFingerprint};
+const DayHook kSvDrive{"gzsoundsvc", 4, &DriveGzSoundSvc};
 
 } // namespace
 } // namespace opensc4::autotest
