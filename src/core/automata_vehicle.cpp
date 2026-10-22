@@ -2482,6 +2482,1036 @@ std::uint8_t __fastcall NextRouteCell(char* self, void*, std::uint32_t now)
 }
 
 // ====================================================================================
+// Part vb4: the states on frames
+
+// The current state: the last of the core's stack (+0xB4..+0xB8; not
+// tested for elements where the game does not).
+char* CurrentState(char* self) { return At<char**>(self, field::kStatesEnd)[-1]; }
+
+// The +0x204 deque's size as the asm counts it: (the blocks between less one)
+// x 10, plus the finish's block to its current and the start's from its
+// current, each a signed division by 12.
+std::uint32_t StepCount(char* d)
+{
+    const std::int32_t nodes =
+        Difference(At<char**>(d, deque::kFinish + deque::kNode), At<char**>(d, deque::kStart + deque::kNode)) >> 2;
+    const std::int32_t inFinish =
+        Difference(At<char*>(d, deque::kFinish + deque::kCurrent), At<char*>(d, deque::kFinish + deque::kFirst)) / 12;
+    const std::int32_t inStart =
+        Difference(At<char*>(d, deque::kStart + deque::kLast), At<char*>(d, deque::kStart + deque::kCurrent)) / 12;
+    return static_cast<std::uint32_t>(nodes - 1) * 10u + static_cast<std::uint32_t>(inFinish) +
+           static_cast<std::uint32_t>(inStart);
+}
+
+bool DequeEmpty(char* d)
+{
+    return At<char*>(d, deque::kFinish + deque::kCurrent) == At<char*>(d, deque::kStart + deque::kCurrent);
+}
+
+// SC4RefPtr's assignment of an element's or a field's object (the new one
+// referenced first, the old one released).
+void AssignReference(void** at, void* object)
+{
+    void* const old = *at;
+    if (object == old)
+        return;
+    if (object)
+        AddRef(object);
+    *at = object;
+    if (old)
+        Release(old);
+}
+
+// A step on the +0x204 deque (0xC bytes): the occupant, its key, the byte.
+struct Step {
+    void* occupant;
+    std::uint32_t key;
+    std::uint8_t last;
+    std::uint8_t unused[3];
+};
+
+// 0x00504C40, on a +0x204 deque iterator: ++ (blocks of 0x78 bytes). Answers
+// the iterator.
+DequeIterator* __fastcall StepIncrement(DequeIterator* it, void*)
+{
+    static bool logged;
+    FirstCall("StepIncrement", logged);
+    it->current += 0xC;
+    if (it->current == it->last) {
+        ++it->node;
+        it->first = *it->node;
+        it->last = it->first + 0x78;
+        it->current = it->first;
+    }
+    return it;
+}
+
+// 0x00553720, on the +0x204 deque: pop_front; the element's object released
+// (not cleared); at a block's last element the block freed (SC4::Free) and
+// the start on the next node's block.
+void __fastcall StepPopFront(char* d, void*)
+{
+    static bool logged;
+    FirstCall("StepPopFront", logged);
+    char*& current = At<char*>(d, deque::kStart + deque::kCurrent);
+    void* const object = At<void*>(current, 0);
+    if (current != At<char*>(d, deque::kStart + deque::kLast) - 0xC) {
+        if (object)
+            Release(object);
+        current += 0xC;
+        return;
+    }
+    if (object)
+        Release(object);
+    char* const first = At<char*>(d, deque::kStart + deque::kFirst);
+    if (first)
+        CallCdecl<void>(addr::SC4_Free, first);
+    char** const node = ++At<char**>(d, deque::kStart + deque::kNode);
+    At<char*>(d, deque::kStart + deque::kFirst) = *node;
+    At<char*>(d, deque::kStart + deque::kLast) = *node + 0x78;
+    current = At<char*>(d, deque::kStart + deque::kFirst);
+}
+
+// 0x0054E380, on a 0x5C-byte entry: zeroed, +0x48..+0x50 the point start
+// (0x00B2293C). Answers the entry.
+char* __fastcall InitEntry(char* entry, void*)
+{
+    static bool logged;
+    FirstCall("InitEntry", logged);
+    for (const std::size_t at : {0x0u, 0x4u, 0x8u, 0xCu, 0x20u, 0x24u, 0x30u, 0x34u, 0x40u, 0x44u})
+        At<std::uint32_t>(entry, at) = 0;
+    At<std::uint32_t>(entry, 0x48) = Global<std::uint32_t>(addr::cSC4AutomatonBase_PointInit);
+    At<std::uint32_t>(entry, 0x4C) = Global<std::uint32_t>(addr::cSC4AutomatonBase_PointInit);
+    At<std::uint32_t>(entry, 0x50) = Global<std::uint32_t>(addr::cSC4AutomatonBase_PointInit);
+    At<std::uint32_t>(entry, 0x54) = 0;
+    At<std::uint32_t>(entry, 0x58) = 0;
+    return entry;
+}
+
+// 0x0054ECC0, stdcall (record), ret 4: with the byte +0x30 and an object
+// +0x2C, the city's slot 47's slot 14 (the object) and the byte cleared; the
+// object cleared and released; +0x34 zero. AL 1.
+std::uint8_t __stdcall ClearRecord(char* record)
+{
+    static bool logged;
+    FirstCall("ClearRecord", logged);
+    if (At<std::uint8_t>(record, 0x30) && At<void*>(record, 0x2C)) {
+        void* const lights = Virtual<void*>(City(), kCityLights);
+        Virtual<std::uint32_t>(lights, 0x38, At<void*>(record, 0x2C));
+        At<std::uint8_t>(record, 0x30) = 0;
+    }
+    void* const object = At<void*>(record, 0x2C);
+    if (object) {
+        At<void*>(record, 0x2C) = nullptr;
+        Release(object);
+    }
+    At<std::uint32_t>(record, 0x34) = 0;
+    return 1;
+}
+
+// 0x00552B80, on a record list (record), ret 4: the node holding the record
+// (node + 8): 0x0054ECC0, unlinked, +0x34's object released, the node freed
+// (SC4::Free). AL 1, found or not.
+std::uint8_t __fastcall EraseRecord(char** list, void*, char* record)
+{
+    static bool logged;
+    FirstCall("EraseRecord", logged);
+    char* const head = *list;
+    char* node = At<char*>(head, 0);
+    if (node == head)
+        return 1;
+    while (record != node + 8) {
+        node = At<char*>(node, 0);
+        if (node == head)
+            return 1;
+    }
+    reinterpret_cast<std::uint8_t(__stdcall*)(char*)>(addr::cSC4VehPedManagerBase_ClearRecord)(node + 8);
+    char* const previous = At<char*>(node, 4);
+    char* const next = At<char*>(node, 0);
+    At<char*>(previous, 0) = next;
+    At<char*>(next, 4) = previous;
+    if (void* const object = At<void*>(node, 0x34))
+        Release(object);
+    CallCdecl<void>(addr::SC4_Free, node);
+    return 1;
+}
+
+// 0x0054E050, slot 72 (a word, frame seconds), ret 8: the smoothed value's
+// elapsed time (+0x1AC) on by seconds x 0.001 while below its duration; at
+// the duration the target becomes the value and both are zero. Slots 83 and
+// 103 (seconds); with slot 86 and not slot 109 (seconds): unless slot 87, the
+// move (slot 129 with an occupant, a network part and a path and without the
+// automata flag 0x2000, else slot 130); with slot 87, not gone (slot 85) and
+// not slot 165, Remove(false); slot 105. Then slot 102 (0, 0). Answers the
+// move's AL, else 1.
+std::uint8_t __fastcall Frame(char* self, void*, std::uint32_t, float seconds)
+{
+    static bool logged;
+    FirstCall("Frame", logged);
+    std::uint8_t answer = 1;
+    float& elapsed = At<float>(self, field::kSmoothedElapsed);
+    const float duration = At<float>(self, field::kSmoothedDuration);
+    if (elapsed < duration) {
+        const double now = static_cast<double>(seconds) * Global<float>(addr::cSC4AutomatonBase_Milli) + elapsed;
+        elapsed = static_cast<float>(now);
+        if (now >= At<float>(self, field::kSmoothedDuration)) {
+            const std::uint32_t target = At<std::uint32_t>(self, field::kSmoothedTarget);
+            At<std::uint32_t>(self, field::kSmoothedElapsed) = 0;
+            At<std::uint32_t>(self, field::kSmoothedDuration) = 0;
+            At<std::uint32_t>(self, field::kSmoothed) = target;
+        }
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot83, seconds);
+    Virtual<std::uint32_t>(self, slot::kSlot103, seconds);
+    if (Virtual<std::uint8_t>(self, slot::kSlot86) && !Virtual<std::uint8_t>(self, slot::kStateFrame, seconds)) {
+        if (!Virtual<std::uint8_t>(self, slot::kSlot87)) {
+            if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x2000u) && At<void*>(self, field::kOccupant) &&
+                At<void*>(self, field::kNetwork) && At<void*>(self, field::kPath))
+                answer = Virtual<std::uint8_t>(self, slot::kMoveOnPath, seconds);
+            else
+                answer = Virtual<std::uint8_t>(self, slot::kMoveStraight, seconds);
+        }
+        if (Virtual<std::uint8_t>(self, slot::kSlot87) && !Virtual<std::uint8_t>(self, slot::kIsGone) &&
+            !Virtual<std::uint8_t>(self, slot::kNextStep))
+            Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+        Virtual<std::uint32_t>(self, slot::kSlot105);
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot102, 0u, 0u);
+    return answer;
+}
+
+// 0x00550090, slot 109 (frame seconds), ret 4: the current state's frame,
+// slot 163 for the type 0xD, slot 164 for 0x1E; else (or no state) the
+// core's 0x00508AA0. Tail calls in the game: answers the callee's EAX.
+std::uint32_t __fastcall StateFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("StateFrame", logged);
+    if (At<char*>(self, field::kStates) != At<char*>(self, field::kStatesEnd)) {
+        const std::uint32_t type = At<std::uint32_t>(CurrentState(self), state::kType);
+        if (type == state::kWait)
+            return Virtual<std::uint32_t>(self, slot::kWaitFrame, seconds);
+        if (type == state::kDrive)
+            return Virtual<std::uint32_t>(self, slot::kDriveFrame, seconds);
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_StateFrame, self, seconds);
+}
+
+// 0x005546E0, slot 110 (state), ret 4: entering a state. The type 0x10:
+// the vehicle manager's record list given a record (0x00554160 with 0, 0, 5
+// and the occupant part, slot 5) into +0x64; the entries' object
+// (0x00585110) into +0x6C and, when there is one, an entry at the position
+// (0x0054E380, then 0x00584250 with it and 0) into +0x70; the automata flag
+// 0x40 cleared, the route and the +0x204 deque emptied; the core's
+// 0x00511450 (state); with an occupant answering its slot 9 for 0x403C1004:
+// +0x78 from the occupant (SC4RefPtr::AssignFrom) when its slot 8 answers
+// 0x80000, the byte +0x228 zero and +0x8C -1; then the core's 0x00511450
+// again. The type 0x1E: SetSpeed (0, 0.5) and the core's. Else the core's.
+// Answers the last call's EAX.
+std::uint32_t __fastcall EnterState(char* self, void*, char* entered)
+{
+    static bool logged;
+    FirstCall("EnterState", logged);
+    if (entered && At<std::uint32_t>(entered, state::kType) == state::kParked) {
+        void* const occupantPart = Virtual<void*>(self, slot::kAsOccupant);
+        char* const vehicles = Virtual<char*>(self, slot::kManager);
+        At<char*>(entered, state::kRecord) =
+            CallThis<char*>(addr::cSC4VehPedManagerBase_PushRecordListBack, vehicles + manager::kRecordList, 0u, 0u,
+                            5u, occupantPart);
+        char* const entries = CallCdecl<char*>(addr::SC4AutomataEntries_Get);
+        At<char*>(entered, state::kEntries) = entries;
+        if (entries) {
+            alignas(4) char entry[0x60] = {}; // the game's three bytes after +0x3C are stack garbage
+            CallThis<char*>(addr::cSC4AutomatonBase_InitEntry, entry);
+            At<std::uint32_t>(entry, 0x00) = At<std::uint32_t>(self, field::kPosition);
+            At<std::uint32_t>(entry, 0x04) = At<std::uint32_t>(self, field::kPosition + 8);
+            At<std::uint32_t>(entry, 0x10) = At<std::uint32_t>(self, field::kPosition + 4);
+            At<std::uint32_t>(entry, 0x14) = 0;
+            At<std::uint32_t>(entry, 0x18) = 0;
+            At<std::uint32_t>(entry, 0x1C) = 0;
+            At<std::uint32_t>(entry, 0x20) = 0x3F800000u;
+            At<std::uint32_t>(entry, 0x24) = 0x3F800000u;
+            At<std::uint32_t>(entry, 0x28) = 0x3F800000u;
+            At<std::uint32_t>(entry, 0x2C) = 0x33D6BF95u;
+            At<std::uint32_t>(entry, 0x38) = 0;
+            At<std::uint8_t>(entry, 0x3C) = 0;
+            At<std::uint32_t>(entry, 0x5C) = 0;
+            At<std::uint32_t>(entry, 0x40) = 0;
+            At<std::uint32_t>(entry, 0x44) = 0;
+            At<std::uint32_t>(entered, state::kEntry) =
+                CallThis<std::uint32_t>(addr::SC4AutomataEntries_Add, At<char*>(entered, state::kEntries),
+                                        static_cast<void*>(entry), 0u);
+        }
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 0x40u, 0u);
+        CallThis<void>(addr::SC4CellDeque_Clear, self + field::kRoute);
+        CallThis<void>(addr::SC4AutomatonDeque204_Clear, self + field::kDeque204);
+        CallThis<std::uint32_t>(addr::cSC4AutomatonCore_EnterState, self, entered);
+        void* const occupant = At<void*>(self, field::kOccupant);
+        if (occupant && Virtual<std::uint8_t>(occupant, kOccupantFlag9, 0x403C1004u)) {
+            if (Virtual<std::uint8_t>(At<void*>(self, field::kOccupant), kOccupantFlag, 0x80000u))
+                CallThis<std::uint32_t>(addr::SC4RefPtr_AssignFrom, entered + state::kRef78,
+                                        static_cast<void*>(self + field::kOccupant));
+            At<std::uint8_t>(entered, state::kByte228) = 0;
+            At<std::uint32_t>(entered, state::kFloat8C) = Global<std::uint32_t>(addr::cSC4AutomatonBase_MinusOne);
+        }
+    } else if (entered && At<std::uint32_t>(entered, state::kType) == state::kDrive) {
+        Virtual<std::uint32_t>(self, slot::kSetSpeed, 0.0f, 0.5f);
+        return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_EnterState, self, entered);
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_EnterState, self, entered);
+}
+
+// 0x005535D0, slot 111 (state), ret 4: leaving a state. The type 0xD: slot
+// 160 and the automata flags 0x10 and 0x20 cleared; true. 0x1E: the same and
+// the core's 0x0050E3F0 (state); true. 0x10: unless the flag 1, the flag
+// 0x2000 cleared and slot 134; the records +0x64 and +0x68 erased from the
+// vehicle manager's record list (0x00552B80) and cleared; +0x74's slot 4 (0)
+// and its release; with +0x6C, +0x70's entry removed (0x00584B30) and
+// cleared, the entries' object let go (0x00583860) and +0x6C cleared; then
+// the core's. 0x15: unless the flag 1 slot 134; true. Else the core's. AL
+// only where true.
+std::uint32_t __fastcall LeaveState(char* self, void*, char* left)
+{
+    static bool logged;
+    FirstCall("LeaveState", logged);
+    if (left) {
+        const std::uint32_t type = At<std::uint32_t>(left, state::kType);
+        if (type == state::kWait) {
+            Virtual<std::uint32_t>(self, slot::kGo);
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 0x10u, 0u);
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 0u);
+            return 1;
+        }
+        if (type == state::kDrive) {
+            Virtual<std::uint32_t>(self, slot::kGo);
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 0x10u, 0u);
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 0u);
+            CallThis<std::uint32_t>(addr::cSC4AutomatonCore_LeaveState, self, left);
+            return 1;
+        }
+        if (type == state::kParked) {
+            if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 1u)) {
+                Virtual<std::uint32_t>(self, slot::kSetFlag, 0x2000u, 0u);
+                Virtual<std::uint8_t>(self, slot::kSlot134);
+            }
+            for (const std::size_t at : {state::kRecord, state::kRecord2}) {
+                if (!At<char*>(left, at))
+                    continue;
+                if (char* const vehicles = Virtual<char*>(self, slot::kManager))
+                    CallThis<std::uint8_t>(addr::cSC4VehPedManagerBase_EraseRecord, vehicles + manager::kRecordList,
+                                           At<char*>(left, at));
+                At<char*>(left, at) = nullptr;
+            }
+            if (At<void*>(left, state::kObject74)) {
+                Virtual<std::uint32_t>(At<void*>(left, state::kObject74), 0x10, 0u);
+                Release(At<void*>(left, state::kObject74));
+            }
+            if (At<char*>(left, state::kEntries)) {
+                if (const std::uint32_t entry = At<std::uint32_t>(left, state::kEntry)) {
+                    CallThis<std::uint32_t>(addr::SC4AutomataEntries_Remove, At<char*>(left, state::kEntries), entry);
+                    At<std::uint32_t>(left, state::kEntry) = 0;
+                }
+                CallCdecl<void>(addr::SC4AutomataEntries_Release);
+                At<char*>(left, state::kEntries) = nullptr;
+            }
+        } else if (type == state::kPlace) {
+            if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 1u))
+                Virtual<std::uint8_t>(self, slot::kSlot134);
+            return 1;
+        }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_LeaveState, self, left);
+}
+
+// 0x005559D0, slot 145 (route, next, now), ret 0xC: false for an empty
+// route; else the route copied in (SC4RouteDeque's assignment 0x00532430);
+// with next, false when slot 142 (now) is; slot 160 and true. AL only.
+std::uint8_t __fastcall SetRoute(char* self, void*, char* route, std::uint32_t next, std::uint32_t now)
+{
+    static bool logged;
+    FirstCall("SetRoute", logged);
+    if (DequeEmpty(route))
+        return 0;
+    CallThis<char*>(addr::SC4RouteDeque_Assign, self + field::kRoute, route);
+    if (static_cast<std::uint8_t>(next) && !Virtual<std::uint8_t>(self, slot::kNextRouteCell, now))
+        return 0;
+    Virtual<std::uint32_t>(self, slot::kGo);
+    return 1;
+}
+
+// 0x00551480, slot 147 (occupant, depth), ret 8: the occupant (without one
+// its own, slot 137, or with the automata flag 0x2000 the traffic network
+// map's at its cell; none, nothing); of the automata the map has on it (slot
+// 16, the list at +0x1C, the automaton at +8) every other one not with the
+// flag 0x40, with the flag 2, not gone, without slot 57 (0x10) and without
+// the flag 0x200000 whose occupant type (its part's slot 7) is its own:
+// Remove(false) and slot 33 (0, 0x00B21C84 x 0.25). Then, at a depth not
+// below 0, for each of the four sides the map's neighbour (slot 15 with the
+// occupant, the side and 0, 0): slot 147 on it with the depth less one.
+void __fastcall RemoveSame(char* self, void*, void* occupant, std::int32_t depth)
+{
+    static bool logged;
+    FirstCall("RemoveSame", logged);
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    if (!occupant) {
+        occupant = Virtual<void*>(self, slot::kOccupantOf);
+        if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x2000u)) {
+            std::int32_t cellX = 0; // stack garbage in the game; city slot 95 sets it
+            std::int32_t cellZ = static_cast<std::int32_t>(reinterpret_cast<std::uintptr_t>(occupant));
+            Virtual<std::uint32_t>(City(), city::kCellOf, At<float>(self, field::kPosition),
+                                   At<float>(self, field::kPosition + 8), &cellX, &cellZ);
+            occupant = Virtual<void*>(map, map::kOccupantAt, cellX, cellZ);
+        }
+        if (!occupant)
+            return;
+    }
+    char* const on = Virtual<char*>(map, map::kAutomataOn, occupant);
+    if (!on)
+        return;
+    for (char* node = At<char*>(At<char*>(on, 0x1C), 0); node != At<char*>(on, 0x1C); node = At<char*>(node, 0)) {
+        char* const other = At<char*>(node, 8);
+        if (other == self || Virtual<std::uint8_t>(other, slot::kCheckFlag, 0x40u) ||
+            !Virtual<std::uint8_t>(other, slot::kCheckFlag, 2u) || Virtual<std::uint8_t>(other, slot::kIsGone) ||
+            Virtual<std::uint32_t>(other, slot::kSlot57, 0x10u) ||
+            Virtual<std::uint8_t>(other, slot::kCheckFlag, 0x200000u))
+            continue;
+        const std::uint32_t type = Virtual<std::uint32_t>(self + field::kVtable4, slot::kPartType);
+        if (Virtual<std::uint32_t>(other + field::kVtable4, slot::kPartType) != type)
+            continue;
+        Virtual<std::uint32_t>(other, slot::kRemove, 0u);
+        Virtual<std::uint32_t>(other, slot::kFade, 0.0f,
+                               static_cast<float>(static_cast<double>(Global<float>(addr::SC4AutomataTuning_Fade21C84)) *
+                                                  Global<float>(addr::cSC4AutomatonBase_Quarter)));
+    }
+    if (depth < 0)
+        return;
+    // The side is the low byte of the occupant argument's stack slot: its
+    // upper three bytes are the occupant pointer's.
+    const std::uint32_t upper = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(occupant)) & 0xFFFFFF00u;
+    for (std::uint32_t side = 0; side < 4; ++side) {
+        void** const next = Virtual<void**>(map, map::kNeighbour, occupant, upper | side, 0u, 0u);
+        if (next)
+            Virtual<std::uint32_t>(self, slot::kRemoveSame, *next, depth - 1);
+    }
+}
+
+// 0x00551C20, slot 148: the automaton ahead. With two steps or more on the
+// +0x204 deque, the first the steps find (0x0054FC30 with each step's
+// occupant and key, 0xFFF00FF, 0xFFFFF00). Else, on the occupant +0x1EC,
+// 0x0054FC30 with +0x1F4 and the same masks; none there, 0x00B43D54's
+// neighbour (slot 0x3C with the occupant, the side +0x1F4, 0 and the kind)
+// and 0x0054FC30 on it with the opposite side (kind << 24 | side << 8 |
+// 0xFF, 0xF00FF00 twice). Null without.
+void* __fastcall FindAhead(char* self, void*)
+{
+    static bool logged;
+    FirstCall("FindAhead", logged);
+    using Nearest = void*(__thiscall*)(void*, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t);
+    const auto nearest = reinterpret_cast<Nearest>(addr::cSC4AutomatonBase_NearestOnNetwork);
+    char* const d = self + field::kDeque204;
+    void* found = nullptr;
+    if (StepCount(d) >= 2) {
+        char* current = At<char*>(d, deque::kStart + deque::kCurrent);
+        char* last = At<char*>(d, deque::kStart + deque::kLast);
+        char** node = At<char**>(d, deque::kStart + deque::kNode);
+        while (current != At<char*>(d, deque::kFinish + deque::kCurrent) && !found) {
+            found = nearest(self, At<std::uint32_t>(current, 0), At<std::uint32_t>(current, 4), 0xFFF00FFu,
+                            0xFFFFF00u);
+            current += 0xC;
+            if (current == last) {
+                current = *++node;
+                last = current + 0x78;
+            }
+        }
+        return found;
+    }
+    void* const occupant = At<void*>(self, field::kOccupant);
+    if (!occupant)
+        return nullptr;
+    found = nearest(self, static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(occupant)),
+                    At<std::uint32_t>(self, field::kGroups1F4), 0xFFF00FFu, 0xFFFFF00u);
+    if (found)
+        return found;
+    const std::uint32_t side = At<std::uint8_t>(self, field::kBytes1F4); // three bytes of stack garbage above it
+    const std::uint32_t kind = At<std::uint8_t>(self, field::kKind1F7) & 0xFu;
+    void** const next = Virtual<void**>(Global<void*>(addr::SC4_Service43D54), kServiceNeighbour,
+                                        At<void*>(self, field::kOccupant), side, 0u, kind);
+    if (!next)
+        return nullptr;
+    const std::uint32_t key = (kind << 24) | (((side + 2) & 3u) << 8) | 0xFFu;
+    return nearest(self, static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(*next)), key, 0xF00FF00u,
+                   0xF00FF00u);
+}
+
+// 0x0054E1A0, slot 161: the automaton ahead and the waiting. With the
+// automata flag 8: +0xB0 = slot 148 (SC4RefPtr::Assign) when +0xB0 is gone
+// (its flag 1) or, with +0xB0, the flag 0x10 is on. With the flag 0x800, or
+// the occupant part's byte (slot 33) without 4 and the flag 0x200000: the
+// flag 0x10 cleared and, without +0xB0, slot 160. Else nothing in the state
+// 0xD (slot 59); a wait of 1.7 when slot 141 is off and the network part
+// says so for the kind (its slot 13); otherwise the traffic network map's
+// slot 33 (occupant, automaton, groups, the wait): with an answer the flag
+// 0x10 set, slot 52 (0xD, 0, 0x00B21C74 x 1000, 0, 0, 0, 0) at 1 with the
+// flag 0x20, and slot 159. Without: with the flag 0x10 and a wait below 0.7
+// slot 159, else the flag 0x10 cleared and slot 160.
+void __fastcall CheckAhead(char* self, void*)
+{
+    static bool logged;
+    FirstCall("CheckAhead", logged);
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 8u)) {
+        void* const ahead = At<void*>(self, field::kObjectB0);
+        if ((ahead && Virtual<std::uint8_t>(ahead, slot::kCheckFlag, 1u)) ||
+            (At<void*>(self, field::kObjectB0) && Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x10u))) {
+            void* const front = Virtual<void*>(self, slot::kSlot148);
+            CallThis<void>(addr::SC4RefPtr_Assign, self + field::kObjectB0, front);
+        }
+    }
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x800u) ||
+        (!(Virtual<std::uint32_t>(self + field::kVtable4, slot::kPartFlags) & 4u) &&
+         Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x200000u))) {
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 0x10u, 0u);
+        if (!At<void*>(self, field::kObjectB0))
+            Virtual<std::uint32_t>(self, slot::kGo);
+        return;
+    }
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == state::kWait)
+        return;
+    float wait = 0.0f;
+    void* const network = At<void*>(self, field::kNetwork);
+    if (!Virtual<std::uint8_t>(self, slot::kSlot141) && network &&
+        Virtual<std::uint8_t>(network, 0x34, static_cast<std::uint32_t>(At<std::uint8_t>(self, field::kKind1F7) & 0xFu))) {
+        wait = 1.7f; // 0x3FD9999A
+    } else {
+        void* const occupant = At<void*>(self, field::kOccupant);
+        const std::uint32_t groups = Virtual<std::uint32_t>(self, slot::kGroups);
+        const std::uint32_t answer = Virtual<std::uint32_t>(map, map::kWaitOn, occupant, self, groups, &wait);
+        if (answer) {
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 0x10u, 1u);
+            if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x20u) && answer == 1) {
+                const float time = static_cast<float>(
+                    static_cast<double>(Global<float>(addr::SC4AutomataTuning_Signal4998C912)) *
+                    Global<float>(addr::cSC4AutomatonBase_Thousand));
+                Virtual<std::uint32_t>(self, slot::kPushState, state::kWait, 0u, time, 0u, 0u, 0u, 0u);
+            }
+            Virtual<std::uint32_t>(self, slot::kStop);
+            return;
+        }
+    }
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x10u) && wait < Global<float>(addr::cSC4AutomatonBase_WaitGate)) {
+        Virtual<std::uint32_t>(self, slot::kStop);
+        return;
+    }
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 0x10u, 0u);
+    Virtual<std::uint32_t>(self, slot::kGo);
+}
+
+// 0x0054E410, slot 162: whether the queue ahead fits. From the automaton
+// along the ones ahead (slot 48) while there are fewer than 50 and they have
+// the automata flags 0x10 and 0x20: those without the flag 1 counted, the
+// last of the occupant types 0xC7CC75F1 and 0x496E5783 (the occupant part's
+// slot 7) kept. With one kept and a count above 2: its occupant (slot 137)
+// and the traffic network map's object on it (slot 16), the vehicle
+// manager's weights (slot 72 with them, +0x1E4 and slot 42's weight) and
+// factor (slot 75); the weight of the kept one's groups (row byte 1, column
+// byte 0) x the factor x 10 rounded (the x87 trick: less 0.5 plus 1.5 x
+// 2^23 as a float, one more when exactly that) below the count: false.
+// Otherwise (and without a manager) true. AL only.
+std::uint8_t __fastcall QueueFits(char* self, void*)
+{
+    static bool logged;
+    FirstCall("QueueFits", logged);
+    char* const vehicles = Virtual<char*>(self, slot::kManager);
+    if (!vehicles)
+        return 1;
+    std::uint32_t count = 0;
+    char* kept = nullptr;
+    for (char* at = self; at && count < 50 && Virtual<std::uint8_t>(at, slot::kCheckFlag, 0x10u) &&
+                          Virtual<std::uint8_t>(at, slot::kCheckFlag, 0x20u);
+         at = Virtual<char*>(at, slot::kNextAutomaton)) {
+        if (!Virtual<std::uint8_t>(at, slot::kCheckFlag, 1u))
+            ++count;
+        if (Virtual<std::uint32_t>(Virtual<void*>(at, slot::kAsOccupant), slot::kPartType) == kVehicleType ||
+            Virtual<std::uint32_t>(Virtual<void*>(at, slot::kAsOccupant), slot::kPartType) == 0x496E5783u)
+            kept = at;
+    }
+    if (!kept || count <= 2)
+        return 1;
+    const double factor = Virtual<double>(vehicles, manager::kQueueFactor, At<std::uint32_t>(self, field::kState));
+    void* const occupant = Virtual<void*>(kept, slot::kOccupantOf);
+    if (!occupant)
+        return 1;
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    void* const on = Virtual<void*>(map, map::kAutomataOn, occupant);
+    const float weight =
+        static_cast<float>(Virtual<double>(vehicles, manager::kStateWeight, At<std::uint32_t>(self, field::kState)));
+    float table[16] = {}; // stack garbage in the game; the manager fills it
+    Virtual<std::uint32_t>(vehicles, manager::kWeights, occupant, on, At<std::uint32_t>(self, field::kState), weight,
+                           static_cast<float*>(table));
+    const std::uint32_t row = Virtual<std::uint32_t>(kept, slot::kGroups);
+    const std::uint32_t column = Virtual<std::uint32_t>(kept, slot::kGroups);
+    const double v =
+        static_cast<double>(table[(column & 0xFFu) + ((row >> 8) & 0xFFu) * 4]) * factor *
+        Global<float>(addr::cSC4AutomatonBase_QueueScale);
+    const float rounded = static_cast<float>((v - Global<float>(addr::SC4_FloatHalf)) +
+                                             Global<float>(addr::cSC4AutomatonBase_RoundMagic));
+    std::uint32_t limit;
+    std::memcpy(&limit, &rounded, 4);
+    limit += 0xB4C00000u;
+    if (v == static_cast<double>(static_cast<std::int32_t>(limit + 1)))
+        ++limit;
+    return limit < count ? 0 : 1;
+}
+
+// 0x005500D0, slot 163 (frame seconds), ret 4: the state 0xD's frame. While
+// the current state's timer (+0x10) is above 0: false without the automata
+// flag 0x20; else the timer less the core's rate (0x00505AB0) x the seconds,
+// true while that is above 0. At its end: slot 160, the flags 0x20 and 0x10
+// cleared and the traffic network map's slot 33 (occupant, automaton,
+// groups, a word holding the object's address); without an answer slot 53.
+// False. AL only.
+std::uint8_t __fastcall WaitFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("WaitFrame", logged);
+    char* const current = CurrentState(self);
+    float& timer = At<float>(current, state::kTimer);
+    if (timer > Zero()) {
+        if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x20u))
+            return 0;
+        const double rate = CallThis<double>(addr::cSC4AutomatonCore_StateRate, self);
+        const double left = timer - rate * seconds;
+        timer = static_cast<float>(left);
+        if (left > Zero())
+            return 1;
+    }
+    Virtual<std::uint32_t>(self, slot::kGo);
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 0u);
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 0x10u, 0u);
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    void* const occupant = At<void*>(self, field::kOccupant);
+    // The game's out word is the stack slot ECX was pushed into: the object.
+    std::uint32_t wait = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self));
+    const std::uint32_t groups = Virtual<std::uint32_t>(self, slot::kGroups);
+    if (!Virtual<std::uint32_t>(map, map::kWaitOn, occupant, self, groups, &wait))
+        Virtual<std::uint32_t>(self, slot::kPopState);
+    return 0;
+}
+
+// 0x0054E3D0, slot 164 (frame seconds), ret 4: the state 0x1E's frame:
+// slot 129 (seconds) while the smoothed value (0x004FA960) is above 0, then
+// the core's 0x00508AA0 (seconds). AL 1.
+std::uint8_t __fastcall DriveFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("DriveFrame", logged);
+    if (CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, self + field::kSmoothed) > Zero())
+        Virtual<std::uint8_t>(self, slot::kMoveOnPath, seconds);
+    CallThis<std::uint32_t>(addr::cSC4AutomatonCore_StateFrame, self, seconds);
+    return 1;
+}
+
+// 0x00553AA0, slot 165: the next step. False without the vehicle manager;
+// false (nothing more) without the occupant +0x1EC or with the automata flag
+// 0x2000. Slot 166; the first step's occupant cleared and released; when it
+// was the last step (or none is left after) Remove(false) and false, the
+// first step popped (0x00553720). Else from the path's last point (or the
+// position, slot 140) each step in turn by slot 169 (the step, the point, an
+// out key, an out distance): when one is found the step's key set, the
+// answer true and the point the end of the occupant's network part's path
+// for the key. The byte +0x1E8 counted down; slot 131 to the first step
+// (occupant, key, true); when it is the last, slot 79 with slot 88, else
+// Remove(false). AL only.
+std::uint8_t __fastcall NextStep(char* self, void*)
+{
+    static bool logged;
+    FirstCall("NextStep", logged);
+    std::uint8_t answer = 0;
+    if (!Virtual<void*>(self, slot::kManager))
+        return 0;
+    if (!At<void*>(self, field::kOccupant) || Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x2000u))
+        return answer;
+    Virtual<std::uint8_t>(self, slot::kFillAhead);
+    char* const d = self + field::kDeque204;
+    if (DequeEmpty(d)) {
+        Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+        return 0;
+    }
+    Step* const first = At<Step*>(d, deque::kStart + deque::kCurrent);
+    if (void* const object = first->occupant) {
+        first->occupant = nullptr;
+        Release(object);
+    }
+    if (first->last) {
+        Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+        CallThis<void>(addr::SC4AutomatonDeque204_PopFront, d);
+        return 0;
+    }
+    CallThis<void>(addr::SC4AutomatonDeque204_PopFront, d);
+    if (DequeEmpty(d)) {
+        Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+        return 0;
+    }
+    const float* const from = At<char**>(self, field::kPath)
+                                  ? reinterpret_cast<const float*>(At<char**>(self, field::kPath)[1]) - 3
+                                  : Virtual<const float*>(self, slot::kPosition);
+    float point[3];
+    CopyThree(point, from);
+    DequeIterator out = {};
+    DequeIterator it = *CallThis<DequeIterator*>(addr::SC4CellDeque_Begin, d, &out);
+    while (it.current != At<char*>(d, deque::kFinish + deque::kCurrent)) {
+        std::uint32_t key = 0;   // stack garbage in the game; slot 169 sets it when true
+        float distance = 0.0f;
+        Step* const step = reinterpret_cast<Step*>(it.current);
+        if (Virtual<std::uint8_t>(self, slot::kBestKey, it, static_cast<float*>(point), &key, &distance)) {
+            step->key = key;
+            answer = 1;
+            void* const network = Virtual<void*>(step->occupant, kNetworkPartSlot);
+            if (network) {
+                char** const path = Virtual<char**>(network, part::kPath, key, 0u);
+                if (path)
+                    CopyThree(point, reinterpret_cast<const float*>(path[1]) - 3);
+            }
+        }
+        CallThis<DequeIterator*>(addr::SC4AutomatonDeque204_Increment, &it);
+    }
+    std::uint8_t& countdown = At<std::uint8_t>(self, field::kByte1E8);
+    if (countdown > 0)
+        --countdown;
+    if (DequeEmpty(d))
+        return answer;
+    Step* const next = At<Step*>(d, deque::kStart + deque::kCurrent);
+    Virtual<std::uint8_t>(self, slot::kPathTo, next->occupant, next->key, 1u);
+    if (!next->last)
+        return answer;
+    if (Virtual<std::uint8_t>(self, slot::kSlot88))
+        Virtual<std::uint32_t>(self, slot::kSlot79);
+    else
+        Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+    return answer;
+}
+
+// 0x00554870, slot 166: the +0x204 deque filled ahead. Empty, it is given
+// the occupant +0x1EC with the groups +0x1F4 (0x00554230). Then while it
+// holds fewer than slot 175's byte plus one steps: the last step, when not
+// marked last and with an occupant, extended by slot 168 (with the automata
+// flag 0x40) or slot 167 into a new step pushed at the back; a step that
+// cannot be extended is marked last and the answer is false. True when
+// full or at a step marked last; false at a step without an occupant. AL
+// only.
+std::uint8_t __fastcall FillAhead(char* self, void*)
+{
+    static bool logged;
+    FirstCall("FillAhead", logged);
+    char* const d = self + field::kDeque204;
+    std::uint8_t ok = 1;
+    // One local for the steps: its key stays from the first push or the last
+    // extension (stack garbage in the game when the deque was not empty).
+    Step step{nullptr, 0, 0, {}};
+    if (DequeEmpty(d)) {
+        step.key = At<std::uint32_t>(self, field::kGroups1F4);
+        void* const occupant = At<void*>(self, field::kOccupant);
+        if (occupant) {
+            AddRef(occupant);
+            step.occupant = occupant;
+        }
+        step.last = 0;
+        CallThis<void>(addr::SC4AutomatonDeque204_PushBack, d, &step);
+        if (occupant)
+            Release(occupant);
+    }
+    const std::uint32_t wanted = Virtual<std::uint32_t>(self, slot::kStaticByte) + 1;
+    while (StepCount(d) < wanted) {
+        if (!ok)
+            return 0;
+        char* back = At<char*>(d, deque::kFinish + deque::kCurrent);
+        if (back == At<char*>(d, deque::kFinish + deque::kFirst))
+            back = At<char**>(d, deque::kFinish + deque::kNode)[-1] + 0x78;
+        Step* const last = reinterpret_cast<Step*>(back - 0xC);
+        step.occupant = nullptr;
+        step.last = 0;
+        if (last->last)
+            return ok;
+        ok = 0;
+        if (!last->occupant)
+            continue;
+        if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x40u))
+            ok = Virtual<std::uint8_t>(self, slot::kExtendOnRoute, last, &step);
+        else
+            ok = Virtual<std::uint8_t>(self, slot::kExtendFree, last, &step);
+        if (!ok) {
+            if (void* const object = step.occupant) {
+                step.occupant = nullptr;
+                Release(object);
+            }
+            last->last = 1;
+            return 0;
+        }
+        char* const current = At<char*>(d, deque::kFinish + deque::kCurrent);
+        if (current == At<char*>(d, deque::kFinish + deque::kLast) - 0xC) {
+            CallThis<void>(addr::SC4AutomatonDeque204_PushBackSlow, d, &step);
+        } else {
+            if (current) {
+                At<void*>(current, 0) = step.occupant;
+                if (step.occupant)
+                    AddRef(step.occupant);
+                At<std::uint32_t>(current, 4) = step.key;
+                At<std::uint8_t>(current, 8) = step.last;
+            }
+            At<char*>(d, deque::kFinish + deque::kCurrent) += 0xC;
+        }
+        if (step.occupant)
+            Release(step.occupant);
+    }
+    return ok;
+}
+
+// 0x00550F40, slot 167 (step, out step), ret 8: a step on from a free
+// automaton's. The traffic network map's neighbour of the step's occupant
+// (slot 15 with the key, 0 and the kind; false without one) into the out
+// step's occupant (referenced; false when none); the side order from
+// 0x0054E6F0 (the occupant, the neighbour, the opposite side, an out table
+// of four bytes; it answers how many to try). For each of the four sides,
+// unless slot 141 is on and the side is the key's entry: the occupant's
+// slot 53 (kind, opposite, side) sets the out key and answers true; else,
+// among the sides to try and when the automaton is not held (0x0054EA30),
+// the network part's slot 9 (kind, opposite, 0xFF, the generator, the out
+// key, 0) and the out step marked last; true. False after four. AL only.
+std::uint8_t __fastcall ExtendFree(char* self, void*, Step* from, Step* out)
+{
+    static bool logged;
+    FirstCall("ExtendFree", logged);
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    const std::uint32_t key = from->key;
+    const std::uint32_t kind = (key >> 24) & 0xFu;
+    const std::uint32_t entry = (key >> 8) & 0xFFu;
+    void** const next = Virtual<void**>(map, map::kNeighbour, from->occupant, key, 0u, kind);
+    if (!next)
+        return 0;
+    void* const occupant = *next;
+    AssignReference(&out->occupant, occupant);
+    if (!out->occupant)
+        return 0;
+    const std::uint32_t opposite = ((key & 0xFFu) + 2) & 3u;
+    // The opposite side is the low byte of a word holding the neighbour's
+    // address; the side the low byte of one holding the automaton's.
+    const std::uint32_t across =
+        (static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(occupant)) & 0xFFFFFF00u) | opposite;
+    void* const network = Virtual<void*>(out->occupant, kNetworkPartSlot);
+    std::uint8_t sides[4] = {}; // stack garbage in the game; the map's slot 6 fills it
+    const std::uint8_t tries = static_cast<std::uint8_t>(CallThis<std::uint32_t>(
+        addr::cSC4AutomatonBase_ChooseSide, self, out->occupant, static_cast<void*>(next), across,
+        static_cast<std::uint8_t*>(sides)));
+    const std::uint32_t upper = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(self)) & 0xFFFFFF00u;
+    for (std::uint8_t i = 0; i < 4; ++i) {
+        const std::uint8_t side = sides[i];
+        if (Virtual<std::uint8_t>(self, slot::kSlot141) && side == entry)
+            continue;
+        if (Virtual<std::uint8_t>(out->occupant, kNeighbourSlot, kind, across, upper | side)) {
+            out->key = (((kind << 16) | opposite) << 8) | side;
+            return 1;
+        }
+        if (i < tries && !CallThis<std::uint8_t>(addr::cSC4AutomatonBase_IsHeld, self)) {
+            Virtual<char**>(network, part::kFindFrom, kind, across, 0xFFu,
+                            static_cast<std::uint32_t>(addr::cSC4AutomatonCore_Random), &out->key, 0u);
+            out->last = 1;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// 0x005527E0, slot 168 (step, out step), ret 8: a step on along the route.
+// False with an empty route. The route's first cell's list on the traffic
+// network map (slot 14) and the cell popped (inline, as 0x00551F70). With
+// the route now empty: the out step marked last, the map's neighbour of the
+// step's occupant (slot 15 with the key, 1 and the kind; false without one)
+// into the out step and, from the key's side, the first of the four sides
+// its slot 53 (kind, opposite, side) answers for sets the out key; false
+// after four. Else the side towards the next cell (1 at a lower z, 3 at a
+// higher, else 0 at a lower x, else 2) and the first occupant of the cell's
+// list whose slot 53 (kind, opposite, side) answers: the out step's
+// occupant, its key, not last; true. False when none does. AL only.
+std::uint8_t __fastcall ExtendOnRoute(char* self, void*, Step* from, Step* out)
+{
+    static bool logged;
+    FirstCall("ExtendOnRoute", logged);
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    const std::uint32_t key = from->key;
+    const std::uint32_t kind = (key >> 24) & 0xFu;
+    // A byte with three bytes of the game's stack above it.
+    const std::uint32_t opposite = ((key & 0xFFu) + 2) & 3u;
+    char* const route = self + field::kRoute;
+    if (DequeEmpty(route))
+        return 0;
+    const std::uint8_t* const cell = At<std::uint8_t*>(route, deque::kStart + deque::kCurrent);
+    const std::int32_t x = cell[0], z = cell[1];
+    char* node = Virtual<char*>(map, map::kCellList, static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(z));
+    char*& current = At<char*>(route, deque::kStart + deque::kCurrent);
+    if (current != At<char*>(route, deque::kStart + deque::kLast) - 3) {
+        current += 3;
+    } else {
+        char* const first = At<char*>(route, deque::kStart + deque::kFirst);
+        if (first)
+            CallCdecl<void>(addr::SC4_Free, first);
+        char** const at = ++At<char**>(route, deque::kStart + deque::kNode);
+        At<char*>(route, deque::kStart + deque::kFirst) = *at;
+        At<char*>(route, deque::kStart + deque::kLast) = *at + 0x7E;
+        current = At<char*>(route, deque::kStart + deque::kFirst);
+    }
+    // The side words are the low byte of the step argument's stack slot:
+    // their upper three bytes are the step pointer's.
+    const std::uint32_t upper = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(from)) & 0xFFFFFF00u;
+    if (DequeEmpty(route)) {
+        out->last = 1;
+        void** const next = Virtual<void**>(map, map::kNeighbour, from->occupant, key, 1u, kind);
+        if (!next)
+            return 0;
+        CallThis<void>(addr::SC4RefPtr_Assign, &out->occupant, *next);
+        std::uint32_t side = key & 3u;
+        for (int i = 0; i < 4; ++i) {
+            if (Virtual<std::uint8_t>(out->occupant, kNeighbourSlot, kind, opposite, upper | side)) {
+                out->key = (((kind << 16) | opposite) << 8) | side;
+                return 1;
+            }
+            side = (side + 1) & 3u;
+        }
+        return 0;
+    }
+    const std::uint8_t* const ahead = At<std::uint8_t*>(route, deque::kStart + deque::kCurrent);
+    std::uint32_t side;
+    const std::int32_t dz = static_cast<std::int32_t>(ahead[1]) - z;
+    if (dz < 0)
+        side = 1;
+    else if (dz > 0)
+        side = 3;
+    else
+        side = static_cast<std::int32_t>(ahead[0]) - x < 0 ? 0u : 2u;
+    for (; node; node = At<char*>(node, 0x54)) {
+        void* const occupant = At<void*>(node, 0);
+        if (!occupant || !Virtual<std::uint8_t>(occupant, kNeighbourSlot, kind, opposite, upper | side))
+            continue;
+        CallThis<void>(addr::SC4RefPtr_Assign, &out->occupant, occupant);
+        out->key = (((kind << 16) | opposite) << 8) | side;
+        out->last = 0;
+        return 1;
+    }
+    return 0;
+}
+
+// 0x00552520, slot 169 (step iterator, point, out key, out distance), ret
+// 0x1C: the best key to take on the step's occupant. Its network part's keys
+// from the point (slot 6 with an out vector, the kind, the point, the key's
+// entry and side bytes and 32 with the automata flag 0x40, else 4); none,
+// false. One key: it, and the distance from the point to its path's first
+// point; true. More: for each key its path's first point's distance (as a
+// float) plus, unless the step is the deque's last, what slot 169 answers
+// for the next step from the path's last point (a key whose next step has
+// none is skipped); plus 0x00B43D54's slot 27 (occupant, key) x 0x00B21D2C;
+// the least not below 0 (from FLT_MAX) taken. The vector freed (SC4::Free).
+// AL only.
+std::uint8_t __fastcall BestKey(char* self, void*, DequeIterator it, const float* point, std::uint32_t* outKey,
+                                float* outDistance)
+{
+    static bool logged;
+    FirstCall("BestKey", logged);
+    Step* const step = reinterpret_cast<Step*>(it.current);
+    const std::uint32_t kind = (step->key >> 24) & 0xFu;
+    // Bytes with three bytes of the game's stack above them.
+    const std::uint32_t side = step->key & 0xFFu;
+    const std::uint32_t entry = (step->key >> 8) & 0xFFu;
+    std::uint8_t answer = 0;
+    void* const network = Virtual<void*>(step->occupant, kNetworkPartSlot);
+    const float reach = Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x40u) ? 32.0f : 4.0f;
+    std::uint32_t* keys[3] = {};
+    Virtual<std::uint32_t>(network, part::kKeys, static_cast<void*>(keys), kind, point, entry, side, reach);
+    std::uint32_t* const begin = keys[0];
+    std::uint32_t* const end = keys[1];
+    if (begin == end) {
+        if (begin)
+            CallCdecl<void>(addr::SC4_Free, begin);
+        return 0;
+    }
+    if ((Difference(end, begin) & ~3) == 4) {
+        const std::uint32_t only = *begin;
+        *outKey = only;
+        char** const path = Virtual<char**>(network, part::kPath, only, 0u);
+        const float* const p = reinterpret_cast<const float*>(path[0]);
+        const double dx = static_cast<double>(p[0]) - point[0];
+        const double dy = static_cast<double>(p[1]) - point[1];
+        const double dz = static_cast<double>(p[2]) - point[2];
+        *outDistance = static_cast<float>(std::sqrt((dy * dy + dz * dz) + dx * dx));
+        CallCdecl<void>(addr::SC4_Free, begin);
+        return 1;
+    }
+    At<std::uint32_t>(outDistance, 0) = 0x7F7FFFFFu;
+    *outKey = 0;
+    for (std::uint32_t* k = begin; k != end; ++k) {
+        char* const finish = At<char*>(self, field::kDeque204 + deque::kFinish + deque::kCurrent);
+        const std::uint32_t candidate = *k;
+        char** const path = Virtual<char**>(network, part::kPath, candidate, 0u);
+        const float* const p = reinterpret_cast<const float*>(path[0]);
+        const double dz = static_cast<double>(p[2]) - point[2];
+        const double dy = static_cast<double>(p[1]) - point[1];
+        const double dx = static_cast<double>(p[0]) - point[0];
+        float distance = static_cast<float>(std::sqrt((dx * dx + dy * dy) + dz * dz));
+        if (it.current != finish) {
+            DequeIterator next = {it.current + 0xC, it.first, it.last, it.node};
+            if (next.current == it.last) {
+                next.first = it.node[1];
+                next.node = it.node + 1;
+                next.last = next.first + 0x78;
+                next.current = next.first;
+            }
+            if (next.current != At<char*>(self, field::kDeque204 + deque::kFinish + deque::kCurrent)) {
+                std::uint32_t nextKey = 0; // stack garbage in the game; slot 169 sets it when true
+                float more = 0.0f;
+                if (!Virtual<std::uint8_t>(self, slot::kBestKey, next,
+                                           reinterpret_cast<const float*>(path[1]) - 3, &nextKey, &more))
+                    continue;
+                distance = static_cast<float>(static_cast<double>(more) + distance);
+            }
+        }
+        const std::uint16_t cost = static_cast<std::uint16_t>(
+            Virtual<std::uint32_t>(Global<void*>(addr::SC4_Service43D54), kServiceCount, step->occupant, candidate));
+        const double total = static_cast<double>(cost) * Global<float>(addr::SC4AutomataTuning_KeyCost21D2C) + distance;
+        if (!(total >= Zero()))
+            continue;
+        if (total < *outDistance) {
+            *outDistance = static_cast<float>(total);
+            *outKey = candidate;
+            answer = 1;
+        }
+    }
+    if (begin)
+        CallCdecl<void>(addr::SC4_Free, begin);
+    return answer;
+}
+
+// 0x0054D860, slot 173 (occupant, key), ret 8: the occupant's network
+// part's path from the key (slot 9 with its kind (bits 24..27), the key
+// shifted down 8, 0xFF, the generator, the occupant argument's own slot as
+// the out word, 0) and slot 132 (occupant, the out word, path, true). False
+// without an occupant, a part or a path. AL only.
+std::uint8_t __fastcall EnterFrom(char* self, void*, void* occupant, std::uint32_t key)
+{
+    static bool logged;
+    FirstCall("EnterFrom", logged);
+    if (!occupant)
+        return 0;
+    void* const network = Virtual<void*>(occupant, kNetworkPartSlot);
+    if (!network)
+        return 0;
+    std::uint32_t found = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(occupant));
+    char** const path = Virtual<char**>(network, part::kFindFrom, (key >> 24) & 0xFu, key >> 8, 0xFFu,
+                                        static_cast<std::uint32_t>(addr::cSC4AutomatonCore_Random), &found, 0u);
+    if (!path)
+        return 0;
+    Virtual<std::uint32_t>(self, slot::kSlot132, occupant, found, path, 1u);
+    return 1;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -2614,13 +3644,40 @@ const Detour kMove[] = {
     OPENSC4_DETOUR(addr::cSC4AutomatonBase_NextRouteCell, NextRouteCell),
 };
 
+// Part vb4.
+const Detour kStates[] = {
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_Frame, Frame),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_StateFrame, StateFrame),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_EnterState, EnterState),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_InitEntry, InitEntry),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_LeaveState, LeaveState),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_EraseRecord, EraseRecord),
+    OPENSC4_DETOUR(addr::cSC4VehPedManagerBase_ClearRecord, ClearRecord),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_SetRoute, SetRoute),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_RemoveSame, RemoveSame),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_FindAhead, FindAhead),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_CheckAhead, CheckAhead),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_QueueFits, QueueFits),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_WaitFrame, WaitFrame),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_DriveFrame, DriveFrame),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_NextStep, NextStep),
+    OPENSC4_DETOUR(addr::SC4AutomatonDeque204_PopFront, StepPopFront),
+    OPENSC4_DETOUR(addr::SC4AutomatonDeque204_Increment, StepIncrement),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_FillAhead, FillAhead),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_ExtendFree, ExtendFree),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_ExtendOnRoute, ExtendOnRoute),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_BestKey, BestKey),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_EnterFrom, EnterFrom),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kLife, sizeof kLife / sizeof kLife[0], "life") &&
-           InstallList(kMove, sizeof kMove / sizeof kMove[0], "move");
+           InstallList(kMove, sizeof kMove / sizeof kMove[0], "move") &&
+           InstallList(kStates, sizeof kStates / sizeof kStates[0], "states");
 }
 
 const bool g_registered[] = {
@@ -2635,7 +3692,10 @@ const bool g_registered[] = {
                         "list's, the setters and the debug texts (30 detours, part vb2); the movement on frames: "
                         "SetDestination, the moves along a path and straight, the path's walk and sideways offset, "
                         "entering an occupant, placing on the network, the next route cell, the room ahead and the "
-                        "side weights (13 detours, part vb3; src/core/automata_vehicle.cpp)",
+                        "side weights (13 detours, part vb3); the states on frames: the base's frame, the state "
+                        "frames, entering and leaving states, the records, the route, the same-type removal, the "
+                        "automaton ahead and the wait, the queue test and the steps ahead (22 detours, part vb4; "
+                        "src/core/automata_vehicle.cpp)",
                         false, InstallObject}),
 };
 

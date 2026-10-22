@@ -609,6 +609,7 @@
 #include <opensc4/addresses.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -10704,6 +10705,12 @@ struct Part {
     int32_t index;
     float end[3];
     Hash calls;
+    // Part vb4's: the paths by key (slot 3; none, the path above), the keys
+    // slot 6 answers and slot 13's answer.
+    Path* paths[4] = {};
+    const uint32_t* keys = nullptr;
+    uint32_t keyCount = 0;
+    uint32_t kindAnswer = 0;
 };
 
 uint32_t __fastcall PartAddRef(Part* p, void*) { return static_cast<uint32_t>(++p->references); }
@@ -10713,7 +10720,7 @@ Path* __fastcall PartPath(Part* p, void*, uint32_t key, uint32_t word)
     p->calls.Mix(3);
     p->calls.Mix(key);
     p->calls.Mix(word);
-    return p->path;
+    return p->paths[key & 3] ? p->paths[key & 3] : p->path;
 }
 Path* __fastcall PartFind(Part* p, void*, uint32_t a, uint32_t b, uint32_t c, const float* point, uint32_t* out,
                           uint32_t f)
@@ -10733,7 +10740,7 @@ Path* __fastcall PartFrom(Part* p, void*, uint32_t a, uint32_t b, uint32_t c, ui
 {
     p->calls.Mix(9);
     p->calls.Mix(a);
-    p->calls.Mix(b);
+    p->calls.Mix(b & 0xFF); // vb4's slot 167 passes a byte with a pointer's upper bytes
     p->calls.Mix(c & 0xFF);
     p->calls.Mix(generator == addr::cSC4AutomatonCore_Random ? 1u : 0u);
     p->calls.Mix(f);
@@ -10745,7 +10752,27 @@ uint32_t __fastcall PartKind(Part* p, void*, uint32_t kind)
 {
     p->calls.Mix(13);
     p->calls.Mix(kind);
-    return 0;
+    return p->kindAnswer;
+}
+// Slot 6 (part vb4): the keys into a vector the caller frees (SC4::Free).
+uint32_t __fastcall PartKeys(Part* p, void*, uint32_t** out, uint32_t kind, const float* point, uint32_t entry,
+                             uint32_t side, float reach)
+{
+    p->calls.Mix(6);
+    p->calls.Mix(kind);
+    p->calls.MixBytes(point, 12);
+    p->calls.Mix(entry & 0xFF); // bytes with three bytes of the game's stack above them
+    p->calls.Mix(side & 0xFF);
+    p->calls.Mix(Bits(reach));
+    out[0] = out[1] = out[2] = nullptr;
+    if (!p->keyCount)
+        return 0;
+    auto* const keys = reinterpret_cast<uint32_t*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(4 * p->keyCount);
+    for (uint32_t i = 0; i < p->keyCount; ++i)
+        keys[i] = p->keys[i];
+    out[0] = keys;
+    out[1] = out[2] = keys + p->keyCount;
+    return 1;
 }
 uint32_t __fastcall PartFlat(Part* p, void*) { return p->flat; }
 int32_t __fastcall PartIndex(Part* p, void*, const float* point, Path* path)
@@ -10771,6 +10798,7 @@ void** PartVtable()
     t[av::part::kPath / 4] = reinterpret_cast<void*>(&PartPath);
     t[av::part::kFindPath / 4] = reinterpret_cast<void*>(&PartFind);
     t[av::part::kFindFrom / 4] = reinterpret_cast<void*>(&PartFrom);
+    t[av::part::kKeys / 4] = reinterpret_cast<void*>(&PartKeys);
     t[0x34 / 4] = reinterpret_cast<void*>(&PartKind);
     t[av::part::kFlat / 4] = reinterpret_cast<void*>(&PartFlat);
     t[av::part::kIndexOf / 4] = reinterpret_cast<void*>(&PartIndex);
@@ -10789,6 +10817,7 @@ struct Lane {
     uint32_t tunnel;
     uint32_t sides;
     Hash calls;
+    uint32_t flag9 = 0; // part vb4: slot 9's answer
 };
 
 uint32_t __fastcall LaneQuery(Lane* l, void*, uint32_t iid, void** out)
@@ -10809,6 +10838,12 @@ uint32_t __fastcall LaneFlag(Lane* l, void*, uint32_t flag)
     l->calls.Mix(8);
     l->calls.Mix(flag);
     return l->tunnel;
+}
+uint32_t __fastcall LaneFlag9(Lane* l, void*, uint32_t flag)
+{
+    l->calls.Mix(9);
+    l->calls.Mix(flag);
+    return l->flag9;
 }
 Part* __fastcall LanePart(Lane* l, void*) { return l->part; }
 uint32_t __fastcall LaneSide(Lane* l, void*, uint32_t a, uint32_t b, uint32_t c)
@@ -10839,6 +10874,7 @@ void** LaneVtable()
     t[1] = reinterpret_cast<void*>(&LaneAddRef);
     t[2] = reinterpret_cast<void*>(&LaneRelease);
     t[av::kOccupantFlag / 4] = reinterpret_cast<void*>(&LaneFlag);
+    t[av::kOccupantFlag9 / 4] = reinterpret_cast<void*>(&LaneFlag9);
     t[av::kNetworkPartSlot / 4] = reinterpret_cast<void*>(&LanePart);
     t[av::kNeighbourSlot / 4] = reinterpret_cast<void*>(&LaneSide);
     t[av::kOccupantHeight / 4] = reinterpret_cast<void*>(&LaneHeight);
@@ -10895,7 +10931,7 @@ uint32_t __fastcall VehiclesWeights(Vehicles* m, void*, void* a, uint32_t b, uin
 {
     m->calls.Mix(72);
     m->calls.Mix(a ? 1u : 0u);
-    m->calls.Mix(b);
+    m->calls.Mix(b < 0x10000u ? b : 0xB0B0B0B0u); // vb4 passes the test's pointers
     m->calls.Mix(state);
     m->calls.Mix(Bits(weight));
     for (int i = 0; i < 16; ++i)
@@ -10929,6 +10965,16 @@ struct FakeMap {
     uint32_t canGo;
     uint32_t word;
     Hash calls;
+    // Part vb4's: the neighbours by side (slot 15, those in the mask), the
+    // automata on an occupant (slot 16), the wait (slot 33) and the side
+    // order of slot 6 (none, the one above).
+    Lane* next[4] = {};
+    uint32_t nextMask = 0;
+    char* on = nullptr;
+    uint32_t waitAnswer = 0;
+    float waitValue = 0.0f;
+    const uint8_t* order = nullptr;
+    uint32_t tries = 2;
 };
 
 uint32_t __fastcall MapChoose(FakeMap* m, void*, const float* weights, uint8_t* out)
@@ -10936,8 +10982,32 @@ uint32_t __fastcall MapChoose(FakeMap* m, void*, const float* weights, uint8_t* 
     m->calls.Mix(6);
     m->calls.MixBytes(weights, 16);
     for (int i = 0; i < 4; ++i)
-        out[i] = static_cast<uint8_t>(i * 3 + 1);
-    return 2;
+        out[i] = m->order ? m->order[i] : static_cast<uint8_t>(i * 3 + 1);
+    return m->tries;
+}
+Lane** __fastcall MapNeighbour(FakeMap* m, void*, void* occupant, uint32_t side, uint32_t word, uint32_t kind)
+{
+    m->calls.Mix(15);
+    m->calls.Mix(occupant ? 1u : 0u);
+    m->calls.Mix(side & 0xFF); // the side is a byte; the word above it is not the game's to keep
+    m->calls.Mix(word);
+    m->calls.Mix(kind);
+    return (m->nextMask >> (side & 3)) & 1 ? &m->next[side & 3] : nullptr;
+}
+char* __fastcall MapAutomataOn(FakeMap* m, void*, void* occupant)
+{
+    m->calls.Mix(16);
+    m->calls.Mix(occupant ? 1u : 0u);
+    return m->on;
+}
+uint32_t __fastcall MapWaitOn(FakeMap* m, void*, void* occupant, void* automaton, uint32_t groups, float* wait)
+{
+    m->calls.Mix(33);
+    m->calls.Mix(occupant ? 1u : 0u);
+    m->calls.Mix(automaton ? 1u : 0u);
+    m->calls.Mix(groups);
+    *wait = m->waitValue;
+    return m->waitAnswer;
 }
 Lane* __fastcall MapOccupantAt(FakeMap* m, void*, int32_t x, int32_t z)
 {
@@ -11007,6 +11077,9 @@ void** FakeMapVtable()
     t[av::map::kAddAutomaton / 4] = reinterpret_cast<void*>(&MapAdd);
     t[av::map::kRemoveAutomaton / 4] = reinterpret_cast<void*>(&MapRemove);
     t[av::map::kCanGo / 4] = reinterpret_cast<void*>(&MapCanGo);
+    t[av::map::kNeighbour / 4] = reinterpret_cast<void*>(&MapNeighbour);
+    t[av::map::kAutomataOn / 4] = reinterpret_cast<void*>(&MapAutomataOn);
+    t[av::map::kWaitOn / 4] = reinterpret_cast<void*>(&MapWaitOn);
     return t;
 }
 
@@ -11017,6 +11090,7 @@ struct FakeCity {
     void** vtable;
     FakeMap* map;
     uint32_t traps;
+    void* lights = nullptr; // part vb4: slot 47
 };
 
 template <std::size_t I>
@@ -11027,6 +11101,7 @@ uint32_t __fastcall CityTrap(FakeCity* c, void*)
     return 0;
 }
 FakeMap* __fastcall CityMap(FakeCity* c, void*) { return c->map; }
+void* __fastcall CityLights(FakeCity* c, void*) { return c->lights; }
 double __fastcall CityWidth(FakeCity*, void*) { return 2048.0; }
 double __fastcall CityDepth(FakeCity*, void*) { return 1024.0; }
 uint32_t __fastcall CityCellOf(FakeCity*, void*, float x, float z, int32_t* cx, int32_t* cz)
@@ -11053,6 +11128,7 @@ void** FakeCityVtable()
         t[av::city::kWidth / 4] = reinterpret_cast<void*>(&CityWidth);
         t[av::city::kDepth / 4] = reinterpret_cast<void*>(&CityDepth);
         t[av::city::kCellOf / 4] = reinterpret_cast<void*>(&CityCellOf);
+        t[av::kCityLights / 4] = reinterpret_cast<void*>(&CityLights);
     }
     return t;
 }
@@ -11505,6 +11581,1287 @@ void MoveDrive(Hash& move, Hash& frame, Hash& enter, uint32_t& flags)
     flags |= 4;
 }
 
+// ---- Part vb4's objects.
+
+// A +0x204 deque iterator, passed by value to slot 169.
+struct DequeIterator {
+    char* current;
+    char* first;
+    char* last;
+    char** node;
+};
+
+void ReleaseObject(void* object) { Virtual<uint32_t>(object, av::slot::kRelease); }
+
+// The vb4 object's slots the test answers itself: the core's (their work on
+// frames is not the test's) and the base's own that are driven at their
+// addresses. Each call and its words are mixed, the test's pointers as
+// indices into `known`; the answers come from `answer`.
+struct Probe {
+    Hash calls;
+    uint32_t answer[176] = {};
+    std::vector<const void*> known;
+    uint32_t Word(uint32_t v) const
+    {
+        for (std::size_t i = 0; i < known.size(); ++i)
+            if (v && v == static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(known[i])))
+                return 0xA0000000u | static_cast<uint32_t>(i);
+        return v;
+    }
+    uint32_t Id(const void* p) const { return Word(static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(p))); }
+};
+
+Probe* g_probe = nullptr;
+
+template <std::size_t S>
+uint32_t __fastcall Stub0(char*, void*)
+{
+    g_probe->calls.Mix(S);
+    return g_probe->answer[S];
+}
+template <std::size_t S>
+uint32_t __fastcall Stub1(char*, void*, uint32_t a)
+{
+    g_probe->calls.Mix(S);
+    g_probe->calls.Mix(g_probe->Word(a));
+    return g_probe->answer[S];
+}
+template <std::size_t S>
+uint32_t __fastcall Stub2(char*, void*, uint32_t a, uint32_t b)
+{
+    g_probe->calls.Mix(S);
+    g_probe->calls.Mix(g_probe->Word(a));
+    g_probe->calls.Mix(g_probe->Word(b));
+    return g_probe->answer[S];
+}
+template <std::size_t S>
+uint32_t __fastcall Stub3(char*, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    g_probe->calls.Mix(S);
+    for (const uint32_t v : {a, b, c})
+        g_probe->calls.Mix(g_probe->Word(v));
+    return g_probe->answer[S];
+}
+template <std::size_t S>
+uint32_t __fastcall Stub4(char*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+    g_probe->calls.Mix(S);
+    for (const uint32_t v : {a, b, c, d})
+        g_probe->calls.Mix(g_probe->Word(v));
+    return g_probe->answer[S];
+}
+template <std::size_t S>
+uint32_t __fastcall Stub7(char*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f,
+                          uint32_t g)
+{
+    g_probe->calls.Mix(S);
+    for (const uint32_t v : {a, b, c, d, e, f, g})
+        g_probe->calls.Mix(g_probe->Word(v));
+    return g_probe->answer[S];
+}
+
+// A step on the +0x204 deque, as the test writes and reads them.
+struct TestStep {
+    void* occupant;
+    uint32_t key;
+    uint8_t last;
+    uint8_t pad[3];
+};
+
+// Slots 167 and 168 as the test answers them for slot 166: the n-th call
+// gives the n-th lane (referenced) and the key 0x01000000 | n, marked last at
+// `lastAt`; at `failAt` it fails (with a lane given, which the caller
+// releases).
+struct Extender {
+    uint32_t calls;
+    uint32_t failAt;
+    uint32_t lastAt;
+    Lane* lanes[3];
+};
+
+Extender* g_extender = nullptr;
+
+uint32_t __fastcall ExtendStub(char*, void*, TestStep* from, TestStep* out)
+{
+    Extender* const e = g_extender;
+    const uint32_t n = ++e->calls;
+    g_probe->calls.Mix(0x167);
+    g_probe->calls.Mix(from->key);
+    g_probe->calls.Mix(from->last);
+    Lane* const lane = e->lanes[n % 3];
+    ++lane->references;
+    out->occupant = lane;
+    if (n == e->failAt)
+        return 0;
+    out->key = 0x01000000u | n;
+    out->last = n == e->lastAt ? 1 : 0;
+    return 1;
+}
+
+// The vehicle manager of the vb4 calls: vb3's (slots 42, 68, 72) with slot
+// 75 (a factor by state) and the record list at +0xAB8.
+struct StateManager {
+    Vehicles base;
+    char pad[av::manager::kRecordList - sizeof(Vehicles)];
+    char* records;
+};
+static_assert(offsetof(StateManager, records) == av::manager::kRecordList, "the record list's place");
+
+double __fastcall StatesFactor(StateManager* m, void*, uint32_t state)
+{
+    m->base.calls.Mix(75);
+    m->base.calls.Mix(state);
+    return state == 2 ? 0.25 : 0.05 * (state + 1);
+}
+
+void** StateManagerVtable()
+{
+    static void* t[80] = {};
+    std::memcpy(t, VehiclesVtable(), sizeof t);
+    t[av::manager::kQueueFactor / 4] = reinterpret_cast<void*>(&StatesFactor);
+    return t;
+}
+
+StateManager* g_states = nullptr;
+StateManager* __fastcall StatesManager(char*, void*) { return g_states; }
+
+// An automaton of the test's: the flags (slot 31), gone (85), slot 57's
+// answer, the one ahead (48), its occupant (137) and groups (136), its
+// position (7), Remove (13) and the fade (33); its occupant part at +4
+// answers the type (slot 7).
+struct Other {
+    void** vtable;
+    void** part;
+    int32_t references;
+    uint32_t flags;
+    uint32_t type;
+    uint32_t gone;
+    uint32_t busy;
+    Other* next;
+    void* occupant;
+    uint32_t groups;
+    float position[3];
+    Hash calls;
+};
+
+uint32_t __fastcall OtherAddRef(Other* o, void*) { return static_cast<uint32_t>(++o->references); }
+uint32_t __fastcall OtherRelease(Other* o, void*) { return static_cast<uint32_t>(--o->references); }
+void* __fastcall OtherAsOccupant(Other* o, void*) { return &o->part; }
+void __fastcall OtherPosition(Other* o, void*, float* out) { std::memcpy(out, o->position, 12); }
+uint32_t __fastcall OtherRemove(Other* o, void*, uint32_t now)
+{
+    o->calls.Mix(13);
+    o->calls.Mix(now);
+    return 1;
+}
+uint32_t __fastcall OtherFlag(Other* o, void*, uint32_t flag) { return (o->flags & flag) ? 1u : 0u; }
+uint32_t __fastcall OtherFade(Other* o, void*, float a, float b)
+{
+    o->calls.Mix(33);
+    o->calls.Mix(Bits(a));
+    o->calls.Mix(Bits(b));
+    return 1;
+}
+Other* __fastcall OtherNext(Other* o, void*) { return o->next; }
+uint32_t __fastcall OtherBusy(Other* o, void*, uint32_t what)
+{
+    o->calls.Mix(57);
+    o->calls.Mix(what);
+    return o->busy;
+}
+uint32_t __fastcall OtherGone(Other* o, void*) { return o->gone; }
+uint32_t __fastcall OtherGroups(Other* o, void*) { return o->groups; }
+void* __fastcall OtherOccupant(Other* o, void*) { return o->occupant; }
+uint32_t __fastcall OtherType(void** part, void*)
+{
+    return reinterpret_cast<Other*>(reinterpret_cast<char*>(part) - 4)->type;
+}
+
+void** OtherVtable()
+{
+    static void* t[176] = {};
+    t[1] = reinterpret_cast<void*>(&OtherAddRef);
+    t[2] = reinterpret_cast<void*>(&OtherRelease);
+    t[av::slot::kAsOccupant / 4] = reinterpret_cast<void*>(&OtherAsOccupant);
+    t[av::slot::kGetPosition / 4] = reinterpret_cast<void*>(&OtherPosition);
+    t[av::slot::kRemove / 4] = reinterpret_cast<void*>(&OtherRemove);
+    t[av::slot::kCheckFlag / 4] = reinterpret_cast<void*>(&OtherFlag);
+    t[av::slot::kFade / 4] = reinterpret_cast<void*>(&OtherFade);
+    t[av::slot::kNextAutomaton / 4] = reinterpret_cast<void*>(&OtherNext);
+    t[av::slot::kSlot57 / 4] = reinterpret_cast<void*>(&OtherBusy);
+    t[av::slot::kIsGone / 4] = reinterpret_cast<void*>(&OtherGone);
+    t[av::slot::kGroups / 4] = reinterpret_cast<void*>(&OtherGroups);
+    t[av::slot::kOccupantOf / 4] = reinterpret_cast<void*>(&OtherOccupant);
+    return t;
+}
+
+void** OtherPartVtable()
+{
+    static void* t[16] = {};
+    t[av::slot::kPartType / 4] = reinterpret_cast<void*>(&OtherType);
+    return t;
+}
+
+void MakeOther(Other& o, uint32_t flags, uint32_t type)
+{
+    o = Other{OtherVtable(), OtherPartVtable(), 0, flags, type, 0, 0, nullptr, nullptr, 0, {0.0f, 0.0f, 0.0f}, {}};
+}
+
+// The automata on an occupant as the traffic network map (slot 16) and
+// 0x00B43D54 (slot 0x40) answer them: an object whose +0x1C is a list head
+// (nodes: next, previous, the automaton).
+struct ListNode {
+    ListNode* next;
+    ListNode* prev;
+    void* automaton;
+};
+
+struct AutomataList {
+    char unused[0x1C];
+    ListNode* head;
+    ListNode sentinel;
+    ListNode nodes[10];
+};
+
+void MakeList(AutomataList& l, std::initializer_list<void*> automata)
+{
+    std::memset(&l, 0, sizeof l);
+    l.head = &l.sentinel;
+    ListNode* last = &l.sentinel;
+    int i = 0;
+    for (void* a : automata) {
+        ListNode* const n = &l.nodes[i++];
+        n->automaton = a;
+        n->prev = last;
+        last->next = n;
+        last = n;
+    }
+    last->next = &l.sentinel;
+    l.sentinel.prev = last;
+}
+
+// 0x00B43D54 while the vb4 calls run: the neighbour (slot 0x3C), the
+// automata on an occupant (0x40, by the key) and a count (0x6C, the word
+// above AX is not the game's to keep).
+struct FakeService {
+    void** vtable;
+    Lane* neighbour;
+    uint32_t neighbourMask;
+    const void* keys[3];
+    AutomataList* lists[3];
+    Hash calls;
+};
+
+Lane** __fastcall ServiceNeighbour(FakeService* s, void*, void* occupant, uint32_t side, uint32_t word, uint32_t kind)
+{
+    s->calls.Mix(0x3C);
+    s->calls.Mix(occupant ? 1u : 0u);
+    s->calls.Mix(side & 0xFF); // a byte with three bytes of the game's stack above it
+    s->calls.Mix(word);
+    s->calls.Mix(kind);
+    return (s->neighbourMask >> (side & 3)) & 1 ? &s->neighbour : nullptr;
+}
+AutomataList* __fastcall ServiceList(FakeService* s, void*, uint32_t key)
+{
+    s->calls.Mix(0x40);
+    for (int i = 0; i < 3; ++i)
+        if (s->keys[i] && key == static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(s->keys[i]))) {
+            s->calls.Mix(static_cast<uint32_t>(i));
+            return s->lists[i];
+        }
+    s->calls.Mix(0xFF);
+    return nullptr;
+}
+uint32_t __fastcall ServiceCount(FakeService* s, void*, void* occupant, uint32_t key)
+{
+    s->calls.Mix(0x6C);
+    s->calls.Mix(occupant ? 1u : 0u);
+    s->calls.Mix(key);
+    return 0xABCD0000u | ((key * 3u) & 0xFFFFu);
+}
+
+void** ServiceVtable()
+{
+    static void* t[32] = {};
+    t[av::kServiceNeighbour / 4] = reinterpret_cast<void*>(&ServiceNeighbour);
+    t[av::kServiceList / 4] = reinterpret_cast<void*>(&ServiceList);
+    t[av::kServiceCount / 4] = reinterpret_cast<void*>(&ServiceCount);
+    return t;
+}
+
+// The city's slot 47 object (its slot 14) for 0x0054ECC0.
+struct Lights {
+    void** vtable;
+    Hash calls;
+};
+
+uint32_t __fastcall LightsTake(Lights* l, void*, Counted* object)
+{
+    l->calls.Mix(14);
+    l->calls.Mix(object ? static_cast<uint32_t>(object->id) : 0xFFFFFFFFu);
+    return 1;
+}
+
+void** LightsVtable()
+{
+    static void* t[16] = {};
+    t[0x38 / 4] = reinterpret_cast<void*>(&LightsTake);
+    return t;
+}
+
+// A state's own slot 0 (the core's 0x0050E3F0 calls it for the type 0x10)
+// and +0x74's slot 4 (slot 111).
+uint32_t __fastcall StateOwn(char* s, void*, char*)
+{
+    g_probe->calls.Mix(0x50);
+    g_probe->calls.Mix(At<uint32_t>(s, av::state::kType));
+    return 1;
+}
+void** StateOwnVtable()
+{
+    static void* t[4] = {reinterpret_cast<void*>(&StateOwn)};
+    return t;
+}
+uint32_t __fastcall Object74Slot4(Counted* c, void*, uint32_t word)
+{
+    g_probe->calls.Mix(0x74);
+    g_probe->calls.Mix(static_cast<uint32_t>(c->id));
+    g_probe->calls.Mix(word);
+    return 1;
+}
+void** Object74Vtable()
+{
+    static void* t[8] = {};
+    t[1] = reinterpret_cast<void*>(&CountedAddRef);
+    t[2] = reinterpret_cast<void*>(&CountedRelease);
+    t[4] = reinterpret_cast<void*>(&Object74Slot4);
+    return t;
+}
+
+constexpr std::size_t kStateSize = 0x240;
+
+void MakeState(char* s, uint32_t type, float timer)
+{
+    std::memset(s, 0, kStateSize);
+    At<void**>(s, 0) = StateOwnVtable();
+    At<uint32_t>(s, av::state::kType) = type;
+    At<float>(s, av::state::kTimer) = timer;
+}
+
+// The vb4 object's vtable: the base's with the probe's slots and slot 174
+// answering the test's manager.
+void** StateVtable()
+{
+    static void* t[176] = {};
+    static bool made = false;
+    if (made)
+        return t;
+    made = true;
+    std::memcpy(t, reinterpret_cast<void*>(addr::cSC4AutomatonBase_Vtable), sizeof t);
+    auto use = [&](std::size_t slot, auto fn) { t[slot] = reinterpret_cast<void*>(fn); };
+    use(13, &Stub1<13>);
+    use(19, &Stub1<19>);
+    use(52, &Stub7<52>);
+    use(53, &Stub0<53>);
+    use(61, &Stub1<61>);
+    use(62, &Stub1<62>);
+    use(67, &Stub0<67>);
+    use(73, &Stub1<73>);
+    use(79, &Stub0<79>);
+    use(83, &Stub1<83>);
+    use(86, &Stub0<86>);
+    use(87, &Stub0<87>);
+    use(88, &Stub0<88>);
+    use(89, &Stub1<89>);
+    use(102, &Stub2<102>);
+    use(103, &Stub1<103>);
+    use(105, &Stub0<105>);
+    use(109, &Stub1<109>);
+    use(129, &Stub1<129>);
+    use(130, &Stub1<130>);
+    use(131, &Stub3<131>);
+    use(132, &Stub4<132>);
+    use(134, &Stub0<134>);
+    use(141, &Stub0<141>);
+    use(142, &Stub1<142>);
+    use(148, &Stub0<148>);
+    use(159, &Stub0<159>);
+    use(160, &Stub0<160>);
+    use(163, &Stub1<163>);
+    use(164, &Stub1<164>);
+    use(165, &Stub0<165>);
+    use(166, &Stub0<166>);
+    use(174, &StatesManager);
+    return t;
+}
+
+// Slots 167 and 168 of the vb4 object: the test's (true) or the game's.
+void UseExtender(bool test)
+{
+    void** const t = StateVtable();
+    void* const* const base = reinterpret_cast<void* const*>(addr::cSC4AutomatonBase_Vtable);
+    for (const std::size_t at : {av::slot::kExtendFree, av::slot::kExtendOnRoute})
+        t[at / 4] = test ? reinterpret_cast<void*>(&ExtendStub) : base[at / 4];
+}
+
+// The +0x204 deque's steps: occupants as indices, keys and bytes.
+void MixSteps(Hash& h, char* o, const Probe& probe)
+{
+    h.Mix(WalkDeque(o + av::field::kDeque204, 0xC, 0x78, [&](char* e) {
+        h.Mix(probe.Id(At<void*>(e, 0)));
+        h.Mix(At<uint32_t>(e, 4));
+        h.Mix(At<uint8_t>(e, 8));
+    }));
+}
+
+void PushStep(char* o, void* occupant, uint32_t key, uint8_t last)
+{
+    TestStep s{occupant, key, last, {}};
+    This<void>(addr::SC4AutomatonDeque204_PushBack, o + av::field::kDeque204, static_cast<void*>(&s));
+}
+
+void ClearSteps(char* o) { This<void>(addr::cSC4AutomatonBase_ReleaseDeque204, o); }
+
+void PushCell(char* route, uint8_t x, uint8_t z)
+{
+    uint8_t cell[3] = {x, z, 0};
+    char*& current = At<char*>(route, av::deque::kFinish + av::deque::kCurrent);
+    if (current && current != At<char*>(route, av::deque::kFinish + av::deque::kLast) - 3) {
+        std::memcpy(current, cell, 3);
+        current += 3;
+    } else {
+        This<void>(addr::SC4RouteDeque_PushBackSlow, route, static_cast<void*>(cell));
+    }
+}
+
+void ClearRoute(char* route) { This<void>(addr::SC4CellDeque_Clear, route); }
+
+// Part vb4 on a base object of the test's (its vtable the base's with the
+// probe's slots), the city and 0x00B43D54 pointing at the test's while the
+// calls run: the frame, the states, the records and the route (states), the
+// removal of the same type, the automaton ahead, the wait, the queue test
+// and the entering (ahead), the steps ahead (steps). Nothing of the real city
+// is read; the entries object (0x00B22C30) slot 110 takes for the state 0x10
+// is the game's, its handles are not mixed and slot 111 gives them back.
+void StateDrive(Hash& states, Hash& ahead, Hash& steps, uint32_t& flags)
+{
+    auto newBase = [] {
+        char* const b = static_cast<char*>(
+            reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(av::kVehicleSize));
+        if (b)
+            This<char*>(addr::cSC4AutomatonBase_Construct, b, 0u, 0u, 0u, 0u);
+        return b;
+    };
+    char* const o = newBase();
+    char* const source = newBase(); // a route for slot 145
+    if (!o || !source) {
+        for (char* b : {o, source})
+            if (b)
+                This<void*>(addr::cSC4AutomatonBase_DeletingDestructor, b, 1u);
+        flags |= 0x400;
+        return;
+    }
+    At<void**>(o, 0) = StateVtable();
+    // Held for the test as in vb3: +0x98, the byte +0x33's low bits, the state
+    // stack; the object referenced once (the record slot 110 pushes holds its
+    // occupant part, and lets it go again).
+    const uint32_t word98 = At<uint32_t>(o, av::field::k98);
+    const uint8_t byte33 = At<uint8_t>(o, av::field::kFlags33);
+    uint32_t stack3[3];
+    std::memcpy(stack3, o + av::field::kStates, sizeof stack3);
+    At<uint8_t>(o, av::field::kFlags33) = static_cast<uint8_t>(byte33 & ~7u);
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+
+    float points1[3][3] = {{10.0f, 0.0f, 10.0f}, {14.0f, 0.5f, 10.0f}, {14.0f, 1.0f, 18.0f}};
+    float points2[2][3] = {{20.0f, 0.0f, 5.0f}, {26.0f, 0.0f, 13.0f}};
+    float points3[2][3] = {{3.0f, 2.0f, -4.0f}, {9.0f, 2.0f, -4.0f}};
+    Path path1{&points1[0][0], &points1[0][0] + 9};
+    Path path2{&points2[0][0], &points2[0][0] + 6};
+    Path path3{&points3[0][0], &points3[0][0] + 6};
+    Part part{PartVtable(), 0, &path1, 0x0102A305u, 0, 0, {1.0f, 2.0f, 3.0f}, {}};
+    Part part2{PartVtable(), 0, &path2, 0x0301C102u, 1, 0, {0.0f, 0.0f, 0.0f}, {}};
+    Part none{PartVtable(), 0, nullptr, 0x77u, 0, 0, {}, {}};
+    Lane lane{LaneVtable(), 0, &part, 0, 0xB, {}};
+    Lane lane2{LaneVtable(), 0, &part2, 1, 0x6, {}};
+    Lane lane3{LaneVtable(), 0, &part, 0, 0x0, {}};
+    Lane bare{LaneVtable(), 0, nullptr, 0, 0xF, {}};
+    Lane dead{LaneVtable(), 0, &none, 0, 0xF, {}};
+    Other others[8];
+    for (Other& x : others)
+        MakeOther(x, 0, 0);
+    Counted counted[4];
+    for (int32_t i = 0; i < 4; ++i)
+        counted[i] = {CountedVtable(), 0, 40 + i, 0};
+    Counted object74{Object74Vtable(), 1, 74, 0};
+    StateManager manager{};
+    manager.base = {VehiclesVtable(), 0x2Bu, {}};
+    manager.base.vtable = StateManagerVtable();
+    alignas(4) char recordHead[0x40] = {};
+    At<char*>(recordHead, 0) = recordHead;
+    At<char*>(recordHead, 4) = recordHead;
+    manager.records = recordHead;
+    Lights lights{LightsVtable(), {}};
+    FakeMap fakeMap{FakeMapVtable(), nullptr, nullptr, 1, 0, {}};
+    FakeCity fakeCity{FakeCityVtable(), &fakeMap, 0, &lights};
+    FakeService service{ServiceVtable(), nullptr, 0, {}, {}, {}};
+    Probe probe;
+    probe.known = {o,      &lane,  &lane2, &lane3, &bare,   &dead,   &part,      &part2,     &none,      &path1,
+                   &path2, &path3, &others[0], &others[1], &others[2], &others[3], &others[4], &others[5],
+                   &others[6], &others[7], &counted[0], &counted[1], &counted[2], &counted[3], &manager};
+    Extender extender{0, 0, 0, {&lane, &lane2, &lane3}};
+    g_probe = &probe;
+    g_states = &manager;
+    g_extender = &extender;
+    void** const cityGlobal = reinterpret_cast<void**>(addr::SC4_City);
+    void** const serviceGlobal = reinterpret_cast<void**>(addr::SC4_Service43D54);
+    float* const rateGlobal = reinterpret_cast<float*>(addr::cSC4AutomatonCore_Rate);
+    void* const realCity = *cityGlobal;
+    void* const realService = *serviceGlobal;
+    const float realRate = *rateGlobal;
+    *cityGlobal = &fakeCity;
+    *serviceGlobal = &service;
+    auto setFlags = [&](uint32_t value) { At<uint32_t>(o, av::field::kAutomataFlags) = value | 0x100000u; };
+    auto answers = [&](std::initializer_list<std::pair<std::size_t, uint32_t>> list) {
+        for (const auto& [slot, value] : list)
+            probe.answer[slot] = value;
+    };
+    char* stack[4] = {};
+    auto setStates = [&](std::initializer_list<char*> list) {
+        std::size_t n = 0;
+        for (char* s : list)
+            stack[n++] = s;
+        At<char**>(o, av::field::kStates) = stack;
+        At<char**>(o, av::field::kStatesEnd) = stack + n;
+        At<char**>(o, av::field::kStates + 8) = stack + n;
+    };
+    auto mixMoving = [&](Hash& h) {
+        h.MixBytes(o + av::field::kPosition, 12);
+        h.Mix(At<uint32_t>(o, av::field::kAutomataFlags));
+        h.MixBytes(o + av::field::kSmoothed, 0x10);
+        h.Mix(probe.Id(At<void*>(o, av::field::kObjectB0)));
+        h.Mix(probe.Id(At<void*>(o, av::field::kOccupant)));
+        h.Mix(At<uint8_t>(o, av::field::kByte1E8));
+        h.Mix(At<uint32_t>(o, av::field::kGroups1F4));
+    };
+    At<float>(o, av::field::kRadius) = 1.5f;
+    At<uint32_t>(o, av::field::kState) = 7;
+    SetPoint(o, av::field::kPosition, 12.0f, 0.5f, 11.0f);
+    SetPoint(o, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+    setFlags(0);
+
+    // ---- states: 0x0054E380 on an entry of the test's.
+    {
+        alignas(4) char entry[0x60];
+        std::memset(entry, 0xCD, sizeof entry);
+        char* const answer = This<char*>(addr::cSC4AutomatonBase_InitEntry, static_cast<void*>(entry));
+        states.Mix(answer == entry ? 1u : 0u);
+        states.MixBytes(entry, sizeof entry);
+    }
+
+    // ---- states: slot 72, the frame.
+    {
+        using FrameFn = uint8_t(__thiscall*)(void*, uint32_t, float);
+        const auto frame = reinterpret_cast<FrameFn>(addr::cSC4AutomatonBase_Frame);
+        const float smooth[][4] = {{2.0f, 6.0f, 0.0f, 0.0f},
+                                   {2.0f, 6.0f, 0.001f, 0.0004f},
+                                   {2.0f, 6.0f, 0.0006f, 0.0004f},
+                                   {2.0f, 6.0f, 0.0002f, 0.0003f}};
+        int i = 0;
+        for (const auto& s : smooth)
+            for (const uint32_t a86 : {0u, 1u})
+                for (const uint32_t a109 : {0u, 1u})
+                    for (const uint32_t a87 : {0u, 1u})
+                        for (const uint32_t way : {0u, 1u, 2u}) {
+                            ++i;
+                            answers({{86, a86}, {109, a109}, {87, a87}, {165, i & 1}, {129, 0x10u | (i & 1)},
+                                     {130, 0x20u | ((i >> 1) & 1)}});
+                            std::memcpy(o + av::field::kSmoothed, s, 16);
+                            At<void*>(o, av::field::kOccupant) = way ? &lane : nullptr;
+                            At<void*>(o, av::field::kNetwork) = way ? &part : nullptr;
+                            At<Path*>(o, av::field::kPath) = way ? &path1 : nullptr;
+                            setFlags(way == 2 ? 0x2000u : (i % 5 == 0 ? 1u : 0u));
+                            states.Mix(frame(o, 0xDEADu, 0.25f + 0.125f * (i % 3)));
+                            mixMoving(states);
+                        }
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        At<void*>(o, av::field::kNetwork) = nullptr;
+        At<void*>(o, av::field::kPath) = nullptr;
+        SetSmoothed(o, 0.0f);
+        setFlags(0);
+    }
+
+    // ---- states: slot 109 by the current state; slots 163 and 164.
+    alignas(4) char stateA[kStateSize], stateB[kStateSize];
+    {
+        using FrameFn = uint32_t(__thiscall*)(void*, float);
+        const auto stateFrame = reinterpret_cast<FrameFn>(addr::cSC4AutomatonBase_StateFrame);
+        answers({{163, 0x11u}, {164, 0x22u}});
+        MakeState(stateA, av::state::kWait, 0.0f);
+        MakeState(stateB, 0x30u, 0.0f);
+        setStates({});
+        states.Mix(stateFrame(o, 0.5f) & 0xFF);
+        for (const uint32_t type : {av::state::kWait, av::state::kDrive, 0x30u, 0x0Cu}) {
+            MakeState(stateB, type == 0x0Cu ? 0x30u : type, 0.0f);
+            if (type == 0x0Cu)
+                setStates({stateB, stateA}); // the last is the current one
+            else
+                setStates({stateA, stateB});
+            states.Mix(stateFrame(o, 0.75f) & 0xFF);
+        }
+        // Slot 163 (the state 0xD): the rate 0x00B09964 the test's.
+        const auto wait = reinterpret_cast<FrameFn>(addr::cSC4AutomatonBase_WaitFrame);
+        *rateGlobal = 2.0f;
+        At<void*>(o, av::field::kOccupant) = &lane;
+        At<uint32_t>(o, av::field::kGroups1F4) = 0x00030201u;
+        for (const float timer : {0.0f, 1.0f, 0.4f, -1.0f, 3.0f})
+            for (const uint32_t f : {0x20u, 0x0u, 0xA0u})
+                for (const uint32_t mapAnswer : {0u, 1u}) {
+                    MakeState(stateA, av::state::kWait, timer);
+                    setStates({stateA});
+                    setFlags(f | 0x10u);
+                    fakeMap.waitAnswer = mapAnswer;
+                    states.Mix(wait(o, 0.25f) & 0xFF);
+                    states.Mix(At<uint32_t>(stateA, av::state::kTimer));
+                    states.Mix(At<uint32_t>(o, av::field::kAutomataFlags));
+                }
+        *rateGlobal = realRate;
+        // Slot 164 (the state 0x1E): with a speed and without; the core's
+        // frame on a timer that runs out (its slot 53 the probe's).
+        const auto drive = reinterpret_cast<FrameFn>(addr::cSC4AutomatonBase_DriveFrame);
+        for (const float speed : {0.0f, 3.0f})
+            for (const float timer : {0.0f, 0.3f, 2.0f}) {
+                SetSmoothed(o, speed);
+                MakeState(stateA, av::state::kDrive, timer);
+                setStates({stateA});
+                states.Mix(drive(o, 0.5f) & 0xFF);
+                states.Mix(At<uint32_t>(stateA, av::state::kTimer));
+            }
+        SetSmoothed(o, 0.0f);
+        fakeMap.waitAnswer = 0;
+        setStates({});
+        setFlags(0);
+    }
+
+    // ---- states: slots 110 and 111, entering and leaving states.
+    {
+        using StateFn = uint32_t(__thiscall*)(void*, void*);
+        const auto enter = reinterpret_cast<StateFn>(addr::cSC4AutomatonBase_EnterState);
+        const auto leave = reinterpret_cast<StateFn>(addr::cSC4AutomatonBase_LeaveState);
+        auto mixState = [&](char* s) {
+            states.MixBytes(s + 4, 0x60);           // to +0x64: the type, the core's fields
+            states.Mix(At<char*>(s, av::state::kRecord) ? 1u : 0u);
+            states.Mix(At<char*>(s, av::state::kRecord2) ? 1u : 0u);
+            states.Mix(At<char*>(s, av::state::kEntries) ? 1u : 0u);
+            states.Mix(At<uint32_t>(s, av::state::kEntry) ? 1u : 0u);
+            states.Mix(probe.Id(At<void*>(s, av::state::kRef78)));
+            states.MixBytes(s + 0x7C, kStateSize - 0x7C);
+        };
+        auto countRecords = [&] {
+            uint32_t n = 0;
+            for (char* r = At<char*>(recordHead, 0); r != recordHead && n < 64; r = At<char*>(r, 0))
+                ++n;
+            return n;
+        };
+        states.Mix(enter(o, nullptr) & 0xFF);
+        states.Mix(leave(o, nullptr) & 0xFF);
+        for (const uint32_t type : {av::state::kDrive, 0x05u, av::state::kWait, av::state::kPlace, 0x07u}) {
+            MakeState(stateA, type, 0.5f);
+            SetSmoothed(o, 4.0f);
+            setFlags(0x30u);
+            states.Mix(enter(o, stateA) & 0xFF);
+            mixState(stateA);
+            mixMoving(states);
+            for (const uint32_t f : {0x30u, 0x31u}) {
+                setFlags(f);
+                states.Mix(leave(o, stateA) & 0xFF);
+                mixMoving(states);
+            }
+        }
+        // The state 0x10: without an occupant, on a lane, on a tunnel lane
+        // answering slot 9; each left again (the second record and +0x74 set
+        // before the last).
+        lane2.flag9 = 1;
+        for (Lane* on : {static_cast<Lane*>(nullptr), &lane, &lane2}) {
+            MakeState(stateA, av::state::kParked, 0.0f);
+            At<void*>(o, av::field::kOccupant) = on;
+            PushStep(o, &lane3, 0x1234u, 0);
+            PushCell(o + av::field::kRoute, 3, 4);
+            setFlags(0x40u);
+            states.Mix(enter(o, stateA) & 0xFF);
+            mixState(stateA);
+            mixMoving(states);
+            states.Mix(countRecords());
+            states.Mix(At<char*>(o, av::field::kDeque204 + av::deque::kStart) ==
+                               At<char*>(o, av::field::kDeque204 + av::deque::kFinish)
+                           ? 1u
+                           : 0u);
+            if (on == &lane2) {
+                using Push = char*(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, void*);
+                At<char*>(stateA, av::state::kRecord2) = reinterpret_cast<Push>(
+                    addr::cSC4VehPedManagerBase_PushRecordListBack)(&manager.records, 1u, 2u, 3u, &counted[3]);
+                At<Counted*>(stateA, av::state::kObject74) = &object74;
+                ++object74.references;
+            }
+            setFlags(on == &lane ? 1u : 0u);
+            states.Mix(leave(o, stateA) & 0xFF);
+            mixState(stateA);
+            mixMoving(states);
+            states.Mix(countRecords());
+            if (void* const held = At<void*>(stateA, av::state::kRef78))
+                ReleaseObject(held);
+        }
+        lane2.flag9 = 0;
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        states.Mix(static_cast<uint32_t>(object74.references));
+        states.Mix(static_cast<uint32_t>(counted[3].references));
+        states.Mix(At<uint32_t>(o, 0x10)); // the object's references: 1
+        SetSmoothed(o, 0.0f);
+        setFlags(0);
+    }
+
+    // ---- states: the record list's erase and clear (0x00552B80, 0x0054ECC0).
+    {
+        using Push = char*(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, void*);
+        using Erase = uint8_t(__thiscall*)(void*, void*);
+        using Clear = uint8_t(__stdcall*)(void*);
+        char* records[3];
+        for (uint32_t i = 0; i < 3; ++i)
+            records[i] = reinterpret_cast<Push>(addr::cSC4VehPedManagerBase_PushRecordListBack)(
+                &manager.records, i, 2 * i, 3u, &counted[i]);
+        At<uint8_t>(records[1], 0x30) = 1;
+        alignas(4) char stray[0x38] = {};
+        states.Mix(reinterpret_cast<Erase>(addr::cSC4VehPedManagerBase_EraseRecord)(&manager.records, stray));
+        for (const int i : {1, 0, 2}) {
+            states.Mix(reinterpret_cast<Erase>(addr::cSC4VehPedManagerBase_EraseRecord)(&manager.records, records[i]));
+            states.Mix(At<char*>(recordHead, 0) == recordHead ? 1u : 0u);
+        }
+        states.Mix(reinterpret_cast<Erase>(addr::cSC4VehPedManagerBase_EraseRecord)(&manager.records, stray));
+        At<uint8_t>(stray, 0x30) = 1;
+        At<Counted*>(stray, 0x2C) = &counted[0];
+        ++counted[0].references;
+        At<uint32_t>(stray, 0x34) = 0x55u;
+        states.Mix(reinterpret_cast<Clear>(addr::cSC4VehPedManagerBase_ClearRecord)(stray));
+        states.MixBytes(stray, 0x2C);
+        states.Mix(At<uint8_t>(stray, 0x30));
+        states.Mix(At<uint32_t>(stray, 0x34));
+        states.Mix(At<Counted*>(stray, 0x2C) ? 1u : 0u);
+        for (const Counted& c : counted)
+            states.Mix(static_cast<uint32_t>(c.references));
+        states.Mix(lights.calls.h);
+    }
+
+    // ---- states: slot 145, the route.
+    {
+        using Route = uint8_t(__thiscall*)(void*, void*, uint32_t, uint32_t);
+        const auto setRoute = reinterpret_cast<Route>(addr::cSC4AutomatonBase_SetRoute);
+        char* const from = source + av::field::kRoute;
+        states.Mix(setRoute(o, from, 1u, 0u));
+        for (uint8_t i = 0; i < 45; ++i)
+            PushCell(from, static_cast<uint8_t>(i + 1), static_cast<uint8_t>(60 - i));
+        for (const uint32_t next : {0u, 1u})
+            for (const uint32_t answer : {0u, 1u}) {
+                ClearRoute(o + av::field::kRoute);
+                PushCell(o + av::field::kRoute, 99, 99);
+                probe.answer[142] = answer;
+                states.Mix(setRoute(o, from, next, answer ? 0x0u : 0x1u));
+                states.Mix(WalkDeque(o + av::field::kRoute, 3, 0x7E, [&](char* c) { states.MixBytes(c, 3); }));
+            }
+        ClearRoute(o + av::field::kRoute);
+    }
+    states.Mix(probe.calls.h);
+    probe.calls = {};
+
+    // ---- ahead: slot 147, the others of its type on the occupant and around.
+    {
+        using Same = void(__thiscall*)(void*, void*, int32_t);
+        const auto removeSame = reinterpret_cast<Same>(addr::cSC4AutomatonBase_RemoveSame);
+        At<uint32_t>(o, av::field::kType) = 0x1234u;
+        const uint32_t kinds[8][3] = {{2u, 0x1234u, 0}, {0x42u, 0x1234u, 0}, {0u, 0x1234u, 0},   {2u, 0x1234u, 1},
+                                      {2u, 0x1234u, 2}, {0x200002u, 0x1234u, 0}, {2u, 0x9999u, 0}, {6u, 0x1234u, 0}};
+        AutomataList on;
+        auto reset = [&] {
+            for (int i = 0; i < 8; ++i) {
+                MakeOther(others[i], kinds[i][0], kinds[i][1]);
+                others[i].gone = kinds[i][2] == 1;
+                others[i].busy = kinds[i][2] == 2 ? 0x10u : 0u;
+            }
+            MakeList(on, {o, &others[0], &others[1], &others[2], &others[3], &others[4], &others[5], &others[6],
+                          &others[7]});
+        };
+        auto mixOthers = [&] {
+            for (const Other& x : others)
+                ahead.Mix(x.calls.h);
+        };
+        reset();
+        fakeMap.on = reinterpret_cast<char*>(&on);
+        fakeMap.next[0] = &lane2;
+        fakeMap.next[2] = &lane3;
+        fakeMap.nextMask = 0x5;
+        removeSame(o, &lane, 1);
+        mixOthers();
+        reset();
+        At<void*>(o, av::field::kOccupant) = &lane2;
+        removeSame(o, nullptr, 0);
+        mixOthers();
+        reset();
+        setFlags(0x2000u);
+        fakeMap.occupant = &lane3;
+        removeSame(o, nullptr, -1);
+        mixOthers();
+        fakeMap.occupant = nullptr;
+        removeSame(o, nullptr, 2); // the map has no occupant at the cell
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        setFlags(0);
+        removeSame(o, nullptr, 1); // no occupant at all
+        fakeMap.on = nullptr;
+        removeSame(o, &lane, 1); // nothing on it
+        fakeMap.nextMask = 0;
+        fakeMap.next[0] = fakeMap.next[2] = nullptr;
+        At<uint32_t>(o, av::field::kType) = 0;
+    }
+
+    // ---- ahead: slot 148, the automaton ahead.
+    {
+        using Find = void*(__thiscall*)(void*);
+        const auto find = reinterpret_cast<Find>(addr::cSC4AutomatonBase_FindAhead);
+        for (int i = 0; i < 4; ++i) {
+            MakeOther(others[i], i == 2 ? 0x2000u : 0u, 0);
+            others[i].groups = 0x0F0000F0u + 0x100u * i;
+            SetPoint(reinterpret_cast<char*>(&others[i]), offsetof(Other, position), 12.0f + 3.0f * i, 0.0f,
+                     11.0f - 2.0f * i);
+        }
+        others[1].gone = 1;
+        AutomataList near1, near2, near3;
+        MakeList(near1, {&others[0], &others[1]});
+        MakeList(near2, {&others[2], &others[3]});
+        MakeList(near3, {&others[3]});
+        service.keys[0] = &lane;
+        service.keys[1] = &lane2;
+        service.keys[2] = &lane3;
+        service.lists[0] = &near1;
+        service.lists[1] = &near2;
+        service.lists[2] = &near3;
+        At<uint8_t>(o, av::field::kKind1F7) = 0x52;
+        for (const uint32_t meet : {1u, 0u}) {
+            probe.answer[73] = meet;
+            // Two steps or more.
+            ClearSteps(o);
+            PushStep(o, &bare, 0x0F0000F0u, 0);
+            PushStep(o, &lane2, 0x0F0001F0u, 0);
+            PushStep(o, &lane, 0x0F0000F0u, 0);
+            ahead.Mix(probe.Id(find(o)));
+            // One step: the occupant, then its neighbour.
+            ClearSteps(o);
+            PushStep(o, &lane3, 0x5u, 0);
+            for (Lane* at : {&lane, &bare, static_cast<Lane*>(nullptr)})
+                for (const uint32_t mask : {0xFu, 0x0u}) {
+                    At<void*>(o, av::field::kOccupant) = at;
+                    At<uint32_t>(o, av::field::kGroups1F4) = 0xF00000F1u;
+                    service.neighbour = &lane3;
+                    service.neighbourMask = mask;
+                    ahead.Mix(probe.Id(find(o)));
+                }
+        }
+        ClearSteps(o);
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        At<uint32_t>(o, av::field::kGroups1F4) = 0;
+        ahead.Mix(service.calls.h);
+    }
+
+    // ---- ahead: slot 161, the automaton ahead and the wait.
+    {
+        using Check = void(__thiscall*)(void*);
+        const auto check = reinterpret_cast<Check>(addr::cSC4AutomatonBase_CheckAhead);
+        MakeOther(others[0], 0, 0);
+        MakeOther(others[1], 1, 0);
+        MakeOther(others[2], 0, 0);
+        probe.answer[148] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&others[2]));
+        MakeState(stateA, av::state::kWait, 0.0f);
+        MakeState(stateB, av::state::kDrive, 0.0f);
+        At<void*>(o, av::field::kOccupant) = &lane;
+        At<void*>(o, av::field::kNetwork) = &part;
+        At<uint8_t>(o, av::field::kKind1F7) = 0x23;
+        int i = 0;
+        for (Other* front : {static_cast<Other*>(nullptr), &others[0], &others[1]})
+            for (const uint32_t f : {0x8u, 0x18u, 0x0u, 0x800u, 0x200000u, 0x200030u, 0x30u})
+                for (const uint32_t way : {0u, 1u, 2u, 3u, 4u}) {
+                    ++i;
+                    At<Other*>(o, av::field::kObjectB0) = front;
+                    if (front)
+                        ++front->references;
+                    setFlags(f);
+                    At<uint8_t>(o, av::field::kFlags33) = static_cast<uint8_t>((byte33 & ~7u) | (way == 1 ? 4u : 0u));
+                    setStates({way == 4 ? stateA : stateB});
+                    probe.answer[141] = way == 3 ? 1u : 0u;
+                    part.kindAnswer = way == 2 ? 1u : 0u;
+                    fakeMap.waitAnswer = i % 3;
+                    fakeMap.waitValue = (i & 4) ? 0.5f : 0.9f;
+                    check(o);
+                    ahead.Mix(probe.Id(At<void*>(o, av::field::kObjectB0)));
+                    ahead.Mix(At<uint32_t>(o, av::field::kAutomataFlags));
+                    if (Other* const now = At<Other*>(o, av::field::kObjectB0))
+                        --now->references;
+                    At<void*>(o, av::field::kObjectB0) = nullptr;
+                }
+        At<uint8_t>(o, av::field::kFlags33) = static_cast<uint8_t>(byte33 & ~7u);
+        for (int j = 0; j < 3; ++j)
+            ahead.Mix(static_cast<uint32_t>(others[j].references));
+        part.kindAnswer = 0;
+        probe.answer[141] = 0;
+        fakeMap.waitAnswer = 0;
+        setStates({});
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        At<void*>(o, av::field::kNetwork) = nullptr;
+        setFlags(0);
+    }
+
+    // ---- ahead: slot 162, the queue test.
+    {
+        using Fits = uint8_t(__thiscall*)(void*);
+        const auto fits = reinterpret_cast<Fits>(addr::cSC4AutomatonBase_QueueFits);
+        Other chain[56];
+        for (Other& x : chain)
+            MakeOther(x, 0x30u, 0);
+        for (int j = 0; j < 55; ++j)
+            chain[j].next = &chain[j + 1];
+        for (const uint32_t length : {1u, 2u, 3u, 5u, 9u, 55u})
+            for (const uint32_t type : {av::kVehicleType, 0x496E5783u, 0x1u})
+                for (const uint32_t state : {2u, 7u}) {
+                    for (uint32_t j = 0; j < 56; ++j) {
+                        chain[j].flags = (j < length ? 0x30u : 0x0u) | (j == 2 ? 1u : 0u);
+                        chain[j].type = j == length / 2 ? type : 0x2u;
+                        chain[j].occupant = j % 2 ? &lane : &lane2;
+                        // Row and column bytes inside the 4 x 4 table: slot 162 does not
+                        // test them (beyond it the game reads its own stack).
+                        chain[j].groups = 0x00000102u + 0x101u * (j % 2);
+                    }
+                    At<Other*>(o, av::field::kObjectB0) = &chain[0];
+                    At<uint32_t>(o, av::field::kType) = length == 2 ? type : 0x3u;
+                    At<uint32_t>(o, av::field::kState) = state;
+                    setFlags(0x30u);
+                    ahead.Mix(fits(o));
+                }
+        g_states = nullptr;
+        ahead.Mix(fits(o));
+        g_states = &manager;
+        setFlags(0x10u);
+        ahead.Mix(fits(o));
+        At<void*>(o, av::field::kObjectB0) = nullptr;
+        At<uint32_t>(o, av::field::kType) = 0;
+        At<uint32_t>(o, av::field::kState) = 7;
+        ahead.Mix(manager.base.calls.h);
+        setFlags(0);
+    }
+
+    // ---- ahead: slot 173, entering from a key.
+    {
+        using From = uint8_t(__thiscall*)(void*, void*, uint32_t);
+        const auto enterFrom = reinterpret_cast<From>(addr::cSC4AutomatonBase_EnterFrom);
+        for (Lane* to : {static_cast<Lane*>(nullptr), &bare, &dead, &lane, &lane2})
+            for (const uint32_t key : {0x0A0B0C0Du, 0x01FF0203u})
+                ahead.Mix(enterFrom(o, to, key));
+        ahead.Mix(part.calls.h);
+        ahead.Mix(part2.calls.h);
+    }
+    ahead.Mix(probe.calls.h);
+    ahead.Mix(fakeMap.calls.h);
+    probe.calls = {};
+
+    // ---- steps: 0x00553720 and 0x00504C40 on 25 steps (three blocks).
+    {
+        for (uint32_t i = 0; i < 25; ++i)
+            PushStep(o, &counted[i % 4], 0x100u + i, static_cast<uint8_t>(i % 2));
+        char* const d = o + av::field::kDeque204;
+        DequeIterator it{At<char*>(d, av::deque::kStart + av::deque::kCurrent),
+                         At<char*>(d, av::deque::kStart + av::deque::kFirst),
+                         At<char*>(d, av::deque::kStart + av::deque::kLast),
+                         At<char**>(d, av::deque::kStart + av::deque::kNode)};
+        for (uint32_t i = 0; i < 24; ++i) {
+            DequeIterator* const answer = This<DequeIterator*>(addr::SC4AutomatonDeque204_Increment, &it);
+            steps.Mix(answer == &it ? 1u : 0u);
+            steps.Mix(At<uint32_t>(it.current, 4));
+            steps.Mix(static_cast<uint32_t>(it.current - it.first));
+            steps.Mix(static_cast<uint32_t>(it.last - it.first));
+        }
+        for (uint32_t i = 0; i < 25; ++i) {
+            This<void>(addr::SC4AutomatonDeque204_PopFront, d);
+            steps.Mix(At<char*>(d, av::deque::kStart) == At<char*>(d, av::deque::kFinish) ? 1u : 0u);
+            if (At<char*>(d, av::deque::kStart) != At<char*>(d, av::deque::kFinish))
+                steps.Mix(At<uint32_t>(At<char*>(d, av::deque::kStart), 4));
+        }
+        for (const Counted& c : counted)
+            steps.Mix(static_cast<uint32_t>(c.references));
+    }
+
+    // ---- steps: slot 169, the best key.
+    const uint32_t keys3[3] = {0x01000102u, 0x01000203u, 0x01000301u};
+    const uint32_t keys1[1] = {0x02000401u};
+    {
+        using Best = uint8_t(__thiscall*)(void*, DequeIterator, const float*, uint32_t*, float*);
+        const auto best = reinterpret_cast<Best>(addr::cSC4AutomatonBase_BestKey);
+        part.paths[1] = &path2;
+        part.paths[2] = &path3;
+        part.paths[3] = &path1;
+        part2.paths[0] = &path3;
+        const float from[3] = {11.0f, 0.0f, 9.0f};
+        for (const uint32_t count1 : {0u, 1u, 3u})
+            for (const uint32_t count2 : {0u, 1u, 3u})
+                for (const uint32_t f : {0u, 0x40u}) {
+                    part.keys = count1 == 1 ? keys1 : keys3;
+                    part.keyCount = count1;
+                    part2.keys = count2 == 1 ? keys1 : keys3;
+                    part2.keyCount = count2;
+                    setFlags(f);
+                    ClearSteps(o);
+                    PushStep(o, &lane, 0x03000201u, 0);
+                    PushStep(o, &lane2, 0x01000302u, 0);
+                    char* const d = o + av::field::kDeque204;
+                    char* const first = At<char*>(d, av::deque::kStart + av::deque::kCurrent);
+                    DequeIterator it{first, At<char*>(d, av::deque::kStart + av::deque::kFirst),
+                                     At<char*>(d, av::deque::kStart + av::deque::kLast),
+                                     At<char**>(d, av::deque::kStart + av::deque::kNode)};
+                    for (int at = 0; at < 2; ++at) {
+                        uint32_t key = 0x99u;
+                        float distance = 99.0f;
+                        steps.Mix(best(o, it, from, &key, &distance));
+                        steps.Mix(key);
+                        steps.Mix(Bits(distance));
+                        it.current += 0xC; // the second (last) step
+                    }
+                }
+        ClearSteps(o);
+        setFlags(0);
+    }
+
+    // ---- steps: slot 167, a step on from a free automaton's.
+    {
+        using Extend = uint8_t(__thiscall*)(void*, TestStep*, TestStep*);
+        const auto extend = reinterpret_cast<Extend>(addr::cSC4AutomatonBase_ExtendFree);
+        const uint8_t order[4] = {2, 0, 3, 1};
+        fakeMap.order = order;
+        At<uint32_t>(o, av::field::kState) = 5;
+        At<float>(o, av::field::kFloatA0) = 0.0f;
+        At<uint32_t>(o, av::field::k98) = 0;
+        SetPoint(o, av::field::kVectorA4, 1.0f, 0.0f, 0.0f);
+        for (Lane* next : {static_cast<Lane*>(nullptr), &lane, &lane3})
+            for (const uint32_t sides : {0x1u, 0x0u})
+                for (const uint32_t tries : {0u, 2u, 4u})
+                    for (const uint32_t way : {0u, 1u, 2u}) {
+                        fakeMap.next[1] = next;
+                        fakeMap.nextMask = way == 2 ? 0x0u : 0x2u;
+                        fakeMap.tries = tries;
+                        lane.sides = sides << 2;
+                        lane3.sides = sides;
+                        probe.answer[141] = way == 1 ? 1u : 0u;
+                        At<uint8_t>(o, av::field::kByte1E8) = tries == 4 ? 1 : 0; // held
+                        TestStep from{&bare, 0x05000301u, 0, {}};
+                        TestStep out{nullptr, 0x77u, 0, {}};
+                        steps.Mix(extend(o, &from, &out));
+                        steps.Mix(probe.Id(out.occupant));
+                        steps.Mix(out.key);
+                        steps.Mix(out.last);
+                        if (out.occupant)
+                            ReleaseObject(out.occupant);
+                    }
+        fakeMap.order = nullptr;
+        fakeMap.tries = 2;
+        fakeMap.next[1] = nullptr;
+        fakeMap.nextMask = 0;
+        lane.sides = 0xB;
+        lane3.sides = 0;
+        probe.answer[141] = 0;
+        At<uint8_t>(o, av::field::kByte1E8) = 0;
+        At<uint32_t>(o, av::field::kState) = 7;
+    }
+
+    // ---- steps: slot 168, a step on along the route.
+    {
+        using Extend = uint8_t(__thiscall*)(void*, TestStep*, TestStep*);
+        const auto extend = reinterpret_cast<Extend>(addr::cSC4AutomatonBase_ExtendOnRoute);
+        char* const route = o + av::field::kRoute;
+        CellNode nodes[3] = {};
+        nodes[0] = {&bare, {}, &nodes[1]};
+        nodes[1] = {&lane, {}, &nodes[2]};
+        nodes[2] = {&lane3, {}, nullptr};
+        auto run = [&] {
+            TestStep from{&lane2, 0x04000102u, 0, {}};
+            TestStep out{nullptr, 0x77u, 0, {}};
+            steps.Mix(extend(o, &from, &out));
+            steps.Mix(probe.Id(out.occupant));
+            steps.Mix(out.key);
+            steps.Mix(out.last);
+            if (out.occupant)
+                ReleaseObject(out.occupant);
+            steps.Mix(WalkDeque(route, 3, 0x7E, [&](char* c) { steps.MixBytes(c, 3); }));
+        };
+        ClearRoute(route);
+        run(); // an empty route
+        for (const uint32_t sides : {0x1u, 0x4u, 0x0u, 0xFu})
+            for (const uint32_t list : {0u, 1u}) {
+                lane.sides = sides;
+                lane3.sides = sides >> 1;
+                fakeMap.list = list ? nodes : nullptr;
+                // The last cell: the neighbour.
+                fakeMap.next[0] = &lane;
+                fakeMap.next[2] = &lane3;
+                fakeMap.nextMask = sides == 0xFu ? 0x0u : 0x5u;
+                ClearRoute(route);
+                PushCell(route, 5, 5);
+                run();
+                // A cell ahead in each direction.
+                const uint8_t cells[5][2] = {{5, 4}, {5, 6}, {4, 5}, {6, 5}, {5, 5}};
+                for (const auto& cell : cells) {
+                    ClearRoute(route);
+                    PushCell(route, 5, 5);
+                    PushCell(route, cell[0], cell[1]);
+                    run();
+                }
+            }
+        // 50 cells: the pops cross a block.
+        ClearRoute(route);
+        for (uint8_t i = 0; i < 50; ++i)
+            PushCell(route, static_cast<uint8_t>(i % 7), static_cast<uint8_t>(i % 5));
+        lane.sides = 0xF;
+        for (int i = 0; i < 46; ++i)
+            run();
+        ClearRoute(route);
+        fakeMap.list = nullptr;
+        fakeMap.next[0] = fakeMap.next[2] = nullptr;
+        fakeMap.nextMask = 0;
+        lane.sides = 0xB;
+        lane3.sides = 0;
+    }
+
+    // ---- steps: slot 166, the steps filled ahead.
+    const uint32_t wanted = Global<uint8_t>(addr::cSC4AutomatonBase_StaticByte) + 1u;
+    {
+        using Fill = uint8_t(__thiscall*)(void*);
+        const auto fill = reinterpret_cast<Fill>(addr::cSC4AutomatonBase_FillAhead);
+        UseExtender(true);
+        At<uint32_t>(o, av::field::kGroups1F4) = 0x07000002u;
+        const uint32_t cases[][3] = {{0, 0, 0}, {3, 0, 0}, {0, 2, 0}, {0, 0, 1}, {2, 0, 0}};
+        for (const auto& c : cases)
+            for (const uint32_t f : {0u, 0x40u})
+                for (Lane* start : {&lane, static_cast<Lane*>(nullptr)}) {
+                    ClearSteps(o);
+                    At<void*>(o, av::field::kOccupant) = start;
+                    extender = {0, c[0], c[1], {&lane, &lane2, &lane3}};
+                    if (c[2])
+                        PushStep(o, &lane3, 0x1u, 1); // the last step already
+                    setFlags(f);
+                    steps.Mix(fill(o));
+                    steps.Mix(extender.calls);
+                    MixSteps(steps, o, probe);
+                }
+        // The game's slots 167 and 168 behind it once.
+        UseExtender(false);
+        ClearSteps(o);
+        At<void*>(o, av::field::kOccupant) = &lane;
+        fakeMap.next[2] = &lane3;
+        fakeMap.nextMask = 0x4;
+        lane3.sides = 0xF;
+        At<uint32_t>(o, av::field::kState) = 5;
+        setFlags(0);
+        steps.Mix(fill(o));
+        MixSteps(steps, o, probe);
+        At<uint32_t>(o, av::field::kState) = 7;
+        lane3.sides = 0;
+        fakeMap.next[2] = nullptr;
+        fakeMap.nextMask = 0;
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        ClearSteps(o);
+    }
+
+    // ---- steps: slot 165, the next step (slot 166 the probe's).
+    {
+        using Next = uint8_t(__thiscall*)(void*);
+        const auto next = reinterpret_cast<Next>(addr::cSC4AutomatonBase_NextStep);
+        auto run = [&] {
+            steps.Mix(next(o));
+            MixSteps(steps, o, probe);
+            steps.Mix(At<uint8_t>(o, av::field::kByte1E8));
+        };
+        g_states = nullptr;
+        run();
+        g_states = &manager;
+        run(); // no occupant
+        At<void*>(o, av::field::kOccupant) = &lane;
+        setFlags(0x2000u);
+        run();
+        setFlags(0);
+        run(); // no steps
+        part.keys = keys3;
+        part.keyCount = 3;
+        part2.keys = keys1;
+        part2.keyCount = 1;
+        for (const uint32_t way : {0u, 1u, 2u, 3u, 4u})
+            for (const uint32_t a88 : {0u, 1u}) {
+                ClearSteps(o);
+                probe.answer[88] = a88;
+                At<uint8_t>(o, av::field::kByte1E8) = static_cast<uint8_t>(way);
+                At<Path*>(o, av::field::kPath) = way == 3 ? &path3 : nullptr;
+                PushStep(o, &bare, 0x0u, way == 0 ? 1 : 0);
+                if (way >= 2) {
+                    PushStep(o, &lane, 0x03000201u, 0);
+                    PushStep(o, &lane2, 0x01000302u, way == 4 ? 1 : 0);
+                    PushStep(o, &dead, 0x01000302u, 0);
+                }
+                if (way == 1)
+                    PushStep(o, &lane, 0x03000201u, 1);
+                run();
+            }
+        ClearSteps(o);
+        part.keyCount = 0;
+        part2.keyCount = 0;
+        for (Part* p : {&part, &part2})
+            for (Path*& q : p->paths)
+                q = nullptr;
+        At<void*>(o, av::field::kPath) = nullptr;
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        At<uint8_t>(o, av::field::kByte1E8) = 0;
+        probe.answer[88] = 0;
+    }
+    steps.Mix(probe.calls.h);
+    steps.Mix(part.calls.h);
+    steps.Mix(part2.calls.h);
+    steps.Mix(fakeMap.calls.h);
+    steps.Mix(service.calls.h);
+    for (const int32_t r : {lane.references, lane2.references, lane3.references, bare.references, dead.references,
+                            part.references, part2.references, none.references})
+        steps.Mix(static_cast<uint32_t>(r));
+
+    *cityGlobal = realCity;
+    *serviceGlobal = realService;
+    *rateGlobal = realRate;
+    g_probe = nullptr;
+    g_states = nullptr;
+    g_extender = nullptr;
+    if (fakeCity.traps)
+        flags |= 0x200;
+    log::Write("autotest: automata: vehicle: vb4 traps %u, references %d %d %d %d %d, steps wanted %u, tuning "
+               "%08X %08X %08X, object references %u, records left %s",
+               fakeCity.traps, lane.references, lane2.references, lane3.references, bare.references, dead.references,
+               wanted, Bits(Global<float>(addr::SC4AutomataTuning_Fade21C84)),
+               Bits(Global<float>(addr::SC4AutomataTuning_Signal4998C912)),
+               Bits(Global<float>(addr::SC4AutomataTuning_KeyCost21D2C)), At<uint32_t>(o, 0x10),
+               At<char*>(recordHead, 0) == recordHead ? "none" : "some");
+
+    // Released: the test's references cleared, the held fields put back.
+    ClearSteps(o);
+    ClearRoute(o + av::field::kRoute);
+    At<void*>(o, av::field::kOccupant) = nullptr;
+    At<void*>(o, av::field::kNetwork) = nullptr;
+    At<void*>(o, av::field::kObjectB0) = nullptr;
+    At<void*>(o, av::field::kPath) = nullptr;
+    std::memcpy(o + av::field::kStates, stack3, sizeof stack3);
+    At<uint32_t>(o, av::field::k98) = word98;
+    At<uint8_t>(o, av::field::kFlags33) = byte33;
+    At<void**>(o, 0) = reinterpret_cast<void**>(addr::cSC4AutomatonBase_Vtable);
+    This<void*>(addr::cSC4AutomatonBase_DeletingDestructor, o, 1u);
+    This<void*>(addr::cSC4AutomatonBase_DeletingDestructor, source, 1u);
+    flags |= 8;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -11736,6 +13093,10 @@ void VehicleDrive(cISC4City* city)
     Hash move, frame, enter;
     MoveDrive(move, frame, enter, flags);
 
+    // ---- Part vb4.
+    Hash states, ahead, steps;
+    StateDrive(states, ahead, steps, flags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -11788,14 +13149,16 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[192];
-    std::snprintf(text, sizeof text, " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X", object.h,
-                  access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h, enter.h);
+    char text[224];
+    std::snprintf(text, sizeof text, " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X",
+                  object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
+                  enter.h, states.h, ahead.h, steps.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
-               "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X",
+               "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
+               "%08X",
                object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
-               enter.h);
+               enter.h, states.h, ahead.h, steps.h);
 }
 
 void Drive(const Day& day)

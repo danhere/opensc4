@@ -75,6 +75,16 @@
 //          of 12-byte points: begin, end), +0x1FC the index on it
 // The city's traffic network map (city slot 40, cSC4TrafficNetworkMap) and
 // the network parts (an occupant's slot 49) are called by their slots.
+//
+// Part vb4 adds (the states on frames):
+//   the core's +0xB4..+0xB8 the state stack (vb3's vector: pointers to
+//          states, the last the current one; a state's +4 its type, +0x10
+//          a timer), +0x1A0..+0x1AC the smoothed value as current, target,
+//          duration and elapsed
+//   the base's +0x204 deque's elements as the steps ahead: +0 an occupant
+//          (referenced), +4 its key (kind << 24 | entry << 8 | side), +8 a
+//          byte (the last step)
+//   the vehicle manager's +0xAB8 the record list (vb2's push)
 #pragma once
 
 #include <cstddef>
@@ -113,7 +123,18 @@ inline constexpr std::size_t kModelCount = 4;
 inline constexpr std::size_t kDestination = 0x4C, kHeading = 0x58;
 inline constexpr std::size_t k98 = 0x98, kFloatA0 = 0xA0, kVectorA4 = 0xA4, kVectorB4 = 0xB4;
 inline constexpr std::size_t kGroups1F4 = 0x1F4, kPath = 0x1F8, kPathIndex = 0x1FC;
+// Part vb4's.
+inline constexpr std::size_t kStates = 0xB4, kStatesEnd = 0xB8;
+inline constexpr std::size_t kSmoothedTarget = 0x1A4, kSmoothedDuration = 0x1A8, kSmoothedElapsed = 0x1AC;
 } // namespace field
+
+// A state on the core's stack (part vb4).
+namespace state {
+inline constexpr std::size_t kType = 0x04, kTimer = 0x10;
+inline constexpr std::size_t kRecord = 0x64, kRecord2 = 0x68, kEntries = 0x6C, kEntry = 0x70, kObject74 = 0x74;
+inline constexpr std::size_t kRef78 = 0x78, kFloat8C = 0x8C, kByte228 = 0x228;
+inline constexpr std::uint32_t kWait = 0xD, kParked = 0x10, kPlace = 0x15, kDrive = 0x1E;
+} // namespace state
 
 namespace deque {
 inline constexpr std::size_t kStart = 0x00, kFinish = 0x10, kMap = 0x20, kMapSize = 0x24, kSize = 0x28;
@@ -176,6 +197,35 @@ inline constexpr std::size_t kOffsetSideways = 0x274; // 157: 0x005510D0, (float
 inline constexpr std::size_t kGo = 0x280;             // 160: 0x0054DA50
 inline constexpr std::size_t kSlot161 = 0x284;        // 161: 0x0054E1A0 (part vb4), no arguments
 inline constexpr std::size_t kWeighSides = 0x2A8;     // 170: 0x0054E790, (network, float*), ret 8
+// Part vb4's.
+inline constexpr std::size_t kAsOccupant = 0x14;      // 5: the occupant part (+4)
+inline constexpr std::size_t kNextAutomaton = 0xC0;   // 48: the core's 0x004FAF50, +0xB0
+inline constexpr std::size_t kPushState = 0xD0;       // 52: the core's 0x0050EF50, seven words, ret 0x1C
+inline constexpr std::size_t kPopState = 0xD4;        // 53: the core's 0x0050B660, no arguments
+inline constexpr std::size_t kStateType = 0xEC;       // 59: the core's 0x00509920, the current state's type
+inline constexpr std::size_t kSlot83 = 0x14C;         // 83: the core's 0x005091C0, (seconds), ret 4
+inline constexpr std::size_t kSlot86 = 0x158;         // 86: the core's 0x004FAD90, the flag 2 test
+inline constexpr std::size_t kSlot87 = 0x15C;         // 87: the core's 0x004FADA0, the flag 4 test
+inline constexpr std::size_t kSlot103 = 0x19C;        // 103: the core's 0x005089F0, (seconds), ret 4
+inline constexpr std::size_t kStateFrame = 0x1B4;     // 109: 0x00550090, (seconds), ret 4
+inline constexpr std::size_t kMoveOnPath = 0x204;     // 129: 0x0054FDC0, (seconds), ret 4
+inline constexpr std::size_t kMoveStraight = 0x208;   // 130: 0x00550190, (seconds), ret 4
+inline constexpr std::size_t kPathTo = 0x20C;         // 131: 0x0054E920, three words, ret 0xC
+inline constexpr std::size_t kOccupantOf = 0x224;     // 137: 0x00505100, +0x1EC
+inline constexpr std::size_t kNextRouteCell = 0x238;  // 142: 0x00554AB0, (now), ret 4
+inline constexpr std::size_t kRemoveSame = 0x24C;     // 147: 0x00551480, (occupant, depth), ret 8
+inline constexpr std::size_t kStop = 0x27C;           // 159: 0x0054DA00
+inline constexpr std::size_t kWaitFrame = 0x28C;      // 163: 0x005500D0, (seconds), ret 4
+inline constexpr std::size_t kDriveFrame = 0x290;     // 164: 0x0054E3D0, (seconds), ret 4
+inline constexpr std::size_t kNextStep = 0x294;       // 165: 0x00553AA0, no arguments
+inline constexpr std::size_t kFillAhead = 0x298;      // 166: 0x00554870, no arguments
+inline constexpr std::size_t kExtendFree = 0x29C;     // 167: 0x00550F40, (element, element*), ret 8
+inline constexpr std::size_t kExtendOnRoute = 0x2A0;  // 168: 0x005527E0, (element, element*), ret 8
+inline constexpr std::size_t kBestKey = 0x2A4;        // 169: 0x00552520, seven words, ret 0x1C
+inline constexpr std::size_t kStaticByte = 0x2BC;     // 175: 0x00504FE0, the byte 0x00B21D28
+// The occupant part's (+4).
+inline constexpr std::size_t kPartType = 0x1C;        // 7: 0x006BDD80, the occupant type (+0x28)
+inline constexpr std::size_t kPartFlags = 0x84;       // 33: 0x005E8BE0, the byte +0x33
 } // namespace slot
 
 // Part vb3's slots of other objects.
@@ -194,11 +244,17 @@ inline constexpr std::size_t kLaneWord = 0x4C;        // 19: five words, ret 0x1
 inline constexpr std::size_t kAddAutomaton = 0x78;    // 30: (automaton, occupant), ret 8
 inline constexpr std::size_t kRemoveAutomaton = 0x7C; // 31: (automaton, occupant, groups), ret 0xC
 inline constexpr std::size_t kCanGo = 0xB0;           // 44: (from, to, kind), ret 0xC, a bool
+// Part vb4's.
+inline constexpr std::size_t kNeighbour = 0x3C;       // 15: (occupant, side, word, kind), ret 0x10: an occupant's address
+inline constexpr std::size_t kAutomataOn = 0x40;      // 16: (occupant), ret 4: an object, its list at +0x1C
+inline constexpr std::size_t kWaitOn = 0x84;          // 33: (occupant, automaton, groups, float*), ret 0x10
 } // namespace map
 namespace manager {
 inline constexpr std::size_t kStateWeight = 0xA8;     // 42: (state), ret 4, a float in ST0
 inline constexpr std::size_t kKind = 0x110;           // 68: (automaton), ret 4
 inline constexpr std::size_t kWeights = 0x120;        // 72: five words, ret 0x14
+inline constexpr std::size_t kQueueFactor = 0x12C;    // 75: (state), ret 4, a double in ST0
+inline constexpr std::size_t kRecordList = 0xAB8;     // the record list (a field)
 } // namespace manager
 namespace part {
 inline constexpr std::size_t kPath = 0x0C;            // 3: (key, word), ret 8: a path or null
@@ -207,7 +263,12 @@ inline constexpr std::size_t kFindFrom = 0x24;        // 9: six words, ret 0x18
 inline constexpr std::size_t kFlat = 0x40;            // 16: a bool, no arguments
 inline constexpr std::size_t kIndexOf = 0x4C;         // 19: (point, path), ret 8: an index
 inline constexpr std::size_t kEndPoint = 0x58;        // 22: (path, float* out), ret 8
+inline constexpr std::size_t kKeys = 0x18;            // 6: (vector* out, kind, point, entry, side, float), ret 0x18
 } // namespace part
+// Part vb4's.
+inline constexpr std::size_t kOccupantFlag9 = 0x24;   // an occupant's slot 9: (flag), ret 4, a bool
+inline constexpr std::size_t kCityLights = 0xBC;      // the city's slot 47: an object, its slot 14 (0x38) (word)
+inline constexpr std::size_t kServiceCount = 0x6C;    // 0x00B43D54's slot 27: (occupant, key), ret 8, a word in AX
 inline constexpr std::size_t kOccupantHeight = 0xE0;  // an occupant's slot 56: (x, z), ret 8, a float in ST0
 inline constexpr std::size_t kOccupantFlag = 0x20;    // an occupant's slot 8: (flag), ret 4, a bool
 inline constexpr std::uint32_t kTunnelIid = 0x8A4BD52B; // the interface slot 132 asks the occupants for
