@@ -1181,7 +1181,9 @@ All 27 B runs reached all 23 functions and carried the ` W` token, with flags 0.
 - Both sides gave both values on Rush Hour d0090 and d1095.
 - Some saves showed only one value in their runs: Making Money d1095 and Rush Hour d0000 the second, the others the first.
 
-That is the test's own two outcomes, like the ones the lot's route gave before it was erased (above). Its cause was not found by the end of the session (see the restart notes).
+That is the test's own two outcomes, like the ones the lot's route gave before it was erased (above). Routes A and B are keyed by fake boats 7 and 6, which were statics of the DLL, and a key's bucket is its address modulo the route table's bucket count (193), so the table's order, and with it the frame's, followed where the DLL was loaded.
+
+Fixed 2026-10-22: the test makes its manager first and puts the boats at an address that is 0 modulo that count (flag 0x40 when the count is not known). Trial on TurboToaster, same env and switches, 39 pairs (Rush Hour d0090 and d1095 four legs each, Making Money d0000, Rush Hour t0000 seven pairs, the 12-save batch): ` W` took one value per save in all 78 runs, the same on both sides, flags 0, routes and frame 50B695CD,0421E12D (Rush Hour t0000 50B695CD,4A7E20CA). The boats' address changed run to run. Every first difference was another test's known two-outcome token (aw1 ` A`, aw3 ` D`). Part aw3's ` D` on Rush Hour t0000 gave 58C58226 in two of seven runs of ours, a value the original did not give there.
 
 In the first leg, Rush Hour d0090 and d1095 differed in tokens that have two outcomes on the original: part aw3's ` D` (4848E1FD, E75BEE79 or ECD4CDDD, its three known values), part aw1's ` A` (the vehicle field, 5B07DDF3 or 919E9993, both from the original on d0090) and the ` W` above. In three pairs no single run matched as a whole line, because each token took its value independently. Every token value B gave was one the original gave on the same save or the same city. A second leg of the two saves (up to five pairs) found Rush Hour d1095 the same after two pairs. Rush Hour d0090 came out partly: four outcomes on each side, two of them shared.
 
