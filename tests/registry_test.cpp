@@ -85,6 +85,22 @@ int main()
     if (registry::ModeOf("default.on") != Mode::Ours || registry::ModeOf("default.off") != Mode::Original)
         return Fail("a replacement that is on by default should be ours unless configured as original");
 
+    // Always on (a fix of the original's bug): [replacements] cannot turn it
+    // off, [test_replacements] and the environment can.
+    registry::Register({"fix.player", "fix", Kind::Detour, Phase::PreAppInit, 0xA000, "p", false, ApplyOn, true, true});
+    registry::Register({"fix.harness", "fix", Kind::Detour, Phase::PreAppInit, 0xB000, "h", false, ApplyOn, true, true});
+    registry::Register({"fix.env", "fix", Kind::Detour, Phase::PreAppInit, 0xC000, "e", false, ApplyOn, true, true});
+    WritePrivateProfileStringW(L"replacements", L"fix.*", L"original", ini);
+    WritePrivateProfileStringW(L"test_replacements", L"fix.harness", L"original", ini);
+    WritePrivateProfileStringW(nullptr, nullptr, nullptr, ini);
+    SetEnvironmentVariableW(L"OPENSC4_REPLACE", L"fix.env=original");
+    registry::Apply(Phase::PreAppInit, ini);
+    if (registry::ModeOf("fix.player") != Mode::Ours)
+        return Fail("a fix should stay ours whatever [replacements] says");
+    if (registry::ModeOf("fix.harness") != Mode::Original || registry::ModeOf("fix.env") != Mode::Original)
+        return Fail("[test_replacements] and the environment should turn a fix off");
+    WritePrivateProfileStringW(L"test_replacements", nullptr, nullptr, ini);
+
     registry::ResetForTests();
     SetEnvironmentVariableW(L"OPENSC4_REPLACE", L"test.a=compare,test.b=compare");
     WritePrivateProfileStringW(L"replacements", nullptr, nullptr, ini);

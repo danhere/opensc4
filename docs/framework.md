@@ -38,7 +38,7 @@ The framework is not one block. The linker kept each library's object files toge
 | 0x00936000-0x00940000 | Resource manager set-up, the sound engine's tracks (not framework) |
 | 0x00939040-0x0095FFFF | The UI layer: the property set and its values, their readers and writers, the UI script tree, the framework window and the stock widgets ([gzui.md](gzui.md); the property set, its readers and writers and the factory are ours) |
 
-The UI layer, from the property set at 0x00939040 to the widgets past 0x0095FFFF, has a document of its own: [gzui.md](gzui.md) (survey, split into pieces u1 to u17, part u1, the property set and its values, `framework.propset.*`, and part u2, the property sets' readers and writers, the factory and the classes it makes, `framework.propio.*`, with part u2b, the Track objects' TKDT text form, and part u3, the XML writer, the UI script property handler, Create, the window's copy, the shuffle bag and the framework's own sound kinds' slots).
+The UI layer, from the property set at 0x00939040 to the widgets past 0x0095FFFF, has a document of its own: [gzui.md](gzui.md) (survey, split into pieces u1 to u17, part u1, the property set and its values, `framework.propset.*`, and part u2, the property sets' readers and writers, the factory and the classes it makes, `framework.propio.*`, with part u2b, the Track objects' TKDT text form, and part u3, the XML writer, the UI script property handler, Create, the window's copy, the shuffle bag and the framework's own sound kinds' slots, and part u4, the UI file parser, its variable table and its director, `framework.xmlparse.*`).
 
 About 34,556 functions make up the exe; the framework proper (framework object, COM object, director base, service base, message servers and queue, critical section, message) is about 300 of them.
 
@@ -134,7 +134,7 @@ How it works:
 Findings:
 
 - The game also has a subclass (vtable 0x00A8CAFC, constructor 0x00472EB0) whose MessageSend (0x004737E0) is the same with the delivery in a try block. The coverage meter shows the base's MessageSend running and the subclass's never: the server is the base class in our runs.
-- **CancelGeneralMessagePostsToTarget (slot 8) has a fault.** It walks the deque and erases with an iterator it has already stepped forward. That holds only when the erased post lies in the deque's first half (the erase then moves the posts in front of it). In the second half the posts behind move down: the walk skips one, and when the erased post was the last it walks past the end. Ours does the same steps in the same order, so it has the same fault, unless `fixes.message_cancel` is on (below).
+- **CancelGeneralMessagePostsToTarget (slot 8) has a fault.** It walks the deque and erases with an iterator it has already stepped forward. That holds only when the erased post lies in the deque's first half (the erase then moves the posts in front of it). In the second half the posts behind move down: the walk skips one, and when the erased post was the last it walks past the end. Ours does the same steps in the same order, so it has the same fault, but `fixes.message_cancel` (below) is always on.
 - Who calls it: no code reaches the function except through the two vtables (a scan of the whole code section for calls and jumps, and of the whole image for pointers, 2026-10-11; the same holds for every function of the server: the only direct calls come from inside the class and from the subclass's thunks). No call of slot 8 through the server's global 0x00B43CCC was found either; a caller that got the server from the framework would not show in that search. The game does post to single targets (slot 7; about 9 call sites).
 - A second, older server (`cGZMessageQueueManager2`? class 0x452294DF, vtable 0x00AD1B80, 10 slots, 0x38 bytes) is registered and not ours.
 - The service's Shutdown takes the server off the framework's tick. Called from inside a tick, the Init that follows is refused (the list is busy) and the game stops delivering queued messages: the test does not call them.
@@ -151,7 +151,7 @@ Findings:
 | `framework.messageserver.direct` | GeneralMessagePostToTarget 0x0092EA00, CancelGeneralMessagePostsToTarget 0x0092E642, the delivery pass 0x0092DFA3 |
 | `framework.messageserver.interface` | QueryInterface 0x0092D091, GetRefCount 0x0092D0B3, Init 0x0092D05B, Shutdown 0x0092D076 |
 
-`fixes.message_cancel` (off by default) is the cancel without the fault: after an erase the walk goes on from the position the erase returns. It works alone (it then replaces that one function) or with `framework.messageserver.direct`.
+`fixes.message_cancel` (always on, a fix of the original's bug; README, "Original bugs fixed") is the cancel without the fault: after an erase the walk goes on from the position the erase returns. It works alone (it then replaces that one function) or with `framework.messageserver.direct`.
 
 18 functions. The lists, the table's lookup and removal and the deque's simple cases are done in our code on the game's layouts with the game's allocator. Still the game's: the table's insert (it may grow the table: 0x0092FDD8), the deque's new block, block release and erase (0x0092E216, 0x00473290, 0x0092E162), the constructor, destructor and factory, and the three shared thunks for AddRef and Release.
 

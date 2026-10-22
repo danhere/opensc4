@@ -33,7 +33,7 @@
 // copy_backward 0x005C82C0 and an entry's two strings destroyed 0x0091C947
 // (both shared).
 //
-// Fix, on by default:
+// Fix, always on (a fix of the original's bug):
 //
 //   fixes.playlist_last_line: the line reader 0x008D6258 alone (ours), taking
 //   a last line with no line break off the text, where the game hung.
@@ -1325,7 +1325,8 @@ const bool g_lastLineFixRegistered = registry::Register({
     "A playlist whose last line has no line break is read to its end (the game read that line forever and hung)",
     false,
     InstallLastLineFix,
-    true, // a fix, on unless turned off
+    true,
+    true, // a fix of the original's bug: always on (registry.h)
 });
 
 } // namespace

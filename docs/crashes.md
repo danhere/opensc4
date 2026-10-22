@@ -10,7 +10,7 @@ The game's own crashes, what causes them, and what OpenSC4 does about each. Cras
 
 **sc4fix** meant to guard the increment (its "puzzle-piece crash, part 1", 0x0096DA1D to 0x0096DA23) but installs that hook at the wrong address, so it never runs ([patch-census.md](patch-census.md), 3.2). Its guard would also have left the new record with a NULL buffer, which the record's reads dereference.
 
-**Fix:** `resources.stale_record_fix = ours` ([src/core/packed_file_3.cpp](../src/core/packed_file_3.cpp), off by default). The fix is part of our translation of the open ([resources.md](resources.md), "The packed file"): with the setting on, 0x009701FD is ours, whether or not the rest of the packed file is. On a read-open, while the key's first map node points at a record that is type 2, has no buffer and is closed (flags word +0x0A zero), the node is erased (0x00927CF8) without touching the record, and the open then reads the record from the file as if it were not open. Each drop is logged (`stale_record_fix:` in opensc4.log). The parity harness turns it on for both runs (`scripts/run-parity.sh`, its base list), so the crash no longer costs a pair, and a drop shows in the run's log. Not fixed: the extra Release behind it, and a node whose freed slot has been reused by another record (nothing to tell it apart).
+**Fix:** `resources.stale_record_fix` ([src/core/packed_file_3.cpp](../src/core/packed_file_3.cpp), always on, a fix of the original's bug; README, "Original bugs fixed"). The fix is part of our translation of the open ([resources.md](resources.md), "The packed file"): 0x009701FD is ours, whether or not the rest of the packed file is. On a read-open, while the key's first map node points at a record that is type 2, has no buffer and is closed (flags word +0x0A zero), the node is erased (0x00927CF8) without touching the record, and the open then reads the record from the file as if it were not open. Each drop is logged (`stale_record_fix:` in opensc4.log). The parity harness keeps it on for both runs (`scripts/run-parity.sh`, its base list), so the crash no longer costs a pair, and a drop shows in the run's log. Not fixed: the extra Release behind it, and a node whose freed slot has been reused by another record (nothing to tell it apart).
 
 The sibling constructor 0x0096DA30 has the same unchecked increment at 0x0096DA95, but only when an 8-byte allocation fails.
 
@@ -20,13 +20,13 @@ The sibling constructor 0x0096DA30 has the same unchecked increment at 0x0096DA9
 
 **sc4fix** patches the middle of the function (0x0065EE3E, 0x0065EE66) to jump to the failure exit then, with failing id 0; its second patch only makes that jump safe, and pops an x87 stack that is empty on that path.
 
-**Fix:** `fixes.puzzle_piece = ours` ([src/core/puzzle_piece_fix.cpp](../src/core/puzzle_piece_fix.cpp), off by default). An entry detour checks the same condition before the original runs (no pending pair, and no node whose range is negative or below FLT_MAX, compared in double as the x87 does) and returns the failure itself: nothing changed, failing id 0, false. The one caller (0x00660B10) ignores the outputs on false. It coexists with sc4fix, whose patches sit later in the function.
+**Fix:** `fixes.puzzle_piece` ([src/core/puzzle_piece_fix.cpp](../src/core/puzzle_piece_fix.cpp), always on, a fix of the original's bug; README, "Original bugs fixed"). An entry detour checks the same condition before the original runs (no pending pair, and no node whose range is negative or below FLT_MAX, compared in double as the x87 does) and returns the failure itself: nothing changed, failing id 0, false. The one caller (0x00660B10) ignores the outputs on false. It coexists with sc4fix, whose patches sit later in the function.
 
 ## Crash on exit with plugin DLLs
 
 **Cause.** At shutdown the game's GZCOM library list frees every plugin DLL (cGZCOMLibrary::Free, 0x0087B3B3, through a FreeLibrary wrapper called at 0x0087B3D1) while their objects or threads can still be reached, and the game then calls into unmapped code. sc4fix NOPs that call.
 
-**Fix:** `fixes.pin_plugin_dlls = ours` ([src/core/pin_plugin_dlls.cpp](../src/core/pin_plugin_dlls.cpp), off by default). Once all plugins have loaded, every module that exports `GZDllGetGZCOMDirector` (but the exe and core.dll) is pinned with `GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_PIN)`, so FreeLibrary leaves it mapped until the process ends. Nothing after the call depends on the unload: Free ignores its result and only clears the handle and its loaded flag. Like sc4fix's NOP, a library the game frees and loads again would keep its static state.
+**Fix:** `fixes.pin_plugin_dlls` ([src/core/pin_plugin_dlls.cpp](../src/core/pin_plugin_dlls.cpp), always on, a fix of the original's bug; README, "Original bugs fixed"). Once all plugins have loaded, every module that exports `GZDllGetGZCOMDirector` (but the exe and core.dll) is pinned with `GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_PIN)`, so FreeLibrary leaves it mapped until the process ends. Nothing after the call depends on the unload: Free ignores its result and only clears the handle and its loaded flag. Like sc4fix's NOP, a library the game frees and loads again would keep its static state.
 
 ## Prop pox
 
@@ -66,7 +66,7 @@ Still open: class records over 16,000,000 bytes, stored uncompressed and read ba
 
 **What players do:** run the game on one core, through Task Manager's affinity or the game's own `-CPUCount:1`. The game's handling of that option (0x0044FC3B in the command-line code) calls 0x005F8CD0, which sets the process affinity to CPUs 0 to N-1; without it the game never sets affinity. Why more cores crash is not established; the game's reference counts are plain increments with no lock (see 0x0096DA20), which threads on two cores can race.
 
-**Fix:** `fixes.single_core = ours` ([src/core/single_core.cpp](../src/core/single_core.cpp), off by default) sets the affinity to one core when core.dll attaches, before the game creates any thread, so it needs no shortcut or command line. The core is `[fixes] core` in opensc4.ini (default: the first core the process may use).
+**Fix:** `fixes.single_core` ([src/core/single_core.cpp](../src/core/single_core.cpp), always on, a fix of the original's bug; README, "Original bugs fixed") sets the affinity to one core when core.dll attaches, before the game creates any thread, so it needs no shortcut or command line. The core is `[fixes] core` in opensc4.ini (default: the first core the process may use).
 
 ## Out of memory
 

@@ -332,7 +332,10 @@
 //   shut down and released (it is in no list). The flags: the automata
 //   filter, the cheat object or a followed automaton there (the bare base
 //   part is skipped), no building or network occupant, no view, a fake
-//   called at a slot it does not know. A fake's unknown slot answers 0; the
+//   called at a slot it does not know, a set's bucket count not known
+//   (0x100; the fakes are put at an address that is 0 modulo it, so that a
+//   set's order does not follow where the DLL was loaded). A fake's unknown
+//   slot answers 0; the
 //   fakes' occupants give a property holder without properties (the
 //   automata filter asks for it).
 // OPENSC4_TEST_AUTOMATA_AWMGR=4 (part aw4): also, on the same day, at the
@@ -3664,7 +3667,33 @@ void AwAutoDrive(cISC4City* city)
     // and fakes of the test's own.
     char* const bare = static_cast<char*>(reinterpret_cast<Op>(addr::SC4_operator_new)(0xA88));
     char* const base = bare ? reinterpret_cast<Ctor>(addr::cSC4AutomataManager_Construct)(bare) : nullptr;
-    static Fake fakes[5];
+    // The fakes at an address that is 0 modulo a set's bucket count: the
+    // tracked groups' sets and GetInstancesOfGroup's are keyed by the fakes'
+    // addresses (a key's bucket is its address modulo the count), and the
+    // base calls the fakes in a set's order (the chase, slot 33's releases).
+    // With the fakes where the DLL happened to be loaded, <calls> took one
+    // of several values run to run, on both sides.
+    uint32_t buckets = 0;
+    {
+        alignas(4) char probe[aw::table::kSize] = {};
+        reinterpret_cast<SetCtor>(addr::SC4Uint32HashSet_Construct)(probe, 0x64);
+        buckets = static_cast<uint32_t>(At<char**>(probe, aw::table::kEnd) - At<char**>(probe, aw::table::kBegin));
+        if (void* const b = At<void*>(probe, aw::table::kBegin))
+            free_(b);
+    }
+    constexpr uint32_t kMostBuckets = 1031;
+    alignas(16) static char arena[5 * sizeof(Fake) + 16 * kMostBuckets];
+    std::size_t offset = 0;
+    if (buckets && buckets <= kMostBuckets)
+        while ((reinterpret_cast<uintptr_t>(arena) + offset) % buckets)
+            offset += 16;
+    else
+        flags |= 0x100;
+    Fake* const fakes = reinterpret_cast<Fake*>(arena + offset);
+    for (uint32_t i = 0; i < 5; ++i)
+        new (&fakes[i]) Fake;
+    log::Write("autotest: automata: aw3 fakes at %p (%u buckets, offset %X)", static_cast<void*>(fakes), buckets,
+               static_cast<uint32_t>(offset));
     if (base && !cheatObject && !followed) {
         At<void*>(base, aw::field::kCells) = At<void*>(vehicles, aw::field::kCells);
         At<void*>(base, aw::field::kScripts) = At<void*>(vehicles, aw::field::kScripts);
@@ -3978,7 +4007,8 @@ void AwAutoDrive(cISC4City* city)
         MixList(calls, base);
         calls.Mix(At<uint32_t>(instances, aw::table::kCount));
         uint32_t unexpected = 0;
-        for (Fake& f : fakes) {
+        for (int i = 0; i < 5; ++i) {
+            const Fake& f = fakes[i];
             calls.Mix(f.state.refs);
             calls.Mix(f.state.flags);
             unexpected |= f.state.unexpected;

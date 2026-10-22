@@ -61,6 +61,18 @@ case ",${OPENSC4_REPLACE:-}," in
 *) export OPENSC4_REPLACE="${OPENSC4_REPLACE:+$OPENSC4_REPLACE,}harness.multi_instance=ours" ;;
 esac
 
+# renderer.d3d11 is on by default for players; tests run the stock driver,
+# as every baseline and parity result so far did, unless OPENSC4_REPLACE or
+# the folder's opensc4.ini (OPENSC4_TEST_INI) names it (docs/renderer.md).
+case ",${OPENSC4_REPLACE:-}," in
+*,renderer.d3d11=* | *,renderer.\*=*) ;;
+*)
+    if ! grep -qE '^[[:space:]]*renderer\.(d3d11|\*)[[:space:]]*=' "$testenv/Plugins/opensc4.ini" 2>/dev/null; then
+        export OPENSC4_REPLACE="$OPENSC4_REPLACE,renderer.d3d11=original"
+    fi
+    ;;
+esac
+
 # Two games must not share a user folder. The folder's last log names the
 # pid of the game that wrote it; refuse while that game still runs.
 log="$testenv/Plugins/opensc4.log"

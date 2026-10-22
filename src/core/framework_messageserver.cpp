@@ -1,6 +1,7 @@
 // The framework's message server (cGZMessageServer2, and the game's subclass
 // of it that the app creates) on the game's own object (docs/framework.md).
-// Replacements, each off by default:
+// Replacements, each off by default (fixes.message_cancel, a fix of the
+// original's bug, is always on):
 //
 //   framework.messageserver.send       MessageSend (the subclass's 0x004737E0
 //                                      and the base's 0x0092EA65) and the
@@ -812,6 +813,8 @@ const bool g_registeredCancelFix = registry::Register({
     "when the cancelled post was in the queue's second half (docs/framework.md)",
     false,
     InstallCancelFix,
+    true,
+    true, // a fix of the original's bug: always on (registry.h)
 });
 
 } // namespace

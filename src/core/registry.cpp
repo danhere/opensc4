@@ -56,13 +56,13 @@ std::string Narrow(const std::wstring& wide)
     return out;
 }
 
-// id -> configured text, from the [replacements] section of `iniPath`.
-std::map<std::string, std::string> ReadIni(const std::wstring& iniPath)
+// id -> configured text, from `section` of `iniPath`.
+std::map<std::string, std::string> ReadIni(const std::wstring& iniPath, const wchar_t* section)
 {
     std::map<std::string, std::string> values;
     std::vector<wchar_t> buffer(32768);
     const DWORD length =
-        GetPrivateProfileSectionW(L"replacements", buffer.data(), static_cast<DWORD>(buffer.size()), iniPath.c_str());
+        GetPrivateProfileSectionW(section, buffer.data(), static_cast<DWORD>(buffer.size()), iniPath.c_str());
     for (const wchar_t* line = buffer.data(); line < buffer.data() + length && *line; line += wcslen(line) + 1) {
         const std::wstring entry(line);
         const auto equals = entry.find(L'=');
@@ -160,9 +160,15 @@ void Apply(Phase phase, const std::wstring& iniPath)
     }
 
     const std::wstring ini = iniPath.empty() ? settings::DefaultIniPath() : iniPath;
-    std::map<std::string, std::string> configured = ReadIni(ini);
+    // The player's settings, and the test harness's: only the harness's
+    // reach the fixes (alwaysOn).
+    const std::map<std::string, std::string> player = ReadIni(ini, L"replacements");
+    std::map<std::string, std::string> harness = ReadIni(ini, L"test_replacements");
     for (auto& [id, value] : ReadEnvironment())
-        configured[id] = value; // the environment wins
+        harness[id] = value; // the environment wins
+    std::map<std::string, std::string> configured = player;
+    for (auto& [id, value] : harness)
+        configured[id] = value;
 
     // Report typos once, in the first phase every load reaches (Attach only
     // happens when the launcher injects core.dll).
@@ -185,9 +191,12 @@ void Apply(Phase phase, const std::wstring& iniPath)
     for (const Replacement& r : replacements) {
         if (r.phase != phase)
             continue;
-        Mode mode = r.onByDefault ? Mode::Ours : Mode::Original;
+        Mode mode = r.onByDefault || r.alwaysOn ? Mode::Ours : Mode::Original;
         const char* note = "";
-        if (const auto it = Lookup(configured, r.id); it != configured.end()) {
+        const std::map<std::string, std::string>& source = r.alwaysOn ? harness : configured;
+        if (r.alwaysOn && Lookup(source, r.id) == source.end() && Lookup(player, r.id) != player.end())
+            note = " (a fix of the original's bug: always on; [replacements] ignored)";
+        if (const auto it = Lookup(source, r.id); it != source.end()) {
             if (const auto parsed = ParseMode(it->second)) {
                 mode = *parsed;
             } else {

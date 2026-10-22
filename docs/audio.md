@@ -447,7 +447,7 @@ Kept quirks:
 
 A game bug: in a playlist whose last line has no line break, the line reader 0x008D6258 does not take that line off the text, so every later call reads it again. A plain list or a `.pls` without its `NumberOfEntries` line then never ends and the game hangs; an extended `.m3u` returns 0. A playlist saved by an editor that leaves out the final line break is enough.
 
-`fixes.playlist_last_line` (on by default; `fixes.playlist_last_line = original` turns it off) takes that line off the text too, so the next read finds the end. It installs our 0x008D6258 by itself, with or without `audio.music.part4` ([src/core/music_4.cpp](../src/core/music_4.cpp)). A playlist that ends with a line break reads as before. `scripts/run-parity.sh` turns it off on both sides.
+`fixes.playlist_last_line` (always on, a fix of the original's bug; README, "Original bugs fixed") takes that line off the text too, so the next read finds the end. It installs our 0x008D6258 by itself, with or without `audio.music.part4` ([src/core/music_4.cpp](../src/core/music_4.cpp)). A playlist that ends with a line break reads as before. `scripts/run-parity.sh` turns it off on both sides.
 
 With the fix on, `OPENSC4_TEST_PLAYLIST` also reads four playlists without a last line break (a plain list, an extended `.m3u`, a `.pls` with its count last, a `.pls` with no count) and adds ` nobreak <entries> <hash>` to its token; with it off it logs that they were not read (the original would hang on them).
 
