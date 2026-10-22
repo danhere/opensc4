@@ -285,3 +285,63 @@ Batches `gzu3-r1` to `gzu3-r3` (2026-10-21), muted on both sides, the base list 
 | Making Money d0000, 4 days, `OPENSC4_TEST_PROPIO=2`, not muted | 1 | same after 2 pairs (side A gave two outcomes); the shufflebag and kinds stages matched (F67C12BA, FB26BA1D) |
 
 **Reached:** in the plain legs, none of the 67 propio functions logs a first call: nothing calls this code while a parity run starts and plays, so those legs show only that the hooks change nothing. In the muted test legs 26 of the 29 were reached in every B run; Draw, Random and the 2D kind's slot 5 need the registry of sound kinds and were reached in the unmuted leg.
+
+## Part u4: the UI file parser, its variable table and its director
+
+`src/core/gzui_xmlparse.cpp`, entry detours, off by default, installed at Attach:
+
+| Replacement | Functions |
+|---|---|
+| `framework.xmlparse.parser` | the parser's factory 0x00944462, constructor 0x00945404, destructor 0x00944B7E, deleting destructor 0x00944C2F (slot 15), QueryInterface 0x00944650, SetListener 0x0094451C (3), SetContext 0x00944589 (4), ParseString 0x00945229 (6), ParseFile 0x00945198 (7), ParseResource 0x00944C72 (8) (10) |
+| `framework.xmlparse.tokens` | the parse 0x00944FB6, the tokenizer 0x00944D45, the start and end of the document 0x009445B2, 0x00944F7C, 0x00944F99, text 0x00944636, a tag's start 0x00944F3C and the end of a start tag 0x009445C8, an attribute's name 0x009449BB, its value 0x009445FD (quoted) and 0x009449DD (bare), the attribute committed 0x00944AC8, the list cleared 0x00944EEA, a name resolved to a number 0x00944940 (14) |
+| `framework.xmlparse.stack` | the stack of variable tables: push 0x00944C4B (13), pop 0x009448E4 (14), lookup from the top 0x0094490C, and slots 9 to 12 on the top table, 0x0094489C, 0x00944891, 0x009448CE, 0x009448D9 (7) |
+| `framework.xmlparse.table` | the variable table's factory 0x00944478, constructor 0x009453D4, destructor 0x009453ED, deleting destructor 0x0094550B, QueryInterface 0x009444FA, SetNumber 0x00945527, Set 0x009455C1, Remove 0x009452A1, Get 0x00944BDE, Clear 0x00945310 (10) |
+| `framework.xmlparse.director` | the parser's director's constructor 0x0094448E and the static one's getter 0x009444CF; in the range too, the next director's (part u5) deleting destructor 0x00945636 and its five factories 0x0094565F, 0x00945675, 0x0094568E, 0x009456A4, 0x009456C8 (8) |
+
+49 of the range's 67 functions, addresses in `data/addresses/gzui.toml` (the "Part u4" part) with the game code they call. Every detour is entered through a thunk that keeps ECX and EDX; ours call each other directly (the parse calls its steps, the parser's constructor the table's, the destructor SetListener and pop, the director's getter its constructor).
+
+Still the game's: the two directors' ID getters 0x009444C9 and 0x00945630 (two instructions each) and 16 STLport functions: the attribute list's vector of (number, value) pairs with its own allocator object (constructor 0x00944A77, destructor 0x009446E4 shared with 0x0094C144, push_back 0x00944A48, the growing insert 0x0094470A, erase 0x00944B4E, the copies 0x00944672, 0x0094469A, 0x00944B33 and 0x00944874, the last shared with two other callers), and the table's map of game strings to values (find 0x0094481E, the strings' less 0x009446C1, insert_unique 0x0094547A and its insert 0x0094533F, subtree erase 0x00945243, clear 0x00945278, destructor 0x009452F9).
+
+### Not XML: the UI file parser
+
+The survey's "XML parser" reads SimCity 4's UI files, the `<LEGACY clsid=GZWinBtn area=(0,0,10,10) ...>` tag form. It knows no end tags, comments, entities or `<?xml`: a tag is `<`, a name, attributes `name=value` and `>`. Tag and attribute names must be numbers: a variable of the parser's whose value is a number (type 6), or text that starts with a digit (read by 0x0090FE93). A tag whose name is not one is skipped to its `>`; an attribute whose name is not one is skipped with its value; `/children` is just a name. A value is a quoted text (a script value given the text without the quotes; no escapes, and single quotes are not special), a variable (the variable's own value object), a number, or the word as a script value. Words end at a space, tab, line feed, carriage return, `"`, `<`, `>` or `=`. A token out of place (`<tag = 1>`, `>` outside a tag, a missing value) fails the parse.
+
+- **The parser** (0x5C bytes, interface 0x5A2C1570): a listener at +8, which it asks for the tag events 0x1A2BDEB9 (+0xC: a tag's start, the end of the start tag, each attribute as it is read) and the attribute events 0x1A2BDEBA (+0x10: the whole list at the end of the start tag); the listener itself gets the document's start and end (with whether it failed) and the text between tags. A stack of variable tables at +0x14 (one made by the constructor; lookups go from the top down; slots 9 to 12 work on the top one), the state, text and cursor (+0x24 to +0x2C), the open tag (+0x30, +0x34; the constructor sets neither), the pending attribute (+0x38 to +0x40) and the attribute list (+0x44). Three ways in: a game string, a file (read whole) and a resource by its key (read whole through its interface 0xC56B8F08). SetContext (slot 4) keeps an object that nothing reads and the destructor does not release.
+- **The variable table** 0xBA2E7954 (0x14 bytes, interface 0x1A2BDEBB): a map of names to counted script values with SetNumber, Set (both refuse a name that is there; SetNumber destroys the value it made), Remove, Get and Clear.
+- **The director** (ID 0xFA2E78C2; the static one at 0x00B633F8, made by 0x009444CF on first use) registers the parser and the table by their factories.
+
+Quirks kept: the token read when the parse turns to its stop state is not released; after a lone `"` at the end the tokenizer releases the token but leaves the caller's pointer to it; a parse already running is refused; ParseFile leaves +0x28 pointing at the buffer it deleted; a value read while another is pending overwrites it without releasing it.
+
+**Who makes it.** Parser 0xBA2E7953 is made: the UI script tree (0x0094B73A, part u9) asks the COM for it once, defines `_null` 0, `_children` 1, `_/children` 2, `_define` 3, `_name` 4 and `_val` 5 with slot 9, and reads every UI file with it while the game starts (the coverage runs ran its parse, tokenizer and steps in all 12). The tables are made by 0x0044D810, 0x0094AF90 and 0x0094B19D. It is unrelated to u2's XML reader-writer, which asks for the class 0x6B6B01D1 with interface 0x6B6B01CD (an expat-style parser calling a handler 0x4B6B9C9B with StartElement, EndElement and Characters): nothing in the exe registers 0x6B6B01D1, and 0xBA2E7953 could not stand in for it (other interfaces, other events, no XML). So an XML property set is still never read in the game as it ships; this part changes nothing there.
+
+The methods answer a byte; ours give the game's EAX where it comes from a call or a value (a QueryInterface's refusal leaves iid less the interface above AL), and 0 above the byte where the game leaves its caller's EAX.
+
+### Testing
+
+`OPENSC4_TEST_XMLPARSE=<day>` (a test of its own; the fingerprint's `xp` part) drives every u4 function through its slot or its address, with a listener of its own (its interfaces can be refused; every event goes into the hash: tags, attribute numbers and values, the attribute lists, texts, whether the document failed), script values and game strings, in seven stages logged as `autotest: xmlparse: <stage> <hash>`:
+
+- table: the table made by its factory, its interfaces, SetNumber and Set (new, already there, the empty name, another case), Get, Remove (twice, absent), Clear, one on the stack destroyed by the destructor's address and one by the deleting destructor's.
+- stack: the parser's interfaces, slots 9 to 12, push (a table, null), lookups from the top and the bottom, names resolved (variables holding a number and a text, `42`, `0x1F`, `7abc`, a word, empty, absent), pop to the last table, the context object, the listener with both interfaces, one and none.
+- tokens: the tokenizer by its address over 20 texts in text mode, in tag mode and with only the high byte of the mode set: quotes (unterminated, empty, a lone one at the end, back to back), `<>=`, words up to each delimiter, whitespace, bytes above 0x7F, empty text, no cursor.
+- parse: 25 documents (well formed, nested, numbers as names, variables as values, `name='q'`, quoted markup, unknown tags and attributes, malformed, truncated, empty, whitespace only, text only, a UI file's `LEGACY` form) with five listener shapes (all, no tag events, no attribute events, neither, no listener); a parse while one runs; each step by its address.
+- sources: a file written to the temp folder, an empty one and a missing one; a UI file of the game's (0x00000000, 0x96A006B0, 0xCBC905CD) and a key that is not there.
+- objects: a parser on the stack by the constructor's and destructor's addresses, the deleting destructor with and without its flag.
+- directors: a director made on the stack, its classes through the COM's EnumClassObjects and GetClassObject (each class with its interface, with cIGZUnknown, an unknown class), the static one's getter, the next director made on the stack and destroyed by its deleting destructor, its five factories' objects made and released.
+
+With the groups on, each of the 49 logs its first call; all 49 do in a test run. `xp` is 8D77ED96. A first trial gave a different `objects` hash on every run, side A against itself too: the test hashed the open tag's flag and number of a new parser, which the constructor leaves as they are. The test now reads them only once a parse has started.
+
+An independent audit of all 49 against the disassembly (ret sizes, arguments, call order, EAX, the 5-byte entry rule) found no difference in behaviour. Its one EAX note (Clear of an empty table, where the game answers the map's head) is fixed.
+
+### Parity
+
+Batch `gzu4-r1` (2026-10-22, the final build), muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.xmlparse.*` group and every `framework.propio.*` group (u2's and u3's) `=ours` on side B, two jobs, own test folder `p4env-gzu4`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same, first pair |
+| Rush Hour t0000, 7 days | 1 | same, first pair |
+| 12 saves, 7 days | 12 | 12 same, first pair |
+| 12 saves, 7 days, `OPENSC4_TEST_XMLPARSE=2` | 12 | 12 same, first pair; `xp` 8D77ED96 in all 24 runs |
+| Making Money d0000, 4 days, `OPENSC4_TEST_XMLPARSE=2` | 1 | same, first pair |
+
+**Reached:** unlike u1 to u3, this code runs in every game: in the plain legs 36 of the 49 log a first call in every B run (the director while the game starts, then the parser and its tables as the UI script tree reads the UI files through ParseResource, and the tokenizer and every step of the parse). Not reached without the test: ParseFile, SetContext, slots 10 to 12 and the table's Remove, EndFailed (no UI file fails to parse), and the next director's deleting destructor and five factories. In the test runs all 49 are reached.
