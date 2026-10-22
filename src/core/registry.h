@@ -11,11 +11,16 @@
 // Modes are read from opensc4.ini next to core.dll,
 //   [replacements]
 //   simulators.pollution.proxy = ours
-// and can be overridden for a run with OPENSC4_REPLACE, a comma-separated list
+// The test harness writes its lists in a [test_replacements] section of the
+// same form (it wins over [replacements]), and can override for a run with
+// OPENSC4_REPLACE, a comma-separated list
 // of id=mode pairs. A key ending in ".*" covers every id with that prefix
 // (subsystem toggles, e.g. "simulators.* = ours"); an exact id wins over a
 // wildcard, and a longer wildcard over a shorter one. Replacements are applied only at fixed points of startup
-// (Phase), never while a city is running.
+// (Phase), never while a city is running. Fixes of the original's bugs
+// (alwaysOn) are not player settings: [replacements] cannot turn them off,
+// only [test_replacements] and OPENSC4_REPLACE can, so the parity tests can
+// play the original game.
 #pragma once
 
 #include <cstddef>
@@ -52,13 +57,18 @@ struct Replacement {
     // game that do nothing until the player asks for them (ROADMAP,
     // "Improvements: the rules"). Everything else starts as the original.
     bool onByDefault = false;
+    // A fix of a bug in the original game (README, "Original bugs fixed"):
+    // always ours for players; only the test harness's configuration
+    // ([test_replacements], OPENSC4_REPLACE) brings the original back.
+    bool alwaysOn = false;
 };
 
 // Adds a replacement. Returns true so it can initialise a static:
 //   const bool registered = registry::Register({...});
 bool Register(const Replacement& replacement);
 
-// Reads the configuration (from `iniPath`, then OPENSC4_REPLACE) and applies
+// Reads the configuration (from `iniPath`'s [replacements] and
+// [test_replacements], then OPENSC4_REPLACE) and applies
 // every replacement of `phase` whose mode is not Original, logging one line
 // per replacement. `iniPath` empty: opensc4.ini next to the module.
 void Apply(Phase phase, const std::wstring& iniPath = {});

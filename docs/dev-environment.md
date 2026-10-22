@@ -80,7 +80,7 @@ Everything below is what an unattended session (an agent's shell, or a script) n
   diagnostics.trace.loadcity = ours
   ```
 
-  or for one run with `OPENSC4_REPLACE=id=mode,id=mode` (the environment wins). A key ending in `.*` toggles a whole subsystem (`simulators.* = ours`); an exact id wins over a wildcard, and a longer wildcard over a shorter one. `core.dll` logs one line per replacement with the mode it ended up in, and falls back to `original` for unknown modes, unsupported compare, or a replacement that could not be applied (for example because another DLL already patched its target).
+  or for one run with `OPENSC4_REPLACE=id=mode,id=mode` (the environment wins). The test harness writes its lists under `[test_replacements]` instead (same form, wins over `[replacements]`): only that section and `OPENSC4_REPLACE` can turn off a fix of the original's bugs (`fixes.*`, `resources.stale_record_fix`), which players always have. A key ending in `.*` toggles a whole subsystem (`simulators.* = ours`); an exact id wins over a wildcard, and a longer wildcard over a shorter one. `core.dll` logs one line per replacement with the mode it ended up in, and falls back to `original` for unknown modes, unsupported compare, or a replacement that could not be applied (for example because another DLL already patched its target).
 
 ## Playing
 

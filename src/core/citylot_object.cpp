@@ -1127,7 +1127,7 @@ const bool g_registered[] = {
                         "Lots offer their $$ and $$$ jobs when the count is close to the $ jobs (the game "
                         "skipped them, so high-tech industry had no $$$ jobs)",
                         false, InstallTravelJobsFix,
-                        true}), // a fix, on unless turned off
+                        true, true}), // a fix of the original's bug: always on (registry.h)
 };
 
 // --- Our object -------------------------------------------------------------------

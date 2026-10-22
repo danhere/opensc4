@@ -55,7 +55,7 @@ The object, from its start (the `cIGZPersistDBSegment` interface is at +4, and t
 
 Kept for mods: every file call goes through the embedded file's vtable as in the original, so a DLL that detours `cRZFile::Open` and `ReadWithCount` (sc4-dbpf-loading) still sees every call; and the header reader calls the scan through whatever the call instruction at 0x009729E1 targets at that moment, the site that DLL rewrites.
 
-`resources.stale_record_fix` ([crashes.md](crashes.md), 0x0096DA20) is now a step at the top of our OpenRecord: with the setting on, the open is ours and drops stale records first, whether or not part 3 is on.
+`resources.stale_record_fix` ([crashes.md](crashes.md), 0x0096DA20) is now a step at the top of our OpenRecord: it is always on, so the open is ours and drops stale records first, whether or not part 3 is on.
 
 Behaviour of the original worth knowing, kept as it is: Open leaves the open flags set when it fails after the file opened (bad header on a read-only open, bad index, holes or directory), so the segment says it is open until Close; the embedded-package scan keeps the offset of a marker that is not followed by `DBPF` when no later marker is found; an empty directory record makes Open fail; a seek to the very end of a read record is refused.
 
