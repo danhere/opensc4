@@ -64,6 +64,17 @@
 //          (held through a virtual base; Shutdown takes them off the view)
 // Write and Read are the serializable part's slots 3 and 4: this is the
 // object + 8 there.
+//
+// Part vb3 adds (the movement on frames):
+//   the core's +0x4C the destination (SetDestination sets it; vb1's "second
+//          point"), +0x58 the heading (a unit vector), +0x98 a word, +0xA0 a
+//          float (slot 170 sets 100 when slot 122 answers), +0xA4 a vector
+//          (three floats; slots 134 and 170 normalise it), +0xB4..+0xB8 a
+//          vector slot 157 tests for elements
+//   the base's +0x1F4 the groups word (slot 132), +0x1F8 the path (a vector
+//          of 12-byte points: begin, end), +0x1FC the index on it
+// The city's traffic network map (city slot 40, cSC4TrafficNetworkMap) and
+// the network parts (an occupant's slot 49) are called by their slots.
 #pragma once
 
 #include <cstddef>
@@ -98,6 +109,10 @@ inline constexpr std::size_t kVehicle2A4 = 0x2A4, kByte2B4 = 0x2B4;
 inline constexpr std::size_t kByte3C = 0x3C, kObjectB0 = 0xB0, kModelKeys = 0xC0;
 inline constexpr std::size_t kFloat260 = 0x260, kModels = 0x2A4;
 inline constexpr std::size_t kModelCount = 4;
+// Part vb3's.
+inline constexpr std::size_t kDestination = 0x4C, kHeading = 0x58;
+inline constexpr std::size_t k98 = 0x98, kFloatA0 = 0xA0, kVectorA4 = 0xA4, kVectorB4 = 0xB4;
+inline constexpr std::size_t kGroups1F4 = 0x1F4, kPath = 0x1F8, kPathIndex = 0x1FC;
 } // namespace field
 
 namespace deque {
@@ -141,7 +156,61 @@ inline constexpr std::size_t kSlot173 = 0x2B4;        // 173: 0x0054D860, two wo
 inline constexpr std::size_t kSlot176 = 0x2C0;        // 176: cSC4Vehicle 0x0055DBE0, two words, ret 8
 // The occupant part's (+4) slot 5: whether the object is initialised.
 inline constexpr std::size_t kIsInitialised = 0x14;
+// Part vb3's.
+inline constexpr std::size_t kSetDestination = 0x28;  // 10 (header 7): 0x0054E5B0, (point), ret 4
+inline constexpr std::size_t kSlot16 = 0x40;          // 16: the core's 0x005080C0, (point, heading), ret 8
+inline constexpr std::size_t kFade = 0x84;            // 33: the core's 0x0050B360, two floats, ret 8
+inline constexpr std::size_t kSmoothedNow = 0x88;     // 34: the smoothed value (0x004FA960) in ST0
+inline constexpr std::size_t kSlot56 = 0xE0;          // 56: the core's 0x005098E0, an object or null
+inline constexpr std::size_t kSlot57 = 0xE4;          // 57: the core's 0x0050B710, (word), ret 4
+inline constexpr std::size_t kFrontPoint = 0x108;     // 66: (float* out), ret 4
+inline constexpr std::size_t kSlot79 = 0x13C;         // 79: the core's 0x00505820, no arguments
+inline constexpr std::size_t kSlot88 = 0x160;         // 88: the core's 0x004FADB0, a bool
+inline constexpr std::size_t kSlot90 = 0x168;         // 90: the core's 0x004FADD0, (word), ret 4
+inline constexpr std::size_t kSlot102 = 0x198;        // 102: the core's 0x0050B540, two words, ret 8
+inline constexpr std::size_t kSlot122 = 0x1E8;        // 122: the core's 0x00509600, (float*), a bool
+inline constexpr std::size_t kAdvanceOnPath = 0x214;  // 133: 0x005504E0, six words, ret 0x18
+inline constexpr std::size_t kSlot141 = 0x234;        // 141: 0x00648EF0, a bool
+inline constexpr std::size_t kClearAhead = 0x25C;     // 151: 0x00551300, a float in ST0
+inline constexpr std::size_t kOffsetSideways = 0x274; // 157: 0x005510D0, (float*), ret 4
+inline constexpr std::size_t kGo = 0x280;             // 160: 0x0054DA50
+inline constexpr std::size_t kSlot161 = 0x284;        // 161: 0x0054E1A0 (part vb4), no arguments
+inline constexpr std::size_t kWeighSides = 0x2A8;     // 170: 0x0054E790, (network, float*), ret 8
 } // namespace slot
+
+// Part vb3's slots of other objects.
+namespace city {
+inline constexpr std::size_t kTrafficNetwork = 0xA0;  // 40: cSC4TrafficNetworkMap
+inline constexpr std::size_t kWidth = 0x164;          // 89: the city's size in x (a float in ST0)
+inline constexpr std::size_t kDepth = 0x168;          // 90: in z
+inline constexpr std::size_t kCellOf = 0x17C;         // 95: (x, z, int* cell x, int* cell z), ret 0x10
+} // namespace city
+namespace map {
+inline constexpr std::size_t kChoose = 0x18;          // 6: (const float* weights, word), ret 8
+inline constexpr std::size_t kOccupantAt = 0x2C;      // 11: (cell x, cell z), ret 8
+inline constexpr std::size_t kCellList = 0x38;        // 14: (cell x, cell z), ret 8: nodes (+0 occupant, +0x54 next)
+inline constexpr std::size_t kHeight = 0x48;          // 18: (x, z), ret 8, a float in ST0
+inline constexpr std::size_t kLaneWord = 0x4C;        // 19: five words, ret 0x14: a word's address
+inline constexpr std::size_t kAddAutomaton = 0x78;    // 30: (automaton, occupant), ret 8
+inline constexpr std::size_t kRemoveAutomaton = 0x7C; // 31: (automaton, occupant, groups), ret 0xC
+inline constexpr std::size_t kCanGo = 0xB0;           // 44: (from, to, kind), ret 0xC, a bool
+} // namespace map
+namespace manager {
+inline constexpr std::size_t kStateWeight = 0xA8;     // 42: (state), ret 4, a float in ST0
+inline constexpr std::size_t kKind = 0x110;           // 68: (automaton), ret 4
+inline constexpr std::size_t kWeights = 0x120;        // 72: five words, ret 0x14
+} // namespace manager
+namespace part {
+inline constexpr std::size_t kPath = 0x0C;            // 3: (key, word), ret 8: a path or null
+inline constexpr std::size_t kFindPath = 0x14;        // 5: six words, ret 0x18
+inline constexpr std::size_t kFindFrom = 0x24;        // 9: six words, ret 0x18
+inline constexpr std::size_t kFlat = 0x40;            // 16: a bool, no arguments
+inline constexpr std::size_t kIndexOf = 0x4C;         // 19: (point, path), ret 8: an index
+inline constexpr std::size_t kEndPoint = 0x58;        // 22: (path, float* out), ret 8
+} // namespace part
+inline constexpr std::size_t kOccupantHeight = 0xE0;  // an occupant's slot 56: (x, z), ret 8, a float in ST0
+inline constexpr std::size_t kOccupantFlag = 0x20;    // an occupant's slot 8: (flag), ret 4, a bool
+inline constexpr std::uint32_t kTunnelIid = 0x8A4BD52B; // the interface slot 132 asks the occupants for
 
 // The stream slots (cIGZOStream / cIGZIStream), each one argument.
 namespace stream {

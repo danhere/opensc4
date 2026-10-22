@@ -1,4 +1,4 @@
-// Our automaton base and cSC4Vehicle, parts vb1 and vb2 (build 641). vb1:
+// Our automaton base and cSC4Vehicle, parts vb1 to vb3 (build 641). vb1:
 // the object (the vehicle's factory and pool, the two constructors, the two
 // destructor bodies with their deques, the two deleting destructors,
 // QueryInterface of both and the vehicle's GetGZCLSID) and the queries that
@@ -7,7 +7,11 @@
 // nearest automaton searches). vb2: Init and Shutdown of both (with the
 // deques' release and emptying and the vehicle's models), Write and Read of
 // both, the +0x204 deque's push, the managers' record list push, the
-// derived classes' operator delete, the setters and the debug texts. The
+// derived classes' operator delete, the setters and the debug texts. vb3:
+// the base's movement on frames (SetDestination, the moves along a path and
+// straight to the destination, the path's walk and sideways offset,
+// entering an occupant, placing on the network, the next route cell, the
+// room ahead, the side weights and the route's pop_front). The
 // class map is in src/core/automata_vehicle.h and the survey in
 // docs/automata.md, "Part vb". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and
@@ -15,8 +19,8 @@
 // them.
 //
 // Group, off by default:
-//   simulators.automata.vehicle: the 36 detours in kObject (vb1) and the 30
-//   in kLife (vb2) below.
+//   simulators.automata.vehicle: the 36 detours in kObject (vb1), the 30
+//   in kLife (vb2) and the 13 in kMove (vb3) below.
 //
 // What it does. cSC4Vehicle's factory takes a 0x2B8-byte block from the
 // vehicle pool (0x00B0A0F8; other sizes go to SC4::operator_new) and runs
@@ -68,6 +72,24 @@
 // asm's order ((dz * dz + dy * dy) + dx * dx); floats are stored where the
 // game stores them (the best distances, the draw, the direction's factor).
 // Compares keep the asm's handling of unordered values.
+//
+// vb3's oddities kept: SetDestination and slot 130 take the y difference as
+// the destination's y less itself (0 but for infinities and NaN); slot 170
+// moves a share of the opposite side's weight that is at least 100 (the
+// larger of the weight and 100), normalises +0xA4 without a zero test and
+// passes the network argument's own stack slot as BestDirection's out byte
+// (its upper three bytes the pointer's, which then go to the network's slot
+// 0xD4); slot 133 compares the index unsigned (a path of no points walks
+// from a huge limit), leaves leftover alone when it ends inside the path
+// and, past its end, moves out by the whole step along the last segment;
+// slot 157 does not test +0x1F8 for null; slot 129 calls city slot 40 and
+// slot 174 and drops their answers. Stack garbage the game passes or reads
+// back (ours zeros): the byte arguments with three bytes above them
+// (slot 131's key byte 1 to the part's slot 5 and the map's slot 19, the
+// side to the parts' slots 5 and 9, slot 170's row to slot 0xD4), and the
+// out words and cells its callees always write (0x0054E6F0's table, slot
+// 134's cells and out word, slot 142's out word). AL only in the game:
+// slots 129 to 131, 133, 134, 142 and 170; ours zero-extends.
 //
 // Still the game's, at their addresses: the automata core (constructor
 // 0x005140A0, destructor 0x00513E60, QueryInterface 0x00505D80, AddRef,
@@ -1576,6 +1598,890 @@ void* __fastcall VehicleDebugText(char* self, void*)
 }
 
 // ====================================================================================
+// Part vb3: the movement on frames
+
+void* City() { return Global<void*>(addr::SC4_City); }
+
+float Zero() { return Global<float>(addr::SC4_FloatZero); }
+float One() { return Global<float>(addr::cSC4AutomatonBase_One); }
+
+// FCOS and FSIN of a double, as the game's x87 computes them.
+double X87Cos(double x)
+{
+    double result;
+    __asm {
+        fld x
+        fcos
+        fstp result
+    }
+    return result;
+}
+
+double X87Sin(double x)
+{
+    double result;
+    __asm {
+        fld x
+        fsin
+        fstp result
+    }
+    return result;
+}
+
+void CopyThree(float* to, const float* from) { std::memcpy(to, from, 12); }
+
+// The signed count of a vector of 12-byte points (begin, end), as the game's
+// IMUL by 0x2AAAAAAB divides.
+std::int32_t PointCount(char* const* path)
+{
+    return static_cast<std::int32_t>(path[1] - path[0]) / 12;
+}
+
+// 0x00551F70, on the route deque: pop_front of a 3-byte cell; at the
+// block's last cell the block is freed (SC4::Free) and the start moves to
+// the next node's block (0x7E bytes). Answers EAX as the game leaves it.
+char* __fastcall RoutePopFront(char* deque, void*)
+{
+    static bool logged;
+    FirstCall("RoutePopFront", logged);
+    char*& current = At<char*>(deque, deque::kStart + deque::kCurrent);
+    if (current != At<char*>(deque, deque::kStart + deque::kLast) - 3) {
+        current += 3;
+        return current;
+    }
+    char* const first = At<char*>(deque, deque::kStart + deque::kFirst);
+    if (first)
+        CallCdecl<void>(addr::SC4_Free, first);
+    char** const node = ++At<char**>(deque, deque::kStart + deque::kNode);
+    At<char*>(deque, deque::kStart + deque::kFirst) = *node;
+    At<char*>(deque, deque::kStart + deque::kLast) = *node + 0x7E;
+    current = *node;
+    return *node + 0x7E;
+}
+
+// 0x0054E5B0, slot 10 (point), ret 4: the automata flag 4 cleared, the
+// destination +0x4C set; the heading +0x58 the unit vector to it in x and z
+// (the y difference is the destination's y less itself), then slot 16
+// (null, heading). At a length not above 0 the flag 4 set and slot 102
+// (4, 0) instead. Answers the last call's EAX.
+std::uint32_t __fastcall SetDestination(char* self, void*, const float* point)
+{
+    static bool logged;
+    FirstCall("SetDestination", logged);
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 4u, 0u);
+    float* const destination = &At<float>(self, field::kDestination);
+    CopyThree(destination, point);
+    const float* const position = &At<float>(self, field::kPosition);
+    const float dx = static_cast<float>(static_cast<double>(destination[0]) - position[0]);
+    const double y = destination[1];
+    const float dy = static_cast<float>(y - y);
+    const double dz = static_cast<double>(destination[2]) - position[2];
+    const double length = std::sqrt((dz * dz + static_cast<double>(dy) * dy) + static_cast<double>(dx) * dx);
+    if (!(length > Zero())) {
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 4u, 1u);
+        return Virtual<std::uint32_t>(self, slot::kSlot102, 4u, 0u);
+    }
+    const double inverse = One() / length;
+    float* const heading = &At<float>(self, field::kHeading);
+    heading[2] = static_cast<float>(dz * inverse);
+    heading[0] = static_cast<float>(dx * inverse);
+    heading[1] = static_cast<float>(dy * inverse);
+    return Virtual<std::uint32_t>(self, slot::kSlot16, 0u, heading);
+}
+
+// 0x0054E790, slot 170 (network, float weights[4][4]), ret 8: false without
+// a network; +0xA0 = 100 when slot 122 (+0xA4) answers, else false when +0x98
+// is zero or the automata flag 0x4000 is on. Then +0xA4 normalised (not
+// tested for zero), the best side (slot 171 with 1, its out the network
+// argument's stack slot) and, unless none, for each of the four rows the
+// network answers for (its slot 0xD4 with 0, the row and that slot's word),
+// a share of the opposite side's weight (at least 100, times |+0xA0| x 0.01)
+// moved to the side, the rest not below 0. AL only.
+std::uint8_t __fastcall WeighSides(char* self, void*, void* network, float* weights)
+{
+    static bool logged;
+    FirstCall("WeighSides", logged);
+    if (!network)
+        return 0;
+    float* const v = &At<float>(self, field::kVectorA4);
+    if (Virtual<std::uint8_t>(self, slot::kSlot122, v)) {
+        At<std::uint32_t>(self, field::kFloatA0) = 0x42C80000u; // 100.0
+    } else {
+        if (!At<std::uint32_t>(self, field::k98))
+            return 0;
+        if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x4000u))
+            return 0;
+    }
+    Virtual<void*>(self, slot::kManager);
+    const double x = v[0], y = v[1], z = v[2];
+    const double inverse = One() / std::sqrt((x * x + y * y) + z * z);
+    v[0] = static_cast<float>(inverse * v[0]);
+    v[1] = static_cast<float>(inverse * v[1]);
+    v[2] = static_cast<float>(inverse * v[2]);
+    // The game passes the network argument's own stack slot as the out byte:
+    // its upper three bytes stay the pointer's.
+    std::uint32_t sideSlot = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(network));
+    Virtual<std::uint32_t>(self, slot::kBestDirection, network, static_cast<const float*>(v),
+                           reinterpret_cast<std::uint8_t*>(&sideSlot), 1u);
+    const std::uint32_t side = sideSlot & 0xFFu;
+    const std::uint32_t opposite = (side + 2u) & 3u;
+    const float share = static_cast<float>(std::fabs(static_cast<double>(At<float>(self, field::kFloatA0))) *
+                                           Global<float>(addr::cSC4AutomatonBase_SideShare));
+    if (side == 0xFFu)
+        return 1;
+    const float least = Global<float>(addr::cSC4AutomatonBase_SideWeightLeast);
+    for (std::uint32_t row = 0; row < 4; ++row) {
+        // The row is a byte with three bytes of the game's stack above it.
+        if (!Virtual<std::uint8_t>(network, kNeighbourSlot, 0u, row, sideSlot))
+            continue;
+        float* const from = &weights[row * 4 + opposite];
+        double moved = *from;
+        if (!(moved > least))
+            moved = least;
+        moved *= share;
+        float* const to = &weights[row * 4 + side];
+        *to = static_cast<float>(moved + *to);
+        double rest = *from - moved;
+        if (!(rest > Zero()))
+            rest = Zero();
+        *from = static_cast<float>(rest);
+    }
+    return 1;
+}
+
+// 0x0054E6F0, on the automaton (a, b, side, d), ret 0x10: a 4 x 4 table of
+// side weights from the vehicle manager (slot 174's: its slot 72 with a, b,
+// +0x1E4 and its slot 42's weight for that state), slot 170 (a, table), then
+// the traffic network map's slot 6 with the table's row `side` (a byte) and
+// d. Answers that call's EAX.
+std::uint32_t __fastcall ChooseSide(char* self, void*, std::uint32_t a, std::uint32_t b, std::uint32_t side,
+                                    std::uint32_t d)
+{
+    static bool logged;
+    FirstCall("ChooseSide", logged);
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    void* const vehicles = Virtual<void*>(self, slot::kManager);
+    const std::uint32_t state = At<std::uint32_t>(self, field::kState);
+    const float weight = static_cast<float>(Virtual<double>(vehicles, manager::kStateWeight, state));
+    float table[16] = {}; // stack garbage in the game; the manager fills it
+    Virtual<std::uint32_t>(vehicles, manager::kWeights, a, b, At<std::uint32_t>(self, field::kState), weight,
+                           static_cast<float*>(table));
+    Virtual<std::uint8_t>(self, slot::kWeighSides, a, static_cast<float*>(table));
+    return Virtual<std::uint32_t>(map, map::kChoose, static_cast<const float*>(&table[(side & 0xFFu) * 4]), d);
+}
+
+// 0x0054E920, slot 131 (occupant, key, exact), ret 0xC: the occupant's
+// network part (slot 49; false without one); its path for the key (slot 3
+// with 0) and, with exact and no such path, one found from the position
+// (slot 5 with the key's kind (bits 24..27), its byte 1, the key, the
+// position, an out word and 0); false without a path of two points or more.
+// Then slot 132 (occupant, the out word, the path, exact's word) and the
+// traffic network map's slot 19 word for the occupant, +0x1E4, the kind, the
+// key's byte 1 and the key set to 0. AL only.
+std::uint8_t __fastcall PathTo(char* self, void*, void* occupant, std::uint32_t key, std::uint32_t exact)
+{
+    static bool logged;
+    FirstCall("PathTo", logged);
+    void* const network = Virtual<void*>(occupant, kNetworkPartSlot);
+    std::uint32_t found = key;
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    const std::uint32_t kind = (key >> 24) & 0xFu;
+    const std::uint32_t entry = (key >> 8) & 0xFFu; // a byte with three bytes of the game's stack above it
+    if (!network)
+        return 0;
+    char** path = nullptr;
+    if (static_cast<std::uint8_t>(exact)) {
+        path = Virtual<char**>(network, part::kPath, key, 0u);
+        if (!path) {
+            const float* const position = Virtual<const float*>(self, slot::kPosition);
+            path = Virtual<char**>(network, part::kFindPath, kind, entry, key, position, &found, 0u);
+        }
+    } else {
+        path = Virtual<char**>(network, part::kPath, found, 0u);
+    }
+    if (!path)
+        return 0;
+    if (static_cast<std::uint32_t>(PointCount(path)) < 2)
+        return 0;
+    Virtual<std::uint32_t>(self, slot::kSlot132, occupant, found, path, exact);
+    std::uint32_t* const word = Virtual<std::uint32_t*>(map, map::kLaneWord, occupant,
+                                                        At<std::uint32_t>(self, field::kState), kind, entry, key);
+    *word = 0;
+    return 1;
+}
+
+// 0x00550760, slot 132 (occupant, groups, path, keep), ret 0x10: the
+// occupant +0x1EC set (referenced); with an occupant its network part (slot
+// 49, referenced) and, without a path given, the part's for the groups
+// (slot 3 with 0). With a path and a part: +0x1F4 the groups, +0x1F0 the
+// part, +0x1F8 the path, +0x1FC 0; with keep the automata flag 4 cleared,
+// else the path's first two points offset sideways (slot 157), their
+// heights from the occupant (slot 56) unless the part is flat (slot 16),
+// slot 16 (first, the unit vector between) and SetDestination (second).
+// Without: +0x1F8, +0x1F0 and +0x1FC cleared. When the occupant changed:
+// into a tunnel (0x8A4BD52B by QueryInterface, after the occupant's slot 8
+// with 0x80000) slot 33 (0, 0.8) and the sound object (0x00602640) slot 5
+// with 0xE when slot 57 (0x10) answers; out of one slot 33 (1, 0.1) and its
+// slot 6. Then the traffic network map forgets the automaton on the old
+// occupant (slot 31 with the old groups) and, with an occupant, slot 160,
+// the map's slot 30 and, with the flag 8, +0xB0 = slot 148 (SC4RefPtr).
+void __fastcall EnterOccupant(char* self, void*, void* occupant, std::uint32_t groups, char** path,
+                              std::uint32_t keep)
+{
+    static bool logged;
+    FirstCall("EnterOccupant", logged);
+    void* network = nullptr;
+    void* const old = At<void*>(self, field::kOccupant);
+    if (old)
+        AddRef(old);
+    const std::uint32_t oldGroups = Virtual<std::uint32_t>(self, slot::kGroups);
+    void* const was = At<void*>(self, field::kOccupant);
+    if (occupant != was) {
+        if (occupant)
+            AddRef(occupant);
+        At<void*>(self, field::kOccupant) = occupant;
+        if (was)
+            Release(was);
+    }
+    if (occupant) {
+        network = Virtual<void*>(At<void*>(self, field::kOccupant), kNetworkPartSlot);
+        if (network) {
+            AddRef(network);
+            if (!path)
+                path = Virtual<char**>(network, part::kPath, groups, 0u);
+        }
+    }
+    if (path && network) {
+        At<std::uint32_t>(self, field::kGroups1F4) = groups;
+        void* const before = At<void*>(self, field::kNetwork);
+        if (network != before) {
+            AddRef(network);
+            At<void*>(self, field::kNetwork) = network;
+            if (before)
+                Release(before);
+        }
+        At<char**>(self, field::kPath) = path;
+        const float g = Global<float>(addr::cSC4AutomatonBase_PointInit);
+        float first[3] = {g, g, g}, second[3] = {g, g, g};
+        At<std::uint32_t>(self, field::kPathIndex) = 0;
+        if (static_cast<std::uint8_t>(keep)) {
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 4u, 0u);
+        } else {
+            CopyThree(first, reinterpret_cast<const float*>(At<char**>(self, field::kPath)[0]));
+            Virtual<std::uint32_t>(self, slot::kOffsetSideways, static_cast<float*>(first));
+            if (!Virtual<std::uint8_t>(network, part::kFlat))
+                first[1] = static_cast<float>(
+                    Virtual<double>(At<void*>(self, field::kOccupant), kOccupantHeight, first[0], first[2]));
+            CopyThree(second, reinterpret_cast<const float*>(At<char**>(self, field::kPath)[0]) + 3);
+            Virtual<std::uint32_t>(self, slot::kOffsetSideways, static_cast<float*>(second));
+            if (!Virtual<std::uint8_t>(network, part::kFlat))
+                second[1] = static_cast<float>(
+                    Virtual<double>(At<void*>(self, field::kOccupant), kOccupantHeight, second[0], second[2]));
+            const double dx = static_cast<double>(second[0]) - first[0];
+            const double dy = static_cast<double>(second[1]) - first[1];
+            const double dz = static_cast<double>(second[2]) - first[2];
+            const float dzf = static_cast<float>(dz);
+            const float inverse = static_cast<float>(One() / std::sqrt((dz * dzf + dy * dy) + dx * dx));
+            float heading[3] = {static_cast<float>(dx * inverse), static_cast<float>(dy * inverse),
+                                static_cast<float>(static_cast<double>(dzf) * inverse)};
+            Virtual<std::uint32_t>(self, slot::kSlot16, static_cast<float*>(first), static_cast<float*>(heading));
+            Virtual<std::uint32_t>(self, slot::kSetDestination, static_cast<float*>(second));
+        }
+    } else {
+        At<char**>(self, field::kPath) = nullptr;
+        void* const before = At<void*>(self, field::kNetwork);
+        if (before) {
+            At<void*>(self, field::kNetwork) = nullptr;
+            Release(before);
+        }
+        At<std::uint32_t>(self, field::kPathIndex) = 0;
+    }
+    void* const now = At<void*>(self, field::kOccupant);
+    if (now != old) {
+        void* entered = nullptr;
+        void* left = nullptr;
+        if (now && Virtual<std::uint8_t>(now, kOccupantFlag, 0x80000u))
+            Virtual<std::uint32_t>(At<void*>(self, field::kOccupant), slot::kQueryInterface, kTunnelIid, &entered);
+        if (old && Virtual<std::uint8_t>(old, kOccupantFlag, 0x80000u))
+            Virtual<std::uint32_t>(old, slot::kQueryInterface, kTunnelIid, &left);
+        if (entered || left) {
+            const bool in = entered && !left;
+            if (in)
+                Virtual<std::uint32_t>(self, slot::kFade, 0.0f, 0.8f);
+            else
+                Virtual<std::uint32_t>(self, slot::kFade, 1.0f, 0.1f);
+            if (Virtual<std::uint32_t>(self, slot::kSlot57, 0x10u)) {
+                void* const sounds = CallCdecl<void*>(addr::SC4UDrive_GetService602640);
+                Virtual<std::uint32_t>(sounds, in ? 0x14u : 0x18u, 0xEu);
+            }
+            if (entered)
+                Release(entered);
+            if (left)
+                Release(left);
+        }
+    }
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    if (map) {
+        if (old)
+            Virtual<std::uint32_t>(map, map::kRemoveAutomaton, self, old, oldGroups);
+        if (At<void*>(self, field::kOccupant)) {
+            Virtual<std::uint32_t>(self, slot::kGo);
+            Virtual<std::uint32_t>(map, map::kAddAutomaton, self, At<void*>(self, field::kOccupant));
+            if (Virtual<std::uint8_t>(self, slot::kFlag8)) {
+                void* const front = Virtual<void*>(self, slot::kSlot148);
+                CallThis<void>(addr::SC4RefPtr_Assign, self + field::kObjectB0, front);
+            }
+        }
+    }
+    if (old)
+        Release(old);
+    if (network)
+        Release(network);
+}
+
+// 0x005504E0, slot 133 (step, from, out, index, path, leftover), ret 0x18:
+// out = from, then along the path (+0x1F8 when null; false without one)
+// from point index (+0x1FC when null; below 0 starts at 0, at the last point
+// or beyond leftover = step and false) by step: each next point offset
+// sideways (slot 157), the segment's unit vector (when its length is above
+// 1e-5); within the segment out moves by step along it and the answer is
+// true; else on to the next point with the step less the segment. Past the
+// last point, with the segment and the step above 0, leftover the rest and
+// out moved by the whole step along the last segment; false. AL only.
+std::uint8_t __fastcall AdvanceOnPath(char* self, void*, float step, const float* from, float* out,
+                                      std::int32_t* index, char** path, float* leftover)
+{
+    static bool logged;
+    FirstCall("AdvanceOnPath", logged);
+    const float g = Global<float>(addr::cSC4AutomatonBase_PointInit);
+    float point[3] = {g, g, g};
+    if (leftover)
+        At<std::uint32_t>(leftover, 0) = 0;
+    if (!path) {
+        path = At<char**>(self, field::kPath);
+        if (!path)
+            return 0;
+    }
+    if (!index)
+        index = &At<std::int32_t>(self, field::kPathIndex);
+    const std::int32_t count = PointCount(path);
+    CopyThree(out, from);
+    if (*index < 0) {
+        *index = 0;
+    } else if (!(static_cast<std::uint32_t>(*index) < static_cast<std::uint32_t>(count - 1))) {
+        if (leftover)
+            *leftover = step;
+        return 0;
+    }
+    const std::uint32_t limit = static_cast<std::uint32_t>(count - 1);
+    const float epsilon = Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon);
+    float heading[3];
+    auto move = [&] {
+        const double mx = heading[0] * static_cast<double>(step);
+        const double my = heading[1] * static_cast<double>(step);
+        const float mz = static_cast<float>(heading[2] * static_cast<double>(step));
+        out[0] = static_cast<float>(mx + out[0]);
+        out[1] = static_cast<float>(my + out[1]);
+        out[2] = static_cast<float>(static_cast<double>(mz) + out[2]);
+    };
+    while (static_cast<std::uint32_t>(*index) < limit) {
+        CopyThree(point, reinterpret_cast<const float*>(path[0]) + 3 * (*index + 1));
+        Virtual<std::uint32_t>(self, slot::kOffsetSideways, static_cast<float*>(point));
+        const double dx = static_cast<double>(point[0]) - out[0];
+        const float dy = static_cast<float>(static_cast<double>(point[1]) - out[1]);
+        const double dz = static_cast<double>(point[2]) - out[2];
+        heading[0] = static_cast<float>(dx);
+        heading[1] = dy;
+        heading[2] = static_cast<float>(dz);
+        const double length = std::sqrt((dz * dz + static_cast<double>(dy) * dy) + dx * dx);
+        const float segment = static_cast<float>(length);
+        if (segment > epsilon) {
+            const double inverse = One() / length;
+            heading[0] = static_cast<float>(dx * inverse);
+            heading[1] = static_cast<float>(dy * inverse);
+            heading[2] = static_cast<float>(dz * inverse);
+        }
+        if (segment >= step) {
+            move();
+            return 1;
+        }
+        ++*index;
+        if (!(static_cast<std::uint32_t>(*index) < limit)) {
+            if (segment > Zero() && step > Zero()) {
+                if (leftover)
+                    *leftover = static_cast<float>(static_cast<double>(step) - segment);
+                move();
+            }
+            return 0;
+        }
+        step = static_cast<float>(static_cast<double>(step) - segment);
+        CopyThree(out, point);
+    }
+    return 0;
+}
+
+// 0x005510D0, slot 157 (point), ret 4: the point moved sideways by +0x200
+// (plus slot 56's object's +0x24 object's +0x4C when +0xB4..+0xB8 has
+// elements; nothing below 1e-4): the path's (+0x1F8, not null-tested) first
+// to last direction, its angle (0x007F82F0, an FPATAN of the negated x and
+// z), its FSIN and FCOS turned into a sideways vector whose sign is the
+// direction's dot product with (1/sqrt 2, 0, 1/sqrt 2) below 0 or not.
+void __fastcall OffsetSideways(char* self, void*, float* point)
+{
+    static bool logged;
+    FirstCall("OffsetSideways", logged);
+    float offset = At<float>(self, field::kFloat200);
+    if (At<std::uint32_t>(self, field::kVectorB4) != At<std::uint32_t>(self, field::kVectorB4 + 4)) {
+        char* const object = Virtual<char*>(self, slot::kSlot56);
+        if (object) {
+            char* const inner = At<char*>(object, 0x24);
+            if (inner)
+                offset = static_cast<float>(static_cast<double>(offset) + At<float>(inner, 0x4C));
+        }
+    }
+    if (std::fabs(static_cast<double>(offset)) < Global<float>(addr::cSC4AutomatonBase_PlaceEpsilon))
+        return;
+    const float zero = Zero();
+    const double q = One() / std::sqrt(Global<double>(addr::SC4_DoubleTwo));
+    const double a = static_cast<double>(static_cast<float>(q)) * zero;
+    char* const* const path = At<char**>(self, field::kPath);
+    const float* const first = reinterpret_cast<const float*>(path[0]);
+    const float* const last = reinterpret_cast<const float*>(path[1]) - 3;
+    const double dx = static_cast<double>(last[0]) - first[0];
+    const double dy = static_cast<double>(last[1]) - first[1];
+    const double dz = static_cast<double>(last[2]) - first[2];
+    const float dzf = static_cast<float>(dz);
+    const float inverse = static_cast<float>(One() / std::sqrt((dz * dzf + dy * dy) + dx * dx));
+    const float nx = static_cast<float>(dx * inverse);
+    const double ny = dy * inverse;
+    const double nzu = static_cast<double>(dzf) * inverse;
+    const float nz = static_cast<float>(nzu);
+    const double dot = (nzu * q + ny * a) + static_cast<double>(nx) * q;
+    const float sign = dot < zero ? 1.0f : -1.0f;
+    const double angle = CallCdecl<double>(addr::SC4_NegatedAtan2, nx, nz);
+    const float c = static_cast<float>(X87Cos(angle));
+    const double s = X87Sin(angle);
+    const double zs = zero * s;
+    const float zsf = static_cast<float>(zs);
+    const float sf = static_cast<float>(s);
+    const double zc = static_cast<double>(c) * zero;
+    const float zcf = static_cast<float>(zc);
+    const float across[3] = {static_cast<float>(static_cast<double>(c) - zsf), static_cast<float>(zc - zsf),
+                             static_cast<float>(zc - sf)};
+    const float along[3] = {static_cast<float>(static_cast<double>(sf) + zcf),
+                            static_cast<float>(static_cast<double>(zsf) + zcf), static_cast<float>(zs + c)};
+    const double rx = static_cast<double>(across[0]) * sign + static_cast<double>(along[0]) * zero;
+    const double ry = static_cast<double>(across[1]) * sign + static_cast<double>(along[1]) * zero;
+    const float rz = static_cast<float>(static_cast<double>(across[2]) * sign + static_cast<double>(along[2]) * zero);
+    const float ox = static_cast<float>(static_cast<double>(static_cast<float>(rx)) * offset);
+    const float oy = static_cast<float>(ry * offset);
+    point[0] = static_cast<float>(static_cast<double>(ox) + point[0]);
+    point[1] = static_cast<float>(static_cast<double>(oy) + point[1]);
+    point[2] = static_cast<float>(static_cast<double>(rz) * offset + point[2]);
+}
+
+// 0x00551300, slot 151: the room ahead, a float: 16 or, with a path and the
+// automata flag 0x10, the distance to its last point less the radius (0
+// below 1.0); 16 or, with +0xB0 and the flag 8, the distance to +0xB0's
+// point (its slot 66) less the radius and 3. The smaller (ties and
+// unordered the second).
+float __fastcall ClearAhead(char* self, void*)
+{
+    static bool logged;
+    FirstCall("ClearAhead", logged);
+    const float g = Global<float>(addr::cSC4AutomatonBase_PointInit);
+    float ahead = 16.0f, front = 16.0f;
+    float point[3] = {g, g, g};
+    float position[3] = {g, g, g};
+    Virtual<std::uint32_t>(self, slot::kGetPosition, static_cast<float*>(position));
+    if (At<void*>(self, field::kPath) && Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x10u)) {
+        const float* const last = reinterpret_cast<const float*>(At<char**>(self, field::kPath)[1]) - 3;
+        point[0] = static_cast<float>(static_cast<double>(last[0]) - position[0]);
+        point[1] = static_cast<float>(static_cast<double>(last[1]) - position[1]);
+        const double dz = static_cast<double>(last[2]) - position[2];
+        point[2] = static_cast<float>(dz);
+        ahead = static_cast<float>(std::sqrt((dz * point[2] + static_cast<double>(point[1]) * point[1]) +
+                                             static_cast<double>(point[0]) * point[0]));
+        const double gap = static_cast<double>(ahead) - Virtual<double>(self, slot::kGetRadius);
+        ahead = static_cast<float>(gap);
+        if (gap < Global<float>(addr::SC4_FloatOneA81228))
+            ahead = 0.0f;
+    }
+    void* const object = At<void*>(self, field::kObjectB0);
+    if (object && Virtual<std::uint8_t>(self, slot::kFlag8)) {
+        Virtual<std::uint32_t>(At<void*>(self, field::kObjectB0), slot::kFrontPoint, static_cast<float*>(point));
+        const double dx = static_cast<double>(point[0]) - position[0];
+        const double dy = static_cast<double>(point[1]) - position[1];
+        const double dz = static_cast<double>(point[2]) - position[2];
+        point[0] = static_cast<float>(dx);
+        point[1] = static_cast<float>(dy);
+        point[2] = static_cast<float>(dz);
+        front = static_cast<float>(std::sqrt((dz * dz + dy * dy) + dx * dx));
+        front = static_cast<float>((static_cast<double>(front) - Virtual<double>(self, slot::kGetRadius)) -
+                                   Global<float>(addr::cSC4AutomatonBase_FrontGap));
+    }
+    return ahead < front ? ahead : front;
+}
+
+// 0x0054FDC0, slot 129 (frame seconds), ret 4: the step (slot 125 x the
+// smoothed speed x the seconds). With slot 88, an empty route and +0x204
+// deque and the automata flag 0x20 slot 79 and true. Else slot 161, the room
+// ahead (slot 151; below 16 with +0xB0 SetSpeed to +0xB0's speed at 0.5),
+// the step at most that; at a step not above 0 the flag 0x20 set and, when
+// minus the radius is above the step and the flag 0x40 is off, Remove(false)
+// and false. Else slot 133 along the path into the destination (when false
+// the flag 4 set and slot 102 (4, 0)), the destination kept inside the city
+// (slots 89 and 90 less 0.5); within 0.001 in x and z slot 16 (destination,
+// null) and the flag 0x20 set, else the flag cleared, the height from the
+// occupant unless the network part is flat, the direction (slot 155) and
+// slot 16. True.
+std::uint8_t __fastcall MoveOnPath(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("MoveOnPath", logged);
+    const float g = Global<float>(addr::cSC4AutomatonBase_PointInit);
+    float heading[3] = {g, g, g};
+    Virtual<void*>(City(), city::kTrafficNetwork);
+    Virtual<void*>(self, slot::kManager);
+    const float speed = static_cast<float>(Virtual<double>(self, slot::kSmoothedNow));
+    float step = static_cast<float>((Virtual<double>(self, slot::kSlot125) * speed) * seconds);
+    char* const route = self + field::kRoute;
+    char* const deque204 = self + field::kDeque204;
+    if (Virtual<std::uint8_t>(self, slot::kSlot88) &&
+        At<char*>(route, deque::kFinish + deque::kCurrent) == At<char*>(route, deque::kStart + deque::kCurrent) &&
+        At<char*>(deque204, deque::kFinish + deque::kCurrent) ==
+            At<char*>(deque204, deque::kStart + deque::kCurrent) &&
+        Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x20u)) {
+        Virtual<std::uint32_t>(self, slot::kSlot79);
+        return 1;
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot161);
+    const float clear = static_cast<float>(Virtual<double>(self, slot::kClearAhead));
+    void* const front = At<void*>(self, field::kObjectB0);
+    if (front && clear < Global<float>(addr::SC4_FloatSixteen)) {
+        const float target = static_cast<float>(Virtual<double>(front, slot::kSmoothedNow));
+        Virtual<std::uint32_t>(self, slot::kSetSpeed, target, 0.5f);
+    }
+    if (!(step < clear))
+        step = clear;
+    if (!(step > Zero())) {
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 1u);
+        const double radius = Virtual<double>(self, slot::kGetRadius);
+        if (!(-radius > step))
+            return 1;
+        if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x40u))
+            return 1;
+        Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+        return 0;
+    }
+    float* const position = &At<float>(self, field::kPosition);
+    float* const destination = &At<float>(self, field::kDestination);
+    if (!Virtual<std::uint8_t>(self, slot::kAdvanceOnPath, step, position, destination, 0u, 0u, 0u)) {
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 4u, 1u);
+        Virtual<std::uint32_t>(self, slot::kSlot102, 4u, 0u);
+    }
+    auto clamp = [](float value, double most) {
+        if (value < Zero())
+            return static_cast<double>(Zero());
+        if (value > most)
+            return most;
+        return static_cast<double>(value);
+    };
+    const double width = Virtual<double>(City(), city::kWidth) - Global<float>(addr::SC4_FloatHalf);
+    destination[0] = static_cast<float>(clamp(destination[0], width));
+    const double depth = Virtual<double>(City(), city::kDepth) - Global<float>(addr::SC4_FloatHalf);
+    destination[2] = static_cast<float>(clamp(destination[2], depth));
+    const double dx = static_cast<double>(destination[0]) - position[0];
+    const double dz = static_cast<double>(destination[2]) - position[2];
+    if (!(std::sqrt(dz * dz + dx * dx) > Global<float>(addr::cSC4AutomatonBase_ArriveDistance))) {
+        Virtual<std::uint32_t>(self, slot::kSlot16, destination, 0u);
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 1u);
+        return 1;
+    }
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 0u);
+    if (!Virtual<std::uint8_t>(At<void*>(self, field::kNetwork), part::kFlat))
+        destination[1] = static_cast<float>(
+            Virtual<double>(At<void*>(self, field::kOccupant), kOccupantHeight, destination[0], destination[2]));
+    Virtual<std::uint32_t>(self, slot::kDirectionTo, static_cast<const float*>(destination),
+                           static_cast<float*>(heading));
+    Virtual<std::uint32_t>(self, slot::kSlot16, destination, static_cast<float*>(heading));
+    return 1;
+}
+
+// 0x00550190, slot 130 (frame seconds), ret 4: straight to the destination
+// (the position when any of its coordinates is below 0; the y difference is
+// the destination's y less itself). At a distance or step not above 0, or a
+// move not below the distance (0 when the automata flag 8 is on and slot
+// 123 finds a vehicle within 1), the flags 0x20 and 4 set, slot 102 (4, 0)
+// and true. Else the flag 0x20 cleared and the new point, false when below
+// 0 or not inside the city (slots 89, 90) in x or z; the direction (slot
+// 155); unless the automata flag 0x20000 is on the traffic network map's
+// slot 44 (position, point, 2 with slot 141 else 0xC49): when no Remove
+// (false), else the height from the map (slot 18). Slot 16 and true.
+std::uint8_t __fastcall MoveToDestination(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("MoveToDestination", logged);
+    float* const position = &At<float>(self, field::kPosition);
+    float* const destination = &At<float>(self, field::kDestination);
+    const float px = position[0], py = position[1];
+    const float pz = position[2];
+    const float g = Global<float>(addr::cSC4AutomatonBase_PointInit);
+    float point[3] = {g, g, g};
+    float heading[3] = {0.0f, 0.0f, 0.0f};
+    const float zero = Zero();
+    if (destination[0] < zero || destination[1] < zero || destination[2] < zero) {
+        destination[0] = px;
+        destination[2] = pz;
+        destination[1] = py;
+    }
+    const float a = static_cast<float>(static_cast<double>(destination[0]) - px);
+    const double y = destination[1];
+    const float b = static_cast<float>(y - y);
+    const double dz = static_cast<double>(destination[2]) - pz;
+    const float c = static_cast<float>(dz);
+    const float length =
+        static_cast<float>(std::sqrt((dz * c + static_cast<double>(b) * b) + static_cast<double>(a) * a));
+    const float rate = static_cast<float>(Virtual<double>(self, slot::kSlot125));
+    const float step = static_cast<float>((Virtual<double>(self, slot::kSmoothedNow) * rate) * seconds);
+    auto arrive = [&] {
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 1u);
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 4u, 1u);
+        Virtual<std::uint32_t>(self, slot::kSlot102, 4u, 0u);
+        return static_cast<std::uint8_t>(1);
+    };
+    if (!(length > zero) || !(step > zero))
+        return arrive();
+    double limit = length;
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 8u) && Virtual<void*>(self, slot::kNearestVehicle, 1.0f))
+        limit = zero;
+    const double inverse = One() / static_cast<double>(length);
+    const double ax = a * inverse;
+    const float by = static_cast<float>(b * inverse);
+    const float cz = static_cast<float>(c * inverse);
+    const float mx = static_cast<float>(ax * step);
+    const float my = static_cast<float>(by * static_cast<double>(step));
+    const double mzu = cz * static_cast<double>(step);
+    const float mz = static_cast<float>(mzu);
+    const double moved = std::sqrt((mzu * mz + static_cast<double>(my) * my) + static_cast<double>(mx) * mx);
+    if (moved >= limit)
+        return arrive();
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 0u);
+    const double nx = static_cast<double>(mx) + position[0];
+    const double ny = static_cast<double>(my) + position[1];
+    const float nz = static_cast<float>(static_cast<double>(mz) + position[2]);
+    point[2] = nz;
+    point[0] = static_cast<float>(nx);
+    point[1] = static_cast<float>(ny);
+    if (nx < zero || nz < zero)
+        return 0;
+    if (Virtual<double>(City(), city::kWidth) <= point[0])
+        return 0;
+    if (Virtual<double>(City(), city::kDepth) <= point[2])
+        return 0;
+    Virtual<std::uint32_t>(self, slot::kDirectionTo, static_cast<const float*>(point), static_cast<float*>(heading));
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x20000u)) {
+        const std::uint32_t kind = Virtual<std::uint8_t>(self, slot::kSlot141) ? 2u : 0xC49u;
+        if (!Virtual<std::uint8_t>(map, map::kCanGo, static_cast<float*>(position), static_cast<float*>(point), kind))
+            Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+        else
+            point[1] = static_cast<float>(Virtual<double>(map, map::kHeight, point[0], point[2]));
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot16, static_cast<float*>(point), static_cast<float*>(heading));
+    return 1;
+}
+
+// The x87 sum of a direction's squares as slots 134 and 170 add them
+// ((x * x + y * y) + z * z) and the direction normalised by it.
+void Normalise(float* v)
+{
+    const double x = v[0], y = v[1], z = v[2];
+    const double inverse = One() / std::sqrt((x * x + y * y) + z * z);
+    v[0] = static_cast<float>(inverse * v[0]);
+    v[1] = static_cast<float>(inverse * v[1]);
+    v[2] = static_cast<float>(inverse * v[2]);
+}
+
+// 0x00550B60, slot 134: false at the core's default point (within 1e-4 in
+// each coordinate); else the traffic network map's occupant at the
+// position's cell (city slot 95, map slot 11) and its network part (false
+// without either); the best side of +0xA4 (normalised; slot 171 on the
+// occupant) when slot 122 answers, or when the automata flag 0x4000 is off,
+// +0x98 is set and +0xA4 is longer than 1e-5; the part's path from the
+// position (slot 5 with the vehicle manager's slot 68, 0xFF, the side, an
+// out word and 0; false without one); slot 132 (occupant, the out word,
+// path, 1); +0x1FC the part's index of the position on the path (slot 19,
+// not below 0); slot 16 (the position, the unit vector of the path's first
+// segment, else of the whole path, else of the heading +0x58). True.
+std::uint8_t __fastcall PlaceOnNetwork(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PlaceOnNetwork", logged);
+    float* const position = &At<float>(self, field::kPosition);
+    const float* const unset = reinterpret_cast<const float*>(addr::cSC4AutomatonCore_DefaultPoint);
+    const float within = Global<float>(addr::cSC4AutomatonBase_PlaceEpsilon);
+    if (std::fabs(static_cast<double>(position[0]) - unset[0]) < within &&
+        std::fabs(static_cast<double>(position[1]) - unset[1]) < within &&
+        std::fabs(static_cast<double>(position[2]) - unset[2]) < within)
+        return 0;
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    void* const vehicles = Virtual<void*>(self, slot::kManager);
+    const float g = Global<float>(addr::cSC4AutomatonBase_PointInit);
+    float heading[3] = {g, g, g};
+    float point[3] = {g, g, g};
+    std::int32_t cellX = 0, cellZ = 0; // stack garbage in the game; city slot 95 sets them
+    Virtual<std::uint32_t>(City(), city::kCellOf, position[0], position[2], &cellX, &cellZ);
+    void* const occupant = Virtual<void*>(map, map::kOccupantAt, cellX, cellZ);
+    if (!occupant)
+        return 0;
+    void* const network = Virtual<void*>(occupant, kNetworkPartSlot);
+    if (!network)
+        return 0;
+    const std::uint32_t kind = Virtual<std::uint32_t>(vehicles, manager::kKind, self);
+    std::uint32_t side = 0xFFu; // a byte with three bytes of the game's stack above it
+    float* const v = &At<float>(self, field::kVectorA4);
+    bool best = false;
+    if (Virtual<std::uint8_t>(self, slot::kSlot122, v)) {
+        best = true;
+    } else if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x4000u) && At<std::uint32_t>(self, field::k98)) {
+        const double x = v[0], y = v[1], z = v[2];
+        best = std::sqrt((x * x + y * y) + z * z) > Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon);
+    }
+    if (best) {
+        Normalise(v);
+        Virtual<std::uint32_t>(self, slot::kBestDirection, occupant, static_cast<const float*>(v),
+                               reinterpret_cast<std::uint8_t*>(&side), 1u);
+    }
+    std::uint32_t found = 0; // stack garbage in the game; the part's slot 5 sets it
+    char** const path = Virtual<char**>(network, part::kFindPath, kind, 0xFFu, side, static_cast<float*>(position),
+                                        &found, 0u);
+    if (!path)
+        return 0;
+    Virtual<std::uint32_t>(self, slot::kSlot132, occupant, found, path, 1u);
+    CopyThree(point, position);
+    const std::int32_t index = Virtual<std::int32_t>(network, part::kIndexOf, static_cast<float*>(point), path);
+    At<std::int32_t>(self, field::kPathIndex) = index < 0 ? 0 : index;
+    const float* const points = reinterpret_cast<const float*>(path[0]);
+    if (static_cast<std::uint32_t>(PointCount(path)) <= 1) {
+        CopyThree(heading, &At<float>(self, field::kHeading));
+    } else {
+        const float epsilon = Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon);
+        // The x87 keeps x unrounded; y and z go through floats.
+        auto length = [](float x, float y, float z) {
+            return std::sqrt((static_cast<double>(z) * z + static_cast<double>(y) * y) + static_cast<double>(x) * x);
+        };
+        double xv = static_cast<double>(points[3]) - points[0];
+        float yv = static_cast<float>(static_cast<double>(points[4]) - points[1]);
+        float zv = static_cast<float>(static_cast<double>(points[5]) - points[2]);
+        if (length(static_cast<float>(xv), yv, zv) < epsilon) {
+            const float* const last = reinterpret_cast<const float*>(path[1]) - 3;
+            xv = static_cast<double>(last[0]) - points[0];
+            yv = static_cast<float>(static_cast<double>(last[1]) - points[1]);
+            zv = static_cast<float>(static_cast<double>(last[2]) - points[2]);
+            if (length(static_cast<float>(xv), yv, zv) < epsilon) {
+                yv = At<float>(self, field::kHeading + 4);
+                xv = At<float>(self, field::kHeading);
+                zv = At<float>(self, field::kHeading + 8);
+            }
+        }
+        const double inverse =
+            One() / std::sqrt((static_cast<double>(zv) * zv + static_cast<double>(yv) * yv) + xv * xv);
+        heading[0] = static_cast<float>(inverse * xv);
+        heading[1] = static_cast<float>(yv * inverse);
+        heading[2] = static_cast<float>(zv * inverse);
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot16, static_cast<float*>(point), static_cast<float*>(heading));
+    return 1;
+}
+
+// 0x00554AB0, slot 142 (now), ret 4: false without the vehicle manager; the
+// +0x204 deque released (0x00554640), slot 90 (1), the automata flag 0x2000
+// cleared; true with now. Else the route's first cell popped (0x00551F70),
+// the side towards the next one (1 at a lower z, 3 at a higher, else 0 at a
+// lower x, else 2; 0xFF without one), and of the traffic network map's
+// occupants at the cell (slot 14, the nodes' +0x54) the first whose network
+// part (slot 49) finds a path (slot 9 with the vehicle manager's slot 68,
+// 0xFF, the side, the automata's generator, an out word and 0): slot 132
+// (occupant, the out word, path, 1); the heading the path's unit vector
+// first to last ((0, 0, 1) at 1e-5 or less); the point the path's first, or
+// with the route now empty the part's end point (slot 22) and the flag 4
+// set; slot 16 (point, heading) and true. False when none does.
+std::uint8_t __fastcall NextRouteCell(char* self, void*, std::uint32_t now)
+{
+    static bool logged;
+    FirstCall("NextRouteCell", logged);
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    void* const vehicles = Virtual<void*>(self, slot::kManager);
+    if (!vehicles)
+        return 0;
+    CallThis<void>(addr::cSC4AutomatonBase_ReleaseDeque204, self);
+    Virtual<std::uint32_t>(self, slot::kSlot90, 1u);
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 0x2000u, 0u);
+    if (static_cast<std::uint8_t>(now))
+        return 1;
+    const float g = Global<float>(addr::cSC4AutomatonBase_PointInit);
+    float heading[3] = {g, g, g};
+    float point[3] = {g, g, g};
+    char* const route = self + field::kRoute;
+    const std::uint8_t* const cell = At<std::uint8_t*>(route, deque::kStart + deque::kCurrent);
+    const std::uint32_t x = cell[0], z = cell[1];
+    std::uint32_t side = 0xFFu; // a byte with three bytes of the game's stack above it
+    CallThis<char*>(addr::SC4RouteDeque_PopFront, route);
+    const std::uint8_t* const next = At<std::uint8_t*>(route, deque::kStart + deque::kCurrent);
+    if (At<std::uint8_t*>(route, deque::kFinish + deque::kCurrent) != next) {
+        const std::int32_t dz = static_cast<std::int32_t>(next[1]) - static_cast<std::int32_t>(z);
+        if (dz < 0)
+            side = 1;
+        else if (dz > 0)
+            side = 3;
+        else
+            side = static_cast<std::int32_t>(next[0]) - static_cast<std::int32_t>(x) < 0 ? 0u : 2u;
+    }
+    std::uint32_t found = 0; // stack garbage in the game; the part's slot 9 sets it
+    for (char* node = Virtual<char*>(map, map::kCellList, x, z); node; node = At<char*>(node, 0x54)) {
+        void* const occupant = At<void*>(node, 0);
+        if (!occupant)
+            continue;
+        void* const network = Virtual<void*>(occupant, kNetworkPartSlot);
+        if (!network)
+            continue;
+        const std::uint32_t kind = Virtual<std::uint32_t>(vehicles, manager::kKind, self);
+        char** const path = Virtual<char**>(network, part::kFindFrom, kind, 0xFFu, side,
+                                            static_cast<std::uint32_t>(addr::cSC4AutomatonCore_Random), &found, 0u);
+        if (!path)
+            continue;
+        Virtual<std::uint32_t>(self, slot::kSlot132, occupant, found, path, 1u);
+        const float* const first = reinterpret_cast<const float*>(path[0]);
+        const float* const last = reinterpret_cast<const float*>(path[1]) - 3;
+        const double dx = static_cast<double>(last[0]) - first[0];
+        const float dy = static_cast<float>(static_cast<double>(last[1]) - first[1]);
+        const double dz = static_cast<double>(last[2]) - first[2];
+        const double length = std::sqrt((dz * dz + static_cast<double>(dy) * dy) + dx * dx);
+        if (length > Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon)) {
+            const double inverse = One() / length;
+            heading[0] = static_cast<float>(dx * inverse);
+            heading[1] = static_cast<float>(dy * inverse);
+            heading[2] = static_cast<float>(dz * inverse);
+        } else {
+            heading[0] = 0.0f;
+            heading[1] = 0.0f;
+            heading[2] = 1.0f;
+        }
+        if (At<char*>(self, field::kRoute + deque::kFinish + deque::kCurrent) ==
+            At<char*>(self, field::kRoute + deque::kStart + deque::kCurrent)) {
+            Virtual<std::uint32_t>(network, part::kEndPoint, path, static_cast<float*>(point));
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 4u, 1u);
+        } else {
+            CopyThree(point, first);
+        }
+        Virtual<std::uint32_t>(self, slot::kSlot16, static_cast<float*>(point), static_cast<float*>(heading));
+        return 1;
+    }
+    return 0;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1691,12 +2597,30 @@ const Detour kLife[] = {
     OPENSC4_DETOUR(addr::cSC4Vehicle_DebugText, VehicleDebugText),
 };
 
+// Part vb3.
+const Detour kMove[] = {
+    OPENSC4_DETOUR(addr::SC4RouteDeque_PopFront, RoutePopFront),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_SetDestination, SetDestination),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_WeighSides, WeighSides),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_ChooseSide, ChooseSide),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_PathTo, PathTo),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_EnterOccupant, EnterOccupant),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_AdvanceOnPath, AdvanceOnPath),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_OffsetSideways, OffsetSideways),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_ClearAhead, ClearAhead),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_MoveOnPath, MoveOnPath),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_MoveToDestination, MoveToDestination),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_PlaceOnNetwork, PlaceOnNetwork),
+    OPENSC4_DETOUR(addr::cSC4AutomatonBase_NextRouteCell, NextRouteCell),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
-           InstallList(kLife, sizeof kLife / sizeof kLife[0], "life");
+           InstallList(kLife, sizeof kLife / sizeof kLife[0], "life") &&
+           InstallList(kMove, sizeof kMove / sizeof kMove[0], "move");
 }
 
 const bool g_registered[] = {
@@ -1708,8 +2632,10 @@ const bool g_registered[] = {
                         "and direction tests, the held test, the best direction, the network test and the nearest "
                         "automaton searches (36 detours, part vb1); Init and Shutdown of both with the deques' "
                         "release and the models', Write and Read of both, the +0x204 deque's push and the record "
-                        "list's, the setters and the debug texts (30 detours, part vb2; "
-                        "src/core/automata_vehicle.cpp)",
+                        "list's, the setters and the debug texts (30 detours, part vb2); the movement on frames: "
+                        "SetDestination, the moves along a path and straight, the path's walk and sideways offset, "
+                        "entering an occupant, placing on the network, the next route cell, the room ahead and the "
+                        "side weights (13 detours, part vb3; src/core/automata_vehicle.cpp)",
                         false, InstallObject}),
 };
 
