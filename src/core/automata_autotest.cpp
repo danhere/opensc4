@@ -155,6 +155,36 @@
 //   and cleared. These add automata to the city and take some away: from
 //   that day on the run is not the one without the test (on both sides
 //   alike).
+// OPENSC4_TEST_AUTOMATA_VEHICLE=1 (part vb1, with OPENSC4_TEST_AUTOMATA=2 or
+//   more): on the same day the automaton base and cSC4Vehicle are driven at
+//   the game's addresses (ours when simulators.automata.vehicle is on) on
+//   objects of the test's own, into the fingerprint as
+//   ` V<object>,<accessors>,<queries>,<nearest>,<flags>`. The automata's
+//   generator (0x00B21D78, 0x9C8 bytes) is saved and seeded first and put
+//   back after, so the drawn times are the same on both sides and the game's
+//   draws do not change. Four vehicles from the factory (0x005148E0), each
+//   held by one reference: their fields after construction (vtables, type,
+//   the draw, the smoothed value, the base's and the vehicle's fields, the
+//   deques empty); a base object (SC4::operator_new, 0x005544D0, then
+//   0x005552F0); QueryInterface for six interfaces at both addresses and
+//   through the +4 part (each AddRef given back) and GetGZCLSID; the
+//   accessors (addresses as offsets, the manager compared with city slot 43,
+//   the deque's back with the expected address); slot 146 at points around
+//   16 x the byte 0x00B21CB8, slot 155 at points near and far, 0x0054EA30
+//   over its byte, state, flag and an occupant of the test's (slot 0x58),
+//   slot 171 for nine directions with and without a network of the test's
+//   (slot 0xD4, three side masks), slot 152 with a network part of the
+//   test's answering yes and no (the no then asks 0x00B43D54's slot 0x3C
+//   with no occupant, which answers null); 0x0050AAF0 on a manager of the
+//   test's whose list holds the four vehicles at set positions, radii and
+//   flags for three margins; 0x0054FC30 with keys 0 and 1 (no list). The
+//   fakes' arguments are mixed (the bytes the game passes with stack above
+//   them as bytes). Then each vehicle's references are cleared and its last
+//   reference released (the deleting destructor 0x00562A90 through +0xC's
+//   slot 22: the deques, the pool). To the log only: for up to 24 of the
+//   city's vehicles (manager +0x44; which there are follows frames) slots
+//   146, 150, 138, 0x0054EA30 and slot 123 with margins 0 and 2, and the
+//   first one's network part's vtable and slot 0x90.
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -523,6 +553,7 @@
 #include "core/automata_ctlmgr.h"
 #include "core/automata_scripts.h"
 #include "core/automata_situations.h"
+#include "core/automata_vehicle.h"
 #include "core/automata_vehmgr.h"
 #include "core/autotest_hooks.h"
 #include "core/game.h"
@@ -10041,6 +10072,388 @@ void Situations5Drive(cISC4City*)
                fills.h, targets.h, starts.h, flags);
 }
 
+// ====================================================================================
+// Part vb1: the automaton base and cSC4Vehicle (OPENSC4_TEST_AUTOMATA_VEHICLE=1)
+
+std::string g_vehicleText;
+
+namespace vb {
+
+namespace av = automata_vehicle;
+
+template <typename R, typename... Args>
+R This(std::uintptr_t address, void* self, Args... args)
+{
+    return reinterpret_cast<R(__thiscall*)(void*, Args...)>(address)(self, args...);
+}
+
+// An object of the test's: a network part (slot 0x90, five words), a network
+// (slot 0xD4, three words) and an occupant (slot 0x58, one word). The bytes
+// the game passes with stack above them are mixed as bytes.
+struct Stand {
+    void** vtable;
+    uint32_t answer;
+    Hash calls;
+};
+
+uint32_t __fastcall StandRef(Stand*, void*) { return 1; }
+
+uint8_t __fastcall StandGroup(Stand* f, void*, uint32_t group)
+{
+    f->calls.Mix(0x58);
+    f->calls.Mix(group);
+    return static_cast<uint8_t>((f->answer >> 8) & 1);
+}
+
+uint8_t __fastcall StandPath(Stand* f, void*, uint32_t a, uint32_t kind, uint32_t entry, uint32_t ff, uint32_t zero)
+{
+    f->calls.Mix(0x90);
+    f->calls.Mix(a);
+    f->calls.Mix(kind);
+    f->calls.Mix(entry & 0xFF);
+    f->calls.Mix(ff);
+    f->calls.Mix(zero);
+    return static_cast<uint8_t>(f->answer & 1);
+}
+
+uint8_t __fastcall StandSide(Stand* f, void*, uint32_t kind, uint32_t ff, uint32_t side)
+{
+    f->calls.Mix(0xD4);
+    f->calls.Mix(kind);
+    f->calls.Mix(ff);
+    f->calls.Mix(side & 0xFF);
+    return static_cast<uint8_t>((f->answer >> (side & 3)) & 1);
+}
+
+void** StandVtable()
+{
+    static void* t[64] = {};
+    t[1] = reinterpret_cast<void*>(&StandRef);
+    t[2] = reinterpret_cast<void*>(&StandRef);
+    t[0x58 / 4] = reinterpret_cast<void*>(&StandGroup);
+    t[0x90 / 4] = reinterpret_cast<void*>(&StandPath);
+    t[0xD4 / 4] = reinterpret_cast<void*>(&StandSide);
+    return t;
+}
+
+void SetPoint(char* object, std::size_t at, float x, float y, float z)
+{
+    At<float>(object, at) = x;
+    At<float>(object, at + 4) = y;
+    At<float>(object, at + 8) = z;
+}
+
+// The fields a constructor sets, for the fingerprint (no pointers but the
+// vtables, compared with the expected ones).
+void MixFields(Hash& h, char* o, const std::uintptr_t* vtables, bool vehicle)
+{
+    static constexpr std::size_t kParts[] = {av::field::kVtable,   av::field::kVtable4,  av::field::kSerializable,
+                                            av::field::kVtableC,  av::field::kVtable20, av::field::kVtable38};
+    for (int i = 0; i < 6; ++i)
+        h.Mix(At<std::uintptr_t>(o, kParts[i]) == vtables[i] ? 1u : 0u);
+    h.Mix(At<uint32_t>(o, av::field::kType));
+    h.Mix(At<uint8_t>(o, av::field::kFlags33) & 0x10u);
+    h.MixBytes(o + av::field::kDraw, 4);
+    h.MixBytes(o + av::field::kSmoothed, 0x10);
+    // +0x1E8 is a byte; the three after it are not written.
+    h.Mix(At<uint32_t>(o, av::field::kState));
+    h.Mix(At<uint8_t>(o, av::field::kByte1E8));
+    for (std::size_t at = av::field::kOccupant; at < av::field::kDeque204; at += 4)
+        h.Mix(At<uint32_t>(o, at));
+    for (const std::size_t d : {av::field::kDeque204, av::field::kRoute})
+        h.Mix(At<char*>(o, d + av::deque::kStart) == At<char*>(o, d + av::deque::kFinish) ? 1u : 0u);
+    if (!vehicle)
+        return;
+    h.MixBytes(o + av::field::kVehicle254, av::field::kDeque27C - av::field::kVehicle254);
+    h.Mix(At<char*>(o, av::field::kDeque27C + av::deque::kStart) ==
+                  At<char*>(o, av::field::kDeque27C + av::deque::kFinish)
+              ? 1u
+              : 0u);
+    h.MixBytes(o + av::field::kVehicle2A4, 0x11);
+}
+
+} // namespace vb
+
+void VehicleDrive(cISC4City* city)
+{
+    using namespace vb;
+    Hash object, access, queries, nearest;
+    uint32_t flags = 0;
+    // The generator, saved and seeded.
+    char* const generator = reinterpret_cast<char*>(addr::cSC4AutomatonCore_Random);
+    constexpr std::size_t kGeneratorSize = 0x9C8;
+    std::vector<uint8_t> saved(generator, generator + kGeneratorSize);
+    This<void>(addr::cRZRandomSuper_Seed, generator, 13579u);
+
+    // ---- The object.
+    using Create = char*(__cdecl*)();
+    char* v[4] = {};
+    for (char*& made : v) {
+        made = reinterpret_cast<Create>(addr::cSC4Vehicle_Create)();
+        if (!made) {
+            flags |= 0x10;
+            continue;
+        }
+        Virtual<uint32_t>(made, av::slot::kAddRef);
+    }
+    const std::uintptr_t vehicleTables[6] = {addr::cSC4Vehicle_Vtable,   addr::cSC4Vehicle_Vtable4,
+                                             addr::cSC4Vehicle_Vtable8,  addr::cSC4Vehicle_VtableC,
+                                             addr::cSC4Vehicle_Vtable20, addr::cSC4Vehicle_Vtable38};
+    const std::uintptr_t baseTables[6] = {addr::cSC4AutomatonBase_Vtable,   addr::cSC4AutomatonBase_Vtable4,
+                                          addr::cSC4AutomatonBase_Vtable8,  addr::cSC4AutomatonBase_VtableC,
+                                          addr::cSC4AutomatonBase_Vtable20, addr::cSC4AutomatonBase_Vtable38};
+    for (char* o : v)
+        if (o)
+            MixFields(object, o, vehicleTables, true);
+    {
+        char* const base = static_cast<char*>(
+            reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(av::kVehicleSize));
+        if (base) {
+            This<char*>(addr::cSC4AutomatonBase_Construct, base, 0u, 0u, 0u, 0u);
+            MixFields(object, base, baseTables, false);
+            This<void*>(addr::cSC4AutomatonBase_DeletingDestructor, base, 1u);
+            flags |= 1;
+        }
+    }
+    if (!v[0] || !v[1] || !v[2] || !v[3]) {
+        for (char* o : v)
+            if (o)
+                Virtual<uint32_t>(o, av::slot::kRelease);
+        std::memcpy(generator, saved.data(), kGeneratorSize);
+        g_vehicleText = " V-";
+        log::Write("autotest: automata: vehicle: the factory failed");
+        return;
+    }
+    char* const a = v[0];
+    // QueryInterface at both addresses and through the occupant part (+4).
+    {
+        const uint32_t iids[] = {av::kVehicleClassId, av::kBaseInterfaceId, 0xA9B40F05u, 0x26BB767Eu, 1u,
+                                 0x12345678u};
+        using Query = uint8_t(__thiscall*)(void*, uint32_t, void**);
+        for (const uint32_t iid : iids)
+            for (int how = 0; how < 3; ++how) {
+                void* out = reinterpret_cast<void*>(0x1);
+                uint8_t answer = 0;
+                if (how == 0)
+                    answer = reinterpret_cast<Query>(addr::cSC4Vehicle_QueryInterface)(a, iid, &out);
+                else if (how == 1)
+                    answer = reinterpret_cast<Query>(addr::cSC4AutomatonBase_QueryInterface)(a, iid, &out);
+                else
+                    answer = Virtual<uint8_t>(a + av::field::kVtable4, av::slot::kQueryInterface, iid, &out);
+                object.Mix(answer);
+                object.Mix(out == reinterpret_cast<void*>(0x1) ? 0xFFFFFFFEu
+                           : out ? static_cast<uint32_t>(static_cast<char*>(out) - a)
+                                 : 0xFFFFFFFFu);
+                if (answer && out && out != reinterpret_cast<void*>(0x1))
+                    Virtual<uint32_t>(out, av::slot::kRelease);
+            }
+        object.Mix(Virtual<uint32_t>(a + av::field::kSerializable, 0x14));
+        object.Mix(This<uint32_t>(addr::cSC4Vehicle_GetGZCLSID, a + av::field::kSerializable));
+    }
+
+    // ---- The accessors.
+    {
+        auto offsetOf = [&](std::uintptr_t address) {
+            return static_cast<uint32_t>(This<char*>(address, a) - a);
+        };
+        At<float>(a, av::field::kFloat200) = 2.5f;
+        At<uint8_t>(a, av::field::kByte1E8) = 3;
+        for (const uint32_t flag : {0u, 8u, 0x208u}) {
+            At<uint32_t>(a, av::field::kAutomataFlags) = flag;
+            access.Mix(This<uint32_t>(addr::cSC4AutomatonBase_HasFlag8, a));
+        }
+        At<uint32_t>(a, av::field::kAutomataFlags) = 0;
+        access.Mix(Bits(This<float>(addr::cSC4AutomatonBase_GetFloat200, a)));
+        access.Mix(This<uint8_t>(addr::cSC4AutomatonBase_GetByte1E8, a));
+        access.Mix(This<uint32_t>(addr::cSC4AutomatonBase_GetStaticByte, a));
+        for (const std::uintptr_t address :
+             {addr::cSC4AutomatonBase_GetRoute, addr::cSC4AutomatonBase_GetDeque204,
+              addr::cSC4AutomatonBase_GetPositionAddress, addr::cSC4Vehicle_GetPoint264, addr::cSC4Vehicle_GetPoint270,
+              addr::cSC4Vehicle_GetDeque27C})
+            access.Mix(offsetOf(address));
+        access.Mix(This<void*>(addr::cSC4Vehicle_GetManager, a) == Virtual<void*>(city, av::kCityVehicleManager) ? 1u
+                                                                                                                : 0u);
+        char* const d = a + av::field::kDeque27C;
+        char* expect = At<char*>(d, av::deque::kFinish + av::deque::kCurrent);
+        if (expect == At<char*>(d, av::deque::kFinish + av::deque::kFirst))
+            expect = At<char**>(d, av::deque::kFinish + av::deque::kNode)[-1] + 0x80;
+        access.Mix(This<char*>(addr::cSC4Vehicle_DequeBack27C, d) == expect - 8 ? 1u : 0u);
+        At<float>(a, av::field::kFloat200) = 0.0f;
+        At<uint8_t>(a, av::field::kByte1E8) = 0;
+    }
+
+    // ---- The queries.
+    Stand fake{StandVtable(), 0, {}};
+    {
+        // Slot 146 around 16 x the byte.
+        const float limit = static_cast<float>(Global<uint8_t>(addr::cSC4AutomatonBase_NearCells) * 16);
+        SetPoint(a, av::field::kPosition, 100.0f, 5.0f, 200.0f);
+        const float points[][3] = {{100.0f, 5.0f, 200.0f},          {100.0f + limit, 5.0f, 200.0f},
+                                   {100.0f + limit + 0.5f, 5.0f, 200.0f}, {100.0f, 5.0f, 200.0f - limit + 0.25f},
+                                   {103.0f, 9.0f, 212.0f},          {100.0f - limit, 5.0f + limit, 200.0f}};
+        for (const auto& p : points) {
+            SetPoint(a, av::field::kPoint4C, p[0], p[1], p[2]);
+            queries.Mix(This<uint8_t>(addr::cSC4AutomatonBase_IsNearPoint, a));
+        }
+        // Slot 155.
+        const float targets[][3] = {{100.0f, 5.0f, 200.0f},       {100.000008f, 5.0f, 200.0f},
+                                    {100.0f, 5.0f, 200.00002f},     {101.0f, 5.0f, 200.0f},
+                                    {90.0f, -3.0f, 250.5f},         {100.001f, 5.002f, 199.997f},
+                                    {-1000000.0f, 2.0f, 1000000.0f}, {100.0f, 5.0f, 200.000015f}};
+        for (const auto& p : targets) {
+            float out[3] = {7.0f, 7.0f, 7.0f};
+            This<void>(addr::cSC4AutomatonBase_DirectionTo, a, static_cast<const float*>(p), static_cast<float*>(out));
+            queries.MixBytes(out, sizeof out);
+        }
+        // 0x0054EA30.
+        Stand occupantNo{StandVtable(), 0, {}}, occupantYes{StandVtable(), 0x100, {}};
+        for (const uint8_t byte : {0, 1})
+            for (const uint32_t state : {6u, 7u, 8u})
+                for (const uint32_t flag : {0u, 0x200000u})
+                    for (Stand* occupant : {static_cast<Stand*>(nullptr), &occupantNo, &occupantYes}) {
+                        At<uint8_t>(a, av::field::kByte1E8) = byte;
+                        At<uint32_t>(a, av::field::kState) = state;
+                        At<uint32_t>(a, av::field::kAutomataFlags) = flag;
+                        At<Stand*>(a, av::field::kOccupant) = occupant;
+                        queries.Mix(This<uint8_t>(addr::cSC4AutomatonBase_IsHeld, a));
+                    }
+        At<void*>(a, av::field::kOccupant) = nullptr;
+        At<uint8_t>(a, av::field::kByte1E8) = 0;
+        At<uint32_t>(a, av::field::kState) = 7;
+        At<uint32_t>(a, av::field::kAutomataFlags) = 0;
+        queries.Mix(occupantNo.calls.h);
+        queries.Mix(occupantYes.calls.h);
+        // Slot 171.
+        At<uint8_t>(a, av::field::kKind1F7) = 0xA3;
+        const float directions[][3] = {{1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f},  {0.0f, 0.0f, 1.0f},
+                                       {0.0f, 0.0f, -1.0f}, {0.7f, 0.0f, 0.7f},  {0.5f, 0.0f, 0.4f},
+                                       {0.0f, 1.0f, 0.0f},  {0.6f, 0.0f, 0.0f},  {0.59f, 0.0f, 0.1f}};
+        using Best = uint32_t(__thiscall*)(void*, void*, const float*, uint8_t*, uint8_t);
+        for (const auto& dir : directions)
+            for (const uint32_t mask : {0xFu, 0x5u, 0x0u})
+                for (const uint8_t check : {0, 1}) {
+                    fake.answer = mask;
+                    uint8_t side = 0x77;
+                    queries.Mix(reinterpret_cast<Best>(addr::cSC4AutomatonBase_BestDirection)(a, &fake, dir, &side,
+                                                                                              check));
+                    queries.Mix(side);
+                }
+        // Slot 152: the network part answering yes, then no (0x00B43D54's
+        // slot 0x3C then has no occupant and answers null).
+        At<Stand*>(a, av::field::kNetwork) = &fake;
+        At<uint8_t>(a, av::field::kBytes1F4) = 2;
+        At<uint8_t>(a, av::field::kByte1F5) = 1;
+        for (const uint32_t answer : {1u, 0u})
+            for (const uint32_t arg : {0u, 3u, 0x10u}) {
+                fake.answer = answer;
+                queries.Mix(This<uint8_t>(addr::cSC4AutomatonBase_NetworkTest, a, arg));
+            }
+        At<void*>(a, av::field::kNetwork) = nullptr;
+        queries.Mix(This<uint8_t>(addr::cSC4AutomatonBase_NetworkTest, a, 0u));
+        At<uint32_t>(a, av::field::kBytes1F4) = 0xFFFF;
+        At<uint8_t>(a, av::field::kKind1F7) = 0;
+        queries.Mix(fake.calls.h);
+    }
+
+    // ---- 0x0050AAF0 on a manager of the test's.
+    {
+        struct Node {
+            Node* next;
+            Node* prev;
+            char* value;
+        };
+        Node head{}, nodes[4]{};
+        head.next = &nodes[0];
+        head.prev = &nodes[3];
+        for (int i = 0; i < 4; ++i) {
+            nodes[i].next = i < 3 ? &nodes[i + 1] : &head;
+            nodes[i].prev = i > 0 ? &nodes[i - 1] : &head;
+            nodes[i].value = v[i];
+        }
+        char manager[0x48] = {};
+        At<Node*>(manager, av::kManagerAutomata) = &head;
+        const float places[4][4] = {{0.0f, 0.0f, 0.0f, 2.0f}, {3.0f, 0.0f, 0.0f, 1.5f},
+                                    {0.0f, 0.0f, -3.5f, 1.0f}, {1.0f, 0.0f, 1.0f, 1.0f}};
+        const uint32_t automataFlags[4] = {8u, 8u, 8u, 0u};
+        for (int i = 0; i < 4; ++i) {
+            SetPoint(v[i], av::field::kPosition, places[i][0], places[i][1], places[i][2]);
+            At<float>(v[i], av::field::kRadius) = places[i][3];
+            At<uint32_t>(v[i], av::field::kAutomataFlags) = automataFlags[i];
+        }
+        using Nearest = char*(__thiscall*)(void*, char*, float);
+        for (const float margin : {0.0f, 1.0f, -1.0f, -0.5f, 0.75f})
+            for (int self = 0; self < 2; ++self) {
+                char* const found =
+                    reinterpret_cast<Nearest>(addr::cSC4AutomataManager_NearestAutomaton)(manager, v[self], margin);
+                uint32_t index = 9;
+                for (uint32_t i = 0; i < 4; ++i)
+                    if (found == v[i])
+                        index = i;
+                nearest.Mix(index);
+            }
+        for (char* o : v)
+            At<uint32_t>(o, av::field::kAutomataFlags) = 0;
+    }
+
+    // ---- The city's vehicles: the log only.
+    {
+        char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
+        uint32_t count = 0;
+        Hash seen;
+        using Nearest = char*(__thiscall*)(void*, float);
+        using OnNetwork = char*(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, uint32_t);
+        char* const list = manager ? At<char*>(manager, av::kManagerAutomata) : nullptr;
+        for (char* n = list ? At<char*>(list, 0) : nullptr; n && n != list && count < 24; n = At<char*>(n, 0)) {
+            char* const o = At<char*>(n, 8);
+            if (!o)
+                continue;
+            ++count;
+            seen.Mix(This<uint8_t>(addr::cSC4AutomatonBase_IsNearPoint, o));
+            seen.Mix(This<uint32_t>(addr::cSC4AutomatonBase_HasFlag8, o));
+            seen.Mix(Bits(This<float>(addr::cSC4AutomatonBase_GetFloat200, o)));
+            seen.Mix(This<uint8_t>(addr::cSC4AutomatonBase_IsHeld, o));
+            for (const float margin : {0.0f, 2.0f}) {
+                char* const found = reinterpret_cast<Nearest>(addr::cSC4Vehicle_NearestVehicle)(o, margin);
+                seen.Mix(found ? 1u : 0u);
+                if (found)
+                    seen.MixBytes(found + av::field::kPosition, 12);
+            }
+            const uint32_t key = At<uint32_t>(o, av::field::kOccupant);
+            if (key) {
+                const uint32_t groups = Virtual<uint32_t>(o, av::slot::kGroups);
+                char* const found = reinterpret_cast<OnNetwork>(addr::cSC4AutomatonBase_NearestOnNetwork)(
+                    o, key, groups, 0xFFFFu, 0xFFFF0000u);
+                seen.Mix(found ? 1u : 0u);
+                if (found)
+                    seen.MixBytes(found + av::field::kPosition, 12);
+            }
+            if (count == 1) {
+                void* const network = At<void*>(o, av::field::kNetwork);
+                void** const table = network ? *static_cast<void***>(network) : nullptr;
+                log::Write("autotest: automata: vehicle: first city vehicle %08X: network part vtable %08X slot "
+                           "0x90 %08X",
+                           At<uint32_t>(o, 0), static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(table)),
+                           table ? static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(table[0x90 / 4])) : 0u);
+            }
+        }
+        log::Write("autotest: automata: vehicle: %u city vehicles, queries %08X", count, seen.h);
+    }
+
+    // ---- The release: references cleared, the last one given back.
+    for (char* o : v) {
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        At<void*>(o, av::field::kNetwork) = nullptr;
+        Virtual<uint32_t>(o, av::slot::kRelease);
+    }
+    flags |= 2;
+    std::memcpy(generator, saved.data(), kGeneratorSize);
+    char text[96];
+    std::snprintf(text, sizeof text, " V%08X,%08X,%08X,%08X,%X", object.h, access.h, queries.h, nearest.h, flags);
+    g_vehicleText = text;
+    log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X", object.h,
+               access.h, queries.h, nearest.h, flags);
+}
+
 void Drive(const Day& day)
 {
     if (EnvInt("OPENSC4_TEST_AUTOMATA", 0) < 2 || !day.counted || g_written)
@@ -10064,6 +10477,8 @@ void Drive(const Day& day)
         if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHMGR", 0) >= 3)
             ManagerFrameDrive(day.city);
     }
+    if (EnvInt("OPENSC4_TEST_AUTOMATA_VEHICLE", 0) >= 1 && day.city && game::IsBuild641() && g_vehicleText.empty())
+        VehicleDrive(day.city);
     if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 1 && day.city && game::IsBuild641() && g_scriptText.empty()) {
         ScriptsDrive(day.city);
         if (EnvInt("OPENSC4_TEST_AUTOMATA_SCRIPTS", 0) >= 2)
@@ -10148,6 +10563,7 @@ void Fingerprint(cISC4City* city, std::string& line)
     if (g_written)
         line += g_writeText + g_queryText + g_controllerText;
     line += g_managerText;
+    line += g_vehicleText;
     line += g_scriptText;
     line += g_awText;
     line += g_aw2Text;
