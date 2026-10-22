@@ -8889,3 +8889,429 @@ name = "cSC4AutomatonBase::PointInit"
 address = 0x00B2293C
 kind = "data"
 source = "Name ours. A float 0x0054FC30 starts its point with. Called by address from src/core/automata_vehicle.cpp (part vb1)."
+
+# Part vb2: the automaton base and cSC4Vehicle, the life cycle, the save, the setters and the debug texts (src/core/automata_vehicle.cpp, docs/automata.md "Part vb").
+
+[[entry]]
+name = "cSC4AutomatonBase::Init"
+address = 0x0054D790
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "53 56 8B F1 8B 46 04 8D"
+source = "Name ours. The base's slot 3: 1 when the occupant part's slot 5 says initialised; else the core's Init 0x005101D0 and, when that answers true and the core's byte +0x3C is clear, slot 105 unless the automata flag 0x4000 is on and slot 134 unless 0x2000 is. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::Init"
+address = 0x0055B9B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "53 56 8B F1 8B 46 04 8D"
+source = "Name ours. cSC4Vehicle's slot 3: 1 when initialised; else the automata flag 8 set to the byte 0x00B0A0A8 (slot 30), slot 158, the base's Init 0x0054D790, then slot 176 (1, 0) when 0x00B43DDC's slot 9 answers true or the byte 0x00B2296C is set. The base's answer, AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::Shutdown"
+address = 0x00555310
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 46 04 8D 4E"
+source = "Name ours. The base's slot 4: when initialised, slot 132 with four zeros and 0x00554640; then a tail jump to the core's Shutdown 0x0050BA50. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::Shutdown"
+address = 0x005602F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 14 53 55 56 57 8B"
+source = "Name ours. cSC4Vehicle's slot 4: the base's Shutdown; +0x258 and +0x25C cleared and released through their virtual base; the +0x27C deque's objects cleared and released, the deque emptied (0x0055AC20); the models (0x0055BE00). The base's AL, the rest of EAX zero. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::ReleaseDeque204"
+address = 0x00554640
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 14 8D 81 04 02 00"
+source = "Name ours. On the base: each object of the +0x204 deque cleared and released (slot 2), then a tail jump to 0x00554280 on the deque. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "SC4AutomatonDeque204::Clear"
+address = 0x00554280
+kind = "function"
+convention = "thiscall"
+signature = "void (void* deque)"
+expect = "53 55 56 8B E9 8B 45 1C"
+source = "Name ours. The +0x204 deque emptied (0xC-byte elements, blocks of 0x78 bytes): the whole blocks between the start's and the finish's released (not cleared) and freed (SC4::Free), the start's block from its current and the finish's to its current released, the finish's block freed, the finish set to the start. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "SC4VehicleDeque27C::Clear"
+address = 0x0055AC20
+kind = "function"
+convention = "thiscall"
+signature = "void (void* deque)"
+expect = "53 55 56 8B E9 8B 45 1C"
+source = "Name ours. As 0x00554280 for the +0x27C deque (8-byte elements, blocks of 0x80 bytes); shared with the trains (0x0055AD00). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::ReleaseModels"
+address = 0x0055BE00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 53 8B 1D D0 3D B4 00"
+source = "Name ours. The four models +0x2A4..+0x2B0: each one there taken off the view 0x00B43DD0 when there is one (its slot 0x74 with the model's slot 0), released through its virtual base and cleared. Callers 0x005602F0 and slot 177 (0x0055DD10). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::Delete"
+address = 0x0055CA60
+kind = "function"
+convention = "cdecl"
+signature = "void (void* block, uint32_t size)"
+expect = "8B 44 24 04 85 C0 74 1C"
+source = "Name ours. The operator delete of cSC4Vehicle's derived classes (callers 0x00524410, 0x0053CF60, 0x0054CE90): nothing for null; a 0x2B8-byte block to the vehicle pool (0x0055F600 on 0x00B0A0F8), any other to SC4::operator_delete. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "SC4AutomatonDeque204::PushBackSlow"
+address = 0x00553780
+kind = "function"
+convention = "thiscall"
+signature = "void (void* deque, const void* element)"
+expect = "83 EC 0C 53 55 8B 6C 24"
+source = "Name ours. Ret 4: push_back at a block's last place: a copy of the 0xC-byte element (its object referenced), room for a node at the map's back (0x008EC5B0 with 1, 0), a 0x78-byte block (SC4::stl_allocate), the element built at the finish, the finish moved to the new block, the copy's reference given back. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "SC4AutomatonDeque204::PushBack"
+address = 0x00554230
+kind = "function"
+convention = "thiscall"
+signature = "void (void* deque, const void* element)"
+expect = "56 57 8B F9 8B 47 18 8B"
+source = "Name ours. Ret 4: push_back of a 0xC-byte element (an object referenced, a word, a byte) on the +0x204 deque; 0x00553780 at a block's last place. Caller slot 166's 0x00554870. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4VehPedManagerBase::PushRecordListBack"
+address = 0x00554160
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list, uint32_t a, uint32_t b, uint32_t c, void* object)"
+expect = "83 EC 38 53 33 DB 55 56"
+source = "Name ours. On the manager's record list (+0xAB8), ret 0x10: a 0x40-byte node (SC4::stl_allocate) with a copy of a zeroed record (0x0054ED10), put at the list's back; the record's +0 a, +4 b, +8 c, +0x34 -1, its rectangles (0x0054EC60), +0x2C the object (referenced, the old one released), +0x30 zero. Answers the record (node + 8). Caller the base's slot 110 (0x005546E0). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::Write"
+address = 0x00551DE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* stream)"
+expect = "83 EC 24 56 8B 74 24 2C"
+source = "Name ours. The base's +8 slot 3 (this = object + 8), ret 4: version 2 (uint16); the core's Write 0x0050AC00; when true, the reference +0xB0 (SC4Stream::WriteReference), +0x1E4, the byte +0x1E8, the reference +0x1EC, +0x1F4, +0x1FC, the route deque's size and its 3-byte cells. The core's AL. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::Read"
+address = 0x00554D20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* stream)"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Name ours. The base's +8 slot 4, ret 4: false unless the version is 2; the core's Read 0x0050DFD0; when true, +0xB0 and +0x1EC cleared, released and read back as 0xA9B40F05 and 0xA821EF94 (SC4Stream::ReadReference), +0x1E4 and +0x1FC through one local word, the byte +0x1E8 and +0x1F4 in place, the route emptied (SC4CellDeque::Clear) and its cells pushed (SC4RouteDeque::PushBackSlow at a block's last place). The core's AL. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::Write"
+address = 0x0055F640
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* stream)"
+expect = "83 EC 2C 53 56 8B 74 24"
+source = "Name ours. cSC4Vehicle's +8 slot 3, ret 4: version 2; the base's Write; when true, the +0x27C deque's size, per element its word and the two words its object's slot 0xEC answers (not null-tested), a zero word, the point +0x264, the core's default point 0x00B09A04 (not +0x270) and the float +0x260. The base's AL. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::Read"
+address = 0x0055BCF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* stream)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. cSC4Vehicle's +8 slot 4, ret 4: false unless the version is 2; the base's Read; when true, the deque's elements read and dropped (the object it would release is a local it zeroes; the +0x27C deque is not touched), a word read and dropped, the point +0x264, a second point read into a local and dropped, the float +0x260. The base's AL. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::SetByte1E8"
+address = 0x00504FC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint8_t value)"
+expect = "8A 44 24 04 88 81 E8 01"
+source = "Name ours. Slot 154, ret 4: the byte +0x1E8. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::SetPoint264"
+address = 0x00505110
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* point)"
+expect = "8B 44 24 04 8B 10 89 91"
+source = "Name ours. cSC4Vehicle's slot 178, ret 4: +0x264 (three words). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::SetPoint270"
+address = 0x00505140
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* point)"
+expect = "8B 44 24 04 8B 10 89 91"
+source = "Name ours. cSC4Vehicle's slot 180, ret 4: +0x270. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::ClearFloat200"
+address = 0x0053CC00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C7 81 00 02 00 00 00 00"
+source = "Name ours. Slot 158 of the base and three other classes: +0x200 zero. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::DrawFloat200"
+address = 0x0055B690
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "D9 05 F4 1C B2 00 56 83"
+source = "Name ours. cSC4Vehicle's slot 158: +0x200 a float drawn from the automata's generator (cRZRandom::Range with the floats 0x00B21CF0 and 0x00B21CF4 as doubles). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::DrawByte1E8"
+address = 0x0055B750
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 06 6A 01 68"
+source = "Name ours. cSC4Vehicle's slot 184: the automata flags 0x0201180A set (slot 30), the byte +0x1E8 drawn below 50 (SC4Random::Below on the automata's generator). AL 0. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::Stop"
+address = 0x0054DA00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 56 8B F1 8B 06 FF 90"
+source = "Name ours. Slot 159: SetSpeed (slot 36) with 0 at the rate 1.0 / slot 125's answer x 1.5 (0x00A880D4) as a float, 0.1 when the answer is not above 0. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::Go"
+address = 0x0054DA50
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 56 8B F1 8B 06 57 FF"
+source = "Name ours. Slot 160: SetSpeed with the default speed (slot 35) at the rate 1.0 / slot 125's answer x 0.3 (0x00A97D74), 0.1 when the answer is not above 0. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::SetFlag8"
+address = 0x0054EB20
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t value)"
+expect = "53 56 8B F1 8B 06 FF 90"
+source = "Name ours. Slot 149, ret 4: nothing when the byte equals slot 150's AL; else the automata flag 8 set with the whole word (slot 30), with a set byte +0xB0 = slot 148's object (referenced, the old one released), then slot 124. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::RemoveNow"
+address = 0x0054D820
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "8B 01 6A 00 FF 50 34 C3"
+source = "Name ours. The base's slot 135: Remove (slot 13) with false. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::Slot172"
+address = 0x0054D830
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, uint32_t b, uint32_t c, uint32_t d)"
+expect = "8B 54 24 04 56 8B F1 8B"
+source = "Name ours. Slot 172, ret 0x10: slot 173 (a, b), then Remove with false; AL 0. c and d are not read. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::Forget"
+address = 0x0055BE70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 0D EC 3C B4"
+source = "Name ours. cSC4Vehicle's slot 124: the city's vehicle manager (city slot 43) forgets it (its slot 69, 0x0054FBC0). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::DebugText"
+address = 0x00553CF0
+kind = "function"
+convention = "thiscall"
+signature = "cIGZString* (void* this)"
+expect = "83 EC 28 53 55 56 8B F1"
+source = "Name ours. The base's slot 93: the static string 0x00B22924 (made on first use) formatted 0x00A9BEFC with +0x1E4, slot 153, the edge text (0x00A9BF20 with +0x1F5, +0x1F4), the route text (0x00A9BF2C with the first cell's two first bytes; empty without cells) and the core's text (0x0050F0A0, its ToChar). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::DebugText"
+address = 0x00562AC0
+kind = "function"
+convention = "thiscall"
+signature = "cIGZString* (void* this)"
+expect = "83 EC 24 53 55 56 8B F1"
+source = "Name ours. cSC4Vehicle's slot 93: the static string 0x00B22988 assigned the base's text (SC4String::AssignRange, unless the same) and appended 0x00A9D788 formatted with the first model key's three words (+0xC0; zeros without one). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Init"
+address = 0x005101D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 46 04 57 8D"
+source = "Name ours. The automata core's slot 3. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Shutdown"
+address = 0x0050BA50
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "51 55 56 8B F1 8B 06 57"
+source = "Name ours. The automata core's slot 4. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Write"
+address = 0x0050AC00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* stream)"
+expect = "83 EC 14 56 8B 74 24 1C"
+source = "Name ours. The automata core's +8 slot 3 (this = object + 8), ret 4. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Read"
+address = 0x0050DFD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* stream)"
+expect = "83 EC 30 53 55 56 8B 74"
+source = "Name ours. The automata core's +8 slot 4, ret 4. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::DebugText"
+address = 0x0050F0A0
+kind = "function"
+convention = "thiscall"
+signature = "cIGZString* (void* this)"
+expect = "56 8B F1 8A 0D 5C 27 B2"
+source = "Name ours. The automata core's slot 93: a static string. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "SC4AutomatonDeque204::ReserveMap"
+address = 0x008EC5B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* deque, uint32_t count, bool atFront)"
+expect = "51 8B 44 24 08 53 55 56"
+source = "Name ours, not analysed. Room in the +0x204 deque's map (the STL _M_reserve_map), ret 8. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::DebugTextAtExit"
+address = 0x00A7B510
+kind = "function"
+convention = "cdecl"
+signature = "void (void)"
+expect = "A1 28 29 B2 00 85 C0 C7"
+source = "Name ours. The destructor of the static string 0x00B22924, given to SC4::atexit. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::DebugTextAtExit"
+address = 0x00A7B5B0
+kind = "function"
+convention = "cdecl"
+signature = "void (void)"
+expect = "A1 8C 29 B2 00 85 C0 C7"
+source = "Name ours. The destructor of the static string 0x00B22988, given to SC4::atexit. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::InitFlag8"
+address = 0x00B0A0A8
+kind = "data"
+source = "Name ours. A byte cSC4Vehicle's Init sets the automata flag 8 to. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::InitByte"
+address = 0x00B2296C
+kind = "data"
+source = "Name ours. A byte; when set cSC4Vehicle's Init calls slot 176 (1, 0). Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::ReadPointInit"
+address = 0x00B22978
+kind = "data"
+source = "Name ours. A float cSC4Vehicle's Read starts the point it drops with. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::Float200Low"
+address = 0x00B21CF0
+kind = "data"
+source = "Name ours. A float, the low end of the draw of cSC4Vehicle's slot 158. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::Float200High"
+address = 0x00B21CF4
+kind = "data"
+source = "Name ours. A float, the high end of the draw of cSC4Vehicle's slot 158. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::DebugTextString"
+address = 0x00B22924
+kind = "data"
+source = "Name ours. The base's debug text, a static string (0x14 bytes). Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::DebugTextGuard"
+address = 0x00B22938
+kind = "data"
+source = "Name ours. Bit 1: the static string 0x00B22924 made. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::DebugTextString"
+address = 0x00B22988
+kind = "data"
+source = "Name ours. cSC4Vehicle's debug text, a static string (0x14 bytes). Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::DebugTextGuard"
+address = 0x00B2299C
+kind = "data"
+source = "Name ours. Bit 1: the static string 0x00B22988 made. Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::RouteFormat"
+address = 0x00A9BF2C
+kind = "data"
+expect = "72 6F 75 74 65 3A 20 25"
+source = "Name ours. \"route: %d, %d\". Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::EdgeFormat"
+address = 0x00A9BF20
+kind = "data"
+expect = "65 64 67 65 3A 20 25 64"
+source = "Name ours. \"edge: %d-%d\". Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4AutomatonBase::DebugFormat"
+address = 0x00A9BEFC
+kind = "data"
+expect = "6C 61 79 65 72 3A 20 25"
+source = "Name ours. \"layer: %d  lifespan: %d  %s %s %s\". Called by address from src/core/automata_vehicle.cpp (part vb2)."
+
+[[entry]]
+name = "cSC4Vehicle::ModelFormat"
+address = 0x00A9D788
+kind = "data"
+expect = "20 6D 6F 64 65 6C 3A 30"
+source = "Name ours. \" model:0x%8x 0x%8x 0x%8x\". Called by address from src/core/automata_vehicle.cpp (part vb2)."

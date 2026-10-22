@@ -51,6 +51,19 @@
 //
 // A deque (both kinds): +0x00 the start iterator (current, first, last,
 // node), +0x10 the finish iterator, +0x20 the map, +0x24 the map's size.
+//
+// Part vb2 adds (the save, the setters, the life cycle):
+//   the core's +0x3C a byte (Init does no more when set), +0xB0 an object
+//          (referenced; slot 149 sets it from slot 148, saved as a reference
+//          read back as 0xA9B40F05), +0xC0..+0xC4 a vector of 12-byte model
+//          keys
+//   the base's +0x1EC occupant is saved as a reference read back as
+//          0xA821EF94; the route deque holds 3-byte cells in blocks of 0x7E
+//          bytes
+//   cSC4Vehicle's +0x260 a float (saved), +0x2A4..+0x2B0 four model objects
+//          (held through a virtual base; Shutdown takes them off the view)
+// Write and Read are the serializable part's slots 3 and 4: this is the
+// object + 8 there.
 #pragma once
 
 #include <cstddef>
@@ -81,6 +94,10 @@ inline constexpr std::size_t kDeque204 = 0x204, kRoute = 0x22C, kBaseEnd = 0x254
 inline constexpr std::size_t kVehicle254 = 0x254, kVirtual258 = 0x258, kVirtual25C = 0x25C;
 inline constexpr std::size_t kPoint264 = 0x264, kPoint270 = 0x270, kDeque27C = 0x27C;
 inline constexpr std::size_t kVehicle2A4 = 0x2A4, kByte2B4 = 0x2B4;
+// Part vb2's.
+inline constexpr std::size_t kByte3C = 0x3C, kObjectB0 = 0xB0, kModelKeys = 0xC0;
+inline constexpr std::size_t kFloat260 = 0x260, kModels = 0x2A4;
+inline constexpr std::size_t kModelCount = 4;
 } // namespace field
 
 namespace deque {
@@ -107,7 +124,33 @@ inline constexpr std::size_t kDirectionTo = 0x26C;    // 155: 0x0054EA80
 inline constexpr std::size_t kBestDirection = 0x2AC;  // 171: 0x0054D8D0
 inline constexpr std::size_t kManager = 0x2B8;        // 174: cSC4Vehicle 0x0055BF60
 inline constexpr std::size_t kNearestVehicle = 0x1EC; // 123: cSC4Vehicle 0x005573C0
+// Part vb2's.
+inline constexpr std::size_t kRemove = 0x34;          // 13 (header 10): Remove(bool), ret 4
+inline constexpr std::size_t kSetFlag = 0x78;         // 30: SetAutomataFlag(flag, bool), ret 8
+inline constexpr std::size_t kGetDefaultSpeed = 0x8C; // 35: the float +0x80 in ST0
+inline constexpr std::size_t kSetSpeed = 0x90;        // 36: (float target, float rate), ret 8
+inline constexpr std::size_t kSlot105 = 0x1A4;        // the core's 0x005096B0, no arguments
+inline constexpr std::size_t kForget = 0x1F0;         // 124: cSC4Vehicle 0x0055BE70
+inline constexpr std::size_t kSlot125 = 0x1F4;        // 125: a float in ST0, no arguments
+inline constexpr std::size_t kSlot132 = 0x210;        // 132: four words, ret 0x10
+inline constexpr std::size_t kSlot134 = 0x218;        // 134: 0x00550B60, no arguments
+inline constexpr std::size_t kSlot148 = 0x250;        // 148: 0x00551C20, an object
+inline constexpr std::size_t kGetByte1E8 = 0x264;     // 153: 0x00504FB0
+inline constexpr std::size_t kSlot158 = 0x278;        // 158: 0x0053CC00 / 0x0055B690
+inline constexpr std::size_t kSlot173 = 0x2B4;        // 173: 0x0054D860, two words, ret 8
+inline constexpr std::size_t kSlot176 = 0x2C0;        // 176: cSC4Vehicle 0x0055DBE0, two words, ret 8
+// The occupant part's (+4) slot 5: whether the object is initialised.
+inline constexpr std::size_t kIsInitialised = 0x14;
 } // namespace slot
+
+// The stream slots (cIGZOStream / cIGZIStream), each one argument.
+namespace stream {
+inline constexpr std::size_t kUint8 = 0x14, kUint16 = 0x1C, kSint32 = 0x20, kUint32 = 0x24, kFloat32 = 0x30;
+} // namespace stream
+
+inline constexpr std::uint32_t kObjectB0Iid = 0xA9B40F05; // the iid +0xB0 is read back as
+inline constexpr std::uint32_t kOccupantIid = 0xA821EF94; // the iid +0x1EC is read back as
+inline constexpr std::uint32_t kSaveVersion = 2;          // both classes' Write and Read
 
 // The slots of other objects this part calls.
 inline constexpr std::size_t kOccupantGroupSlot = 0x58;  // the occupant (+0x1EC): (2) bool
@@ -118,5 +161,10 @@ inline constexpr std::size_t kCityVehicleManager = 0xAC; // the city's slot 43
 inline constexpr std::size_t kServiceNeighbour = 0x3C;   // 0x00B43D54's: (occupant, side, 1, kind), ret 0x10
 inline constexpr std::size_t kServiceList = 0x40;        // 0x00B43D54's: (key), ret 4: an object, its list at +0x1C
 inline constexpr std::size_t kManagerAutomata = 0x44;    // the automata managers' list (0xC-byte nodes, +8)
+inline constexpr std::size_t kManagerForget = 0x114;     // the vehicle manager's slot 69 (automaton), ret 4
+inline constexpr std::size_t kQueueKeySlot = 0xEC;       // a +0x27C element's object: (int* out, int* out), ret 8
+inline constexpr std::size_t kViewRemoveSlot = 0x74;     // the view 0x00B43DD0's (model), ret 4
+inline constexpr std::size_t kTransformSlot = 0x24;      // 0x00B43DDC's: a bool, no arguments
+inline constexpr std::size_t kStringToChar = 0x14;       // cIGZString's ToChar
 
 } // namespace opensc4::automata_vehicle
