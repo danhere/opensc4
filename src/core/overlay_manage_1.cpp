@@ -15,11 +15,12 @@
 // +0xE4) of lists of overlay indices, nodes {next, overlay} from the game's
 // STL allocator. A manager that draws the water's rows (+0x15) has none.
 //
-// What stays the game's: the adding (slots 3 to 11 and the allocation and
-// decal building under them, 0x0073A1B0 among them, which MoveDecal and
-// UpdateDecalInfo call by address), the constructor, destructor and set-up,
-// the draws (terrain_draw.cpp) and the adjustor thunks of the other
-// interfaces (0x0073BDA0 to 0x0073BDF0).
+// The adding is part 2 (overlay_manage_2.cpp): MoveDecal and UpdateDecalInfo
+// call its BuildDecal (0x0073A1B0) by address, which reaches ours when
+// renderer.overlays.manage2 is on and the game's when it is off. What stays
+// the game's: the constructor, destructor and set-up, the draws
+// (terrain_draw.cpp) and the adjustor thunks of the other interfaces
+// (0x0073BDA0 to 0x0073BDF0).
 //
 // Calls the code makes: the manager's own slots 15 to 20 for each ID of a
 // group (ret 4 or 8, as the slots themselves); the terrain's (+0x88) slot
@@ -39,15 +40,16 @@
 // redraws), then the game's on the manager itself (with a stand-in terrain
 // too, whose redraws are then passed on to the real one), and compares the
 // two: the fields, the reached records, every bucket, the redraws and the
-// result. Inside such a call each side calls its
-// own: ours reach ours, the game's the game's. The getters are compared as
-// pure functions.
+// result. Inside such a call each side calls its own: ours reach ours, the
+// game's the game's (part 2's functions too, the side being shared through
+// overlay_manage.h). The getters are compared as pure functions.
 #include "core/address_check.h"
 #include "core/compare.h"
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/hook.h"
 #include "core/log.h"
+#include "core/overlay_manage.h"
 #include "core/registry.h"
 
 #include <opensc4/addresses.h>
@@ -66,6 +68,9 @@
 #include <vector>
 
 namespace opensc4::overlay_manage {
+
+Side g_side = Side::None;
+
 namespace {
 
 // The manager.
@@ -122,10 +127,6 @@ R Cdecl(std::uintptr_t function, Args... args)
 }
 
 bool g_compare = false;
-
-// Inside a compared call: whose code the hooked functions run.
-enum class Side { None, Game, Ours };
-Side g_side = Side::None;
 
 void FirstCall(const char* name, bool& logged)
 {
@@ -556,7 +557,7 @@ void __fastcall DecalInfo(char* self, void*, uint32_t id, uint32_t* out)
 
 // Slot 12, 0x0073AD80, ret 8 (id, float[2] position): a handle's decal
 // moved there (when it moved, 0x007352D0) and built again (0x0073A1B0 with
-// the handle and whether the manager has buckets).
+// the handle and whether the manager has buckets; ours when manage2 is on).
 void __fastcall MoveDecal(char* self, void*, uint32_t id, const float* position)
 {
     if (id == kNone || static_cast<int32_t>(id) >= 0)
