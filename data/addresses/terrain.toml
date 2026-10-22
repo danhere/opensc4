@@ -1380,7 +1380,183 @@ address = 0x00737E10
 kind = "function"
 convention = "cdecl"
 expect = "56 8B 74 24 08 57 8B 7C"
-source = "Name ours. (first, last, tag): overlay records destroyed over a range (their textures and sources released). Called by GrowOverlays and Clear; stays the game's (part 3), called by ours."
+source = "Name ours. (first, last, tag): overlay records destroyed over a range: each record's texture source (+0xB0, slot 8) and texture (+0xAC, 0x008090E0) released, the fields left as they were. Called by GrowOverlays, Clear and the destructor. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp); part 2 and the autotest call it by address."
+
+[[entry]]
+name = "cSC4OverlayManager::CutAfter"
+address = 0x00736250
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 08 56 8B 33"
+source = "Name ours. this unused (a bucket list); (link, last), ret 8: STLport's slist erase_after: the nodes after the link up to last freed (0x0090CF63), the link then pointing at last; EAX last. Called by AssignList (0x00737DB0). Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyNodes"
+address = 0x00736440
+kind = "function"
+convention = "thiscall"
+expect = "53 8B 5C 24 10 56 8B 74"
+source = "Name ours. this unused; (link, first, last, tag), ret 0x10: STLport's slist insert_after_range: copies of the nodes {next, value} from first up to last (from 0x0090CF54) put after the link in order. Called by the list helpers and the buckets' vector. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::AssignList"
+address = 0x00737DB0
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 3B"
+source = "Name ours. this = a bucket list; (other list), ret 4: assigned: the list's nodes take the other's values in order, what is left over is cut (0x00736250), what is missing copied after the last (0x00736440); EAX this. Called by the range assigns 0x007387D0, 0x00738800, 0x00738880. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::ClearList"
+address = 0x00738590
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B F9 8B 37 85 F6"
+source = "Name ours. this = a bucket list, no arguments: its nodes freed, the head cleared. Called by InsertLists (0x0073C840) for its local copy. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::FillLists"
+address = 0x007387D0
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last, list): STLport's fill: each list of the range assigned from the one (0x00737DB0). Called by InsertLists. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyLists"
+address = 0x00738800
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 57 8B 7C 24"
+source = "Name ours. (first, last, to, ...): STLport's copy of bucket lists, forwards by count (the byte difference shifted right arithmetically): each assigned (0x00737DB0); EAX the end, or to when the count is not positive. Called by ResizeBuckets (0x0073CAB0) with an empty range. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::FillNLists"
+address = 0x00738840
+kind = "function"
+convention = "cdecl"
+expect = "8B 44 24 08 85 C0 56 8B"
+source = "Name ours. (to, count, list, ...): STLport's uninitialized_fill_n: count lists made in new memory as copies of the one (none at a null place; 0x00736440); EAX the end. Called by GrowBuckets and InsertLists. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyListsBackward"
+address = 0x00738880
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. (first, last, to end, ...): STLport's copy_backward of bucket lists by count: each assigned (0x00737DB0) from the last down; EAX the first written, or to end when the count is not positive. Called by InsertLists (an insert with more lists after it than inserted). Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::CopyNewLists"
+address = 0x00739450
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. (first, last, to, ...): STLport's uninitialized_copy of bucket lists: each made in new memory as a copy (none at a null place; 0x00736440); EAX the end. Called by GrowBuckets and InsertLists. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::ViewDraw"
+address = 0x00739490
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 50 83 C1 FC"
+source = "Name ours. Slot 3 of the view interface's vtable 0x00AB39D0 (this = the manager + 4); (render context), ret 4: Draw (0x00738A50) on the manager; AL 1. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::DestroyLists"
+address = 0x0073A170
+kind = "function"
+convention = "cdecl"
+expect = "53 8B 5C 24 0C 57 8B 7C"
+source = "Name ours. (first, last, tag): bucket lists destroyed over a range: each one's nodes freed (0x0090CF63) and its head cleared. Called by GrowBuckets, ResizeBuckets and the destructor. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::Clear"
+address = 0x0073AC90
+kind = "function"
+convention = "thiscall"
+expect = "51 53 56 8B F1 8B 0D CC"
+source = "Name ours. No arguments: the options message (0xC9F775BB) no longer wanted from the message server (0x00B43CCC, slot 0x18, the target at +0x10); the view +0x8C, the terrain +0x88 and the texture manager +0x90 released (each field cleared first); the overlay records assigned from an empty range (0x00735CB0) and destroyed (0x00737E10), the handles likewise (0x00735D10), both free lists -1; +0x14 cleared. The groups and the buckets are left. Called by the terrain view's 0x007560F0 for its four managers. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::ResizeStates"
+address = 0x0073AE60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 11 56 8B 71"
+source = "Name ours. this = the render states' vector (+0x24, 8-byte states); (count), ret 4: erased down to the count (0x00710B40) or zero states inserted at the end (0x00638E80). Called by SetupStates (0x0073BA10). Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::SetupStates"
+address = 0x0073BA10
+kind = "function"
+convention = "thiscall"
+expect = "53 56 8B F1 57 8D 7E 24"
+source = "Name ours. No arguments: five render states (0x007D2B50, fourteen values each), then bytes of the state blocks at +0x38, +0x44 and +0x50. Called by Init. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::GrowBuckets"
+address = 0x0073BB20
+kind = "function"
+convention = "thiscall"
+expect = "51 53 55 56 57 8B F9 8B"
+source = "Name ours. this = the buckets' vector (+0xF0); (at, list, tag, count, bool at end), ret 0x14: STLport's insert overflow: a new block for as many more lists as there are or the count when larger (0x0090CF54), the lists before the place copied (0x00739450), the count copies of the list (one inline, else 0x00738840), the lists after unless at the end; the old ones destroyed (0x0073A170) and their block freed. Called by InsertLists. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::Construct"
+address = 0x0073BC20
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 57 8D 7E 08 C7"
+source = "Name ours. No arguments: the constructor (0xFC bytes): the bases' vtables, cRZBaseUnknown at +8 (0x0090DA1E), then the class's four (0x00AB39E8, 0x00AB39D0, 0x00AB39B8, 0x00AB39A8); +0x18 2, +0x14 and +0x1C zero, +0x20 1; +0x24 to +0x34 zero; three state blocks of twelve bytes from +0x38; +0x6C to +0x74 the unset float (0x00B4B3C8); the references, the vectors and the buckets empty, the free lists -1. EAX this. Called by the terrain view's 0x0075C420 four times. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::Destruct"
+address = 0x0073BE00
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 57 C7 06 E8"
+source = "Name ours. No arguments: the destructor's body: the class's vtables; the buckets destroyed (0x0073A170) and freed; the shadow texture +0xD4 released; the groups' and handles' blocks freed; the overlay records destroyed (0x00737E10) and freed; +0x90, +0x8C, +0x88 released; the render states' block freed; cRZBaseUnknown's destructor (0x0090D990). Nothing is cleared. Called by the deleting destructor. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::InsertLists"
+address = 0x0073C840
+kind = "function"
+convention = "thiscall"
+expect = "51 8B 44 24 0C 85 C0 56"
+source = "Name ours. this = the buckets' vector; (at, count, list), ret 0xC: STLport's _M_fill_insert: with room, the list copied to a local first, the lists moved up (0x00739450 and 0x00738880, or 0x00738840 and 0x00739450 when no more follow than are inserted) and the places assigned (0x007387D0); without room through GrowBuckets (0x0073BB20). Called by ResizeBuckets. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::DeletingDestruct"
+address = 0x0073C980
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 E8 78 F4 FF FF"
+source = "Name ours. (flags), ret 4: the destructor's body (0x0073BE00), then operator delete (0x005E5620) when bit 0 is set; EAX this. Reached through the adjustor thunk 0x0073BDC0 (this - 8). Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::ResizeBuckets"
+address = 0x0073CAB0
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B F1 8B"
+source = "Name ours. this = the buckets' vector; (count, list), ret 8: STLport's resize: the lists past the count assigned from an empty range (0x00738800) and destroyed (0x0073A170), or the missing ones inserted at the end as copies of the list (0x0073C840). Called by SetupBuckets. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::SetupBuckets"
+address = 0x0073CB10
+kind = "function"
+convention = "thiscall"
+expect = "51 56 8B F1 8B 4E 5C 8B"
+source = "Name ours. No arguments: the bucket grid one bucket a cell: +0xEC the cells down, +0xE8 across, +0xE4 0; the buckets' vector resized to across times down empty lists (0x0073CAB0); the stamp +0xE0 0. Called by Init unless +0x15. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::Init"
+address = 0x0073CB60
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 0C 53 55 8B 6C 24"
+source = "Name ours. (terrain view, byte water rows, byte), ret 0xC: the view kept at +0x8C; +0x15 and +0x16 given, +0x14 set; the texture manager (the framework's 0x1AC0E11A, 0xFAC0E219) at +0x90, the terrain (0x00B43CF4) at +0x88; the cells (the terrain's slots 0x1C, 0x20), a cell's size (0x18) and its inverse, the terrain's size +0x6C to +0x74 and the clip +0x78; +0x94, +0xD8, +0xDC zero; the shadow texture 0xAA592B77 at +0xD4; the render states (0x0073BA10); the buckets unless +0x15 (0x0073CB10); the options message wanted (0x00B43CCC, slot 0x14); +0x18 and +0x1C from the driver (0x00B43CC4's +0x18: +0x1FC, +0xBC). Called by the terrain view's 0x0075C420 for its four managers. Ours in renderer.overlays.manage3 (src/core/overlay_manage_3.cpp)."
 
 [[entry]]
 name = "STE::UnsetMatrixFloat"
