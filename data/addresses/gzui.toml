@@ -600,16 +600,16 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* stream, void* set, uint32_t unused)"
 expect = "55 8D 6C 24 94 81 EC C0"
-source = "Name ours. Slot 4 of the XML reader-writer: `<?xml version=...>` and one `<AnyUint32 ...>` (and the other four types) line per value, through the stream's slot 0x44. Part u3. Stays the game's; called by ours."
+source = "Name ours. Slot 4 of the XML reader-writer; `ret 0xC`. Nothing for an empty set (GetFirst's EAX); else `<?xml version=\"1.0\"?>`, `<cGZPropertySetUint32>`, then per value three spaces, `<AnyUint32 key=\"0x...\" type=\"0x...\">` (or AnySint32, AnyFloat32, AnyBoolean, AnyString), its text (`%d`, `%f`, `true` or `false`, the string) and the closing tag, and the root's closing tag, each a write through the stream's slot 0x44 (text, length). A value of another type or a failed write stops it with false. Ours in framework.propio.xmltext (docs/gzui.md, part u3)."
 
 [[entry]]
 name = "cGZPropSetXmlIO::StartElement"
 address = 0x00942D87
 kind = "function"
 convention = "thiscall"
-signature = "bool (void* handler, const void* name, const void* attributes)"
+signature = "bool (void* handler, const char* name, const char* const* attributes, uint32_t a3, uint32_t a4)"
 expect = "55 8B EC 83 EC 50 53 56"
-source = "Name ours. Slot 3 of the handler interface: the depth raised and the key and type attributes kept. Part u3. Stays the game's; called by ours."
+source = "Name ours. Slot 3 of the handler interface (this is the object + 4); `ret 0x10`. Before the root (the byte at +0x10): the name compared with the root's (RootName), false unless it is, then the byte set. After it: the `key` and `type` attributes (null-ended name and value pairs, the names compared with no case) copied into the strings at +0x14 and +0x28, and the text at +0x3C emptied in place; true. The depth is not touched. Ours in framework.propio.xmltext (docs/gzui.md, part u3)."
 
 [[entry]]
 name = "cGZPropSetXmlIO::TrueText"
@@ -668,7 +668,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, uint32_t type, uint32_t iid, void** out, uint32_t a4, uint32_t a5)"
 expect = "55 8B EC 83 EC 24 8B 45"
-source = "Name ours. Slot 4: the Track objects (0x0B8D821A, 0x0B9EB87E: 0x00939750; 0xEBFEE345, 0xEBFEE349: 0x009396D8), the window 0xA3CD96CF (0x009402A1) and the shuffle bag 0x7B1ACFCD (0x0094048B), queried for iid. Part u3. Stays the game's; called by ours."
+source = "Name ours. Slot 4; `ret 0x14`; ECX and the last two arguments are not read. An object of the type with the key (type, 0, 0), held by a counted reference (0x0096E773): the Track objects (0x0B8D821A, 0x0B9EB87E: 0x00939750, then 0xFF4C97BE = 0xAB903A1B and 0xFF1CDF6A = `Track` put in its set; 0xEBFEE345, 0xEBFEE349: 0x009396D8), the window 0xA3CD96CF (0x009402A1) and the shuffle bag 0x7B1ACFCD (0x0094048B); its QueryInterface for iid, then one Release. Another type: false over the type. Ours in framework.propio.create (docs/gzui.md, part u3)."
 
 [[entry]]
 name = "cGZPropSetTrack::ReadResource"
@@ -797,21 +797,18 @@ source = "Name ours. The text `,`: the TKDT reader's separator and the writer's 
 name = "cGZPropSetTrack::TextEnd"
 address = 0x00B633E0
 kind = "data"
-expect = "69 F0 E3 27 02 C0 7A 72"
 source = "Name ours. A static game string `ETKD` the TKDT writer makes on first use (guard bit 1 of 0x00B633F4)."
 
 [[entry]]
 name = "cGZPropSetTrack::TextComma"
 address = 0x00B633CC
 kind = "data"
-expect = "F3 BF 8D 30 2A A9 87 99"
 source = "Name ours. A static game string `,` the TKDT writer makes on first use (guard bit 2 of 0x00B633F4) and writes for a value the set has not got."
 
 [[entry]]
 name = "cGZPropSetTrack::TextStaticsGuard"
 address = 0x00B633F4
 kind = "data"
-expect = "19 1B E4 94 F7 2A 61 3B"
 source = "Name ours. The TKDT writer's static-initialisation bits: 1 for 0x00B633E0, 2 for 0x00B633CC."
 
 [[entry]]
@@ -988,7 +985,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "55 8B EC 51 56 8B F1 83"
-source = "Name ours. Vtable 0x00AD4648, the count at +4, two lists of uint32 at +8 and +0xC (0x004F5A00), the threshold 10 at +0x10, the byte at +0x14; the live count at 0x00B633B8 raised. Part u3. Stays the game's; called by ours."
+source = "Name ours. Plain ret. Vtable 0x00AD4648, the count at +4, two lists of uint32 at +8 and +0xC (0x004F5A00), the threshold 10 at +0x10, the byte at +0x14 (a fixed threshold); the live count at 0x00B633B8 raised. Also called by 0x009358D6. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
 
 [[entry]]
 name = "cGZShuffleBag::Destruct"
@@ -997,7 +994,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "56 8B F1 C7 06 48 46 AD"
-source = "Name ours. Part u3. Stays the game's; called by ours."
+source = "Name ours. Plain ret: the vtable, the live count lowered, the lists at +0xC and +8 destroyed (0x005650A0, the second a tail jump). Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
 
 [[entry]]
 name = "cGZShuffleBag::QueryInterface"
@@ -1006,7 +1003,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, uint32_t iid, void** out)"
 expect = "83 7C 24 04 01 74 0A 81"
-source = "Name ours. `ret 8`: 1 and 0xDB1ACFB2. Part u3. Stays the game's; called by ours."
+source = "Name ours. Slot 0; `ret 8`: 1 and 0xDB1ACFB2, then AddRef; else false over the caller's EAX. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
 
 [[entry]]
 name = "GZUint32List::Assign"
@@ -1052,3 +1049,574 @@ convention = "thiscall"
 signature = "void (void* vector)"
 expect = "8B 01 85 C0 74 07 50 E8"
 source = "Name ours. The vector's block freed (0x0090CF63). Called by our XML Read. Stays the game's; called by ours."
+
+# Part u3 (src/core/gzui_propio.cpp, docs/gzui.md): the XML writer and StartElement, the UI script handler's
+# StartElement and EndElement, the factory's Create, the window's Clone and copy, the shuffle bag, the framework's
+# 2D and 3D sound kinds' slots 5 and 6.
+
+[[entry]]
+name = "cGZPropSetXmlIO::RootName"
+address = 0x00942D50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* out, const void* unused)"
+expect = "55 8B EC 83 EC 14 FF 35"
+source = "Name ours. `ret 8`; neither this nor the second argument is read. The root element's name, `cGZPropertySetUint32` (the text the pointer at 0x00B16E88 names), assigned to the game string out; EAX is the last call's. Called by the writer and StartElement. Ours in framework.propio.xmltext (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZPropSetXmlIO::RootTag"
+address = 0x00B16E88
+kind = "data"
+expect = "98 40 AD 00 E8 06 A8 00"
+source = "Name ours. A pointer to the text `cGZPropertySetUint32`, the XML property set's root element."
+
+[[entry]]
+name = "cGZPropSetXmlIO::KeyName"
+address = 0x00B16E7C
+kind = "data"
+expect = "C4 1C AA 00 6C 13 A8 00"
+source = "Name ours. A pointer to the text `key`, the attribute the writer and StartElement use for a value's key."
+
+[[entry]]
+name = "cGZPropSetXmlIO::TypeName"
+address = 0x00B16E80
+kind = "data"
+expect = "6C 13 A8 00 B0 40 AD 00"
+source = "Name ours. A pointer to the text `type`, the attribute the writer and StartElement use for a value's type."
+
+[[entry]]
+name = "cGZPropSetXmlIO::HeaderFormat"
+address = 0x00AD461C
+kind = "data"
+expect = "3C 3F 78 6D 6C 20 76 65"
+source = "Name ours. The format `<?xml version=\"%d.%d\"?>` and a line feed, which the writer starts with (1, 0)."
+
+[[entry]]
+name = "cGZPropSetXmlIO::OpenRootFormat"
+address = 0x00AD4614
+kind = "data"
+expect = "3C 25 73 3E 0A 00 00 00"
+source = "Name ours. The format `<%s>` and a line feed: the writer's root element."
+
+[[entry]]
+name = "cGZPropSetXmlIO::CloseRootFormat"
+address = 0x00AD4510
+kind = "data"
+expect = "3C 2F 25 73 3E 0A 00 00"
+source = "Name ours. The format `</%s>` and a line feed: the writer's root element's end."
+
+[[entry]]
+name = "cGZPropSetXmlIO::Indent"
+address = 0x00AD4610
+kind = "data"
+expect = "20 20 20 00 3C 25 73 3E"
+source = "Name ours. Three spaces, written before each value's element."
+
+[[entry]]
+name = "cGZPropSetXmlIO::Uint32Open"
+address = 0x00AD45F0
+kind = "data"
+expect = "3C 41 6E 79 55 69 6E 74"
+source = "Name ours. The format `<AnyUint32 %s=\"%s\" %s=\"0x%08x\">`."
+
+[[entry]]
+name = "cGZPropSetXmlIO::Uint32Close"
+address = 0x00AD45E0
+kind = "data"
+expect = "3C 2F 41 6E 79 55 69 6E"
+source = "Name ours. The text `</AnyUint32>` and a line feed."
+
+[[entry]]
+name = "cGZPropSetXmlIO::BoolOpen"
+address = 0x00AD45BC
+kind = "data"
+expect = "3C 41 6E 79 42 6F 6F 6C"
+source = "Name ours. The format `<AnyBoolean %s=\"%s\" %s=\"0x%08x\">`."
+
+[[entry]]
+name = "cGZPropSetXmlIO::BoolClose"
+address = 0x00AD45AC
+kind = "data"
+expect = "3C 2F 41 6E 79 42 6F 6F"
+source = "Name ours. The text `</AnyBoolean>` and a line feed."
+
+[[entry]]
+name = "cGZPropSetXmlIO::FloatOpen"
+address = 0x00AD4588
+kind = "data"
+expect = "3C 41 6E 79 46 6C 6F 61"
+source = "Name ours. The format `<AnyFloat32 %s=\"%s\" %s=\"0x%08x\">`."
+
+[[entry]]
+name = "cGZPropSetXmlIO::FloatClose"
+address = 0x00AD4578
+kind = "data"
+expect = "3C 2F 41 6E 79 46 6C 6F"
+source = "Name ours. The text `</AnyFloat32>` and a line feed."
+
+[[entry]]
+name = "cGZPropSetXmlIO::Sint32Open"
+address = 0x00AD4558
+kind = "data"
+expect = "3C 41 6E 79 53 69 6E 74"
+source = "Name ours. The format `<AnySint32 %s=\"%s\" %s=\"0x%08x\">`."
+
+[[entry]]
+name = "cGZPropSetXmlIO::Sint32Close"
+address = 0x00AD4548
+kind = "data"
+expect = "3C 2F 41 6E 79 53 69 6E"
+source = "Name ours. The text `</AnySint32>` and a line feed."
+
+[[entry]]
+name = "cGZPropSetXmlIO::StringOpen"
+address = 0x00AD4528
+kind = "data"
+expect = "3C 41 6E 79 53 74 72 69"
+source = "Name ours. The format `<AnyString %s=\"%s\" %s=\"0x%08x\">`."
+
+[[entry]]
+name = "cGZPropSetXmlIO::StringClose"
+address = 0x00AD4518
+kind = "data"
+expect = "3C 2F 41 6E 79 53 74 72"
+source = "Name ours. The text `</AnyString>` and a line feed."
+
+[[entry]]
+name = "SC4::IntFormat"
+address = 0x00A8281C
+kind = "data"
+expect = "25 64 00 00 6C 69 6E 6B"
+source = "Name ours. The format `%d`; the XML writer prints uint32 and sint32 values with it."
+
+[[entry]]
+name = "SC4::FloatFormat"
+address = 0x00AAE160
+kind = "data"
+expect = "25 66 00 00 57 65 69 67"
+source = "Name ours. The format `%f`; the XML writer prints float values with it."
+
+[[entry]]
+name = "SC4::StringFormat"
+address = 0x00A9D8B4
+kind = "data"
+expect = "25 73 00 00 50 65 64 65"
+source = "Name ours. The format `%s`."
+
+[[entry]]
+name = "SC4::FalseText"
+address = 0x00A86DE0
+kind = "data"
+expect = "66 61 6C 73 65 00 00 00"
+source = "Name ours. The text `false` (the XML writer's bool; `true` is 0x00AAEDD4)."
+
+[[entry]]
+name = "cGZUIScriptHandler::Construct"
+address = 0x00935E15
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 C7 46 04 1C 22"
+source = "Name ours. Plain ret. The UI script property handler (0x30 bytes): the handler interface 0x00AD22C4 (QueryInterface 0x00935E48: 1, 0x4B6B9C9B, 0xCBA0711A; Release 0x00935E89, slot 12 at a count of 1; StartElement 0x00943809, EndElement 0x009425A2, Characters 0x00940868), a second interface at +4 (0x00AD22B4), the count at +8, the property set at +0xC (released by the destructor 0x00935EFA), a map of attribute names to values at +0x10 (0x0081D200), the text at +0x1C (a game string). Stays the game's; called by the test."
+
+[[entry]]
+name = "cGZUIScriptHandler::StartElement"
+address = 0x00943809
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const char* name, const char* const* attributes, uint32_t count, uint32_t unused)"
+expect = "55 8B EC 83 EC 50 53 56"
+source = "Name ours. Slot 3 of the handler interface 0x00AD22C4; `ret 0x10`. The text at +0x1C emptied in place; then each name and value pair of the attributes (count is the number of texts, lowered by two until 0) put in the map at +0x10 (0x0081D700, the game string's Assign); `Name` and `Value` are also copied into two strings that are not used. True. Ours in framework.propio.script (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZUIScriptHandler::EndElement"
+address = 0x009425A2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const char* name)"
+expect = "55 8B EC 83 EC 4C 53 56"
+source = "Name ours. Slot 4 of the handler interface 0x00AD22C4; `ret 4`. The map's `Name` and `Value` attributes (a copy of the text at +0x1C when there is no `Value`), then by the element's name: `PropertyUint32String` puts a string value, `PropertyUint32Uint32` a uint32 (0x0090FE93) and `PropertyUint32Float32` a float (a script number, 0x00915CDE and 0x0091567A) in the set at +0xC under the name's ID (0x00932F76) with the top byte set; the last two answer false, with the map kept, when the value is empty or does not start with a digit. `PropertyStringString` and other names put nothing. Then the map is emptied (0x0081D170); true. Ours in framework.propio.script (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZUIScriptHandler::NameText"
+address = 0x00A8FA18
+kind = "data"
+expect = "4E 61 6D 65 00 00 00 00"
+source = "Name ours. The text `Name`, an attribute of the UI scripts' property elements."
+
+[[entry]]
+name = "cGZUIScriptHandler::ValueText"
+address = 0x00AAD920
+kind = "data"
+expect = "56 61 6C 75 65 00 00 00"
+source = "Name ours. The text `Value`, an attribute of the UI scripts' property elements."
+
+[[entry]]
+name = "cGZUIScriptHandler::StringStringText"
+address = 0x00AD44F8
+kind = "data"
+expect = "50 72 6F 70 65 72 74 79"
+source = "Name ours. The element name `PropertyStringString`."
+
+[[entry]]
+name = "cGZUIScriptHandler::Uint32StringText"
+address = 0x00AD44E0
+kind = "data"
+expect = "50 72 6F 70 65 72 74 79"
+source = "Name ours. The element name `PropertyUint32String`."
+
+[[entry]]
+name = "cGZUIScriptHandler::Uint32Uint32Text"
+address = 0x00AD44C8
+kind = "data"
+expect = "50 72 6F 70 65 72 74 79"
+source = "Name ours. The element name `PropertyUint32Uint32`."
+
+[[entry]]
+name = "cGZUIScriptHandler::Uint32Float32Text"
+address = 0x00AD44B0
+kind = "data"
+expect = "50 72 6F 70 65 72 74 79"
+source = "Name ours. The element name `PropertyUint32Float32`."
+
+[[entry]]
+name = "SC4::strcmp"
+address = 0x009F2560
+kind = "function"
+convention = "cdecl"
+signature = "int (const char* a, const char* b)"
+expect = "8B 54 24 04 8B 4C 24 08"
+source = "The C runtime's strcmp. Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4::NameToId"
+address = 0x00932F76
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (const char* text, bool flag)"
+expect = "55 8B EC 80 3D 00 33 B6"
+source = "Name ours. An ID from a text (a table built on first use, flag 0x00B63300); the UI script handler's EndElement uses it with 0 for a property's key. Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4StringMap::Clear"
+address = 0x0081D170
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map)"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours. STLport map of game strings to game strings: clear. STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "SC4StringMap::Index"
+address = 0x0081D700
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, const void* key)"
+expect = "83 EC 3C 53 8B 5C 24 44"
+source = "Name ours. STLport map of game strings to game strings: operator[] (`ret 4`), the mapped string. STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "SC4ScriptNumber::ToFloat"
+address = 0x0091567A
+kind = "function"
+convention = "thiscall"
+signature = "float (void* number)"
+expect = "55 8B EC 51 8B 01 D9 EE"
+source = "Name ours. A script number's value as a float, in ST0 (its slot 0x94 into a float that starts at 0). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZPropSetTrack::ConstructText"
+address = 0x00939750
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key)"
+expect = "56 8B F1 E8 DF FA FF FF"
+source = "Name ours. `ret 4`. The Track class with the text form (vtable 0x00AD2920, 0x28 bytes): a property set with the key interface at +0x18 and the key from +0x1C. Made by the factory's Create for types 0x0B8D821A and 0x0B9EB87E. Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZPropSetTrack::Construct"
+address = 0x009396D8
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key)"
+expect = "56 8B F1 E8 57 FB FF FF"
+source = "Name ours. `ret 4`. The Track class 0x00AD2898 (0x28 bytes). Made by the factory's Create for types 0xEBFEE345 and 0xEBFEE349. Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZPropSetFactory::TrackText"
+address = 0x00AD4638
+kind = "data"
+expect = "54 72 61 63 6B 00 00 00"
+source = "Name ours. The text `Track`, which the factory's Create puts in a new Track object of the text form under 0xFF1CDF6A."
+
+[[entry]]
+name = "cGZKeyedWin::Clone"
+address = 0x0094309C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* key, uint32_t iid, void** out)"
+expect = "56 57 68 14 01 00 00 8B"
+source = "Name ours. Slot 14 of the window 0xA3CD96CF's key interface (vtable 0x00AD42FC; this is the window + 0x104); `ret 8`. A new window (0x114 bytes) with this key, CopyAssign from this window, then its QueryInterface (no reference taken otherwise); EAX is QueryInterface's. Ours in framework.propio.wincopy (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZKeyedWin::CopyAssign"
+address = 0x009430E1
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours. `ret 4`. The script window's Assign, then the key at +0x108 to +0x110; returns this. Ours in framework.propio.wincopy (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZScriptWin::Assign"
+address = 0x00943112
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. `ret 4`. The script window 0x0093E8F4's members copied: the string at +0x20, the counted references at +0x34 and +0x7C to +0x94 (0x005447B0) and +0xAC, +0xB0 (0x0094909A), each only when it is not itself, the plain values from +0x38 to +0x74, +0x9C to +0x9E, +0xC0, +0xC4 and +0x100, the lists at +0x78 (0x009434EC) and +0x98 (0x009435B4), the vector at +0xA0 (0x00943376), the tree at +0xB4 (0x00943303) and the part at +0xC8 (0x009436BF); returns this. Only Clone copies a window. Ours in framework.propio.wincopy (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZScriptWinPart::Assign"
+address = 0x009436BF
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 8B 47"
+source = "Name ours. `ret 4`. The script window's part at +0xC8: +0x18, +0x1C, the byte +0x20, the counted references at +0x24 and +0x30 (0x005447B0) and +0x28, +0x2C (0x0094909A), the list at +0x34 (0x00943730); returns this. Ours in framework.propio.wincopy (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "GZWinTree::Assign"
+address = 0x00943303
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* tree, const void* other)"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. `ret 4`: an STLport red-black tree's assignment (clear 0x0093C099, copy 0x0093E7F2), the script window's at +0xB4. STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "GZRefPtrVector::Assign"
+address = 0x00943376
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, const void* other)"
+expect = "55 8B EC 83 EC 0C 56 8B"
+source = "Name ours. `ret 4`: an STLport vector of counted references' assignment (0x009434B7, 0x00943489, 0x0094909A), the script window's at +0xA0. STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "GZValueList::Assign"
+address = 0x009434EC
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list, const void* other)"
+expect = "55 8B EC 51 8B 55 08 3B"
+source = "Name ours. `ret 4`: an STLport list of dwords' assignment (0x0093A22B, 0x00943554), the script window's at +0x78. STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "SC4RefPtrList::Assign"
+address = 0x009435B4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list, const void* other)"
+expect = "55 8B EC 51 8B 45 08 3B"
+source = "Name ours. `ret 4`: an STLport list of reference holders' assignment (0x005447B0, 0x0094362B, 0x0094365F), the script window's at +0x98. STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "GZRefPtrList::Assign"
+address = 0x00943730
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list, const void* other)"
+expect = "55 8B EC 51 8B 45 08 3B"
+source = "Name ours. `ret 4`: an STLport list of counted references' assignment (0x0094909A, 0x009437A7, 0x0094365F), the script window part's at +0x34. STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "cGZShuffleBag::Vtable"
+address = 0x00AD4648
+kind = "vtable"
+expect = "2E 39 94 00 60 8B 96 00"
+source = "Name ours. 24 slots: QueryInterface, AddRef 0x00968B60, Release, a stub, Add, Remove, Clear, SetThreshold 0x009404C2, Draw, Count 0x0094067A, a stub, Get, two stubs, Set, a stub, Erase, the deleting destructor, a shared getter, Read, Write, three stubs."
+
+[[entry]]
+name = "cGZShuffleBag::LiveCount"
+address = 0x00B633B8
+kind = "data"
+source = "Name ours. The number of shuffle bags alive: the constructor raises it, the destructor lowers it."
+
+[[entry]]
+name = "cGZShuffleBag::Release"
+address = 0x00943917
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 04 83 F8 01 7F 0A"
+source = "Name ours. Slot 2; plain ret. At a count of 1 or less the deleting destructor (slot 17, flag 1) without lowering the count, and 0; else the count lowered. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Add"
+address = 0x00943C01
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "56 8B F1 57 8D 44 24 0C"
+source = "Name ours. Slot 4; `ret 4`. The value pushed on the back of the first list; without a fixed threshold (+0x14) the threshold becomes half of both lists' sizes. True over the push's EAX, or over the second list's head when it counted. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Remove"
+address = 0x00943A2E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "53 8B D9 56 8D 73 08 8B"
+source = "Name ours. Slot 5; `ret 4`. Every entry equal to the value taken out of both lists (0x00943995); without a fixed threshold, half of both sizes. True over the second list's head. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Clear"
+address = 0x0094397E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8D 4E 08 E8 17"
+source = "Name ours. Slot 6; plain ret. Both lists emptied (0x0050A2A0); true. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Draw"
+address = 0x00943C46
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 8; plain ret. With the first list empty, the second list's front moved to its back and answered; else an entry at a random place of the first list (Random) taken out and pushed on the second, and while the second holds more than the threshold (signed) its front moves to the first's back; the entry drawn. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Random"
+address = 0x00943953
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* unused, uint32_t count)"
+expect = "55 8B EC 51 56 8D 4D FC"
+source = "Name ours. `ret 4`; ECX is not read. The registry of sound kinds (service 0x1B2CE671, interface 0xBB1BD9A8, through 0x004ED100 and 0x004ED130) and its slot 26 with (count, 0): a number from 0 below count, from the registry's own generator at +0x74. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Get"
+address = 0x00943A9B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t index, uint32_t* out)"
+expect = "53 56 8B F1 8B 4E 08 8B"
+source = "Name ours. Slot 11; `ret 8`. The entry at index, counting the first list then the second (the total is slot 9's): written to out, true over it; past the end false over the total. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Set"
+address = 0x00943B07
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t index, uint32_t value)"
+expect = "53 56 8B F1 8B 4E 08 8B"
+source = "Name ours. Slot 14; `ret 8`. The entry at index replaced (as Get finds it); true over its node, or false over the total. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Erase"
+address = 0x00943B71
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t index)"
+expect = "55 8B EC 53 56 8D 71 08"
+source = "Name ours. Slot 16; `ret 4`. The entry at index erased from its list (0x0049EAA0); true, or false over the total. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::DeletingDestructor"
+address = 0x00943BE5
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 21 FE FF FF"
+source = "Name ours. Slot 17; `ret 4`. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Read"
+address = 0x00943DBC
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream, uint32_t a2, uint32_t a3)"
+expect = "55 8B EC 81 EC 84 00 00"
+source = "Name ours. Slot 19 (the keyed bag's key interface's slot 12 jumps here); `ret 0xC`. The stream's bytes whole through its seekable interface (0xC56B8F08: the size 0xD0, the bytes 0x6C into a block of size + 1; without the interface the stream's address is taken as the size and the null interface called). By the size: first dword + 4, text (entries split at commas, a `-` range adds each number of it, 0x0090FE93); 1 then a count, the count's entries; a count, its entries; else false. Entries go to the first list; then the threshold (slot 7) a third of its size plus 1. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZShuffleBag::Write"
+address = 0x00943CF2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream, uint32_t a2, uint32_t a3)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Slot 20 (the keyed bag's key interface's slot 13 jumps here); `ret 0xC`. Through the stream's slot 0x24: 1, both lists' sizes added, then each list's entries, each moved from the list's front to its back as it goes; the writes' results are not looked at. True. Ours in framework.propio.shufflebag (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "SC4Uint32List::Remove"
+address = 0x00943995
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list, const uint32_t* value)"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Name ours. `ret 4`: STLport list::remove of a dword (0x0049EAA0), shared with three other callers; returns the list's head. STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "SC4StlList::PopFront"
+address = 0x00427470
+kind = "function"
+convention = "thiscall"
+signature = "void (void* list)"
+expect = "8B 01 8B 00 8B 08 8B 50"
+source = "Name ours. The front node unlinked and freed (0x0090CF63). STLport code; stays the game's, called by ours."
+
+[[entry]]
+name = "SC4::DashText"
+address = 0x00A9F34C
+kind = "data"
+expect = "2D 00 00 00 2D 2B 00 00"
+source = "Name ours. The text `-`: the shuffle bag's text form's range separator."
+
+[[entry]]
+name = "SC4::SoundKindRegistry"
+address = 0x00913CF6
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "55 8B EC 51 83 3D D0 28"
+source = "Name ours. The registry of sound kinds (service 0x1B2CE671, interface 0xBB1BD9A8; see docs/audio.md), fetched on first use and kept at 0x00B628D0. Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZSoundKind2D::SetUpVoice"
+address = 0x00944088
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* unused, void* source, void* voice)"
+expect = "55 8B EC 51 53 56 8B 75"
+source = "Name ours. Slot 5 of the framework's 2D sound kind (vtable 0x00AD2804); `ret 8`, ECX not read. The source's values (slot 4) 0x16, 0x15 and 0x14; the voice (slot 3) gets 0x16 as it is and 0x15 as 0x15 * 0x14 / 1024 (signed), halved when the registry's value 0xFFAE9DDB (its slot 31) is not 0 and the source's 0xFFAE9DDB is below it. True. The game's own 2D SC4K kind replaces it (docs/audio.md). Ours in framework.propio.kinds (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZSoundKind2D::CopyValues"
+address = 0x00944117
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* unused, void* from, void* to)"
+expect = "53 55 56 8B 74 24 14 8B"
+source = "Name ours. Slot 6 of the framework's 2D sound kind; `ret 8`. Values 0x13, 0x19 to 0x1B, 0x23 to 0x26 and 0x33 copied (each Set with flag 1). True. Ours in framework.propio.kinds (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZSoundKind3D::SetUpVoice"
+address = 0x009441E3
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* unused, void* source, void* voice)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. Slot 5 of the framework's 3D sound kind (vtable 0x00AD2830); `ret 8`. Nothing for the same object (false over the caller's EAX). Values 0x20 to 0x22 and 0x40 to 0x42 copied; 0x1E and 0x1F copied when the source's 0x1F is not 0 (asked twice), else both from its 0x38 (4 when 0): that and 500 times it; 0x15 as in the 2D kind, with flag 0. EAX is the last Set's. Ours in framework.propio.kinds (docs/gzui.md, part u3)."
+
+[[entry]]
+name = "cGZSoundKind3D::CopyValues"
+address = 0x00944351
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* unused, void* from, void* to)"
+expect = "53 56 8B 74 24 10 8B 06"
+source = "Name ours. Slot 6 of the framework's 3D sound kind; `ret 8`. 0x1C set to 1, then 0x1D, 0x13, 0x19 to 0x1B, 0x23 to 0x26, 0x33, 0x1E and 0x1F copied. True. Ours in framework.propio.kinds (docs/gzui.md, part u3)."
