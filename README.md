@@ -19,7 +19,7 @@ Early development. Working today, inside SC4 Deluxe build 1.1.641:
 - **In-process mod:** a launcher injects `core.dll` (hooks, logging, crash dumps, per-subsystem replacement toggles).
 - **D3D11 renderer (the default):** matches the stock driver in all 60 harness screenshots, runs past the old 2048 px cap, windowed and borderless modes.
 - **DBPF reader:** byte-identical to the game's own reading of every record in a clean install.
-- **Replaced game code:** 6,863 of the game's functions are ours (25% of the game's own code, measured 2026-10-22), each behind a toggle and checked against the original: nearly all simulators, terrain, the region view, scripts and the audio classes; the renderer is past half and networks about two thirds.
+- **Replaced game code:** 7,195 of the game's functions are ours (26% of the game's own code, measured 2026-10-22), each behind a toggle and checked against the original: nearly all simulators, terrain, the region view, scripts and the audio classes; the renderer is past half and networks about two thirds.
 - **Determinism and parity harness:** runs from the same save agree for a year; replacement simulators are compared exactly against the original.
 
 Not yet playable as a standalone game. Roughly 25-30% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
