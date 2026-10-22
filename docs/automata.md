@@ -2155,7 +2155,7 @@ The group is found by the two classes' vtables less the core's slots, plus the f
   - Write and Read (+8 slots 3 and 4): 0x00551DE0, 0x00554D20, 0x0055F640, 0x0055BCF0, with the +0x204 deque's push 0x00554230 and 0x00553780 and the managers' record list push 0x00554160 (both called by vb4's code).
   - The setters: 0x00504FC0 (154), 0x00505110 (178), 0x00505140 (180), 0x0053CC00 (158), 0x0055B690 (cSC4Vehicle's 158, a random float from 0x00B21D78), 0x0055B750 (184, a random byte), 0x0054DA00 (159) and 0x0054DA50 (160, the speeds), 0x0054EB20 (149), 0x0054D820 (135), 0x0054D830 (172), 0x0055BE70 (124, the vehicle manager's slot 69) and 0x0055CA60.
   - The debug texts (slot 93): 0x00553CF0 and 0x00562AC0 (static strings, `State: %d`).
-- **vb3 (13, about 6,800 bytes): the base's movement on frames.** SetDestination (10) 0x0054E5B0; slots 129 to 134 (0x0054FDC0, 0x00550190, 0x0054E920, 0x00550760, 0x005504E0, 0x00550B60), 142 0x00554AB0, 151 0x00551300, 157 0x005510D0, 170 0x0054E790; helpers 0x0054E6F0 and 0x00551F70.
+- **vb3 (13, about 6,800 bytes, done): the base's movement on frames.** SetDestination (10) 0x0054E5B0; slots 129 to 134 (0x0054FDC0, 0x00550190, 0x0054E920, 0x00550760, 0x005504E0, 0x00550B60), 142 0x00554AB0, 151 0x00551300, 157 0x005510D0, 170 0x0054E790; helpers 0x0054E6F0 and 0x00551F70.
 - **vb4 (22, about 6,500 bytes): the base's states on frames.** Slots 72 0x0054E050, 109 0x00550090, 110 0x005546E0 (with 0x0054E380), 111 0x005535D0 (with 0x00552B80, 0x0054ECC0), 145 0x005559D0, 147 0x00551480, 148 0x00551C20, 161 to 169 (0x0054E1A0, 0x0054E410, 0x005500D0, 0x0054E3D0, 0x00553AA0 with 0x00553720 and the deque step 0x00504C40, 0x00554870, 0x00550F40, 0x005527E0, 0x00552520), 173 0x0054D860.
 - **vb5 (10, about 5,900 bytes): cSC4Vehicle's movement.** Slots 72 0x0055BA20, 129 0x0055CAF0, 131 0x0055D210, 132 0x0055D5A0, 151 0x0055D9D0, 121 0x0055C600, 109 0x0055CA90, 135 0x0055BE90, 125 0x0055DF50, 65 0x0055C8C0 (HandleCollision: a sound, a message).
 - **vb6 (12, about 7,500 bytes): cSC4Vehicle's lanes and turns.** Slots 176 0x0055DBE0, 177 0x0055DD10, 188 0x0055C480 with 0x0055C350 and 0x0055BB10 (shared with the trains), 185 0x0055E1F0, 186 0x0055E550, 187 0x0055ED10 (1,760 bytes) with 0x0055EA20, 0x0055BF70, 0x0055C030, 191 0x0055DD50 (a model matrix: SC4Matrix::FromDirection, the renderer).
@@ -2169,7 +2169,7 @@ Mods: no NAM site and none of SC4UIScale's addresses is in the group. SC4UIScale
 
 ### What is ours
 
-66 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)): vb1's 36 (kObject) and vb2's 30 (kLife).
+79 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)): vb1's 36 (kObject), vb2's 30 (kLife) and vb3's 13 (kMove).
 
 #### vb1
 
@@ -2238,11 +2238,48 @@ Floats: slots 159 and 160 divide 1.0 by slot 125's answer and multiply by the fa
 
 Reimplemented the same way: one writer, then an independent audit of all 30 against the disassembly, every call's argument count checked against the callee's `ret`. The audit found no defect in the 30 functions. It corrected the address database: the +0x204 push's caller is slot 166 (0x00554870), not 165, and slot 149's argument is a word. The classes it could not see (the stream, the view's slot 0x74, the model's slot 0, 0x00B43DDC's slot 9, the +0x27C element's slot 0xEC): the game's own code reads its locals relative to ESP right after each call, which fixes their argument counts, and ours passes the same.
 
+#### vb3
+
+The base's movement on frames. cSC4Vehicle overrides slots 129, 131, 132 and 151 (vb5), so on the city's vehicles those four of ours run only where the vehicle's own code calls the base's; the pedestrians and the base's other slots run them directly.
+
+- **SetDestination (slot 10) 0x0054E5B0:** the automata flag 4 cleared, the destination +0x4C set, the heading +0x58 its unit vector and slot 16 (null, heading); at a length not above 0 the flag 4 set and slot 102 (4, 0) instead.
+- **The moves (2):**
+  - Slot 129 0x0054FDC0 (frame seconds): the step (slot 125 x the smoothed speed, slot 34, x the seconds); with slot 88, an empty route and +0x204 deque and the flag 0x20, slot 79 and true. Else slot 161 (vb4), then the room ahead (slot 151; below 16 SetSpeed to +0xB0's speed at 0.5) caps the step; a step not above 0 sets the flag 0x20 and, when minus the radius is above it and the flag 0x40 is off, Remove(false) and false. Else slot 133 along the path into the destination, kept inside the city (city slots 89 and 90 less 0.5), its height from the occupant (slot 56) unless the network part is flat (its slot 16), slot 155 and slot 16; within 0.001 in x and z, slot 16 (destination, null) and the flag 0x20 instead.
+  - Slot 130 0x00550190 (frame seconds): straight to the destination (reset to the position when a coordinate is below 0); arrived (the flags 0x20 and 4, slot 102 (4, 0), true) when the distance or step is not above 0 or the move reaches the distance (0 with the flag 8 and a vehicle within 1 by slot 123). Else false outside the city in x or z; slot 155; unless the flag 0x20000 is on, the traffic network map's slot 44 (position, point, 2 with slot 141 else 0xC49): Remove(false) when it says no, else the height from the map (slot 18); slot 16.
+- **The path (3):**
+  - Slot 133 0x005504E0 (step, from, out, index, path, leftover): out walks the path (+0x1F8 by default) from the index (+0x1FC) by the step, each next point offset by slot 157; true when the step ends inside a segment; past the last point false, leftover the rest and out moved by the whole step along the last segment.
+  - Slot 157 0x005510D0 (point): the point moved sideways by +0x200 (plus slot 56's object's +0x24's +0x4C when +0xB4 has elements; nothing below 1e-4) across the path's first-to-last direction: its angle by 0x007F82F0 (FPATAN of the negated x and z), FSIN and FCOS, the side by the direction's dot product with (1/sqrt 2, 0, 1/sqrt 2).
+  - Slot 151 0x00551300: the room ahead, the smaller of 16 or the path's last point's distance less the radius (0 below 1; with the flag 0x10) and 16 or +0xB0's point's (its slot 66) less the radius and 3 (with the flag 8).
+- **The network (4):**
+  - Slot 131 0x0054E920 (occupant, key, exact): the occupant's network part (slot 49), its path for the key (slot 3) or, with exact, one found from the position (slot 5); with two points or more, slot 132 and the traffic network map's slot 19 word for the key set to 0.
+  - Slot 132 0x00550760 (occupant, groups, path, keep): +0x1EC, +0x1F0 (the part), +0x1F4, +0x1F8 and +0x1FC; without keep, slot 16 and SetDestination at the path's first two points (offset by slot 157, heights by the occupant). Into a tunnel (0x8A4BD52B by QueryInterface, after the occupant's slot 8 with 0x80000) slot 33 (0, 0.8), out of one slot 33 (1, 0.1), each with the sound object (0x00602640) slot 5 or 6 with 0xE when slot 57 (0x10) finds one. The traffic network map forgets the automaton on the old occupant (slot 31) and takes it on the new one (slot 30, after slot 160); with the flag 8, +0xB0 = slot 148 (SC4RefPtr::Assign).
+  - Slot 134 0x00550B60 (Init calls it): false at the core's default point; the map's occupant at the position's cell (city slot 95, map slot 11) and its part; the best side of +0xA4 (slot 171) when slot 122 answers, or when +0x98 is set and +0xA4 is longer than 1e-5; the part's path from the position (slot 5 with the vehicle manager's slot 68); slot 132; +0x1FC the part's index of the position (slot 19); slot 16 with the path's first segment's direction, else the whole path's, else the heading.
+  - Slot 142 0x00554AB0 (now): 0x00554640, slot 90 (1), the flag 0x2000 cleared; with now, true. Else the route's first cell popped and, of the map's occupants at it (slot 14), the first whose part finds a path towards the next cell's side (slot 9 with the automata's generator): slot 132, slot 16 at the path's first point (with the route now empty, the part's end point, slot 22, and the flag 4).
+- **The side weights (2):** slot 170 0x0054E790 (network, weights): +0xA4 normalised, its best side and, for each of four rows the network answers for (its slot 0xD4), a share of the opposite side's weight (at least 100, times the absolute +0xA0 x 0.01) moved to the side, the rest not below 0. 0x0054E6F0 (slot 167's helper): the vehicle manager's weights (slots 42 and 72), slot 170 and the map's slot 6 with the table's row for the side.
+- **The route's pop_front 0x00551F70** (3-byte cells; at a block's end the block freed by SC4::Free).
+
+Kept as the game's for vb3: the core's slots they call (16, 33, 34, 56, 57, 79, 88, 90, 102, 122, 125, 141), vb4's slots 148 and 161, cSC4Vehicle's overrides, the traffic network map (city slot 40) and the network parts, the vehicle manager's slots, 0x007F82F0, the sound object 0x00602640 and its slots, SC4::Free and SC4RefPtr::Assign; all called at their addresses.
+
+vb3's oddities kept:
+
+- SetDestination and slot 130 take the y difference as the destination's y less itself: 0 unless it is infinite or NaN.
+- Slot 170 moves a share of the larger of the opposite weight and 100, normalises +0xA4 without a zero test, and passes the network argument's own stack slot as BestDirection's out byte: the side word it then passes to the network's slot 0xD4 has the pointer's upper three bytes.
+- Slot 133 compares the index unsigned and, past the path's end, moves out by the whole step along the last segment while answering false; it leaves leftover alone when the step ends inside the path.
+- Slot 157 does not test +0x1F8 for null; slot 129 calls city slot 40 and slot 174 and drops the answers.
+
+Stack garbage where ours passes zeros: the byte arguments with three bytes of the game's stack above them (slot 131's key byte 1 to the part's slot 5 and the map's slot 19, the side to the parts' slots 5 and 9, slot 170's row to slot 0xD4; every callee reads only the byte), and the locals the callees always write before a read (0x0054E6F0's weight table, slot 134's cells and out word, slot 142's out word).
+
+Return values: the game sets only AL in slots 129, 130, 131, 133, 134, 142 and 170; ours zero-extends. Slot 151 answers a float in ST0. SetDestination and 0x0054E6F0 pass their last call's EAX on; slots 132 and 157 are void (no caller the audit found reads EAX).
+
+Floats: 53-bit doubles, as the game's x87 runs; ours rounds to a float exactly where the game stores one, keeps the x87's unrounded values elsewhere (slot 157 keeps 1/sqrt 2 unrounded, the direction's z as a float and its product unrounded), and adds sums of squares in the game's order. FSIN and FCOS are the x87's own (inline asm); the angle is the game's 0x007F82F0.
+
+Reimplemented the same way: one writer, then an independent audit of all 13 against the disassembly, every call's argument count checked against the callee's `ret` (the base's and cSC4Vehicle's vtables, the traffic network map 0x00A8FED8, the vehicle manager base 0x00A9BD88, the road network part 0x00A99E70, the network occupant 0x00AA8080). The audit found one defect: slot 131 passed the out word where the game passes the key's byte 1 as the map's slot 19's fourth argument (that slot builds its lane key from the byte); fixed. Everything else matched, including the compiler's interleaved pushes (slot 129's 0.5 pushed before +0xB0's slot 34 belongs to SetSpeed; slot 142's five pushes before the manager's slot 68 belong to the part's slot 9).
+
 ### Test
 
 `OPENSC4_TEST_AUTOMATA_VEHICLE=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, drives the base and cSC4Vehicle on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). Vehicles run on frames, so everything in the fingerprint comes from objects the test makes and removes itself. The automata's generator (0x00B21D78) is saved and seeded first and put back after: the drawn times are the same on both sides, and the game's own draws do not change.
 
-Into the fingerprint as ` V<object>,<accessors>,<queries>,<nearest>,<flags>,<setters>,<save>,<texts>,<life>` (the last four vb2's):
+Into the fingerprint as ` V<object>,<accessors>,<queries>,<nearest>,<flags>,<setters>,<save>,<texts>,<life>,<move>,<frame>,<enter>` (vb2's four after the flags, vb3's three at the end; the flags 4 when vb3's part ran):
 
 - Four vehicles from the factory, each held by one reference: their fields after construction; a base object built and deleted (0x005544D0, 0x005552F0); QueryInterface for six interfaces at both addresses and through the occupant part (each AddRef given back) and GetGZCLSID.
 - The accessors (addresses as offsets; the manager compared with city slot 43; the deque's back with its expected address).
@@ -2261,7 +2298,19 @@ Reached (our first-call log lines): all 36 in every B run of Making Money and Ru
 
 vb2 reached: all 30 in every B run of vb2-r1 (Making Money, Rush Hour and Big City alike: the test makes its own vehicles). Both Reads (0x0055BCF0, 0x00554D20), both Inits and cSC4Vehicle's slot 158 (0x0055B690) run by the game at the load; the rest by the test. In the trial the token and the log were the same on both sides.
 
-Not covered by the fingerprint: slot 152's branch through the next occupant (with no occupant 0x00B43D54's slot 0x3C answers null at once), 0x0054FC30 and slot 123 (the log only), a tie in 0x0050AAF0.
+vb3 adds `,<move>,<frame>,<enter>` to the token. Its calls run on a base object of the test's (0x005544D0) whose vtable is a copy of the base's with slot 174 answering a vehicle manager of the test's, and with the city global 0x00B43CEC pointing at a city of the test's while they run: its traffic network map (slots 6, 11, 14, 18, 19, 30, 31, 44), a size of 2048 x 1024 and cells of 16; any other city slot is counted into the flags (0x200). So nothing of the real city is read, and the values do not follow frames. Two of the object's fields are held for the test: its byte +0x33's low bits are cleared (with bit 4 the core's slot 16 would index it in the occupant manager 0x00B43D0C) and the automata flag 0x100000 stays on (else slot 16 would put it on the view's update list); both are put back, with +0x98 and its references cleared, before the object is deleted.
+
+- move: SetDestination for six targets; slot 157 on two paths for five offsets; slot 133 along a five-point path for seven steps and five start indices, at offsets 0 and 1.25, and on the object's own path and index; slot 151 at three places with the flags 0x10 and 8 and an automaton ahead of the test's; 50 route cells pushed and 49 popped (0x00551F70); slot 170 over three side masks and four directions (with +0x98, +0xA0 and the flag 0x4000 varied) and with no network; 0x0054E6F0 for four sides.
+- enter: slot 132 into a lane, a tunnel (QueryInterface 0x8A4BD52B), an occupant without a network part, a part without a path, and none; slot 131 to four occupants with a path and without, exact or not; slot 134 at the default point and over five occupants and three +0xA4 cases, then with a one-point path; slot 142 over six route cells with a cell list of three occupants.
+- frame: slot 129 for 12 frames of 0.25 s, flat or not, with an automaton ahead or not; its early way out; steps of 0 and -2 (stopped, removed); slot 130 towards five goals with the automata flag 0x20000 on and off and the map's slot 44 answering yes and no, four frames of 0.5 s each.
+
+The fakes mix their arguments (the bytes the game passes with stack above them as bytes) and count their references into the hashes.
+
+vb3 reached: all 13 in every B run of vb3-r2. Before the test day the game itself reaches up to nine of them on the city's own automata (slot 170, 0x0054E6F0, slots 131, 132, 133, 157, 151, 129 and 134 in Rush Hour t0000, fewer in the others, none in four Big City and Making Money d0000 runs); SetDestination, slot 130, slot 142 and 0x00551F70 only by the test in the days before. In the trial (Making Money d0000, 4 days) the token was the same on both sides.
+
+Not covered by the fingerprint: the tunnel's sound call (slot 57 finds nothing on the test's object), slot 132 with the flag 8 (slot 148 is vb4's), the real map's slot 6 (the fake answers it: the real one reads the live map).
+
+Not covered by the fingerprint (vb1): slot 152's branch through the next occupant (with no occupant 0x00B43D54's slot 0x3C answers null at once), 0x0054FC30 and slot 123 (the log only), a tie in 0x0050AAF0.
 
 ### Parity
 
@@ -2284,3 +2333,13 @@ vb2, 2026-10-22, the same lists and setup, env p4env-vb2, snapshot vb2-r1 (66 de
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run carried the ` V` token with vb2's four hashes, equal to the A run's, and the first-call lines of all 30 vb2 functions (64 of the 66 in Big City, as in vb1). The audit's corrections after vb2-r1 are to the address database's descriptions only.
+
+vb3, 2026-10-22, the same lists and setup, env p4env-vb3, snapshot vb3-r2 (79 detours), with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` V` token with vb3's three hashes, equal to the A run's, and the first-call lines of all 13 vb3 functions. The first batch (vb3-r1) had the same Making Money and Rush Hour results and 8 of 12 in the batch: the test's fake map then passed slot 6 on to the real map, which reads its own state, so the move hash followed frames on both sides (A against A too); the fake now answers slot 6 itself.
