@@ -34,11 +34,12 @@
 // no jump lands inside the first five bytes of any of them.
 //
 // Compare mode: a call from the game's code runs ours on a copy of the
-// manager (its vectors and buckets copied, a stand-in terrain that records
-// the redraws), then the game's on the manager itself (with a stand-in
-// terrain too, whose redraws are then passed on to the real one), and
-// compares the two managers field by field, record by record and bucket by
-// bucket, the redraws and the result. Inside such a call each side calls its
+// manager (the records the call can reach, the bucket lists that may lose
+// nodes copied, the others shared; a stand-in terrain that records the
+// redraws), then the game's on the manager itself (with a stand-in terrain
+// too, whose redraws are then passed on to the real one), and compares the
+// two: the fields, the reached records, every bucket, the redraws and the
+// result. Inside such a call each side calls its
 // own: ours reach ours, the game's the game's. The getters are compared as
 // pure functions.
 #include "core/address_check.h"
@@ -51,13 +52,16 @@
 
 #include <opensc4/addresses.h>
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <set>
 #include <type_traits>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -88,6 +92,7 @@ constexpr std::size_t kGroupIds = 0x4;
 constexpr int kGroupCount = 8;
 
 constexpr uint32_t kNone = 0xFFFFFFFF;
+constexpr uint32_t kHandleBit = 0x80000000;
 constexpr uint32_t kIndexMask = 0x7FFFFFFF;
 constexpr uint32_t kIidOverlayManager = 0x895D6544;
 constexpr uint32_t kMessageOptions = 0xC9F775BB; // the message that has the manager read the options again
@@ -645,50 +650,152 @@ std::string Hex32(uint32_t value)
     return text;
 }
 
-// A copy of a manager for ours: its vectors copied with their capacities, its
-// buckets' nodes from the game's allocator (ours frees and makes them).
+// What a call can reach: the records it may read or write (an ID's handle,
+// its overlay or its group and the group's IDs, and for a removal the last
+// record of each free list), and the cells whose buckets may lose nodes
+// (each reached overlay's cells, and a removal's own).
+struct Reach {
+    std::vector<uint32_t> records[3];
+    std::vector<std::array<int32_t, 4>> removals;
+};
+
+uint32_t Count(char* self, int v)
+{
+    static const std::size_t kRecordSizes[] = {kOverlaySize, kHandleSize, kGroupSize};
+    return static_cast<uint32_t>((At<char*>(self, kVectors[v] + 4) - At<char*>(self, kVectors[v])) / kRecordSizes[v]);
+}
+
+void ReachOverlay(char* self, uint32_t index, Reach& reach)
+{
+    if (index >= Count(self, 0))
+        return;
+    reach.records[0].push_back(index);
+    const int32_t* cells = &At<int32_t>(Overlay(self, index), kCells);
+    reach.removals.push_back({cells[0], cells[1], cells[2], cells[3]});
+}
+
+void ReachId(char* self, uint32_t id, Reach& reach, int depth = 0)
+{
+    if (id == kNone)
+        return;
+    if (static_cast<int32_t>(id) >= 0) {
+        ReachOverlay(self, id, reach);
+        return;
+    }
+    const uint32_t handle = id & kIndexMask;
+    if (handle >= Count(self, 1))
+        return;
+    reach.records[1].push_back(handle);
+    const uint32_t target = At<uint32_t>(Handle(self, id), kTarget);
+    if (static_cast<int32_t>(target) >= 0) {
+        ReachOverlay(self, target, reach);
+        return;
+    }
+    const uint32_t group = target & kIndexMask;
+    if (group >= Count(self, 2))
+        return;
+    reach.records[2].push_back(group);
+    if (depth < 2)
+        for (int i = 0; i < kGroupCount; ++i)
+            ReachId(self, At<uint32_t>(Group(self, target), kGroupIds + 4 * i), reach, depth + 1);
+}
+
+void ReachFreeLists(char* self, Reach& reach)
+{
+    for (const auto& [v, last] : {std::pair{0, kOverlayLastFree}, std::pair{1, kHandles + 0x10}, std::pair{2, kGroupLastFree}}) {
+        const uint32_t index = At<uint32_t>(self, last);
+        if (index < Count(self, v))
+            reach.records[v].push_back(index);
+    }
+}
+
+Reach ReachOf(char* self, uint32_t id, bool removal = false)
+{
+    Reach reach;
+    ReachId(self, id, reach);
+    if (removal)
+        ReachFreeLists(self, reach);
+    return reach;
+}
+
+Reach ReachCells(char* self, uint32_t index, const int32_t* cells)
+{
+    Reach reach = ReachOf(self, index);
+    reach.removals.push_back({cells[0], cells[1], cells[2], cells[3]});
+    return reach;
+}
+
+// A copy of a manager for ours: the manager itself, the records the call can
+// reach (in buffers the size of the vectors, at the same places; the other
+// records are not copied) and the bucket heads. The buckets that may lose
+// nodes get copies of their lists (nodes from the game's allocator, which
+// ours frees and takes from); the others share the real lists, onto which
+// ours can only push.
 class Shadow {
 public:
-    explicit Shadow(char* real) : real_(real)
+    Shadow(char* real, const Reach& reach) : real_(real), reach_(reach)
     {
+        static const std::size_t kRecordSizes[] = {kOverlaySize, kHandleSize, kGroupSize};
         std::memcpy(object_, real, kSize);
         for (int v = 0; v < 3; ++v) {
             char* const begin = At<char*>(real, kVectors[v]);
             const std::size_t used = At<char*>(real, kVectors[v] + 4) - begin;
             const std::size_t capacity = At<char*>(real, kVectors[v] + 8) - begin;
-            data_[v].assign(begin, begin + used);
-            data_[v].resize(capacity);
-            char* const copy = begin ? data_[v].data() : nullptr;
+            if (Buffer(v).size() < capacity)
+                Buffer(v).resize(capacity);
+            char* const copy = begin ? Buffer(v).data() : nullptr;
+            for (uint32_t index : reach.records[v])
+                std::memcpy(copy + index * kRecordSizes[v], begin + index * kRecordSizes[v], kRecordSizes[v]);
             At<char*>(object_, kVectors[v]) = copy;
             At<char*>(object_, kVectors[v] + 4) = copy + used;
             At<char*>(object_, kVectors[v] + 8) = copy + capacity;
         }
         uint32_t** const begin = At<uint32_t**>(real, kBuckets);
-        const std::size_t count = At<uint32_t**>(real, kBuckets + 4) - begin;
+        count_ = At<uint32_t**>(real, kBuckets + 4) - begin;
         const std::size_t capacity = At<uint32_t**>(real, kBuckets + 8) - begin;
-        heads_.assign(capacity, nullptr);
-        for (std::size_t i = 0; i < count; ++i) {
-            uint32_t** link = &heads_[i];
-            for (const uint32_t* node = begin[i]; node; node = reinterpret_cast<const uint32_t*>(node[0])) {
-                uint32_t* const copy = Cdecl<uint32_t*>(addr::SC4_stl_allocate, std::size_t{8});
-                copy[0] = 0;
-                copy[1] = node[1];
-                *link = copy;
-                link = reinterpret_cast<uint32_t**>(copy);
-            }
+        std::vector<uint32_t*>& heads = Heads();
+        std::vector<uint32_t*>& stops = Stops();
+        if (heads.size() < capacity) {
+            heads.resize(capacity);
+            stops.resize(capacity);
         }
-        uint32_t** const heads = begin ? heads_.data() : nullptr;
-        At<uint32_t**>(object_, kBuckets) = heads;
-        At<uint32_t**>(object_, kBuckets + 4) = heads + count;
-        At<uint32_t**>(object_, kBuckets + 8) = heads + capacity;
+        if (count_) {
+            std::memcpy(heads.data(), begin, count_ * sizeof(uint32_t*));
+            std::memcpy(stops.data(), begin, count_ * sizeof(uint32_t*));
+        }
+        for (const auto& cells : reach.removals) {
+            const BucketRange r = Buckets(real, cells.data());
+            for (int32_t z = r.z0; z < r.z1; ++z)
+                for (int32_t x = r.x0; x < r.x1; ++x) {
+                    const std::size_t i = static_cast<std::size_t>(At<int32_t>(real, kBucketColumns) * z + x);
+                    if (i >= count_ || (stops[i] == nullptr && heads[i] == nullptr) || copied_.count(i))
+                        continue;
+                    copied_.insert(i);
+                    uint32_t** link = &heads[i];
+                    for (const uint32_t* node = begin[i]; node; node = reinterpret_cast<const uint32_t*>(node[0])) {
+                        uint32_t* const copy = Cdecl<uint32_t*>(addr::SC4_stl_allocate, std::size_t{8});
+                        copy[0] = 0;
+                        copy[1] = node[1];
+                        *link = copy;
+                        link = reinterpret_cast<uint32_t**>(copy);
+                    }
+                    stops[i] = nullptr;
+                }
+        }
+        uint32_t** const shadowHeads = begin ? heads.data() : nullptr;
+        At<uint32_t**>(object_, kBuckets) = shadowHeads;
+        At<uint32_t**>(object_, kBuckets + 4) = shadowHeads + count_;
+        At<uint32_t**>(object_, kBuckets + 8) = shadowHeads + capacity;
     }
 
+    // Our nodes freed: a copied list whole, a shared one up to the real
+    // list's head it started from.
     ~Shadow()
     {
-        uint32_t** const begin = At<uint32_t**>(object_, kBuckets);
-        uint32_t** const end = At<uint32_t**>(object_, kBuckets + 4);
-        for (uint32_t** head = begin; head && head != end; ++head)
-            for (uint32_t* node = *head; node;) {
+        uint32_t** const heads = At<uint32_t**>(object_, kBuckets);
+        const std::vector<uint32_t*>& stops = Stops();
+        for (std::size_t i = 0; i < count_; ++i)
+            for (uint32_t* node = heads[i]; node && node != stops[i];) {
                 uint32_t* const next = reinterpret_cast<uint32_t*>(node[0]);
                 Cdecl<void>(addr::SC4_Free, static_cast<void*>(node));
                 node = next;
@@ -716,7 +823,9 @@ public:
         return pointer;
     }
 
-    // The first difference between the real manager and the copy, or empty.
+    // The first difference between the real manager and the copy, or empty:
+    // the manager's fields (the vectors by size), the reached records, every
+    // bucket (a shared list both left alone has the same head).
     std::string Diff() const
     {
         char* const ours = const_cast<char*>(object_);
@@ -738,35 +847,31 @@ public:
                 if (a != b)
                     return Field(kVectors[v] + end, static_cast<uint32_t>(a), static_cast<uint32_t>(b));
             }
-        for (int v = 0; v < 3; ++v) {
-            const char* const a = At<char*>(real_, kVectors[v]);
-            const char* const b = At<char*>(ours, kVectors[v]);
-            const std::size_t used = At<char*>(real_, kVectors[v] + 4) - a;
-            for (std::size_t at = 0; at + 4 <= used; at += 4)
-                if (std::memcmp(a + at, b + at, 4) != 0) {
-                    char where[48];
-                    std::snprintf(where, sizeof where, "%s %u +0x%X: ", kNames[v], static_cast<unsigned>(at / kRecordSizes[v]),
-                                  static_cast<unsigned>(at % kRecordSizes[v]));
-                    uint32_t x, y;
-                    std::memcpy(&x, a + at, 4);
-                    std::memcpy(&y, b + at, 4);
-                    return std::string(where) + Hex32(x) + " / " + Hex32(y);
-                }
-        }
+        for (int v = 0; v < 3; ++v)
+            for (uint32_t index : reach_.records[v]) {
+                const char* const a = At<char*>(real_, kVectors[v]) + index * kRecordSizes[v];
+                const char* const b = At<char*>(ours, kVectors[v]) + index * kRecordSizes[v];
+                for (std::size_t at = 0; at < kRecordSizes[v]; at += 4)
+                    if (std::memcmp(a + at, b + at, 4) != 0) {
+                        char where[48];
+                        std::snprintf(where, sizeof where, "%s %u +0x%X: ", kNames[v], static_cast<unsigned>(index),
+                                      static_cast<unsigned>(at));
+                        uint32_t x, y;
+                        std::memcpy(&x, a + at, 4);
+                        std::memcpy(&y, b + at, 4);
+                        return std::string(where) + Hex32(x) + " / " + Hex32(y);
+                    }
+            }
         uint32_t** const a = At<uint32_t**>(real_, kBuckets);
         uint32_t** const b = At<uint32_t**>(ours, kBuckets);
-        const std::size_t count = At<uint32_t**>(real_, kBuckets + 4) - a;
-        for (std::size_t i = 0; i < count; ++i) {
-            const uint32_t* x = a[i];
-            const uint32_t* y = b[i];
-            while (x && y && x[1] == y[1]) {
+        for (std::size_t i = 0; i < count_; ++i)
+            for (const uint32_t *x = a[i], *y = b[i]; x != y;) {
+                if (!x || !y || x[1] != y[1])
+                    return "bucket " + std::to_string(i) + ": " + (x ? Hex32(x[1]) : std::string("end")) + " / "
+                           + (y ? Hex32(y[1]) : std::string("end"));
                 x = reinterpret_cast<const uint32_t*>(x[0]);
                 y = reinterpret_cast<const uint32_t*>(y[0]);
             }
-            if (x || y)
-                return "bucket " + std::to_string(i) + ": " + (x ? Hex32(x[1]) : std::string("end")) + " / "
-                       + (y ? Hex32(y[1]) : std::string("end"));
-        }
         return {};
     }
 
@@ -779,10 +884,28 @@ private:
         return text;
     }
 
+    // Kept from call to call (compared calls do not nest).
+    static std::vector<char>& Buffer(int v)
+    {
+        static std::vector<char> buffers[3];
+        return buffers[v];
+    }
+    static std::vector<uint32_t*>& Heads()
+    {
+        static std::vector<uint32_t*> heads;
+        return heads;
+    }
+    static std::vector<uint32_t*>& Stops()
+    {
+        static std::vector<uint32_t*> stops;
+        return stops;
+    }
+
     alignas(8) char object_[kSize + 4];
     char* real_;
-    std::vector<char> data_[3];
-    std::vector<uint32_t*> heads_;
+    const Reach& reach_;
+    std::size_t count_ = 0;
+    std::set<std::size_t> copied_;
 };
 
 template <typename T>
@@ -803,9 +926,9 @@ uint64_t g_stateCompared = 0;
 // it); `game` runs the original. Both with stand-in terrains; the game's
 // redraws are passed on to the real terrain afterwards.
 template <typename Ours, typename Game>
-auto CompareState(const char* id, char* self, Ours&& ours, Game&& game)
+auto CompareState(const char* id, char* self, const Reach& reach, Ours&& ours, Game&& game)
 {
-    Shadow shadow(self);
+    Shadow shadow(self, reach);
     std::vector<Redraw> ourRedraws, gameRedraws;
     StandInTerrain ourTerrain{g_standInVtable, &ourRedraws}, gameTerrain{g_standInVtable, &gameRedraws};
     At<void*>(shadow.self(), kTerrain) = &ourTerrain;
@@ -924,7 +1047,7 @@ void __fastcall DInvalidate(char* self, void*, uint32_t index)
     REACHED("Invalidate");
     Route([&] { Invalidate(self, nullptr, index); }, [&] { g_invalidate(self, nullptr, index); },
           [&] {
-              CompareState("renderer.overlays.manage1.invalidate", self,
+              CompareState("renderer.overlays.manage1.invalidate", self, ReachOf(self, index),
                            [&](Shadow& s) { Invalidate(s.self(), nullptr, index); }, [&] { g_invalidate(self, nullptr, index); });
           });
 }
@@ -934,7 +1057,7 @@ void __fastcall DBucketInsert(char* self, void*, uint32_t index, const int32_t* 
     REACHED("BucketInsert");
     Route([&] { BucketInsert(self, nullptr, index, cells); }, [&] { g_bucketInsert(self, nullptr, index, cells); },
           [&] {
-              CompareState("renderer.overlays.manage1.bucketinsert", self,
+              CompareState("renderer.overlays.manage1.bucketinsert", self, ReachOf(self, index),
                            [&](Shadow& s) { BucketInsert(s.self(), nullptr, index, s.Map(cells)); },
                            [&] { g_bucketInsert(self, nullptr, index, cells); });
           });
@@ -945,7 +1068,7 @@ void __fastcall DBucketRemove(char* self, void*, uint32_t index, const int32_t* 
     REACHED("BucketRemove");
     Route([&] { BucketRemove(self, nullptr, index, cells); }, [&] { g_bucketRemove(self, nullptr, index, cells); },
           [&] {
-              CompareState("renderer.overlays.manage1.bucketremove", self,
+              CompareState("renderer.overlays.manage1.bucketremove", self, ReachCells(self, index, cells),
                            [&](Shadow& s) { BucketRemove(s.self(), nullptr, index, s.Map(cells)); },
                            [&] { g_bucketRemove(self, nullptr, index, cells); });
           });
@@ -956,7 +1079,7 @@ void __fastcall DPlace(char* self, void*, uint32_t index)
     REACHED("Place");
     Route([&] { Place(self, nullptr, index); }, [&] { g_place(self, nullptr, index); },
           [&] {
-              CompareState("renderer.overlays.manage1.place", self, [&](Shadow& s) { Place(s.self(), nullptr, index); },
+              CompareState("renderer.overlays.manage1.place", self, ReachOf(self, index), [&](Shadow& s) { Place(s.self(), nullptr, index); },
                            [&] { g_place(self, nullptr, index); });
           });
 }
@@ -966,7 +1089,7 @@ void __fastcall DSetCells(char* self, void*, uint32_t index, const int32_t* cell
     REACHED("SetCells");
     Route([&] { SetCells(self, nullptr, index, cells); }, [&] { g_setCells(self, nullptr, index, cells); },
           [&] {
-              CompareState("renderer.overlays.manage1.setcells", self,
+              CompareState("renderer.overlays.manage1.setcells", self, ReachOf(self, index),
                            [&](Shadow& s) { SetCells(s.self(), nullptr, index, s.Map(cells)); },
                            [&] { g_setCells(self, nullptr, index, cells); });
           });
@@ -977,7 +1100,7 @@ void __fastcall DFreeHandle(char* handles, void*, uint32_t index)
     REACHED("FreeHandle");
     Route([&] { FreeHandle(handles, nullptr, index); }, [&] { g_freeHandle(handles, nullptr, index); },
           [&] {
-              CompareState("renderer.overlays.manage1.freehandle", handles - kHandles,
+              CompareState("renderer.overlays.manage1.freehandle", handles - kHandles, ReachOf(handles - kHandles, kHandleBit | index, true),
                            [&](Shadow& s) { FreeHandle(s.self() + kHandles, nullptr, index); },
                            [&] { g_freeHandle(handles, nullptr, index); });
           });
@@ -988,7 +1111,7 @@ void __fastcall DRemove(char* self, void*, uint32_t id)
     REACHED("RemoveOverlay");
     Route([&] { RemoveOverlay(self, nullptr, id); }, [&] { g_remove(self, nullptr, id); },
           [&] {
-              CompareState("renderer.overlays.manage1.remove", self, [&](Shadow& s) { RemoveOverlay(s.self(), nullptr, id); },
+              CompareState("renderer.overlays.manage1.remove", self, ReachOf(self, id, true), [&](Shadow& s) { RemoveOverlay(s.self(), nullptr, id); },
                            [&] { g_remove(self, nullptr, id); });
           });
 }
@@ -998,7 +1121,7 @@ void __fastcall DSetEnabled(char* self, void*, uint32_t id, uint32_t enabled)
     REACHED("SetOverlayEnabled");
     Route([&] { SetOverlayEnabled(self, nullptr, id, enabled); }, [&] { g_setEnabled(self, nullptr, id, enabled); },
           [&] {
-              CompareState("renderer.overlays.manage1.setenabled", self,
+              CompareState("renderer.overlays.manage1.setenabled", self, ReachOf(self, id),
                            [&](Shadow& s) { SetOverlayEnabled(s.self(), nullptr, id, enabled); },
                            [&] { g_setEnabled(self, nullptr, id, enabled); });
           });
@@ -1009,7 +1132,7 @@ void __fastcall DSetAlpha(char* self, void*, uint32_t id, float alpha)
     REACHED("SetOverlayAlpha");
     Route([&] { SetOverlayAlpha(self, nullptr, id, alpha); }, [&] { g_setAlpha(self, nullptr, id, alpha); },
           [&] {
-              CompareState("renderer.overlays.manage1.setalpha", self,
+              CompareState("renderer.overlays.manage1.setalpha", self, ReachOf(self, id),
                            [&](Shadow& s) { SetOverlayAlpha(s.self(), nullptr, id, alpha); },
                            [&] { g_setAlpha(self, nullptr, id, alpha); });
           });
@@ -1021,7 +1144,7 @@ void __fastcall DSetColour(char* self, void*, uint32_t id, const void* colour)
     const auto* c = static_cast<const uint32_t*>(colour);
     Route([&] { SetOverlayColor(self, nullptr, id, c); }, [&] { g_setColour(self, nullptr, id, colour); },
           [&] {
-              CompareState("renderer.overlays.manage1.setcolour", self,
+              CompareState("renderer.overlays.manage1.setcolour", self, ReachOf(self, id),
                            [&](Shadow& s) { SetOverlayColor(s.self(), nullptr, id, s.Map(c)); },
                            [&] { g_setColour(self, nullptr, id, colour); });
           });
@@ -1032,7 +1155,7 @@ void __fastcall DSetDrawMode(char* self, void*, uint32_t id, uint32_t mode)
     REACHED("SetOverlayDrawMode");
     Route([&] { SetOverlayDrawMode(self, nullptr, id, mode); }, [&] { g_setDrawMode(self, nullptr, id, mode); },
           [&] {
-              CompareState("renderer.overlays.manage1.setdrawmode", self,
+              CompareState("renderer.overlays.manage1.setdrawmode", self, ReachOf(self, id),
                            [&](Shadow& s) { SetOverlayDrawMode(s.self(), nullptr, id, mode); },
                            [&] { g_setDrawMode(self, nullptr, id, mode); });
           });
@@ -1043,7 +1166,7 @@ void __fastcall DSetFlags(char* self, void*, uint32_t id, uint32_t flags)
     REACHED("SetOverlayFlags");
     Route([&] { SetOverlayFlags(self, nullptr, id, flags); }, [&] { g_setFlags(self, nullptr, id, flags); },
           [&] {
-              CompareState("renderer.overlays.manage1.setflags", self,
+              CompareState("renderer.overlays.manage1.setflags", self, ReachOf(self, id),
                            [&](Shadow& s) { SetOverlayFlags(s.self(), nullptr, id, flags); },
                            [&] { g_setFlags(self, nullptr, id, flags); });
           });
@@ -1054,7 +1177,7 @@ void __fastcall DSetHeightMap(char* self, void*, uint32_t id, float scale, float
     REACHED("SetHeightMapParams");
     Route([&] { SetHeightMapParams(self, nullptr, id, scale, offset); }, [&] { g_setHeightMap(self, nullptr, id, scale, offset); },
           [&] {
-              CompareState("renderer.overlays.manage1.setheightmap", self,
+              CompareState("renderer.overlays.manage1.setheightmap", self, ReachOf(self, id),
                            [&](Shadow& s) { SetHeightMapParams(s.self(), nullptr, id, scale, offset); },
                            [&] { g_setHeightMap(self, nullptr, id, scale, offset); });
           });
@@ -1066,7 +1189,7 @@ void __fastcall DMoveDecal(char* self, void*, uint32_t id, const void* position)
     const auto* p = static_cast<const float*>(position);
     Route([&] { MoveDecal(self, nullptr, id, p); }, [&] { g_moveDecal(self, nullptr, id, position); },
           [&] {
-              CompareState("renderer.overlays.manage1.movedecal", self,
+              CompareState("renderer.overlays.manage1.movedecal", self, ReachOf(self, id),
                            [&](Shadow& s) { MoveDecal(s.self(), nullptr, id, s.Map(p)); },
                            [&] { g_moveDecal(self, nullptr, id, position); });
           });
@@ -1078,7 +1201,7 @@ void __fastcall DUpdateDecalInfo(char* self, void*, uint32_t id, const void* inf
     const auto* i = static_cast<const uint32_t*>(info);
     Route([&] { UpdateDecalInfo(self, nullptr, id, i); }, [&] { g_updateDecalInfo(self, nullptr, id, info); },
           [&] {
-              CompareState("renderer.overlays.manage1.updatedecalinfo", self,
+              CompareState("renderer.overlays.manage1.updatedecalinfo", self, ReachOf(self, id),
                            [&](Shadow& s) { UpdateDecalInfo(s.self(), nullptr, id, s.Map(i)); },
                            [&] { g_updateDecalInfo(self, nullptr, id, info); });
           });
