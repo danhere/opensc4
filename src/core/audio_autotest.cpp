@@ -32,6 +32,7 @@
 #include "core/game.h"
 #include "core/game_access.h"
 #include "core/log.h"
+#include "core/registry.h"
 
 #include <opensc4/addresses.h>
 
@@ -1152,21 +1153,49 @@ void DrivePlaylists(const Day& day)
         {"missing.pls", nullptr, 0},
     };
     alignas(4) char entries[0xC] = {};
-    uint32_t total = 0;
-    for (const Playlist& list : playlists) {
+    // Each playlist read by a reader of its own, its entries and folder
+    // hashed into `hash` and assigned into `entries`; returns its count.
+    const auto read = [&](const Playlist& list, Fnv& hash) {
         if (list.text)
             WriteTestFile(folder + list.name, list.text, list.size, -1);
         TestString path{};
         This<void*>(addr::SC4String_FromText, &path, (folder + list.name).c_str());
         alignas(4) char reader[0x48];
         This<void*>(addr::GZPlaylistReader_Construct, reader);
-        f.Add(This<uint8_t>(addr::GZPlaylistReader_Read, reader, &path));
-        total += AddEntries(f, reader);
-        AddString(f, reader + 0x20);
+        hash.Add(This<uint8_t>(addr::GZPlaylistReader_Read, reader, &path));
+        const uint32_t count = AddEntries(hash, reader);
+        AddString(hash, reader + 0x20);
         This<void*>(addr::GZPlaylistEntries_AssignFrom, entries, reader);
-        AddEntries(f, entries);
+        AddEntries(hash, entries);
         This<void>(addr::GZPlaylistReader_Destruct, reader);
         This<void>(addr::SC4String_Destroy, &path);
+        return count;
+    };
+    uint32_t total = 0;
+    for (const Playlist& list : playlists)
+        total += read(list, f);
+    // Playlists whose last line has no line break, read only with
+    // fixes.playlist_last_line on: the game reads that line forever (a plain
+    // list and a .pls hang; docs/audio.md, "The playlist hang").
+    static const char kPlainNoBreak[] = "t09.mp3\r\nt10.mp3";
+    static const char kExtendedNoBreak[] = "#EXTM3U\n#EXTINF:5,Eleven\nt11.mp3";
+    static const char kPlsNoBreak[] = "[playlist]\nFile1=t12.mp3\nTitle1=Twelve\nNumberOfEntries=1";
+    static const char kPlsNoCount[] = "[playlist]\nFile1=t13.mp3";
+    const Playlist noBreak[] = {
+        {"nobreak.m3u", kPlainNoBreak, sizeof kPlainNoBreak - 1},
+        {"nobreak-ext.m3u", kExtendedNoBreak, sizeof kExtendedNoBreak - 1},
+        {"nobreak.pls", kPlsNoBreak, sizeof kPlsNoBreak - 1},
+        {"nocount.pls", kPlsNoCount, sizeof kPlsNoCount - 1},
+    };
+    char noBreakToken[40] = {};
+    if (registry::ModeOf("fixes.playlist_last_line") == registry::Mode::Ours) {
+        Fnv g;
+        uint32_t noBreakTotal = 0;
+        for (const Playlist& list : noBreak)
+            noBreakTotal += read(list, g);
+        std::snprintf(noBreakToken, sizeof noBreakToken, " nobreak %u %08X", noBreakTotal, g.h);
+    } else {
+        log::Write("autotest: playlists without a last line break not read (fixes.playlist_last_line is off)");
     }
     This<void>(addr::GZPlaylistEntries_Destruct, entries);
 
@@ -1196,7 +1225,7 @@ void DrivePlaylists(const Day& day)
     for (TestString& text : names)
         This<void>(addr::SC4String_Destroy, &text);
     This<void>(addr::SC4String_Destroy, &base);
-    std::snprintf(g_playlistToken, sizeof g_playlistToken, " playlist %u %08X", total, f.h);
+    std::snprintf(g_playlistToken, sizeof g_playlistToken, " playlist %u %08X%s", total, f.h, noBreakToken);
     log::Write("autotest: playlists driven:%s", g_playlistToken);
 }
 
