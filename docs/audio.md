@@ -451,7 +451,7 @@ A game bug: in a playlist whose last line has no line break, the line reader 0x0
 
 With the fix on, `OPENSC4_TEST_PLAYLIST` also reads four playlists without a last line break (a plain list, an extended `.m3u`, a `.pls` with its count last, a `.pls` with no count) and adds ` nobreak <entries> <hash>` to its token; with it off it logs that they were not read (the original would hang on them).
 
-Batch `mlf` (2026-10-22), 7 days, three jobs, the mus4 settings below. Fix off on both sides (the base list), `audio.*=ours` on B: unmuted 3 same on the first pair; muted 12 same (Rush Hour d0000 on the second pair and Making Money d0365 on a solo rerun, both the first-run advisor outcome). Fix on, A `fixes.playlist_last_line=ours`, B that and `audio.*=ours`, muted 3: same on the first pair, no run hung, every log with `playlist last line fix: on`, and ` nobreak 4 <hash>` the same on both sides of each pair (two entries of the plain list, one of the extended `.m3u`, one of the `.pls` with its count last). With the fix on, the ReadLine first-call line appears on A as well.
+Batch `mlf` (2026-10-22), 7 days, three jobs, the mus4 settings below. Fix off on both sides (the base list), `audio.*=ours` on B: unmuted 3 same on the first pair; muted 12 same (Rush Hour d0000 on the second pair and Making Money d0365 on a solo rerun, both the first-run advisor outcome). Fix on, A `fixes.playlist_last_line=ours`, B that and `audio.*=ours`, muted 3: same on the first pair, no run hung, every log with `playlist last line fix: on`, and ` nobreak 4 <hash>` the same on both sides of each pair (4 entries from the four playlists). With the fix on, the ReadLine first-call line appears on A as well.
 
 #### Parity of part 4
 
