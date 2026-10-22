@@ -349,6 +349,8 @@ add_library(opensc4_core SHARED
   terrain_view.cpp
   terrain_autotest.cpp
   terrain_draw.cpp
+  overlay_manage_1.cpp
+  overlay_manage_autotest.cpp
   terrain_brush.cpp
   terrain_brush_autotest.cpp
   terrain_brushbody.cpp

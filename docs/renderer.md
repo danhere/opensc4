@@ -153,6 +153,16 @@ The city view's camera is two objects: `cSC4CameraControl` (0x160 bytes, vtable 
 
 `OPENSC4_TEST_CAMERA_EXERCISE=1` makes the shots harness work the camera before each shot: eight scrolls past the bounds, a rotation, zooms past the maximum, a shake, a centre far outside the city, Update in each mode, fine zoom changes. Results (2026-10-09, 20 views of the test city): with the workout, 0 divergences in about 142,000 calls (Scroll 160, Update 100, SetZoom 41, SetCenter 41, SetZoomFactor 40, SetShake about 141,000 of them, every function at least once; every clipping path reached), screenshots 20 of 20 against the game's with the same workout, 20 of 20 without it, and a save's camera record identical to the game's.
 
+## Translations removed
+
+On 2026-10-22 the machine-made translations of the game's terrain, frame and 2D drawing code were deleted (the `.inc` files that `src/core/terrain_draw.cpp` included, made by `tools/re/x86cpp.py`), with their switches. None of them was on by default or in a parity run, so the game's own code runs exactly as before. The hand-written replacements in this file (the land, water, skirts, grid, row layers, skirt colours, overlays, models and lots, cell quads) are untouched. The switches that are gone, each to come back as a hand-written rewrite (plans: inc-replacement.md, pieces W2 to W6 and D):
+
+- Terrain view: `renderer.terrain.setup`, `renderer.terrain.rowlists_untested`, `renderer.terrain.buffers`, `renderer.terrain.messages`, `renderer.terrain.rowspans`, `renderer.terrain.viewdraw`, `renderer.terrain.pick`, `renderer.terrain.viewinit`, `renderer.terrain.object`, `renderer.terrain.object_untested`, `renderer.terrain.celltexture`, `renderer.terrain.cellmarks`.
+- Frame: `renderer.frame.background`, `renderer.frame.draw`, `renderer.frame.changes`, `renderer.models.billboard_corners`.
+- 2D pictures: `renderer.datamap.picture`, `renderer.datamap.painters`, `renderer.datamap.pixels`, `renderer.datamap.helpers`, `renderer.minimap.draw`, `renderer.windows.paints`, `renderer.cityview.draw`, `renderer.cityview.draw_untested`, `renderer.region.draw`.
+
+`[improvements] big_cities` sized the terrain view's row lists inside `renderer.terrain.setup`; until that is rewritten, the game's own set-up sizes them, so big cities run without it there. The compare harnesses of these switches (the `D...` functions and registry entries) were hand-written; a rewrite can restore them from the commit before the removal. The tests that drive these functions (`datamap_autotest.cpp`, `minimap_autotest.cpp`, `cityview_draw_autotest.cpp`, `window_paint_autotest.cpp`) and `diagnostics.datamap_select` stay; they now run the game's code. Sections below that describe a removed switch say so.
+
 ## The terrain
 
 The terrain is drawn by `cSTETerrainView3D` (class ID 0xC9B84E10, constructor 0x007567C0, 0xE8 bytes, code 0x007504F0 to 0x0075CE60, about 166 functions), which `cSTETerrain` creates (0x00749540) and which registers with the 3D render for pass 0 (the land) and pass 2 (water and overlays). A separate overlay manager (0x00735260 to 0x0073CF40) draws decals and shadows on the ground. Nothing in the drawing is random or seasonal; the texture variation comes from a grid of random numbers the terrain simulation fills (0x0074B460).
@@ -178,7 +188,7 @@ The land (0x0075BD10) is drawn twice over the rows in view. First without textur
 - adding a span to a layer (0x0075AA60: the row's list, layer id, first column, last column): the span is widened by one column on each side and clipped to the city's width (0x00B4C744); the layer's node is looked for, and made before the first node with a higher id when there is none;
 - merging a span into a node's list (0x00758B10): every span it overlaps is taken out and the new one widened to cover it, then the new one goes in before the first span that lies beyond it. Because the adder widens by a column, spans that only touch are joined too.
 
-`renderer.terrain.rowspans` replaces the three with translations. In compare mode (which needs `renderer.terrain.rowlayers` on) each row is rebuilt through ours and its lists are read out, then the game's rebuild runs with the game's own three functions, and the two read-outs are compared. 2026-10-12, three test cities with the camera workout: 3,406 rows, all with layers and all but 78 with more than one span, no difference; `renderer.terrain.rowlayers` in compare mode on top of our span functions: 1,144 rows, no difference; ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build; 20 of 20 screenshots. There is no self-check for this one, and the test does not tell whether a merge that takes out an older span has happened.
+*(Translation removed 2026-10-22, rewrite pending.)* `renderer.terrain.rowspans` replaced the three with translations. In compare mode (which needs `renderer.terrain.rowlayers` on) each row is rebuilt through ours and its lists are read out, then the game's rebuild runs with the game's own three functions, and the two read-outs are compared. 2026-10-12, three test cities with the camera workout: 3,406 rows, all with layers and all but 78 with more than one span, no difference; `renderer.terrain.rowlayers` in compare mode on top of our span functions: 1,144 rows, no difference; ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build; 20 of 20 screenshots. There is no self-check for this one, and the test does not tell whether a merge that takes out an older span has happened.
 
 **Size limits.** A span's columns are 32-bit and the clip is the city's own width, so nothing here bounds a bigger city.
 
@@ -204,6 +214,8 @@ The cell lines shown while zoning or building (`cSTETerrainView3D::ShowGrid`, 0x
 
 ### The terrain's buffers
 
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
+
 Everything the terrain passes draw comes out of a set of buffers the terrain view keeps in globals between 0x00B4C6A0 and 0x00B4C7C0. `STE::BuildBuffers` (0x00758EA0; it runs once when a city is loaded) makes them when they do not exist and fills them; `STE::FreeBuffers` (0x00758750) frees them.
 
 - **Vertices**: land at 0x00B4C758 and water at 0x00B4C75C, 32 bytes a vertex, 0x00B4C754 of them (rows times columns: 0x00B4C750 times 0x00B4C74C, one more than the cells each way). Filled by 0x00752430 (land) and 0x00752520 (water).
@@ -220,6 +232,8 @@ The first batch found a bug this way: with ours alone Big City crashed on a jump
 
 ### The terrain's messages
 
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
+
 The terrain view hears about changes through its message handler (0x00757560; `this` is the view + 4). Two messages change the buffers, each for the rectangle of cells the message carries (0x007523F0 reads it):
 
 - **Land changed** (0x278E6003): `UpdateLandHeights` (0x007569F0) copies the heights of the area's vertices from the terrain into the land vertices, and for a vertex on an edge of the city also into that side's skirt (0x00755B60, which keeps the skirt's lower heights from going under their floor).
@@ -232,6 +246,8 @@ Both mark the view (+0xA8). Two more messages (0x277A9364, 0xC9DA96EA) call slot
 Checked with the cities running: the three tutorial cities for 30 days, and for land changes a volcano on Big City and an earthquake on Rush Hour for 20 days. 4,741 water messages (308 of which changed something) and 86 land messages (59), no difference; the self-check on the volcano run is clean; ours alone runs the volcano in the release build, and screenshots with every terrain replacement on match the game's (20 of 20). All six functions ran. The seven other messages seen were handled by ours without a comparison.
 
 ### The terrain view's draw
+
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
 
 The 3D render calls the terrain view's draw (0x0075BFD0) once for each of the view's two passes, with the render context:
 
@@ -247,6 +263,8 @@ Checked on the three tutorial cities with the camera workout, and once with the 
 
 ### Picking
 
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
+
 `cSTETerrainView3D::Pick` (0x0075A230) answers where a ray meets the terrain; the tests' camera workout asks it about 3,000 times a run. It first tests the ray against the terrain's box (0x005D6580), then walks the cells along the ray (0x00649820) and tests each cell's two triangles (0x005D6FF0), split along the diagonal the cell's flags give. With its last argument set the cell's corners are raised by the water above them, so the ray meets the water's surface and not the sea bed. While the view's +0x24 is set a hit also marks its cell, which the tests never do.
 
 `renderer.terrain.pick` is that function, translated instruction by instruction. It changes nothing but what its out argument points at, so compare mode simply asks ours and the game's the same question and compares the answers: the result and the point.
@@ -254,6 +272,8 @@ Checked on the three tutorial cities with the camera workout, and once with the 
 Checked on the three tutorial cities with the camera workout and on a running city with a volcano: 9,706 picks, of which 3,370 hit the land and 878 the water's surface, the same answer every time; the self-check is clean, and screenshots after the camera workout with every terrain replacement on match the game's (20 of 20).
 
 ### A cell's own texture
+
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
 
 A cell can be given a texture of its own (what the passes then draw there is in "The land pass"). The view keeps this by row:
 
@@ -270,6 +290,8 @@ Compare mode has to cope with the vectors moving to new blocks, which rules out 
 Checked with cities running: the three tutorial cities for 30 days and Big City with a volcano for 20: 7,093 sets and 1,265 clears, no difference; the self-check is clean; ours alone with every terrain replacement runs 30 days in the release build, and screenshots match the game's (20 of 20 on Big City and Rush Hour). 15 of the 16 functions ran; the one that fills a run with copies of a record (0x00756690) did not.
 
 ### The terrain view's set-up
+
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
 
 The first terrain view that starts runs a one-time set-up (0x0075C0C0; the byte at 0x00B4C740 says it has run):
 
@@ -289,6 +311,8 @@ Compare mode uses the undoing: ours sets up and its result is taken; then twice 
 Checked on the three tutorial cities: 1,540 dwords, no difference; the self-check is clean; the same with the big cities setting on (a standard city, so the capacity stays 0x100); ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build; screenshots after the camera workout match the game's (20 of 20). The set-up runs once a run, so this is one comparison each. The path that makes more than 0x100 lists has not run: no test has a bigger terrain yet.
 
 ### The terrain view's start and stop
+
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
 
 The view is started for a city (0x0075C420, with the terrain) and stopped when the city closes (0x007560F0). The byte at +0x18 says it is started.
 
@@ -314,6 +338,8 @@ Compare mode stops and starts the view again: ours starts it and its result is t
 Checked on the three tutorial cities: 349,215 dwords (1.4 MB) after the start and after the stop, no difference, with 176 to 256 bytes left out, nearly all of them pointers; the self-check is clean; ours alone with every terrain replacement runs Big City for 30 days with a volcano in the release build and stops the view at the end; screenshots after the camera workout match the game's (20 of 20). The start runs once a city, so this is one comparison a run. What the comparison does not see is inside the parts the start makes (they are made by the game's constructors in both runs) and the render's own list of passes.
 
 ### The terrain view's object
+
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
 
 The view is a GZCOM object of 0xE8 bytes with five vtables: the object's own at +0 (0x00AB4480), a base at +4 (0x00AB4468), the view's interface at +0xC (0x00AB4410, the one the rest of the game uses) and two more parts at +0x10 and +0x14 (0x00AB4400, 0x00AB43E8). Class ID 0xC9B84E10.
 
@@ -371,7 +397,146 @@ The two-stage pass (0x00736BF0) is the one normal play uses. Stage 1 gets the ma
 
 **The overlays in view** (0x00738390): the manager keeps its overlays in a grid of buckets (cells shifted right by +0xE4 a side, +0xE8 buckets a row, the buckets at +0xF0 as lists of overlay indices). The terrain view gives the rows in view with their first and end columns (0x00752820); every bucket those touch is walked, and each overlay is listed once by a stamp (the manager's +0xE0, 16 bits, raised per call; the overlay's +0xA). `renderer.overlays.visible` replaces it; compare mode builds ours, then the game's, and compares the lists. 2026-10-10, three test cities with the camera workout: 0 divergences (2,476, 4,172 and 1,324 lists); 20 of 20 screenshots.
 
-**The partial rectangle draw** (0x007356D0, through the terrain view's 0x00754C60, or 0x00754F10 for the water's rows) draws a rectangle cell by cell: each cell a quad copied from the land's vertices and raised to the water level where that is higher, split along the diagonal the terrain gives for the cell (its slot 0x118; two index lists at 0x00B4C6DC and 0x00B4C6E8). The shadow pass uses it with water vertices for an overlay partly under water. `renderer.overlays.rect_partial` replaces it. No overlay in the test cities is partly under water, so `OPENSC4_TEST_OVERLAY_PARTIAL=1` also draws every water-vertex rectangle this way, ours compared with the game's (the extra quads show, so that run is no screenshot reference). The driver keeps the pointer to the quad, which is on each function's own stack, so this comparison leaves that pointer out. 2026-10-10 with the switch: 0 divergences (2,950, 65,628 and 3,683 rectangles). Still the game's: the manager's bookkeeping (adding, moving and removing overlays).
+**The partial rectangle draw** (0x007356D0, through the terrain view's 0x00754C60, or 0x00754F10 for the water's rows) draws a rectangle cell by cell: each cell a quad copied from the land's vertices and raised to the water level where that is higher, split along the diagonal the terrain gives for the cell (its slot 0x118; two index lists at 0x00B4C6DC and 0x00B4C6E8). The shadow pass uses it with water vertices for an overlay partly under water. `renderer.overlays.rect_partial` replaces it. No overlay in the test cities is partly under water, so `OPENSC4_TEST_OVERLAY_PARTIAL=1` also draws every water-vertex rectangle this way, ours compared with the game's (the extra quads show, so that run is no screenshot reference). The driver keeps the pointer to the quad, which is on each function's own stack, so this comparison leaves that pointer out. 2026-10-10 with the switch: 0 divergences (2,950, 65,628 and 3,683 rectangles). The manager's bookkeeping is below.
+
+### Bookkeeping
+
+The manager (0xFC bytes; constructor 0x0073BC20, set up by Init 0x0073CB60, which the terrain view's 0x0075C420 calls for each of its four managers at +0x6C to +0x78; its slot 0x48 hands them out by number) has four interfaces: the overlay manager's at +0 (vtable 0x00AB39E8, the 28 slots of gzcom-dll's `cISTEOverlayManager`), the view object's at +4 (0x00AB39D0, whose draw 0x00739490 jumps to Draw), one at +8 (0x00AB39B8) and the message target at +0x10 (0x00AB39A8). It keeps three vectors of records, each with a free list through the records' first field (-1 while in use; the first and the last free record after the vector):
+
+| Vector | Record | Free list | What |
+|---|---|---|---|
+| +0x98 | 0xB4 bytes | +0xA4, +0xA8 | the overlays: flags +4 (1 shown; 0x20 set with a height map's matrix, the decal pass wraps the texture by it; 0x40 the colour set the second way), the draw mode (the index of the render state) +8, the stamp of the last list in view +0xA, the cells +0xC (x0 z0 x1 z1, the ends excluded), two texture matrices +0x1C and +0x5C, the alpha +0x9C, the colour +0xA0, a texture +0xAC or an object that gives one +0xB0 |
+| +0xAC | 0x30 bytes | +0xB8, +0xBC | the decal handles: the decal's description +4 (gzcom-dll's `cDecalInfo`: centre, size, turn, aspect, two texture scales, an offset and a value nothing reads) and its target +0x2C |
+| +0xC0 | 0x24 bytes | +0xCC, +0xD0 | the groups: eight IDs at +4 |
+
+An ID is an overlay's index, or with the top bit set a handle's; a handle's target is an overlay's index, or with the top bit set a group's (a decal drawn as eight overlays). The getters read a group's first ID; the setters pass the call to each of the eight through the manager's own slot. The buckets (+0xF0, a vector of list heads) are a grid of the terrain's cells shifted right by +0xE4 (Init makes it 0: one bucket a cell), +0xE8 a row; each list holds the indices of the overlays that touch the bucket, nodes {next, index} from the STL allocator 0x0090CF54. A manager that draws the water's rows (+0x15) has no buckets, and its setters do not ask for a redraw. Every change that shows asks the terrain (+0x88, its slot 0x110) to redraw the overlay's cells.
+
+The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no function in Ghidra (its bytes follow DecalInfo's). The last eight (0x0073CD40 on) belong to the next class. Status: *ours (draw)* the draws above, *part 1* `renderer.overlays.manage1`, *part 2* and *part 3* the batches proposed for the rest.
+
+| Address | Bytes | What | Status |
+|---|---|---|---|
+| 0x00735260 | 39 | slot 0 QueryInterface (0x895D6544 the object, else the base at +8) | part 1 |
+| 0x00735290 | 5 | `false`, ret 0x10: a stub shared by 45 vtables (slot 4 of the view interface 0x00AB39D0 here) | shared, stays |
+| 0x007352A0 | 37 | slot 27 GetStatsString | part 1 |
+| 0x007352D0 | 75 | DecalMoved: a centre moved by 1e-4 or more (cdecl) | part 1 |
+| 0x00735320 | 36 | STLport `fill` of 8-byte pairs; its callers are elsewhere (0x00638E80, 0x00711DB0) | not the manager's |
+| 0x00735350 | 48 | copy of 0x24-byte groups (the groups' vector growing) | part 2 (adding) |
+| 0x00735380 | 246 | CellRect: a rectangle in cell units to cells (cdecl) | part 1 |
+| 0x00735480 | 93 | slot 10 AddShadowDecal(key) | part 2 (adding) |
+| 0x007354E0 | 484 | the shadow's rectangle and matrix for AddShadow | part 2 (adding) |
+| 0x007356D0 | 80 | DrawRectPartial | ours (draw) |
+| 0x00735720 | 194 | DrawRect | ours (draw) |
+| 0x0073576A | 28 | a tail of DrawRect (Ghidra splits it) | ours (draw) |
+| 0x007357FE | 28 | a tail of DrawRect | ours (draw) |
+| 0x00735820 | 457 | an overlay record assigned (texture references) | part 2 (adding) |
+| 0x007359F0 | 695 | an overlay record copied | part 2 (adding) |
+| 0x00735CB0 | 83 | overlay records assigned over a range | part 2 (adding) |
+| 0x00735D10 | 554 | handles assigned over a range | part 2 (adding) |
+| 0x00735F40 | 442 | an overlay record reset | part 2 (adding) |
+| 0x00736100 | 66 | the message target's slot 3 (0xC9F775BB: the options read again) | part 1 |
+| 0x00736150 | 82 | slot 5 AddDecal(texture binding) | part 2 (adding) |
+| 0x007361B0 | 82 | slot 6 AddDecal(cached string texture) | part 2 (adding) |
+| 0x00736210 | 62 | FreeHandle | part 1 |
+| 0x00736250 | 44 | a bucket list cut after a node (its nodes freed) | part 3 (set-up, containers) |
+| 0x00736280 | 83 | a handle copied (0x30 bytes) | part 2 (adding) |
+| 0x007362E0 | 53 | overlay records copied into new memory | part 2 (adding) |
+| 0x00736320 | 48 | n overlay records made from one | part 2 (adding) |
+| 0x00736350 | 124 | handles copied into new memory | part 2 (adding) |
+| 0x007363D0 | 108 | n handles made from one | part 2 (adding) |
+| 0x00736440 | 67 | a bucket list's nodes copied | part 3 (set-up, containers) |
+| 0x00736490 | 95 | slot 14 DecalInfo | part 1 |
+| 0x007364F0 | 134 | slot 20 SetOverlayFlags (not in the census's list: no function in Ghidra) | part 1 |
+| 0x00736579 | 1 | one `int3` byte referenced from data (0x00A863D4): not code | nothing |
+| 0x00736580 | 83 | slot 22 OverlayIsEnabled | part 1 |
+| 0x007365E0 | 87 | slot 23 OverlayAlpha | part 1 |
+| 0x00736640 | 120 | slot 24 OverlayColor | part 1 |
+| 0x007366C0 | 81 | slot 25 OverlayDrawMode | part 1 |
+| 0x00736720 | 97 | slot 26 OverlayFlags | part 1 |
+| 0x00736790 | 1110 | DrawDecals | ours (draw) |
+| 0x00736BF0 | 3197 | DrawShadows | ours (draw) |
+| 0x00737870 | 1220 | DrawShadowsPlain | ours (draw) |
+| 0x00737D40 | 100 | Invalidate: the terrain redraws an overlay's cells | part 1 |
+| 0x00737DB0 | 86 | a bucket list assigned from another | part 3 (set-up, containers) |
+| 0x00737E10 | 59 | overlay records destroyed over a range (textures released) | part 3 (set-up, containers) |
+| 0x00737E50 | 161 | slot 16 SetOverlayEnabled | part 1 |
+| 0x00737F00 | 257 | slot 17 SetOverlayAlpha | part 1 |
+| 0x00738010 | 165 | slot 18 SetOverlayColor | part 1 |
+| 0x007380C0 | 146 | slot 19 SetOverlayDrawMode | part 1 |
+| 0x00738160 | 193 | slot 21 SetHeightMapParams | part 1 |
+| 0x00738230 | 162 | BucketInsert | part 1 |
+| 0x007382E0 | 166 | BucketRemove | part 1 |
+| 0x00738390 | 504 | ListVisible | ours (draw) |
+| 0x00738590 | 42 | a bucket list emptied | part 3 (set-up, containers) |
+| 0x007385C0 | 220 | the handles' vector grown by an insert | part 2 (adding) |
+| 0x007386A0 | 295 | the groups' vector grown by an insert | part 2 (adding) |
+| 0x007387D0 | 38 | bucket lists filled from one | part 3 (set-up, containers) |
+| 0x00738800 | 61 | bucket lists copied | part 3 (set-up, containers) |
+| 0x00738840 | 62 | n bucket lists made from one | part 3 (set-up, containers) |
+| 0x00738880 | 62 | bucket lists copied backwards | part 3 (set-up, containers) |
+| 0x007388C0 | 329 | slot 15 RemoveOverlay | part 1 |
+| 0x00738A10 | 60 | Place: into the buckets and redrawn | part 1 |
+| 0x00738A50 | 2397 | Draw | ours (draw) |
+| 0x007393B0 | 157 | SetCells: new cells cut to the terrain, the buckets moved | part 1 |
+| 0x00739450 | 64 | bucket lists copied into new memory | part 3 (set-up, containers) |
+| 0x00739490 | 18 | the view interface's draw (slot 3 of 0x00AB39D0), a jump to Draw | part 3 (set-up, containers) |
+| 0x007394B0 | 2573 | a decal's cells from its matrix, for one overlay or a group of eight | part 2 (adding) |
+| 0x00739EC0 | 242 | a new handle (from the free list or the vector) | part 2 (adding) |
+| 0x00739FC0 | 174 | a new group | part 2 (adding) |
+| 0x0073A070 | 253 | the overlays' vector grown by an insert | part 2 (adding) |
+| 0x0073A170 | 56 | bucket lists destroyed over a range | part 3 (set-up, containers) |
+| 0x0073A1B0 | 2769 | BuildDecal: a decal's texture matrix and cells from its description | part 2 (adding) |
+| 0x0073AC90 | 225 | every overlay removed (the terrain view's 0x007560F0) | part 3 (set-up, containers) |
+| 0x0073AD80 | 94 | slot 12 MoveDecal | part 1 |
+| 0x0073ADE0 | 115 | slot 13 UpdateDecalInfo | part 1 |
+| 0x0073AE60 | 85 | the render states' vector resized | part 3 (set-up, containers) |
+| 0x0073AEC0 | 188 | a new overlay record (from the free list or the vector) | part 2 (adding) |
+| 0x0073AF80 | 494 | a decal added from a texture (slots 3 and 4) | part 2 (adding) |
+| 0x0073B170 | 563 | slot 7 AddRingDecal | part 2 (adding) |
+| 0x0073B3B0 | 1254 | slot 9 AddShadowDecal(iid) | part 2 (adding) |
+| 0x0073B8A0 | 359 | a height map added (slot 8, AddShadow) | part 2 (adding) |
+| 0x0073BA10 | 259 | the five render states set up | part 3 (set-up, containers) |
+| 0x0073BB20 | 245 | the buckets' vector reallocated | part 3 (set-up, containers) |
+| 0x0073BC20 | 380 | the constructor | part 3 (set-up, containers) |
+| 0x0073BDA0 | 8 | an adjustor thunk (QueryInterface, this - 4) | thunk, stays |
+| 0x0073BDB0 | 8 | an adjustor thunk (QueryInterface, this - 8) | thunk, stays |
+| 0x0073BDC0 | 8 | an adjustor thunk (the deleting destructor) | thunk, stays |
+| 0x0073BDD0 | 8 | an adjustor thunk (QueryInterface, this - 0x10) | thunk, stays |
+| 0x0073BDE0 | 8 | an adjustor thunk (AddRef) | thunk, stays |
+| 0x0073BDF0 | 8 | an adjustor thunk (Release) | thunk, stays |
+| 0x0073BE00 | 267 | the destructor's body | part 3 (set-up, containers) |
+| 0x0073BF10 | 415 | slot 4 AddDecal(key) | part 2 (adding) |
+| 0x0073C0B0 | 30 | slot 3 AddDecal(iid), a call of 0x0073AF80 | part 2 (adding) |
+| 0x0073C0D0 | 1897 | slot 11 AddShadow | part 2 (adding) |
+| 0x0073C840 | 314 | the buckets' vector: n lists inserted | part 3 (set-up, containers) |
+| 0x0073C980 | 30 | the deleting destructor | part 3 (set-up, containers) |
+| 0x0073C9A0 | 257 | slot 8 AddHeightMap | part 2 (adding) |
+| 0x0073CAB0 | 91 | the buckets' vector resized | part 3 (set-up, containers) |
+| 0x0073CB10 | 72 | the bucket grid set up (one bucket a cell) | part 3 (set-up, containers) |
+| 0x0073CB60 | 476 | Init (the terrain view's 0x0075C420, four managers) | part 3 (set-up, containers) |
+| 0x0073CD40 | 6 | another class's (a type ID, called from 0x00460090) | not the manager's |
+| 0x0073CD50 | 85 | another class's QueryInterface (0xAB8DA759, 0x452294AA) | not the manager's |
+| 0x0073CDB0 | 41 | another class's | not the manager's |
+| 0x0073CDE0 | 92 | n 0x18-byte records made from one (callers 0x0073DDC0, 0x0073E7E0) | not the manager's |
+| 0x0073CE40 | 127 | 0x24-byte records copied backwards (caller 0x0073E7E0) | not the manager's |
+| 0x0073CEC0 | 37 | another class's Release | not the manager's |
+| 0x0073CEF0 | 70 | another class's | not the manager's |
+
+**Part 1** (`renderer.overlays.manage1`, [overlay_manage_1.cpp](../src/core/overlay_manage_1.cpp), 26 functions, 3,327 bytes, translated by hand from the listing): the interface's getters and setters (slots 14 and 16 to 26), RemoveOverlay (15), MoveDecal (12) and UpdateDecalInfo (13), which rebuild the decal through the game's BuildDecal 0x0073A1B0, GetStatsString (27) and QueryInterface (0); the message target's slot 3; and under them FreeHandle, Invalidate, the buckets' insert and remove, Place, SetCells, DecalMoved and CellRect. Some details the translation keeps: SetOverlayAlpha keeps a new value only when it is 0, 1 or differs by more than 0.05 (a change of 0.03 is lost) unless the manager draws the water's rows; SetOverlayFlags can only set flag 0x40, never clear it, and asks for no redraw; SetHeightMapParams keeps 1/scale at the x87's precision for the offset term and takes a handle's target as it is (a group's would index the overlays with a negative number); OverlayIsEnabled for -1 clears only AL; RemoveOverlay frees a handle before it looks at what the handle pointed to; a freed record's link is 0, which is also a valid index: taking a record stops at the last free one by comparing with the list's end (+0xA8, +0xBC, +0xD0), never by its link.
+
+Compare mode runs ours on a copy of the manager, then the game's on the manager itself, and compares the two: the manager's fields, the records the call can reach (the ID's handle, its overlay or its group and the group's IDs; for a removal also the last record of each free list), every bucket list, the terrain redraws (both sides get a stand-in terrain that records them; the game's are then passed on) and the result. The copy holds only the records the call can reach, and copies of the bucket lists that may lose nodes; the other lists are shared with the manager, onto which ours can only push. Inside a compared call each side calls its own code: the game's reaches the game's functions, ours ours. The getters, DecalMoved and CellRect are compared as pure functions.
+
+`OPENSC4_TEST_OVERLAYS=<day>` ([overlay_manage_autotest.cpp](../src/core/overlay_manage_autotest.cpp), token ` ovl`) drives every function of part 1 on the four managers of the loaded city: for each overlay in use the getters, then the setters with the getters' values; for each handle the getters and DecalInfo, a move to where it is, two cells east and back, UpdateDecalInfo with its own description and the setters (not for a handle with a group); then on the first overlay in use SetHeightMapParams (its matrix put back after), Place (its nodes taken out and put back once), QueryInterface for the manager's interface and for cIGZUnknown, GetStatsString into a stand-in string and the options message. It leaves the managers as they were but for the order of nodes in the buckets of what it moved, and its token is the same with the game's code and with ours.
+
+Checked 2026-10-22, all runs muted:
+
+- Compare mode, the three test cities with the camera workout (the shots harness): 0 divergences. Making Money 77,915 overlays added and removed (BucketInsert, Invalidate and RemoveOverlay each), 111,456 SetOverlayAlpha, 82,676 SetOverlayEnabled, 86 each of UpdateDecalInfo, DecalInfo, SetOverlayColor, SetOverlayDrawMode and CellRect; Big City 378,293 added, 378,925 removed, 395,314 SetOverlayEnabled, 173,906 SetOverlayAlpha, 11,846 UpdateDecalInfo, 854 of the others; Rush Hour 27,923 added, 27,929 removed, 208,312 SetOverlayAlpha, 29,800 SetOverlayEnabled, 12,116 UpdateDecalInfo, 104 of the others. SetCells, BucketRemove and FreeHandle ran inside those calls (each side its own). Two bugs put in on purpose (alphas halved, bucket nodes appended instead of pushed) gave 129 and 2,966 divergences in one view of Making Money, so the comparison sees them.
+- Compare mode, Making Money for four days with `OPENSC4_TEST_PROPKINDS=1`, `OPENSC4_TEST_PROPKINDS_EDIT=1` (a decal, a label and a sign made, shown, faded, moved and removed) and `OPENSC4_TEST_OVERLAYS=2`: 0 divergences, all 26 reached (UpdateDecalInfo 3,742, MoveDecal 350, the getters 1,183 each, Place and BucketRemove 2, SetHeightMapParams, GetStatsString and the message 4, QueryInterface 8).
+- Screenshots with ours on, against the stock DirectX 7 baselines: Making Money 20 of 20, Rush Hour 20 of 20, Big City 19 of 20. The odd one (z1-r3, 1.34% of the pixels against a limit of 1.2%) fails the same way with the game's code (1.36%), and ours against that run is 20 of 20. Again on the final build (rebased onto main): 60 of 60.
+- Parity (`renderer.overlays.manage1=ours` on side B, the base list with `determinism.dispatch_info`, 7 days, three jobs, every save on its first pair): plain 12 of 12; with `OPENSC4_TEST_OVERLAYS=2` and `OPENSC4_TEST_PROPKINDS=2` 12 of 12; with the propkinds edit (`OPENSC4_TEST_PROPKINDS_EDIT=1`) and `OPENSC4_TEST_OVERLAYS=3` 12 of 12; the same on `saves-plopped` 3 of 3. Every B run of the test legs logs a first call of 24 of the 26 (the plain legs: 11), the ` ovl` token is the same on both sides (373 to 5,784 overlays, 96 to 232 handles a city), and every edit run logs `restored yes`. Again on the final build: plain 12 of 12 and the edit leg 12 of 12, first pair; compare mode with the edit test 0 divergences in 35,047 calls, all 26 reached. Result folders `%LOCALAPPDATA%\opensc4\parity\ov1-*`.
+
+Not reached by any run: a handle whose target is a group (no city in the corpus has one: the test counts 0), so the group branches of the setters, the getters and RemoveOverlay are not verified. In ours mode FreeHandle and DecalMoved are called by ours directly and log no first call; the compare runs reached them. The U-Drive marker is not this class's: it goes to the situation code's overlay manager (`SC4OverlayManager`, 0x0046xxxx), and its draw's second slot is the shared stub 0x00735290.
+
+Next: part 2, the adding (31 functions: slots 3 to 11, the new records from the free lists or the vectors, the vectors' growth and the record copies, and the two decal builders 0x0073A1B0 and 0x007394B0, about 12 KB with the float code), whose test can make ring decals and so reach the groups; then part 3, the set-up and the containers (23 functions: constructor, Init, destructor, render states, the buckets' vector and list helpers, Clear).
 
 ## Models and lots
 
@@ -426,23 +591,27 @@ The overlaid round's material setup (0x007D5670: one stage, straight to the driv
 
 **Quads laid on the terrain.** The object the render context holds at +0x4C is the terrain view's interface at its +0xC (vtable 0x00AB4410); its slot 0x3C (0x00752940: render context, x, z, eight texture coordinates, an alpha, a flag) draws one cell of the land as a quad: the four land vertices of the cell copied, their texture coordinates replaced by the caller's and their alpha by the caller's, split along the cell's diagonal (the terrain record's +0x23, bits 0x30). Without the flag it draws only cells inside the rows in view. This is how a ground quad without vertices of its own follows the terrain. `renderer.terrain.cellquad` replaces it. 2026-10-10, three test cities with the camera workout: 0 divergences (12,359, 338,854 and 8,659 quads); 20 of 20 screenshots against the stock driver with all 26 renderer replacements on.
 
-**The billboard's corners** (0x007FE400, after a change of zoom or rotation) are about 490 instructions of x87 arithmetic with some forty branches: a scale from the camera, the four corners from the picture's rectangle and the camera's axes, and a bounding box grown corner by corner. `renderer.models.billboard_corners` replaces it with a translation made by [tools/re/x86cpp.py](../tools/re/x86cpp.py), which turns a whole function of the game into C++ statements over an emulated machine (registers as integers, memory by address, the x87 stack as doubles, branches as gotos, calls to the game's own functions): [billboard_corners.inc](../src/core/billboard_corners.inc). Compare mode runs ours, puts the billboard back, runs the game's and compares the billboard's bytes. 2026-10-10, three test cities with the camera workout: 0 divergences (3, 639 and 15 calls); 20 of 20 screenshots against the stock driver with all 27 renderer replacements on.
+*(Translation removed 2026-10-22, rewrite pending.)* **The billboard's corners** (0x007FE400, after a change of zoom or rotation) are about 490 instructions of x87 arithmetic with some forty branches: a scale from the camera, the four corners from the picture's rectangle and the camera's axes, and a bounding box grown corner by corner. `renderer.models.billboard_corners` replaces it with a translation made by [tools/re/x86cpp.py](../tools/re/x86cpp.py), which turns a whole function of the game into C++ statements over an emulated machine (registers as integers, memory by address, the x87 stack as doubles, branches as gotos, calls to the game's own functions): `billboard_corners.inc` (removed). Compare mode runs ours, puts the billboard back, runs the game's and compares the billboard's bytes. 2026-10-10, three test cities with the camera workout: 0 divergences (3, 639 and 15 calls); 20 of 20 screenshots against the stock driver with all 27 renderer replacements on.
 
-**The background redraw** (`cSC43DRender::ClearViewport`, 0x007C3F80, slot 0xBC; 619 instructions) is replaced by `renderer.frame.background` with a translation by the same tool ([render_clear_viewport.inc](../src/core/render_clear_viewport.inc)). The tool now works out most calls by itself (the argument bytes from the callee's `ret N` or the caller's `add esp`, a float result from what follows the call) and refuses to guess for a helper that ends in a jump to another function; two such helpers here (0x007FC2D0, the context's `DrawArrays`, and 0x007D28A0) had first been guessed wrong, which crashed the first run inside our own draw recorder. Compared draw by draw as the passes, with a quiet run of the game's first. 2026-10-10, three test cities with the camera workout: 0 divergences (1,226, 1,915 and 661 redraws; the game against itself also 0); 20 of 20 screenshots against the stock driver with all 28 renderer replacements on.
+*(Translation removed 2026-10-22, rewrite pending.)* **The background redraw** (`cSC43DRender::ClearViewport`, 0x007C3F80, slot 0xBC; 619 instructions) is replaced by `renderer.frame.background` with a translation by the same tool (`render_clear_viewport.inc` (removed)). The tool now works out most calls by itself (the argument bytes from the callee's `ret N` or the caller's `add esp`, a float result from what follows the call) and refuses to guess for a helper that ends in a jump to another function; two such helpers here (0x007FC2D0, the context's `DrawArrays`, and 0x007D28A0) had first been guessed wrong, which crashed the first run inside our own draw recorder. Compared draw by draw as the passes, with a quiet run of the game's first. 2026-10-10, three test cities with the camera workout: 0 divergences (1,226, 1,915 and 661 redraws; the game against itself also 0); 20 of 20 screenshots against the stock driver with all 28 renderer replacements on.
 
-**The pass runner and the changes before a frame.** `renderer.frame.draw` replaces `cSC43DRender::Draw` (0x007CB530) and `renderer.frame.changes` its handling of the list of changes (0x007C9600, with a jump table by kind of change), both as translations ([render_draw.inc](../src/core/render_draw.inc), [render_changes.inc](../src/core/render_changes.inc)). The draw-call trace hooks the same function, so the two share one hook (`frame_trace::SetDrawBody`). Neither can be compared in the same frame: a frame cannot be run twice, and the list of changes is used up as it is worked through. Their check is the screenshots: 2026-10-10 with all 30 renderer replacements on, 20 of 20 against the stock driver on Making Money; with the camera workout, against runs without the two, 20 of 20 on Making Money and Rush Hour and 19 of 20 on Big City, where the one shot that differs (the closest zoom) also differs between two runs without them (18 and 19 of 20 between such runs).
+*(Translation removed 2026-10-22, rewrite pending.)* **The pass runner and the changes before a frame.** `renderer.frame.draw` replaces `cSC43DRender::Draw` (0x007CB530) and `renderer.frame.changes` its handling of the list of changes (0x007C9600, with a jump table by kind of change), both as translations (`render_draw.inc` (removed), `render_changes.inc` (removed)). The draw-call trace hooks the same function, so the two share one hook (`frame_trace::SetDrawBody`). Neither can be compared in the same frame: a frame cannot be run twice, and the list of changes is used up as it is worked through. Their check is the screenshots: 2026-10-10 with all 30 renderer replacements on, 20 of 20 against the stock driver on Making Money; with the camera workout, against runs without the two, 20 of 20 on Making Money and Rush Hour and 19 of 20 on Big City, where the one shot that differs (the closest zoom) also differs between two runs without them (18 and 19 of 20 between such runs).
 
 **Left to the game in this layer:** the screen shake of disasters (0x007C86D0, the frame's last step), which follows the real clock and does nothing while no disaster shakes the view, so neither a same-frame comparison nor the test cities can check it; how a billboard picks its picture (0x007FE390 with 0x007FD2F0 and 0x007FD3D0); the helpers named "not analysed" above (the zoom and rotation changes of the rarer drawables, the context's state setters); and the camera view's update (0x007F9F50).
 
 ## Cell marks
 
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
+
 **Data views** were the next layer in the plan, but a survey found little drawing in them: the data map is painted by the map window's own code (`cSC4WinMapView`, 0x007A0D50 to 0x007A8700, with its picture drawn by 0x007A2F60), which is interface code, and no call was found from that window into the 3D render or the terrain. What the city view does have is a pass that marks terrain cells.
 
 **The cell marks** (class unnamed, vtable 0x00AB42F8, code 0x007504F0 to 0x00751C40; a view object of the 3D render's pass 5; its draw is 0x007514F0) are two hash tables keyed by cell (z times the width at +0xC0, plus x). The coloured ones (+0xB0, drawn by 0x00750FC0) map a cell to a colour index: each is drawn as a quad at the cell's four terrain corners, split along the terrain's diagonal, in one of a few fixed colours with an alpha per colour, with the render state at 0x00B4BDA0. In a test the first two indices came out blue and yellow and the higher ones black, which suggests the zone colours of the zoning tools; that reading is a guess from the picture. The textured ones (+0x9C, drawn by 0x00750CF0) carry a 36-byte record with a texture and are drawn with a second pair of render states. Both are drawn with a depth offset of 4. Cells are marked through the terrain view's interface (slot 0xC, 0x0075A230, which calls 0x007516D0 with a list of cells and a colour index).
 
-`renderer.terrain.cellmarks` replaces the draw and both passes, as translations ([cell_marks_coloured.inc](../src/core/cell_marks_coloured.inc), [cell_marks_textured.inc](../src/core/cell_marks_textured.inc)). Nothing marks cells in an unattended run, so `OPENSC4_TEST_CELL_MARKS=1` marks 720 cells around the middle of the city in five colours through the game's own function. 2026-10-11 with that switch, three test cities with the camera workout: 0 divergences (12,199, 10,370 and 12,424 passes; the game against itself also 0); without the switch 20 of 20 screenshots against the stock driver. The textured marks are translated but nothing in the tests fills their table, so they are unverified.
+`renderer.terrain.cellmarks` replaces the draw and both passes, as translations (`cell_marks_coloured.inc` (removed), `cell_marks_textured.inc` (removed)). Nothing marks cells in an unattended run, so `OPENSC4_TEST_CELL_MARKS=1` marks 720 cells around the middle of the city in five colours through the game's own function. 2026-10-11 with that switch, three test cities with the camera workout: 0 divergences (12,199, 10,370 and 12,424 passes; the game against itself also 0); without the switch 20 of 20 screenshots against the stock driver. The textured marks are translated but nothing in the tests fills their table, so they are unverified.
 
 ## The data map
+
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
 
 The Data Views window (class `cSC4WinMapView`, ID 0x28C5A41F; code 0x007A0D50 to 0x007A8700) shows a small picture of the city for the map picked in its list. The picture is not drawn through the driver: the window builds it on the CPU in a `cIGZBuffer` (class 0xC470D325, 32 bits per pixel) the size of its picture control (child 0x4203, 256 by 256 in the tests) and hands the buffer to the control, which keeps it at +0x1C. The corner minimap is something else.
 
@@ -467,6 +636,8 @@ To reach the two coordinate setters in a test: `OPENSC4_TEST_DATA_MAP_GRID=<day>
 
 ## The mini map
 
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
+
 The small map in the corner is a window of class `cSC4WinMiniMap` (ID 0xCA318388, 0x96C bytes; the layout is in `src/core/ui_map_6.cpp`). The same class is the Data Views window's picture control, so there are two of them once that window is open. Like the data map it is a picture built on the CPU: the object keeps its own square of pixels (+0x114, side +0xE4) and a `cIGZBuffer` (+0xF0), and an owner can hand it a second buffer (+0xF4; this is how the data map's picture gets under it).
 
 - **Update** (0x007A8640, slot 9 of the interface at +0xD8; called when a city is loaded and once a second): does nothing while the window or a parent is hidden or +0xFE is clear. Otherwise it redoes the terrain if +0xFD is set, marks every cell that has something on it (two bits a cell at +0x960: asked, and occupied; the occupant manager is asked once a cell), and puts the picture's pixels into the buffer (0x007A66F0), or over the owner's buffer (0x007A67F0).
@@ -480,6 +651,8 @@ Checked on the three tutorial cities, with and without the Data Views window ope
 To reach the other scales in a test: `OPENSC4_TEST_MINI_MAP=<day>` (token `minimap`, [minimap_autotest.cpp](../src/core/minimap_autotest.cpp)) makes a mini map of its own for each of five sizes (sides 32 to 512; the tutorial cities are 128 cells wide, so the scales -2 to 2), starts it as the game does (its area, then its Init), brings it up to date twice and paints it twice on a canvas of its own. 2026-10-11 on Big City, 7 days, with `renderer.minimap.draw=compare`: the 10 updates of the test redid 640 tiles, all five row routines ran, and neither they nor the test's 5 repeatable paints differ from the game's (the first paint on a new canvas cannot be repeated); the token is the same from the game alone and with the replacement on. The paint's pixel routine (0x007A6FB0) is only used for a canvas of format 7, sixteen bits with four of alpha, which a window gets only in a 16-bit full-screen video mode: it ran once in such a run, with no difference found, but the comparison does not read a canvas of that kind, so its output is not compared. Windowed runs always get a 32-bit canvas (format 9).
 
 ## Small windows
+
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
 
 A window's paint (window slot 88) does not go to the driver either: it draws into the window's canvas, a `cIGZBuffer` the window keeps at +0x68, which the window manager puts on screen later. So a paint can be checked like the map pictures, in the same run: ours, then the object and the pixels of its buffers put back, then the game's, and the two results compared byte for byte (`PaintCompared` in `terrain_draw.cpp`).
 
@@ -505,6 +678,8 @@ The translator learned tail calls for this (a `jmp` out of the function or throu
 
 ## The city view window
 
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
+
 The window the city is shown in (`cSC4View3DWin`) is the interface code's, but five of its functions draw and were left to the renderer (docs/ui.md):
 
 - **Paint** (0x007F6200, window slot 88) runs once a frame. It reads its stopwatch for the time since the last paint, steps a scroll in progress (0x007CD330), stores the time in what slot 0x28 of the object at +0xE8 gives (at +0x1C) and calls that object's slot 0x54, then takes one pending item off the list at +0x140. That the object at +0xE8 is the 3D render and slot 0x54 its draw is inferred from the slot numbers, not traced.
@@ -523,6 +698,8 @@ For this the translator learned `adc` after an `add`, and to carry the flags of 
 To reach the last two in a test: `OPENSC4_TEST_CITY_DRAW=<day>` (token `cvdraw`, [cityview_draw_autotest.cpp](../src/core/cityview_draw_autotest.cpp)) sets the cost indicator five times through the view's interface (slot 42), fades it and switches it off (slot 44), and starts and stops the scrolling in the same tick (slot 33, four calls). `renderer.cityview.draw_untested` has no comparison of its own, so the token is the check: the amount's picture and the indicator's fields after every call, and the scroll fields after each SetScrolling. 2026-10-11 on Big City, 7 days: the amount drawn 5 times and SetScrolling called 4 times, with the same token from the game alone (twice), with the replacement on and in its compare mode. The test changes the advisors' part of the fingerprint from its day on, in the game alone as well; which of its calls does that was not looked into.
 
 ## The region view
+
+*Translation removed 2026-10-22: the game's own code runs again; a hand-written rewrite is pending (see "Translations removed" above). What follows describes the game's code and how the removed translation was checked.*
 
 The region screen's code is the Region work's (docs/region.md), which left its four draw functions to the renderer. Unlike the windows above these do go to the driver, so they are compared like the terrain passes, in the same frame (`DrawCompared`).
 
