@@ -4488,7 +4488,8 @@ void DriveU7Slots()
     // 42 with a fade running (a long timer) and without.
     MixWord(Virtual<uint32_t>(service, 0x30, 400000, 0x100u, 0u));
     Mix(At<uint8_t>(service, 0x4091));
-    MixWord(Virtual<uint32_t>(service, 0xA8) & 0xFF);
+    // Slot 42 answers the timer's deletion: its address, not hashed.
+    Virtual<uint32_t>(service, 0xA8);
     Mix(At<uint8_t>(service, 0x4091));
     Mix(At<void*>(service, 0x4094) ? 1u : 0u);
     Virtual<uint32_t>(service, 0xA8);
