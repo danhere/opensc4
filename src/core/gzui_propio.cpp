@@ -28,11 +28,29 @@
 //                             Clone, CopyAssign; and the bag's
 //                             SetThreshold, Count and Assign
 //
+// and part u3:
+//
+//   framework.propio.xmltext    the XML reader-writer's Write (0x0094286B),
+//                               its root name and the handler's StartElement
+//   framework.propio.script     the UI script property handler's
+//                               StartElement and EndElement
+//   framework.propio.create     the factory's Create
+//   framework.propio.wincopy    the window 0xA3CD96CF's Clone and
+//                               CopyAssign, the script window's Assign and
+//                               its part's
+//   framework.propio.shufflebag the shuffle bag (vtable 0x00AD4648): its
+//                               constructor, destructors, QueryInterface,
+//                               Release, Add, Remove, Clear, Random, Draw,
+//                               Get, Set, Erase, Write and Read
+//   framework.propio.kinds      the framework's own 2D and 3D sound kinds'
+//                               slots 5 and 6
+//
 // Still the game's: the 38 small thunks of these classes (a `this`
 // adjustment and a jump, or a jump alone, as docs/occbase.md leaves them;
-// they all end in the functions here or in the game's), the STLport list
-// code, the shared stubs, and the u3 pieces they call (the XML writer and StartElement, the factory's
-// Create, the shuffle bag's own slots). Ours call them by address.
+// they all end in the functions here or in the game's), the STLport
+// container code (the lists, the window's lists, vector and tree, the
+// string map), the shared stubs. Ours call each other directly, so a group
+// that is off still runs ours where another group's function calls it.
 //
 // The game's methods answer a byte (AL) over whatever its last call left
 // in EAX; ours give the same EAX where it comes from a call (the last
@@ -931,11 +949,16 @@ char* __fastcall WindowDeletingDestructor(char* self, void*, uint32_t flags)
 constexpr std::uintptr_t kBagKeyVtable = 0x00AD4338;
 constexpr std::size_t kBagKey = 0x18;
 
+// The shuffle bag's own slots (part u3, below), which the keyed bag calls.
+char* __fastcall ShuffleBagConstruct(char* self, void*);
+uint32_t __fastcall ShuffleBagQueryInterface(char* self, void*, uint32_t iid, void** out);
+uint32_t __fastcall ShuffleBagDestruct(char* self, void*);
+
 // The game's 0x0094048B.
 char* __fastcall BagConstruct(char* self, void*, const uint32_t* key)
 {
     OPENSC4_FIRST("BagConstruct");
-    CallThis<void*>(addr::cGZShuffleBag_Construct, self);
+    ShuffleBagConstruct(self, nullptr);
     At<std::uintptr_t>(self, kBagKey) = addr::cGZResourceKey_Vtable;
     At<std::uintptr_t>(self, 0) = addr::cGZKeyedShuffleBag_Vtable;
     At<std::uintptr_t>(self, kBagKey) = kBagKeyVtable;
@@ -959,7 +982,7 @@ uint32_t __fastcall BagQueryInterface(char* self, void*, uint32_t iid, void** ou
 {
     OPENSC4_FIRST("BagQueryInterface");
     if (iid != kIID_Key && iid != kIID_Key2)
-        return CallThis<uint32_t>(addr::cGZShuffleBag_QueryInterface, self, iid, out);
+        return ShuffleBagQueryInterface(self, nullptr, iid, out);
     *out = self ? self + kBagKey : nullptr;
     return Answer(Virtual<uint32_t>(self, 0x4), true);
 }
@@ -970,7 +993,7 @@ char* __fastcall BagDeletingDestructor(char* self, void*, uint32_t flags)
     OPENSC4_FIRST("BagDeletingDestructor");
     At<std::uintptr_t>(self, 0) = addr::cGZKeyedShuffleBag_Vtable;
     At<std::uintptr_t>(self, kBagKey) = kBagKeyVtable;
-    CallThis<uint32_t>(addr::cGZShuffleBag_Destruct, self);
+    ShuffleBagDestruct(self, nullptr);
     if (flags & 1)
         CallCdecl<void>(addr::SC4_operator_delete, self);
     return self;
@@ -1019,6 +1042,919 @@ uint32_t __fastcall BagClone(char* key, void*, uint32_t iid, void** out)
 }
 
 // ====================================================================================
+// Part u3: helpers
+
+inline const char* Text(std::uintptr_t address) { return reinterpret_cast<const char*>(address); }
+inline const char* TextAt(std::uintptr_t pointer) { return *reinterpret_cast<const char* const*>(pointer); }
+inline const char* Body(const TempString& string) { return At<const char*>(const_cast<TempString*>(&string), 0x4); }
+
+// A virtual __cdecl slot (the game string's Sprintf, slot 0x6C): `this` on
+// the stack, the caller pops.
+template <typename... Args>
+inline uint32_t VirtualCdecl(void* object, std::size_t byteOffset, Args... args)
+{
+    void** const vtable = *reinterpret_cast<void***>(object);
+    return reinterpret_cast<uint32_t(__cdecl*)(void*, Args...)>(vtable[byteOffset / 4])(object, args...);
+}
+
+// A float widened as the game widens it for a `%f` (FLD, FSTP double).
+__declspec(naked) double __cdecl WidenX87(uint32_t)
+{
+    __asm {
+        fld dword ptr [esp + 4]
+        ret
+    }
+}
+
+// A __thiscall function without arguments that answers in ST0, stored as a
+// float (FSTP dword).
+__declspec(naked) uint32_t __cdecl ThisToFloat(std::uintptr_t, void*)
+{
+    __asm {
+        mov ecx, dword ptr [esp + 8]
+        call dword ptr [esp + 4]
+        push eax
+        fstp dword ptr [esp]
+        pop eax
+        ret
+    }
+}
+
+uint32_t Strlen(void* string) { return CallThis<uint32_t>(addr::cRZBaseString_Strlen, string); }
+const char* Data(void* string) { return CallThis<const char*>(addr::cRZBaseString_Data, string); }
+
+// A game string's text through the stream's slot 0x44, the body read first
+// as the game does.
+uint32_t WriteText(void* stream, TempString& text)
+{
+    const char* const body = Body(text);
+    const uint32_t length = Strlen(&text);
+    return Virtual<uint32_t>(stream, 0x44, body, length);
+}
+
+// An STLport list<uint32_t> by its head node (each node: next, previous,
+// the value at +8).
+inline char* Head(char* list) { return At<char*>(list, 0); }
+inline char* Next(char* node) { return At<char*>(node, 0); }
+
+uint32_t Size(char* list)
+{
+    uint32_t n = 0;
+    for (char* node = Next(Head(list)); node != Head(list); node = Next(node))
+        ++n;
+    return n;
+}
+
+// ====================================================================================
+// Part u3: the XML writer and the handler's StartElement
+
+// The game's 0x00942D50 (this and the third argument unused): the root
+// element's name into out.
+uint32_t __fastcall XmlRootName(char*, void*, void* out, const void*)
+{
+    OPENSC4_FIRST("XmlRootName");
+    TempString name;
+    void* const made = CallThis<void*>(addr::SC4String_FromText, &name, TextAt(addr::cGZPropSetXmlIO_RootTag));
+    const uint32_t last = CallThis<uint32_t>(addr::cRZBaseString_Assign, out, made);
+    return DestroyTemp(name, last);
+}
+
+// The strings of one value's element, destroyed in the game's order.
+struct XmlLine {
+    TempString indent;
+    TempString start;
+    TempString data;
+    TempString end;
+    TempString id;
+
+    uint32_t Finish(uint32_t last)
+    {
+        last = DestroyTemp(id, last);
+        last = DestroyTemp(end, last);
+        last = DestroyTemp(data, last);
+        last = DestroyTemp(start, last);
+        return DestroyTemp(indent, last);
+    }
+};
+
+// The game's 0x0094286B: the header, the root element, then one element per
+// value (three spaces, the opening tag with the key and type, the value's
+// text, the closing tag), the root's end; every piece one write. A value of
+// another type or a failed write stops it with false.
+uint32_t __fastcall XmlWrite(char* self, void*, void* stream, void* set, uint32_t)
+{
+    OPENSC4_FIRST("XmlWrite");
+    uint32_t key = 0;
+    void* value = nullptr;
+    uint32_t last = Virtual<uint32_t>(set, 0x18, &key, &value);
+    if (!Yes(last))
+        return last;
+    TempString header;
+    CallThis<void*>(addr::SC4String_SC4String, &header);
+    CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &header, Text(addr::cGZPropSetXmlIO_HeaderFormat), uint32_t{1},
+                        uint32_t{0});
+    last = WriteText(stream, header);
+    if (!Yes(last))
+        return Answer(DestroyTemp(header, last), false);
+    TempString root;
+    CallThis<void*>(addr::SC4String_SC4String, &root);
+    XmlRootName(self, nullptr, &root, &key);
+    TempString open;
+    CallThis<void*>(addr::SC4String_SC4String, &open);
+    CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &open, Text(addr::cGZPropSetXmlIO_OpenRootFormat), Body(root));
+    last = WriteText(stream, open);
+    bool done = false;
+    if (Yes(last)) {
+        for (;;) {
+            XmlLine line;
+            CallThis<void*>(addr::SC4String_FromText, &line.indent, Text(addr::cGZPropSetXmlIO_Indent));
+            CallThis<void*>(addr::SC4String_SC4String, &line.start);
+            CallThis<void*>(addr::SC4String_SC4String, &line.data);
+            CallThis<void*>(addr::SC4String_SC4String, &line.end);
+            CallThis<void*>(addr::SC4String_SC4String, &line.id);
+            VirtualCdecl(&line.id, 0x6C, Text(addr::Ordinance_IdFormat), key);
+            const uint32_t type = Virtual<uint32_t>(value, 0x10);
+            std::uintptr_t opening = 0;
+            std::uintptr_t closing = 0;
+            if (type == kTypeString) {
+                opening = addr::cGZPropSetXmlIO_StringOpen;
+                closing = addr::cGZPropSetXmlIO_StringClose;
+            } else if (type == kTypeSint32) {
+                opening = addr::cGZPropSetXmlIO_Sint32Open;
+                closing = addr::cGZPropSetXmlIO_Sint32Close;
+            } else if (type == kTypeFloat32) {
+                opening = addr::cGZPropSetXmlIO_FloatOpen;
+                closing = addr::cGZPropSetXmlIO_FloatClose;
+            } else if (type == kTypeBool) {
+                opening = addr::cGZPropSetXmlIO_BoolOpen;
+                closing = addr::cGZPropSetXmlIO_BoolClose;
+            } else if (type == kTypeUint32) {
+                opening = addr::cGZPropSetXmlIO_Uint32Open;
+                closing = addr::cGZPropSetXmlIO_Uint32Close;
+            } else {
+                // The game's EAX holds the type.
+                last = line.Finish(type);
+                break;
+            }
+            const char* const idText = Body(line.id);
+            const uint32_t typeAgain = Virtual<uint32_t>(value, 0x10);
+            CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &line.start, Text(opening),
+                                TextAt(addr::cGZPropSetXmlIO_KeyName), idText, TextAt(addr::cGZPropSetXmlIO_TypeName),
+                                typeAgain);
+            CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &line.end, Text(closing));
+            const uint32_t data = At<uint32_t>(value, 0x4);
+            if (type == kTypeString)
+                Virtual<uint32_t>(&line.data, 0x34, At<void*>(value, 0x4));
+            else if (type == kTypeFloat32)
+                CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &line.data, Text(addr::SC4_FloatFormat), WidenX87(data));
+            else if (type == kTypeBool)
+                CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &line.data, Text(addr::SC4_StringFormat),
+                                    Text((data & 0xFF) ? addr::cGZPropSetXmlIO_TrueText : addr::SC4_FalseText));
+            else
+                CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &line.data, Text(addr::SC4_IntFormat), data);
+            last = WriteText(stream, line.indent);
+            if (Yes(last))
+                last = WriteText(stream, line.start);
+            if (Yes(last))
+                last = WriteText(stream, line.data);
+            if (Yes(last))
+                last = WriteText(stream, line.end);
+            if (!Yes(last)) {
+                last = line.Finish(last);
+                break;
+            }
+            line.Finish(last);
+            if (!Yes(Virtual<uint32_t>(set, 0x1C, &key, &value))) {
+                TempString close;
+                CallThis<void*>(addr::SC4String_SC4String, &close);
+                CallCdecl<uint32_t>(addr::cRZBaseString_Sprintf, &close, Text(addr::cGZPropSetXmlIO_CloseRootFormat),
+                                    Body(root));
+                last = WriteText(stream, close);
+                done = Yes(last);
+                last = DestroyTemp(close, last);
+                break;
+            }
+        }
+    }
+    last = DestroyTemp(open, last);
+    last = DestroyTemp(root, last);
+    return Answer(DestroyTemp(header, last), done);
+}
+
+// The game's 0x00942D87 (this is the handler, the object + 4). Before the
+// root: the name must be the root's. After it: the `key` and `type`
+// attributes kept (names compared with no case), the text emptied in place.
+uint32_t __fastcall XmlStartElement(char* handler, void*, const char* name, const char* const* attributes, uint32_t,
+                                    uint32_t)
+{
+    OPENSC4_FIRST("XmlStartElement");
+    if (!At<uint8_t>(handler, 0xC)) {
+        TempString root;
+        CallThis<void*>(addr::SC4String_SC4String, &root);
+        XmlRootName(handler - 0x4, nullptr, &root, &name);
+        TempString given;
+        char* const made = CallThis<char*>(addr::SC4String_FromText, &given, name);
+        const uint32_t equal = CallCdecl<uint32_t>(addr::SC4UI_F43AB70, reinterpret_cast<char*>(&root) + 0x4,
+                                                   made ? made + 0x4 : nullptr);
+        uint32_t last = DestroyTemp(given, equal);
+        if (!Yes(equal))
+            return Answer(DestroyTemp(root, last), false);
+        At<uint8_t>(handler, 0xC) = 1;
+        return Answer(DestroyTemp(root, last), true);
+    }
+    for (const char* const* pair = attributes; pair && pair[0]; pair += 2) {
+        TempString attribute;
+        CallThis<void*>(addr::SC4String_FromText, &attribute, pair[0]);
+        TempString text;
+        CallThis<void*>(addr::SC4String_FromText, &text, pair[1]);
+        TempString keyName;
+        void* const keyMade = CallThis<void*>(addr::SC4String_FromText, &keyName, TextAt(addr::cGZPropSetXmlIO_KeyName));
+        const uint32_t isKey = Virtual<uint32_t>(keyMade, 0x24, &attribute, uint32_t{1});
+        DestroyTemp(keyName, isKey);
+        if (Yes(isKey)) {
+            Virtual<uint32_t>(handler + 0x10, 0x38, &text);
+        } else {
+            TempString typeName;
+            void* const typeMade =
+                CallThis<void*>(addr::SC4String_FromText, &typeName, TextAt(addr::cGZPropSetXmlIO_TypeName));
+            const uint32_t isType = Virtual<uint32_t>(typeMade, 0x24, &attribute, uint32_t{1});
+            DestroyTemp(typeName, isType);
+            if (Yes(isType))
+                Virtual<uint32_t>(handler + 0x24, 0x38, &text);
+        }
+        DestroyTemp(text, 0);
+        DestroyTemp(attribute, 0);
+    }
+    // The text string at +0x38 emptied in place (its body at +0x3C, end +0x40).
+    if (At<char*>(handler, 0x3C) != At<char*>(handler, 0x40)) {
+        *At<char*>(handler, 0x3C) = 0;
+        At<char*>(handler, 0x40) = At<char*>(handler, 0x3C);
+    }
+    return Answer(Bits(At<char*>(handler, 0x3C)), true);
+}
+
+// ====================================================================================
+// Part u3: the UI script property handler's StartElement and EndElement
+
+constexpr std::size_t kScriptSet = 0xC;
+constexpr std::size_t kScriptMap = 0x10;
+constexpr std::size_t kScriptText = 0x1C;
+
+// The game's 0x00943809: the text emptied in place; each attribute pair put
+// in the map (the `Name` and `Value` ones also copied into strings that are
+// not used). `count` is the number of texts.
+uint32_t __fastcall ScriptHandlerStartElement(char* self, void*, const char*, const char* const* attributes,
+                                              uint32_t count, uint32_t)
+{
+    OPENSC4_FIRST("ScriptHandlerStartElement");
+    if (At<char*>(self, kScriptText + 0x4) != At<char*>(self, kScriptText + 0x8)) {
+        *At<char*>(self, kScriptText + 0x4) = 0;
+        At<char*>(self, kScriptText + 0x8) = At<char*>(self, kScriptText + 0x4);
+    }
+    TempString name;
+    CallThis<void*>(addr::SC4String_SC4String, &name);
+    TempString value;
+    uint32_t last = CallThis<uint32_t>(addr::SC4String_SC4String, &value);
+    if (count != 0) {
+        const char* const* pair = attributes;
+        do {
+            TempString attribute;
+            CallThis<void*>(addr::SC4String_FromText, &attribute, pair[0]);
+            TempString text;
+            CallThis<void*>(addr::SC4String_FromText, &text, pair[1]);
+            pair += 2;
+            if (CallCdecl<int>(addr::SC4_strcmp, Data(&attribute), Text(addr::cGZUIScriptHandler_NameText)) == 0)
+                CallThis<uint32_t>(addr::cRZBaseString_Assign, &name, &text);
+            else if (CallCdecl<int>(addr::SC4_strcmp, Data(&attribute), Text(addr::cGZUIScriptHandler_ValueText)) == 0)
+                CallThis<uint32_t>(addr::cRZBaseString_Assign, &value, &text);
+            void* const slot = CallThis<void*>(addr::SC4StringMap_Index, self + kScriptMap, &attribute);
+            last = CallThis<uint32_t>(addr::cRZBaseString_Assign, slot, &text);
+            count -= 2;
+            last = DestroyTemp(text, last);
+            last = DestroyTemp(attribute, last);
+        } while (count != 0);
+    }
+    last = DestroyTemp(value, last);
+    return Answer(DestroyTemp(name, last), true);
+}
+
+// The key a property element names: the name's ID with the top byte set.
+uint32_t ScriptKey(TempString& name)
+{
+    return CallCdecl<uint32_t>(addr::SC4_NameToId, Data(&name), uint32_t{0}) | 0xFF000000u;
+}
+
+// A number's text must not be empty and must start with a digit.
+bool ScriptNumberText(TempString& value)
+{
+    const char* const text = Data(&value);
+    return Strlen(&value) != 0 && CallCdecl<int>(addr::SC4_isdigit, static_cast<int>(static_cast<signed char>(*text)));
+}
+
+// The game's 0x009425A2: the element's `Name` and `Value` (the text when
+// there is no `Value`) as a property of the type the element's name says,
+// put in the set; then the map emptied.
+uint32_t __fastcall ScriptHandlerEndElement(char* self, void*, const char* element)
+{
+    OPENSC4_FIRST("ScriptHandlerEndElement");
+    TempString value;
+    CallThis<void*>(addr::SC4String_Substring, &value, self + kScriptText, uint32_t{0}, uint32_t{0xFFFFFFFF});
+    TempString name;
+    uint32_t last = CallThis<uint32_t>(addr::SC4String_SC4String, &name);
+    char* const map = self + kScriptMap;
+    for (char* node = At<char*>(Head(map), 0x8); node != Head(map);
+         node = CallCdecl<char*>(addr::cSC4Advisor_F40D4C0, node)) {
+        if (CallCdecl<int>(addr::SC4_strcmp, Virtual<const char*>(node + 0x10, 0x14),
+                           Text(addr::cGZUIScriptHandler_NameText)) == 0)
+            CallThis<uint32_t>(addr::cRZBaseString_Assign, &name, node + 0x24);
+        else if (CallCdecl<int>(addr::SC4_strcmp, Virtual<const char*>(node + 0x10, 0x14),
+                                Text(addr::cGZUIScriptHandler_ValueText)) == 0)
+            CallThis<uint32_t>(addr::cRZBaseString_Assign, &value, node + 0x24);
+    }
+    void* const set = At<void*>(self, kScriptSet);
+    if (CallCdecl<int>(addr::SC4_strcmp, element, Text(addr::cGZUIScriptHandler_StringStringText)) == 0) {
+        // Nothing.
+    } else if (CallCdecl<int>(addr::SC4_strcmp, element, Text(addr::cGZUIScriptHandler_Uint32StringText)) == 0) {
+        if (Strlen(&name) != 0 || Strlen(&value) != 0) {
+            Value string;
+            CallThis<void*>(addr::cGZPropertyString_ConstructFromIGZString, &string, &value);
+            uint32_t key = ScriptKey(name);
+            Virtual<uint32_t>(set, 0xC, &key, &string);
+            last = CallThis<uint32_t>(addr::cGZPropertyString_Destruct, &string);
+        }
+    } else if (CallCdecl<int>(addr::SC4_strcmp, element, Text(addr::cGZUIScriptHandler_Uint32Uint32Text)) == 0) {
+        if (!ScriptNumberText(value)) {
+            // The game's EAX is the failed check's 0.
+            last = DestroyTemp(name, 0);
+            return Answer(DestroyTemp(value, last), false);
+        }
+        if (Strlen(&name) != 0 || Strlen(&value) != 0) {
+            const uint32_t number = CallCdecl<uint32_t>(addr::SC4_TextToUint32, Data(&value));
+            Value data{addr::cGZPropertyUint32_Vtable, number};
+            uint32_t key = ScriptKey(name);
+            last = Virtual<uint32_t>(set, 0xC, &key, &data);
+        }
+    } else if (CallCdecl<int>(addr::SC4_strcmp, element, Text(addr::cGZUIScriptHandler_Uint32Float32Text)) == 0) {
+        if (!ScriptNumberText(value)) {
+            // The game's EAX is the failed check's 0.
+            last = DestroyTemp(name, 0);
+            return Answer(DestroyTemp(value, last), false);
+        }
+        if (Strlen(&name) != 0 || Strlen(&value) != 0) {
+            alignas(4) char number[0x14];
+            CallThis<void*>(addr::SC4ScriptNumber_FromString, number, &value);
+            const uint32_t bits = ThisToFloat(addr::SC4ScriptNumber_ToFloat, number);
+            uint32_t key = ScriptKey(name);
+            Value data{addr::cGZPropertyFloat32_Vtable, bits};
+            Virtual<uint32_t>(set, 0xC, &key, &data);
+            last = CallThis<uint32_t>(addr::SC4ScriptNumber_Destroy, number);
+        }
+    }
+    last = CallThis<uint32_t>(addr::SC4StringMap_Clear, map);
+    last = DestroyTemp(name, last);
+    return Answer(DestroyTemp(value, last), true);
+}
+
+// ====================================================================================
+// Part u3: the factory's Create
+
+constexpr uint32_t kTypeTrackText2 = 0x0B9EB87E;
+constexpr uint32_t kTypeTrackA = 0xEBFEE345;
+constexpr uint32_t kTypeTrackB = 0xEBFEE349;
+constexpr uint32_t kTypeWindow = 0xA3CD96CF;
+constexpr uint32_t kTypeBag = 0x7B1ACFCD;
+
+// The game's 0x00942F24 (this and the last two arguments unused): an object
+// of the type with the key (type, 0, 0), held by a counted reference while
+// it is asked for iid. A new Track object of the text form gets 0xFF4C97BE
+// and its name `Track`.
+uint32_t __fastcall FactoryCreate(char*, void*, uint32_t type, uint32_t iid, void** out, uint32_t, uint32_t)
+{
+    OPENSC4_FIRST("FactoryCreate");
+    const uint32_t key[3] = {type, 0, 0};
+    void* made = nullptr;
+    if (type == kTypeTrackText || type == kTypeTrackText2) {
+        void* const memory = CallCdecl<void*>(addr::SC4_operator_new, uint32_t{0x28});
+        made = memory ? CallThis<void*>(addr::cGZPropSetTrack_ConstructText, memory, key) : nullptr;
+    } else if (type == kTypeBag) {
+        char* const memory = CallCdecl<char*>(addr::SC4_operator_new, uint32_t{0x28});
+        made = memory ? BagConstruct(memory, nullptr, key) : nullptr;
+    } else if (type == kTypeWindow) {
+        char* const memory = CallCdecl<char*>(addr::SC4_operator_new, uint32_t{0x114});
+        made = memory ? WindowConstruct(memory, nullptr, key) : nullptr;
+    } else if (type == kTypeTrackA || type == kTypeTrackB) {
+        void* const memory = CallCdecl<void*>(addr::SC4_operator_new, uint32_t{0x28});
+        made = memory ? CallThis<void*>(addr::cGZPropSetTrack_Construct, memory, key) : nullptr;
+    } else {
+        return Answer(type, false);
+    }
+    void* held = nullptr;
+    CallThis<void*>(addr::cGZDBSegmentPackedFile_CountedPointerConstruct, &held, made);
+    if (type == kTypeTrackText || type == kTypeTrackText2) {
+        uint32_t id = 0xFF4C97BE;
+        Value number{addr::cGZPropertyUint32_Vtable, 0xAB903A1B};
+        Virtual<uint32_t>(held, 0xC, &id, &number);
+        number.vtable = addr::cGZPropertyValue_Vtable;
+        uint32_t nameId = 0xFF1CDF6A;
+        Value name;
+        void* const string =
+            CallThis<void*>(addr::cGZPropertyString_ConstructFromText, &name, Text(addr::cGZPropSetFactory_TrackText));
+        Virtual<uint32_t>(held, 0xC, &nameId, string);
+        CallThis<uint32_t>(addr::cGZPropertyString_Destruct, &name);
+    }
+    const uint32_t result = Virtual<uint32_t>(held, 0x0, iid, out);
+    return AnswerByte(Virtual<uint32_t>(held, 0x8), result);
+}
+
+// ====================================================================================
+// Part u3: the window's Clone and copy
+
+// The game's 0x009436BF: the script window's part at +0xC8.
+char* __fastcall ScriptWinPartAssign(char* self, void*, char* other)
+{
+    OPENSC4_FIRST("ScriptWinPartAssign");
+    At<uint32_t>(self, 0x18) = At<uint32_t>(other, 0x18);
+    At<uint32_t>(self, 0x1C) = At<uint32_t>(other, 0x1C);
+    At<uint8_t>(self, 0x20) = At<uint8_t>(other, 0x20);
+    if (other != self) {
+        CallThis<void*>(addr::SC4RefPtr_Assign, self + 0x24, At<void*>(other, 0x24));
+        CallThis<void*>(addr::GZRefPtr_Assign, self + 0x28, At<void*>(other, 0x28));
+        CallThis<void*>(addr::GZRefPtr_Assign, self + 0x2C, At<void*>(other, 0x2C));
+        CallThis<void*>(addr::SC4RefPtr_Assign, self + 0x30, At<void*>(other, 0x30));
+    }
+    CallThis<void*>(addr::GZRefPtrList_Assign, self + 0x34, other + 0x34);
+    return self;
+}
+
+// The game's 0x00943112: the script window's members (only Clone copies a
+// window). The counted references are assigned only when they are not
+// the same member.
+char* __fastcall ScriptWinAssign(char* self, void*, char* other)
+{
+    OPENSC4_FIRST("ScriptWinAssign");
+    CallThis<uint32_t>(addr::cRZBaseString_Assign, self + 0x20, other + 0x20);
+    if (other != self)
+        CallThis<void*>(addr::SC4RefPtr_Assign, self + 0x34, At<void*>(other, 0x34));
+    for (std::size_t offset = 0x38; offset <= 0x54; offset += 4)
+        At<uint32_t>(self, offset) = At<uint32_t>(other, offset);
+    At<uint8_t>(self, 0x58) = At<uint8_t>(other, 0x58);
+    At<uint32_t>(self, 0x5C) = At<uint32_t>(other, 0x5C);
+    At<uint8_t>(self, 0x60) = At<uint8_t>(other, 0x60);
+    for (std::size_t offset = 0x64; offset <= 0x74; offset += 4)
+        At<uint32_t>(self, offset) = At<uint32_t>(other, offset);
+    CallThis<void*>(addr::GZValueList_Assign, self + 0x78, other + 0x78);
+    if (other != self)
+        for (std::size_t offset = 0x7C; offset <= 0x94; offset += 4)
+            CallThis<void*>(addr::SC4RefPtr_Assign, self + offset, At<void*>(other, offset));
+    CallThis<void*>(addr::SC4RefPtrList_Assign, self + 0x98, other + 0x98);
+    At<uint8_t>(self, 0x9C) = At<uint8_t>(other, 0x9C);
+    At<uint8_t>(self, 0x9D) = At<uint8_t>(other, 0x9D);
+    At<uint8_t>(self, 0x9E) = At<uint8_t>(other, 0x9E);
+    CallThis<void*>(addr::GZRefPtrVector_Assign, self + 0xA0, other + 0xA0);
+    if (other != self) {
+        CallThis<void*>(addr::GZRefPtr_Assign, self + 0xAC, At<void*>(other, 0xAC));
+        CallThis<void*>(addr::GZRefPtr_Assign, self + 0xB0, At<void*>(other, 0xB0));
+    }
+    CallThis<void*>(addr::GZWinTree_Assign, self + 0xB4, other + 0xB4);
+    At<uint32_t>(self, 0xC0) = At<uint32_t>(other, 0xC0);
+    At<uint8_t>(self, 0xC4) = At<uint8_t>(other, 0xC4);
+    ScriptWinPartAssign(self + 0xC8, nullptr, other + 0xC8);
+    At<uint8_t>(self, 0x100) = At<uint8_t>(other, 0x100);
+    return self;
+}
+
+// The game's 0x009430E1: the script window's members and the key.
+char* __fastcall WindowCopyAssign(char* self, void*, char* other)
+{
+    OPENSC4_FIRST("WindowCopyAssign");
+    ScriptWinAssign(self, nullptr, other);
+    At<uint32_t>(self, kWindowKey + 0x4) = At<uint32_t>(other, kWindowKey + 0x4);
+    At<uint32_t>(self, kWindowKey + 0x8) = At<uint32_t>(other, kWindowKey + 0x8);
+    At<uint32_t>(self, kWindowKey + 0xC) = At<uint32_t>(other, kWindowKey + 0xC);
+    return self;
+}
+
+// The game's 0x0094309C (this is the key interface): a new window with this
+// key, a copy of this one, asked for iid.
+uint32_t __fastcall WindowClone(char* key, void*, uint32_t iid, void** out)
+{
+    OPENSC4_FIRST("WindowClone");
+    char* const memory = CallCdecl<char*>(addr::SC4_operator_new, uint32_t{0x114});
+    char* const copy = memory ? WindowConstruct(memory, nullptr, reinterpret_cast<const uint32_t*>(key + 0x4)) : nullptr;
+    WindowCopyAssign(copy, nullptr, key - kWindowKey);
+    return Virtual<uint32_t>(copy, 0x0, iid, out);
+}
+
+// ====================================================================================
+// Part u3: the shuffle bag (vtable 0x00AD4648)
+//
+// 0x18 bytes: the count at +4, two lists of uint32 (+8, the entries not yet
+// drawn; +0xC, the ones drawn), the threshold at +0x10 and at +0x14 whether
+// it is fixed. A draw takes a random entry of the first list and puts it at
+// the back of the second; when the second holds more than the threshold,
+// its oldest go back to the first.
+
+constexpr uint32_t kIID_ShuffleBag = 0xDB1ACFB2;
+constexpr std::size_t kBagFirst = 0x8;
+constexpr std::size_t kBagSecond = 0xC;
+constexpr std::size_t kBagThreshold = 0x10;
+constexpr std::size_t kBagFixed = 0x14;
+
+uint32_t& LiveBags() { return *reinterpret_cast<uint32_t*>(addr::cGZShuffleBag_LiveCount); }
+
+// The game's 0x009439CF.
+char* __fastcall ShuffleBagConstruct(char* self, void*)
+{
+    OPENSC4_FIRST("ShuffleBagConstruct");
+    At<uint32_t>(self, 0x4) = 0;
+    uint8_t allocator = 0;
+    At<std::uintptr_t>(self, 0) = addr::cGZShuffleBag_Vtable;
+    CallThis<void*>(addr::SC4RefList_Construct, self + kBagFirst, &allocator);
+    CallThis<void*>(addr::SC4RefList_Construct, self + kBagSecond, &allocator);
+    At<uint32_t>(self, kBagThreshold) = 10;
+    At<uint8_t>(self, kBagFixed) = 0;
+    ++LiveBags();
+    return self;
+}
+
+// The game's 0x00943A0E.
+uint32_t __fastcall ShuffleBagDestruct(char* self, void*)
+{
+    OPENSC4_FIRST("ShuffleBagDestruct");
+    At<std::uintptr_t>(self, 0) = addr::cGZShuffleBag_Vtable;
+    --LiveBags();
+    CallThis<uint32_t>(addr::SC4PairList_Destroy, self + kBagSecond);
+    return CallThis<uint32_t>(addr::SC4PairList_Destroy, self + kBagFirst);
+}
+
+// The game's 0x00943BE5.
+char* __fastcall ShuffleBagDeletingDestructor(char* self, void*, uint32_t flags)
+{
+    OPENSC4_FIRST("ShuffleBagDeletingDestructor");
+    ShuffleBagDestruct(self, nullptr);
+    if (flags & 1)
+        CallCdecl<void>(addr::SC4_operator_delete, self);
+    return self;
+}
+
+// The game's 0x0094392E.
+uint32_t __fastcall ShuffleBagQueryInterface(char* self, void*, uint32_t iid, void** out)
+{
+    OPENSC4_FIRST("ShuffleBagQueryInterface");
+    if (iid != kIID_cIGZUnknown && iid != kIID_ShuffleBag)
+        return 0;
+    *out = self;
+    return Answer(Virtual<uint32_t>(self, 0x4), true);
+}
+
+// The game's 0x00943917: at a count of 1 or less the object is deleted
+// without lowering it.
+uint32_t __fastcall ShuffleBagRelease(char* self, void*)
+{
+    OPENSC4_FIRST("ShuffleBagRelease");
+    const int32_t count = At<int32_t>(self, 0x4);
+    if (count <= 1) {
+        Virtual<void*>(self, 0x44, uint32_t{1});
+        return 0;
+    }
+    At<int32_t>(self, 0x4) = count - 1;
+    return static_cast<uint32_t>(count - 1);
+}
+
+// Without a fixed threshold, half of both lists' sizes; EAX the second
+// list's head, as the game's count of it leaves it.
+uint32_t Rethreshold(char* self, uint32_t eax)
+{
+    if (At<uint8_t>(self, kBagFixed))
+        return eax;
+    const uint32_t first = Size(self + kBagFirst);
+    const uint32_t second = Size(self + kBagSecond);
+    At<uint32_t>(self, kBagThreshold) = (second + first) >> 1;
+    return Bits(Head(self + kBagSecond));
+}
+
+// The game's 0x00943C01.
+uint32_t __fastcall ShuffleBagAdd(char* self, void*, uint32_t value)
+{
+    OPENSC4_FIRST("ShuffleBagAdd");
+    const uint32_t pushed = CallThis<uint32_t>(addr::SC4StlList_PushBack, self + kBagFirst, &value);
+    return Answer(Rethreshold(self, pushed), true);
+}
+
+// The game's 0x00943A2E: every entry equal to value, from both lists.
+uint32_t __fastcall ShuffleBagRemove(char* self, void*, uint32_t value)
+{
+    OPENSC4_FIRST("ShuffleBagRemove");
+    CallThis<uint32_t>(addr::SC4Uint32List_Remove, self + kBagFirst, &value);
+    const uint32_t head = CallThis<uint32_t>(addr::SC4Uint32List_Remove, self + kBagSecond, &value);
+    return Answer(Rethreshold(self, head), true);
+}
+
+// The game's 0x0094397E.
+uint32_t __fastcall ShuffleBagClear(char* self, void*)
+{
+    OPENSC4_FIRST("ShuffleBagClear");
+    CallThis<uint32_t>(addr::SC4StlList_Clear, self + kBagFirst);
+    return Answer(CallThis<uint32_t>(addr::SC4StlList_Clear, self + kBagSecond), true);
+}
+
+// The game's 0x00943953 (this unused): a number from 0 below count, from the
+// registry of sound kinds.
+uint32_t __fastcall ShuffleBagRandom(char*, void*, uint32_t count)
+{
+    OPENSC4_FIRST("ShuffleBagRandom");
+    void* registry = nullptr;
+    CallThis<void*>(addr::SC4Audio_F4ED100, &registry);
+    const uint32_t number = Virtual<uint32_t>(registry, 0x68, count, uint32_t{0});
+    CallThis<void>(addr::SC4Audio_F4ED130, &registry);
+    return number;
+}
+
+// The front of a list moved to the back of another (or the same) list.
+uint32_t MoveFront(char* from, char* to)
+{
+    uint32_t value = At<uint32_t>(Next(Head(from)), 0x8);
+    CallThis<void>(addr::SC4StlList_PopFront, from);
+    CallThis<void>(addr::SC4StlList_PushBack, to, &value);
+    return value;
+}
+
+// The game's 0x00943C46.
+uint32_t __fastcall ShuffleBagDraw(char* self, void*)
+{
+    OPENSC4_FIRST("ShuffleBagDraw");
+    char* const first = self + kBagFirst;
+    char* const second = self + kBagSecond;
+    if (Next(Head(first)) == Head(first))
+        return MoveFront(second, second);
+    uint32_t steps = ShuffleBagRandom(self, nullptr, Size(first));
+    char* node = Next(Head(first));
+    for (; steps != 0; --steps)
+        node = Next(node);
+    uint32_t drawn = At<uint32_t>(node, 0x8);
+    void* after = nullptr;
+    CallThis<void>(addr::SC4StdList_Erase, first, &after, node);
+    CallThis<void>(addr::SC4StlList_PushBack, second, &drawn);
+    while (static_cast<int32_t>(Size(second)) > At<int32_t>(self, kBagThreshold))
+        MoveFront(second, first);
+    return drawn;
+}
+
+// The node at index, counting the first list then the second; null past
+// the end, with the total in `total`.
+struct Place {
+    char* list;
+    char* node;
+    uint32_t total;
+};
+
+Place Locate(char* self, uint32_t index)
+{
+    char* const first = self + kBagFirst;
+    char* const second = self + kBagSecond;
+    const uint32_t inFirst = Size(first);
+    if (inFirst != 0 && index < inFirst) {
+        char* node = Next(Head(first));
+        for (uint32_t i = index; i != 0; --i)
+            node = Next(node);
+        return {first, node, 0};
+    }
+    const uint32_t total = Virtual<uint32_t>(self, 0x24);
+    if (index >= total)
+        return {nullptr, nullptr, total};
+    char* node = Next(Head(second));
+    for (uint32_t i = index - inFirst; i != 0; --i)
+        node = Next(node);
+    return {second, node, total};
+}
+
+// The game's 0x00943A9B.
+uint32_t __fastcall ShuffleBagGet(char* self, void*, uint32_t index, uint32_t* out)
+{
+    OPENSC4_FIRST("ShuffleBagGet");
+    const Place place = Locate(self, index);
+    if (!place.node)
+        return Answer(place.total, false);
+    *out = At<uint32_t>(place.node, 0x8);
+    return Answer(*out, true);
+}
+
+// The game's 0x00943B07.
+uint32_t __fastcall ShuffleBagSet(char* self, void*, uint32_t index, uint32_t value)
+{
+    OPENSC4_FIRST("ShuffleBagSet");
+    const Place place = Locate(self, index);
+    if (!place.node)
+        return Answer(place.total, false);
+    At<uint32_t>(place.node, 0x8) = value;
+    return Answer(Bits(place.node), true);
+}
+
+// The game's 0x00943B71.
+uint32_t __fastcall ShuffleBagErase(char* self, void*, uint32_t index)
+{
+    OPENSC4_FIRST("ShuffleBagErase");
+    const Place place = Locate(self, index);
+    if (!place.node)
+        return Answer(place.total, false);
+    void* after = nullptr;
+    return Answer(CallThis<uint32_t>(addr::SC4StdList_Erase, place.list, &after, place.node), true);
+}
+
+// The game's 0x00943CF2: 1, the count, then each list's entries (each list
+// turned round once as it goes). The writes' results are not looked at.
+uint32_t __fastcall ShuffleBagWrite(char* self, void*, void* stream, uint32_t, uint32_t)
+{
+    OPENSC4_FIRST("ShuffleBagWrite");
+    Virtual<uint32_t>(stream, 0x24, uint32_t{1});
+    char* const first = self + kBagFirst;
+    char* const second = self + kBagSecond;
+    const uint32_t inFirst = Size(first);
+    const uint32_t inSecond = Size(second);
+    Virtual<uint32_t>(stream, 0x24, inSecond + inFirst);
+    for (uint32_t i = 0; i < inFirst; ++i)
+        Virtual<uint32_t>(stream, 0x24, MoveFront(first, first));
+    uint32_t last = inSecond;
+    for (uint32_t i = 0; i < inSecond; ++i)
+        last = Virtual<uint32_t>(stream, 0x24, MoveFront(second, second));
+    return Answer(last, true);
+}
+
+// Entries of the text form: `n` or `from-to` (each number of it).
+void AddTextEntry(char* list, TempString& field)
+{
+    TempString piece;
+    void* const split = CallThis<void*>(addr::SC4String_SplitOff, &field, &piece, Text(addr::SC4_DashText));
+    TempString from;
+    CallThis<void*>(addr::SC4String_Substring, &from, split, uint32_t{0}, uint32_t{0xFFFFFFFF});
+    DestroyTemp(piece, 0);
+    if (Strlen(&from) != 0) {
+        uint32_t number = CallCdecl<uint32_t>(addr::SC4_TextToUint32, Data(&from));
+        const uint32_t to = CallCdecl<uint32_t>(addr::SC4_TextToUint32, Data(&field));
+        if (number <= to) {
+            do {
+                uint32_t entry = number;
+                CallThis<void>(addr::SC4StlList_PushBack, list, &entry);
+                ++number;
+            } while (number <= to);
+        }
+    } else {
+        uint32_t entry = CallCdecl<uint32_t>(addr::SC4_TextToUint32, Data(&field));
+        CallThis<void>(addr::SC4StlList_PushBack, list, &entry);
+    }
+    DestroyTemp(from, 0);
+}
+
+// The game's 0x00943DBC: the stream's bytes whole; by their size a text of
+// entries (the first dword the text's length), version 1 with a count, or a
+// count; the entries go to the first list and the threshold becomes a third
+// of its size plus one.
+uint32_t __fastcall ShuffleBagRead(char* self, void*, void* stream, uint32_t, uint32_t)
+{
+    OPENSC4_FIRST("ShuffleBagRead");
+    void* seekable = nullptr;
+    // Without the seekable interface the game takes the stream's address as
+    // the size (and then calls through the null interface).
+    const uint32_t size = Yes(Virtual<uint32_t>(stream, 0x0, kIID_Seekable, &seekable))
+                              ? Virtual<uint32_t>(seekable, 0xD0)
+                              : Bits(stream);
+    uint32_t* const words = CallCdecl<uint32_t*>(addr::SC4_operator_new, size + 1);
+    Virtual<uint32_t>(seekable, 0x6C, words, size);
+    const uint32_t head = words[0];
+    int form = -1;
+    uint32_t count = 0;
+    if (size == head + 4) {
+        form = 0;
+    } else if (head == 1 && size == words[1] * 4 + 8) {
+        form = 1;
+        count = words[1];
+    } else if (size == head * 4 + 4) {
+        form = 2;
+        count = head;
+    }
+    char* const first = self + kBagFirst;
+    if (form < 0) {
+        const uint32_t freed = CallCdecl<uint32_t>(addr::SC4_operator_delete, words);
+        return Answer(ReleaseIf(seekable, freed), false);
+    }
+    if (form == 0) {
+        reinterpret_cast<char*>(words)[size] = 0;
+        TempString rest;
+        CallThis<void*>(addr::SC4String_FromText, &rest, reinterpret_cast<const char*>(words + 1));
+        while (Strlen(&rest) != 0) {
+            TempString piece;
+            void* const split = CallThis<void*>(addr::SC4String_SplitOff, &rest, &piece, Text(addr::SC4_CommaText));
+            TempString field;
+            CallThis<void*>(addr::SC4String_Substring, &field, split, uint32_t{0}, uint32_t{0xFFFFFFFF});
+            DestroyTemp(piece, 0);
+            if (Strlen(&field) == 0) {
+                // No comma left: the field is the rest.
+                CallThis<uint32_t>(addr::cRZBaseString_Assign, &field, &rest);
+                TempString empty;
+                void* const none = CallThis<void*>(addr::SC4String_FromText, &empty, Text(addr::MySim_ScriptEmpty));
+                CallThis<uint32_t>(addr::cRZBaseString_Assign, &rest, none);
+                DestroyTemp(empty, 0);
+            }
+            AddTextEntry(first, field);
+            DestroyTemp(field, 0);
+        }
+        DestroyTemp(rest, 0);
+    } else {
+        const uint32_t* entry = words + (form == 1 ? 2 : 1);
+        for (uint32_t i = count; i != 0; --i) {
+            uint32_t value = *entry++;
+            CallThis<void>(addr::SC4StlList_PushBack, first, &value);
+        }
+    }
+    Virtual<uint32_t>(self, 0x1C, Size(first) / 3 + 1);
+    const uint32_t freed = CallCdecl<uint32_t>(addr::SC4_operator_delete, words);
+    return Answer(ReleaseIf(seekable, freed), true);
+}
+
+// ====================================================================================
+// Part u3: the framework's own 2D and 3D sound kinds (vtables 0x00AD2804
+// and 0x00AD2830), which the game's SC4K kinds replace (docs/audio.md).
+// Value sets: slot 3 Set(number, value, flag), slot 4 Get(number).
+
+constexpr uint32_t kKindPriority = 0xFFAE9DDB;
+
+uint32_t GetValue(void* values, uint32_t number) { return Virtual<uint32_t>(values, 0x10, number); }
+uint32_t SetValue(void* values, uint32_t number, uint32_t value, uint32_t flag)
+{
+    return Virtual<uint32_t>(values, 0xC, number, value, flag);
+}
+uint32_t CopyValue(void* from, void* to, uint32_t number) { return SetValue(to, number, GetValue(from, number), 1); }
+
+// 0x15 * 0x14 / 1024 (signed, as IMUL and IDIV do it), halved when the
+// registry has a value 0xFFAE9DDB and the source's is below it.
+int32_t VoiceLevel(int32_t a, int32_t b, void* source)
+{
+    int32_t level = static_cast<int32_t>(static_cast<uint32_t>(a) * static_cast<uint32_t>(b)) / 0x400;
+    void* const registry = CallCdecl<void*>(addr::SC4_SoundKindRegistry);
+    const int32_t limit = Virtual<int32_t>(registry, 0x7C, kKindPriority);
+    if (limit != 0 && static_cast<int32_t>(GetValue(source, kKindPriority)) < limit)
+        level /= 2;
+    return level;
+}
+
+// The game's 0x00944088 (this unused).
+uint32_t __fastcall Kind2DSetUpVoice(char*, void*, void* source, void* voice)
+{
+    OPENSC4_FIRST("Kind2DSetUpVoice");
+    const uint32_t v16 = GetValue(source, 0x16);
+    const int32_t v15 = static_cast<int32_t>(GetValue(source, 0x15));
+    const int32_t v14 = static_cast<int32_t>(GetValue(source, 0x14));
+    const int32_t level = VoiceLevel(v14, v15, source);
+    SetValue(voice, 0x16, v16, 1);
+    return Answer(SetValue(voice, 0x15, static_cast<uint32_t>(level), 0), true);
+}
+
+// The game's 0x00944117 (this unused).
+uint32_t __fastcall Kind2DCopyValues(char*, void*, void* from, void* to)
+{
+    OPENSC4_FIRST("Kind2DCopyValues");
+    uint32_t last = 0;
+    for (const uint32_t number : {0x13u, 0x19u, 0x1Au, 0x1Bu, 0x23u, 0x24u, 0x25u, 0x26u, 0x33u})
+        last = CopyValue(from, to, number);
+    return Answer(last, true);
+}
+
+// The game's 0x009441E3 (this unused): nothing for the same object.
+uint32_t __fastcall Kind3DSetUpVoice(char*, void*, void* source, void* voice)
+{
+    OPENSC4_FIRST("Kind3DSetUpVoice");
+    if (voice == source)
+        return 0;
+    for (const uint32_t number : {0x20u, 0x21u, 0x22u, 0x40u, 0x41u, 0x42u})
+        CopyValue(source, voice, number);
+    if (GetValue(source, 0x1F) != 0 && GetValue(source, 0x1F) != 0) {
+        CopyValue(source, voice, 0x1E);
+        CopyValue(source, voice, 0x1F);
+    } else {
+        uint32_t base = GetValue(source, 0x38);
+        if (base == 0)
+            base = 4;
+        SetValue(voice, 0x1E, base, 1);
+        SetValue(voice, 0x1F, base * 500, 1);
+    }
+    const int32_t v15 = static_cast<int32_t>(GetValue(source, 0x15));
+    const int32_t v14 = static_cast<int32_t>(GetValue(source, 0x14));
+    const int32_t level = VoiceLevel(v14, v15, source);
+    return SetValue(voice, 0x15, static_cast<uint32_t>(level), 0);
+}
+
+// The game's 0x00944351 (this unused).
+uint32_t __fastcall Kind3DCopyValues(char*, void*, void* from, void* to)
+{
+    OPENSC4_FIRST("Kind3DCopyValues");
+    uint32_t last = SetValue(to, 0x1C, 1, 1);
+    for (const uint32_t number :
+         {0x1Du, 0x13u, 0x19u, 0x1Au, 0x1Bu, 0x23u, 0x24u, 0x25u, 0x26u, 0x33u, 0x1Eu, 0x1Fu})
+        last = CopyValue(from, to, number);
+    return Answer(last, true);
+}
+
+// ====================================================================================
 // Thunks and installation
 
 OPENSC4_THUNK(BinaryDeletingDestructorThunk, BinaryDeletingDestructor, 4)
@@ -1064,6 +2000,41 @@ OPENSC4_THUNK(BagCountThunk, BagCount, 0)
 OPENSC4_THUNK(BagAssignThunk, BagAssign, 4)
 OPENSC4_THUNK(BagCopyAssignThunk, BagCopyAssign, 4)
 OPENSC4_THUNK(BagCloneThunk, BagClone, 8)
+
+OPENSC4_THUNK(XmlWriteThunk, XmlWrite, 12)
+OPENSC4_THUNK(XmlRootNameThunk, XmlRootName, 8)
+OPENSC4_THUNK(XmlStartElementThunk, XmlStartElement, 16)
+
+OPENSC4_THUNK(ScriptHandlerStartElementThunk, ScriptHandlerStartElement, 16)
+OPENSC4_THUNK(ScriptHandlerEndElementThunk, ScriptHandlerEndElement, 4)
+
+OPENSC4_THUNK(FactoryCreateThunk, FactoryCreate, 20)
+
+OPENSC4_THUNK(WindowCloneThunk, WindowClone, 8)
+OPENSC4_THUNK(WindowCopyAssignThunk, WindowCopyAssign, 4)
+OPENSC4_THUNK(ScriptWinAssignThunk, ScriptWinAssign, 4)
+OPENSC4_THUNK(ScriptWinPartAssignThunk, ScriptWinPartAssign, 4)
+
+OPENSC4_THUNK(ShuffleBagConstructThunk, ShuffleBagConstruct, 0)
+OPENSC4_THUNK(ShuffleBagDestructThunk, ShuffleBagDestruct, 0)
+OPENSC4_THUNK(ShuffleBagDeletingDestructorThunk, ShuffleBagDeletingDestructor, 4)
+OPENSC4_THUNK(ShuffleBagQueryInterfaceThunk, ShuffleBagQueryInterface, 8)
+OPENSC4_THUNK(ShuffleBagReleaseThunk, ShuffleBagRelease, 0)
+OPENSC4_THUNK(ShuffleBagAddThunk, ShuffleBagAdd, 4)
+OPENSC4_THUNK(ShuffleBagRemoveThunk, ShuffleBagRemove, 4)
+OPENSC4_THUNK(ShuffleBagClearThunk, ShuffleBagClear, 0)
+OPENSC4_THUNK(ShuffleBagRandomThunk, ShuffleBagRandom, 4)
+OPENSC4_THUNK(ShuffleBagDrawThunk, ShuffleBagDraw, 0)
+OPENSC4_THUNK(ShuffleBagGetThunk, ShuffleBagGet, 8)
+OPENSC4_THUNK(ShuffleBagSetThunk, ShuffleBagSet, 8)
+OPENSC4_THUNK(ShuffleBagEraseThunk, ShuffleBagErase, 4)
+OPENSC4_THUNK(ShuffleBagWriteThunk, ShuffleBagWrite, 12)
+OPENSC4_THUNK(ShuffleBagReadThunk, ShuffleBagRead, 12)
+
+OPENSC4_THUNK(Kind2DSetUpVoiceThunk, Kind2DSetUpVoice, 8)
+OPENSC4_THUNK(Kind2DCopyValuesThunk, Kind2DCopyValues, 8)
+OPENSC4_THUNK(Kind3DSetUpVoiceThunk, Kind3DSetUpVoice, 8)
+OPENSC4_THUNK(Kind3DCopyValuesThunk, Kind3DCopyValues, 8)
 
 struct Detour {
     std::uintptr_t address;
@@ -1171,6 +2142,77 @@ bool InstallBag(registry::Mode)
     return InstallAll(detours);
 }
 
+bool InstallXmlText(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZPropSetXmlIO_Write, &XmlWriteThunk},
+        {addr::cGZPropSetXmlIO_RootName, &XmlRootNameThunk},
+        {addr::cGZPropSetXmlIO_StartElement, &XmlStartElementThunk},
+    };
+    return InstallAll(detours);
+}
+
+bool InstallScript(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZUIScriptHandler_StartElement, &ScriptHandlerStartElementThunk},
+        {addr::cGZUIScriptHandler_EndElement, &ScriptHandlerEndElementThunk},
+    };
+    return InstallAll(detours);
+}
+
+bool InstallCreate(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZPropSetFactory_Create, &FactoryCreateThunk},
+    };
+    return InstallAll(detours);
+}
+
+bool InstallWinCopy(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZKeyedWin_Clone, &WindowCloneThunk},
+        {addr::cGZKeyedWin_CopyAssign, &WindowCopyAssignThunk},
+        {addr::cGZScriptWin_Assign, &ScriptWinAssignThunk},
+        {addr::cGZScriptWinPart_Assign, &ScriptWinPartAssignThunk},
+    };
+    return InstallAll(detours);
+}
+
+bool InstallShuffleBag(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZShuffleBag_Construct, &ShuffleBagConstructThunk},
+        {addr::cGZShuffleBag_Destruct, &ShuffleBagDestructThunk},
+        {addr::cGZShuffleBag_DeletingDestructor, &ShuffleBagDeletingDestructorThunk},
+        {addr::cGZShuffleBag_QueryInterface, &ShuffleBagQueryInterfaceThunk},
+        {addr::cGZShuffleBag_Release, &ShuffleBagReleaseThunk},
+        {addr::cGZShuffleBag_Add, &ShuffleBagAddThunk},
+        {addr::cGZShuffleBag_Remove, &ShuffleBagRemoveThunk},
+        {addr::cGZShuffleBag_Clear, &ShuffleBagClearThunk},
+        {addr::cGZShuffleBag_Random, &ShuffleBagRandomThunk},
+        {addr::cGZShuffleBag_Draw, &ShuffleBagDrawThunk},
+        {addr::cGZShuffleBag_Get, &ShuffleBagGetThunk},
+        {addr::cGZShuffleBag_Set, &ShuffleBagSetThunk},
+        {addr::cGZShuffleBag_Erase, &ShuffleBagEraseThunk},
+        {addr::cGZShuffleBag_Write, &ShuffleBagWriteThunk},
+        {addr::cGZShuffleBag_Read, &ShuffleBagReadThunk},
+    };
+    return InstallAll(detours);
+}
+
+bool InstallKinds(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZSoundKind2D_SetUpVoice, &Kind2DSetUpVoiceThunk},
+        {addr::cGZSoundKind2D_CopyValues, &Kind2DCopyValuesThunk},
+        {addr::cGZSoundKind3D_SetUpVoice, &Kind3DSetUpVoiceThunk},
+        {addr::cGZSoundKind3D_CopyValues, &Kind3DCopyValuesThunk},
+    };
+    return InstallAll(detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"framework.propio.binary", "framework/propio", registry::Kind::Detour, registry::Phase::Attach,
                         addr::cGZPropSetBinaryIO_Read,
@@ -1208,6 +2250,33 @@ const bool g_registered[] = {
                         "Our keyed shuffle bag 0x7B1ACFCD (constructor, QueryInterface, deleting destructor, Clone, "
                         "CopyAssign) and the bag's SetThreshold, Count and Assign (8 detours; part u2, docs/gzui.md)",
                         false, InstallBag}),
+    registry::Register({"framework.propio.xmltext", "framework/propio", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZPropSetXmlIO_Write,
+                        "Our XML property-set writer, its root name and the XML handler's StartElement (3 detours; "
+                        "part u3, docs/gzui.md)",
+                        false, InstallXmlText}),
+    registry::Register({"framework.propio.script", "framework/propio", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::cGZUIScriptHandler_EndElement,
+                        "Our UI script property handler's StartElement and EndElement (2 detours; part u3, "
+                        "docs/gzui.md)",
+                        false, InstallScript}),
+    registry::Register({"framework.propio.create", "framework/propio", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::cGZPropSetFactory_Create,
+                        "Our property-set factory's Create (1 detour; part u3, docs/gzui.md)", false, InstallCreate}),
+    registry::Register({"framework.propio.wincopy", "framework/propio", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZKeyedWin_Clone,
+                        "Our window 0xA3CD96CF's Clone and CopyAssign and the script window's Assign (4 detours; part "
+                        "u3, docs/gzui.md)",
+                        false, InstallWinCopy}),
+    registry::Register({"framework.propio.shufflebag", "framework/propio", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZShuffleBag_Draw,
+                        "Our shuffle bag: constructor, destructors, QueryInterface, Release, Add, Remove, Clear, "
+                        "Random, Draw, Get, Set, Erase, Write, Read (15 detours; part u3, docs/gzui.md)",
+                        false, InstallShuffleBag}),
+    registry::Register({"framework.propio.kinds", "framework/propio", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::cGZSoundKind2D_SetUpVoice,
+                        "Our framework's own 2D and 3D sound kinds' slots 5 and 6 (4 detours; part u3, docs/gzui.md)",
+                        false, InstallKinds}),
 };
 
 } // namespace
