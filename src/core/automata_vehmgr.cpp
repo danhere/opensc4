@@ -1505,7 +1505,7 @@ std::uint32_t __fastcall VehicleAddAutomaton(char* self, void*, void* automaton)
 {
     static bool logged;
     FirstCall("vehicle AddAutomaton", logged);
-    return AddAutomatonOf(self, automaton, kVehiclePool, addr::SC4VehPedManager_NewVehicle);
+    return AddAutomatonOf(self, automaton, kVehiclePool, addr::cSC4Vehicle_Construct);
 }
 
 // 0x00546990, the pedestrian manager's slot 7.

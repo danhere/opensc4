@@ -19,7 +19,7 @@ All 30 classes are registered by one function, 0x00514A00, with factories 0x0051
 | Controllers | cSC4AutomataControllerManager (0xCA14CA03), cSC4AutomataAttractor (0x6A1628BA), cSC4AutomataGenerator (0x4A1628C5) |
 | Scripts and situations | cSC4AutomataScriptSystem (0x4A1B664E), cSC4CitySituationManager (0x0BB14381) |
 
-The road vehicles and the pedestrians share an automaton base (vtable 0x00A9C068); road vehicles, trains and emergency vehicles a vehicle base (0x00A9D488); fire truck, patrol car and ambulance an emergency base (0x00A981E0); aircraft and boats a base of their own (0x00A95AC0); the vehicle and pedestrian managers a manager base (0x00A9BD88), which derives from the base all four managers share (0x00A95880, constructor 0x005125E0; part v1 below); attractor and generator a controller base (0x00A95D90). The automata are occupants (types 0xC7CC75F1 and 0x496E5783), which is why the occupant manager's fingerprint leaves them out ([occmgr.md](occmgr.md)).
+Every automaton class derives from an automata core (vtable 0x00A95AC0, constructor 0x005140A0; part vb below); the road vehicles and the pedestrians from an automaton base on it (vtable 0x00A9C068); the other road vehicles, trains and emergency vehicles from cSC4Vehicle (0x00A9D488); fire truck, patrol car and ambulance from an emergency base (0x00A981E0); aircraft and boats from the core directly; the vehicle and pedestrian managers a manager base (0x00A9BD88), which derives from the base all four managers share (0x00A95880, constructor 0x005125E0; part v1 below); attractor and generator a controller base (0x00A95D90). The automata are occupants (types 0xC7CC75F1 and 0x496E5783), which is why the occupant manager's fingerprint leaves them out ([occmgr.md](occmgr.md)).
 
 ## The code and how it splits
 
@@ -34,7 +34,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | City situation manager | 167 | 44,037 | c1 (41, done), c2 to c5 (part c below counts 164) |
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
-| Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | 8 |
+| Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 to vb7 (part vb below counts 163) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
 | Trains | 79 | 18,124 | 2 |
 | Emergency vehicles | 101 | 19,149 | 3 |
@@ -2117,3 +2117,122 @@ Candidates for a later optional fix. Each is kept faithful now; a fix would be a
 - Slot 36: a start that is not posted keeps the status 4 rather than 5.
 - 0x005299C0: reset the column count, so each column of the lot is cut at the limit.
 - Part c4's oddities: 0x00529560 drops 0x00526960's answer, and 0x00526960 squares into a signed sum.
+
+## Part vb: the automaton base and cSC4Vehicle
+
+### Survey
+
+Three levels of classes are in play ([automata_vehicle.h](../src/core/automata_vehicle.h) has the layout):
+
+- The automata core (constructor 0x005140A0, vtable 0x00A95AC0, 129 slots; "cSC4AutomatonCore", the name is ours). Every automaton class derives from it; the aircraft and the boats directly. Its code lies with the aircraft group (0x004FA700 to 0x00514340) and is not part of vb.
+- The automaton base (constructor 0x005544D0, vtable 0x00A9C068, 176 slots; "cSC4AutomatonBase", the name is ours). The pedestrians and the road vehicles derive from it. It ends at +0x254.
+- cSC4Vehicle (class ID 0x896E714A, factory 0x005148E0, constructor 0x005628F0, 0x2B8 bytes from a pool of its own at 0x00B0A0F8, 192 slots). The trailer, bus, getaway van, carjacked vehicle, tank, limo, the trains and the emergency vehicles derive from it. The "vehicle base 0x00A9D488" of the family table is cSC4Vehicle itself.
+
+Six parts, each with its own vtable:
+
+| Part | Core | Base | cSC4Vehicle | What it is |
+| --- | --- | --- | --- | --- |
+| +0x00 | 0x00A95AC0 | 0x00A9C068 | 0x00A9D488 | the automaton: slots 3 to 69 are the gzcom-dll cISC4Automaton header's 0 to 66 (Init 3, Shutdown 4, SetDestination 10, the flag test 31 and so on), the class's own after |
+| +0x04 | 0x00A95A38 | 0x00A9BFE0 | 0x00A9D400 | the occupant (cISC4Occupant, 34 slots) |
+| +0x08 | 0x00A95A1C | 0x00A9BFC4 | 0x00A9D3E4 | serializable, 7 slots: Write 3 (base 0x00551DE0, vehicle 0x0055F640), Read 4 (0x00554D20, 0x0055BCF0), GetGZCLSID 5 (0x00532240) |
+| +0x0C | 0x00A959B8 | 0x00A9BF60 | 0x00A9D380 | 25 slots; 22 the deleting destructor, 23 and 24 Write and Read through +4 |
+| +0x20 | 0x00A959A0 | 0x00A9BF4C | 0x00A9D368 | 5 slots (6 in cSC4Vehicle) |
+| +0x38 | 0x00A95990 | 0x00A9BF3C | 0x00A9D358 | 4 slots |
+
+The base overrides the core's slots 0, 3, 4, 10, 72, 93, 109, 110, 111 and adds 129 to 175; cSC4Vehicle overrides 0, 3, 4, 60, 65, 72, 93, 109, 110, 115, 116, 120, 121, 123, 124, 125, 129, 131, 132, 135, 140, 151, 158, 174 and adds 176 to 191. The core's AddRef and Release keep the count at +0x10 (the occupant part's); Release at 0 calls +0xC's slot 22, the deleting destructor.
+
+Fields beyond the core's (the core's +0x40 position, +0x7C radius, +0x84 automata flags and +0x1A0 smoothed value are the ones this part touches): the base's +0x1E4 state, +0x1E8 a byte, +0x1EC the occupant it is on (referenced), +0x1F0 its network part (referenced; vtable 0x00A99E70 on a road), +0x1F4 to +0x1F7 the sides and the network kind, +0x200 a float, +0x204 a deque of 0xC-byte elements, +0x22C a route deque; cSC4Vehicle's +0x258 and +0x25C two objects held through a virtual base, +0x264 and +0x270 two points, +0x27C a deque of 8-byte elements.
+
+The group is found by the two classes' vtables less the core's slots, plus the functions that write those vtables and the helpers only they call, plus the destructor bodies the derived classes share (0x00504E30, 0x00504E70) and six helpers cSC4Vehicle shares with the trains: 163 functions, 45,178 bytes. The survey's 318 and 70,504 had the trailer's and the trains' code (0x00555A30 to 0x0055B3E0) placed with it by neighbours; those belong to their own groups. Of the 163:
+
+- **Stay the game's (25).**
+  - Twenty `sub ecx,N; jmp` adjustor thunks: 0x005545C0 to 0x00554630, 0x005552E0, 0x005553F0 (base); 0x00505080, 0x005050B0, 0x005050C0, 0x005050E0, 0x005050F0, 0x00524520, 0x00524530, 0x00562A60, 0x00562A70, 0x00562A80 (cSC4Vehicle).
+  - Two plain jumps into the core: 0x0055B6C0 (slot 60) and 0x0055B740 (slot 120).
+  - Three accessors folded with other classes' code: 0x00504F70 (slot 136, +0x1F4; cSC4City::GetTerrain), 0x00505100 (slot 137, +0x1EC; cSC4City::GetCitySituationManager) and 0x00520080 (slot 143, +0x4C; four other classes).
+- **vb1 (36, 3,155 bytes, done): the object and its queries.** Below.
+- **vb2 (30, about 4,300 bytes): life cycle, save and the setters.**
+  - Init (slot 3) 0x0054D790 and 0x0055B9B0; Shutdown (4) 0x00555310 and 0x005602F0 with 0x00554640, 0x00554280, 0x0055BE00 (the renderer 0x00B43DD0) and 0x0055AC20 (shared with the trains).
+  - Write and Read (+8 slots 3 and 4): 0x00551DE0, 0x00554D20, 0x0055F640, 0x0055BCF0, with the state stack's 0x00553780, 0x00554230 and 0x00554160.
+  - The setters: 0x00504FC0 (154), 0x00505110 (178), 0x00505140 (180), 0x0053CC00 (158), 0x0055B690 (cSC4Vehicle's 158, a random float from 0x00B21D78), 0x0055B750 (184, a random byte), 0x0054DA00 (159) and 0x0054DA50 (160, the speeds), 0x0054EB20 (149), 0x0054D820 (135), 0x0054D830 (172), 0x0055BE70 (124, the vehicle manager's slot 69) and 0x0055CA60.
+  - The debug texts (slot 93): 0x00553CF0 and 0x00562AC0 (static strings, `State: %d`).
+- **vb3 (13, about 6,800 bytes): the base's movement on frames.** SetDestination (10) 0x0054E5B0; slots 129 to 134 (0x0054FDC0, 0x00550190, 0x0054E920, 0x00550760, 0x005504E0, 0x00550B60), 142 0x00554AB0, 151 0x00551300, 157 0x005510D0, 170 0x0054E790; helpers 0x0054E6F0 and 0x00551F70.
+- **vb4 (22, about 6,500 bytes): the base's states on frames.** Slots 72 0x0054E050, 109 0x00550090, 110 0x005546E0 (with 0x0054E380), 111 0x005535D0 (with 0x00552B80, 0x0054ECC0), 145 0x005559D0, 147 0x00551480, 148 0x00551C20, 161 to 169 (0x0054E1A0, 0x0054E410, 0x005500D0, 0x0054E3D0, 0x00553AA0 with 0x00553720 and the deque step 0x00504C40, 0x00554870, 0x00550F40, 0x005527E0, 0x00552520), 173 0x0054D860.
+- **vb5 (10, about 5,900 bytes): cSC4Vehicle's movement.** Slots 72 0x0055BA20, 129 0x0055CAF0, 131 0x0055D210, 132 0x0055D5A0, 151 0x0055D9D0, 121 0x0055C600, 109 0x0055CA90, 135 0x0055BE90, 125 0x0055DF50, 65 0x0055C8C0 (HandleCollision: a sound, a message).
+- **vb6 (12, about 7,500 bytes): cSC4Vehicle's lanes and turns.** Slots 176 0x0055DBE0, 177 0x0055DD10, 188 0x0055C480 with 0x0055C350 and 0x0055BB10 (shared with the trains), 185 0x0055E1F0, 186 0x0055E550, 187 0x0055ED10 (1,760 bytes) with 0x0055EA20, 0x0055BF70, 0x0055C030, 191 0x0055DD50 (a model matrix: SC4Matrix::FromDirection, the renderer).
+- **vb7 (15, about 10,800 bytes): cSC4Vehicle's frame and its queues.** Slot 115 0x005603F0 (4,279 bytes, the vehicle's frame), 182 0x0055FE60 with 0x0055CFD0, 181 0x00561910 with 0x0055F930, 0x0055FA90, 0x0055FAF0, 0x005614B0, 0x00560250, 189 0x00561D20 with 0x00561A30, 190 0x005620E0, 110 0x0055B6D0, and the trains' shared 0x0055F3F0 and 0x0055F7B0. 0x005603F0 may need a piece of its own.
+
+vb3 to vb7 run on frames, so the family's frame caveat applies (top of this page): the comparison of those parts is inside one run, or values from automata the test makes itself.
+
+Drawing: the model, its animation and its matrix calls (0x0055DD50, 0x005620E0, 0x0055BE00 through the view 0x00B43DD0) belong to the renderer and are called at their addresses. Sounds and messages go out through 0x00602640 and SC4::PostMessage (0x0055C8C0, 0x0055D5A0, 0x00550760).
+
+Mods: no NAM site and none of SC4UIScale's addresses is in the group. SC4UIScale's probe 0x00505370 is the managers' CreateAutomaton (parts v and aw), which makes these automata; it stays the game's there.
+
+### What is ours
+
+36 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)).
+
+- **The object (16):**
+  - The factory 0x005148E0 with the vehicle pool's allocate 0x0055B970 and free 0x0055F600.
+  - The constructors 0x005544D0 (base) and 0x005628F0 (cSC4Vehicle; the vehicle manager's AddAutomaton calls it too).
+  - The destructor bodies 0x00504E30 and 0x00504E70, the deleting destructors 0x005552F0 and 0x00562A90, and the deques' destruction 0x00504D90 and 0x00504CF0 with their range releases 0x00504CB0 and 0x00504C70.
+  - QueryInterface 0x0054D7F0 (base, 0x8B99EE7C) and 0x0055B660 (cSC4Vehicle); GetGZCLSID 0x00532240.
+- **The accessors (12):** slots 138 0x00504F80 (+0x200), 144 0x00504F90 (the route deque), 150 0x00504FA0 (the flag 8), 153 0x00504FB0 (+0x1E8), 156 0x00504FD0 (the +0x204 deque), 175 0x00504FE0 (the byte 0x00B21D28), the base's 140 0x00546020 (the position) and cSC4Vehicle's 140 0x00504FF0 (+0x264), 179 0x00505000 (+0x270), 183 0x00505010 (the +0x27C deque), 174 0x0055BF60 (the city's vehicle manager), and the +0x27C deque's back 0x0055F900.
+- **The queries (8):**
+  - Slot 146 0x0054DAB0: whether the point of slot 143 is within 16 x the byte 0x00B21CB8 of the position.
+  - Slot 155 0x0054EA80: the unit vector from the position to a point; (0, 0, 1) at 1e-5 or less.
+  - 0x0054EA30: the held test (the byte, the states 7 and 8, the flag 0x200000, the occupant's group 2).
+  - Slot 171 0x0054D8D0: the side (of four) closest to a direction, optionally only the sides the network answers for; true at a dot product of 0.6 or more.
+  - Slot 152 0x0054EB90: the network part's test, then the next occupant's for the other side.
+  - 0x0050AAF0 (on a manager) and cSC4Vehicle's slot 123 0x005573C0: the automaton the vehicle runs into.
+  - 0x0054FC30: the nearest automaton in x and z on a network occupant.
+
+Kept as the game's: the 25 above; the core (constructor 0x005140A0, destructor 0x00513E60, QueryInterface 0x00505D80, AddRef, Release, the smoothed value 0x004FA960); the deques' own code (0x008EB800, 0x0049EB90, 0x006DA8D0, SC4RouteDeque), the pool's (SC4EdgePool::Grow, SC4Pool::ReleaseBlock, SC4Pool::ReopenBlock), the generator (cRZRandomSuper::Between) and the allocators, all called at their addresses.
+
+GetPositionAddress 0x00546020 is 4 bytes long; its address entry lists the byte of `CC` padding after it, so the 5-byte entry hook stays inside, as part a3a's GetOccupant does.
+
+Oddities kept:
+
+- The vehicle's QueryInterface leaves the out pointer as it was for other interfaces until the base's clears it.
+- The base's deleting destructor frees without a null test; the destructor bodies do not set the vtables back.
+- 0x0050AAF0 keeps its best distance in its first argument's stack slot, which it starts at 0: only automata within the margin count, and ties go to the later one.
+- 0x0054FC30 measures in x and z only (the y difference is the float SC4::FloatZero) and, when the key is the automaton's own occupant, starts at its own node.
+- Slot 155 squares the unrounded z difference times its float copy.
+- Slot 171 keeps its best dot product as a float (stored into an argument's slot).
+
+Stack leftovers the game passes on, where ours passes zeros: slot 171's side to the network's slot 0xD4, and slot 152's +0x1F5 to the network part's slot 0x90 and +0x1F4 to 0x00B43D54's slot 0x3C, are bytes with three bytes of the caller's stack above them. The network part on roads (vtable 0x00A99E70, slot 0x90 0x0053D060) and 0x00B43D54's slot 0x3C (0x004AF7C0) read the byte only.
+
+Return values: the game sets only AL in QueryInterface, slots 146 and 153, 0x0054EA30 and slot 152 (and leaves its caller's EAX above it); ours zero-extends. Every caller the audit found reads AL only.
+
+Floats: 53-bit doubles, as the game's x87 runs. The distances keep the asm's order ((dz x dz + dy x dy) + dx x dx); floats are stored where the game stores them (the best distances, the drawn time, slot 155's factor). Compares keep the asm's handling of unordered values.
+
+Reimplemented like the earlier parts: one writer, then an independent audit of all 36 against the disassembly, every vtable call's argument count checked against the callee's `ret`. The audit found no defect in the 36 functions. It found one in the test: the fingerprint read the word at +0x1E8, of which only the byte is written; that is fixed. The audit could not see the class of every object the queries call (slot 171's network, the occupant's slot 0x58); the argument counts are the game's. In a city the network part is of vtable 0x00A99E70, whose slot 0x90 (0x0053D060) is `ret 0x14` and reads the third argument's byte only.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_VEHICLE=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, drives the base and cSC4Vehicle on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). Vehicles run on frames, so everything in the fingerprint comes from objects the test makes and removes itself. The automata's generator (0x00B21D78) is saved and seeded first and put back after: the drawn times are the same on both sides, and the game's own draws do not change.
+
+Into the fingerprint as ` V<object>,<accessors>,<queries>,<nearest>,<flags>`:
+
+- Four vehicles from the factory, each held by one reference: their fields after construction; a base object built and deleted (0x005544D0, 0x005552F0); QueryInterface for six interfaces at both addresses and through the occupant part (each AddRef given back) and GetGZCLSID.
+- The accessors (addresses as offsets; the manager compared with city slot 43; the deque's back with its expected address).
+- Slot 146 at points around its distance, slot 155 at points near and far, 0x0054EA30 over its byte, state, flag and an occupant of the test's, slot 171 for nine directions with and without a network of the test's, slot 152 with a network part of the test's answering yes and no.
+- 0x0050AAF0 on a manager of the test's whose list holds the four vehicles at set positions, radii and flags, for five margins.
+- Then each vehicle's last reference is released: the deleting destructor through +0xC's slot 22, the deques, the pool.
+
+To the log only: for up to 24 of the city's vehicles, slots 146, 150, 138, 0x0054EA30, slot 123 with margins 0 and 2 and 0x0054FC30 on the vehicle's occupant; and the first one's network part's vtable.
+
+Reached (our first-call log lines): all 36 in every B run of Making Money and Rush Hour; 34 in the four Big City runs, where slot 123 (0x005573C0) and 0x0054FC30 are never called (the test calls them on the city's vehicles only, and Big City has none). The factory, the pool's allocate, both constructors, QueryInterface, slot 150, 0x0054FC30, slot 140, slot 175, 0x0054EA30 and slot 174 run by the game at the load; the rest by the test. In the trial (Making Money d0000, 4 days) the token and the city log were the same on both sides.
+
+Not covered by the fingerprint: slot 152's branch through the next occupant (with no occupant 0x00B43D54's slot 0x3C answers null at once), 0x0054FC30 and slot 123 (the log only), a tie in 0x0050AAF0.
+
+### Parity
+
+2026-10-22, B = `simulators.automata.vehicle` against the original (the switch list includes `determinism.dispatch_info=ours`; two jobs, `harness.multi_instance=ours` on both sides, `OPENSC4_MUTE=1` on both), env p4env-vb1, snapshot vb1-r2, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` V` token. A first batch (vb1-r1) was stopped before it finished, when the audit found the test's uninitialised bytes; vb1-r2 has the fixed test.
