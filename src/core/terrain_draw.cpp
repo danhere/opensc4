@@ -1049,6 +1049,83 @@ union Cell {
     uint32_t u;
 };
 
+// A 4x4 matrix (rows of four) times another: each element summed at full
+// precision and stored as a float. The game's inlined copies add the four
+// products in differing orders, which at this precision has not changed a
+// float in any test.
+void MultiplyMatrix(const float* a, const float* b, float* out)
+{
+    for (int row = 0; row < 4; ++row) {
+        for (int column = 0; column < 4; ++column) {
+            double sum = static_cast<double>(a[row * 4]) * b[column];
+            for (int k = 1; k < 4; ++k)
+                sum += static_cast<double>(a[row * 4 + k]) * b[k * 4 + column];
+            out[row * 4 + column] = static_cast<float>(sum);
+        }
+    }
+}
+
+// The inverse of a 4x4 matrix by cofactors: the adjugate over the
+// determinant, each cofactor a 3x3 determinant expanded down a column of
+// 2x2 ones. The grid and overlay passes take it of the view matrix. The
+// game keeps some of the 2x2 determinants and of the products in them as
+// floats and the rest at full precision; the same ones are rounded here, so
+// the result is the game's to the bit.
+void InvertMatrix(const float* in, float* out)
+{
+    const auto m = [in](int row, int column) { return static_cast<double>(in[row * 4 + column]); };
+    const auto f = [](double value) { return static_cast<double>(static_cast<float>(value)); };
+
+    // 2x2 determinants: dRR_CC of rows RR by columns CC (rows 0 and 3 with
+    // the sign turned).
+    const double d23_23 = m(2, 2) * m(3, 3) - m(2, 3) * m(3, 2);
+    const double d23_13 = m(2, 1) * m(3, 3) - m(2, 3) * m(3, 1);
+    const double d23_12 = m(2, 1) * m(3, 2) - m(2, 2) * m(3, 1);
+    const double d12_23 = m(1, 2) * m(2, 3) - m(1, 3) * m(2, 2);
+    const double d12_13 = m(1, 1) * m(2, 3) - m(1, 3) * m(2, 1);
+    const double d12_12 = m(1, 1) * m(2, 2) - m(1, 2) * m(2, 1);
+    const double d01_23 = m(0, 2) * m(1, 3) - m(0, 3) * m(1, 2);
+    const double d01_13 = m(0, 1) * m(1, 3) - m(0, 3) * m(1, 1);
+    const double d01_12 = m(0, 1) * m(1, 2) - m(0, 2) * m(1, 1);
+    const double d03_23 = f(m(0, 3) * m(3, 2) - m(0, 2) * m(3, 3));
+    const double d03_13 = m(0, 3) * m(3, 1) - m(0, 1) * m(3, 3);
+    const double d03_12 = m(0, 2) * m(3, 1) - m(0, 1) * m(3, 2);
+    // Those of rows 1 and 3 and of rows 0 and 2 are the difference of two
+    // products kept as floats, taken one way or the other (which matters
+    // for the sign of a zero).
+    const double p12_33 = f(m(1, 2) * m(3, 3)), p13_32 = f(m(1, 3) * m(3, 2));
+    const double p11_33 = f(m(1, 1) * m(3, 3)), p13_31 = f(m(1, 3) * m(3, 1));
+    const double p11_32 = f(m(1, 1) * m(3, 2)), p12_31 = f(m(1, 2) * m(3, 1));
+    const double p02_23 = f(m(0, 2) * m(2, 3)), p03_22 = f(m(0, 3) * m(2, 2));
+    const double p01_23 = f(m(0, 1) * m(2, 3)), p03_21 = f(m(0, 3) * m(2, 1));
+    const double p01_22 = f(m(0, 1) * m(2, 2)), p02_21 = f(m(0, 2) * m(2, 1));
+
+    // The cofactors, cRC for row R and column C, each down a column of the
+    // matrix; those the game rounds to floats are rounded.
+    const double c00 = f((f(d23_23) * m(1, 1) + (p13_32 - p12_33) * m(2, 1)) + d12_23 * m(3, 1));
+    const double c01 = -f((d23_23 * m(1, 0) + (p13_32 - p12_33) * m(2, 0)) + f(d12_23) * m(3, 0));
+    const double c02 = f((d23_13 * m(1, 0) + (p13_31 - p11_33) * m(2, 0)) + d12_13 * m(3, 0));
+    const double c03 = -f((d23_12 * m(1, 0) + (p12_31 - p11_32) * m(2, 0)) + d12_12 * m(3, 0));
+    const double c10 = -f((d03_23 * m(2, 1) + (p02_23 - p03_22) * m(3, 1)) + f(d23_23) * m(0, 1));
+    const double c11 = f((d23_23 * m(0, 0) + d03_23 * m(2, 0)) + (p02_23 - p03_22) * m(3, 0));
+    const double c12 = -f((f(d23_13) * m(0, 0) + d03_13 * m(2, 0)) + (p01_23 - p03_21) * m(3, 0));
+    const double c13 = f((f(d23_12) * m(0, 0) + d03_12 * m(2, 0)) + (p01_22 - p02_21) * m(3, 0));
+    const double c20 = f(((p12_33 - p13_32) * m(0, 1) + d03_23 * m(1, 1)) + d01_23 * m(3, 1));
+    const double c21 = -f((d03_23 * m(1, 0) + f(d01_23) * m(3, 0)) + (p12_33 - p13_32) * m(0, 0));
+    const double c22 = f((d03_13 * m(1, 0) + d01_13 * m(3, 0)) + (p11_33 - p13_31) * m(0, 0));
+    const double c23 = -((f(d03_12) * m(1, 0) + d01_12 * m(3, 0)) + f(p11_32 - p12_31) * m(0, 0));
+    const double c30 = -((f(d12_23) * m(0, 1) + (p03_22 - p02_23) * m(1, 1)) + f(d01_23) * m(2, 1));
+    const double c31 = f((f(d12_23) * m(0, 0) + (p03_22 - p02_23) * m(1, 0)) + f(d01_23) * m(2, 0));
+    const double c32 = -f((f(d12_13) * m(0, 0) + (p03_21 - p01_23) * m(1, 0)) + f(d01_13) * m(2, 0));
+    const double c33 = f((f(d12_12) * m(0, 0) + (p02_21 - p01_22) * m(1, 0)) + f(d01_12) * m(2, 0));
+
+    const double scale = f(static_cast<double>(Global<float>(addr::SC4_FloatOneA81228)) /
+                           (((m(0, 1) * c01 + m(0, 2) * c02) + m(0, 3) * c03) + c00 * m(0, 0)));
+    const double adjugate[16] = {c00, c10, c20, c30, c01, c11, c21, c31, c02, c12, c22, c32, c03, c13, c23, c33};
+    for (int i = 0; i < 16; ++i)
+        out[i] = static_cast<float>(adjugate[i] * scale);
+}
+
 // 0x00757650.
 uint32_t DrawGrid(char* self, char* context, void* buffers)
 {
@@ -1071,17 +1148,19 @@ uint32_t DrawGrid(char* self, char* context, void* buffers)
     CallThis<void>(addr::SC4RenderContext_SetState4280, context, 1u, 7u, 0u);
     CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
 
-    // The texture matrix from the camera's: the game's stack frame as cells,
-    // the arithmetic translated from 0x00757775 to 0x0075821F.
-    Cell L[105] = {};
-    for (int i = 6; i < 22; ++i)
-        L[i].u = Global<uint32_t>(addr::STE_MatrixFill);
+    // The texture matrix from the camera's: back from view space to the
+    // world, then x and z in cells.
+    Cell view[16];
+    for (Cell& c : view)
+        c.u = Global<uint32_t>(addr::STE_MatrixFill);
     CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
-    CallThis<void>(addr::SC4RenderContext_GetViewMatrix, context, &L[6]);
-#include "core/terrain_grid_matrix.inc"
-    L[56].u = r436;
-    L[57].u = r437;
-    CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[42], 0u);
+    CallThis<void>(addr::SC4RenderContext_GetViewMatrix, context, view);
+    float inverse[16], texture[16];
+    InvertMatrix(&view[0].f, inverse);
+    const float perMetre = Global<float>(addr::STE_CellsPerMetre);
+    const float toCells[16] = {perMetre, 0, 0, 0, 0, 0, 0, 0, 0, perMetre, 1, 0, 0, 0, 0, 1};
+    MultiplyMatrix(inverse, toCells, texture);
+    CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, texture, 0u);
 
     const int32_t firstRow = At<int32_t>(self, 0x98), endRow = At<int32_t>(self, 0x9C);
     if (firstRow < endRow) {
@@ -1105,7 +1184,7 @@ uint32_t DrawGrid(char* self, char* context, void* buffers)
     }
 
     void* const driver = At<void*>(context, 0x30);
-    const VertexRect all = {0, 0, static_cast<int32_t>(L[70].u), static_cast<int32_t>(L[71].u)};
+    const VertexRect all = {0, 0, static_cast<int32_t>(Columns()), Global<int32_t>(addr::STE_Rows)};
     Virtual<void>(driver, 0x88, 0u, 1u);
     if (buffers)
         DrawRowsBuffered(self, context, kLandRows, all);
@@ -1191,10 +1270,9 @@ void DrawDecals(char* manager, const float* matrix, char* context, char** list)
             CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
         else
             CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
-        Cell L[38] = {};
-        const float* const record = reinterpret_cast<const float*>(overlay);
-#include "core/overlay_decal_matrix.inc"
-        CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[10], 0u);
+        float textureMatrix[16];
+        MultiplyMatrix(matrix, reinterpret_cast<const float*>(overlay + 0x1C), textureMatrix);
+        CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, textureMatrix, 0u);
         CallThis<void>(addr::cSC4OverlayManager_DrawRect, manager, context, overlay + 0xC);
         ++At<uint32_t>(manager, 0xD8);
     }
@@ -1238,10 +1316,9 @@ void DrawShadowsPlain(char* manager, const float* matrix, char* context, char** 
         char* const overlay = At<char*>(manager, 0x98) + At<int32_t>(list[0], i * 4) * 0xB4;
         if (At<int32_t>(overlay, 0) != -1 || (At<uint32_t>(overlay, 4) & 9) != 9)
             continue;
-        Cell L[43] = {};
-        const float* const record = reinterpret_cast<const float*>(overlay);
-#include "core/overlay_shadow_matrix.inc"
-        CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[15], 0u);
+        float texture[16];
+        MultiplyMatrix(matrix, reinterpret_cast<const float*>(overlay + 0x5C), texture);
+        CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, texture, 0u);
         CallThis<void>(addr::cSC4OverlayManager_DrawRect, manager, context, overlay + 0xC);
         ++At<uint32_t>(manager, 0xDC);
     }
@@ -1259,7 +1336,7 @@ void DrawShadows(char* manager, const float* matrix, char* context, char** list)
     if (list[0] == list[1])
         return;
     CallThis<void>(addr::SC4RenderContext_SetRenderState, context, At<char*>(manager, 0x24) + 0x20);
-    Cell L[117] = {};
+    Cell L[33] = {};
     for (int i = 7; i < 11; ++i)
         L[i].u = Global<uint32_t>(0x00B4B3C8);
     void* const source = Virtual<void*>(Global<void*>(addr::SC4_Lighting43DD0), 0x24);
@@ -1291,7 +1368,6 @@ void DrawShadows(char* manager, const float* matrix, char* context, char** list)
         char* const overlay = At<char*>(manager, 0x98) + At<int32_t>(list[0], i * 4) * 0xB4;
         if (At<int32_t>(overlay, 0) != -1 || (At<uint32_t>(overlay, 4) & 9) != 9)
             continue;
-        const float* const record = reinterpret_cast<const float*>(overlay);
         const int32_t* const cells = reinterpret_cast<const int32_t*>(overlay + 0xC);
         if (!single) {
             CallThis<void>(addr::SC4RenderContext_BindTexture, context, ***reinterpret_cast<uint32_t***>(overlay + 0xAC), 0u);
@@ -1299,14 +1375,11 @@ void DrawShadows(char* manager, const float* matrix, char* context, char** list)
                 CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 3u, 3u, 0u);
             else
                 CallThis<void>(addr::SC4RenderContext_SetState41E0, context, 2u, 2u, 0u);
-            {
-#include "core/overlay_shadow2_a.inc"
-            }
-            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[33], 0u);
-            {
-#include "core/overlay_shadow2_b.inc"
-            }
-            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[65], 1u);
+            float texture[16];
+            MultiplyMatrix(matrix, reinterpret_cast<const float*>(overlay + 0x1C), texture);
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, texture, 0u);
+            MultiplyMatrix(matrix, reinterpret_cast<const float*>(overlay + 0x5C), texture);
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, texture, 1u);
             if (Global<uint8_t>(addr::STE_OverlaySunTest)) {
                 // The light at the overlay's centre, in cells.
                 const double x = cells[0] + cells[2], z = cells[1] + cells[3];
@@ -1324,10 +1397,9 @@ void DrawShadows(char* manager, const float* matrix, char* context, char** list)
                 CallThis<void>(addr::SC4RenderContext_SetLightVector, context, &L[7]);
             }
         } else {
-            {
-#include "core/overlay_shadow2_c.inc"
-            }
-            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, &L[49], 0u);
+            float texture[16];
+            MultiplyMatrix(matrix, reinterpret_cast<const float*>(overlay + 0x5C), texture);
+            CallThis<void>(addr::SC4RenderContext_SetTextureMatrix, context, texture, 0u);
         }
         bool partial = false;
         if (At<uint8_t>(manager, 0x16)) {
@@ -1380,15 +1452,13 @@ void DrawOverlays(char* manager, char* context)
 {
     if (At<uint8_t>(manager, 0x15) && At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x39C))
         return;
-    Cell L[87] = {};
-    for (int i = 4; i < 20; ++i)
-        L[i].u = Global<uint32_t>(0x00B4B3C8);
+    Cell view[16];
+    for (Cell& c : view)
+        c.u = Global<uint32_t>(0x00B4B3C8);
     CallThis<void>(addr::SC4RenderContext_UpdateViewMatrix, context);
-    CallThis<void>(addr::SC4RenderContext_GetViewMatrix, context, &L[4]);
-    {
-#include "core/overlay_view_inverse.inc"
-        L[19].u = r332;
-    }
+    CallThis<void>(addr::SC4RenderContext_GetViewMatrix, context, view);
+    float inverse[16];
+    InvertMatrix(&view[0].f, inverse);
     const int32_t depthOffset = At<int32_t>(context, 0xBC);
     uint32_t& flags = Global<uint32_t>(addr::STE_OverlayListFlags);
     char** const list = &Global<char*>(addr::STE_OverlayList);
@@ -1417,12 +1487,12 @@ void DrawOverlays(char* manager, char* context)
     };
     if (list[0] != list[1]) {
         if (preference(0x15C))
-            CallThis<void>(addr::cSC4OverlayManager_DrawDecals, manager, &L[4], context, list);
+            CallThis<void>(addr::cSC4OverlayManager_DrawDecals, manager, inverse, context, list);
         if (list[0] != list[1] && preference(0x13C)) {
             if (At<int32_t>(manager, 0x18) > 2 && preference(0x17C))
-                CallThis<void>(addr::cSC4OverlayManager_DrawShadows, manager, &L[4], context, list);
+                CallThis<void>(addr::cSC4OverlayManager_DrawShadows, manager, inverse, context, list);
             else
-                CallThis<void>(addr::cSC4OverlayManager_DrawShadowsPlain, manager, &L[4], context, list);
+                CallThis<void>(addr::cSC4OverlayManager_DrawShadowsPlain, manager, inverse, context, list);
         }
     }
     CallThis<void>(addr::SC4RenderContext_ClearTextureMatrix, context, 0u);
