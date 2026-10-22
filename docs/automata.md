@@ -1570,7 +1570,7 @@ The class is found by its vtables, the constructor and the helpers only they cal
 - **c4 (30, 6,760 bytes, done): the targets and the situation's smaller steps.** See "Part c4" below.
   - The targets: 0x0052C8F0, 0x00528C70, 0x00529B80, 0x0052BC50, 0x0052BD30, 0x00524C40, 0x00524CF0, 0x00524660, 0x00526180, 0x00529560, 0x00526960, 0x00525A50, 0x00525AA0, 0x0052C0E0 and 0x0052BBC0.
   - The steps: 0x00525800, 0x005254D0, 0x00525070, 0x005278E0, 0x005260C0, 0x00526510, 0x00526250, 0x005271D0, 0x00524E90, 0x00524F00, 0x00529AF0, 0x005278A0, the end of a situation (slot 38) 0x005294C0, and the slot 4 of the two occupant filters of the class, 0x00524AB0 (vtable 0x00A97D90) and 0x00526650 (vtable 0x00A97DE0).
-- **c5 (11, 8,915 bytes): the running situation.** The start (slot 36) 0x0052E750, 0x0052C4E0, 0x0052B450 (1,883 bytes), 0x0052B200, 0x0052AD00 (1,252), 0x00529680, 0x005299C0, 0x00528140, 0x00527D30, 0x00527EA0 and 0x00554EA0 (1,083).
+- **c5 (11, 8,915 bytes, done): the running situation.** See "Part c5" below. The start (slot 36) 0x0052E750, 0x0052C4E0, 0x0052B450 (1,883 bytes), 0x0052B200, 0x0052AD00 (1,252), 0x00529680, 0x005299C0, 0x00528140, 0x00527D30, 0x00527EA0 and 0x00554EA0 (1,083).
 
 The calls cross these lines (for example 0x0052AD00 calls 0x00528580, and slot 38 calls 0x00527800 of c1), so each part calls the others at their addresses, as the script system's parts do.
 
@@ -1726,7 +1726,7 @@ Reimplemented like the earlier parts: one writer, every call's argument count ch
 - Slots 21 to 23 with two services of the test's own: the real advices by GUID and an unknown one, candidates that start or not, slot 22's path, made automata, the list entries.
 - The helpers directly: the candidate filter over its flags, the gathering, the made automaton and its site (also by +0xAF8), the random pick, the priority compare, the holder, the inherited template, the icon (never with a template, so no icon is added), slot 25 with 0x005291C0 (the automaton tracked, so no icon either), the driver's position, the distance (the city's edge, a cell, straight, five lot rectangles), the time limit with a script context of the test's own, slot 39, slot 37 without a situation and slot 35 off.
 
-StartJoyride (0x00524E20) and 0x00524D80 are not called: they send 0xABBBCA64 to the city view, which can open the mission popup or pause the game, and the joyride starts the U-Drive. A real start would need slot 36 (part c5); it is left for the parts that make it ours.
+StartJoyride (0x00524E20) and 0x00524D80 are not called: they send 0xABBBCA64 to the city view, which can open the mission popup or pause the game, and the joyride starts the U-Drive. A real start would need slot 36 (part c5). Part c5's test calls both, with a message server and a U-Drive view of its own (see "Part c5").
 
 Flags: 1 ran, 2 GUIDs found, 4 groups found, 0x10 a field left set (an error). `OPENSC4_TEST_C2_TRACE=1` logs the helpers' hash step by step.
 
@@ -1961,3 +1961,155 @@ Not compared (see "Test"):
 - 0x00529560's new controller.
 - 0x00529B80's objects and camera effects.
 - The overlay's 0x0046BF00.
+
+## Part c5: the running situation
+
+### What is ours
+
+11 functions in one group, off by default ([automata_situations_5.cpp](../src/core/automata_situations_5.cpp)):
+
+- **`simulators.automata.situations.running` (11):**
+  - The start of a situation (slot 36) 0x0052E750.
+  - The cell set by kind 0x0052C4E0, with its makers: the zone region 0x0052B450 (kinds 1, 5 and 6) and its region fill 0x00527EA0, the lot 0x005299C0 with 0x00528140, and the network flood 0x00529680 with 0x00527D30.
+  - The targets: by the services or the find_target script 0x0052B200, by kind 0x0052AD00, the occupant of the nearest link 0x00554EA0.
+
+What they do:
+
+- **The start** (slot 36, ret 0xC: the situation, the automaton, whether to post). Nothing when the situation is the active one. Otherwise:
+  - The old situation is ended (slot 38) and the new one referenced; none answers 0.
+  - The status is 4, the drive's time 0 and +0xA99 0. With the situation's flag 0x20, +0xAF8 gets the city's slot 71's slot 12 of +0xAFC.
+  - The automaton becomes the active one (0x00525070). Without one, the status is 5 and 0xEBB67EF7 is posted with 0.
+  - The scripts are referenced (0x00525800). Then by the situation's kind (slot 4): 2 starts at once; 5 starts with cells (0x0052C4E0); the others count their targets (slot 17's slot 16, else 1), set the index to 0 and make the first. That is 0x0052B200 with the flag 0x100; otherwise 0x0052AD00, and 0x0052B200 when that fails and the flag 1 is set. A target starts the situation.
+  - Started and asked to post: 0xEBB67EF7 is posted (0x00524D10) with the automaton. Otherwise the status is 5 and the message carries 0.
+- **The cells** (0x0052C4E0) empty the set +0xAA8 and fill it by the situation's cell kind (slot 36):
+  - 1, 5 and 6: 0x0052B450.
+  - 2: 0x005299C0.
+  - 3: 0x00529680.
+  - 4: the rectangle of slot 40 (two uint16 halves each).
+  - 7: the offsets of slot 41's list from the city's middle.
+
+  +0xAC0 is then the count and +0xABC 0. With cells and the effects service (0x00B43D1C), each cell gets a marker effect (mission_selection_yellow, the water one for the kind 6) over its square into the map +0xAC4. +0xAD8 is set to the middle of the cells, where the target goes (0x00529560). The answer is whether there are cells.
+- **The zone region** (0x0052B450). A spiral walk from the automaton's cell covers the box of the situation's slot 9 radius (below 1.0: the city's slot 91 times its width) and skips the box of slot 8. Each cell of the situation's zone type (for the kind 1 slot 37's type, else 0) is the seed of a region:
+  - kind 6: 0x00527EA0, a recursive fill through the cell filter 0x00524E90;
+  - kinds 1 and 5: a second spiral over the city. It keeps cells of the type that are not water and, for the kind 5, hold no network occupant; at each other cell it shrinks its bounds toward the seed.
+
+  The first region whose count is from slot 42 to slot 43 (at most the city's cells; the least cut to the most) becomes +0xAA8.
+- **The lot** (0x005299C0). A site of the situation's class (slot 38, 0x00528360), its lot (the lot manager's slot 14) and the lot's cells column by column, a column cut at slot 43. Then 0x00528140 adds whole rows (or columns, along the longer side) after the lot and then before it, up to slot 42's goal.
+- **The flood** (0x00529680). The network service is asked for an occupant of the situation's type (slot 39) in a box around the automaton. The box is the automaton's position plus or minus the squared slot 9, with the filter 0x00A97D94 at the squared slot 8. One is taken at random; from its cell 0x00527D30 floods the cells of the network map whose occupants match the type, in four directions from a random one, for a count between slots 42 and 43 (8 to 50).
+- **The target by the services** (0x0052B200, ret 4). The find_target script (+0xAEC) is asked first. Else, for each service (+0x9F8) and target ID, the service's slot 16 places the target near the automaton between the radii and its slot 15 makes it. The target is the made one's slot 5. With the argument it becomes the target (0x00528580), and +0xA64 is set.
+- **The target by kind** (0x0052AD00, ret 4). First, with the flag 0x20 and 0x193A among the target IDs, the +0xAF8 site. Else by the kind:
+  - 1 and 3: a candidate of the services' groups (0x00525640, 0x005245F0) at a distance from the squared slot 8 (the first target only) to the squared slot 9, measured at the automaton's height. With none, one at random of the network service's occupants in the slot 9 box that pass the group filter (0x00526610) and are not in +0xA68.
+  - 2: the occupant on the link nearest by path (0x00554EA0), its slot 48.
+  - 4: the create_target script (+0xAE8).
+
+  With the argument the target is set (0x00528580).
+- **The nearest link** (0x00554EA0, on the automaton's 0x8B99EE7C interface). The links of the 0x00B43D8C service's lists 3, 0xC, 8, 2 and 0xA, each found by the path finder (0x00B43DA8's slot 6) from the automaton's cell. The first network occupant in the cell of the shortest path is the answer.
+
+Oddities kept (each a candidate for a later optional fix, see "The situation manager is finished"):
+
+- 0x0052AD00's first loop asks the referenced set +0xA68 whether it holds the result so far (still null), not the candidate. A candidate already used is not skipped there (the network loop does check the occupant).
+- 0x0052C4E0's middle takes the least z twice: its "greatest z" keeps the minimum, so +0xAD8 sits at the least z.
+- 0x00529680's search box is the automaton's position plus or minus the squared radius (slot 9 squared), not the radius.
+- Slot 36 started but not asked to post sets the status 5 and posts 0xEBB67EF7 with 0, while it answers that it started.
+- 0x005299C0 cuts a column at slot 43 but never resets the count, so each later column gets one cell.
+- 0x0052AD00 answers its target after releasing it; so do 0x0052B200 and 0x00554EA0.
+
+Reimplemented like the earlier parts: one writer, every call's argument count checked against the callee's `ret`, then an independent audit of all 11 against the disassembly. 0x0052B450 was audited last, by hand from its stack frame. Every local, argument order and clamp matches, as do both walks (the second built by hand as the game does, with no start call) and the set's lower bound over SC4HashTable's primes for 100. The audit found no behavioural difference. Its notes are cosmetic:
+
+- The squares are computed in double, where the game uses the x87 at 53 bits (the same values).
+- Points and spiral walks are zeroed where the game leaves them uninitialized (they are written before use).
+- 0x0052C4E0's early return is 0 in all of EAX; the game sets only AL.
+
+### Test
+
+`OPENSC4_TEST_AUTOMATA_SITUATIONS=5` adds ` G<cells>,<fills>,<targets>,<starts>,<flags>` to the fingerprint (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). It runs on part c4's day, on a fresh manager like part c4's (slots 24, 35, 36 and 38 the test's, the random reseeded), with objects of the test's own. The city's zones, terrain, network map, network service, links and path finder are asked as the game asks them, all read only.
+
+- The cells by kind (0x0052C4E0): no situation, none, the rectangle (and an empty one), the effects refused and missing, the offsets with one twice. Then the zone regions of 0x0052B450:
+  - three zone types;
+  - the least above the most;
+  - the radius below 1.0 (the whole city);
+  - the kind 5 and the kind 6;
+  - the near box covering all.
+
+  Then the lot of 0x005299C0 (wide and tall, with and without the column limit, no lot) and the network flood of 0x00529680 (two types, none near). Each with its markers and the target placed.
+- 0x00527EA0 over a set and a cell object of the test's own (seeds that pass and fail, the limit, outside the width).
+- 0x00527D30 and 0x00528140 directly: the five directions, the edges, a count of 0, rows and columns, the city's last row, a goal of 0 and one already reached.
+- 0x0052B200: no situation, no place, none made, made, as the target already set, the script, no services.
+- 0x0052AD00 by kind:
+  - the +0xAF8 site, by the flag 0x20 and 0x193A;
+  - candidates at four distances, the near radius dropped for a later target, not a candidate, as the target already set;
+  - the network's occupants (near the network and far away);
+  - the nearest link with and without the interface;
+  - the script.
+
+  And 0x00554EA0 directly at three places.
+- Slot 36 for every kind and flag: the active one, no automaton, the kind 2 posted and not, the kind 5 with and without cells, the flags 0x100, none, 1, the kind 4, and the flag 0x20 with a second situation over the first.
+- StartJoyride (0x00524E20, part c2) with and without an automaton, and 0x00524D80.
+- The next target started: 0x0052BBC0 (none, one, past the last) and 0x0052C0E0 (the kind 3, and a script with a target of 0x5005).
+
+The network cell nearest the city's middle (the network map's slot 13, as 0x00527D30 asks it) is where the floods and links start; flag 8 says one was found.
+
+Where a function would post a message, start the U-Drive, make a marker or ask a lot, the global it uses is the test's own for that call only and is put back after it:
+
+- the message server 0x00B43CCC (slot 36's 0xEBB67EF7, the joyride's and the next target's 0xABBBCA64 and 0xAC083D7D);
+- the U-Drive's view 0x00B21D74 (set, so 0x00506850 does nothing);
+- the effects service 0x00B43D1C;
+- the lot manager 0x00B43D08 (0x005299C0's lot).
+
+Dan approved these test-only swaps (2026-10-21). The target setter 0x00528580 is never reached with a new target. Where a target is set, the one found is the one already set, so 0x00528580 returns at once. The pointers the messages carry are hashed as the fakes' indices.
+
+Not called by the test:
+
+- 0x00528580 with a new target (it makes the target's marker and a prop controller, and has an SC4UIScale site).
+- 0x00528360's own search (by the camera's view); only its +0xAF8 path.
+
+Flags: 1 ran, 2 the city's cells used, 4 the joyride ran, 8 a network cell found, 0x10 a field left set (an error). `OPENSC4_TEST_C5_TRACE=1` logs each step's hash; 2 also logs the fakes' calls and the messages.
+
+### Parity
+
+2026-10-22, env p4env-c5, `OPENSC4_MUTE=1` on both sides, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_SITUATIONS=5`. B is all twelve `simulators.automata.situations` groups (parts c1 to c5) against the original. The switch list includes `determinism.dispatch_info=ours`. Two jobs ran, with `harness.multi_instance=ours` on both sides. Snapshot c5-p1, the final build. No retries:
+
+| Making Money d0000, 4 days | Rush Hour t0000, 7 days | The 12-save batch, 7 days |
+| --- | --- | --- |
+| 5 of 5 | 8 of 8 | 11 of 12 on the first pair |
+
+The one difference, Making Money d1095, was in part c2's ` D` token only (its availability hash on day 4); the saved city's records were identical. Run alone with retries it was the same, 8 of 8, on its first pair.
+
+All 11 functions were reached in every one of the 14 B runs (our first-call log lines). Each run's ` G` token was the same on both sides. It depends only on the city, since the test's fakes and the city's networks set it:
+
+- G5C093DDE,7096E4E2,31A2CDAA,0102AD5D,F for Big City;
+- G1F2E2D9A,AA0FC347,5EB3FAD5,4AAF69A1,F for Making Money;
+- G70623F15,756615D3,6FFEA55A,23A39CEA,F for Rush Hour.
+
+The flags are F everywhere: a network cell was found near each middle. In Rush Hour the nearest link (0x00554EA0) finds no link occupant and answers null; it runs all the same.
+
+Not compared (see "Test"): 0x00528580 with a new target, and 0x00528360's own search.
+
+## The situation manager is finished
+
+Parts c1 to c5 make 143 of the class's 164 functions ours, in twelve groups, all off by default:
+
+| Part | Functions | Groups |
+| --- | --- | --- |
+| c1 | 41 | object, life, queries, save |
+| c2 | 33 | lua, starts |
+| c3 | 28 | messages, list, popup |
+| c4 | 30 | targets, steps |
+| c5 | 11 | running |
+
+All are `simulators.automata.situations.<group>`. The 21 that stay the game's are listed in the survey:
+
+- the twelve adjustor thunks;
+- five helpers with callers outside the class;
+- 0x00528580 and 0x0052CC50 (SC4UIScale's sites), with the two helpers only 0x0052CC50 calls.
+
+Each part's test reaches all of its functions. The parity of all twelve groups together is in "Part c5", "Parity".
+
+Candidates for a later optional fix. Each is kept faithful now; a fix would be a separate switch, off by default, since it changes what the missions do:
+
+- 0x0052AD00: ask +0xA68 for the candidate, not the null result, so the first loop skips a used target as the second does.
+- 0x0052C4E0: take the greatest z for the middle (+0xAD8), so the kind 5's target sits in the middle of its cells.
+- 0x00529680: search the box of the radius, not of the squared radius.
+- Slot 36: a start that is not posted keeps the status 4 rather than 5.
+- 0x005299C0: reset the column count, so each column of the lot is cut at the limit.
+- Part c4's oddities: 0x00529560 drops 0x00526960's answer, and 0x00526960 squares into a signed sum.
