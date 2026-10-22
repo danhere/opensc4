@@ -414,7 +414,7 @@ The manager (0xFC bytes; constructor 0x0073BC20, set up by Init 0x0073CB60, whic
 
 An ID is an overlay's index, or with the top bit set a handle's; a handle's target is an overlay's index, or with the top bit set a group's (a decal drawn as eight overlays). The getters read a group's first ID; the setters pass the call to each of the eight through the manager's own slot. The buckets (+0xF0, a vector of list heads) are a grid of the terrain's cells shifted right by +0xE4 (Init makes it 0: one bucket a cell), +0xE8 a row; each list holds the indices of the overlays that touch the bucket, nodes {next, index} from the STL allocator 0x0090CF54. A manager that draws the water's rows (+0x15) has no buckets, and its setters do not ask for a redraw. Every change that shows asks the terrain (+0x88, its slot 0x110) to redraw the overlay's cells.
 
-The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no function in Ghidra (its bytes follow DecalInfo's). The last eight (0x0073CD40 on) belong to the next class. Status: *ours (draw)* the draws above, *part 1* `renderer.overlays.manage1`, *part 2* `renderer.overlays.manage2`, *part 3* the batch proposed for the rest.
+The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no function in Ghidra (its bytes follow DecalInfo's). The last eight (0x0073CD40 on) belong to the next class. Status: *ours (draw)* the draws above, *part 1* `renderer.overlays.manage1`, *part 2* `renderer.overlays.manage2`, *part 3* `renderer.overlays.manage3`.
 
 | Address | Bytes | What | Status |
 |---|---|---|---|
@@ -440,13 +440,13 @@ The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no f
 | 0x00736150 | 82 | slot 5 AddDecal(key): the texture by key, then slot 4 | part 2 |
 | 0x007361B0 | 82 | slot 6 AddDecal(ID): the texture by ID, then slot 4 | part 2 |
 | 0x00736210 | 62 | FreeHandle | part 1 |
-| 0x00736250 | 44 | a bucket list cut after a node (its nodes freed) | part 3 (set-up, containers) |
+| 0x00736250 | 44 | a bucket list cut after a node (its nodes freed) | part 3 |
 | 0x00736280 | 83 | a handle copied (0x30 bytes) | part 2 |
 | 0x007362E0 | 53 | overlay records copied into new memory | part 2 |
 | 0x00736320 | 48 | n overlay records made from one | part 2 |
 | 0x00736350 | 124 | handles copied into new memory | part 2 |
 | 0x007363D0 | 108 | n handles made from one | part 2 |
-| 0x00736440 | 67 | a bucket list's nodes copied | part 3 (set-up, containers) |
+| 0x00736440 | 67 | a bucket list's nodes copied | part 3 |
 | 0x00736490 | 95 | slot 14 DecalInfo | part 1 |
 | 0x007364F0 | 134 | slot 20 SetOverlayFlags (not in the census's list: no function in Ghidra) | part 1 |
 | 0x00736579 | 1 | one `int3` byte referenced from data (0x00A863D4): not code | nothing |
@@ -459,8 +459,8 @@ The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no f
 | 0x00736BF0 | 3197 | DrawShadows | ours (draw) |
 | 0x00737870 | 1220 | DrawShadowsPlain | ours (draw) |
 | 0x00737D40 | 100 | Invalidate: the terrain redraws an overlay's cells | part 1 |
-| 0x00737DB0 | 86 | a bucket list assigned from another | part 3 (set-up, containers) |
-| 0x00737E10 | 59 | overlay records destroyed over a range (textures released) | part 3 (set-up, containers) |
+| 0x00737DB0 | 86 | a bucket list assigned from another | part 3 |
+| 0x00737E10 | 59 | overlay records destroyed over a range (textures released) | part 3 |
 | 0x00737E50 | 161 | slot 16 SetOverlayEnabled | part 1 |
 | 0x00737F00 | 257 | slot 17 SetOverlayAlpha | part 1 |
 | 0x00738010 | 165 | slot 18 SetOverlayColor | part 1 |
@@ -469,53 +469,53 @@ The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no f
 | 0x00738230 | 162 | BucketInsert | part 1 |
 | 0x007382E0 | 166 | BucketRemove | part 1 |
 | 0x00738390 | 504 | ListVisible | ours (draw) |
-| 0x00738590 | 42 | a bucket list emptied | part 3 (set-up, containers) |
+| 0x00738590 | 42 | a bucket list emptied | part 3 |
 | 0x007385C0 | 220 | the handles' vector grown by an insert | part 2 |
 | 0x007386A0 | 295 | the groups' vector grown by an insert | part 2 |
-| 0x007387D0 | 38 | bucket lists filled from one | part 3 (set-up, containers) |
-| 0x00738800 | 61 | bucket lists copied | part 3 (set-up, containers) |
-| 0x00738840 | 62 | n bucket lists made from one | part 3 (set-up, containers) |
-| 0x00738880 | 62 | bucket lists copied backwards | part 3 (set-up, containers) |
+| 0x007387D0 | 38 | bucket lists filled from one | part 3 |
+| 0x00738800 | 61 | bucket lists copied | part 3 |
+| 0x00738840 | 62 | n bucket lists made from one | part 3 |
+| 0x00738880 | 62 | bucket lists copied backwards | part 3 |
 | 0x007388C0 | 329 | slot 15 RemoveOverlay | part 1 |
 | 0x00738A10 | 60 | Place: into the buckets and redrawn | part 1 |
 | 0x00738A50 | 2397 | Draw | ours (draw) |
 | 0x007393B0 | 157 | SetCells: new cells cut to the terrain, the buckets moved | part 1 |
-| 0x00739450 | 64 | bucket lists copied into new memory | part 3 (set-up, containers) |
-| 0x00739490 | 18 | the view interface's draw (slot 3 of 0x00AB39D0), a jump to Draw | part 3 (set-up, containers) |
+| 0x00739450 | 64 | bucket lists copied into new memory | part 3 |
+| 0x00739490 | 18 | the view interface's draw (slot 3 of 0x00AB39D0), a jump to Draw | part 3 |
 | 0x007394B0 | 2573 | a decal's cells from its matrix, for one overlay or a group of eight | part 2 |
 | 0x00739EC0 | 242 | a new handle (from the free list or the vector) | part 2 |
 | 0x00739FC0 | 174 | a new group | part 2 |
 | 0x0073A070 | 253 | the overlays' vector grown by an insert | part 2 |
-| 0x0073A170 | 56 | bucket lists destroyed over a range | part 3 (set-up, containers) |
+| 0x0073A170 | 56 | bucket lists destroyed over a range | part 3 |
 | 0x0073A1B0 | 2769 | BuildDecal: a decal's texture matrix and cells from its description | part 2 |
-| 0x0073AC90 | 225 | every overlay removed (the terrain view's 0x007560F0) | part 3 (set-up, containers) |
+| 0x0073AC90 | 225 | every overlay removed (the terrain view's 0x007560F0) | part 3 |
 | 0x0073AD80 | 94 | slot 12 MoveDecal | part 1 |
 | 0x0073ADE0 | 115 | slot 13 UpdateDecalInfo | part 1 |
-| 0x0073AE60 | 85 | the render states' vector resized | part 3 (set-up, containers) |
+| 0x0073AE60 | 85 | the render states' vector resized | part 3 |
 | 0x0073AEC0 | 188 | a new overlay record (from the free list or the vector) | part 2 |
 | 0x0073AF80 | 494 | AddDecalFrom: a decal from a texture source or a texture (slot 3) | part 2 |
 | 0x0073B170 | 563 | slot 7 AddRingDecal | part 2 |
 | 0x0073B3B0 | 1254 | slot 9 AddShadowDecal(key) | part 2 |
 | 0x0073B8A0 | 359 | AddOverlay: an overlay from a texture, cells, a matrix and flags (AddHeightMap, AddShadow) | part 2 |
-| 0x0073BA10 | 259 | the five render states set up | part 3 (set-up, containers) |
-| 0x0073BB20 | 245 | the buckets' vector reallocated | part 3 (set-up, containers) |
-| 0x0073BC20 | 380 | the constructor | part 3 (set-up, containers) |
+| 0x0073BA10 | 259 | the five render states set up | part 3 |
+| 0x0073BB20 | 245 | the buckets' vector reallocated | part 3 |
+| 0x0073BC20 | 380 | the constructor | part 3 |
 | 0x0073BDA0 | 8 | an adjustor thunk (QueryInterface, this - 4) | thunk, stays |
 | 0x0073BDB0 | 8 | an adjustor thunk (QueryInterface, this - 8) | thunk, stays |
 | 0x0073BDC0 | 8 | an adjustor thunk (the deleting destructor) | thunk, stays |
 | 0x0073BDD0 | 8 | an adjustor thunk (QueryInterface, this - 0x10) | thunk, stays |
 | 0x0073BDE0 | 8 | an adjustor thunk (AddRef) | thunk, stays |
 | 0x0073BDF0 | 8 | an adjustor thunk (Release) | thunk, stays |
-| 0x0073BE00 | 267 | the destructor's body | part 3 (set-up, containers) |
+| 0x0073BE00 | 267 | the destructor's body | part 3 |
 | 0x0073BF10 | 415 | slot 4 AddDecal(texture) | part 2 |
 | 0x0073C0B0 | 30 | slot 3 AddDecal(texture source), a call of 0x0073AF80 | part 2 |
 | 0x0073C0D0 | 1897 | slot 11 AddShadow | part 2 |
-| 0x0073C840 | 314 | the buckets' vector: n lists inserted | part 3 (set-up, containers) |
-| 0x0073C980 | 30 | the deleting destructor | part 3 (set-up, containers) |
+| 0x0073C840 | 314 | the buckets' vector: n lists inserted | part 3 |
+| 0x0073C980 | 30 | the deleting destructor | part 3 |
 | 0x0073C9A0 | 257 | slot 8 AddHeightMap | part 2 |
-| 0x0073CAB0 | 91 | the buckets' vector resized | part 3 (set-up, containers) |
-| 0x0073CB10 | 72 | the bucket grid set up (one bucket a cell) | part 3 (set-up, containers) |
-| 0x0073CB60 | 476 | Init (the terrain view's 0x0075C420, four managers) | part 3 (set-up, containers) |
+| 0x0073CAB0 | 91 | the buckets' vector resized | part 3 |
+| 0x0073CB10 | 72 | the bucket grid set up (one bucket a cell) | part 3 |
+| 0x0073CB60 | 476 | Init (the terrain view's 0x0075C420, four managers) | part 3 |
 | 0x0073CD40 | 6 | another class's (a type ID, called from 0x00460090) | not the manager's |
 | 0x0073CD50 | 85 | another class's QueryInterface (0xAB8DA759, 0x452294AA) | not the manager's |
 | 0x0073CDB0 | 41 | another class's | not the manager's |
@@ -558,7 +558,27 @@ Checked 2026-10-22, all runs muted:
 
 Not reached by the game in any run: FillOverlays, FillHandles and CopyGroups (no caller inserts more than one record or away from the end) and 0x007354E0 (every driver in the tests reports five stages or more); the test reaches them, and only its calls compare them. Slot 11's transform in the test is made up (identity rotation at the terrain's middle, scale 1); the lighting object reads it, the comparison does not depend on what it means. In ours mode the functions under the slots are called by ours directly and log no first call; the compare runs reached them.
 
-Next: part 3, the set-up and the containers (23 functions: constructor, Init, destructor, render states, the buckets' vector and list helpers, Clear).
+**Part 3** (`renderer.overlays.manage3`, [overlay_manage_3.cpp](../src/core/overlay_manage_3.cpp) for ours and [overlay_manage_3_hooks.cpp](../src/core/overlay_manage_3_hooks.cpp) for the detours and compare mode, 23 functions, 3,103 bytes, translated by hand from the listing): the set-up and the containers. The constructor, Init, Clear, the destructor's body and the deleting destructor, the five render states and their vector, the bucket grid (one bucket a cell) and the buckets' vector of list heads (resized, n lists inserted, a new block), STLport's slist helpers for its lists (assigned, cut after a node, nodes copied, ranges of lists made, assigned forwards and backwards, emptied, destroyed), the overlay records destroyed over a range and the view interface's draw. Part 2's GrowOverlays and the autotest call the records' destructor 0x00737E10 by address, so they reach ours when manage3 is on; Clear calls part 2's two range assigns by address. Calls among the 23 are ours directly.
+
+What they do. The constructor sets the bases' vtables, cRZBaseUnknown at +8 (reference count 0), then the class's four; the shadow stages 2, +0x20 1, three state blocks of twelve bytes at +0x38, the terrain's size unset (0x00B4B3C8), every vector empty and every free list -1; the cells, the clip, +0x94 and the bucket grid's fields keep what the memory held. The terrain view AddRefs each manager after making it, then calls Init (the view, whether the manager draws the water's rows, the byte at +0x16; the third and fourth managers draw them and get no buckets): the view, the texture manager (the framework's 0x1AC0E11A) and the terrain (0x00B43CF4) held; the terrain's cells, a cell's size and its inverse, the terrain's size (the cells stored as floats times the size the terrain's slot 0x18 leaves on the x87's stack, each product rounded once to a float), the clip; the shadow texture 0xAA592B77; five render states (0x007D2B50); the buckets; the options message wanted from the message server, which AddRefs the target (the manager's count is then 2); the stage count and the detail from the driver. Clear (the terrain view's stop) unwants the message (the server's Release), releases the view, the terrain and the texture manager, destroys every overlay record (their textures and sources released) and empties the overlays' and handles' vectors and free lists, and clears +0x14; it leaves the groups and the buckets, which the destructor frees. The destructor's body releases the shadow texture, frees every block and destroys the bucket lists and the records, and clears nothing; the deleting destructor (reached through the adjustor thunk 0x0073BDC0 on the last Release) then frees the memory.
+
+Some details the translation keeps: the buckets' vector grows to as many more lists as there are or to the inserted count when larger, so Init's first insert makes it exactly one list a cell, and the first insert after that doubles it; an insert with room copies the list to a local first (it may be one of the vector's), but one that needs a new block takes it as it is; a shrink assigns the lists past the new end from an empty range (a call that does nothing) before destroying them; an insert's lists past the place are moved by assigning them, which reuses their nodes; a node's value is written only when the node's second word is not at address 0 (the placement new's test); ResizeStates and the bucket helpers count with the byte difference shifted right arithmetically and compare unsigned; Init reads the driver's global twice.
+
+Compare mode. The game calls five of the 23 from outside the class: the constructor, Init, Clear, the deleting destructor and the view draw. The constructor runs ours on a copy of the memory as it was and compares every byte. Init and Clear run ours on a copy of the manager that holds its own references (the view, the terrain, the texture manager, and for Clear the overlay records' textures and sources), with the message server's global pointing at a stand-in for the call: its slots 0x14 and 0x18 for the manager or the copy are recorded on both sides (the game's then passed on, ours not), every other call is passed on to the real server. The fields are compared (the vectors by size and capacity, the reference count at +0xC left out: the server's AddRef and Release change it on the game's side only), with Init's render states and every bucket list, the recorded calls, and for Clear the textures' reference counts after ours (each back where it was before the copy took its own). After Init the copy is destroyed by the game's destructor. The deleting destructor runs ours's body on a deep copy (its blocks from the game's allocator, its nodes and references its own), then the game's deleting destructor, whose call to the body is compared before the game frees the memory: the fields left and the textures' counts. The view draw only calls Draw, which draws, so compare mode runs ours (counted, not compared). The containers are reached only from inside those calls, each side its own, except the autotest's calls by address: a list assigned, n lists inserted, the buckets' vector resized (compared on copies of the list or the vector: the values, the sizes, whether a new block was taken, and in place which of the old nodes each place reuses) and the records destroyed (compared by the textures' and sources' reference counts).
+
+`OPENSC4_TEST_OVERLAYS` (token ` ovl`) now also drives part 3 after part 2, on a scratch manager made with operator new on the first manager with buckets: constructed, AddRef'd as the terrain view does, set up with that manager's view; its buckets' lists assigned from longer, shorter and equal lists and from themselves (the cut and the copy of nodes); the vector shrunk by ten, lists inserted in place with more after them than inserted (the copy backwards), with fewer, from one of its own, then one at full capacity (a new block, one list, the tail copied) and four at the end; then shrunk back; a decal added (part 2's slot 4), Clear and the last Release. The fields that do not depend on the memory, the render states and every list are hashed. The token gains no field (the hash covers it); the log line counts the scratch managers.
+
+Checked 2026-10-22, all runs muted:
+
+- An independent audit of the 23 against the listing (every call's argument count against the callee's `ret`, the fields, the compares): no defects.
+- Compare mode (manage1 and manage2 ours, so part 2's GrowOverlays reaches the records' destructor at the top), the three test cities with the camera workout: 0 divergences. Each city: the constructor, Init, Clear and the deleting destructor 4 each (compared), the records destroyed 22, 38 and 24 times at the top (Making Money, Big City, Rush Hour), the view draw 109,222, 106,990 and 113,790; inside the compared calls the render states and the bucket grid (2 managers with buckets), GrowBuckets 2, CopyNodes 32,768, FillNLists 2, CopyNewLists 4, DestroyLists 10. 17 of the 23 reached in each; the game never assigns, cuts, copies forwards or backwards or empties a single bucket list (it only makes the empty grid and destroys it).
+- Compare mode, Making Money for four days with `OPENSC4_TEST_PROPKINDS=1`, `OPENSC4_TEST_PROPKINDS_EDIT=1` and `OPENSC4_TEST_OVERLAYS=2`, with manage1, manage2 and manage3 compared: 0 divergences in all three parts, all 23 of part 3 reached (the constructor, Init, Clear and the destructor 5 each, AssignList 6 at the top and 32,756 inside, InsertLists 4, ResizeBuckets 3, the records destroyed 2 at the top; CutAfter 32,743, CopyNodes 65,567, CopyListsBackward 2, ClearList 4); `restored yes`. Again with manage1 and manage2 ours: 0 divergences, all 23 reached, the same ` ovl` hash. A bug put in on purpose (the destructor not releasing the shadow texture) gave 4 divergences in 4 destructor comparisons in two days of Making Money.
+- Screenshots with manage1, manage2 and manage3 ours, against the stock DirectX 7 baselines: Making Money 20 of 20, Rush Hour 20 of 20, Big City 19 of 20. The odd one is z1-r3 again (1.93%); with part 3 the game's it fails the same way (1.61%), with all three ours again 1.71%, and ours against the run with the game's part 3 is 20 of 20.
+- Parity (`renderer.overlays.manage1=ours,renderer.overlays.manage2=ours,renderer.overlays.manage3=ours` on side B, the base list with `determinism.dispatch_info`, 7 days, three jobs, every save on its first pair): plain 12 of 12; with `OPENSC4_TEST_OVERLAYS=2` and `OPENSC4_TEST_PROPKINDS=2` 12 of 12; with the propkinds edit (`OPENSC4_TEST_PROPKINDS_EDIT=1`) and `OPENSC4_TEST_OVERLAYS=3` 12 of 12; the same on `saves-plopped` 3 of 3. The ` ovl` token is the same on both sides in all 27 pairs of the test legs, and every edit run logs `restored yes`. B runs log a first call of 9 of the 23 in the test legs and 6 in the plain legs (the others are called by ours directly). Result folders `%LOCALAPPDATA%\opensc4\parity\ov3-*`.
+
+The overlay manager is done: every function of the class in the census's range is ours (the draws and parts 1 to 3) except the shared stub 0x00735290 and the six adjustor thunks.
+
+Next: the effects drawing and the automata drawing surveys.
 
 ## Models and lots
 
