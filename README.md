@@ -66,8 +66,21 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 | 8 km city tiles (an experiment: such a city cannot be saved yet) | `[improvements] big_cities = on` | [docs/city-size.md](docs/city-size.md) |
 | Buildings keep their occupants when a wealthier group wants in; it changes how cities grow (after sc4-no-kick-out by Nicholas Hayes, MIT License) | on (`game.no_kickout = original` turns it off) | [docs/no-kickout.md](docs/no-kickout.md) |
 | No demolition animation, no smoke when a lot is placed, no sounds from road and rail construction crews: three options, each off until turned on (after sc4-disable-demolition-animation, sc4-disable-lot-plop-smoke and sc4-disable-network-construction-sounds by Nicholas Hayes, MIT License) | `game.quiet.demolish = ours`, `game.quiet.plop = ours`, `game.quiet.network = ours` | [docs/quiet.md](docs/quiet.md) |
-| Fix for a game bug: lots offer their $$ and $$$ jobs even when the count is close to their $ jobs, so high-tech industry gets its $$$ jobs | on (`fixes.travel_jobs = original` turns it off) | [docs/citylot.md](docs/citylot.md#travel-jobs-the-games-bug-and-the-fix) |
 | The cheat `RemovePhantomBudgetItems <category> [all]`: takes budget rows of buildings that are gone, usually after a plugin was removed, out of a department; part of the game (after sc4-remove-phantom-budget-items by Nicholas Hayes, MIT License) | always there | [docs/phantom-budget.md](docs/phantom-budget.md) |
+
+## Original bugs fixed
+
+Bugs in the original game that OpenSC4 fixes, for the changelog. A fix marked "on" runs by default and `<id> = original` in `opensc4.ini` brings the original behaviour back (the parity tests do that); the others are off until set to `ours`.
+
+| Bug in the original | Fix | Details |
+|---|---|---|
+| The game hangs when a music playlist's last line has no line break | on (`fixes.playlist_last_line = original` turns it off) | [docs/audio.md](docs/audio.md#the-playlist-hang) |
+| Lots skip their $$ and $$$ jobs when the count is close to their $ jobs, so high-tech industry gets no $$$ jobs | on (`fixes.travel_jobs = original` turns it off) | [docs/citylot.md](docs/citylot.md#travel-jobs-the-games-bug-and-the-fix) |
+| Crash when a puzzle piece is held over a transit-enabled lot | `fixes.puzzle_piece = ours` | [docs/crashes.md](docs/crashes.md#puzzle-piece-over-a-transit-enabled-lot) |
+| Crash on exit with plugin DLLs | `fixes.pin_plugin_dlls = ours` | [docs/crashes.md](docs/crashes.md#crash-on-exit-with-plugin-dlls) |
+| Crash on multicore machines | `fixes.single_core = ours` | [docs/crashes.md](docs/crashes.md#multicore-crash) |
+| Rare crash reopening a closed record while a city loads | `resources.stale_record_fix = ours` | [docs/crashes.md](docs/crashes.md#0x0096da20-reopening-a-closed-record) |
+| The message server's cancel of a target's posts walks with a stale position (it can skip a post or run past the queue's end) | `fixes.message_cancel = ours` | [docs/framework.md](docs/framework.md) |
 
 ## Documents
 

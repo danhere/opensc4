@@ -1269,7 +1269,7 @@ address = 0x008D6258
 kind = "function"
 convention = "thiscall"
 expect = "55 8B EC 83 EC 28 53 56"
-source = "Name ours (docs/audio.md, \"Music player\", part 4); the next line of a text (text, out; ret 8). Ours in audio.music.part4."
+source = "Name ours (docs/audio.md, \"Music player\", part 4); the next line of a text (text, out; ret 8). Ours in audio.music.part4 and, alone, in fixes.playlist_last_line (the game's hang on a last line without a line break)."
 
 [[entry]]
 name = "GZPlaylistReader::ResolvePath"
