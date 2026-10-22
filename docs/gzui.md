@@ -74,7 +74,8 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u3** | 0x00942000 to 0x00944461 | 29 of 44 | 9 | **Ours** (below): the XML writer and StartElement, the UI script handler's StartElement and EndElement, the factory's Create, the window's Clone and copy, the shuffle bag, the framework's 2D and 3D sound kinds' slots 5 and 6; 15 STLport functions stay the game's |
 | **u4** | 0x00944462 to 0x009456EB | 49 of 67 | 40 | **Ours** (below): the UI file parser 0xBA2E7953, its variable table 0xBA2E7954, its director; the next director's deleting destructor and factories; 16 STLport functions and two ID getters stay the game's |
 | **u5** | 0x009456EC to 0x00945FFF | 44 of 58 | 25 | **Ours** (below): the framework's sound director, its sound table, the sound instance and the sound description; 4 adjustors, a thunk, the base QueryInterface, 4 two-instruction getters and 4 setters other classes share stay the game's (and the instance's AddRef 0x00945942, which the function list lacks and five other vtables share) |
-| u6, u7 | 0x00946000 to 0x00948E62 | 75 | 45 | The 65-slot class |
+| **u6** | 0x00946000 to 0x00948E62, first half | 40 of 75 | 29 | **Ours** (below): the framework's sound service 0x3C1CF59E (the audio layer's score player): constructor, interface, destructors, Init with the sound table's reader and text loader, Prepare, Play, the fade, the tempo, the window and slots 3 to 37; 2 adjustors, 2 AddRefs, 2 thunks and a getter the description shares stay the game's |
+| u7 | 0x00946000 to 0x00948E62, the rest | 30 | 14 | The service's slots 38 to 64 and its message target's slot 3, slot 39's file reader, the sound instance's slot 5 |
 | u8 | 0x00948E63 to 0x0094A078 | 71 | 7 | The class 0x00949902 |
 | u9, u10 | 0x0094A079 to 0x0094BFFF | 108 | 51 | The UI script tree |
 | u11 | 0x0094C000 to 0x0094C8FF | 50 | 35 | The framework window's small methods |
@@ -428,3 +429,113 @@ Batch `gzu5-r2` (2026-10-22, the final build), muted on both sides, the base lis
 An earlier batch (`gzu5-r1`, the same legs, all same) had the instance's AddRef 0x00945942 ours: it was the one u5 function reached in every plain run, called at start-up through one of the other classes' vtables that hold it, which is how it was found to be shared.
 
 **Reached:** in the plain (muted) legs none of the 44 logs a first call: nothing in these runs makes a sound description, table or instance, and the sound director's getter is not reached after Attach. The legs show that the hooks change nothing. In the test runs all 44 are reached.
+
+## Part u6: the framework's sound service, first half
+
+`src/core/gzui_soundsvc.cpp`, entry detours, off by default, installed at Attach:
+
+| Replacement | Functions |
+|---|---|
+| `framework.soundsvc.object` | the service's constructor 0x009489AE, QueryInterface 0x00946FE6 (0), Release 0x00947004 (2), destructor 0x00948C54, deleting destructor 0x00948C98 (37); the sound table's deleting destructor 0x0094601D (its slot 4) |
+| `framework.soundsvc.load` | Init 0x00947C38 (3); the table's file reader 0x00946A79 and text loader 0x00946039 |
+| `framework.soundsvc.play` | Prepare 0x0094701E (4), Shutdown 0x00947D28 (7), Play 0x00947DB8 (8), Stop 0x00947167 (10), SetLevel 0x00947559 (11), Fade 0x0094832A (12) and its timer's callback 0x0094761C, SetTempo 0x00948420 (17), the beat time 0x009475FB, the cell count 0x009476C3, Reseed 0x009479D4 (27) |
+| `framework.soundsvc.window` | LoadByName 0x00948C11 (5), the table 0x00948B7F (6), SetRow 0x00948504 (13), SetColumn 0x009484A0 (14), the setters 0x0094776D (15), 0x0094777F (16) and 0x00947794 (21), the window's edges 0x00947996, 0x009479A1, 0x009479B5 and 0x009479C0 (22 to 25), the instance 0x00948B89 (26) |
+| `framework.soundsvc.settings` | slots 28 to 35: 0x00948B9B, 0x00948BAA, the grids' size 0x00947AA9 and 0x00947AC1, the byte grid 0x00947A2A, the dword grids 0x00947A55, the key 0x00948BDD and 0x00948BFA |
+
+40 of the range's 75 functions. Addresses in `data/addresses/gzui.toml` (the "Part u6" part; part u4's placeholder `cGZSoundDirector::Construct4144` is now `cGZSoundService::Construct`). Ours call each other directly where the game does (the destructor Shutdown, Init the reader and the reader the loader, Play, SetRow, SetColumn and Reseed the count, SetTempo the beat time); every call the game makes through a vtable stays one. Fade still hands the timer the game's thunk 0x00948321, which jumps to our callback.
+
+Still the game's: the adjustors 0x00948C01 and 0x00948C09 of the part at +4; the AddRefs 0x0094C47C (slot 1, the framework window's) and 0x009359BD (the part at +4's); the getter 0x00948B85 (slot 9, IsPlaying, which the sound description's vtable holds too, at its slot 5); the thunks 0x00948321 (the timer's callback) and 0x00948568 (slot 36, GZRefPtr::Assign on +0x4140); and part u7's 30 functions.
+
+### The class
+
+The audio layer makes one service for each freshness score its tuning lists (`LoadFreshnessScore`, [audio.md](audio.md)): about 50 at start-up, each Init with an LTEXT record (type 0x2026960B; the first is group 0x0A5BCDA5, instance 0x7EC82BF0). A service plays a score: a sound table (part u5) of up to 64 by 64 descriptions, of which a window around a row and a column sounds, stepped by the beat.
+
+The service (0x4144 bytes; vtable 0x00AD4B48, 65 slots; the message target part at +4, vtable 0x00AD4B34, whose slot 3 0x00947F58 runs the beats; interface 0xDC1CF595, and QueryInterface answers only that one, not 1):
+
+- +8 the byte Prepare sets, +0xC the count, +0x10 a generator (0x00913A5C, seeded with -1, so from the clock), +0x14 the level (0x400 is full), +0x18 a stopwatch, +0x1C the table;
+- +0x20 playing, +0x21 a byte, +0x24 the tempo in beats a minute, +0x28 the column and +0x2C the row, +0x38 the descriptions in the window and +0x50 their groups, +0x3C to +0x44 the beats (+0x44 the first), the spreads +0x54 (columns) and +0x58 (rows), +0x5C to +0x68;
+- +0x74 an instance (part u5) for each description of the table, 64 by 64;
+- +0x4074 a name, +0x4088, the fade +0x4091 to +0x40A0 (a timer at +0x4094, the step, the target, whether to stop at the end), +0x40A4 and +0x40A8, a 3 by 3 byte grid at +0x40BD (its four edge middles set) and three 3 by 3 dword grids at +0x40C8, +0x40EC and +0x4110 (their sizes at +0x40B4 and +0x40B8), the key at +0x4134, a reference at +0x4140.
+
+Everything that changes the window or the play runs under one lock, a critical section at 0x00B634AC that every service shares; the timer's callback does nothing while anyone holds it.
+
+| Slot | Function | Part |
+|---|---|---|
+| 0, 1, 2 | QueryInterface 0x00946FE6, AddRef 0x0094C47C (shared), Release 0x00947004 | u6, game, u6 |
+| 3 | Init: the key, the record through the resource manager, its interface 0xC56B8F08 read as a raw file view into a new table, then Prepare | u6 |
+| 4 | Prepare: settings from the table, an instance for every description, the window counted (slot 52) | u6 |
+| 5 | LoadByName: slot 38 with the name | u6 |
+| 6 | the table | u6 |
+| 7 | Shutdown: the fade stopped, Stop, the table and every instance deleted | u6 |
+| 8 | Play: tempo and first beat from the table, a new stopwatch, the column and row, the part at +4 handed to the framework's sound service (its slot 30, with 250) | u6 |
+| 9 | IsPlaying 0x00948B85 (shared) | game |
+| 10, 11 | Stop (slot 53) and SetLevel (slot 43) under the lock | u6 |
+| 12 | Fade: a step a twentieth of the way, a timer every time / 20 | u6 |
+| 13, 14 | SetRow, SetColumn: a place from 0 to 1000 to a row or column kept the spread off the edges, snapped to a grid when the table asks | u6 |
+| 15, 16, 21 | setters of +0x34, +0x4088 and the byte +0x21 once prepared | u6 |
+| 17 | SetTempo | u6 |
+| 18, 19, 20 | getters 0x009CDC27, 0x009CDC23 and 0x009DB800 (shared, outside the range) | game |
+| 22 to 25 | the window's first and last row and column | u6 |
+| 26 | the instance at a row and column | u6 |
+| 27 | Reseed | u6 |
+| 28 to 35 | settings: +0x40BC, +0x40A4 and +0x40A8, the grids' size, the byte grid, the dword grids, the key | u6 |
+| 36 | the thunk 0x00948568 (GZRefPtr::Assign on +0x4140) | game |
+| 37 | the deleting destructor 0x00948C98 | u6 |
+| 38, 39, 40 | load by path 0x00948CB4 (the name split into a folder and a file), load a file 0x00948D5F (a new table read by 0x00946B30), take a table and a name and Prepare 0x00948E0B | u7 |
+| 41, 42, 43 | 0x00947150, stop the fade 0x00947197, every instance's level 0x0094758E | u7 |
+| 44, 45 | the empty 0x0091559A, 0x009DB663 (shared) | game |
+| 46 to 51 | 0x00948E4E, 0x009478EA, 0x009478FD, 0x00948BC3, 0x00948BD0, 0x00947914 | u7 |
+| 52, 53 | whether a cell is in the window 0x009471EE, Stop 0x00947E90 (the part at +4 taken back from the sound service, the stopwatch deleted, the instances stopped) | u7 |
+| 54 to 64 | 0x00948719, 0x00947220, 0x00947519, 0x009482C5, 0x00948573, 0x009477A6, 0x0094780D, 0x00947858, 0x009478BF, 0x00947925, 0x00947982 | u7 |
+
+**The table's text form** (0x00946039, versions 5 to 7): a line starting `version` and the number after it, a line, 14 tab-separated settings (the level +8, a grid flag +0xC, +0x10, +0x14, the rows +0x28, the columns +0x2C, the tempo +0x30, the first beat +0x34, the spreads +0x24 and +0x20, +0x38, +0x3C, +0x18, +0x1C), a line, then a line per cell, row by row: 17 numbers (18 in version 7, the last the description's +0x60) for the description's level, flags and fields, its name, and pairs `(a,b)` for its list. A cell named `NONE` in any case is left empty. The loader checks neither the counts against 64 nor the version line's place.
+
+Quirks kept:
+- QueryInterface does not answer 1; Release deletes only at a count of exactly 1 (0 goes to -1).
+- The destructor deletes the generator without its destructor.
+- Init and slot 39 leave an old table where it was; Play leaves an old stopwatch.
+- The pairs: the text up to the first `(` is taken off the line first, and the loop stops at the first empty piece before a `(`, so in `(1,2)(3,4)` only the first pair is read.
+- The name is kept as written; only the comparison with NONE is in capitals.
+- SetRow and SetColumn apply their last two limits in the opposite order.
+- Fade makes a stopwatch on its stack and never starts it; SetTempo asks for the elapsed time and the beat time twice each and uses neither.
+
+Two differences, both on input the game itself mishandles:
+- The count marks the groups it has seen (the descriptions' +0x5C) in 32 bytes of its stack, unchecked: a group above 31 writes over the game's loop counters. Ours counts such a group every time.
+- The loader's six flag numbers live on its stack across cells; a short first line leaves the game's at whatever the stack held. Ours start at 0.
+
+The methods answer a byte. Ours give the game's EAX where it comes from a call or a value (most often the lock's release), and 0 above the byte where the game leaves its caller's EAX.
+
+### Testing
+
+`OPENSC4_TEST_GZSOUNDSVC=<day>` is a test of its own (the fingerprint's `gzv` part). It drives every u6 function through its slot or its address, on services made by the constructor's address, in seven stages, each logged as `autotest: gzsoundsvc: <stage> <hash>`:
+
+- **load:** the loader by its address over texts in versions 7 (with and without the grid flag), 6 and 5 (NONE in either case, names with and without pairs, adjacent pairs, a short line after full ones), version 8, a capital `Version`, no version, no rows, no columns and an empty text; every table's settings and cells (fields, names and pairs) and what is left of the text. The reader by its address over a file of ours (an empty one and two texts); each table counted down to the game's Release, which calls our deleting destructor.
+- **init:** Init by its slot with a key that has no record and with the score 0x2026960B-0x0A5BCDA5-0x7EC82BF0 the game ships, which reads the table and prepares the service; the service and its table.
+- **play** (on that service) and **play2** (on one over a 6 by 7 table of ours): Prepare again, Play twice, SetTempo (the same tempo and a new one), the beat time by its address over edge beats and without a tempo, SetLevel, Fade (to the same level, up with a timer, again while it runs, down to a stop, refused while not playing; the timers are long and stopped before they fire), the callback by its address over steps up and down, clamped at 0 and 0x400, reaching the target or not, not fading and with the lock held, Stop, Reseed while stopped and while playing (with the generator's next draw), the count by its address over windows, Shutdown twice, the count down to deletion.
+- **window:** the setters on a service not prepared; on a prepared one SetRow and SetColumn over places, spreads (0, 1, 3, -1) and the grid flag; the setters; the edges over extreme places and spreads; the instance getter; LoadByName with a name that is not there (slots 38 to 40 run, the game's, and leave an empty table).
+- **settings:** slots 28 to 35 over edge values.
+- **objects:** QueryInterface with four interfaces, also through the part at +4; the count down and past 0; the destructor by its address with a reference held; the deleting destructor with and without its flag; the table's deleting destructor by its slot and its address.
+
+The constructor leaves +0x50 and the byte +0x40A0 unset, so the test reads them only after the count and Fade write them. Where the game leaves its caller's EAX above AL the test hashes only AL. With the groups on, each of the 40 logs its first call, and all 40 do in a test run. `gzv` is F68B98BA.
+
+A first trial differed from the game in its first stage: the test's texts had one comment line too many, so the game read the settings line as the first cell and that cell's flags from its stack. A second showed the two fields the constructor leaves unset; a third the setters that answer over their caller's EAX. None was a difference in the code.
+
+An independent audit compared all 40 with the disassembly: ret sizes, arguments, call order, the addresses and vtable offsets called, branch signedness, loop limits, field writes and their order, EAX on every path and the 5-byte entry rule. It found no difference in behaviour or EAX besides the two above, and no note on the comments or the address file.
+
+### Parity
+
+Batch `gzu6-r1` (2026-10-22), muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu6`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same, first pair |
+| Rush Hour t0000, 7 days | 1 | same, first pair |
+| 12 saves, 7 days | 12 | 11 same, first pair; Big City d0090 different (A one outcome, B two: b0 alone, b1 and b2 the same as A); rerun `gzu6-r2`: 12 same, first pair |
+| 12 saves, 7 days, `OPENSC4_TEST_GZSOUNDSVC=2` | 12 | 12 same, 11 on the first pair (Rush Hour d0000 after two: the game side gave two outcomes); `gzv` F68B98BA in all runs |
+| Making Money d0000, 4 days, `OPENSC4_TEST_GZSOUNDSVC=2` | 1 | same, first pair |
+
+The Big City d0090 pair in `gzu6-r1` ran none of the 40 (no first call in any of its B runs), and B matched A in two of three runs: the load noise of the original, which the rerun confirms.
+
+**Reached:** in the plain legs none of the 40 logs a first call. The legs are muted (`-audio:off`), and a muted game makes no score, so no service. An unmuted run with the groups on (Making Money, 30 s) reached 26 of them at start-up and shutdown: the constructor, QueryInterface, Release, Init, SetKey, the reader, the loader, Prepare, slots 28 and 29, Play, the count, the four edges, SetColumn, SetRow, SetLevel, slot 16, the beat time, Stop, Shutdown, the table's deleting destructor, the service's deleting destructor and the destructor. In the test runs all 40 are reached.
+
+**What u7 has left:** the 30 other functions of the range: slots 38 to 43 and 46 to 64 (0x00948CB4, 0x00948D5F, 0x00948E0B, 0x00947150, 0x00947197, 0x0094758E, 0x00948E4E, 0x009478EA, 0x009478FD, 0x00948BC3, 0x00948BD0, 0x00947914, 0x009471EE, 0x00947E90, 0x00948719, 0x00947220, 0x00947519, 0x009482C5, 0x00948573, 0x009477A6, 0x0094780D, 0x00947858, 0x009478BF, 0x00947925, 0x00947982), the message target's slot 3 0x00947F58 (the beats) and its helper 0x00947AD9 (also slot 57's), slot 39's file reader 0x00946B30, and the sound instance's slot 5 0x00946C2C with its helper 0x0094680F (both call u5's 8-hex-digit test). 14 of the 30 ran in the survey's coverage runs.

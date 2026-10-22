@@ -1013,7 +1013,7 @@ void* __fastcall Director2New5C(void*, void*)
 void* __fastcall Director2New4144(void*, void*)
 {
     OPENSC4_FIRST("Director2New4144");
-    return AtFour(Make(0x4144, addr::cGZSoundDirector_Construct4144));
+    return AtFour(Make(0x4144, addr::cGZSoundService_Construct));
 }
 
 void* __fastcall Director2New190(void*, void*)

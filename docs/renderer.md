@@ -400,7 +400,146 @@ The two-stage pass (0x00736BF0) is the one normal play uses. Stage 1 gets the ma
 
 **The overlays in view** (0x00738390): the manager keeps its overlays in a grid of buckets (cells shifted right by +0xE4 a side, +0xE8 buckets a row, the buckets at +0xF0 as lists of overlay indices). The terrain view gives the rows in view with their first and end columns (0x00752820); every bucket those touch is walked, and each overlay is listed once by a stamp (the manager's +0xE0, 16 bits, raised per call; the overlay's +0xA). `renderer.overlays.visible` replaces it; compare mode builds ours, then the game's, and compares the lists. 2026-10-10, three test cities with the camera workout: 0 divergences (2,476, 4,172 and 1,324 lists); 20 of 20 screenshots.
 
-**The partial rectangle draw** (0x007356D0, through the terrain view's 0x00754C60, or 0x00754F10 for the water's rows) draws a rectangle cell by cell: each cell a quad copied from the land's vertices and raised to the water level where that is higher, split along the diagonal the terrain gives for the cell (its slot 0x118; two index lists at 0x00B4C6DC and 0x00B4C6E8). The shadow pass uses it with water vertices for an overlay partly under water. `renderer.overlays.rect_partial` replaces it. No overlay in the test cities is partly under water, so `OPENSC4_TEST_OVERLAY_PARTIAL=1` also draws every water-vertex rectangle this way, ours compared with the game's (the extra quads show, so that run is no screenshot reference). The driver keeps the pointer to the quad, which is on each function's own stack, so this comparison leaves that pointer out. 2026-10-10 with the switch: 0 divergences (2,950, 65,628 and 3,683 rectangles). Still the game's: the manager's bookkeeping (adding, moving and removing overlays).
+**The partial rectangle draw** (0x007356D0, through the terrain view's 0x00754C60, or 0x00754F10 for the water's rows) draws a rectangle cell by cell: each cell a quad copied from the land's vertices and raised to the water level where that is higher, split along the diagonal the terrain gives for the cell (its slot 0x118; two index lists at 0x00B4C6DC and 0x00B4C6E8). The shadow pass uses it with water vertices for an overlay partly under water. `renderer.overlays.rect_partial` replaces it. No overlay in the test cities is partly under water, so `OPENSC4_TEST_OVERLAY_PARTIAL=1` also draws every water-vertex rectangle this way, ours compared with the game's (the extra quads show, so that run is no screenshot reference). The driver keeps the pointer to the quad, which is on each function's own stack, so this comparison leaves that pointer out. 2026-10-10 with the switch: 0 divergences (2,950, 65,628 and 3,683 rectangles). The manager's bookkeeping is below.
+
+### Bookkeeping
+
+The manager (0xFC bytes; constructor 0x0073BC20, set up by Init 0x0073CB60, which the terrain view's 0x0075C420 calls for each of its four managers at +0x6C to +0x78; its slot 0x48 hands them out by number) has four interfaces: the overlay manager's at +0 (vtable 0x00AB39E8, the 28 slots of gzcom-dll's `cISTEOverlayManager`), the view object's at +4 (0x00AB39D0, whose draw 0x00739490 jumps to Draw), one at +8 (0x00AB39B8) and the message target at +0x10 (0x00AB39A8). It keeps three vectors of records, each with a free list through the records' first field (-1 while in use; the first and the last free record after the vector):
+
+| Vector | Record | Free list | What |
+|---|---|---|---|
+| +0x98 | 0xB4 bytes | +0xA4, +0xA8 | the overlays: flags +4 (1 shown; 0x20 set with a height map's matrix, the decal pass wraps the texture by it; 0x40 the colour set the second way), the draw mode (the index of the render state) +8, the stamp of the last list in view +0xA, the cells +0xC (x0 z0 x1 z1, the ends excluded), two texture matrices +0x1C and +0x5C, the alpha +0x9C, the colour +0xA0, a texture +0xAC or an object that gives one +0xB0 |
+| +0xAC | 0x30 bytes | +0xB8, +0xBC | the decal handles: the decal's description +4 (gzcom-dll's `cDecalInfo`: centre, size, turn, aspect, two texture scales, an offset and a value nothing reads) and its target +0x2C |
+| +0xC0 | 0x24 bytes | +0xCC, +0xD0 | the groups: eight IDs at +4 |
+
+An ID is an overlay's index, or with the top bit set a handle's; a handle's target is an overlay's index, or with the top bit set a group's (a decal drawn as eight overlays). The getters read a group's first ID; the setters pass the call to each of the eight through the manager's own slot. The buckets (+0xF0, a vector of list heads) are a grid of the terrain's cells shifted right by +0xE4 (Init makes it 0: one bucket a cell), +0xE8 a row; each list holds the indices of the overlays that touch the bucket, nodes {next, index} from the STL allocator 0x0090CF54. A manager that draws the water's rows (+0x15) has no buckets, and its setters do not ask for a redraw. Every change that shows asks the terrain (+0x88, its slot 0x110) to redraw the overlay's cells.
+
+The census's range holds 104 functions; one more, slot 20 at 0x007364F0, is no function in Ghidra (its bytes follow DecalInfo's). The last eight (0x0073CD40 on) belong to the next class. Status: *ours (draw)* the draws above, *part 1* `renderer.overlays.manage1`, *part 2* and *part 3* the batches proposed for the rest.
+
+| Address | Bytes | What | Status |
+|---|---|---|---|
+| 0x00735260 | 39 | slot 0 QueryInterface (0x895D6544 the object, else the base at +8) | part 1 |
+| 0x00735290 | 5 | `false`, ret 0x10: a stub shared by 45 vtables (slot 4 of the view interface 0x00AB39D0 here) | shared, stays |
+| 0x007352A0 | 37 | slot 27 GetStatsString | part 1 |
+| 0x007352D0 | 75 | DecalMoved: a centre moved by 1e-4 or more (cdecl) | part 1 |
+| 0x00735320 | 36 | STLport `fill` of 8-byte pairs; its callers are elsewhere (0x00638E80, 0x00711DB0) | not the manager's |
+| 0x00735350 | 48 | copy of 0x24-byte groups (the groups' vector growing) | part 2 (adding) |
+| 0x00735380 | 246 | CellRect: a rectangle in cell units to cells (cdecl) | part 1 |
+| 0x00735480 | 93 | slot 10 AddShadowDecal(key) | part 2 (adding) |
+| 0x007354E0 | 484 | the shadow's rectangle and matrix for AddShadow | part 2 (adding) |
+| 0x007356D0 | 80 | DrawRectPartial | ours (draw) |
+| 0x00735720 | 194 | DrawRect | ours (draw) |
+| 0x0073576A | 28 | a tail of DrawRect (Ghidra splits it) | ours (draw) |
+| 0x007357FE | 28 | a tail of DrawRect | ours (draw) |
+| 0x00735820 | 457 | an overlay record assigned (texture references) | part 2 (adding) |
+| 0x007359F0 | 695 | an overlay record copied | part 2 (adding) |
+| 0x00735CB0 | 83 | overlay records assigned over a range | part 2 (adding) |
+| 0x00735D10 | 554 | handles assigned over a range | part 2 (adding) |
+| 0x00735F40 | 442 | an overlay record reset | part 2 (adding) |
+| 0x00736100 | 66 | the message target's slot 3 (0xC9F775BB: the options read again) | part 1 |
+| 0x00736150 | 82 | slot 5 AddDecal(texture binding) | part 2 (adding) |
+| 0x007361B0 | 82 | slot 6 AddDecal(cached string texture) | part 2 (adding) |
+| 0x00736210 | 62 | FreeHandle | part 1 |
+| 0x00736250 | 44 | a bucket list cut after a node (its nodes freed) | part 3 (set-up, containers) |
+| 0x00736280 | 83 | a handle copied (0x30 bytes) | part 2 (adding) |
+| 0x007362E0 | 53 | overlay records copied into new memory | part 2 (adding) |
+| 0x00736320 | 48 | n overlay records made from one | part 2 (adding) |
+| 0x00736350 | 124 | handles copied into new memory | part 2 (adding) |
+| 0x007363D0 | 108 | n handles made from one | part 2 (adding) |
+| 0x00736440 | 67 | a bucket list's nodes copied | part 3 (set-up, containers) |
+| 0x00736490 | 95 | slot 14 DecalInfo | part 1 |
+| 0x007364F0 | 134 | slot 20 SetOverlayFlags (not in the census's list: no function in Ghidra) | part 1 |
+| 0x00736579 | 1 | one `int3` byte referenced from data (0x00A863D4): not code | nothing |
+| 0x00736580 | 83 | slot 22 OverlayIsEnabled | part 1 |
+| 0x007365E0 | 87 | slot 23 OverlayAlpha | part 1 |
+| 0x00736640 | 120 | slot 24 OverlayColor | part 1 |
+| 0x007366C0 | 81 | slot 25 OverlayDrawMode | part 1 |
+| 0x00736720 | 97 | slot 26 OverlayFlags | part 1 |
+| 0x00736790 | 1110 | DrawDecals | ours (draw) |
+| 0x00736BF0 | 3197 | DrawShadows | ours (draw) |
+| 0x00737870 | 1220 | DrawShadowsPlain | ours (draw) |
+| 0x00737D40 | 100 | Invalidate: the terrain redraws an overlay's cells | part 1 |
+| 0x00737DB0 | 86 | a bucket list assigned from another | part 3 (set-up, containers) |
+| 0x00737E10 | 59 | overlay records destroyed over a range (textures released) | part 3 (set-up, containers) |
+| 0x00737E50 | 161 | slot 16 SetOverlayEnabled | part 1 |
+| 0x00737F00 | 257 | slot 17 SetOverlayAlpha | part 1 |
+| 0x00738010 | 165 | slot 18 SetOverlayColor | part 1 |
+| 0x007380C0 | 146 | slot 19 SetOverlayDrawMode | part 1 |
+| 0x00738160 | 193 | slot 21 SetHeightMapParams | part 1 |
+| 0x00738230 | 162 | BucketInsert | part 1 |
+| 0x007382E0 | 166 | BucketRemove | part 1 |
+| 0x00738390 | 504 | ListVisible | ours (draw) |
+| 0x00738590 | 42 | a bucket list emptied | part 3 (set-up, containers) |
+| 0x007385C0 | 220 | the handles' vector grown by an insert | part 2 (adding) |
+| 0x007386A0 | 295 | the groups' vector grown by an insert | part 2 (adding) |
+| 0x007387D0 | 38 | bucket lists filled from one | part 3 (set-up, containers) |
+| 0x00738800 | 61 | bucket lists copied | part 3 (set-up, containers) |
+| 0x00738840 | 62 | n bucket lists made from one | part 3 (set-up, containers) |
+| 0x00738880 | 62 | bucket lists copied backwards | part 3 (set-up, containers) |
+| 0x007388C0 | 329 | slot 15 RemoveOverlay | part 1 |
+| 0x00738A10 | 60 | Place: into the buckets and redrawn | part 1 |
+| 0x00738A50 | 2397 | Draw | ours (draw) |
+| 0x007393B0 | 157 | SetCells: new cells cut to the terrain, the buckets moved | part 1 |
+| 0x00739450 | 64 | bucket lists copied into new memory | part 3 (set-up, containers) |
+| 0x00739490 | 18 | the view interface's draw (slot 3 of 0x00AB39D0), a jump to Draw | part 3 (set-up, containers) |
+| 0x007394B0 | 2573 | a decal's cells from its matrix, for one overlay or a group of eight | part 2 (adding) |
+| 0x00739EC0 | 242 | a new handle (from the free list or the vector) | part 2 (adding) |
+| 0x00739FC0 | 174 | a new group | part 2 (adding) |
+| 0x0073A070 | 253 | the overlays' vector grown by an insert | part 2 (adding) |
+| 0x0073A170 | 56 | bucket lists destroyed over a range | part 3 (set-up, containers) |
+| 0x0073A1B0 | 2769 | BuildDecal: a decal's texture matrix and cells from its description | part 2 (adding) |
+| 0x0073AC90 | 225 | every overlay removed (the terrain view's 0x007560F0) | part 3 (set-up, containers) |
+| 0x0073AD80 | 94 | slot 12 MoveDecal | part 1 |
+| 0x0073ADE0 | 115 | slot 13 UpdateDecalInfo | part 1 |
+| 0x0073AE60 | 85 | the render states' vector resized | part 3 (set-up, containers) |
+| 0x0073AEC0 | 188 | a new overlay record (from the free list or the vector) | part 2 (adding) |
+| 0x0073AF80 | 494 | a decal added from a texture (slots 3 and 4) | part 2 (adding) |
+| 0x0073B170 | 563 | slot 7 AddRingDecal | part 2 (adding) |
+| 0x0073B3B0 | 1254 | slot 9 AddShadowDecal(iid) | part 2 (adding) |
+| 0x0073B8A0 | 359 | a height map added (slot 8, AddShadow) | part 2 (adding) |
+| 0x0073BA10 | 259 | the five render states set up | part 3 (set-up, containers) |
+| 0x0073BB20 | 245 | the buckets' vector reallocated | part 3 (set-up, containers) |
+| 0x0073BC20 | 380 | the constructor | part 3 (set-up, containers) |
+| 0x0073BDA0 | 8 | an adjustor thunk (QueryInterface, this - 4) | thunk, stays |
+| 0x0073BDB0 | 8 | an adjustor thunk (QueryInterface, this - 8) | thunk, stays |
+| 0x0073BDC0 | 8 | an adjustor thunk (the deleting destructor) | thunk, stays |
+| 0x0073BDD0 | 8 | an adjustor thunk (QueryInterface, this - 0x10) | thunk, stays |
+| 0x0073BDE0 | 8 | an adjustor thunk (AddRef) | thunk, stays |
+| 0x0073BDF0 | 8 | an adjustor thunk (Release) | thunk, stays |
+| 0x0073BE00 | 267 | the destructor's body | part 3 (set-up, containers) |
+| 0x0073BF10 | 415 | slot 4 AddDecal(key) | part 2 (adding) |
+| 0x0073C0B0 | 30 | slot 3 AddDecal(iid), a call of 0x0073AF80 | part 2 (adding) |
+| 0x0073C0D0 | 1897 | slot 11 AddShadow | part 2 (adding) |
+| 0x0073C840 | 314 | the buckets' vector: n lists inserted | part 3 (set-up, containers) |
+| 0x0073C980 | 30 | the deleting destructor | part 3 (set-up, containers) |
+| 0x0073C9A0 | 257 | slot 8 AddHeightMap | part 2 (adding) |
+| 0x0073CAB0 | 91 | the buckets' vector resized | part 3 (set-up, containers) |
+| 0x0073CB10 | 72 | the bucket grid set up (one bucket a cell) | part 3 (set-up, containers) |
+| 0x0073CB60 | 476 | Init (the terrain view's 0x0075C420, four managers) | part 3 (set-up, containers) |
+| 0x0073CD40 | 6 | another class's (a type ID, called from 0x00460090) | not the manager's |
+| 0x0073CD50 | 85 | another class's QueryInterface (0xAB8DA759, 0x452294AA) | not the manager's |
+| 0x0073CDB0 | 41 | another class's | not the manager's |
+| 0x0073CDE0 | 92 | n 0x18-byte records made from one (callers 0x0073DDC0, 0x0073E7E0) | not the manager's |
+| 0x0073CE40 | 127 | 0x24-byte records copied backwards (caller 0x0073E7E0) | not the manager's |
+| 0x0073CEC0 | 37 | another class's Release | not the manager's |
+| 0x0073CEF0 | 70 | another class's | not the manager's |
+
+**Part 1** (`renderer.overlays.manage1`, [overlay_manage_1.cpp](../src/core/overlay_manage_1.cpp), 26 functions, 3,327 bytes, translated by hand from the listing): the interface's getters and setters (slots 14 and 16 to 26), RemoveOverlay (15), MoveDecal (12) and UpdateDecalInfo (13), which rebuild the decal through the game's BuildDecal 0x0073A1B0, GetStatsString (27) and QueryInterface (0); the message target's slot 3; and under them FreeHandle, Invalidate, the buckets' insert and remove, Place, SetCells, DecalMoved and CellRect. Some details the translation keeps: SetOverlayAlpha keeps a new value only when it is 0, 1 or differs by more than 0.05 (a change of 0.03 is lost) unless the manager draws the water's rows; SetOverlayFlags can only set flag 0x40, never clear it, and asks for no redraw; SetHeightMapParams keeps 1/scale at the x87's precision for the offset term and takes a handle's target as it is (a group's would index the overlays with a negative number); OverlayIsEnabled for -1 clears only AL; RemoveOverlay frees a handle before it looks at what the handle pointed to; a freed record's link is 0, which is also a valid index: taking a record stops at the last free one by comparing with the list's end (+0xA8, +0xBC, +0xD0), never by its link.
+
+Compare mode runs ours on a copy of the manager, then the game's on the manager itself, and compares the two: the manager's fields, the records the call can reach (the ID's handle, its overlay or its group and the group's IDs; for a removal also the last record of each free list), every bucket list, the terrain redraws (both sides get a stand-in terrain that records them; the game's are then passed on) and the result. The copy holds only the records the call can reach, and copies of the bucket lists that may lose nodes; the other lists are shared with the manager, onto which ours can only push. Inside a compared call each side calls its own code: the game's reaches the game's functions, ours ours. The getters, DecalMoved and CellRect are compared as pure functions.
+
+`OPENSC4_TEST_OVERLAYS=<day>` ([overlay_manage_autotest.cpp](../src/core/overlay_manage_autotest.cpp), token ` ovl`) drives every function of part 1 on the four managers of the loaded city: for each overlay in use the getters, then the setters with the getters' values; for each handle the getters and DecalInfo, a move to where it is, two cells east and back, UpdateDecalInfo with its own description and the setters (not for a handle with a group); then on the first overlay in use SetHeightMapParams (its matrix put back after), Place (its nodes taken out and put back once), QueryInterface for the manager's interface and for cIGZUnknown, GetStatsString into a stand-in string and the options message. It leaves the managers as they were but for the order of nodes in the buckets of what it moved, and its token is the same with the game's code and with ours.
+
+Checked 2026-10-22, all runs muted:
+
+- Compare mode, the three test cities with the camera workout (the shots harness): 0 divergences. Making Money 77,915 overlays added and removed (BucketInsert, Invalidate and RemoveOverlay each), 111,456 SetOverlayAlpha, 82,676 SetOverlayEnabled, 86 each of UpdateDecalInfo, DecalInfo, SetOverlayColor, SetOverlayDrawMode and CellRect; Big City 378,293 added, 378,925 removed, 395,314 SetOverlayEnabled, 173,906 SetOverlayAlpha, 11,846 UpdateDecalInfo, 854 of the others; Rush Hour 27,923 added, 27,929 removed, 208,312 SetOverlayAlpha, 29,800 SetOverlayEnabled, 12,116 UpdateDecalInfo, 104 of the others. SetCells, BucketRemove and FreeHandle ran inside those calls (each side its own). Two bugs put in on purpose (alphas halved, bucket nodes appended instead of pushed) gave 129 and 2,966 divergences in one view of Making Money, so the comparison sees them.
+- Compare mode, Making Money for four days with `OPENSC4_TEST_PROPKINDS=1`, `OPENSC4_TEST_PROPKINDS_EDIT=1` (a decal, a label and a sign made, shown, faded, moved and removed) and `OPENSC4_TEST_OVERLAYS=2`: 0 divergences, all 26 reached (UpdateDecalInfo 3,742, MoveDecal 350, the getters 1,183 each, Place and BucketRemove 2, SetHeightMapParams, GetStatsString and the message 4, QueryInterface 8).
+- Screenshots with ours on, against the stock DirectX 7 baselines: Making Money 20 of 20, Rush Hour 20 of 20, Big City 19 of 20. The odd one (z1-r3, 1.34% of the pixels against a limit of 1.2%) fails the same way with the game's code (1.36%), and ours against that run is 20 of 20. Again on the final build (rebased onto main): 60 of 60.
+- Parity (`renderer.overlays.manage1=ours` on side B, the base list with `determinism.dispatch_info`, 7 days, three jobs, every save on its first pair): plain 12 of 12; with `OPENSC4_TEST_OVERLAYS=2` and `OPENSC4_TEST_PROPKINDS=2` 12 of 12; with the propkinds edit (`OPENSC4_TEST_PROPKINDS_EDIT=1`) and `OPENSC4_TEST_OVERLAYS=3` 12 of 12; the same on `saves-plopped` 3 of 3. Every B run of the test legs logs a first call of 24 of the 26 (the plain legs: 11), the ` ovl` token is the same on both sides (373 to 5,784 overlays, 96 to 232 handles a city), and every edit run logs `restored yes`. Again on the final build: plain 12 of 12 and the edit leg 12 of 12, first pair; compare mode with the edit test 0 divergences in 35,047 calls, all 26 reached. Result folders `%LOCALAPPDATA%\opensc4\parity\ov1-*`.
+
+Not reached by any run: a handle whose target is a group (no city in the corpus has one: the test counts 0), so the group branches of the setters, the getters and RemoveOverlay are not verified. In ours mode FreeHandle and DecalMoved are called by ours directly and log no first call; the compare runs reached them. The U-Drive marker is not this class's: it goes to the situation code's overlay manager (`SC4OverlayManager`, 0x0046xxxx), and its draw's second slot is the shared stub 0x00735290.
+
+Next: part 2, the adding (31 functions: slots 3 to 11, the new records from the free lists or the vectors, the vectors' growth and the record copies, and the two decal builders 0x0073A1B0 and 0x007394B0, about 12 KB with the float code), whose test can make ring decals and so reach the groups; then part 3, the set-up and the containers (23 functions: constructor, Init, destructor, render states, the buckets' vector and list helpers, Clear).
 
 ## Models and lots
 
