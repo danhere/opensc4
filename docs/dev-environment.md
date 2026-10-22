@@ -92,7 +92,7 @@ Plain settings live in the same `opensc4.ini`, one section per area ([src/core/s
 
 ```ini
 [replacements]
-renderer.d3d11 = ours   ; play with OpenSC4's Direct3D 11 driver
+renderer.d3d11 = original   ; developers only: the stock DirectX 7 driver (ours is the default)
 
 [renderer]
 vsync = on              ; off: show every Flush at once, as the stock drivers do

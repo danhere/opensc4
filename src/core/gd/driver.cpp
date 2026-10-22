@@ -1795,6 +1795,7 @@ const bool g_registered = registry::Register({
     "OpenSC4's Direct3D 11 graphics driver, in place of the OpenGL driver (P1 step 3)",
     false,
     Register,
+    true, // the game's renderer (Dan, 2026-10-22); = original or -d:DirectX for the stock driver
 });
 
 } // namespace
