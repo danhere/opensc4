@@ -1,17 +1,14 @@
-// WIP (untested): our city situation
-// manager, part c5 (build 641): the running situation. The class map is in
-// src/core/automata_situations.h and the survey in docs/automata.md, "Part
-// c". Calls between functions of the part, and to the other parts, go to the
-// game's addresses, so each detour stands alone and OPENSC4_AUTOMATA_SKIP
-// bisects them.
+// Our city situation manager, part c5 (build 641): the running situation.
+// The class map is in src/core/automata_situations.h and the survey in
+// docs/automata.md, "Part c". Calls between functions of the part, and to
+// the other parts, go to the game's addresses, so each detour stands alone
+// and OPENSC4_AUTOMATA_SKIP bisects them.
 //
-// Status 2026-10-21: written from the disassembly (c1's all.asm); builds; the
-// "Part c5" address entries (the names marked NEW) are in
-// data/addresses/automata.toml. Audit: 10 of 11 checked against the
-// disassembly, no behavioural difference; 0x0052B450 not audited. No test. See
-// %LOCALAPPDATA%\opensc4\net-tools\c5\RESTART.md.
+// Written from the disassembly; all 11 audited against it (no behavioural
+// difference). The test is OPENSC4_TEST_AUTOMATA_SITUATIONS=5 (token ` G`,
+// src/core/automata_autotest.cpp), which reaches all 11.
 //
-// Group (planned), off by default:
+// Group, off by default:
 //   simulators.automata.situations.running (11): kRunning below.
 //
 // What it does.
@@ -1266,7 +1263,7 @@ bool InstallRunning(registry::Mode) { return InstallList(kRunning, sizeof kRunni
 const bool g_registered[] = {
     registry::Register({"simulators.automata.situations.running", "simulators/automata", registry::Kind::Detour,
                         registry::Phase::PostAppInit, addr::cSC4CitySituationManager_StartSituation,
-                        "WIP, untested: our city situation manager's running situation: the start (slot 36), the "
+                        "Our city situation manager's running situation: the start (slot 36), the "
                         "targets made (by kind, by the services, by script, by path to a link), the cell sets by kind "
                         "and their markers (11 detours; part c5, src/core/automata_situations_5.cpp)",
                         false, InstallRunning}),

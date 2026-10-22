@@ -8218,7 +8218,7 @@ kind = "data"
 expect = "B0 95 5E 00 D0 95 5E 00"
 source = "Name ours. An occupant filter of the class, on SC4OccupantGroupFilter (slot 4 0x00526650). Called by address from src/core/automata_situations_4.cpp, part c4."
 
-# Part c5 of the city situation manager (WIP): the running situation (src/core/automata_situations_5.cpp; docs/automata.md, "Part c").
+# Part c5 of the city situation manager: the running situation (src/core/automata_situations_5.cpp; docs/automata.md, "Part c5").
 
 [[entry]]
 name = "cSC4CitySituationManager::StartSituation"
