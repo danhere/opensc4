@@ -1,7 +1,8 @@
 // The GZ framework UI layer's part of the autotest (src/core/autotest_hooks.h,
 // docs/gzui.md): the property set test (OPENSC4_TEST_PROPSETS, part u1) and
 // the readers, writers and factory test (OPENSC4_TEST_PROPIO, parts u2,
-// u2b and u3) and the UI file parser test (OPENSC4_TEST_XMLPARSE, part u4).
+// u2b and u3), the UI file parser test (OPENSC4_TEST_XMLPARSE, part u4) and
+// the framework sound classes' test (OPENSC4_TEST_GZSOUND, part u5).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -2710,14 +2711,14 @@ void DriveDirectors()
     Mix(*reinterpret_cast<const uint32_t*>(addr::cGZUIParserDirector_Guard) & 1);
 
     alignas(4) char next[0x4C];
-    CallThis<char*>(addr::cGZUIDirector2_Construct, next);
+    CallThis<char*>(addr::cGZSoundDirector_Construct, next);
     Mix(Virtual<uint32_t>(next, 0x34));
     g_xpClasses = 0;
     Virtual<uint32_t>(next, 0x14, &CountClass, nullptr);
     Mix(g_xpClasses);
-    Mix(CallThis<char*>(addr::cGZUIDirector2_DeletingDestructor, next, 0u) == next ? 1u : 0u);
-    for (std::uintptr_t factory : {addr::cGZUIDirector2_New68, addr::cGZUIDirector2_New4048, addr::cGZUIDirector2_New5C,
-                                   addr::cGZUIDirector2_New4144, addr::cGZUIDirector2_New190}) {
+    Mix(CallThis<char*>(addr::cGZSoundDirector_DeletingDestructor, next, 0u) == next ? 1u : 0u);
+    for (std::uintptr_t factory : {addr::cGZSoundDirector_New68, addr::cGZSoundDirector_New4048, addr::cGZSoundDirector_New5C,
+                                   addr::cGZSoundDirector_New4144, addr::cGZSoundDirector_New190}) {
         void* const object = reinterpret_cast<void*(__cdecl*)()>(factory)();
         Mix(object ? 1u : 0u);
         if (object) {
@@ -2771,6 +2772,796 @@ void XpFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kXpFingerprint{"xmlparse", 4, &XpFingerprint};
 const DayHook kXpDrive{"xmlparse", 4, &DriveXmlParse};
+
+// ====================================================================================
+// Part u5: the framework's sound director, its table, the sound instance
+// 0xBDD9D7A5 and the sound description 0x7DD9C9F2 (OPENSC4_TEST_GZSOUND)
+
+bool g_gsOn = false;
+uint32_t g_gsHash = 2166136261u;
+
+void GsStage(const char* name) { log::Write("autotest: gzsound: %s %08X", name, g_gsHash); }
+
+// A pointer against the one it should be (addresses never go into the hash).
+void MixIs(const void* pointer, const void* expected) { Mix(pointer == expected ? 1u : pointer ? 2u : 0u); }
+
+// A method's EAX: the description's address as a marker, other addresses
+// (a reference holder's, above 0x10000) by their low byte only.
+void MixEax(uint32_t eax, const void* desc)
+{
+    if (eax == static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(desc)))
+        Mix(0xD0D0D0D0u);
+    else if (eax > 0x10000 && eax < 0xFFFF0000u)
+        Mix(0xA0000000u | (eax & 0xFF));
+    else
+        Mix(eax);
+}
+
+uint32_t Bits32(float value)
+{
+    uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+uint32_t __fastcall GsTrap(void*, void*)
+{
+    Mix(0xDEAD);
+    return 0;
+}
+
+// The buffer an instance holds at +0x1C and its interface 0x306077D2 (slot
+// 5 a place). Slot 7 whether it still plays, 20 whether it is done, 21 a
+// level, 22 play (four arguments); every call goes into the hash.
+struct GsBuffer;
+struct GsPositioner {
+    void* const* vtable;
+    GsBuffer* owner;
+    int32_t refs;
+};
+struct GsBuffer {
+    void* const* vtable;
+    int32_t refs;
+    uint32_t playing;
+    uint32_t status;
+    bool offerPositioner;
+    GsPositioner positioner;
+};
+
+uint32_t __fastcall GsBufferQueryInterface(GsBuffer* self, void*, uint32_t iid, void** out)
+{
+    Mix(0x6100);
+    Mix(iid);
+    if (iid == 0x306077D2 && self->offerPositioner) {
+        ++self->positioner.refs;
+        *out = &self->positioner;
+        return 1;
+    }
+    return 0;
+}
+uint32_t __fastcall GsBufferAddRef(GsBuffer* self, void*)
+{
+    Mix(0x6104);
+    return static_cast<uint32_t>(++self->refs);
+}
+uint32_t __fastcall GsBufferRelease(GsBuffer* self, void*)
+{
+    Mix(0x6108);
+    return static_cast<uint32_t>(--self->refs);
+}
+uint32_t __fastcall GsBufferPlaying(GsBuffer* self, void*)
+{
+    Mix(0x611C);
+    return self->playing;
+}
+uint32_t __fastcall GsBufferStatus(GsBuffer* self, void*)
+{
+    Mix(0x6150);
+    return self->status;
+}
+uint32_t __fastcall GsBufferLevel(GsBuffer*, void*, int32_t level)
+{
+    Mix(0x6154);
+    Mix(static_cast<uint32_t>(level));
+    return 0x5400u + (static_cast<uint32_t>(level) & 0xFF);
+}
+uint32_t __fastcall GsBufferPlay(GsBuffer*, void*, uint32_t status, uint32_t a, uint32_t count, uint32_t b)
+{
+    Mix(0x6158);
+    Mix(status);
+    Mix(a);
+    Mix(count);
+    Mix(b);
+    return 0x5801;
+}
+
+uint32_t __fastcall GsPositionerAddRef(GsPositioner* self, void*)
+{
+    Mix(0x6204);
+    return static_cast<uint32_t>(++self->refs);
+}
+uint32_t __fastcall GsPositionerRelease(GsPositioner* self, void*)
+{
+    Mix(0x6208);
+    return static_cast<uint32_t>(--self->refs);
+}
+uint32_t __fastcall GsPositionerPlace(GsPositioner*, void*, float x, float y, float z)
+{
+    Mix(0x6214);
+    Mix(Bits32(x));
+    Mix(Bits32(y));
+    Mix(Bits32(z));
+    return 0x1400;
+}
+
+void* const* GsBufferVtable()
+{
+    static void* table[23];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[0] = reinterpret_cast<void*>(&GsBufferQueryInterface);
+        table[1] = reinterpret_cast<void*>(&GsBufferAddRef);
+        table[2] = reinterpret_cast<void*>(&GsBufferRelease);
+        table[7] = reinterpret_cast<void*>(&GsBufferPlaying);
+        table[20] = reinterpret_cast<void*>(&GsBufferStatus);
+        table[21] = reinterpret_cast<void*>(&GsBufferLevel);
+        table[22] = reinterpret_cast<void*>(&GsBufferPlay);
+    }
+    return table;
+}
+
+void* const* GsPositionerVtable()
+{
+    static void* table[6];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[1] = reinterpret_cast<void*>(&GsPositionerAddRef);
+        table[2] = reinterpret_cast<void*>(&GsPositionerRelease);
+        table[5] = reinterpret_cast<void*>(&GsPositionerPlace);
+    }
+    return table;
+}
+
+void InitBuffer(GsBuffer& buffer)
+{
+    buffer.vtable = GsBufferVtable();
+    buffer.refs = 1;
+    buffer.playing = 0;
+    buffer.status = 0;
+    buffer.offerPositioner = true;
+    buffer.positioner = {GsPositionerVtable(), &buffer, 0};
+}
+
+// The listener at +0x54: slot 9 whether to go on, slot 4 the sound finished.
+struct GsListener {
+    void* const* vtable;
+    int32_t refs;
+    uint32_t goOn;
+    const void* desc;
+};
+uint32_t __fastcall GsListenerRelease(GsListener* self, void*)
+{
+    Mix(0x6308);
+    return static_cast<uint32_t>(--self->refs);
+}
+uint32_t __fastcall GsListenerFinished(GsListener* self, void*, void* desc, float time)
+{
+    Mix(0x6310);
+    MixIs(desc, self->desc);
+    Mix(Bits32(time));
+    return 0x1000;
+}
+uint32_t __fastcall GsListenerGoOn(GsListener* self, void*, void* desc)
+{
+    Mix(0x6324);
+    MixIs(desc, self->desc);
+    return 0x2400 | self->goOn;
+}
+
+void* const* GsListenerVtable()
+{
+    static void* table[10];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[2] = reinterpret_cast<void*>(&GsListenerRelease);
+        table[4] = reinterpret_cast<void*>(&GsListenerFinished);
+        table[9] = reinterpret_cast<void*>(&GsListenerGoOn);
+    }
+    return table;
+}
+
+void InitListener(GsListener& listener, const void* desc)
+{
+    listener = {GsListenerVtable(), 1, 1, desc};
+}
+
+// The sound service as an instance reads it: +0x10 a generator (the game's
+// LCG on its first word), +0x14 a level, +0x1C an object whose +8 is a level.
+struct GsService {
+    alignas(4) char bytes[0x20];
+    uint32_t random[4];
+    alignas(4) char master[0xC];
+};
+
+void InitService(GsService& service, uint32_t seed, uint32_t level, uint32_t master)
+{
+    std::memset(&service, 0, sizeof service);
+    At<void*>(service.bytes, 0x10) = service.random;
+    service.random[0] = seed;
+    At<uint32_t>(service.bytes, 0x14) = level;
+    At<void*>(service.bytes, 0x1C) = service.master;
+    At<uint32_t>(service.master, 0x8) = master;
+}
+
+void MixDesc(char* desc, bool all)
+{
+    Mix(At<std::uintptr_t>(desc, 0) == addr::cGZSoundDesc_Vtable ? 1u : 0u);
+    Mix(At<uint32_t>(desc, 0x4));
+    Mix(At<uint32_t>(desc, 0x8));
+    MixString(desc + 0xC);
+    for (std::size_t offset : {0x20, 0x30, 0x31, 0x44, 0x50, 0x60})
+        Mix(At<uint8_t>(desc, offset));
+    for (std::size_t offset : {0x24, 0x28, 0x2C, 0x34, 0x38, 0x3C, 0x48, 0x4C, 0x54, 0x58, 0x5C})
+        Mix(At<uint32_t>(desc, offset));
+    if (all)
+        Mix(At<uint32_t>(desc, 0x40));
+    char* const head = At<char*>(desc, 0x64);
+    Mix(head ? 1u : 0u);
+    if (head)
+        Mix(At<char*>(head, 0) == head && At<char*>(head, 4) == head ? 1u : 0u);
+}
+
+void MixInstance(char* instance, bool all)
+{
+    Mix(At<std::uintptr_t>(instance, 0) == addr::cGZSoundInstance_Vtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(instance, 4) == addr::cGZSoundInstance_Vtable2 ? 1u : 0u);
+    Mix(At<uint32_t>(instance, 0x8));
+    Mix(At<uint8_t>(instance, 0xC));
+    Mix(At<uint8_t>(instance, 0xD));
+    Mix(At<uint32_t>(instance, 0x10));
+    Mix(At<uint32_t>(instance, 0x14));
+    Mix(At<void*>(instance, 0x1C) ? 1u : 0u);
+    Mix(At<uint32_t>(instance, 0x20));
+    for (std::size_t offset : {0x2C, 0x2D, 0x3C, 0x3D, 0x58})
+        Mix(At<uint8_t>(instance, offset));
+    for (std::size_t offset : {0x34, 0x40, 0x44, 0x48, 0x4C, 0x50})
+        Mix(At<uint32_t>(instance, offset));
+    Mix(At<void*>(instance, 0x54) ? 1u : 0u);
+    if (all) {
+        Mix(At<uint32_t>(instance, 0x28));
+        Mix(At<uint32_t>(instance, 0x30));
+        Mix(At<uint32_t>(instance, 0x38));
+    }
+}
+
+char* NewDesc() { return static_cast<char*>(reinterpret_cast<void*(__cdecl*)()>(addr::cGZSoundDirector_New68)()); }
+
+// A description on the stack, made by the constructor's address.
+struct StackDesc {
+    alignas(4) char bytes[0x68];
+    StackDesc()
+    {
+        std::memset(bytes, 0xCD, sizeof bytes);
+        CallThis<char*>(addr::cGZSoundDesc_Construct, bytes);
+    }
+    ~StackDesc() { CallThis<uint32_t>(addr::cGZSoundDesc_Destruct, bytes); }
+    StackDesc(const StackDesc&) = delete;
+    StackDesc& operator=(const StackDesc&) = delete;
+};
+
+// The description: its constructor, interfaces, references, every setter
+// by its slot (its own and the shared ones), the getters, the destructor.
+void DriveDesc()
+{
+    alignas(4) char desc[0x68];
+    std::memset(desc, 0xCD, sizeof desc);
+    MixIs(CallThis<char*>(addr::cGZSoundDesc_Construct, desc), desc);
+    MixDesc(desc, true);
+    for (uint32_t iid : {1u, 0x1DD9C9DEu, 0x5DD9D787u, 0u}) {
+        void* out = nullptr;
+        Mix(Virtual<uint32_t>(desc, 0x0, iid, &out) & 0xFF);
+        MixIs(out, desc);
+        Mix(At<uint32_t>(desc, 0x4));
+    }
+    Mix(Virtual<uint32_t>(desc, 0x4));
+    Mix(Virtual<uint32_t>(desc, 0x8));
+    Mix(At<uint32_t>(desc, 0x4));
+    GameText name("sound name");
+    Mix(Virtual<uint32_t>(desc, 0x60, name.get()) & 0xFF);
+    MixString(desc + 0xC);
+    struct Set {
+        std::size_t slot;
+        uint32_t value;
+        bool byte;
+    };
+    const Set sets[] = {{0x5C, 0x12345678, false}, {0x64, 0x1FF, true},     {0x68, 0x300, false},
+                        {0x6C, 0x1C0, false},      {0x70, 0x240, false},    {0x74, 0x101, true},
+                        {0x78, 0x100, true},       {0x7C, 0xFFFFFFFF, false}, {0x80, 0x55, false},
+                        {0x84, 0x66, false},       {0x88, 0x77, false},     {0x8C, 0x2FE, true},
+                        {0x90, 3, false},          {0x94, 0x7788, false},   {0x98, 0x100, true},
+                        {0x9C, 0x88, false},       {0xA0, 0x99, false},     {0xA4, 0xAA, false},
+                        {0xA8, 0x1BB, true}};
+    for (const Set& set : sets) {
+        const uint32_t eax = Virtual<uint32_t>(desc, set.slot, set.value);
+        Mix(set.byte ? eax & 0xFF : eax);
+        MixDesc(desc, true);
+    }
+    MixIs(Virtual<void*>(desc, 0x10), desc + 0xC);
+    Mix(Virtual<uint32_t>(desc, 0x24) & 0xFF);
+    Mix(Virtual<uint32_t>(desc, 0x28) & 0xFF);
+    CallThis<uint32_t>(addr::cGZSoundDesc_Destruct, desc);
+    Mix(At<std::uintptr_t>(desc, 0) == addr::cGZSoundDesc_Vtable ? 1u : 0u);
+
+    // On the heap: counted down to its deletion.
+    char* const heap = NewDesc();
+    MixDesc(heap, false);
+    Mix(Virtual<uint32_t>(heap, 0x4));
+    Mix(Virtual<uint32_t>(heap, 0x4));
+    Mix(Virtual<uint32_t>(heap, 0x8));
+    Mix(Virtual<uint32_t>(heap, 0x8));
+    char* const other = NewDesc();
+    Mix(Virtual<uint32_t>(other, 0x4));
+    Mix(CallThis<uint32_t>(addr::cGZSoundDesc_Release, other));
+}
+
+void MixTable(char* table)
+{
+    Mix(At<std::uintptr_t>(table, 0) == addr::cGZSoundTable_Vtable ? 1u : 0u);
+    for (std::size_t offset = 0x4; offset < 0x48; offset += 4)
+        Mix(At<uint32_t>(table, offset));
+    uint32_t used = 0;
+    for (uint32_t i = 0; i < 64 * 64; ++i)
+        used += At<void*>(table, 0x48 + i * 4) ? 1 : 0;
+    Mix(used);
+}
+
+// The table: made by its factory, cells filled with descriptions, Get by
+// its slot, counted down to the game's deleting destructor (which calls
+// ours); one on the stack by the constructor's and destructor's addresses.
+void DriveTable5()
+{
+    char* const table = static_cast<char*>(reinterpret_cast<void*(__cdecl*)()>(addr::cGZSoundDirector_New4048)());
+    MixTable(table);
+    const uint32_t cells[][2] = {{0, 0}, {0, 63}, {63, 0}, {63, 63}, {10, 20}, {1, 2}};
+    for (const auto& cell : cells) {
+        char* const desc = NewDesc();
+        At<uint32_t>(desc, 0x24) = cell[0] * 100 + cell[1];
+        At<char*>(table, 0x48 + (cell[0] * 64 + cell[1]) * 4) = desc;
+    }
+    MixTable(table);
+    const uint32_t asks[][2] = {{0, 0}, {0, 63}, {63, 0}, {63, 63}, {10, 20}, {1, 2}, {5, 5}, {0, 64}, {0, 66}};
+    for (const auto& ask : asks) {
+        void* const got = Virtual<void*>(table, 0xC, ask[0], ask[1], 0xDEADu);
+        Mix(got ? At<uint32_t>(got, 0x24) : 0xFFFFFFFFu);
+    }
+    Mix(Virtual<uint32_t>(table, 0x4));
+    Mix(Virtual<uint32_t>(table, 0x4));
+    Mix(Virtual<uint32_t>(table, 0x8));
+    Mix(CallThis<uint32_t>(addr::cGZSoundTable_Release, table));
+
+    std::vector<char> memory(0x4048 + 4);
+    char* const local = memory.data();
+    std::memset(local, 0xCD, 0x4048);
+    MixIs(CallThis<char*>(addr::cGZSoundTable_Construct, local), local);
+    MixTable(local);
+    At<char*>(local, 0x48) = NewDesc();
+    At<char*>(local, 0x48 + 4095 * 4) = NewDesc();
+    MixTable(local);
+    At<std::uintptr_t>(local, 0) = 0;
+    CallThis<uint32_t>(addr::cGZSoundTable_Destruct, local);
+    MixTable(local);
+}
+
+// The instance's own slots: interfaces and references (also through the
+// part at +4), the description, the states, the setters, the level with and
+// without a buffer, worked out over edge values, Stop, the hex digit test,
+// the destructor.
+void DriveInstance()
+{
+    GsService service;
+    InitService(service, 1234, 0x300, 0x2A0);
+    StackDesc desc;
+    alignas(4) char instance[0x5C];
+    std::memset(instance, 0xCD, sizeof instance);
+    MixIs(CallThis<char*>(addr::cGZSoundInstance_ConstructOwned, instance, static_cast<void*>(service.bytes)), instance);
+    MixInstance(instance, true);
+    MixIs(At<void*>(instance, 0x18), service.bytes);
+    for (uint32_t iid : {1u, 0x5DD9D787u, 0x1DD9C9DEu}) {
+        void* out = nullptr;
+        Mix(Virtual<uint32_t>(instance, 0x0, iid, &out) & 0xFF);
+        MixIs(out, instance);
+        out = nullptr;
+        Mix(Virtual<uint32_t>(instance + 4, 0x0, iid, &out) & 0xFF);
+        MixIs(out, instance);
+        Mix(At<uint32_t>(instance, 0x14));
+    }
+    Mix(Virtual<uint32_t>(instance, 0x4));
+    Mix(Virtual<uint32_t>(instance + 4, 0x8));
+    Mix(CallThis<uint32_t>(addr::cGZSoundInstance_Release, instance));
+    Mix(CallThis<uint32_t>(addr::cGZSoundInstance_AddRef, instance));
+
+    MixEax(Virtual<uint32_t>(instance, 0x10, static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(desc.bytes))),
+           desc.bytes);
+    MixIs(At<void*>(instance, 0x24), desc.bytes);
+    for (uint32_t state : {0u, 1u, 2u, 3u, 7u}) {
+        At<uint32_t>(instance, 0x20) = state;
+        Mix(Virtual<uint32_t>(instance, 0x28));
+        Mix(Virtual<uint32_t>(instance, 0x2C));
+    }
+    At<uint32_t>(instance, 0x20) = 0;
+    Mix(Virtual<uint32_t>(instance, 0x34, 0x1A5u) & 0xFF);
+    Mix(Virtual<uint32_t>(instance, 0x30) & 0xFF);
+    Mix(Virtual<uint32_t>(instance, 0x3C, 0x100u) & 0xFF);
+    Mix(Virtual<uint32_t>(instance, 0x40, 11u, 0xFFFFFF22u, 0x12345633u));
+    Mix(Virtual<uint32_t>(instance, 0x44, 500u, 0x1FFu));
+    MixInstance(instance, true);
+
+    Mix(Virtual<uint32_t>(instance, 0x24, 0x2FFu));
+    MixInstance(instance, true);
+    struct Level {
+        uint32_t desc, volume, service, master, level;
+    };
+    const Level levels[] = {{0x400, 0x400, 0x400, 0x400, 0x400},
+                            {0x400, 0x300, 0x2A0, 0x380, 0x123},
+                            {0x7FFFFFFF, 3, 0x10000, 7, 9},
+                            {0xFFFFFF00, 0x400, 0x400, 0x400, 0x400},
+                            {0, 1, 2, 3, 4},
+                            {0x1000, 0x1000, 0x1000, 0x1000, 0x1000},
+                            {0x400, 0xFFFFFFFF, 0x400, 0x400, 0x400},
+                            {0x12345, 0x6789, 0xFFFFF, 0x3, 0x80000000}};
+    for (const Level& level : levels) {
+        At<uint32_t>(desc.bytes, 0x24) = level.desc;
+        At<uint32_t>(instance, 0x30) = level.volume;
+        At<uint32_t>(service.bytes, 0x14) = level.service;
+        At<uint32_t>(service.master, 0x8) = level.master;
+        At<uint32_t>(instance, 0x34) = level.level;
+        Mix(CallThis<uint32_t>(addr::cGZSoundInstance_ComputeLevel, instance));
+        Mix(At<uint32_t>(instance, 0x38));
+    }
+    At<uint32_t>(desc.bytes, 0x24) = 0x400;
+    At<uint32_t>(instance, 0x30) = 0x380;
+    At<uint32_t>(service.bytes, 0x14) = 0x300;
+    At<uint32_t>(service.master, 0x8) = 0x2A0;
+
+    GsBuffer buffer;
+    InitBuffer(buffer);
+    At<void*>(instance, 0x1C) = &buffer;
+    Mix(Virtual<uint32_t>(instance, 0x24, 0x3FFu));
+    Mix(At<uint32_t>(instance, 0x38));
+    At<uint32_t>(instance, 0x20) = 2;
+    At<uint8_t>(instance, 0x2D) = 1;
+    Mix(Virtual<uint32_t>(instance, 0x20) & 0xFF);
+    Mix(static_cast<uint32_t>(buffer.refs));
+    MixInstance(instance, true);
+    Mix(Virtual<uint32_t>(instance, 0x20) & 0xFF);
+
+    const char* const texts[] = {"",
+                                 "1234567",
+                                 "12345678",
+                                 "abcdefAB",
+                                 "x0123456789",
+                                 "0123456g89abcdef",
+                                 "ABCDEFG12345678",
+                                 "deadbeeX",
+                                 "{12345678-aaaa}",
+                                 "1234 5678",
+                                 "fFfFfFfF",
+                                 "abcdefgh",
+                                 "0x1234567",
+                                 ("\xC0\xFF"
+                                  "12345678")};
+    for (const char* text : texts) {
+        GameText string(text);
+        Mix(CallThis<uint32_t>(addr::cGZSoundInstance_HasHexRun, instance, string.get()) & 0xFF);
+    }
+
+    GsListener listener;
+    InitListener(listener, desc.bytes);
+    GsBuffer held;
+    InitBuffer(held);
+    At<void*>(instance, 0x54) = &listener;
+    At<void*>(instance, 0x1C) = &held;
+    CallThis<uint32_t>(addr::cGZSoundInstance_Destruct, instance);
+    Mix(static_cast<uint32_t>(listener.refs));
+    Mix(static_cast<uint32_t>(held.refs));
+    Mix(At<uint32_t>(instance, 0x4) == 0x00AD8FA4u ? 1u : 0u);
+    Mix(At<std::uintptr_t>(instance, 0) == addr::cGZSoundInstance_Vtable ? 1u : 0u);
+}
+
+// An instance on the heap, kept alive by a reference, with a fake service.
+char* NewInstance(GsService& service)
+{
+    char* const instance = static_cast<char*>(New(0x5C));
+    CallThis<char*>(addr::cGZSoundInstance_ConstructOwned, instance, static_cast<void*>(service.bytes));
+    Virtual<uint32_t>(instance, 0x4);
+    At<uint32_t>(instance, 0x28) = 0;
+    At<uint32_t>(instance, 0x30) = 0x400;
+    At<uint32_t>(instance, 0x38) = 0;
+    return instance;
+}
+
+struct GsCase {
+    uint32_t state;
+    bool listener;
+    uint32_t goOn;
+    bool buffer;
+    uint32_t playing;
+    uint32_t status;
+};
+
+// One call of the slot at `slot` (6 Update, 7 Start) in a set-up state.
+void RunCase(char* instance, char* desc, GsListener& listener, GsBuffer& buffer, std::size_t slot, const GsCase& c)
+{
+    At<uint32_t>(instance, 0x20) = c.state;
+    listener.goOn = c.goOn;
+    listener.refs = 1;
+    At<void*>(instance, 0x54) = c.listener ? &listener : nullptr;
+    InitBuffer(buffer);
+    buffer.playing = c.playing;
+    buffer.status = c.status;
+    At<void*>(instance, 0x1C) = c.buffer ? &buffer : nullptr;
+    MixEax(Virtual<uint32_t>(instance, slot), desc);
+    Mix(At<uint32_t>(instance, 0x20));
+    Mix(static_cast<uint32_t>(buffer.refs));
+    MixIs(At<void*>(instance, 0x1C), c.buffer ? &buffer : nullptr);
+    Mix(At<uint8_t>(instance, 0x2D));
+}
+
+// Update (slot 6) in every state: idle and unknown states, waiting with
+// and without a listener (going on or not) and a buffer (done or not),
+// playing with a looping description (counting down, stopping at the end
+// or starting over) and without (the listener, the buffer still playing or
+// not, which starts it again). Restart by its address.
+void DriveUpdate()
+{
+    GsService service;
+    InitService(service, 777, 0x400, 0x400);
+    StackDesc desc;
+    At<uint32_t>(desc.bytes, 0x38) = 250;
+    At<uint32_t>(desc.bytes, 0x48) = 3;
+    At<uint8_t>(desc.bytes, 0x50) = 0;
+    char* const instance = NewInstance(service);
+    At<char*>(instance, 0x24) = desc.bytes;
+    GsListener listener;
+    InitListener(listener, desc.bytes);
+    GsBuffer buffer;
+    const GsCase cases[] = {
+        {0, false, 0, false, 0, 0}, {1, true, 1, true, 0, 0},   {4, false, 0, true, 0, 0},
+        {0xFFFFFFFF, false, 0, false, 0, 0},
+        {3, false, 0, false, 0, 0}, {3, true, 1, false, 0, 0},  {3, true, 0, true, 0, 0},
+        {3, false, 0, true, 0, 7},  {3, false, 0, true, 0, 0},  {3, true, 1, true, 0, 0},
+        {3, true, 1, true, 0, 0x100},
+        {2, false, 0, false, 0, 0}, {2, true, 0, false, 0, 0},  {2, true, 0, true, 1, 0},
+        {2, true, 1, true, 1, 0},   {2, true, 1, true, 0x200, 0}, {2, false, 0, true, 0, 0},
+        {2, true, 1, true, 0, 0},   {2, true, 1, false, 0, 0},
+    };
+    for (const GsCase& c : cases)
+        RunCase(instance, desc.bytes, listener, buffer, 0x18, c);
+    At<uint32_t>(desc.bytes, 0x38) = 0;
+    RunCase(instance, desc.bytes, listener, buffer, 0x18, {2, true, 1, true, 0, 0});
+    RunCase(instance, desc.bytes, listener, buffer, 0x18, {2, false, 0, true, 0, 0});
+    At<uint32_t>(desc.bytes, 0x38) = 250;
+
+    At<uint8_t>(desc.bytes, 0x50) = 1;
+    const uint32_t loops[][2] = {{3, 0}, {1, 0}, {2, 1}, {1, 1}, {0, 0}, {0, 1}};
+    for (const auto& loop : loops) {
+        At<uint32_t>(instance, 0x28) = loop[0];
+        At<uint8_t>(instance, 0x2D) = static_cast<uint8_t>(loop[1]);
+        RunCase(instance, desc.bytes, listener, buffer, 0x18, {2, true, 1, true, 1, 0});
+        Mix(At<uint32_t>(instance, 0x28));
+    }
+    At<uint8_t>(desc.bytes, 0x50) = 0;
+
+    for (uint32_t time : {0u, 250u}) {
+        At<uint32_t>(desc.bytes, 0x38) = time;
+        for (uint32_t state : {2u, 3u, 0u, 5u}) {
+            At<uint32_t>(instance, 0x20) = state;
+            listener.refs = 1;
+            At<void*>(instance, 0x54) = &listener;
+            Mix(CallThis<uint32_t>(addr::cGZSoundInstance_Restart, instance, desc.bytes));
+            Mix(At<uint32_t>(instance, 0x20));
+        }
+    }
+    At<void*>(instance, 0x54) = nullptr;
+    At<void*>(instance, 0x1C) = nullptr;
+    Mix(Virtual<uint32_t>(instance + 4, 0x8));
+}
+
+// Start (slot 7): with a listener (Restart), with a buffer only (the sound
+// service asked, the buffer played or stopped), with neither; in each
+// state, with the description's time 0 and not.
+void DriveStart()
+{
+    GsService service;
+    InitService(service, 4242, 0x400, 0x400);
+    StackDesc desc;
+    char* const instance = NewInstance(service);
+    At<char*>(instance, 0x24) = desc.bytes;
+    GsListener listener;
+    InitListener(listener, desc.bytes);
+    GsBuffer buffer;
+    for (uint32_t time : {0u, 250u, 0x80000001u}) {
+        At<uint32_t>(desc.bytes, 0x38) = time;
+        for (uint32_t state : {2u, 3u, 0u, 6u}) {
+            RunCase(instance, desc.bytes, listener, buffer, 0x1C, {state, true, 1, true, 0, 0x33});
+            RunCase(instance, desc.bytes, listener, buffer, 0x1C, {state, false, 0, true, 0, 0x33});
+            RunCase(instance, desc.bytes, listener, buffer, 0x1C, {state, false, 0, false, 0, 0});
+        }
+    }
+    At<void*>(instance, 0x54) = nullptr;
+    At<void*>(instance, 0x1C) = nullptr;
+    Mix(Virtual<uint32_t>(instance + 4, 0x8));
+}
+
+// Place (slot 14): sides off the middle, centred ones with and without the
+// random flag (corners and signs from the service's generator), the forced
+// corner (0 to 3 and one past), the forced flag, no description.
+void DrivePlace()
+{
+    GsService service;
+    InitService(service, 0x5EED, 0x400, 0x400);
+    StackDesc desc;
+    char* const instance = NewInstance(service);
+    At<char*>(instance, 0x24) = desc.bytes;
+    GsBuffer buffer;
+    InitBuffer(buffer);
+    At<void*>(instance, 0x1C) = &buffer;
+    const uint32_t sides[][3] = {{0x200, 0x200, 0}, {0x300, 0x100, 0}, {0, 0x400, 0}, {0x7FFFFFFF, 0x80000000, 0},
+                                 {0x200, 0x280, 1}, {0x280, 0x200, 1}, {0x200, 0x200, 1}, {0x200, 0x200, 1},
+                                 {0x200, 0x200, 1}, {0x200, 0x200, 1}, {0x200, 0x200, 1}, {0x200, 0x200, 1},
+                                 {0x123, 0x456, 1}, {0x201, 0x1FF, 1}};
+    auto place = [&](uint32_t x, uint32_t y, uint32_t random) {
+        At<uint32_t>(desc.bytes, 0x28) = x;
+        At<uint32_t>(desc.bytes, 0x2C) = y;
+        At<uint8_t>(desc.bytes, 0x31) = static_cast<uint8_t>(random);
+        Mix(Virtual<uint32_t>(instance, 0x38));
+        Mix(At<uint8_t>(desc.bytes, 0x31));
+        Mix(static_cast<uint32_t>(buffer.positioner.refs));
+        Mix(service.random[0]);
+    };
+    for (const auto& side : sides)
+        place(side[0], side[1], side[2]);
+    uint8_t& forceRandom = *reinterpret_cast<uint8_t*>(addr::cGZSoundInstance_ForceRandom);
+    uint8_t& forceCorner = *reinterpret_cast<uint8_t*>(addr::cGZSoundInstance_ForceCorner);
+    uint32_t& corner = *reinterpret_cast<uint32_t*>(addr::cGZSoundInstance_Corner);
+    const uint8_t savedRandom = forceRandom;
+    const uint8_t savedForce = forceCorner;
+    const uint32_t savedCorner = corner;
+    forceCorner = 1;
+    for (uint32_t c : {0u, 1u, 2u, 3u, 7u}) {
+        corner = c;
+        place(0x200, 0x200, 1);
+    }
+    forceCorner = 0;
+    forceRandom = 1;
+    place(0x200, 0x300, 0);
+    place(0x100, 0x100, 0);
+    forceRandom = savedRandom;
+    forceCorner = savedForce;
+    corner = savedCorner;
+    At<char*>(instance, 0x24) = nullptr;
+    Mix(Virtual<uint32_t>(instance, 0x38));
+    At<void*>(instance, 0x1C) = nullptr;
+    Mix(Virtual<uint32_t>(instance + 4, 0x8));
+}
+
+// The objects: an instance made without a service, destroyed by the
+// deleting destructor's address with and without its flag (the listener
+// and buffer released), released to its end by the address; a description
+// released to its end by the address.
+void DriveSoundObjects()
+{
+    alignas(4) char local[0x5C];
+    std::memset(local, 0xCD, sizeof local);
+    MixIs(CallThis<char*>(addr::cGZSoundInstance_Construct, local), local);
+    MixInstance(local, true);
+    MixIs(At<void*>(local, 0x18), nullptr);
+    GsListener listener;
+    InitListener(listener, nullptr);
+    GsBuffer buffer;
+    InitBuffer(buffer);
+    At<void*>(local, 0x54) = &listener;
+    At<void*>(local, 0x1C) = &buffer;
+    MixIs(CallThis<char*>(addr::cGZSoundInstance_DeletingDestructor, local, 0u), local);
+    Mix(static_cast<uint32_t>(listener.refs));
+    Mix(static_cast<uint32_t>(buffer.refs));
+
+    char* const heap = static_cast<char*>(reinterpret_cast<void*(__cdecl*)()>(addr::cGZSoundDirector_New5C)());
+    MixInstance(heap, false);
+    InitListener(listener, nullptr);
+    InitBuffer(buffer);
+    At<void*>(heap, 0x54) = &listener;
+    At<void*>(heap, 0x1C) = &buffer;
+    MixIs(CallThis<char*>(addr::cGZSoundInstance_DeletingDestructor, heap, 1u), heap);
+    Mix(static_cast<uint32_t>(listener.refs));
+    Mix(static_cast<uint32_t>(buffer.refs));
+
+    char* const counted = static_cast<char*>(reinterpret_cast<void*(__cdecl*)()>(addr::cGZSoundDirector_New5C)());
+    Mix(CallThis<uint32_t>(addr::cGZSoundInstance_AddRef, counted));
+    Mix(CallThis<uint32_t>(addr::cGZSoundInstance_AddRef, counted));
+    Mix(CallThis<uint32_t>(addr::cGZSoundInstance_Release, counted));
+    Mix(CallThis<uint32_t>(addr::cGZSoundInstance_Release, counted));
+
+    char* const desc = NewDesc();
+    Mix(Virtual<uint32_t>(desc, 0x4));
+    Mix(CallThis<uint32_t>(addr::cGZSoundDesc_Release, desc));
+}
+
+// The director: one made on the stack (its classes through the COM's
+// lookup), the static one's getter.
+void DriveSoundDirector()
+{
+    alignas(4) char director[0x4C];
+    MixIs(CallThis<char*>(addr::cGZSoundDirector_Construct, director), director);
+    Mix(At<std::uintptr_t>(director, 0) == addr::cGZSoundDirector_Vtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(director, 4) == addr::cGZSoundDirector_Vtable2 ? 1u : 0u);
+    Mix(Virtual<uint32_t>(director, 0x34));
+    g_xpClasses = 0;
+    Virtual<uint32_t>(director, 0x14, &CountClass, nullptr);
+    Mix(g_xpClasses);
+    const uint32_t asks[][2] = {{0x5C1CF5A3, 1},          {0x7DD9C9F2, 0x1DD9C9DE}, {0x7DD9C9F2, 1},
+                                {0xBDD9D7A5, 0x5DD9D787}, {0xBDD9D7A5, 1},          {0xBDD9D7A5, 0x1DD9C9DE},
+                                {0x3C1CF59E, 1},          {0xBDDA72DD, 1},          {0x11111111, 1}};
+    for (const auto& ask : asks) {
+        void* out = nullptr;
+        Mix(Virtual<uint32_t>(director, 0x18, ask[0], ask[1], &out) & 0xFF);
+        Mix(out ? 1u : 0u);
+        if (out)
+            Mix(XpRelease(out));
+    }
+    CallThis<void>(addr::cRZCOMDllDirector_Destruct, director);
+    void* const instance = reinterpret_cast<void*(__cdecl*)()>(addr::cGZSoundDirector_Get)();
+    MixIs(instance, reinterpret_cast<void*>(addr::cGZSoundDirector_Instance));
+    Mix(*reinterpret_cast<const uint32_t*>(addr::cGZSoundDirector_Guard) & 1);
+    Mix(Virtual<uint32_t>(instance, 0x34));
+}
+
+// OPENSC4_TEST_GZSOUND=<day>: part u5's functions called through their
+// slots and addresses with a service, buffer, listener and descriptions of
+// our own: the description, the table, the instance's own slots, Update,
+// Start, Place, the objects' constructors and destructors, the director.
+// Every result goes into the fingerprint's `gzs` part; addresses never do.
+void DriveGzSound(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_GZSOUND") || !game::IsBuild641())
+        return;
+    g_gsOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_gsHash;
+    DriveDesc();
+    GsStage("desc");
+    DriveTable5();
+    GsStage("table");
+    DriveInstance();
+    GsStage("instance");
+    DriveUpdate();
+    GsStage("update");
+    DriveStart();
+    GsStage("start");
+    DrivePlace();
+    GsStage("place");
+    DriveSoundObjects();
+    GsStage("objects");
+    DriveSoundDirector();
+    GsStage("director");
+    g_into = saved;
+    log::Write("autotest: gzsound driven (hash %08X)", g_gsHash);
+}
+
+void GsFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_gsOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | gzs %08X", g_gsHash);
+    line += text;
+}
+
+const FingerprintPart kGsFingerprint{"gzsound", 4, &GsFingerprint};
+const DayHook kGsDrive{"gzsound", 4, &DriveGzSound};
 
 } // namespace
 } // namespace opensc4::autotest

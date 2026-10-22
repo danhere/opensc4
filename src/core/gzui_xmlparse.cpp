@@ -974,8 +974,8 @@ void* __fastcall DirectorGet(void*, void*)
 char* __fastcall Director2DeletingDestructor(char* self, void*, uint32_t flags)
 {
     OPENSC4_FIRST("Director2DeletingDestructor");
-    At<std::uintptr_t>(self, 0) = addr::cGZUIDirector2_Vtable;
-    At<std::uintptr_t>(self, 0x4) = addr::cGZUIDirector2_Vtable2;
+    At<std::uintptr_t>(self, 0) = addr::cGZSoundDirector_Vtable;
+    At<std::uintptr_t>(self, 0x4) = addr::cGZSoundDirector_Vtable2;
     CallThis<void*>(addr::cRZCOMDllDirector_Destruct, self);
     if (flags & 1)
         Delete(self);
@@ -995,31 +995,31 @@ void* AtFour(void* object) { return object ? static_cast<char*>(object) + 4 : nu
 void* __fastcall Director2New68(void*, void*)
 {
     OPENSC4_FIRST("Director2New68");
-    return Make(0x68, addr::cGZUIDirector2_Construct68);
+    return Make(0x68, addr::cGZSoundDesc_Construct);
 }
 
 void* __fastcall Director2New4048(void*, void*)
 {
     OPENSC4_FIRST("Director2New4048");
-    return Make(0x4048, addr::cGZUIDirector2_Construct4048);
+    return Make(0x4048, addr::cGZSoundTable_Construct);
 }
 
 void* __fastcall Director2New5C(void*, void*)
 {
     OPENSC4_FIRST("Director2New5C");
-    return Make(0x5C, addr::cGZUIDirector2_Construct5C);
+    return Make(0x5C, addr::cGZSoundInstance_Construct);
 }
 
 void* __fastcall Director2New4144(void*, void*)
 {
     OPENSC4_FIRST("Director2New4144");
-    return AtFour(Make(0x4144, addr::cGZUIDirector2_Construct4144));
+    return AtFour(Make(0x4144, addr::cGZSoundDirector_Construct4144));
 }
 
 void* __fastcall Director2New190(void*, void*)
 {
     OPENSC4_FIRST("Director2New190");
-    return AtFour(Make(0x190, addr::cGZUIDirector2_Construct190));
+    return AtFour(Make(0x190, addr::cGZSoundDirector_Construct190));
 }
 
 // ====================================================================================
@@ -1172,12 +1172,12 @@ bool InstallDirector(registry::Mode)
     const Detour detours[] = {
         {addr::cGZUIParserDirector_Construct, &DirectorConstructThunk},
         {addr::cGZUIParserDirector_Get, &DirectorGetThunk},
-        {addr::cGZUIDirector2_DeletingDestructor, &Director2DeletingDestructorThunk},
-        {addr::cGZUIDirector2_New68, &Director2New68Thunk},
-        {addr::cGZUIDirector2_New4048, &Director2New4048Thunk},
-        {addr::cGZUIDirector2_New5C, &Director2New5CThunk},
-        {addr::cGZUIDirector2_New4144, &Director2New4144Thunk},
-        {addr::cGZUIDirector2_New190, &Director2New190Thunk},
+        {addr::cGZSoundDirector_DeletingDestructor, &Director2DeletingDestructorThunk},
+        {addr::cGZSoundDirector_New68, &Director2New68Thunk},
+        {addr::cGZSoundDirector_New4048, &Director2New4048Thunk},
+        {addr::cGZSoundDirector_New5C, &Director2New5CThunk},
+        {addr::cGZSoundDirector_New4144, &Director2New4144Thunk},
+        {addr::cGZSoundDirector_New190, &Director2New190Thunk},
     };
     return InstallAll(detours);
 }

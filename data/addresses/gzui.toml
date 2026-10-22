@@ -2098,16 +2098,16 @@ expect = "B9 F8 33 B6 00 E9 9B EA"
 source = "Name ours. Destroys the static parser director at exit (registered by 0x009444CF). Stays the game's; called by ours."
 
 [[entry]]
-name = "cGZUIDirector2::Construct"
+name = "cGZSoundDirector::Construct"
 address = 0x009456EC
 kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "56 8B F1 E8 99 8A FC FF"
-source = "Name ours. The next COM director (0x4C bytes; part u5): the base director, its vtables, five classes registered (0x3C1CF59E, 0x5C1CF5A3, 0xBDDA72DD, 0x7DD9C9F2, 0xBDD9D7A5 by the factories after 0x00945636). Stays the game's; called by the test."
+source = "Name ours. Plain ret. The framework's sound director (0x4C bytes; ID 0xFD53FF17; the audio director adds it at its start): the base director, its vtables, five classes registered by their factories (0x3C1CF59E the sound service 0x009456A4, 0x5C1CF5A3 the table 0x00945675, 0xBDDA72DD 0x009456C8, 0x7DD9C9F2 the description 0x0094565F, 0xBDD9D7A5 the instance 0x0094568E). Ours in framework.sound.director (docs/gzui.md, part u5)."
 
 [[entry]]
-name = "cGZUIDirector2::DeletingDestructor"
+name = "cGZSoundDirector::DeletingDestructor"
 address = 0x00945636
 kind = "function"
 convention = "thiscall"
@@ -2116,7 +2116,7 @@ expect = "56 8B F1 C7 06 C0 47 AD"
 source = "Name ours. Slot 16; `ret 4`. The next COM director (constructor 0x009456EC, part u5; vtables 0x00AD47C0 and 0x00AD4790, ID 0xFD53FF17): the vtables, the base director's destructor (0x0090E0A5), deleted with flag 1. Ours in framework.xmlparse.director (docs/gzui.md, part u4)."
 
 [[entry]]
-name = "cGZUIDirector2::GetDirectorID"
+name = "cGZSoundDirector::GetDirectorID"
 address = 0x00945630
 kind = "function"
 convention = "thiscall"
@@ -2125,21 +2125,21 @@ expect = "B8 17 FF 53 FD C3 56 8B"
 source = "Name ours. Slot 13: 0xFD53FF17. Two instructions; stays the game's."
 
 [[entry]]
-name = "cGZUIDirector2::Vtable"
+name = "cGZSoundDirector::Vtable"
 address = 0x00AD47C0
 kind = "data"
 expect = "02 DE 90 00 B1 C4 94 00"
 source = "Name ours. The next director's vtable."
 
 [[entry]]
-name = "cGZUIDirector2::Vtable2"
+name = "cGZSoundDirector::Vtable2"
 address = 0x00AD4790
 kind = "data"
 expect = "50 0F 46 00 60 0F 46 00"
 source = "Name ours. The next director's second vtable (at +4)."
 
 [[entry]]
-name = "cGZUIDirector2::New68"
+name = "cGZSoundDirector::New68"
 address = 0x0094565F
 kind = "function"
 convention = "cdecl"
@@ -2148,7 +2148,7 @@ expect = "6A 68 E8 7A FF C9 FF 85"
 source = "Name ours. The next director's factory for class 0x7DD9C9F2: a 0x68-byte object (0x00945DCC), or null. Ours in framework.xmlparse.director (docs/gzui.md, part u4)."
 
 [[entry]]
-name = "cGZUIDirector2::New4048"
+name = "cGZSoundDirector::New4048"
 address = 0x00945675
 kind = "function"
 convention = "cdecl"
@@ -2157,7 +2157,7 @@ expect = "68 48 40 00 00 E8 61 FF"
 source = "Name ours. The next director's factory for class 0x5C1CF5A3: a 0x4048-byte object (0x0094585F), or null. Ours in framework.xmlparse.director (docs/gzui.md, part u4)."
 
 [[entry]]
-name = "cGZUIDirector2::New5C"
+name = "cGZSoundDirector::New5C"
 address = 0x0094568E
 kind = "function"
 convention = "cdecl"
@@ -2166,7 +2166,7 @@ expect = "6A 5C E8 4B FF C9 FF 85"
 source = "Name ours. The next director's factory for class 0xBDD9D7A5: a 0x5C-byte object (0x00945C6C), or null. Ours in framework.xmlparse.director (docs/gzui.md, part u4)."
 
 [[entry]]
-name = "cGZUIDirector2::New4144"
+name = "cGZSoundDirector::New4144"
 address = 0x009456A4
 kind = "function"
 convention = "cdecl"
@@ -2175,7 +2175,7 @@ expect = "68 44 41 00 00 E8 32 FF"
 source = "Name ours. The next director's factory for class 0x3C1CF59E: a 0x4144-byte object (0x009489AE), its interface at +4, or null. Ours in framework.xmlparse.director (docs/gzui.md, part u4)."
 
 [[entry]]
-name = "cGZUIDirector2::New190"
+name = "cGZSoundDirector::New190"
 address = 0x009456C8
 kind = "function"
 convention = "cdecl"
@@ -2184,34 +2184,34 @@ expect = "68 90 01 00 00 E8 0E FF"
 source = "Name ours. The next director's factory for class 0xBDDA72DD: a 0x190-byte object (0x00949902), its interface at +4, or null. Ours in framework.xmlparse.director (docs/gzui.md, part u4)."
 
 [[entry]]
-name = "cGZUIDirector2::Construct68"
+name = "cGZSoundDesc::Construct"
 address = 0x00945DCC
 kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "51 53 56 8B F1 33 DB 8D"
-source = "Name ours. The constructor of the next director's class 0x7DD9C9F2 (0x68 bytes; part u5). Stays the game's; called by ours."
+source = "Name ours. Plain ret. The framework's sound description 0x7DD9C9F2 (0x68 bytes, vtable 0x00AD4908, interface 0x1DD9C9DE): the count at +4, +8, a name at +0xC (SC4String), the byte +0x20, the level +0x24 (0x400), the side +0x28 and +0x2C (0x200, the middle), the bytes +0x30 and +0x31 (a random corner), +0x34 to +0x3C, the byte +0x44, +0x48 (8, a loop count), +0x4C, the byte +0x50 (1, looping), +0x54 to +0x5C, the byte +0x60, a list at +0x64 (GZList::Construct). +0x40 is not set. Ours in framework.sound.desc (docs/gzui.md, part u5)."
 
 [[entry]]
-name = "cGZUIDirector2::Construct4048"
+name = "cGZSoundTable::Construct"
 address = 0x0094585F
 kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "8B D1 56 57 6A 04 58 33"
-source = "Name ours. The constructor of the next director's class 0x5C1CF5A3 (0x4048 bytes; part u5). Stays the game's; called by ours."
+source = "Name ours. Plain ret. The framework's sound table 0x5C1CF5A3 (0x4048 bytes, vtable 0x00AD4818): the count at +4, +8 0x400, +0x14, +0x28 and +0x2C 4, +0x20 and +0x24 2, +0x30 0x78, +0x34 8, +0x38 and +0x3C 1, the rest 0, and a 64 by 64 table of descriptions at +0x48, all null. Ours in framework.sound.table (docs/gzui.md, part u5)."
 
 [[entry]]
-name = "cGZUIDirector2::Construct5C"
+name = "cGZSoundInstance::Construct"
 address = 0x00945C6C
 kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "56 8B F1 57 8D 7E 04 8B"
-source = "Name ours. The constructor of the next director's class 0xBDD9D7A5 (0x5C bytes; part u5). Stays the game's; called by ours."
+source = "Name ours. Plain ret. The framework's sound instance 0xBDD9D7A5 (0x5C bytes; vtables 0x00AD48A0 and, at +4, 0x00AD487C, after the abstract base's 0x00AD4830; interface 0x5DD9D787): a base part at +4 (0x0097996D), the count +0x14, the service +0x18, a buffer +0x1C, the state +0x20, the description +0x24, a loop count +0x28, the bytes +0x2C and +0x2D, a level +0x30 and +0x34 (0x400), the worked-out level +0x38, the bytes +0x3C and +0x3D (1), a place +0x40 to +0x48 (100 in +0x48), distances +0x4C (1000) and +0x50 (100), a listener +0x54, the byte +0x58. +0x28, +0x30 and +0x38 are not set. Ours in framework.sound.instance (docs/gzui.md, part u5)."
 
 [[entry]]
-name = "cGZUIDirector2::Construct4144"
+name = "cGZSoundDirector::Construct4144"
 address = 0x009489AE
 kind = "function"
 convention = "thiscall"
@@ -2220,7 +2220,7 @@ expect = "55 8B EC 83 EC 10 53 33"
 source = "Name ours. The constructor of the next director's class 0x3C1CF59E (0x4144 bytes; the 65-slot class, parts u6 and u7). Stays the game's; called by ours."
 
 [[entry]]
-name = "cGZUIDirector2::Construct190"
+name = "cGZSoundDirector::Construct190"
 address = 0x00949902
 kind = "function"
 convention = "thiscall"
@@ -2416,3 +2416,576 @@ convention = "thiscall"
 signature = "bool (void* this, void* buffer, uint32_t* length)"
 expect = "55 8B EC 51 51 53 56 8B"
 source = "Name ours. `ret 8`: up to *length bytes read (buffered), *length lowered to what was read. Stays the game's; called by ours."
+
+# Part u5 (src/core/gzui_sound.cpp, docs/gzui.md): the framework's sound director, its table, the sound instance
+# 0xBDD9D7A5 and the sound description 0x7DD9C9F2; the game code they use.
+
+[[entry]]
+name = "cGZSoundDirector::Get"
+address = 0x0094575A
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "F6 05 94 34 B6 00 01 75"
+source = "Name ours. The static sound director at 0x00B63448, made on first use (guard bit 0x00B63494, destroyed at exit by 0x00A7F60A). Called through the thunk 0x00945785 (GZDirector::Get945785, audio.toml) by the audio director's OnStart. Ours in framework.sound.director (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDirector::Instance"
+address = 0x00B63448
+kind = "data"
+source = "Name ours. The static sound director (0x4C bytes)."
+
+[[entry]]
+name = "cGZSoundDirector::Guard"
+address = 0x00B63494
+kind = "data"
+source = "Name ours. Bit 0: the static sound director is made."
+
+[[entry]]
+name = "cGZSoundDirector::AtExit"
+address = 0x00A7F60A
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "C7 05 48 34 B6 00 C0 47"
+source = "Name ours. Destroys the static sound director at exit (registered by 0x0094575A). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZSoundTable::Get"
+address = 0x009458C4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t row, uint32_t column, uint32_t unused)"
+expect = "8B 44 24 04 C1 E0 06 03"
+source = "Name ours. Slot 3; `ret 0xC`. The cell row * 64 + column of the 64 by 64 table at +0x48; the third argument is not read, nor are the indexes checked. Ours in framework.sound.table (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundTable::Release"
+address = 0x009457AF
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 04 83 F8 01 77 0A"
+source = "Name ours. Slot 2. The count at +4: at 1 or below, slot 4 (the deleting destructor 0x0094601D) with 1 and 0; else one less, answered. Ours in framework.sound.table (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundTable::Destruct"
+address = 0x00945FC4
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 55 56 57 6A 40 C7 01"
+source = "Name ours. Plain ret. The vtable stored again; every cell's description destroyed (0x00945F24), deleted and the cell cleared, row by row. Called by the deleting destructor 0x0094601D. Ours in framework.sound.table (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundTable::Vtable"
+address = 0x00AD4818
+kind = "data"
+expect = "C6 57 94 00 60 8B 96 00"
+source = "Name ours. The sound table's vtable (5 slots: the base QueryInterface 0x009457C6, AddRef 0x00968B60, Release, Get, the deleting destructor 0x0094601D)."
+
+[[entry]]
+name = "cGZSoundInstance::ConstructOwned"
+address = 0x009458D6
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* service)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. `ret 4`. As 0x00945C6C with the sound service at +0x18; made by the service (0x0094701E). Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::AddRef"
+address = 0x00945942
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "FF 41 14 8B 41 14 C3 33"
+source = "Name ours. Slot 1 (7 bytes; not in Ghidra's function list): the count at +0x14 one more, answered. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::Release"
+address = 0x009457E1
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 14 83 F8 01 77 0D"
+source = "Name ours. Through the adjustor 0x009459AF (slot 2 of the part at +4). The count at +0x14: at 1 or below, the part at +4's slot 7 (0x009459B7, the deleting destructor) with 1 and 0; else one less, answered. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::QueryInterface"
+address = 0x009457FB
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "83 7C 24 04 01 74 0A 81"
+source = "Name ours. Through the adjustor 0x009459A7; `ret 8`. Answers 1 and 0x5DD9D787 with the object (slot 1 for the reference); else AL 0 over the caller's EAX (ours 0). Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::ComputeLevel"
+address = 0x00945820
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "8B 41 24 8B 50 24 0F AF"
+source = "Name ours. Plain ret. The level at +0x38: the description's level (+0x24) times +0x30, times the service's +0x14 over 0x100000, times the service's +0x1C's +8 and +0x34 over 0x100000 (32-bit products, signed divisions); answered. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::IsPlaying"
+address = 0x00945949
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "33 C0 83 79 20 02 0F 94"
+source = "Name ours. Slot 10: whether the state (+0x20) is 2. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::IsActive"
+address = 0x00945953
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "33 C0 39 41 20 0F 95 C0"
+source = "Name ours. Slot 11: whether the state is not 0. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::GetByte58"
+address = 0x0094595C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8A 41 58 C3 8A 44 24 04"
+source = "Name ours. Slot 12: the byte +0x58. Two instructions; stays the game's."
+
+[[entry]]
+name = "cGZSoundInstance::SetByte58"
+address = 0x00945960
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint8_t value)"
+expect = "8A 44 24 04 88 41 58 C2"
+source = "Name ours. Slot 13; `ret 4`. The byte +0x58; AL the byte over the caller's EAX (ours 0 above it). Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::SetByte3D"
+address = 0x0094596A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint8_t value)"
+expect = "8A 44 24 04 88 41 3D B0"
+source = "Name ours. Slot 15; `ret 4`. The byte +0x3D (1 at first); AL 1 over the caller's EAX (ours 1). Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::SetPlace"
+address = 0x00945976
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t x, uint32_t y, uint32_t z)"
+expect = "8B 44 24 04 89 41 40 8B"
+source = "Name ours. Slot 16; `ret 0xC`. +0x40, +0x44 and +0x48, and the byte +0x3C set; AL 1 over z. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::SetDistances"
+address = 0x00945994
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t near, uint32_t far)"
+expect = "8B 44 24 04 89 41 4C 8B"
+source = "Name ours. Slot 17; `ret 8`. +0x4C and +0x50 (1000 and 100 at first); AL 1 over the second. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::Update"
+address = 0x009459BF
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 46 20 48 48"
+source = "Name ours. Slot 6. State 2 (playing): a looping description (its byte +0x50) counts +0x28 down (with +0x2D set, Stop through slot 8 while it is not 0; else +0x28 back to the description's +0x48 at 0); else the listener (+0x54) is asked by its slot 9 whether to go on (no: its slot 4 with the description and its +0x38 as a float, the state 0), then the buffer (+0x1C) by its slot 7 whether it still plays (no: slot 7 of the instance, the state 0). State 3: the same listener question, then the buffer's slot 20; 0 means done: slot 8 of the instance, the state 0. EAX the last call's or value's. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::Stop"
+address = 0x00945A70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 6A 00 8D 4E 1C"
+source = "Name ours. Slot 8. The buffer released (SC4RefPtr::Assign with null), the state 0, the byte +0x2D 0; AL 1 over Assign's EAX. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::SetLevel"
+address = 0x00945A89
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t level)"
+expect = "83 79 1C 00 8B 44 24 04"
+source = "Name ours. Slot 9; `ret 4`. +0x34; with a buffer the level worked out (0x00945820) and given to the buffer's slot 21, whose EAX it answers; else AL 1 over the argument. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::Place"
+address = 0x00945AAF
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Name ours. Slot 14. With a description: the byte 0x00B6349D forces its +0x31; the side x = (+0x28 - 0x200) / 512 and y = (+0x2C - 0x200) / 512; with +0x31 set, a centred x and y become a corner (the service's generator +0x10, two bits, or 0x00B634A0 when the byte 0x00B6349C is set; other values keep y), else a centred one a random sign. The buffer's interface 0x306077D2 (not checked for null) gets (x * 100, 0, y * 100) as floats by its slot 5, then is released. No buffer check either. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::Restart"
+address = 0x00945C20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* desc)"
+expect = "56 8B F1 83 7E 20 02 57"
+source = "Name ours. `ret 4`. In state 2 the listener's slot 4 (the description and its +0x38 as a float), then state 3 when +0x38 is not 0; state 3 stays; any other state becomes 0. AL 1. Called by Start when there is a listener. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::Start"
+address = 0x00945D1A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 51 51 56 57 8B"
+source = "Name ours. Slot 7. With a listener, Restart with the description. Else with a buffer: the sound service (SC4RefPtr::ConstructSoundService) gets the buffer's interface 0x5B34F0AF by its slot 31 when both are there. Then state 2 with a description's +0x38 of 0 stops (slot 8), else becomes 3 and the buffer's slot 20 goes to its slot 22 with 0, the description's +0x38 and 1 (`ret 0x10` in the framework's buffer 0x00AD3FC0); state 3 stays; other states become 0. AL 1. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::DeletingDestructor"
+address = 0x00945CD2
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 14 00 00 00"
+source = "Name ours. Through the adjustor 0x009459B7 (slot 7 of the part at +4); `ret 4`. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::Destruct"
+address = 0x00945CEE
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 4E 54 85 C9"
+source = "Name ours. Plain ret. The listener and the buffer released, then the part at +4's destructor (0x00979426). The vtables are not stored again. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::SetDesc"
+address = 0x00945E70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 24 B0"
+source = "Name ours. Slot 4 of the instance (the description at +0x24) and slot 26 of the description (its level at +0x24); `ret 4`. AL 1 over the argument. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::HasHexRun"
+address = 0x00945F38
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* text)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. `ret 4`; `this` is not read. Whether the text holds 8 characters in a row from `0123456789abcdefABCDEF` (strchr, so a zero byte counts). Called by the instance's slot 5 (0x00946C2C) and 0x0094680F. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundInstance::Vtable"
+address = 0x00AD48A0
+kind = "data"
+expect = "FB 57 94 00 42 59 94 00"
+source = "Name ours. The sound instance's vtable (23 slots; 0 to 2 QueryInterface, AddRef, Release; 3 0x009D858F; 4 SetDesc; 5 0x00946C2C; 6 Update; 7 Start; 8 Stop; 9 SetLevel; 10 to 17; 18 the adjustor 0x00945C64)."
+
+[[entry]]
+name = "cGZSoundInstance::Vtable2"
+address = 0x00AD487C
+kind = "data"
+expect = "A7 59 94 00 BA 5A 87 00"
+source = "Name ours. The sound instance's second vtable, at +4 (8 slots: adjustors 0x009459A7, 0x009459AF, 0x009459B7 at 0, 2 and 7)."
+
+[[entry]]
+name = "cGZSoundInstance::BaseVtable"
+address = 0x00AD4830
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The sound instance's abstract base's vtable (19 slots, all _purecall), stored first by its constructors."
+
+[[entry]]
+name = "cGZSoundInstance::SideScale"
+address = 0x00AD4900
+kind = "data"
+expect = "00 00 00 00 00 00 60 3F"
+source = "Name ours. The double 1/512."
+
+[[entry]]
+name = "cGZSoundInstance::Hundred"
+address = 0x00AD4810
+kind = "data"
+expect = "00 00 00 00 00 00 59 40"
+source = "Name ours. The double 100."
+
+[[entry]]
+name = "SC4::MinusOneDouble"
+address = 0x00A80AD0
+kind = "data"
+expect = "00 00 00 00 00 00 F0 BF"
+source = "Name ours. The double -1."
+
+[[entry]]
+name = "cGZSoundInstance::ForceRandom"
+address = 0x00B6349D
+kind = "data"
+source = "Name ours. A byte: when set, Place sets the description's +0x31."
+
+[[entry]]
+name = "cGZSoundInstance::ForceCorner"
+address = 0x00B6349C
+kind = "data"
+source = "Name ours. A byte: when set, Place takes the corner from 0x00B634A0."
+
+[[entry]]
+name = "cGZSoundInstance::Corner"
+address = 0x00B634A0
+kind = "data"
+source = "Name ours. The corner Place takes when 0x00B6349C is set."
+
+[[entry]]
+name = "GZBaseAD8FA4::Construct"
+address = 0x0097996D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 33 C9 C7 00 A4 8F"
+source = "Name ours. A base part (vtable 0x00AD8FA4; +4 0, the bytes +8 1 and +9 0, +0xC 0); the sound instance's at +4. Stays the game's; called by ours."
+
+[[entry]]
+name = "GZBaseAD8FA4::Destruct"
+address = 0x00979426
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C7 01 A4 8F AD 00 C3 55"
+source = "Name ours. The part's vtable stored again. Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4::HexDigits"
+address = 0x00AD27BC
+kind = "data"
+expect = "30 31 32 33 34 35 36 37"
+source = "Name ours. The text `0123456789abcdefABCDEF`."
+
+[[entry]]
+name = "cGZSoundDesc::QueryInterface"
+address = 0x0094578A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "83 7C 24 04 01 74 0A 81"
+source = "Name ours. Slot 0; `ret 8`. Answers 1 and 0x1DD9C9DE with the object (slot 1 for the reference); else AL 0 over the caller's EAX (ours 0). Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Release"
+address = 0x00945FFC
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 46 04 83 F8"
+source = "Name ours. Slot 2. The count at +4: at 1 or below destroyed (0x00945F24) and deleted, 0; else one less, answered. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Destruct"
+address = 0x00945F24
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8D 4E 64 E8 8D"
+source = "Name ours. Plain ret. The list at +0x64 destroyed (0x0096EDBC), then the name at +0xC (SC4String::Destroy, whose EAX it answers). The vtable is not stored again. Called by the table's destructor too. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::SetName"
+address = 0x00945E53
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* name)"
+expect = "FF 74 24 04 83 C1 0C 8B"
+source = "Name ours. Slot 24; `ret 4`. The name at +0xC set by its slot 13; AL 1 over that call's EAX. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set20"
+address = 0x00945E64
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8A 44 24 04 88 41 20 B0"
+source = "Name ours. Slot 25; `ret 4`. A byte at +0x20; AL 1 over the caller's EAX (ours 1). Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set2C"
+address = 0x00945E7C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 2C B0"
+source = "Name ours. Slot 28; `ret 4`. A dword at +0x2C; AL 1 over the argument. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set30"
+address = 0x00945E88
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8A 44 24 04 88 41 30 B0"
+source = "Name ours. Slot 29; `ret 4`. A byte at +0x30; AL 1 over the caller's EAX (ours 1). Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set31"
+address = 0x00945E94
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8A 44 24 04 88 41 31 B0"
+source = "Name ours. Slot 30; `ret 4`. A byte at +0x31; AL 1 over the caller's EAX (ours 1). Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set34"
+address = 0x00945EA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 34 B0"
+source = "Name ours. Slot 31; `ret 4`. A dword at +0x34; AL 1 over the argument. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set3C"
+address = 0x00945EB8
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 3C B0"
+source = "Name ours. Slot 33; `ret 4`. A dword at +0x3C; AL 1 over the argument. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set44"
+address = 0x00945EC4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8A 44 24 04 88 41 44 B0"
+source = "Name ours. Slot 35; `ret 4`. A byte at +0x44; AL 1 over the caller's EAX (ours 1). Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set50"
+address = 0x00945EE8
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8A 44 24 04 88 41 50 B0"
+source = "Name ours. Slot 38; `ret 4`. A byte at +0x50; AL 1 over the caller's EAX (ours 1). Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set54"
+address = 0x00945EF4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 54 B0"
+source = "Name ours. Slot 39; `ret 4`. A dword at +0x54; AL 1 over the argument. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set58"
+address = 0x00945F00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 58 B0"
+source = "Name ours. Slot 40; `ret 4`. A dword at +0x58; AL 1 over the argument. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set5C"
+address = 0x00945F0C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 5C B0"
+source = "Name ours. Slot 41; `ret 4`. A dword at +0x5C; AL 1 over the argument. Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Set60"
+address = 0x00945F18
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8A 44 24 04 88 41 60 B0"
+source = "Name ours. Slot 42; `ret 4`. A byte at +0x60; AL 1 over the caller's EAX (ours 1). Ours in framework.sound.desc (docs/gzui.md, part u5)."
+
+[[entry]]
+name = "cGZSoundDesc::Name"
+address = 0x00945E3B
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 41 0C C3 8A 41 30 C3"
+source = "Name ours. Slot 4: the name at +0xC. Two instructions; stays the game's."
+
+[[entry]]
+name = "cGZSoundDesc::Get30"
+address = 0x00945E3F
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8A 41 30 C3 8A 41 31 C3"
+source = "Name ours. Slot 9: the byte +0x30. Two instructions; stays the game's."
+
+[[entry]]
+name = "cGZSoundDesc::Get31"
+address = 0x00945E43
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8A 41 31 C3 8B 44 24 04"
+source = "Name ours. Slot 10: the byte +0x31. Two instructions; stays the game's."
+
+[[entry]]
+name = "GZShared::Set08"
+address = 0x00945E47
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 08 B0"
+source = "Name ours. `ret 4`: +8 set, AL 1 (the description's slot 23). Shared with other classes' vtables; stays the game's."
+
+[[entry]]
+name = "GZShared::Set38"
+address = 0x00945EAC
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 38 B0"
+source = "Name ours. `ret 4`: +0x38 set, AL 1 (the description's slot 32). Shared with other classes' vtables; stays the game's."
+
+[[entry]]
+name = "GZShared::Set48"
+address = 0x00945ED0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 48 B0"
+source = "Name ours. `ret 4`: +0x48 set, AL 1 (the description's slot 36). Shared with other classes' vtables; stays the game's."
+
+[[entry]]
+name = "GZShared::Set4C"
+address = 0x00945EDC
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 4C B0"
+source = "Name ours. `ret 4`: +0x4C set, AL 1 (the description's slot 37). Shared with other classes' vtables; stays the game's."
+
+[[entry]]
+name = "cGZSoundDesc::Vtable"
+address = 0x00AD4908
+kind = "data"
+expect = "8A 57 94 00 60 8B 96 00"
+source = "Name ours. The sound description's vtable (43 slots)."
+
+[[entry]]
+name = "GZList::Construct"
+address = 0x009A88C4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* allocator)"
+expect = "56 8B F1 83 26 00 6A 10"
+source = "Name ours. `ret 4`. An empty STLport list: its 16-byte head node allocated and linked to itself. Stays the game's; called by ours."
