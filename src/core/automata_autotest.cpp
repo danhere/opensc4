@@ -392,7 +392,9 @@
 //   spawn's side, timer and bit, the frame's timers) are put back. The
 //   flags: no building, no city watercraft manager, no new manager, a
 //   route not made, a fake boat (0x10) or a made one (0x20) called at a
-//   slot it does not know.
+//   slot it does not know, the route table's bucket count not known (0x40;
+//   the boats are put at an address that is 0 modulo it, so that the
+//   table's order does not follow where the DLL was loaded).
 // OPENSC4_TEST_AUTOMATA_SITUATIONS=1 (part c1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's situation manager (the city's slot
 //   0xC4) is called at the game's addresses (ours when the
@@ -517,6 +519,7 @@
 #include <cstdio>
 #include <cstring>
 #include <limits>
+#include <new>
 #include <string>
 #include <utility>
 #include <vector>
@@ -4960,7 +4963,36 @@ void AwWaterRouteDrive(cISC4City* city, void* building)
     for (int i = 0; i < 6; ++i)
         saved[i] = *reinterpret_cast<uint32_t*>(kSaved[i]);
 
-    static FakeBoat boats[10];
+    // The new watercraft manager of the test's own (used further down) is
+    // made first, for its route table's bucket count.
+    using Factory = void*(__cdecl*)();
+    void* const serial = reinterpret_cast<Factory>(addr::cSC4WatercraftManager_Create)();
+    char* const made = serial ? static_cast<char*>(serial) - aw::field::kSerializable : nullptr;
+    uint32_t buckets = 0;
+    if (made) {
+        Virtual<uint32_t>(made, aw::slot::kAddRef);
+        Virtual<uint32_t>(made, 0x0C); // Init
+        buckets = static_cast<uint32_t>(At<char**>(made + aw::field::kWaterTable, aw::table::kEnd) -
+                                        At<char**>(made + aw::field::kWaterTable, aw::table::kBegin));
+    }
+    // The boats at an address that is 0 modulo that count: routes A and B
+    // are keyed by boats 7 and 6, and the table's order (a key's bucket is
+    // its address modulo the count) is the frame's order. With the boats
+    // where the DLL happened to be loaded, the routes' and frame's hashes
+    // took one of two values run to run, on both sides.
+    constexpr uint32_t kMostBuckets = 1031;
+    alignas(16) static char arena[10 * sizeof(FakeBoat) + 16 * kMostBuckets];
+    std::size_t offset = 0;
+    if (buckets && buckets <= kMostBuckets)
+        while ((reinterpret_cast<uintptr_t>(arena) + offset) % buckets)
+            offset += 16;
+    else
+        flags |= 0x40;
+    FakeBoat* const boats = reinterpret_cast<FakeBoat*>(arena + offset);
+    for (uint32_t i = 0; i < 10; ++i)
+        new (&boats[i]) FakeBoat;
+    log::Write("autotest: automata: aw5 boats at %p (%u buckets, offset %X)", static_cast<void*>(boats), buckets,
+               static_cast<uint32_t>(offset));
     static FakeBoat pool[10];
     for (uint32_t i = 0; i < 10; ++i)
         boats[i].Init(0x51 + i, routes);
@@ -5204,15 +5236,10 @@ void AwWaterRouteDrive(cISC4City* city, void* building)
     }
 
     // ---- A new watercraft manager of the test's own ----
-    using Factory = void*(__cdecl*)();
-    void* const serial = reinterpret_cast<Factory>(addr::cSC4WatercraftManager_Create)();
-    if (!serial) {
+    if (!made) {
         flags |= 4;
     } else {
-        char* const made = static_cast<char*>(serial) - aw::field::kSerializable;
         g_known.push_back({made, 0x70});
-        Virtual<uint32_t>(made, aw::slot::kAddRef);
-        Virtual<uint32_t>(made, 0x0C); // Init
         using Seed = void(__thiscall*)(void*, uint32_t);
         reinterpret_cast<Seed>(addr::cRZRandomSuper_Seed)(made + aw::field::kRandom, 5150u);
         // Its vtable: a copy of the game's with slot 15 the test's creator.
@@ -5528,7 +5555,8 @@ void AwWaterRouteDrive(cISC4City* city, void* building)
     g_createHash = nullptr;
     for (int i = 0; i < 6; ++i)
         *reinterpret_cast<uint32_t*>(kSaved[i]) = saved[i];
-    for (FakeBoat& boat : boats) {
+    for (int i = 0; i < 10; ++i) {
+        FakeBoat& boat = boats[i];
         routes.Mix(boat.state.refs);
         if (boat.state.unexpected)
             flags |= 0x10;
