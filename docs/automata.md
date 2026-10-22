@@ -879,6 +879,8 @@ The flags: 1 the automata filter is there (always, in the harness), 0x20 no netw
 
 The fakes are put at an address that is 0 modulo a hash set's bucket count (flag 0x100 when the count is not known). The tracked groups' sets and GetInstancesOfGroup's are keyed by the fakes' addresses, and the base calls the fakes in a set's order (the chase, slot 33's releases), so before this ` D`'s first field followed where the DLL was loaded: two or three values per city on both sides.
 
+Trial of the fix (2026-10-22, TurboToaster, the part aw5 trial's env and switches, `OPENSC4_TEST_AUTOMATA_AWMGR=5`, 26 pairs: Rush Hour t0000 seven, Making Money d0000, Rush Hour d0090 and Big City d1095 three each, the 12-save batch): ` D` took one value per save in all 52 runs, the same on both sides, flags never 0x100 (193 buckets). The fakes' address changed run to run. Rush Hour t0000 gave 7CAD6A06 in all 14 runs. Every save was the same day by day except one Rush Hour d0090 pair, whose first difference was part aw1's ` A` (its known two outcomes).
+
 Reached (our first-call log lines, trial Making Money d0000, 4 days): all 36. By the game alone, 17, several of them only with empty lists: GetInstancesOfGroup, slots 40, 45, 48, 49, 50, 54, 56, 57, 60, 62, 65, 67, SetCameraFollow, the rate, the frame update and the camera update. The rest by the test.
 
 ### Parity
