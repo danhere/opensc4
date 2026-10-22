@@ -150,7 +150,7 @@ address = 0x0058EFE0
 kind = "function"
 convention = "thiscall"
 expect = "8B 44 24 04 56 8B 30 8B"
-source = "Name ours. Ret 4. The node for a key (by pointer): the key's bucket (the key modulo the bucket count), its chain walked to the node whose +4 is the key; or null (docs/civic.md). Shared by the whole game. Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
+source = "Name ours. Ret 4. The node for a key (by pointer): the key's bucket (the key modulo the bucket count), its chain walked to the node whose +4 is the key; or null (docs/civic.md). Shared by the whole game. Ours in renderer.effects.hashes (src/core/effects_hashes.h)."
 
 [[entry]]
 name = "SC4ScriptNumber::FromUint"

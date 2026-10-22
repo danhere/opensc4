@@ -98,7 +98,7 @@ void DestroyPointers(Held kind, char* list)
 // after them (one written and held in place, more by the fill), the
 // pointers from `at` on too unless `atEnd`, then the old list ended (its
 // pointers let go, its storage freed). Same shape as the store's growth
-// (effects_store.inc).
+// (effects_store.h).
 void GrowInsertPointers(Held kind, char* list, char* at, char* const* value, uint32_t count, bool atEnd)
 {
     const uint32_t size =

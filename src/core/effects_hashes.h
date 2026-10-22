@@ -3,7 +3,7 @@
 // the clear of a hash of lists and of a list of events, the 0x40-byte
 // counted object's constructor and two destructors, and the character
 // transform, written by hand from the game's code. (The manager's lists of
-// held effects, the fourth kind of effects_pointers.inc, are of the same
+// held effects, the fourth kind of effects_pointers.h, are of the same
 // group.) Included by water_effects.cpp, which has the calls the comparison
 // notes (the Hs functions): each call the game makes to another function
 // goes through one, a part the game has inlined is written out here.

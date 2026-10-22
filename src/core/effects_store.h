@@ -123,7 +123,7 @@ void DestroyCompoundRange(char* first, char* last)
 // plus the larger of the size and `count`, the objects before `at` copied
 // over, `count` copies of `object` after them, the objects from `at` on
 // too unless `atEnd`, the old objects ended and their storage freed. Same
-// shape as SC4EffectRecords::GrowInsert (effects_records.inc).
+// shape as SC4EffectRecords::GrowInsert (effects_records.h).
 void GrowInsertCompounds(char* store, char* at, char* object, uint32_t count, bool atEnd)
 {
     const uint32_t size =

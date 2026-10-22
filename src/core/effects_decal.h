@@ -4,9 +4,9 @@
 // description's (0x64 bytes, at the decal's +0xC) end (0x00583130) and
 // assignment (0x005833F0); the manager's fill of held pointers
 // (0x0058DF60) and the AddRef thunks of its interfaces at +4 and +8
-// (0x0058FD60, 0x0058FD80). The decal's update (slot 3) is generated
-// (effects_decal_update.inc). Included by water_effects.cpp, which has
-// what ours calls (the Dc functions, noted in a replay).
+// (0x0058FD60, 0x0058FD80). The decal's update (slot 3) is still the
+// game's. Included by water_effects.cpp, which has what ours calls (the Dc
+// functions, noted in a replay).
 
 // Slot 5 (0x00582F00): a parameter by its id. 3: the word at value to
 // +0x108. 0x102: the word at value + 4 to +0x10C. 0xC: a rectangle (x0,

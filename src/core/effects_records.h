@@ -6,7 +6,7 @@
 // (SC4EffectRecords_CopyRange, 0x0058EF60) stays the game's, as no test
 // city makes one. Included by
 // water_effects.cpp, which has the calls that the comparisons note (the
-// Gr functions). A record is 0x44 bytes (effects_compound.inc).
+// Gr functions). A record is 0x44 bytes (effects_compound.h).
 
 // A record given another's values (0x0058DBA0): its count of changes one
 // more, the thirteen floats and the byte +1 copied, the effect taken over

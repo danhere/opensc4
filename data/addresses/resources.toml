@@ -2428,7 +2428,7 @@ address = 0x0058F3A0
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 E8 B8 C6 35 00"
-source = "No arguments: destroys a hash table of dwords: clears it (0x008EBA60, inlined by ours: each chain's nodes freed, the buckets emptied, the count cleared) and frees the bucket array; the buckets' list itself is left. The packed file has four (+0x15C, +0x170, +0x188, +0x19C). Ours in renderer.effects.hashes (src/core/effects_hashes.inc)."
+source = "No arguments: destroys a hash table of dwords: clears it (0x008EBA60, inlined by ours: each chain's nodes freed, the buckets emptied, the count cleared) and frees the bucket array; the buckets' list itself is left. The packed file has four (+0x15C, +0x170, +0x188, +0x19C). Ours in renderer.effects.hashes (src/core/effects_hashes.h)."
 
 [[entry]]
 name = "SC4Pool::Allocate"
