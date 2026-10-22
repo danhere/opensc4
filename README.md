@@ -17,7 +17,7 @@ OpenSC4 runs inside the original game and replaces its subsystems one at a time,
 Early development. Working today, inside SC4 Deluxe build 1.1.641:
 
 - **In-process mod:** a launcher injects `core.dll` (hooks, logging, crash dumps, per-subsystem replacement toggles).
-- **D3D11 renderer:** matches the stock driver in all 60 harness screenshots, runs past the old 2048 px cap, windowed and borderless modes.
+- **D3D11 renderer (the default):** matches the stock driver in all 60 harness screenshots, runs past the old 2048 px cap, windowed and borderless modes.
 - **DBPF reader:** byte-identical to the game's own reading of every record in a clean install.
 - **Replaced game code:** 6,863 of the game's functions are ours (25% of the game's own code, measured 2026-10-22), each behind a toggle and checked against the original: nearly all simulators, terrain, the region view, scripts and the audio classes; the renderer is past half and networks about two thirds.
 - **Determinism and parity harness:** runs from the same save agree for a year; replacement simulators are compared exactly against the original.
@@ -68,7 +68,6 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 | Timelapse: a dated copy of the city at every save, rendered into a video | `game.timelapse = ours` | [docs/timelapse.md](docs/timelapse.md) |
 | City date sync: a city loaded with an earlier date than the last one saved in its region moves forward to it | on (`game.date_sync = original` turns it off) | [docs/date-sync.md](docs/date-sync.md) |
 | One seed per city, shown in the title and set with the `seed` cheat | `game.seed = ours` | [docs/seeds.md](docs/seeds.md) |
-| D3D11 renderer: resolutions past 2048 px, windowed and borderless modes, a scaled interface | `renderer.d3d11 = ours` | [docs/renderer.md](docs/renderer.md), [docs/ui-scaling.md](docs/ui-scaling.md) |
 | 8 km city tiles (an experiment: such a city cannot be saved yet) | `[improvements] big_cities = on` | [docs/city-size.md](docs/city-size.md) |
 | Buildings keep their occupants when a wealthier group wants in; it changes how cities grow (after sc4-no-kick-out by Nicholas Hayes, MIT License) | on (`game.no_kickout = original` turns it off) | [docs/no-kickout.md](docs/no-kickout.md) |
 | No demolition animation, no smoke when a lot is placed, no sounds from road and rail construction crews: three options, each off until turned on (after sc4-disable-demolition-animation, sc4-disable-lot-plop-smoke and sc4-disable-network-construction-sounds by Nicholas Hayes, MIT License) | `game.quiet.demolish = ours`, `game.quiet.plop = ours`, `game.quiet.network = ours` | [docs/quiet.md](docs/quiet.md) |

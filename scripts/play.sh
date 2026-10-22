@@ -25,9 +25,6 @@ if [ ! -d "$playenv/Plugins" ]; then
     cat >"$playenv/Plugins/opensc4.ini" <<'EOF'
 ; OpenSC4 settings for scripts/play.sh (see docs/dev-environment.md, "Settings").
 
-[replacements]
-renderer.d3d11 = ours   ; OpenSC4's Direct3D 11 driver
-
 [renderer]
 scale = 1.5             ; interface drawn 1.5 times as big (1 to 4); the city keeps its size
 resolution = desktop    ; or WxH in screen pixels, e.g. 2560x1440
