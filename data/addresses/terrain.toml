@@ -919,6 +919,222 @@ expect = "83 EC 30 53 56 8B 74 24"
 source = "Name ours. (vector of overlay indices out): the overlays in the buckets (+0xF0, cells >> +0xE4) that the terrain view's rows in view (0x00752820) touch, each once by a stamp (+0xE0, the overlay's +0xA) (docs/renderer.md, \"The overlays\")."
 
 [[entry]]
+name = "cSC4OverlayManager::QueryInterface"
+address = 0x00735260
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 3D 44 65 5D"
+source = "Slot 0 of the main vtable 0x00AB39E8, (iid, out), ret 8: the interface 0x895D6544 is the object itself (AddRef'd, AL 1); anything else goes to cRZBaseUnknown::QueryInterface1 with this + 8. Ours in renderer.overlays.manage1 (src/core/overlay_manage_1.cpp)."
+
+[[entry]]
+name = "cSC4OverlayManager::GetStatsString"
+address = 0x007352A0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 8B 10 56 8B"
+source = "Slot 27, (cIGZString*), ret 4: '%d decals, %d shadows' with the last draw's counts (+0xD8, +0xDC) through the string's Sprintf (slot 0x6C). Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::DecalMoved"
+address = 0x007352D0
+kind = "function"
+convention = "cdecl"
+expect = "8B 4C 24 04 D9 01 8B 54"
+source = "Name ours. (float[2] a, float[2] b): true when a differs from b by 1e-4 (0x00AB3910) or more on either axis, the differences on the x87. Called by MoveDecal only. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::CellRect"
+address = 0x00735380
+kind = "function"
+convention = "cdecl"
+expect = "56 8B 74 24 08 D9 06 D9"
+source = "Name ours. (float[4] x0 z0 x1 z1 in cells, int32[4] out): the cells covered: the low corner v - 0.5 rounded (by adding 1.5 * 2^23 and reading the float's bits), one more when v is that integer; the high corner v + 0.5 rounded, one less when v is that integer. Called by the decal builders 0x0073A1B0 and 0x007394B0. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::DoMessage"
+address = 0x00736100
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 8B"
+source = "Name ours. Slot 3 of the message target vtable 0x00AB39A8 (this = the manager + 0x10), ret 4: on message 0xC9F775BB the manager's +0x18, +0x1C and the byte +0x20 read again from the object at 0x00B43CC4 (its +0x18's +0x1FC and +0xBC, its +0xC's +0x37C), as the set-up does. True. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::FreeHandle"
+address = 0x00736210
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 56 8B 31 8D"
+source = "Name ours. (index), ret 4, this = the handles' vector (the manager + 0xAC): a handle in use (-1 at +0) put at the end of the free list (+0xC first, +0x10 last). Called by RemoveOverlay only. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::DecalInfo"
+address = 0x00736490
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 74"
+source = "Slot 14, (id, out), ret 8: a handle's decal description (nine values at +4) into out; nothing for -1 or an overlay's index. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::SetOverlayFlags"
+address = 0x007364F0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 56"
+source = "Slot 20, (id, flags), ret 8: with bit 0 set, the overlay's flag 0x40 set (never cleared here; no redraw); a handle with a group passes the call to the group's eight IDs. Not a function in Ghidra's analysis. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::OverlayIsEnabled"
+address = 0x00736580
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 75"
+source = "Slot 22, (id), ret 4: flag 1 of the overlay (a handle's target, a group's first ID); -1 clears AL only. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::OverlayAlpha"
+address = 0x007365E0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 75"
+source = "Slot 23, (id), ret 4: the alpha (+0x9C) in ST0, 0 for -1. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::OverlayColor"
+address = 0x00736640
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 08 83 F8 FF 75"
+source = "Slot 24, (out float[3], id), ret 8: the colour (+0xA0) by value, (0, 0, 0) for -1; EAX out. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::OverlayDrawMode"
+address = 0x007366C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 75"
+source = "Slot 25, (id), ret 4: the draw mode byte (+8, the index of its render state), 0 for -1. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::OverlayFlags"
+address = 0x00736720
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 83 FA FF 75"
+source = "Slot 26, (id), ret 4: flag 0x40 of the overlay as 0 or 1, 0 for -1. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::Invalidate"
+address = 0x00737D40
+kind = "function"
+convention = "thiscall"
+expect = "8B 54 24 04 69 D2 B4 00"
+source = "Name ours. (index), ret 4: the terrain (+0x88) redraws the overlay's cells (slot 0x110 with 0, the byte +0x16, the rectangle and 0) unless they are empty. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::SetOverlayEnabled"
+address = 0x00737E50
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 56"
+source = "Slot 16, (id, bool), ret 8: flag 1 set or cleared, redrawn unless +0x15; a handle with a group passes the call to the group's eight IDs. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::SetOverlayAlpha"
+address = 0x00737F00
+kind = "function"
+convention = "thiscall"
+expect = "56 8B F1 8B 4C 24 08 83"
+source = "Slot 17, (id, alpha), ret 8: with +0x15 kept as it is; else a new value is kept and redrawn only when it is 0, 1 or differs by more than 0.05 (0x00AB39A0). Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::SetOverlayColor"
+address = 0x00738010
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 56"
+source = "Slot 18, (id, float[3]), ret 8: the colour (+0xA0), redrawn unless +0x15. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::SetOverlayDrawMode"
+address = 0x007380C0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 56"
+source = "Slot 19, (id, byte), ret 8: the draw mode (+8), redrawn unless +0x15. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::SetHeightMapParams"
+address = 0x00738160
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 56 8B 74 24 18"
+source = "Slot 21, (id, scale, offset), ret 0xC: flag 0x20 and the texture matrix at +0x1C: 1/scale, -1/scale, 1/scale and 1 on the diagonal, 1/scale * offset + 1 at [13] (the x87 keeps 1/scale unrounded); redrawn unless +0x15. A handle's target taken as it is. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::BucketInsert"
+address = 0x00738230
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 53 8B D9 8B 8B"
+source = "Name ours. (index, int32[4] cells), ret 8: the overlay put at the front of each bucket the cells touch (+0xF0, cells >> +0xE4, +0xE8 a row), column by column, nodes {next, index} from 0x0090CF54. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::BucketRemove"
+address = 0x007382E0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 08 8B 54 24 10 53"
+source = "Name ours. (index, int32[4] cells), ret 8: the overlay's nodes taken out of each bucket the cells touch, row by row, and freed (0x0090CF63). Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::RemoveOverlay"
+address = 0x007388C0
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 83 FF"
+source = "Slot 15, (id), ret 4: a handle freed (0x00736210) and its target removed: a group's eight IDs each through the slot, then the group freed (+0xCC, +0xD0); an overlay out of its buckets and redrawn unless +0x15, then freed (+0xA4, +0xA8). Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::Place"
+address = 0x00738A10
+kind = "function"
+convention = "thiscall"
+expect = "56 57 8B 7C 24 0C 83 FF"
+source = "Name ours. (index), ret 4: unless -1 or +0x15, the overlay put into its buckets and redrawn. Called by AddShadowDecal (0x0073B3B0). Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::SetCells"
+address = 0x007393B0
+kind = "function"
+convention = "thiscall"
+expect = "83 EC 10 53 8B 5C 24 18"
+source = "Name ours. (index, int32[4] cells), ret 8: the cells cut to the terrain (SC4Rect::Intersect with +0x78); when that changes the overlay's, it leaves its buckets, is redrawn, takes them and goes into the new buckets; redrawn at the end either way. Called by the decal builders 0x007394B0 and 0x0073A1B0. Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::BuildDecal"
+address = 0x0073A1B0
+kind = "function"
+convention = "thiscall"
+expect = "81 EC F4 00 00 00 53 55"
+source = "Name ours, not analysed. (handle, bool buckets), ret 8: builds a decal's overlay or overlays from the handle's description (the texture matrix, the cells through 0x00735380, 0x007394B0 and SetCells). 2,769 bytes. Called by address from src/core/overlay_manage_1.cpp (MoveDecal, UpdateDecalInfo)."
+
+[[entry]]
+name = "cSC4OverlayManager::MoveDecal"
+address = 0x0073AD80
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 53"
+source = "Slot 12, (id, float[2]), ret 8: a handle's centre moved when it moved (0x007352D0) and the decal built again (0x0073A1B0 with whether +0x15 is clear). Ours in renderer.overlays.manage1."
+
+[[entry]]
+name = "cSC4OverlayManager::UpdateDecalInfo"
+address = 0x0073ADE0
+kind = "function"
+convention = "thiscall"
+expect = "8B 44 24 04 83 F8 FF 74"
+source = "Slot 13, (id, nine values), ret 8: a handle's description replaced and the decal built again (a tail jump to 0x0073A1B0). Ours in renderer.overlays.manage1."
+
+[[entry]]
 name = "STE::DynamicBuffersFor"
 address = 0x0075CD40
 kind = "function"
