@@ -48,10 +48,12 @@ export OPENSC4_TEST_QUICK="${OPENSC4_TEST_QUICK:-1}"
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 base="determinism.fixed_seed=ours,determinism.virtual_clock=ours,determinism.fixed_ticks=ours,determinism.agent_order=ours,determinism.zero_alloc=ours,determinism.sim_timers=ours,determinism.lights_at_once=ours,determinism.dispatch_info=ours,resources.stale_record_fix=ours"
-# Improvements on by default that change the game by themselves are turned
-# off, so both runs play classic SC4 (game.date_sync: docs/date-sync.md;
-# fixes.travel_jobs: docs/citylot.md; fixes.playlist_last_line: docs/audio.md).
-base="$base,game.date_sync=original,fixes.travel_jobs=original,fixes.playlist_last_line=original"
+# Improvements on by default that change the game by themselves, and the
+# fixes of the original's bugs (always on for players), are turned off, so
+# both runs play classic SC4 (game.date_sync: docs/date-sync.md; fixes.*:
+# README, "Original bugs fixed"). resources.stale_record_fix stays on (above):
+# the crash it fixes would cost pairs.
+base="$base,game.date_sync=original,fixes.*=original"
 # Parallel jobs: several copies of the game at once (harness.multi_instance
 # lets them start; run-autotest.sh then kills only its own on a timeout).
 if [ "$jobs" != 1 ]; then
@@ -73,7 +75,9 @@ for side in a b; do
     # game.no_kickout is on by default and changes the simulation: each side
     # runs it as the original unless its list names it (docs/no-kickout.md).
     case "$list" in *game.no_kickout=*) ;; *) list="$list,game.no_kickout=original" ;; esac
-    { echo "[replacements]"; echo "$list" | tr ',' '\n'; } >"$out/$side.ini"
+    # [test_replacements]: the harness's section, the one that also reaches
+    # the fixes (src/core/registry.h).
+    { echo "[test_replacements]"; echo "$list" | tr ',' '\n'; } >"$out/$side.ini"
 done
 
 pause() { [ "$1" -gt 0 ] || return 0; timeout "$1" bash -c 'while :; do sleep 1; done' || true; }

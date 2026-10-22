@@ -55,6 +55,8 @@ const bool g_registered = registry::Register({
     "Keeps GZCOM plugin DLLs loaded until the game exits, so shutdown cannot call into an unloaded DLL",
     false,
     Apply,
+    true,
+    true, // a fix of the original's bug: always on (registry.h)
 });
 
 } // namespace

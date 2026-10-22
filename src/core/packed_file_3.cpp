@@ -1,5 +1,6 @@
 // The framework's packed file, cGZDBSegmentPackedFile (docs/resources.md),
-// read side, part 3: 0x0096FB0F to 0x009710F2. Replacements, off by default:
+// read side, part 3: 0x0096FB0F to 0x009710F2. Replacements, off by default
+// (resources.stale_record_fix, a fix of the original's bug, is always on):
 //
 //   resources.packed_file.part3: checking the index against the file's
 //     length, reading the holes table, reading a compressed record into a
@@ -681,6 +682,8 @@ const bool g_staleRecordFixRegistered = registry::Register({
     "Fixes the game's crash at 0x0096DA20: a read-open skips a closed record left in the segment's open map",
     false,
     InstallStaleRecordFix,
+    true,
+    true, // a fix of the original's bug: always on (registry.h)
 });
 
 } // namespace

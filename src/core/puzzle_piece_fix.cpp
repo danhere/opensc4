@@ -82,6 +82,8 @@ const bool g_registered = registry::Register({
     "Fixes the crash when a puzzle piece is held over a transit-enabled lot (network solver with no entry)",
     false,
     Apply,
+    true,
+    true, // a fix of the original's bug: always on (registry.h)
 });
 
 } // namespace

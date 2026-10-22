@@ -75,17 +75,15 @@ Things OpenSC4 adds to the game. Classic behaviour stays: an addition that chang
 
 ## Original bugs fixed
 
-Bugs in the original game that OpenSC4 fixes, for the changelog. A fix marked "on" runs by default and `<id> = original` in `opensc4.ini` brings the original behaviour back (the parity tests do that); the others are off until set to `ours`.
+Bugs in the original game that OpenSC4 fixes. The fixes are part of the game: always on, with no setting.
 
-| Bug in the original | Fix | Details |
-|---|---|---|
-| The game hangs when a music playlist's last line has no line break | on (`fixes.playlist_last_line = original` turns it off) | [docs/audio.md](docs/audio.md#the-playlist-hang) |
-| Lots skip their $$ and $$$ jobs when the count is close to their $ jobs, so high-tech industry gets no $$$ jobs | on (`fixes.travel_jobs = original` turns it off) | [docs/citylot.md](docs/citylot.md#travel-jobs-the-games-bug-and-the-fix) |
-| Crash when a puzzle piece is held over a transit-enabled lot | `fixes.puzzle_piece = ours` | [docs/crashes.md](docs/crashes.md#puzzle-piece-over-a-transit-enabled-lot) |
-| Crash on exit with plugin DLLs | `fixes.pin_plugin_dlls = ours` | [docs/crashes.md](docs/crashes.md#crash-on-exit-with-plugin-dlls) |
-| Crash on multicore machines | `fixes.single_core = ours` | [docs/crashes.md](docs/crashes.md#multicore-crash) |
-| Rare crash reopening a closed record while a city loads | `resources.stale_record_fix = ours` | [docs/crashes.md](docs/crashes.md#0x0096da20-reopening-a-closed-record) |
-| The message server's cancel of a target's posts walks with a stale position (it can skip a post or run past the queue's end) | `fixes.message_cancel = ours` | [docs/framework.md](docs/framework.md) |
+- The game hangs when a music playlist's last line has no line break ([docs/audio.md](docs/audio.md#the-playlist-hang))
+- Lots skip their $$ and $$$ jobs when the count is close to their $ jobs, so high-tech industry gets no $$$ jobs ([docs/citylot.md](docs/citylot.md#travel-jobs-the-games-bug-and-the-fix))
+- Crash when a puzzle piece is held over a transit-enabled lot ([docs/crashes.md](docs/crashes.md#puzzle-piece-over-a-transit-enabled-lot))
+- Crash on exit with plugin DLLs ([docs/crashes.md](docs/crashes.md#crash-on-exit-with-plugin-dlls))
+- Crash on multicore machines ([docs/crashes.md](docs/crashes.md#multicore-crash))
+- Rare crash reopening a closed record while a city loads ([docs/crashes.md](docs/crashes.md#0x0096da20-reopening-a-closed-record))
+- The message server's cancel of a target's posts walks with a stale position, so it can skip a post or run past the queue's end ([docs/framework.md](docs/framework.md))
 
 ## Documents
 

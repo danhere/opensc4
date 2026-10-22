@@ -55,6 +55,8 @@ const bool g_registered = registry::Register({
     "Runs the game on one CPU core, the community's fix for the multicore crash",
     false,
     Apply,
+    true,
+    true, // a fix of the original's bug: always on (registry.h)
 });
 
 } // namespace
