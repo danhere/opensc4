@@ -32,6 +32,11 @@
 // called from 0x00875337), the string, file and path code, the strings'
 // copy_backward 0x005C82C0 and an entry's two strings destroyed 0x0091C947
 // (both shared).
+//
+// Fix, on by default:
+//
+//   fixes.playlist_last_line: the line reader 0x008D6258 alone (ours), taking
+//   a last line with no line break off the text, where the game hung.
 #include "core/address_check.h"
 #include "core/fixed_seed.h"
 #include "core/game.h"
@@ -908,8 +913,12 @@ uint8_t __fastcall ResolvePath(void* self, void*, void* folder, void* name, void
 // The game's 0x008D6258 (ret 8): the next line of `text` into `out`: the
 // white space before it (" \t\n\r") and the line taken off the text, the
 // line ending at the first "\n" or "\r", trimmed and converted (code page
-// -1). Kept: a last line with no line break is not taken off the text, so
-// every later call reads it again.
+// -1). The game's bug: a last line with no line break is not taken off the
+// text, so every later call reads it again and the reader never ends (the
+// game hangs). Fixed when fixes.playlist_last_line is on: that line is taken
+// off too.
+bool g_fixLastLine = false;
+
 uint8_t __fastcall ReadLine(void* self, void*, void* text, void* out)
 {
     OPENSC4_FIRST("ReadLine");
@@ -931,6 +940,8 @@ uint8_t __fastcall ReadLine(void* self, void*, void* text, void* out)
         Virtual<uint32_t>(text, slot::kErase, uint32_t{0}, place);
     } else {
         Assign(out, text);
+        if (g_fixLastLine)
+            Virtual<uint32_t>(text, slot::kErase, uint32_t{0}, Virtual<uint32_t>(text, slot::kLength));
     }
     This<void>(addr::cRZBaseString_Trim, out);
     Cdecl<void>(addr::RZ_ConvertStringEncoding, out, kAll, out);
@@ -1202,11 +1213,24 @@ uint8_t __fastcall Read(Reader* self, void*, void* path)
 
 #undef OPENSC4_FIRST
 
+// Our 0x008D6258, installed once for whichever of audio.music.part4 and
+// fixes.playlist_last_line comes first.
+bool InstallReadLine()
+{
+    static bool installed = false;
+    static void* original = nullptr;
+    if (installed)
+        return true;
+    const addr::Entry* const found = addr_check::Find(addr::GZPlaylistReader_ReadLine);
+    installed = found && hook::Install(*found, reinterpret_cast<void*>(&ReadLine), &original);
+    return installed;
+}
+
 bool InstallMusic4(registry::Mode)
 {
     if (!game::IsBuild641())
         return false;
-    static void* originals[49] = {};
+    static void* originals[48] = {};
     static const std::pair<std::uintptr_t, void*> hooks[] = {
         {addr::GZPlaylistEntry_Copy, reinterpret_cast<void*>(&CopyEntry)},
         {addr::GZFileTimeSort_Newer, reinterpret_cast<void*>(&Newer)},
@@ -1249,7 +1273,6 @@ bool InstallMusic4(registry::Mode)
         {addr::GZPlaylistEntry_Construct, reinterpret_cast<void*>(&ConstructEntry)},
         {addr::GZPlaylistReader_AddPart, reinterpret_cast<void*>(&AddPart)},
         {addr::GZPlaylistEntries_FillInto, reinterpret_cast<void*>(&FillInto)},
-        {addr::GZPlaylistReader_ReadLine, reinterpret_cast<void*>(&ReadLine)},
         {addr::GZPlaylistReader_ResolvePath, reinterpret_cast<void*>(&ResolvePath)},
         {addr::GZPlaylistEntries_InsertGrown, reinterpret_cast<void*>(&InsertGrown)},
         {addr::GZPlaylistEntries_PushBack, reinterpret_cast<void*>(&PushBack)},
@@ -1265,7 +1288,21 @@ bool InstallMusic4(registry::Mode)
         if (!found || !hook::Install(*found, hooks[i].second, &originals[i]))
             return false;
     }
-    return true;
+    return InstallReadLine();
+}
+
+// fixes.playlist_last_line: our 0x008D6258 alone, taking a last line with no
+// line break off the text (docs/audio.md, "The playlist hang").
+bool InstallLastLineFix(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    g_fixLastLine = true;
+    const bool ok = InstallReadLine();
+    log::Write("playlist last line fix: %s", ok ? "on" : "NOT installed");
+    if (!ok)
+        g_fixLastLine = false;
+    return ok;
 }
 
 const bool g_music4Registered = registry::Register({
@@ -1277,6 +1314,18 @@ const bool g_music4Registered = registry::Register({
     "Our music player's playlist reader (.m3u, .pls), its entries and the sort of names by file time (docs/audio.md)",
     false,
     InstallMusic4,
+});
+
+const bool g_lastLineFixRegistered = registry::Register({
+    "fixes.playlist_last_line",
+    "fixes",
+    registry::Kind::Detour,
+    registry::Phase::Attach,
+    addr::GZPlaylistReader_ReadLine,
+    "A playlist whose last line has no line break is read to its end (the game read that line forever and hung)",
+    false,
+    InstallLastLineFix,
+    true, // a fix, on unless turned off
 });
 
 } // namespace
