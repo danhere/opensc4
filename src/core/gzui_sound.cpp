@@ -9,7 +9,7 @@
 //                             destructor
 //   framework.sound.instance  the sound instance 0xBDD9D7A5 (vtables
 //                             0x00AD48A0 and 0x00AD487C): constructors,
-//                             AddRef, Release, QueryInterface, destructors,
+//                             Release, QueryInterface, destructors,
 //                             the level, Update, Start, Stop, Place, the
 //                             setters, and the hex digit test its slot 5
 //                             uses
@@ -19,8 +19,9 @@
 //                             setters of its own
 //
 // Still the game's: the thunk 0x00945785, the base QueryInterface
-// 0x009457C6, the adjustors 0x009459A7, 0x009459AF, 0x009459B7 and
-// 0x00945C64, the two-instruction getters (0x0094595C, 0x00945E3B,
+// 0x009457C6, the instance's AddRef 0x00945942 (five other vtables hold
+// it), the adjustors 0x009459A7, 0x009459AF, 0x009459B7 and 0x00945C64,
+// the two-instruction getters (0x0094595C, 0x00945E3B,
 // 0x00945E3F, 0x00945E43), the setters other classes' vtables share
 // (0x00945E47, 0x00945EAC, 0x00945ED0, 0x00945EDC), and the string, list
 // and reference holder code these classes call by address. Ours call each
@@ -361,13 +362,6 @@ char* __fastcall InstanceConstruct(char* self, void*)
 {
     OPENSC4_FIRST("InstanceConstruct");
     return InstanceInit(self, nullptr);
-}
-
-// The game's 0x00945942 (slot 1).
-uint32_t __fastcall InstanceAddRef(char* self, void*)
-{
-    OPENSC4_FIRST("InstanceAddRef");
-    return ++At<uint32_t>(self, kCount);
 }
 
 // The game's 0x009457E1 (through the adjustor 0x009459AF): the last one
@@ -801,7 +795,6 @@ OPENSC4_THUNK(TableDestructThunk, TableDestruct, 0)
 
 OPENSC4_THUNK(InstanceConstructOwnedThunk, InstanceConstructOwned, 4)
 OPENSC4_THUNK(InstanceConstructThunk, InstanceConstruct, 0)
-OPENSC4_THUNK(InstanceAddRefThunk, InstanceAddRef, 0)
 OPENSC4_THUNK(InstanceReleaseThunk, InstanceRelease, 0)
 OPENSC4_THUNK(InstanceQueryInterfaceThunk, InstanceQueryInterface, 8)
 OPENSC4_THUNK(InstanceComputeLevelThunk, InstanceComputeLevel, 0)
@@ -869,7 +862,6 @@ bool InstallInstance(registry::Mode)
     const Detour detours[] = {
         {addr::cGZSoundInstance_ConstructOwned, &InstanceConstructOwnedThunk},
         {addr::cGZSoundInstance_Construct, &InstanceConstructThunk},
-        {addr::cGZSoundInstance_AddRef, &InstanceAddRefThunk},
         {addr::cGZSoundInstance_Release, &InstanceReleaseThunk},
         {addr::cGZSoundInstance_QueryInterface, &InstanceQueryInterfaceThunk},
         {addr::cGZSoundInstance_ComputeLevel, &InstanceComputeLevelThunk},
@@ -930,8 +922,8 @@ const bool g_registered[] = {
                         false, InstallTable}),
     registry::Register({"framework.sound.instance", "framework/sound", registry::Kind::Detour,
                         registry::Phase::Attach, addr::cGZSoundInstance_Update,
-                        "Our framework sound instance 0xBDD9D7A5: constructors, AddRef, Release, QueryInterface, "
-                        "destructors, the level, Update, Start, Stop, Place, the setters and the hex digit test (22 "
+                        "Our framework sound instance 0xBDD9D7A5: constructors, Release, QueryInterface, "
+                        "destructors, the level, Update, Start, Stop, Place, the setters and the hex digit test (21 "
                         "detours; part u5, docs/gzui.md)",
                         false, InstallInstance}),
     registry::Register({"framework.sound.desc", "framework/sound", registry::Kind::Detour, registry::Phase::Attach,

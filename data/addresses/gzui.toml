@@ -2466,7 +2466,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint32_t (void* this)"
 expect = "8B 41 04 83 F8 01 77 0A"
-source = "Name ours. Slot 2. The count at +4: at 1 or below, slot 4 (the deleting destructor 0x0094601D) with 1 and 0; else one less, answered. Ours in framework.sound.table (docs/gzui.md, part u5)."
+source = "Name ours. Slot 2. The count at +4: at 1 or below, slot 4 (the deleting destructor 0x0094601D) called with 1, answering 0; else one less, answered. Ours in framework.sound.table (docs/gzui.md, part u5)."
 
 [[entry]]
 name = "cGZSoundTable::Destruct"
@@ -2500,7 +2500,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint32_t (void* this)"
 expect = "FF 41 14 8B 41 14 C3 33"
-source = "Name ours. Slot 1 (7 bytes; not in Ghidra's function list): the count at +0x14 one more, answered. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+source = "Name ours. Slot 1 (7 bytes; not in Ghidra's function list): the count at +0x14 one more, answered. The vtables 0x00AADA68, 0x00AC2A6C, 0x00ACE534, 0x00ACE580 and 0x00ACE5B4 hold it too. Shared with other classes' vtables; stays the game's."
 
 [[entry]]
 name = "cGZSoundInstance::Release"
@@ -2509,7 +2509,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint32_t (void* this)"
 expect = "8B 41 14 83 F8 01 77 0D"
-source = "Name ours. Through the adjustor 0x009459AF (slot 2 of the part at +4). The count at +0x14: at 1 or below, the part at +4's slot 7 (0x009459B7, the deleting destructor) with 1 and 0; else one less, answered. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+source = "Name ours. Through the adjustor 0x009459AF (slot 2 of the part at +4). The count at +0x14: at 1 or below, the part at +4's slot 7 (0x009459B7, the deleting destructor) called with 1, answering 0; else one less, answered. Ours in framework.sound.instance (docs/gzui.md, part u5)."
 
 [[entry]]
 name = "cGZSoundInstance::QueryInterface"
@@ -2626,7 +2626,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "55 8B EC 83 EC 18 53 56"
-source = "Name ours. Slot 14. With a description: the byte 0x00B6349D forces its +0x31; the side x = (+0x28 - 0x200) / 512 and y = (+0x2C - 0x200) / 512; with +0x31 set, a centred x and y become a corner (the service's generator +0x10, two bits, or 0x00B634A0 when the byte 0x00B6349C is set; other values keep y), else a centred one a random sign. The buffer's interface 0x306077D2 (not checked for null) gets (x * 100, 0, y * 100) as floats by its slot 5, then is released. No buffer check either. Ours in framework.sound.instance (docs/gzui.md, part u5)."
+source = "Name ours. Slot 14. With a description: the byte 0x00B6349D forces its +0x31; the side x = (+0x28 - 0x200) / 512 and y = (+0x2C - 0x200) / 512; with +0x31 set, a centred x and y become a corner (the service's generator +0x10, two bits, or 0x00B634A0 when the byte 0x00B6349C is set; a value past 3 keeps both), else a centred one a random sign. The buffer's interface 0x306077D2 (not checked for null) gets (x * 100, 0, y * 100) as floats by its slot 5, then is released. No buffer check either. Ours in framework.sound.instance (docs/gzui.md, part u5)."
 
 [[entry]]
 name = "cGZSoundInstance::Restart"
