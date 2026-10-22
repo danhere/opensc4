@@ -1,7 +1,7 @@
 // The GZ framework UI layer's part of the autotest (src/core/autotest_hooks.h,
 // docs/gzui.md): the property set test (OPENSC4_TEST_PROPSETS, part u1) and
 // the readers, writers and factory test (OPENSC4_TEST_PROPIO, parts u2,
-// u2b and u3).
+// u2b and u3) and the UI file parser test (OPENSC4_TEST_XMLPARSE, part u4).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -10,8 +10,10 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iterator>
+#include <process.h>
 #include <string>
 #include <vector>
 
@@ -2054,6 +2056,721 @@ void PioFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kPioFingerprint{"propio", 4, &PioFingerprint};
 const DayHook kPioDrive{"propio", 4, &DrivePropio};
+
+// ====================================================================================
+// Part u4: the UI file parser 0xBA2E7953, its variable table 0xBA2E7954 and
+// the directors (OPENSC4_TEST_XMLPARSE)
+
+bool g_xpOn = false;
+uint32_t g_xpHash = 2166136261u;
+
+void XpStage(const char* name) { log::Write("autotest: xmlparse: %s %08X", name, g_xpHash); }
+
+// A game string on the stack made from a C string, destroyed at the end.
+struct GameText {
+    alignas(4) char bytes[0x14];
+    explicit GameText(const char* text) { CallThis<void*>(addr::SC4String_FromText, bytes, text); }
+    ~GameText() { CallThis<void>(addr::SC4String_Destroy, bytes); }
+    GameText(const GameText&) = delete;
+    GameText& operator=(const GameText&) = delete;
+    void* get() { return bytes; }
+};
+
+uint32_t XpRelease(void* object) { return Virtual<uint32_t>(object, 0x8); }
+
+// A script value (0x14 bytes): its words at +0xC and +0xE (the type), and
+// its data: a text's characters, an array's count, else the dword at +4.
+void MixScriptValue(void* value)
+{
+    if (!value) {
+        Mix(0xFFFFFFFFu);
+        return;
+    }
+    const uint16_t type = At<uint16_t>(value, 0xE);
+    Mix(At<uint16_t>(value, 0xC));
+    Mix(type);
+    Mix(At<uint32_t>(value, 0x8));
+    if (type & 0x8000) {
+        const uint32_t count = At<uint32_t>(value, 0x10);
+        Mix(count);
+        const char* const data = At<const char*>(value, 0x4);
+        if (type == 0x800E && data)
+            Mix(BytesChecksum(data, count));
+    } else {
+        Mix(At<uint32_t>(value, 0x4));
+    }
+}
+
+void* NumberValue(uint32_t number)
+{
+    void* const memory = New(0x14);
+    return CallThis<void*>(addr::SC4ScriptNumber_FromUint, memory, number);
+}
+
+void* TextValue(const char* text)
+{
+    GameText string(text);
+    void* const memory = New(0x14);
+    return CallThis<void*>(addr::SC4ScriptNumber_FromString, memory, string.get());
+}
+
+// A listener as the UI script tree is one: slots 3 to 5 the document's
+// start, end and text; its interface 0x1A2BDEB9 a tag's start (3), the end
+// of the start tag (4) and an attribute (5); 0x1A2BDEBA the attribute list
+// at the end of the start tag (3). Each can be refused. Every event goes
+// into the hash.
+struct FakeListener;
+struct FakeEvents {
+    void* const* vtable;
+    FakeListener* owner;
+};
+struct FakeListener {
+    void* const* vtable;
+    FakeEvents tags;
+    FakeEvents attributes;
+    int32_t refs;
+    int32_t tagRefs;
+    int32_t attributeRefs;
+    bool offerTags;
+    bool offerAttributes;
+    void* parser;
+    uint32_t events;
+};
+
+void MixParser(FakeListener* self, void* parser)
+{
+    ++self->events;
+    Mix(parser == self->parser ? 1u : 0u);
+}
+
+uint32_t __fastcall ListenerQueryInterface(FakeListener* self, void*, uint32_t iid, void** out)
+{
+    Mix(0x5100);
+    Mix(iid);
+    if (iid == 0x1A2BDEB9 && self->offerTags) {
+        *out = &self->tags;
+        ++self->tagRefs;
+        return 1;
+    }
+    if (iid == 0x1A2BDEBA && self->offerAttributes) {
+        *out = &self->attributes;
+        ++self->attributeRefs;
+        return 1;
+    }
+    if (iid == 1) {
+        *out = self;
+        ++self->refs;
+        return 1;
+    }
+    return 0;
+}
+uint32_t __fastcall ListenerAddRef(FakeListener* self, void*) { return static_cast<uint32_t>(++self->refs); }
+uint32_t __fastcall ListenerRelease(FakeListener* self, void*) { return static_cast<uint32_t>(--self->refs); }
+uint32_t __fastcall ListenerStart(FakeListener* self, void*, void* parser)
+{
+    Mix(0x5103);
+    MixParser(self, parser);
+    return 0x00510300u;
+}
+uint32_t __fastcall ListenerEnd(FakeListener* self, void*, void* parser, uint32_t done)
+{
+    Mix(0x5104);
+    MixParser(self, parser);
+    Mix(done);
+    return 0x00510400u;
+}
+uint32_t __fastcall ListenerText(FakeListener* self, void*, void* parser, void* text)
+{
+    Mix(0x5105);
+    MixParser(self, parser);
+    MixString(text);
+    return 0x00510500u;
+}
+uint32_t __fastcall EventsAddRef(FakeEvents* self, void*)
+{
+    int32_t& refs = self == &self->owner->tags ? self->owner->tagRefs : self->owner->attributeRefs;
+    return static_cast<uint32_t>(++refs);
+}
+uint32_t __fastcall EventsRelease(FakeEvents* self, void*)
+{
+    int32_t& refs = self == &self->owner->tags ? self->owner->tagRefs : self->owner->attributeRefs;
+    return static_cast<uint32_t>(--refs);
+}
+uint32_t __fastcall EventsTrap(FakeEvents*, void*)
+{
+    log::Write("autotest: xmlparse: unexpected events slot");
+    Mix(0xDEAD);
+    return 0;
+}
+uint32_t __fastcall TagBegin(FakeEvents* self, void*, void* parser, uint32_t tag)
+{
+    Mix(0x5203);
+    MixParser(self->owner, parser);
+    Mix(tag);
+    return 0x00520300u;
+}
+uint32_t __fastcall TagEndStart(FakeEvents* self, void*, void* parser, uint32_t tag)
+{
+    Mix(0x5204);
+    MixParser(self->owner, parser);
+    Mix(tag);
+    return 0x00520400u;
+}
+uint32_t __fastcall TagAttribute(FakeEvents* self, void*, void* parser, uint32_t name, void* value)
+{
+    Mix(0x5205);
+    MixParser(self->owner, parser);
+    Mix(name);
+    MixScriptValue(value);
+    return 0x00520500u;
+}
+uint32_t __fastcall AttributeList(FakeEvents* self, void*, void* parser, uint32_t tag, void* list)
+{
+    Mix(0x5303);
+    MixParser(self->owner, parser);
+    Mix(tag);
+    const uint32_t* const begin = At<const uint32_t*>(list, 0);
+    const uint32_t* const end = At<const uint32_t*>(list, 4);
+    Mix(static_cast<uint32_t>(end - begin));
+    for (const uint32_t* pair = begin; pair != end; pair += 2) {
+        Mix(pair[0]);
+        MixScriptValue(reinterpret_cast<void*>(static_cast<std::uintptr_t>(pair[1])));
+    }
+    return 0x00530300u;
+}
+
+struct ListenerVtables {
+    void* main[6];
+    void* tags[6];
+    void* attributes[4];
+    ListenerVtables()
+        : main{reinterpret_cast<void*>(&ListenerQueryInterface), reinterpret_cast<void*>(&ListenerAddRef),
+               reinterpret_cast<void*>(&ListenerRelease),        reinterpret_cast<void*>(&ListenerStart),
+               reinterpret_cast<void*>(&ListenerEnd),            reinterpret_cast<void*>(&ListenerText)},
+          tags{reinterpret_cast<void*>(&EventsTrap),    reinterpret_cast<void*>(&EventsAddRef),
+               reinterpret_cast<void*>(&EventsRelease), reinterpret_cast<void*>(&TagBegin),
+               reinterpret_cast<void*>(&TagEndStart),   reinterpret_cast<void*>(&TagAttribute)},
+          attributes{reinterpret_cast<void*>(&EventsTrap), reinterpret_cast<void*>(&EventsAddRef),
+                     reinterpret_cast<void*>(&EventsRelease), reinterpret_cast<void*>(&AttributeList)}
+    {
+    }
+};
+
+const ListenerVtables& Listeners()
+{
+    static const ListenerVtables vtables;
+    return vtables;
+}
+
+void InitListener(FakeListener& listener, void* parser, bool tags, bool attributes)
+{
+    listener.vtable = Listeners().main;
+    listener.tags = {Listeners().tags, &listener};
+    listener.attributes = {Listeners().attributes, &listener};
+    listener.refs = listener.tagRefs = listener.attributeRefs = 0;
+    listener.offerTags = tags;
+    listener.offerAttributes = attributes;
+    listener.parser = parser;
+    listener.events = 0;
+}
+
+void MixRefs(const FakeListener& listener)
+{
+    Mix(static_cast<uint32_t>(listener.refs));
+    Mix(static_cast<uint32_t>(listener.tagRefs));
+    Mix(static_cast<uint32_t>(listener.attributeRefs));
+    Mix(listener.events);
+}
+
+// A counted object for SetContext.
+struct FakeCounted {
+    void* const* vtable;
+    int32_t refs;
+};
+uint32_t __fastcall CountedAddRef(FakeCounted* self, void*) { return static_cast<uint32_t>(++self->refs); }
+uint32_t __fastcall CountedRelease(FakeCounted* self, void*) { return static_cast<uint32_t>(--self->refs); }
+void* const kCountedVtable[] = {reinterpret_cast<void*>(&EventsTrap), reinterpret_cast<void*>(&CountedAddRef),
+                                reinterpret_cast<void*>(&CountedRelease)};
+
+char* NewParser()
+{
+    char* const parser = reinterpret_cast<char*(__cdecl*)()>(addr::cGZUIParser_New)();
+    Virtual<uint32_t>(parser, 0x4);
+    return parser;
+}
+
+uint32_t ParserDepth(char* parser) { return static_cast<uint32_t>(At<char*>(parser, 0x18) - At<char*>(parser, 0x14)) >> 2; }
+
+void MixParserState(char* parser, bool started = true)
+{
+    Mix(ParserDepth(parser));
+    Mix(static_cast<uint32_t>(At<char*>(parser, 0x48) - At<char*>(parser, 0x44)) >> 3);
+    Mix(At<uint32_t>(parser, 0x24));
+    Mix(At<uint32_t>(parser, 0x2C) ? 1u : 0u);
+    // The constructor sets neither the open tag's flag nor its number: the
+    // number only once a tag is open, the flag only after a parse started.
+    if (started) {
+        Mix(At<uint8_t>(parser, 0x30));
+        if (At<uint8_t>(parser, 0x30))
+            Mix(At<uint32_t>(parser, 0x34));
+    }
+    Mix(At<uint8_t>(parser, 0x38));
+    Mix(At<uint32_t>(parser, 0x3C));
+    MixScriptValue(At<void*>(parser, 0x40));
+}
+
+// The variable table through its slots and addresses.
+void DriveTable()
+{
+    void* const table = reinterpret_cast<void*(__cdecl*)()>(addr::cGZUIParserVars_New)();
+    Mix(table ? 1u : 0u);
+    Mix(At<uint32_t>(table, 0x4));
+    Virtual<uint32_t>(table, 0x4);
+    for (uint32_t iid : {1u, 0x1A2BDEBBu, 0x1A2BDEBAu, 0x5A2C1570u, 0u}) {
+        void* out = nullptr;
+        const uint32_t eax = Virtual<uint32_t>(table, 0x0, iid, &out);
+        Mix(eax);
+        Mix(out == table ? 1u : 0u);
+        if (out)
+            XpRelease(out);
+    }
+    GameText alpha("alpha"), beta("beta"), empty(""), upper("Alpha"), missing("missing");
+    MixByte(Virtual<uint32_t>(table, 0xC, alpha.get(), 7u));
+    MixByte(Virtual<uint32_t>(table, 0xC, alpha.get(), 8u));
+    MixByte(Virtual<uint32_t>(table, 0xC, empty.get(), 0u));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParserVars_SetNumber, table, upper.get(), 0xFFFFFFFFu));
+    void* const first = NumberValue(0x1234);
+    void* const second = TextValue("second");
+    MixByte(Virtual<uint32_t>(table, 0x10, beta.get(), first));
+    MixScriptValue(first);
+    MixByte(CallThis<uint32_t>(addr::cGZUIParserVars_Set, table, beta.get(), second));
+    MixScriptValue(second);
+    Virtual<void*>(second, 0x1FC, 1u);
+    for (void* name : {alpha.get(), beta.get(), empty.get(), upper.get(), missing.get()}) {
+        void* out = nullptr;
+        MixByte(Virtual<uint32_t>(table, 0x18, name, &out));
+        MixScriptValue(out);
+        if (out)
+            XpRelease(out);
+    }
+    void* out = nullptr;
+    MixByte(CallThis<uint32_t>(addr::cGZUIParserVars_Get, table, alpha.get(), &out));
+    if (out)
+        XpRelease(out);
+    MixByte(Virtual<uint32_t>(table, 0x14, beta.get()));
+    MixByte(Virtual<uint32_t>(table, 0x14, beta.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParserVars_Remove, table, missing.get()));
+    MixByte(Virtual<uint32_t>(table, 0x1C));
+    out = nullptr;
+    MixByte(Virtual<uint32_t>(table, 0x18, alpha.get(), &out));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParserVars_Clear, table));
+    MixByte(Virtual<uint32_t>(table, 0xC, alpha.get(), 9u));
+    MixByte(Virtual<uint32_t>(table, 0x10, beta.get(), NumberValue(10)));
+    Mix(XpRelease(table));
+
+    // One on the stack, by its constructor and destructor; one deleted by
+    // the deleting destructor's address.
+    alignas(4) char local[0x14];
+    Mix(CallThis<char*>(addr::cGZUIParserVars_Construct, local) == local ? 1u : 0u);
+    MixByte(Virtual<uint32_t>(local, 0xC, alpha.get(), 1u));
+    MixByte(Virtual<uint32_t>(local, 0x10, empty.get(), TextValue("x")));
+    CallThis<void>(addr::cGZUIParserVars_Destruct, local);
+    Mix(At<std::uintptr_t>(local, 0) == addr::cGZUIParserVars_Vtable ? 1u : 0u);
+    void* const other = reinterpret_cast<void*(__cdecl*)()>(addr::cGZUIParserVars_New)();
+    MixByte(Virtual<uint32_t>(other, 0xC, beta.get(), 2u));
+    Mix(CallThis<void*>(addr::cGZUIParserVars_DeletingDestructor, other, 1u) == other ? 1u : 0u);
+}
+
+// The parser's stack of tables and its interfaces.
+void DriveStack()
+{
+    char* const parser = NewParser();
+    MixParserState(parser, false);
+    for (uint32_t iid : {1u, 0x5A2C1570u, 0x1A2BDEBBu, 0x5A2C1571u}) {
+        void* out = nullptr;
+        const uint32_t eax = Virtual<uint32_t>(parser, 0x0, iid, &out);
+        Mix(eax & 0xFF);
+        if (!(eax & 0xFF))
+            Mix(eax);
+        Mix(out == parser ? 1u : 0u);
+        if (out)
+            XpRelease(out);
+    }
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_QueryInterface, parser, 7u, nullptr));
+    GameText one("one"), two("two"), text("str"), digits("42"), hex("0x1F"), mixed("7abc"), word("abc"),
+        empty(""), missing("zzz");
+    MixByte(Virtual<uint32_t>(parser, 0x24, one.get(), 1u));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetNumber, parser, one.get(), 5u));
+    MixByte(Virtual<uint32_t>(parser, 0x28, two.get(), NumberValue(2)));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetVar, parser, text.get(), TextValue("text")));
+    void* const table = reinterpret_cast<void*(__cdecl*)()>(addr::cGZUIParserVars_New)();
+    Virtual<uint32_t>(table, 0x4);
+    MixByte(Virtual<uint32_t>(table, 0xC, one.get(), 11u));
+    MixByte(Virtual<uint32_t>(parser, 0x34, table));
+    MixByte(Virtual<uint32_t>(parser, 0x34, nullptr));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_PushVars, parser, nullptr));
+    Mix(ParserDepth(parser));
+    for (void* name : {one.get(), two.get(), text.get(), missing.get()}) {
+        void* out = nullptr;
+        MixByte(CallThis<uint32_t>(addr::cGZUIParser_Lookup, parser, name, &out));
+        MixScriptValue(out);
+        if (out)
+            XpRelease(out);
+    }
+    for (void* name : {one.get(), two.get(), text.get(), digits.get(), hex.get(), mixed.get(), word.get(),
+                       empty.get(), missing.get()}) {
+        uint32_t number = 0xA5A5A5A5u;
+        MixByte(CallThis<uint32_t>(addr::cGZUIParser_ResolveNumber, parser, name, &number));
+        Mix(number);
+    }
+    MixByte(Virtual<uint32_t>(parser, 0x2C, one.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_RemoveVar, parser, one.get()));
+    uint32_t number = 0;
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_ResolveNumber, parser, one.get(), &number));
+    Mix(number);
+    MixByte(Virtual<uint32_t>(parser, 0x38));
+    Mix(ParserDepth(parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_PopVars, parser));
+    Mix(ParserDepth(parser));
+    MixByte(Virtual<uint32_t>(parser, 0x30));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_ClearVars, parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_ResolveNumber, parser, two.get(), &number));
+    MixByte(Virtual<uint32_t>(parser, 0x34, table));
+    XpRelease(table);
+    Mix(ParserDepth(parser));
+
+    // The context object and the listener with both interfaces, one and none.
+    FakeCounted counted{kCountedVtable, 0};
+    MixByte(Virtual<uint32_t>(parser, 0x10, &counted));
+    MixByte(Virtual<uint32_t>(parser, 0x10, &counted));
+    Mix(static_cast<uint32_t>(counted.refs));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetContext, parser, nullptr));
+    Mix(static_cast<uint32_t>(counted.refs));
+    MixByte(Virtual<uint32_t>(parser, 0x10, &counted));
+    for (int i = 0; i < 4; ++i) {
+        FakeListener listener;
+        InitListener(listener, parser, i & 1, (i & 2) != 0);
+        MixByte(Virtual<uint32_t>(parser, 0xC, &listener));
+        MixRefs(listener);
+        Mix(At<void*>(parser, 0xC) ? 1u : 0u);
+        Mix(At<void*>(parser, 0x10) ? 1u : 0u);
+        MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetListener, parser, nullptr));
+        MixRefs(listener);
+    }
+    MixByte(Virtual<uint32_t>(parser, 0xC, nullptr));
+    Mix(XpRelease(parser));
+    // The destructor leaves the context held.
+    Mix(static_cast<uint32_t>(counted.refs));
+}
+
+// The tokenizer by its address over texts set at the cursor.
+void DriveTokens()
+{
+    char* const parser = NewParser();
+    void* token = nullptr;
+    int32_t type = -1;
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_NextToken, parser, &token, &type, 1u));
+    Mix(token ? 1u : 0u);
+    const char* const texts[] = {
+        "hello <a>",       "  \t\r\n x",     "\"a b\" c",          "\"unterminated",    "\"",
+        "<>=",             "abc=def",        "a\"b",                "",                  "   ",
+        "w1 w2\tw3\nw4",   "<tag n=\"v\" m=x>", "\"\"",             "x<y>z",             "text only",
+        " <lead",          "\x01\x7F\xFF<",  "a=b=c",               "\"q\"\"r\"",        "<<>>",
+    };
+    for (const char* text : texts) {
+        for (uint32_t mode : {0u, 1u, 0xFF00u}) {
+            At<const char*>(parser, 0x2C) = text;
+            for (int n = 0; n < 16; ++n) {
+                token = reinterpret_cast<void*>(1);
+                type = -1;
+                const uint32_t eax = CallThis<uint32_t>(addr::cGZUIParser_NextToken, parser, &token, &type, mode);
+                MixByte(eax);
+                Mix(static_cast<uint32_t>(At<const char*>(parser, 0x2C) - text));
+                if (!(eax & 0xFF)) {
+                    Mix(token ? 1u : 0u);
+                    break;
+                }
+                Mix(static_cast<uint32_t>(type));
+                if (type == 1)
+                    Mix(eax);
+                MixString(token);
+                XpRelease(token);
+            }
+        }
+    }
+    At<const char*>(parser, 0x2C) = nullptr;
+    XpRelease(parser);
+}
+
+uint32_t ParseText(char* parser, const char* text)
+{
+    GameText string(text);
+    const uint32_t eax = Virtual<uint32_t>(parser, 0x18, string.get());
+    MixByte(eax);
+    MixParserState(parser);
+    return eax;
+}
+
+void DefineNames(char* parser)
+{
+    const struct {
+        const char* name;
+        uint32_t number;
+    } names[] = {{"tag", 1}, {"name", 2}, {"val", 6}, {"one", 0x11}, {"LEGACY", 0x20}, {"/tag", 3}};
+    for (const auto& n : names) {
+        GameText name(n.name);
+        Virtual<uint32_t>(parser, 0x24, name.get(), n.number);
+    }
+    GameText text("words");
+    Virtual<uint32_t>(parser, 0x28, text.get(), TextValue("a word"));
+}
+
+const char* const kDocuments[] = {
+    "hello <tag name=5 val=\"x y\"> world <tag>",
+    "<tag name=one val=words><tag name=1 val=2 one=3>inner</tag>\n tail",
+    "<tag name='q' val=\"\" one=\"a=b <c>\">",
+    "<foo a=1 b=\"2\">skipped text<tag>",
+    "<tag zzz=1 name=2><tag zzz=\"q\" name=3><tag zzz><tag zzz name=4>",
+    "<1 2=3 4=\"five\" 6=0x10>",
+    "<tag name=>",
+    "<tag = 1>",
+    "<<",
+    "<tag name=\"a\"=",
+    ">",
+    "= x",
+    "<tag name=",
+    "<tag name=\"abc",
+    "<tag",
+    "<",
+    "",
+    "   ",
+    "just text",
+    "\r\n\t<tag>\r\n\t<tag name=7>",
+    "<LEGACY name=12 val=(0,0,10,10) one=\"Hello there\">\n<tag>\n</tag>",
+    "<tag name=one name=2 name=\"3\">",
+    "<tag zzz=\"x\" zzz= y>",
+    "<tag zzz <tag>",
+    "<tag name=val>",
+};
+
+// Whole documents through the slots, with every listener shape.
+void DriveParse()
+{
+    char* const parser = NewParser();
+    DefineNames(parser);
+    for (int shape = 0; shape < 5; ++shape) {
+        FakeListener listener;
+        InitListener(listener, parser, shape != 1 && shape != 3, shape != 2 && shape != 3);
+        if (shape < 4)
+            Virtual<uint32_t>(parser, 0xC, &listener);
+        for (const char* document : kDocuments) {
+            ParseText(parser, document);
+            MixRefs(listener);
+        }
+        Virtual<uint32_t>(parser, 0xC, nullptr);
+        MixRefs(listener);
+    }
+    // A parse running already is refused; the steps by their addresses.
+    FakeListener listener;
+    InitListener(listener, parser, true, true);
+    Virtual<uint32_t>(parser, 0xC, &listener);
+    At<uint32_t>(parser, 0x24) = 3;
+    GameText busy("<tag>");
+    At<const char*>(parser, 0x28) = "<tag>";
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_Parse, parser));
+    At<uint32_t>(parser, 0x24) = 0;
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_ParseString, parser, busy.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_StartDocument, parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_FinishTag, parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_CommitAttribute, parser));
+    GameText tag("tag"), name("name"), bad("nope"), quoted("quoted text"), number("12"), words("words");
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_BeginTag, parser, bad.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_BeginTag, parser, tag.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetAttributeName, parser, bad.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetAttributeName, parser, name.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_MakeStringValue, parser, quoted.get()));
+    MixParserState(parser);
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_CommitAttribute, parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetAttributeName, parser, name.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_MakeValue, parser, number.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_CommitAttribute, parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetAttributeName, parser, name.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_MakeValue, parser, words.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_CommitAttribute, parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_SetAttributeName, parser, name.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_MakeValue, parser, bad.get()));
+    MixParserState(parser);
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_FinishTag, parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_ClearAttributes, parser));
+    MixParserState(parser);
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_Text, parser, quoted.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_EndFailed, parser));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_EndDone, parser));
+    MixRefs(listener);
+    Virtual<uint32_t>(parser, 0xC, nullptr);
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_Text, parser, quoted.get()));
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_StartDocument, parser));
+    XpRelease(parser);
+    MixRefs(listener);
+}
+
+// A file (written to the temp folder, empty, missing) and resources (a UI
+// file the game reads, a key that is not there).
+void DriveSources()
+{
+    char* const parser = NewParser();
+    DefineNames(parser);
+    FakeListener listener;
+    InitListener(listener, parser, true, true);
+    Virtual<uint32_t>(parser, 0xC, &listener);
+    const char* const folder = std::getenv("TEMP");
+    const std::string base =
+        std::string(folder ? folder : ".") + "\\opensc4-xmlparse-" + std::to_string(_getpid()) + "-";
+    const std::string full = base + "full.txt";
+    const std::string none = base + "empty.txt";
+    if (std::FILE* f = std::fopen(full.c_str(), "wb")) {
+        const char* const text = "<tag name=1 val=\"from a file\">\r\nline <tag name=2>";
+        std::fwrite(text, 1, std::strlen(text), f);
+        std::fclose(f);
+    }
+    if (std::FILE* f = std::fopen(none.c_str(), "wb"))
+        std::fclose(f);
+    for (const std::string& path : {full, none, base + "missing.txt"}) {
+        GameText name(path.c_str());
+        MixByte(Virtual<uint32_t>(parser, 0x1C, name.get()));
+        MixRefs(listener);
+    }
+    GameText name(full.c_str());
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_ParseFile, parser, name.get()));
+    std::remove(full.c_str());
+    std::remove(none.c_str());
+    const uint32_t keys[][3] = {{0, 0x96A006B0, 0xCBC905CD}, {0, 0x96A006B0, 0x0BADF00D}};
+    for (const auto& key : keys) {
+        MixByte(Virtual<uint32_t>(parser, 0x20, key));
+        MixRefs(listener);
+    }
+    MixByte(CallThis<uint32_t>(addr::cGZUIParser_ParseResource, parser, keys[1]));
+    Virtual<uint32_t>(parser, 0xC, nullptr);
+    XpRelease(parser);
+}
+
+// The objects' constructors and destructors by address.
+void DriveObjects()
+{
+    alignas(4) char local[0x5C];
+    Mix(CallThis<char*>(addr::cGZUIParser_Construct, local) == local ? 1u : 0u);
+    MixParserState(local, false);
+    GameText name("name");
+    Virtual<uint32_t>(local, 0x24, name.get(), 3u);
+    FakeListener listener;
+    InitListener(listener, local, true, true);
+    Virtual<uint32_t>(local, 0xC, &listener);
+    ParseText(local, "<1 name=4>");
+    CallThis<void>(addr::cGZUIParser_Destruct, local);
+    MixRefs(listener);
+    char* const heap = NewParser();
+    Mix(CallThis<char*>(addr::cGZUIParser_DeletingDestructor, heap, 1u) == heap ? 1u : 0u);
+    char* const kept = static_cast<char*>(reinterpret_cast<void*(__cdecl*)()>(addr::cGZUIParser_New)());
+    Mix(CallThis<char*>(addr::cGZUIParser_DeletingDestructor, kept, 0u) == kept ? 1u : 0u);
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(kept);
+}
+
+uint32_t g_xpClasses = 0;
+void __cdecl CountClass(uint32_t clsid, uint32_t version, void*)
+{
+    ++g_xpClasses;
+    Mix(clsid);
+    Mix(version);
+}
+
+// The directors: one made on the stack (its registrations through the COM
+// lookup), the static one, the next director and its factories.
+void DriveDirectors()
+{
+    alignas(4) char director[0x4C];
+    Mix(CallThis<char*>(addr::cGZUIParserDirector_Construct, director) == director ? 1u : 0u);
+    Mix(At<std::uintptr_t>(director, 0) == addr::cGZUIParserDirector_Vtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(director, 4) == addr::cGZUIParserDirector_Vtable2 ? 1u : 0u);
+    Mix(Virtual<uint32_t>(director, 0x34));
+    g_xpClasses = 0;
+    Virtual<uint32_t>(director, 0x14, &CountClass, nullptr);
+    Mix(g_xpClasses);
+    const uint32_t asks[][2] = {
+        {0xBA2E7953, 0x5A2C1570}, {0xBA2E7953, 1}, {0xBA2E7954, 0x1A2BDEBB}, {0xBA2E7954, 1}, {0x12345678, 1}};
+    for (const auto& ask : asks) {
+        void* out = nullptr;
+        MixByte(Virtual<uint32_t>(director, 0x18, ask[0], ask[1], &out));
+        Mix(out ? 1u : 0u);
+        if (out)
+            Mix(XpRelease(out));
+    }
+    CallThis<void>(addr::cRZCOMDllDirector_Destruct, director);
+    void* const instance = reinterpret_cast<void*(__cdecl*)()>(addr::cGZUIParserDirector_Get)();
+    Mix(instance == reinterpret_cast<void*>(addr::cGZUIParserDirector_Instance) ? 1u : 0u);
+    Mix(*reinterpret_cast<const uint32_t*>(addr::cGZUIParserDirector_Guard) & 1);
+
+    alignas(4) char next[0x4C];
+    CallThis<char*>(addr::cGZUIDirector2_Construct, next);
+    Mix(Virtual<uint32_t>(next, 0x34));
+    g_xpClasses = 0;
+    Virtual<uint32_t>(next, 0x14, &CountClass, nullptr);
+    Mix(g_xpClasses);
+    Mix(CallThis<char*>(addr::cGZUIDirector2_DeletingDestructor, next, 0u) == next ? 1u : 0u);
+    for (std::uintptr_t factory : {addr::cGZUIDirector2_New68, addr::cGZUIDirector2_New4048, addr::cGZUIDirector2_New5C,
+                                   addr::cGZUIDirector2_New4144, addr::cGZUIDirector2_New190}) {
+        void* const object = reinterpret_cast<void*(__cdecl*)()>(factory)();
+        Mix(object ? 1u : 0u);
+        if (object) {
+            Virtual<uint32_t>(object, 0x4);
+            XpRelease(object);
+        }
+    }
+}
+
+// OPENSC4_TEST_XMLPARSE=<day>: part u4's functions called through their
+// slots and addresses with a listener, values and texts of our own: the
+// variable table, the parser's stack of tables, the tokenizer over texts
+// (quotes, truncations, delimiters, bytes above 0x7F), whole documents
+// (well formed, nested, unknown tags and attributes, malformed, truncated,
+// empty) with every listener shape, a file and resources, the objects'
+// constructors and destructors, the directors. Every result goes into the
+// fingerprint's `xp` part; addresses never do.
+void DriveXmlParse(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_XMLPARSE") || !game::IsBuild641())
+        return;
+    g_xpOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_xpHash;
+    DriveTable();
+    XpStage("table");
+    DriveStack();
+    XpStage("stack");
+    DriveTokens();
+    XpStage("tokens");
+    DriveParse();
+    XpStage("parse");
+    DriveSources();
+    XpStage("sources");
+    DriveObjects();
+    XpStage("objects");
+    DriveDirectors();
+    XpStage("directors");
+    g_into = saved;
+    log::Write("autotest: xmlparse driven (hash %08X)", g_xpHash);
+}
+
+void XpFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_xpOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | xp %08X", g_xpHash);
+    line += text;
+}
+
+const FingerprintPart kXpFingerprint{"xmlparse", 4, &XpFingerprint};
+const DayHook kXpDrive{"xmlparse", 4, &DriveXmlParse};
 
 } // namespace
 } // namespace opensc4::autotest
