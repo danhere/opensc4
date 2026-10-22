@@ -17,7 +17,7 @@ The survey of 2026-10-19 put "`cGZPropertySet` and its property values" in 0x009
 | 0x00942000 to 0x00943916 | 24 | 1 | 0 | The XML side: a window's attribute reader 0x009425A2 (`PropertyStringString`, `PropertyUint32String`, `PropertyUint32Uint32`, `PropertyUint32Float32`), the writer 0x0094286B (`<?xml version=...>`, `<AnyUint32 key=... type=...>`, `<AnyString ...>` and the other three), 0x00942D87 and 0x00943809 (`Name`, `Value`), the factory's create 0x00942F24 (ran), and 13 functions of a container (0x0094309C to 0x009437DB) that never ran |
 | 0x00943917 to 0x00944461 | 20 | 8 | 0 | A shuffle bag of uint32s (vtable 0x00AD4648, interface 0xDB1ACFB2, 0x18 bytes: two lists at +8 and +0xC, a threshold at +0x10; the subclass 0x0094048B, the factory's class 0x7B1ACFCD, adds a resource key interface at +0x18 and the key at +0x1C, part u2; a count of live bags at 0x00B633B8): slot 8 draws a random entry from the first list and moves it to the second, refilling when the first runs low. Plus two slots each of the classes 0x00AD2804 and 0x00AD2830 (never ran) |
 | 0x00944462 to 0x009456EB | 67 | 40 | 0 | The UI file parser (part u4; not XML, see there): a director (0x0094448E) that registers the parser 0xBA2E7953 (0x5C bytes, constructor 0x00945404, vtable 0x00AD4718, interface 0x5A2C1570) and its handler 0xBA2E7954 (0x14 bytes, vtable 0x00AD4764, interface 0x1A2BDEBB); an element stack, an attribute vector, the text tokenizer (`\t\n\r <>="`) |
-| 0x009456EC to 0x00945FFF | 58 | 25 | 5 | A second director (0x00945636, vtables 0x00AD47C0 and 0x00AD4790; its getter 0x00945785 is in audio.toml); a 64 by 64 table of pointers (constructor 0x0094585F, vtable 0x00AD4818, whose QueryInterface is the base one at 0x009457C6 that dozens of classes jump to); a class with three vtables (constructor 0x009458D6); a 43-slot class (constructor 0x00945DCC; `0123456789abcdefABCDEF`, `version`, `NONE`) |
+| 0x009456EC to 0x00945FFF | 58 | 25 | 5 | The framework's sound director (part u5; constructor 0x009456EC, ID 0xFD53FF17, vtables 0x00AD47C0 and 0x00AD4790; the audio director adds it through the thunk 0x00945785, in audio.toml) and three of the five classes it registers: a 64 by 64 table of sound descriptions (0x5C1CF5A3, constructor 0x0094585F, vtable 0x00AD4818, whose QueryInterface is the base one at 0x009457C6 that dozens of classes jump to); the sound instance (0xBDD9D7A5, constructors 0x009458D6 and 0x00945C6C, two vtables after an abstract base's); the sound description (0x7DD9C9F2, constructor 0x00945DCC, 43 slots, mostly setters). The `0123456789abcdefABCDEF` text is the instance's 8-hex-digit test 0x00945F38 |
 | 0x00946000 to 0x00948E62 | 75 | 45 | 4 | One large class (constructor 0x009489AE, vtables 0x00AD4B34 and 0x00AD4B48, 65 slots), and its helpers |
 | 0x00948E63 to 0x0094A078 | 71 | 7 | 5 | A class with three vtables (constructor 0x00949902: 0x00AD4C4C, 0x00AD4C60, 0x00AD4CF4); 7 functions ran |
 | 0x0094A079 to 0x0094BFFF | 108 | 51 | 26 | The UI script tree (`_null`, `_children`, `_/children`, `_define`, `_name`, `_val`, `none`, `children` at 0x0094B73A; list node 0x0094B33A); its node classes (constructor 0x0094AF64: eleven vtables 0x00AD502C to 0x00AD5158; 0x0094A4D8; 0x0094ABC9; 0x0094C0AF) |
@@ -73,7 +73,7 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u2b** | 0x00940E5C, 0x00941930 | 2 | 1 | **Ours** (below): the Track objects' TKDT text form, the writer (2,010 bytes) and the reader (3,186 bytes, ran in all 12 coverage runs) |
 | **u3** | 0x00942000 to 0x00944461 | 29 of 44 | 9 | **Ours** (below): the XML writer and StartElement, the UI script handler's StartElement and EndElement, the factory's Create, the window's Clone and copy, the shuffle bag, the framework's 2D and 3D sound kinds' slots 5 and 6; 15 STLport functions stay the game's |
 | **u4** | 0x00944462 to 0x009456EB | 49 of 67 | 40 | **Ours** (below): the UI file parser 0xBA2E7953, its variable table 0xBA2E7954, its director; the next director's deleting destructor and factories; 16 STLport functions and two ID getters stay the game's |
-| u5 | 0x009456EC to 0x00945FFF | 58 | 25 | The second director, the table, the two classes after it (two pieces) |
+| **u5** | 0x009456EC to 0x00945FFF | 44 of 58 | 25 | **Ours** (below): the framework's sound director, its sound table, the sound instance and the sound description; 4 adjustors, a thunk, the base QueryInterface, 4 two-instruction getters and 4 setters other classes share stay the game's (and the instance's AddRef 0x00945942, which the function list lacks and five other vtables share) |
 | u6, u7 | 0x00946000 to 0x00948E62 | 75 | 45 | The 65-slot class |
 | u8 | 0x00948E63 to 0x0094A078 | 71 | 7 | The class 0x00949902 |
 | u9, u10 | 0x0094A079 to 0x0094BFFF | 108 | 51 | The UI script tree |
@@ -345,3 +345,86 @@ Batch `gzu4-r1` (2026-10-22, the final build), muted on both sides, the base lis
 | Making Money d0000, 4 days, `OPENSC4_TEST_XMLPARSE=2` | 1 | same, first pair |
 
 **Reached:** unlike u1 to u3, this code runs in every game: in the plain legs 36 of the 49 log a first call in every B run (the director while the game starts, then the parser and its tables as the UI script tree reads the UI files through ParseResource, and the tokenizer and every step of the parse). Not reached without the test: ParseFile, SetContext, slots 10 to 12 and the table's Remove, EndFailed (no UI file fails to parse), and the next director's deleting destructor and five factories. In the test runs all 49 are reached.
+
+## Part u5: the framework's sound director, its table, the sound instance and the sound description
+
+`src/core/gzui_sound.cpp`, entry detours, off by default, installed at Attach:
+
+| Replacement | Functions |
+|---|---|
+| `framework.sound.director` | the sound director's constructor 0x009456EC and the static one's getter 0x0094575A (2) |
+| `framework.sound.table` | the table 0x5C1CF5A3: constructor 0x0094585F, Get 0x009458C4 (slot 3), Release 0x009457AF (2), destructor 0x00945FC4 (4) |
+| `framework.sound.instance` | the instance 0xBDD9D7A5: constructors 0x009458D6 (with the service) and 0x00945C6C, Release 0x009457E1 and QueryInterface 0x009457FB (through the adjustors of the part at +4), destructor 0x00945CEE, deleting destructor 0x00945CD2, the level worked out 0x00945820, SetDesc 0x00945E70 (4; the description's slot 26 too), Update 0x009459BF (6), Start 0x00945D1A (7), Stop 0x00945A70 (8), SetLevel 0x00945A89 (9), IsPlaying 0x00945949 (10), IsActive 0x00945953 (11), 0x00945960 (13), Place 0x00945AAF (14), 0x0094596A (15), SetPlace 0x00945976 (16), SetDistances 0x00945994 (17), Restart 0x00945C20 and the 8-hex-digit test 0x00945F38 (21) |
+| `framework.sound.desc` | the description 0x7DD9C9F2: constructor 0x00945DCC, QueryInterface 0x0094578A (0), Release 0x00945FFC (2), destructor 0x00945F24, SetName 0x00945E53 (24) and its own 12 setters 0x00945E64 to 0x00945F18 (slots 25 to 42) (17) |
+
+44 of the range's 58 functions. Addresses in `data/addresses/gzui.toml` (the "Part u5" part; part u4's placeholder names `cGZUIDirector2::*` are now `cGZSoundDirector::*`, and its three constructor entries describe the classes). Every detour is entered through a thunk that keeps ECX and EDX; ours call each other directly (the table's destructor the description's, SetLevel the level, Start Restart, the deleting destructor the destructor, the getter the constructor); where the game calls through a vtable (Update's Stop and Start, Release's deleting destructor), ours do too.
+
+Still the game's: the thunk 0x00945785; the base QueryInterface 0x009457C6 ([occbase.md](occbase.md)); the instance's AddRef 0x00945942, a 7-byte function after the constructor 0x009458D6 that Ghidra's list lacks, which five other vtables hold too (0x00AADA68, 0x00AC2A6C, 0x00ACE534, 0x00ACE580, 0x00ACE5B4); the adjustors 0x009459A7, 0x009459AF, 0x009459B7 and 0x00945C64; the two-instruction getters 0x0094595C, 0x00945E3B, 0x00945E3F and 0x00945E43; and the setters 0x00945E47, 0x00945EAC, 0x00945ED0 and 0x00945EDC, which other classes' vtables share.
+
+### The classes
+
+The survey took these for UI classes; they are the framework's sound layer. The audio director adds the sound director at its start ([audio.md](audio.md)), and it registers five classes: the sound service 0x3C1CF59E (0x4144 bytes, constructor 0x009489AE: part u6), the table, 0xBDDA72DD (0x190 bytes, constructor 0x00949902: part u8), the description and the instance.
+
+- **The sound description** (0x68 bytes, interface 0x1DD9C9DE, 43 slots): a name (a game string at +0xC), a level at +0x24 (0x400 is full), a side at +0x28 and +0x2C (0x200 is the middle of 0 to 0x400), a flag at +0x31 that makes a centred side random, a time at +0x38, a loop count at +0x48 (8) and a looping flag at +0x50 (1), and a list at +0x64. The constructor leaves +0x40 as it is. Slots 23 to 42 are setters, one field each.
+- **The sound table** (0x4048 bytes): a count and a few settings, then 64 by 64 descriptions at +0x48. Get (slot 3) reads a cell without checking the indexes and does not read its third argument. The destructor destroys and deletes every description in the table.
+- **The sound instance** (0x5C bytes, interface 0x5DD9D787; a base part at +4, the count at +0x14). Its fields:
+  - the service (+0x18) and a buffer (+0x1C: the framework's sound buffer, with interfaces 0x306077D2 and 0x5B34F0AF);
+  - a state (+0x20: 0 idle, 2 playing, 3 waiting), the description (+0x24) and a loop count;
+  - a level, worked out into +0x38: the description's level times +0x30, times the service's level over 0x100000, times its master level and +0x34 over 0x100000;
+  - a place, distances and a listener (+0x54).
+
+  The constructors leave +0x28, +0x30 and +0x38 as they are. Three slots do the work:
+  - **Update** (slot 6) runs the states. A looping description counts its loops. Otherwise the listener is asked whether to go on (if not, it is told the sound finished, with the description's time as a float), then the buffer whether it still plays.
+  - **Start** (slot 7) restarts through the listener when there is one. Otherwise it hands the buffer to the sound service and plays it: the buffer's slot 22 gets slot 20's answer, 0, the time and 1.
+  - **Place** (slot 14) gives the buffer its side: x and z are (side - 0x200) / 512 times 100. A centred side is made random: a corner from the service's generator, or one forced by the bytes 0x00B6349C and 0x00B634A0, or a random sign.
+
+Quirks kept:
+- Place checks neither the buffer nor its interface 0x306077D2.
+- With +0x2D set, Update stops a looping sound while its count is not 0, and leaves it alone once the count reaches 0.
+- Update sets the state to 0 after calling Start.
+- The 8-hex-digit test uses strchr, so a zero byte would count as a digit.
+
+The methods answer a byte. Ours give the game's EAX where it comes from a call or a value, and 0 above the byte where the game leaves its caller's EAX.
+
+### Testing
+
+`OPENSC4_TEST_GZSOUND=<day>` is a test of its own (the fingerprint's `gzs` part). It drives every u5 function through its slot or its address, with a sound service, a buffer (and its place interface) and a listener of its own, each of which hashes every call it gets. It runs in eight stages, each logged as `autotest: gzsound: <stage> <hash>`:
+
+- **desc:** a description on the stack, made over a fixed byte pattern so that the field the constructor leaves is the same in every run. The test covers its interfaces, references, the name, every setter by its slot (its own and the shared ones), the getters and the destructor, then counts one on the heap down to its deletion.
+- **table:** one table made by its factory, with descriptions in its corners and inside. Get is called on them, on an empty cell and past a row's end. The table is then counted down to the game's deleting destructor, which calls ours. A second table on the stack uses the constructor's and destructor's addresses.
+- **instance:** one on the stack with the service. The test covers:
+  - its interfaces and references, also through the part at +4;
+  - the description, the states and every setter;
+  - the level with and without a buffer, and worked out over edge values (overflowing products, negative levels);
+  - Stop, the hex digit test over 14 texts, and the destructor with a listener and a buffer.
+- **update:** Update in every state:
+  - idle and unknown states;
+  - waiting and playing, with and without a listener (going on or not) and a buffer (done or not, playing or not; a stopped one starts again);
+  - a looping description counting down, stopping or starting over;
+  - Restart by its address.
+- **start:** Start with a listener, with a buffer only and with neither, in four states with three description times.
+- **place:** sides off the middle and at the int32 edges; centred sides with and without the random flag; the forced corners 0 to 3 and one past; the forced flag; no description.
+- **objects:** an instance without a service destroyed by the deleting destructor's address, with and without its flag; one released to its end by the address; a description likewise.
+- **director:** one made on the stack, its five classes through the COM lookup (each with its interface, with 1, with a wrong one, and an unknown class), and the static one's getter.
+
+With the groups on, each of the 44 logs its first call, and all 44 do in a test run. `gzs` is B35CDF29.
+
+A first trial crashed side A in the game's own code. The fake buffer's slot 22 took one argument, where Start passes four: the framework's buffer (vtable 0x00AD3FC0) has `ret 0x10`, and the game pushes three of the four before it calls slot 20. The game's Start therefore restored the wrong EBX. The fake now takes four arguments, as ours passes.
+
+An independent audit compared all 45 functions (the AddRef included, before it went back to the game for being shared) with the disassembly: ret sizes, arguments, call order, EAX and the 5-byte entry rule. It found no difference in behaviour or EAX. Its two notes were wording in the address file (what a forced corner past 3 keeps, and what the Release methods answer), and both are fixed.
+
+### Parity
+
+Batch `gzu5-r2` (2026-10-22, the final build), muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu5`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same, first pair |
+| Rush Hour t0000, 7 days | 1 | same, first pair |
+| 12 saves, 7 days | 12 | 12 same, first pair |
+| 12 saves, 7 days, `OPENSC4_TEST_GZSOUND=2` | 12 | 12 same, first pair; `gzs` B35CDF29 in all 24 runs |
+| Making Money d0000, 4 days, `OPENSC4_TEST_GZSOUND=2` | 1 | same, first pair |
+
+An earlier batch (`gzu5-r1`, the same legs, all same) had the instance's AddRef 0x00945942 ours: it was the one u5 function reached in every plain run, called at start-up through one of the other classes' vtables that hold it, which is how it was found to be shared.
+
+**Reached:** in the plain (muted) legs none of the 44 logs a first call: nothing in these runs makes a sound description, table or instance, and the sound director's getter is not reached after Attach. The legs show that the hooks change nothing. In the test runs all 44 are reached.
