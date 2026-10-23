@@ -4414,7 +4414,8 @@ std::string FullText(int32_t rows, int32_t columns, int32_t grid)
     return text;
 }
 
-// The instances' states: playing (2), waiting (3) or idle, marked or not.
+// The instances' states: playing (2), waiting (3) or idle, marked or not;
+// the fields the constructor leaves unset set too.
 void SetStates(char* service, uint32_t pattern)
 {
     char* const table = At<char*>(service, kSvTable);
@@ -4425,6 +4426,10 @@ void SetStates(char* service, uint32_t pattern)
             At<uint32_t>(instance, 0x20) = k == 0 ? 0u : k == 1 ? 3u : 2u;
             At<uint8_t>(instance, 0x2D) = k == 4 ? 1 : 0;
             At<uint8_t>(instance, 0x58) = 0;
+            // The constructor leaves these three unset.
+            At<uint32_t>(instance, 0x28) = 0;
+            At<uint32_t>(instance, 0x30) = 0x400;
+            At<uint32_t>(instance, 0x38) = 0;
         }
     }
 }
@@ -4578,6 +4583,18 @@ void DriveU7Slots()
     EndService(service);
 }
 
+// What the play and the neighbour pick write in an instance (not its
+// base part at +4, which holds the game's own counts).
+void MixPlayed(char* instance)
+{
+    Mix(At<void*>(instance, 0x1C) ? 1u : 0u);
+    for (std::size_t offset : {0x20, 0x28, 0x30, 0x38, 0x40, 0x44, 0x48, 0x4C, 0x50})
+        Mix(At<uint32_t>(instance, offset));
+    for (std::size_t offset : {0x2D, 0x3C, 0x3D, 0x58})
+        Mix(At<uint8_t>(instance, offset));
+    Mix(At<void*>(instance, 0x54) ? 1u : 0u);
+}
+
 // Slots 55, 58, 54 and 57 and the neighbour pick.
 void DriveU7Pick()
 {
@@ -4687,13 +4704,13 @@ void DriveU7Pick()
             Mix(At<uint32_t>(service, 0x40AC));
             Mix(At<uint32_t>(service, 0x40B0));
             char* const instance = At<char*>(service, kSvInstances + ((cell / 6) * 64 + cell % 6) * 4);
-            MixInstance(instance, false);
+            MixPlayed(instance);
             At<void*>(instance, 0x1C) = nullptr;
         }
         // By its address.
         char* const instance = At<char*>(service, kSvInstances + 3 * 4);
         MixWord(CallThis<uint32_t>(addr::cGZSoundService_PlaceInstance, service, static_cast<void*>(instance)) & 0xFF);
-        MixInstance(instance, false);
+        MixPlayed(instance);
     }
     Mix(static_cast<uint32_t>(g_svSound.refs));
     g_svSound.refs = 1;
@@ -4914,7 +4931,7 @@ void DriveU7Instance()
     };
     auto after = [&](uint32_t eax) {
         MixWord(eax & 0xFF);
-        MixInstance(instance, true);
+        MixPlayed(instance);
         Mix(At<uint32_t>(desc.bytes, 0x8));
         Mix(static_cast<uint32_t>(g_svSound.refs));
         Mix(g_svService.taken);
