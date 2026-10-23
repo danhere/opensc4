@@ -11756,3 +11756,154 @@ address = 0x00B09AB0
 kind = "data"
 expect = "17 E8 D0 5A F1 57 DB BA"
 source = "Name ours. The carjacked vehicle's sound key (0x5AD0E817, 0xBADB57F1, a word). Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+# Part ro3a: the tank on frames (src/core/automata_roadveh.cpp, docs/automata.md "Part ro").
+
+[[entry]]
+name = "cSC4Tank::EnterState"
+address = 0x0054A780
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* state)"
+expect = "53 56 57 8B 7C 24 10 57"
+source = "Name ours. The tank's slot 110, ret 4: cSC4Vehicle's (0x0055B6D0); for the state 0x10 with the controls (slot 56) the turret's record +0x248 to +0x268 (0, 0.4, the barrel, 0, 2pi, 2pi less the turret, 30, 100, the velocity), +0x144 12, +0x178 0, +0x114 0xAC0ECE77, +0x1AC 2000.0. AL the base's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::DriveFrame"
+address = 0x0054AAE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 64 8B 44 24 68 53"
+source = "Name ours. The tank's slot 115, ret 4: cSC4Vehicle's (0x005603F0); with the controls (slot 56), their mouse point +0x7C/+0x80 unset and the occupant null or their byte +0x228 set: the template's entry (slot 67, 0x0046B4A0; AL 0 without) rate +0x58 x the turn key +0x84 (else +0x88 negated; zeroed) x -0.5 turns the heading about its cross with (0, 1, 0) (a quaternion, FSIN and FCOS at full width; the U-Drive sound 0x13 on), the front +0x264 half the radius ahead, the controls' +0x44 half behind and +0x38/+0x50 the heading, slots 16 and 100 (0, 1). Without a key or with the mouse point set the sound 0x13 off. AL only. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::Steer"
+address = 0x0054B030
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* controls, float seconds)"
+expect = "83 EC 64 56 8B F1 8B 06"
+source = "Name ours. The tank's slot 121, ret 8: +0x340 set; with slot 18 only cSC4Vehicle's (0x0055C600). Else the turret into 0..2pi, the velocity key +0xA0 (5 up, 30 past 100), the pointer picked (0x00B43DC4 slot 36, no null test) and the turret turned towards it (__CIacos, the static rate 0x00B22900 x seconds, the short way), the fire key +0x98 (the attachments placed at the barrel model's place, the shot's slots 11, 12 and 3, no null test), the barrel and velocity keys (clamped to 0..0.4 and 30..100), the sound timers 0x00B228FC (0x0C) and 0x00B228F8 (0x0F), +0x344 and the controls' record; then cSC4Vehicle's (its EAX). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro3a)."
+
+[[entry]]
+name = "CRT::CIacos"
+address = 0x009F0090
+kind = "function"
+convention = "custom"
+expect = "83 EC 0C DD 14 24 E8 FD"
+source = "The C runtime's _CIacos: its argument and result in ST0. The tank's slot 121 calls it; ours does too, for the game's result to the bit. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::TwoPi"
+address = 0x00A9B7E0
+kind = "data"
+expect = "DB 0F C9 40 35 FA 8E 3C"
+source = "Name ours. 2pi as a float: the tank's turret range and the record's turn. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::Zero"
+address = 0x00A9B7A0
+kind = "data"
+expect = "00 00 00 00 CD CC CC 3E"
+source = "Name ours. 0.0 as a float: the tank's frames' zero (multiplied through slot 115's matrix) and the barrel's least. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::BarrelMost"
+address = 0x00A9B7A4
+kind = "data"
+expect = "CD CC CC 3E 89 88 08 3C"
+source = "Name ours. 0.4 as a float: the tank's highest barrel angle. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::VelocityRate"
+address = 0x00A9B7B8
+kind = "data"
+expect = "0A D7 A3 3C 0A D7 A3 3C"
+source = "Name ours. 0.02 as a float: the velocity a key's move gives (slot 121). Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::VelocityLeast"
+address = 0x00A9B7C0
+kind = "data"
+expect = "00 00 F0 41 00 00 C8 42"
+source = "Name ours. 30.0 as a float: the tank's least shot velocity. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::VelocityMost"
+address = 0x00A9B7C4
+kind = "data"
+expect = "00 00 C8 42 0A D7 23 3C"
+source = "Name ours. 100.0 as a float: the tank's greatest shot velocity. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::Pi"
+address = 0x00A9B7DC
+kind = "data"
+expect = "DB 0F 49 40 DB 0F C9 40"
+source = "Name ours. pi as a float: the turret's short way (slot 121). Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::BarrelRate"
+address = 0x00A9B7E8
+kind = "data"
+expect = "6F 12 83 39 33 33 93 3F"
+source = "Name ours. 0.00025 as a float: the barrel angle a key's move gives (slot 121). Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::FasterHeld"
+address = 0x00A954C0
+kind = "data"
+expect = "00 00 7A 43 20 5E 50 00"
+source = "Name ours. 250.0 as a float: the velocity key's +0xA0 at which the tank's slot 121 adds 5. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::SoundTime"
+address = 0x00B0A074
+kind = "data"
+expect = "00 00 48 42 00 00 80 3F"
+source = "Name ours. 50.0 as a float: the tank's sound timers' period (slot 121). Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::TurretSoundLeast"
+address = 0x00A98F70
+kind = "data"
+expect = "88 C3 E4 3A BC 74 13 3C"
+source = "Name ours. 0.1 degrees in radians as a float: the turret's move that keeps its sound on (slot 121). Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "SC4::FloatOneB0A078"
+address = 0x00B0A078
+kind = "data"
+expect = "00 00 80 3F 00 00 80 3F"
+source = "Name ours. 1.0 as a float; the tank's slots 115 and 121 divide it by lengths. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::FillValue"
+address = 0x00B22920
+kind = "data"
+source = "Name ours. A float (bss) the tank's slot 121 fills the picked point with before 0x00B43DC4 writes it. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::TurretRate"
+address = 0x00B22900
+kind = "data"
+source = "Name ours. A function-local static float of the tank's slot 121: 0x3B09421E (0.12 degrees in radians) on first use, the turret's turn per second. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::TurretRateGuard"
+address = 0x00B22904
+kind = "data"
+source = "Name ours. Bit 1: cSC4Tank::TurretRate made. Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::TurretSoundTimer"
+address = 0x00B228FC
+kind = "data"
+source = "Name ours. A float (bss): the turret's sound timer, shared by every tank (slot 121). Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+[[entry]]
+name = "cSC4Tank::BarrelSoundTimer"
+address = 0x00B228F8
+kind = "data"
+source = "Name ours. A float (bss): the barrel's sound timer, shared by every tank (slot 121). Called by address from src/core/automata_roadveh.cpp (part ro3a)."

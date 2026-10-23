@@ -350,6 +350,8 @@ add_library(opensc4_core SHARED
   html_parser.cpp
   html_parser_autotest.cpp
   gzbuffer_blit.cpp
+  font_blitter.cpp
+  font_blitter_autotest.cpp
   gzbuffer_blit_autotest.cpp
   camera_control.cpp
   photo_mode.cpp
@@ -448,6 +450,8 @@ add_library(opensc4_core SHARED
   gzui_mp3.cpp
   gzui_legacy.cpp
   gzui_props.cpp
+  gzui_widgets.cpp
+  gzui_widgets2.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp

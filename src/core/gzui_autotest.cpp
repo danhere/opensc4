@@ -9,13 +9,15 @@
 // root holder's (OPENSC4_TEST_MP3, part u10) and the root holder's life and
 // the LEGACY reader's (OPENSC4_TEST_LEGACY, part u11), the readers of a
 // window's script properties (OPENSC4_TEST_PROPREAD, part u12) and their
-// makers, loaders and lookups (OPENSC4_TEST_PROPMAKE, part u12, slice 2).
+// makers, loaders and lookups (OPENSC4_TEST_PROPMAKE, part u12, slice 2) and
+// their handlers (OPENSC4_TEST_PROPHANDLE, part u12, slice 3).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
 
 #include <opensc4/addresses.h>
 
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -23,6 +25,7 @@
 #include <iterator>
 #include <process.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 // For the game's folder (part u10 reads one of its radio MP3 files).
@@ -8231,6 +8234,1291 @@ void PmFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kPmFingerprint{"propmake", 4, &PmFingerprint};
 const DayHook kPmDrive{"propmake", 4, &DrivePropMakeDay};
+// ====================================================================================
+// Part u13: the stock widgets' registrations and GZWinGen's property handler
+// (OPENSC4_TEST_WIDGETREAD). The 17 called by address (registers checked
+// kept after): the registrations with a variable table of our own put in
+// the shared table's place (its slot 3 hashes every name and word; the
+// game's put back after), then the two maps' entries for every class;
+// GZWinGen's handler on windows, interfaces, number and text values, held
+// image objects and images of our own, both passes. Addresses never go
+// into the hash.
+
+bool g_wrOn = false;
+uint32_t g_wrHash = 2166136261u;
+
+void WrStage(const char* name) { log::Write("autotest: widgetread: %s %08X", name, g_wrHash); }
+
+// The variable table of our own: slot 3 (a string and a word).
+uint32_t g_wrAdds = 0;
+
+uint32_t __fastcall WrTableAdd(void*, void*, char* string, uint32_t word)
+{
+    Mix(0xADD0u);
+    PrMixText(string);
+    Mix(word);
+    ++g_wrAdds;
+    return 0x00AD0000u + g_wrAdds;
+}
+
+void** WrTableTable()
+{
+    static void* table[4] = {};
+    table[3] = reinterpret_cast<void*>(&WrTableAdd);
+    return table;
+}
+
+// An entry of one of the two maps (STLport tree: the header's +4 the root,
+// a node's +8 left, +0xC right, +0x10 key, +0x14 value); 0xFFFFFFFF none.
+uint32_t WrMapFind(std::uintptr_t map, uint32_t key)
+{
+    char* const header = *reinterpret_cast<char**>(map);
+    if (!header)
+        return 0xFFFFFFFEu;
+    for (char* node = At<char*>(header, 4); node;) {
+        const uint32_t nodeKey = At<uint32_t>(node, 0x10);
+        if (key < nodeKey)
+            node = At<char*>(node, 8);
+        else if (nodeKey < key)
+            node = At<char*>(node, 0xC);
+        else
+            return At<uint32_t>(node, 0x14);
+    }
+    return 0xFFFFFFFFu;
+}
+
+void DriveWrRegister()
+{
+    // The 16 by address in the constructor's order, with the class's
+    // interface and the class (the maps' keys).
+    struct Registration {
+        std::uintptr_t address;
+        uint32_t iface;
+        uint32_t klass;
+    };
+    const Registration registrations[] = {
+        {addr::cGZUIScriptWidgets_RegisterFlatRect, 0xC2AFA76F, 0xC2AFA76E},
+        {addr::cGZUIScriptWidgets_RegisterText, 0x212CDC1F, 0x00000592},
+        {addr::cGZUIScriptWidgets_RegisterTextEdit, 0x231A1C57, 0x231A1C58},
+        {addr::cGZUIScriptWidgets_RegisterListBox, 0x4132242B, 0x00000598},
+        {addr::cGZUIScriptWidgets_RegisterCombo, 0x412CE496, 0x0000059B},
+        {addr::cGZUIScriptWidgets_RegisterBtn, 0x00008810, 0x22ECFC47},
+        {addr::cGZUIScriptWidgets_RegisterBMP, 0xC12CEA13, 0x82FE68C4},
+        {addr::cGZUIScriptWidgets_RegisterSlider, 0x21325207, 0x21325208},
+        {addr::cGZUIScriptWidgets_RegisterScrollbar, 0x61325A2D, 0x61325A2E},
+        {addr::cGZUIScriptWidgets_RegisterLineInput, 0x21335C59, 0x21335C5A},
+        {addr::cGZUIScriptWidgets_RegisterSpinner, 0x612CE0C3, 0x612CE0C4},
+        {addr::cGZUIScriptWidgets_RegisterOutline, 0xE303E5AE, 0x4303E5B6},
+        {addr::cGZUIScriptWidgets_RegisterTextTicker, 0x032F0B3C, 0xE32F0B31},
+        {addr::cGZUIScriptWidgets_RegisterFolders, 0xA13351B8, 0x078E8055},
+        {addr::cGZUIScriptWidgets_RegisterCustom, 0x678D1E84, 0x478D1E6F},
+        {addr::cGZUIScriptWidgets_RegisterGen, 0x5386D516, 0x4386D516},
+    };
+    void** const tableAt = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *tableAt;
+    Mix(old ? 1u : 0u);
+    void* table[1] = {WrTableTable()};
+    *tableAt = table;
+    for (const Registration& registration : registrations) {
+        // EAX is the game's free's or a stack place: not hashed.
+        PmRegs regs = PmRegsOf(0x13131313u, kPmEsi, kPmEdi, 0xA0A0A0A0u, 0xA1A1A1A1u);
+        PmCall(registration.address, regs);
+        Mix(g_wrAdds);
+        Mix(WrMapFind(addr::cGZUIScriptWidgets_Handlers, registration.iface));
+        Mix(WrMapFind(addr::cGZUIScriptWidgets_Interfaces, registration.klass));
+    }
+    *tableAt = old;
+    WrStage("reg");
+}
+
+// The window: slot 0 (QueryInterface: 0 none, 1 the interface, 2 the
+// interface given but AL 0) and slot 114 (part u12's, which hashes what it
+// is given).
+struct WrWindow {
+    void** vtable;
+    uint32_t mode;
+    void* face;
+};
+
+uint32_t __fastcall WrWindowQuery(WrWindow* self, void*, uint32_t iid, void** out)
+{
+    Mix(0x0E00u | self->mode);
+    Mix(iid);
+    if (self->mode == 0)
+        return 0x12345600u;
+    *out = self->face;
+    Virtual<uint32_t>(self->face, 4);
+    return self->mode == 1 ? 0x12345601u : 0x12345700u;
+}
+
+void** WrWindowTable()
+{
+    static void* table[115] = {};
+    table[0] = reinterpret_cast<void*>(&WrWindowQuery);
+    table[114] = reinterpret_cast<void*>(&PmWindowPut);
+    return table;
+}
+
+// The images our held object gives (slot 2 Release counted).
+struct WrImage {
+    void** vtable;
+    uint32_t tag;
+    uint32_t count;
+};
+
+uint32_t __fastcall WrImageRelease(WrImage* self, void*)
+{
+    Mix(0x1A00u | self->tag);
+    return --self->count;
+}
+
+void** WrImageTable()
+{
+    static void* table[3] = {};
+    table[2] = reinterpret_cast<void*>(&WrImageRelease);
+    return table;
+}
+
+WrImage g_wrImages[2] = {};
+
+// The held object: AddRef, Release, slot 3 (an image by key: for even
+// instances one of ours, held; for odd none).
+uint32_t __fastcall WrHeldImage(PmHeld*, void*, const uint32_t* key)
+{
+    Mix(0x3013u);
+    PmMixKey(key);
+    if (key[2] & 1)
+        return 0;
+    WrImage& image = g_wrImages[(key[2] >> 1) & 1];
+    ++image.count;
+    return PrArg(&image);
+}
+
+void** WrHeldTable()
+{
+    static void* table[5] = {};
+    table[1] = reinterpret_cast<void*>(&PmHeldAddRef);
+    table[2] = reinterpret_cast<void*>(&PmHeldRelease);
+    table[3] = reinterpret_cast<void*>(&WrHeldImage);
+    return table;
+}
+
+// The interface (IGZWinGen): AddRef, Release, and the slots the handler
+// calls, each hashing what it gets.
+struct WrFace {
+    void** vtable;
+    uint32_t count;
+};
+
+uint32_t __fastcall WrFaceAddRef(WrFace* self, void*) { return ++self->count; }
+
+uint32_t __fastcall WrFaceRelease(WrFace* self, void*)
+{
+    Mix(0xF2F2u);
+    return 0x00F20000u + --self->count;
+}
+
+uint32_t __fastcall WrFaceFlag(WrFace*, void*, uint32_t mask, uint32_t set)
+{
+    Mix(0xF6u);
+    Mix(mask);
+    Mix(set);
+    return 0x00F60000u | mask;
+}
+
+uint32_t __fastcall WrFaceObject(WrFace*, void*, char* object)
+{
+    Mix(0xF7u);
+    Mix(object ? 1u : 0u);
+    if (object) {
+        Mix(At<std::uintptr_t>(object, 0) == addr::cGZUIScriptWidgets_GenObjectVtable ? 0x7AB1u : 0x7AB0u);
+        Mix(At<uint32_t>(object, 4));
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(object);
+    }
+    return 0x00F70000u;
+}
+
+uint32_t __fastcall WrFaceImage(WrFace*, void*, uint32_t mode, WrImage* image)
+{
+    Mix(0xF13u);
+    Mix(mode);
+    Mix(image ? image->tag : 0xDEADu);
+    return 0x00F13000u;
+}
+
+uint32_t __fastcall WrFaceUser(WrFace*, void*, uint32_t word)
+{
+    Mix(0xF19u);
+    Mix(word);
+    return 0x00F19000u;
+}
+
+uint32_t __fastcall WrFacePair(WrFace*, void*, uint32_t first, uint32_t second)
+{
+    Mix(0xF26u);
+    Mix(first);
+    Mix(second);
+    return 0x00F26000u;
+}
+
+uint32_t __fastcall WrFaceRect(WrFace*, void*, uint32_t word, uint32_t zero1, uint32_t zero2, const int32_t* rect)
+{
+    Mix(0xF29u);
+    Mix(word);
+    Mix(zero1);
+    Mix(zero2);
+    for (int i = 0; i < 4; ++i)
+        Mix(static_cast<uint32_t>(rect[i]));
+    return 0x00F29000u;
+}
+
+uint32_t __fastcall WrFacePoint(WrFace*, void*, uint32_t word, uint32_t point)
+{
+    Mix(0xF30u);
+    Mix(word);
+    Mix(point);
+    return 0x00F30000u;
+}
+
+void** WrFaceTable()
+{
+    static void* table[31] = {};
+    table[1] = reinterpret_cast<void*>(&WrFaceAddRef);
+    table[2] = reinterpret_cast<void*>(&WrFaceRelease);
+    table[6] = reinterpret_cast<void*>(&WrFaceFlag);
+    table[7] = reinterpret_cast<void*>(&WrFaceObject);
+    table[13] = reinterpret_cast<void*>(&WrFaceImage);
+    table[19] = reinterpret_cast<void*>(&WrFaceUser);
+    table[26] = reinterpret_cast<void*>(&WrFacePair);
+    table[29] = reinterpret_cast<void*>(&WrFaceRect);
+    table[30] = reinterpret_cast<void*>(&WrFacePoint);
+    return table;
+}
+
+// The values: slot 3 the kind, slot 55 the text into a string, slot 73
+// the word (+8) with a mark in EDX.
+struct WrValue {
+    void** vtable;
+    uint32_t kind;
+    uint32_t word;
+    const char* text;
+};
+
+uint32_t __fastcall WrValueKind(WrValue* self, void*)
+{
+    Mix(0x3000u | self->kind);
+    return self->kind;
+}
+
+uint32_t __fastcall WrValueText(WrValue* self, void*, char* string)
+{
+    Mix(0x55u);
+    Virtual<uint32_t>(string, 0xC, self->text, static_cast<uint32_t>(std::strlen(self->text)));
+    return 0x5555u;
+}
+
+__declspec(naked) void WrValue73()
+{
+    __asm lea eax, [ecx + 8]
+    __asm mov edx, 0x73A5A573
+    __asm ret
+}
+
+void** WrValueTable()
+{
+    static void* table[74] = {};
+    table[3] = reinterpret_cast<void*>(&WrValueKind);
+    table[55] = reinterpret_cast<void*>(&WrValueText);
+    table[73] = reinterpret_cast<void*>(&WrValue73);
+    return table;
+}
+
+WrValue WrNumber(uint32_t word) { return {WrValueTable(), 6, word, ""}; }
+WrValue WrText(const char* text) { return {WrValueTable(), 0x800E, 0x7E7E7E7Eu, text}; }
+
+struct WrPair {
+    uint32_t key;
+    WrValue* value;
+};
+
+// One call of the handler: the window, a vector of the pairs and the
+// byte's word; its EAX and its first argument slot after.
+void WrGen(WrWindow& window, WrPair* pairs, std::size_t count, uint32_t set)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    PmRegs regs = PmRegsOf(0x26262626u, kPmEsi, kPmEdi, PrArg(&window), PrArg(vector));
+    regs.args[2] = set;
+    Mix(PmCall(addr::cGZUIScriptWidgets_GenRead, regs));
+    Mix(regs.args[0] == PrArg(&window) ? 0x77DDu : regs.args[0]);
+    Mix(regs.args[1] == PrArg(vector) ? 0x77DEu : 0xBAD1u);
+    Mix(regs.args[2]);
+}
+
+void DriveWrGen()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    if (!holder) {
+        WrStage("gen");
+        return;
+    }
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {WrHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    g_wrImages[0] = {WrImageTable(), 0xA0, 0};
+    g_wrImages[1] = {WrImageTable(), 0xA1, 0};
+
+    WrFace face = {WrFaceTable(), 1};
+    WrWindow windows[3] = {{WrWindowTable(), 0, &face}, {WrWindowTable(), 1, &face}, {WrWindowTable(), 2, &face}};
+
+    // The set pass's values: numbers, texts, a value that is neither.
+    WrValue n0 = WrNumber(0), n1 = WrNumber(1), n2 = WrNumber(2), n3 = WrNumber(3), n5 = WrNumber(5),
+            n7 = WrNumber(7), user = WrNumber(0x12345678), other = {WrValueTable(), 9, 1, "(1,2)"};
+    WrValue image0 = WrText("{1a2b,3c4c}"), image1 = WrText("{11,13}"), image2 = WrText("{2,6}"),
+            imageBad = WrText("{zz}"), imageOne = WrText("{7}"), pairGood = WrText("(5,-6)"),
+            pairBad = WrText("(5)"), flagText = WrText("1");
+    WrPair full[] = {
+        {0x10004, &n1},     {0x10005, &n0},      {0x10006, &n7},      {0x10007, &flagText}, {0x10008, nullptr},
+        {0x1000A, &n1},     {0x1000B, &n0},      {0x1000C, &n2},      {0x1000D, &n0},       {0xF00D, &n1},
+        {0xF019, &n0},      {0x1000E, &n5},      {0x1000F, &n1},      {0x10000, &user},     {0xF016, &image0},
+        {0x10001, &n2},     {0xF004, &pairGood}, {0x10004, &n0},      {0x10009, &other},
+    };
+    WrPair second[] = {
+        {0x10009, &n1}, {0x1000D, &n3}, {0xF016, &image1}, {0x10001, &n3}, {0xF004, &pairBad}, {0x10000, &other},
+    };
+    WrPair third[] = {{0xF016, &imageBad}, {0xF004, &image0}, {0x1000E, &n0}};
+    WrPair fourth[] = {{0xF016, &image2}, {0x1000F, &n0}};
+    WrPair fifth[] = {{0xF016, &n1}, {0x10001, &n1}, {0xF016, &imageOne}};
+    WrPair sixth[] = {{0x10001, &n1}, {0xF016, &image2}, {0x10001, &n0}};
+
+    // The raw pass's: texts of 0x10002 and 0x10003, good and not.
+    WrValue point = WrText("(7,-8)"), pointBad = WrText("(1)"), pointBig = WrText("(4294967295,-1)"),
+            rect = WrText("(9,1,2,3,4)"), rectBad = WrText("(1,2,3,4)"), rectNeg = WrText("(0,-1,-2,-3,-4)");
+    WrPair raw[] = {
+        {0x10002, &point},   {0x10003, &rect},     {0x10002, nullptr}, {0x10003, &n1},     {0x10002, &pointBad},
+        {0x10003, &rectBad}, {0x55, &point},       {0x10002, &pointBig}, {0x10003, &rectNeg}, {0x10004, &n1},
+    };
+    WrPair rawNone[] = {{0x10004, &n1}, {0x55, &rect}};
+
+    for (WrWindow& window : windows) {
+        for (uint32_t set : {1u, 0xFFFFFF01u}) {
+            WrGen(window, full, std::size(full), set);
+            WrGen(window, second, std::size(second), set);
+            WrGen(window, third, std::size(third), set);
+            WrGen(window, fourth, std::size(fourth), set);
+            WrGen(window, fifth, std::size(fifth), set);
+            WrGen(window, sixth, std::size(sixth), set);
+            WrGen(window, full, 0, set);
+        }
+        for (uint32_t set : {0u, 0x100u}) {
+            WrGen(window, raw, std::size(raw), set);
+            WrGen(window, rawNone, std::size(rawNone), set);
+            WrGen(window, full, std::size(full), set);
+            WrGen(window, raw, 0, set);
+        }
+    }
+    Mix(face.count);
+    Mix(g_wrImages[0].count);
+    Mix(g_wrImages[1].count);
+    Mix(held.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    WrStage("gen");
+}
+
+// OPENSC4_TEST_WIDGETREAD=<day>: part u13 by address. Every result goes
+// into the fingerprint's `wr` part.
+void DriveWidgetReadDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_WIDGETREAD") || !game::IsBuild641())
+        return;
+    g_wrOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_wrHash;
+    DriveWrRegister();
+    DriveWrGen();
+    g_into = saved;
+    log::Write("autotest: widgetread driven (hash %08X)", g_wrHash);
+}
+
+void WrFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_wrOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | wr %08X", g_wrHash);
+    line += text;
+}
+
+const FingerprintPart kWrFingerprint{"widgetread", 4, &WrFingerprint};
+const DayHook kWrDrive{"widgetread", 4, &DriveWidgetReadDay};
+// ====================================================================================
+// Part u14: GZWinFileBrowser's registration and property handler
+// (OPENSC4_TEST_FILEBROWSER). The two called by address (registers checked
+// kept after): the registration with part u13's variable table of our own
+// in the shared table's place, then the two maps' entries for the class;
+// the handler on part u13's windows and on an interface of our own (every
+// slot it calls hashes its number and what it gets; the getters give words
+// of their own), with number and text values and the held image object of
+// part u13, and the game's font and colour services. Addresses never go
+// into the hash.
+
+bool g_fbOn = false;
+uint32_t g_fbHash = 2166136261u;
+
+void FbStage(const char* name) { log::Write("autotest: filebrowser: %s %08X", name, g_fbHash); }
+
+void DriveFbRegister()
+{
+    void** const tableAt = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *tableAt;
+    Mix(old ? 1u : 0u);
+    void* table[1] = {WrTableTable()};
+    *tableAt = table;
+    const uint32_t before = g_wrAdds;
+    // EAX is the game's free's: not hashed.
+    PmRegs regs = PmRegsOf(0x14141414u, kPmEsi, kPmEdi, 0xA0A0A0A0u, 0xA1A1A1A1u);
+    PmCall(addr::cGZUIScriptWidgets_RegisterFileBrowser, regs);
+    Mix(g_wrAdds - before);
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Handlers, 0x3AA52E64));
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Interfaces, 0x1AA52EA4));
+    *tableAt = old;
+    FbStage("reg");
+}
+
+// The fonts the test's numbers ask the window manager for (its slot 5),
+// as the game gives them; a font slot hashes which it got.
+constexpr uint32_t kFbFontWords[3] = {0xE9C86B5E, 0xE9C86B5F, 0x4A809914};
+void* g_fbFonts[3] = {};
+
+// The interface (IGZWinFileBrowser): AddRef, Release and the slots the
+// handler calls, each hashing its own number first. The getters write
+// words of their own (the column grid's only when `grid` is set: else the
+// handler hands on what the line grid's left).
+struct FbFace {
+    void** vtable;
+    uint32_t count;
+    uint32_t grid;
+};
+
+uint32_t __fastcall FbFaceAddRef(FbFace* self, void*) { return ++self->count; }
+
+uint32_t __fastcall FbFaceRelease(FbFace* self, void*)
+{
+    Mix(0xFBF2u);
+    return 0x00FB0000u + --self->count;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbSet1(FbFace*, void*, uint32_t a)
+{
+    Mix(0xFB000000u | Slot);
+    Mix(a);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbSet2(FbFace*, void*, uint32_t a, uint32_t b)
+{
+    Mix(0xFB000000u | Slot);
+    Mix(a);
+    Mix(b);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbSet3(FbFace*, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    Mix(0xFB000000u | Slot);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbString(FbFace*, void*, char* string)
+{
+    Mix(0xFB000000u | Slot);
+    PrMixText(string);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbFont(FbFace*, void*, void* font)
+{
+    Mix(0xFB000000u | Slot);
+    uint32_t which = 0xFF;
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (font == g_fbFonts[i])
+            which = i;
+    }
+    Mix(which);
+    Mix(font ? 1u : 0u);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbGet2(FbFace*, void*, uint32_t* first, uint32_t* second)
+{
+    Mix(0xFB000000u | Slot);
+    *first = 0xC1C1C100u | Slot;
+    *second = 0xC2C2C200u | Slot;
+    return 0x00FB0000u | Slot;
+}
+
+uint32_t __fastcall FbGetGrid(FbFace* self, void*, uint32_t* first, uint32_t* second)
+{
+    Mix(0xFB000044u | (self->grid << 8));
+    if (self->grid) {
+        *first = 0xC5C5C501u;
+        *second = 0xC6C6C6C6u;
+    }
+    return 0x00FB0044u;
+}
+
+uint32_t __fastcall FbGet3(FbFace*, void*, uint32_t* first, uint32_t* second, uint32_t* third)
+{
+    Mix(0xFB000026u);
+    *first = 0xC3C3C3C3u;
+    *second = 0xC4C4C4C4u;
+    *third = 7u;
+    return 0x00FB0026u;
+}
+
+uint32_t __fastcall FbSelection(FbFace*, void*, uint32_t kind, char* name, char* extension)
+{
+    Mix(0xFB00001Cu);
+    Mix(kind);
+    PrMixText(name);
+    PrMixText(extension);
+    return 0x00FB001Cu;
+}
+
+uint32_t __fastcall FbFilter(FbFace*, void*, char* name, WrImage* image, uint32_t number, uint32_t zero)
+{
+    Mix(0xFB000015u);
+    PrMixText(name);
+    Mix(image ? image->tag : 0xDEADu);
+    Mix(number);
+    Mix(zero);
+    return 0x00FB0015u;
+}
+
+uint32_t __fastcall FbImage(FbFace*, void*, WrImage* image)
+{
+    Mix(0xFB000055u);
+    Mix(image ? image->tag : 0xDEADu);
+    return 0x00FB0055u;
+}
+
+void** FbFaceTable()
+{
+    static void* table[88] = {};
+    table[1] = reinterpret_cast<void*>(&FbFaceAddRef);
+    table[2] = reinterpret_cast<void*>(&FbFaceRelease);
+    table[15] = reinterpret_cast<void*>(&FbString<15>);
+    table[21] = reinterpret_cast<void*>(&FbFilter);
+    table[28] = reinterpret_cast<void*>(&FbSelection);
+    table[34] = reinterpret_cast<void*>(&FbGet2<34>);
+    table[35] = reinterpret_cast<void*>(&FbSet2<35>);
+    table[37] = reinterpret_cast<void*>(&FbSet1<37>);
+    table[38] = reinterpret_cast<void*>(&FbGet3);
+    table[40] = reinterpret_cast<void*>(&FbSet3<40>);
+    table[45] = reinterpret_cast<void*>(&FbFont<45>);
+    table[46] = reinterpret_cast<void*>(&FbSet2<46>);
+    table[47] = reinterpret_cast<void*>(&FbSet1<47>);
+    table[51] = reinterpret_cast<void*>(&FbFont<51>);
+    table[52] = reinterpret_cast<void*>(&FbSet2<52>);
+    table[53] = reinterpret_cast<void*>(&FbSet1<53>);
+    table[57] = reinterpret_cast<void*>(&FbFont<57>);
+    table[58] = reinterpret_cast<void*>(&FbSet2<58>);
+    table[59] = reinterpret_cast<void*>(&FbSet1<59>);
+    table[61] = reinterpret_cast<void*>(&FbSet1<61>);
+    table[63] = reinterpret_cast<void*>(&FbSet1<63>);
+    table[65] = reinterpret_cast<void*>(&FbSet1<65>);
+    table[66] = reinterpret_cast<void*>(&FbGet2<66>);
+    table[67] = reinterpret_cast<void*>(&FbSet2<67>);
+    table[68] = reinterpret_cast<void*>(&FbGetGrid);
+    table[69] = reinterpret_cast<void*>(&FbSet2<69>);
+    table[70] = reinterpret_cast<void*>(&FbGet2<70>);
+    table[71] = reinterpret_cast<void*>(&FbSet2<71>);
+    table[77] = reinterpret_cast<void*>(&FbString<77>);
+    table[79] = reinterpret_cast<void*>(&FbSet1<79>);
+    table[81] = reinterpret_cast<void*>(&FbSet1<81>);
+    table[83] = reinterpret_cast<void*>(&FbSet1<83>);
+    table[85] = reinterpret_cast<void*>(&FbImage);
+    table[87] = reinterpret_cast<void*>(&FbSet1<87>);
+    return table;
+}
+
+// One call of the handler: the window, a vector of the pairs and the
+// byte's word; its EAX and its argument slots after.
+void FbRead(WrWindow& window, WrPair* pairs, std::size_t count, uint32_t set)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    PmRegs regs = PmRegsOf(0x27272727u, kPmEsi, kPmEdi, PrArg(&window), PrArg(vector));
+    regs.args[2] = set;
+    Mix(PmCall(addr::cGZUIScriptWidgets_FileBrowserRead, regs));
+    Mix(regs.args[0] == PrArg(&window) ? 0x77DDu : 0xBAD0u);
+    Mix(regs.args[1] == PrArg(vector) ? 0x77DEu : 0xBAD1u);
+    Mix(regs.args[2]);
+}
+
+void DriveFbRead()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    void* const fonts = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C72)();
+    Mix(fonts ? 1u : 0u);
+    if (!holder || !fonts) {
+        FbStage("read");
+        return;
+    }
+    for (uint32_t i = 0; i < 3; ++i)
+        g_fbFonts[i] = Virtual<void*>(fonts, 0x14, kFbFontWords[i]);
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {WrHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    g_wrImages[0] = {WrImageTable(), 0xB0, 0};
+    g_wrImages[1] = {WrImageTable(), 0xB1, 0};
+
+    FbFace face = {FbFaceTable(), 1, 0};
+    WrWindow windows[3] = {{WrWindowTable(), 0, &face}, {WrWindowTable(), 1, &face}, {WrWindowTable(), 2, &face}};
+
+    // Numbers: the choices' words, fonts, widths; texts: paths, colours
+    // (good, short, out of a byte's range, not numbers), images, filters.
+    WrValue nBackdir = WrNumber(0x1302), nDir = WrNumber(0x1303), nFile = WrNumber(0x1304), nBad = WrNumber(0x1399),
+            nSort0 = WrNumber(0x1308), nSort1 = WrNumber(0x1309), nSort2 = WrNumber(0x130A), nSort3 = WrNumber(0x130B),
+            nDir0 = WrNumber(0x130E), nDir3 = WrNumber(0x1311), nDir2 = WrNumber(0x1310), nIcon = WrNumber(0x1313),
+            nName = WrNumber(0x1314), nExt = WrNumber(0x1315), nEmpty = WrNumber(0x1316), nUnused = WrNumber(0x1317),
+            nDefault = WrNumber(0x1318), nF006 = WrNumber(0xF006), nF007 = WrNumber(0xF007), nF008 = WrNumber(0xF008),
+            nFont0 = WrNumber(kFbFontWords[0]), nFont1 = WrNumber(kFbFontWords[1]), nFont2 = WrNumber(kFbFontWords[2]),
+            n0 = WrNumber(0), n1 = WrNumber(1), n5 = WrNumber(5), n16 = WrNumber(16), n40 = WrNumber(40),
+            nBig = WrNumber(0xFFFFFFFFu), other = {WrValueTable(), 9, 1, "(1,2,3)"};
+    WrValue path = WrText("C:\\Cities\\Saves"), name = WrText("region"), ext = WrText("sc4"),
+            fontText = WrText("font text"), back = WrText(".."), c1 = WrText("(1,2,3)"), c2 = WrText("(255,128,0)"),
+            c3 = WrText("(300,-1,256)"), c4 = WrText("(10,20,30)"), cShort = WrText("(4,5)"), cWord = WrText("red"),
+            c5 = WrText("(7,8,9)"), c6 = WrText("(0,0,0)"), image0 = WrText("{1a2b,3c4c}"), image1 = WrText("{11,13}"),
+            imageBad = WrText("{zz}"), f1 = WrText("All files:3:{11,13}"), f2 = WrText("Saves:0:{2,6}"),
+            f3 = WrText("Odd:-7:{zz}"), f4 = WrText("Word:x:{1a,4}"), f5 = WrText("a:1:b:{1,2}"),
+            f6 = WrText("Big:4294967295:{abc,10}");
+    WrPair full[] = {
+        {0x1301, &path},     {0x1305, &nDir},     {0x1306, &name},    {0x1307, &ext},      {0x130C, &nSort2},
+        {0x130D, &nSort1},   {0x1312, &nDir3},    {0x1319, &nEmpty},  {0x131A, &nIcon},    {0x131B, &nExt},
+        {0x131C, &nFont0},   {0x131D, &c1},       {0x131E, &c2},      {0x131F, &c3},       {0x1320, &cShort},
+        {0x1321, &cWord},    {0x1322, &c4},       {0x1323, &nF007},   {0x1324, &fontText}, {0x1325, &c2},
+        {0x132A, &c5},       {0x132B, &nDefault}, {0x132C, &nFont2},  {0x132D, &c3},       {0x1333, &nF008},
+        {0x1334, &n16},      {0x1335, &n40},      {0x1336, &n5},      {0x1337, &n0},       {0x1338, &c4},
+        {0x1339, &n5},       {0x133A, &c5},       {0x133B, &c6},      {0x133C, &c1},       {0x133D, &back},
+        {0x133E, &nBig},     {0x133F, &c2},       {0x1341, &n1},      {0xF019, &n0},       {0x1340, &image0},
+        {0x1342, &f1},       {0x1342, &other},    {0x1342, &f2},      {0x55, &f1},         {0x1342, &f3},
+        {0x1342, &f4},       {0x1342, &f5},       {0x1342, &f6},      {0x131C, &nFont1},   {0x1305, &nFile},
+    };
+    WrPair second[] = {
+        {0x1305, &nBackdir}, {0x130C, &nSort0},  {0x130D, &nSort3}, {0x130D, &nBad},    {0x1312, &nDir0},
+        {0x1319, &nName},    {0x131A, &nUnused}, {0x131C, &fontText}, {0x1323, &nUnused}, {0x1324, &nFont1},
+        {0x1326, &c1},       {0x132B, &nF006},   {0x132C, &back},   {0x1332, &c6},      {0x1333, &nBad},
+        {0x1337, &n1},       {0x1339, &n0},      {0x1341, &n0},     {0xF019, &n5},      {0x1340, &imageBad},
+        {0x1342, &f2},       {0x1301, &other},   {0x1306, &nDir},
+    };
+    WrPair third[] = {
+        {0x1305, &nBad}, {0x1312, &nDir2}, {0x1319, &nBad},  {0x131C, &other}, {0x1340, &image1},
+        {0x1342, &f1},   {0x1342, &f6},    {0x133F, &cWord}, {0x1323, &nF006}, {0x133D, &path},
+    };
+    WrPair fourth[] = {{0x1342, &f1}, {0x1342, &f2}, {0x1340, &n1}, {0x1301, &back}, {0x132C, &nFont0}};
+
+    for (WrWindow& window : windows) {
+        for (uint32_t set : {1u, 0xFFFFFF01u, 0u, 0x100u}) {
+            for (uint32_t grid : {1u, 0u}) {
+                face.grid = grid;
+                FbRead(window, full, std::size(full), set);
+                FbRead(window, second, std::size(second), set);
+                FbRead(window, third, std::size(third), set);
+                FbRead(window, fourth, std::size(fourth), set);
+                FbRead(window, full, 0, set);
+            }
+        }
+    }
+    Mix(face.count);
+    Mix(g_wrImages[0].count);
+    Mix(g_wrImages[1].count);
+    Mix(held.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    FbStage("read");
+}
+
+// OPENSC4_TEST_FILEBROWSER=<day>: part u14 by address. Every result goes
+// into the fingerprint's `fb` part.
+void DriveFileBrowserDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_FILEBROWSER") || !game::IsBuild641())
+        return;
+    g_fbOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_fbHash;
+    DriveFbRegister();
+    DriveFbRead();
+    g_into = saved;
+    log::Write("autotest: filebrowser driven (hash %08X)", g_fbHash);
+}
+
+void FbFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_fbOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | fb %08X", g_fbHash);
+    line += text;
+}
+
+const FingerprintPart kFbFingerprint{"filebrowser", 4, &FbFingerprint};
+const DayHook kFbDrive{"filebrowser", 4, &DriveFileBrowserDay};
+
+
+
+// Part u12, slice 3: the property handlers and the variable table's words
+// (OPENSC4_TEST_PROPHANDLE). The words' filler called by address with a
+// variable table of our own in the global's place (its slot 3 hashes each
+// word's text and value). The eight handlers called by address with
+// windows of our own (slot 0 gives a control of our own for its interface,
+// or none; slots 53, 68 and 114 hash what they get), controls of our own
+// (every slot a handler calls hashes its arguments: words, a string's
+// text, a rectangle's four ints, which image, a pointer's being there, or
+// the low byte where the game pushes a dword it wrote only the low byte of
+// and leaves its stack's leftovers above), the UI script loader's held
+// object one of our own (images of our own for odd instances, texts for
+// odd instances), on vectors of pairs of our own (number values whose
+// slots 73 and 75 leave a mark in EDX, text values), both passes, EBX,
+// ESI, EDI and EBP checked kept and the argument slots read back. Every
+// result goes into the hash; addresses never do.
+
+bool g_phOn = false;
+uint32_t g_phHash = 2166136261u;
+
+void PhStage(const char* name) { log::Write("autotest: prophandle: %s %08X", name, g_phHash); }
+
+// The values: slot 3 the kind, slot 55 the text into a string, slots 73
+// and 75 point at two words of their own (EDX a mark).
+struct PhValue {
+    void** vtable;
+    uint32_t kind;
+    uint32_t word73;
+    uint32_t word75;
+    const char* text;
+};
+
+uint32_t __fastcall PhValueKind(PhValue* self, void*)
+{
+    Mix(0x3000u | self->kind);
+    return self->kind;
+}
+
+uint32_t __fastcall PhValueText(PhValue* self, void*, void* string)
+{
+    Mix(0x37000u);
+    const uint32_t length = static_cast<uint32_t>(std::strlen(self->text));
+    Virtual<uint32_t>(string, 0xC, self->text, length);
+    return 0x100u | (length & 0xFF);
+}
+
+__declspec(naked) void PhValue73()
+{
+    __asm lea eax, [ecx + 8]
+    __asm mov edx, 0x73737373
+    __asm ret
+}
+
+__declspec(naked) void PhValue75()
+{
+    __asm lea eax, [ecx + 12]
+    __asm mov edx, 0x75757575
+    __asm ret
+}
+
+void** PhValueTable()
+{
+    static void* table[76] = {};
+    table[3] = reinterpret_cast<void*>(&PhValueKind);
+    table[55] = reinterpret_cast<void*>(&PhValueText);
+    table[73] = reinterpret_cast<void*>(&PhValue73);
+    table[75] = reinterpret_cast<void*>(&PhValue75);
+    return table;
+}
+
+// A vector of pairs (key, value) and its values.
+struct PhVector {
+    std::vector<PhValue> values;
+    std::vector<std::pair<uint32_t, PhValue*>> pairs;
+    char* vector[3] = {};
+
+    struct Item {
+        uint32_t key;
+        char type;  // n a number, t a text, x not a number, 0 none
+        uint32_t word;
+        const char* text;
+    };
+    PhVector(std::initializer_list<Item> items)
+    {
+        values.reserve(items.size());
+        for (const Item& item : items) {
+            if (item.type == '0') {
+                pairs.push_back({item.key, nullptr});
+                continue;
+            }
+            const uint32_t kind = item.type == 'n' ? 6u : item.type == 't' ? 0x800Eu : 5u;
+            values.push_back({PhValueTable(), kind, item.word, item.word ^ 0x40000000u, item.text ? item.text : ""});
+            pairs.push_back({item.key, &values.back()});
+        }
+        vector[0] = reinterpret_cast<char*>(pairs.data());
+        vector[1] = reinterpret_cast<char*>(pairs.data() + pairs.size());
+    }
+};
+
+// Images of our own: AddRef, Release, width (slot 9), height (slot 10),
+// area (slot 12).
+struct PhImage {
+    void** vtable;
+    uint32_t id;
+    uint32_t count;
+    int32_t area[4];
+};
+
+uint32_t __fastcall PhImageAddRef(PhImage* self, void*) { return ++self->count; }
+uint32_t __fastcall PhImageRelease(PhImage* self, void*) { return --self->count; }
+uint32_t __fastcall PhImageWidth(PhImage* self, void*) { return 0x40 + self->id; }
+uint32_t __fastcall PhImageHeight(PhImage* self, void*) { return 0x20 + self->id; }
+int32_t* __fastcall PhImageArea(PhImage* self, void*) { return self->area; }
+
+void** PhImageTable()
+{
+    static void* table[13] = {};
+    table[1] = reinterpret_cast<void*>(&PhImageAddRef);
+    table[2] = reinterpret_cast<void*>(&PhImageRelease);
+    table[9] = reinterpret_cast<void*>(&PhImageWidth);
+    table[10] = reinterpret_cast<void*>(&PhImageHeight);
+    table[12] = reinterpret_cast<void*>(&PhImageArea);
+    return table;
+}
+
+PhImage g_phImages[4];
+
+// The held object of the UI script loader: an image for odd instances (one
+// of four, held), a text for odd instances.
+uint32_t __fastcall PhHeldImage(PmHeld*, void*, const uint32_t* key)
+{
+    Mix(0x3003u);
+    PmMixKey(key);
+    if (!(key[2] & 1))
+        return 0;
+    PhImage& image = g_phImages[(key[2] >> 1) & 3];
+    ++image.count;
+    return PrArg(&image);
+}
+
+void** PhHeldTable()
+{
+    static void* table[5] = {};
+    table[1] = reinterpret_cast<void*>(&PmHeldAddRef);
+    table[2] = reinterpret_cast<void*>(&PmHeldRelease);
+    table[3] = reinterpret_cast<void*>(&PhHeldImage);
+    table[4] = reinterpret_cast<void*>(&PmHeldText);
+    return table;
+}
+
+// The controls: per interface, the slots the handler calls and what each
+// argument is (w a word, b its low byte, s a string, r a rectangle or
+// none, i which image or none, p a pointer's being there).
+struct PhSlot {
+    uint32_t slot;
+    const char* args;
+};
+
+struct PhInterface {
+    uint32_t iid;
+    std::vector<PhSlot> slots;
+};
+
+const std::vector<PhInterface>& PhInterfaces()
+{
+    static const std::vector<PhInterface> interfaces = {
+        {0xC2AFA76F, {{12, "w"}, {10, "wbbb"}}},
+        {0x212CDC1F, {{7, "ww"}, {19, "w"}, {9, "ww"}, {23, "ww"}, {25, "ww"}, {21, "w"}, {5, "ww"}}},
+        {0x231A1C57,
+         {{43, ""}, {80, ""}, {77, "w"}, {10, "w"}, {12, "ww"}, {18, "w"}, {23, "w"}, {37, "ww"}, {33, "w"},
+          {40, "w"}, {42, "w"}, {64, "w"}, {66, "w"}, {68, "ww"}, {72, "w"}, {81, "w"}, {88, "ir"}, {87, "ir"}}},
+        {0x4132242B,
+         {{7, "sww"}, {14, ""}, {16, ""}, {10, "ww"}, {27, "w"}, {29, "w"}, {9, ""}, {47, ""}, {48, ""}, {35, "bb"},
+          {38, "p"}, {39, "ww"}, {42, "w"}, {51, "w"}, {55, "ww"}, {53, "w"}, {57, "ww"}, {59, "ww"}, {17, "w"}}},
+        {0x8810,
+         {{5, "ww"}, {20, "w"}, {19, "p"}, {23, "ww"}, {30, "ww"}, {29, "wwww"}, {12, "wir"}, {27, "w"}, {35, "s"},
+          {40, "ww"}, {38, "w"}, {45, "ww"}}},
+        {0xC12CEA13, {{8, "r"}, {11, "ww"}, {6, "ww"}, {4, "i"}}},
+        {0x21325207, {{5, "w"}, {8, "w"}, {6, "w"}, {10, "w"}, {12, "ir"}}},
+        {0x612CE0C3,
+         {{10, "ww"}, {12, "w"}, {9, "w"}, {4, "w"}, {6, "ww"}, {19, "p"}, {23, "ww"}, {14, "iw"}, {27, "w"},
+          {29, "ww"}, {31, "wwww"}}},
+    };
+    return interfaces;
+}
+
+struct PhControl {
+    void** vtable;
+    const PhInterface* face;
+    uint32_t count;
+    uint32_t calls;
+};
+
+void PhMixArg(char kind, uint32_t value)
+{
+    switch (kind) {
+    case 'b': Mix(value & 0xFF); break;
+    case 's': PrMixText(static_cast<char*>(reinterpret_cast<void*>(static_cast<std::uintptr_t>(value)))); break;
+    case 'r':
+        if (!value) {
+            Mix(0xDEADu);
+        } else {
+            const int32_t* const rect = reinterpret_cast<const int32_t*>(static_cast<std::uintptr_t>(value));
+            for (int i = 0; i < 4; ++i)
+                Mix(static_cast<uint32_t>(rect[i]));
+        }
+        break;
+    case 'i': Mix(value ? reinterpret_cast<const PhImage*>(static_cast<std::uintptr_t>(value))->id : 0xFFu); break;
+    case 'p': Mix(value ? 1u : 0u); break;
+    default: Mix(value); break;
+    }
+}
+
+uint32_t PhRecord(PhControl* self, uint32_t slot, const uint32_t* args)
+{
+    Mix(0xC0000u | slot);
+    const char* kinds = "";
+    for (const PhSlot& known : self->face->slots) {
+        if (known.slot == slot)
+            kinds = known.args;
+    }
+    for (uint32_t i = 0; kinds[i]; ++i)
+        PhMixArg(kinds[i], args[i]);
+    ++self->calls;
+    return (slot * 0x10001u) ^ (self->calls << 8);
+}
+
+uint32_t __fastcall PhControlAddRef(PhControl* self, void*) { return ++self->count; }
+uint32_t __fastcall PhControlRelease(PhControl* self, void*) { return --self->count; }
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot0(PhControl* self, void*)
+{
+    return PhRecord(self, Slot, nullptr);
+}
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot1(PhControl* self, void*, uint32_t a)
+{
+    const uint32_t args[] = {a};
+    return PhRecord(self, Slot, args);
+}
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot2(PhControl* self, void*, uint32_t a, uint32_t b)
+{
+    const uint32_t args[] = {a, b};
+    return PhRecord(self, Slot, args);
+}
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot3(PhControl* self, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    const uint32_t args[] = {a, b, c};
+    return PhRecord(self, Slot, args);
+}
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot4(PhControl* self, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+    const uint32_t args[] = {a, b, c, d};
+    return PhRecord(self, Slot, args);
+}
+
+constexpr std::size_t kPhSlots = 90;
+
+template <std::size_t... I>
+std::array<std::array<void*, kPhSlots>, 5> PhSlotTables(std::index_sequence<I...>)
+{
+    return {{{reinterpret_cast<void*>(&PhSlot0<I>)...},
+             {reinterpret_cast<void*>(&PhSlot1<I>)...},
+             {reinterpret_cast<void*>(&PhSlot2<I>)...},
+             {reinterpret_cast<void*>(&PhSlot3<I>)...},
+             {reinterpret_cast<void*>(&PhSlot4<I>)...}}};
+}
+
+void** PhControlTable(const PhInterface& face)
+{
+    static const auto slots = PhSlotTables(std::make_index_sequence<kPhSlots>{});
+    static std::vector<std::array<void*, kPhSlots>> tables(PhInterfaces().size());
+    std::array<void*, kPhSlots>& table = tables[&face - PhInterfaces().data()];
+    table[1] = reinterpret_cast<void*>(&PhControlAddRef);
+    table[2] = reinterpret_cast<void*>(&PhControlRelease);
+    for (const PhSlot& slot : face.slots)
+        table[slot.slot] = slots[std::strlen(slot.args)][slot.slot];
+    return table.data();
+}
+
+// The windows: slot 0 gives the control for its interface (held) or
+// nothing; slots 53, 68 and 114 hash what they get (114 destroys the
+// value by its slot 127 after).
+struct alignas(256) PhWindow {
+    void** vtable;
+    PhControl* control;
+    bool give;
+};
+
+uint32_t __fastcall PhWindowQuery(PhWindow* self, void*, uint32_t iid, void** out)
+{
+    Mix(0x10000u);
+    Mix(iid);
+    if (!self->give || iid != self->control->face->iid)
+        return 0x100u;
+    ++self->control->count;
+    *out = self->control;
+    return 0x101u;
+}
+
+uint32_t __fastcall PhWindow53(PhWindow*, void*, uint32_t width, uint32_t height)
+{
+    Mix(0x53000u);
+    Mix(width);
+    Mix(height);
+    return 0x53u;
+}
+
+uint32_t __fastcall PhWindow68(PhWindow*, void*, uint32_t flag, uint32_t on)
+{
+    Mix(0x68000u);
+    Mix(flag);
+    Mix(on);
+    return 0x68u;
+}
+
+uint32_t __fastcall PhWindowPut(PhWindow*, void*, uint32_t key, char* value)
+{
+    Mix(0x114000u);
+    Mix(key);
+    if (value) {
+        PmMixValue(value);
+        Virtual<void>(value, 0x1FC, 1u);
+    } else {
+        Mix(0xDEADu);
+    }
+    return 0x114u;
+}
+
+void** PhWindowTable()
+{
+    static void* table[115] = {};
+    table[0] = reinterpret_cast<void*>(&PhWindowQuery);
+    table[53] = reinterpret_cast<void*>(&PhWindow53);
+    table[68] = reinterpret_cast<void*>(&PhWindow68);
+    table[114] = reinterpret_cast<void*>(&PhWindowPut);
+    return table;
+}
+
+// The variable table of our own for the words: slot 3 hashes the word's
+// text and value.
+uint32_t g_phWords = 0;
+
+uint32_t __fastcall PhTableAdd(void*, void*, char* string, uint32_t value)
+{
+    PrMixText(string);
+    Mix(value);
+    ++g_phWords;
+    return value ^ 0x5A5Au;
+}
+
+void DrivePhWords()
+{
+    static void* table[4] = {};
+    table[3] = reinterpret_cast<void*>(&PhTableAdd);
+    void* object[2] = {table, nullptr};
+    void** const global = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *global;
+    Mix(old ? 1u : 0u);
+    *global = object;
+    reinterpret_cast<void(__cdecl*)()>(addr::cGZUIScriptProps_AddWords)();
+    reinterpret_cast<void(__cdecl*)()>(addr::cGZUIScriptProps_AddWords)();
+    *global = old;
+    Mix(g_phWords);
+    PhStage("words");
+}
+
+const std::uintptr_t kPhHandlers[] = {
+    addr::cGZUIScriptProps_HandleC2AFA76F, addr::cGZUIScriptProps_Handle212CDC1F,
+    addr::cGZUIScriptProps_Handle231A1C57, addr::cGZUIScriptProps_Handle4132242B,
+    addr::cGZUIScriptProps_Handle8810,     addr::cGZUIScriptProps_HandleC12CEA13,
+    addr::cGZUIScriptProps_Handle21325207, addr::cGZUIScriptProps_Handle612CE0C3,
+};
+
+// One handler on one vector and pass: EBX, ESI, EDI and EBP checked kept;
+// the argument slots after (the window's: whether it is still the window,
+// else its top and low bytes, the window being 256-aligned, or the word).
+void PhRun(std::size_t handler, PhWindow& window, PhVector& properties, uint32_t pass)
+{
+    const uint32_t window32 = PrArg(&window);
+    PmRegs regs = PmRegsOf(0x13572468u, kPmEsi, kPmEdi, window32, PrArg(properties.vector));
+    regs.args[2] = 0xABCDEF00u | pass;
+    PmCall(kPhHandlers[handler], regs);
+    const uint32_t slot = regs.args[0];
+    if (slot == window32)
+        Mix(0x5A5Au);
+    else if ((slot & 0x00FFFF00u) == (window32 & 0x00FFFF00u))
+        Mix(0xB0000000u ^ (slot & 0xFF0000FFu));
+    else
+        Mix(slot);
+    Mix(regs.args[1] == PrArg(properties.vector) ? 1u : 0u);
+    Mix(regs.args[2]);
+    Mix(regs.args[3]);
+    Mix(window.control->count);
+    Mix(window.control->calls);
+}
+
+void DrivePhHandlers()
+{
+    // The held object of the UI script loader: ours for the stage.
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    if (!holder) {
+        PhStage("handle");
+        return;
+    }
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {PhHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    for (uint32_t i = 0; i < 4; ++i)
+        g_phImages[i] = {PhImageTable(), i + 1, 0, {int32_t(i), int32_t(i) * 2, 100 + int32_t(i), 50 - int32_t(i)}};
+
+    // Every read succeeds; the second has the other branches; the third
+    // malformed texts and values that are not numbers; then none.
+    PhVector full = {
+        {0xF005, 'n', 0xF006, nullptr}, {0xF005, 't', 0, "text"}, {0xF005, '0', 0, nullptr},
+        {0xF005, 'n', 0x205, nullptr},  {0xF005, 'n', 0xF00B, nullptr}, {0xF005, 'n', 0x208, nullptr},
+        {0x200, 't', 0, "(1,2,3)"},     {0x201, 't', 0, "(255,0,128)"}, {0x202, 't', 0, "(4,5)"},
+        {0x203, 't', 0, "(300,-1,7)"},  {0xF003, 'n', 1, nullptr},      {0x300, 'n', 0, nullptr},
+        {0x301, 'n', 0, nullptr},       {0xF000, 'n', 7, nullptr},      {0xF002, 't', 0, "(10,20,30)"},
+        {0xF001, 't', 0, "(40,50,60)"}, {0xF004, 't', 0, "(3,4)"},      {0x305, 't', 0, "(7,8)"},
+        {0xF015, 'n', 0xF008, nullptr}, {0x304, 'n', 1, nullptr},       {0xF00F, 't', 0, "(1,1,1)"},
+        {0xF010, 't', 0, "(2,2,2)"},    {0xF011, 't', 0, "(3,3,3)"},    {0xF012, 't', 0, "(4,4,4)"},
+        {0xF013, 't', 0, "(5,5,5)"},    {0xF014, 't', 0, "(6,6,6)"},    {0x407, 't', 0, "(7,7,7)"},
+        {0x408, 't', 0, "(8,8,8)"},     {0x40B, 't', 0, "(9,9,9)"},     {0xF019, 'n', 1, nullptr},
+        {0x409, 'n', 0x99, nullptr},    {0x40C, 'n', 0, nullptr},       {0x40D, 'n', 0x0D, nullptr},
+        {0x40E, 't', 0, "(14,15)"},     {0x40F, 'n', 0x0F, nullptr},    {0x410, 'n', 0x10, nullptr},
+        {0x413, 't', 0, "{1234,3}"},    {0x414, 't', 0, "(1,2,3,4)"},   {0x411, 't', 0, "{5678,5}"},
+        {0x400, 'n', 1, nullptr},       {0x401, 'n', 0, nullptr},       {0x402, 'n', 1, nullptr},
+        {0x403, 'n', 1, nullptr},       {0x415, 'n', 1, nullptr},       {0x502, 't', 0, "item one"},
+        {0x502, 't', 0, "item two"},    {0x503, 'n', 1, nullptr},       {0x501, 'n', 3, nullptr},
+        {0x505, 'n', 5, nullptr},       {0x506, 'n', 6, nullptr},       {0xF00B, 'n', 1, nullptr},
+        {0x500, 't', 0, "(9,10)"},      {0x504, 'n', 1, nullptr},       {0xA00, 'n', 1, nullptr},
+        {0xA01, 'n', 0, nullptr},       {0xA02, 'n', 2, nullptr},       {0xF00D, 'n', 0, nullptr},
+        {0xA03, 'n', 1, nullptr},       {0xA04, 'n', 0, nullptr},       {0xA05, 'n', 1, nullptr},
+        {0xA06, 'n', 1, nullptr},       {0xA07, 'n', 0, nullptr},       {0xA08, 'n', 1, nullptr},
+        {0xF016, 't', 0, "{ab,7}"},     {0xA10, 't', 0, "a caption"},   {0xA12, 't', 0, "{2026,9}"},
+        {0xA11, 't', 0, "(11,12)"},     {0xA18, 'n', 0x20, nullptr},    {0xA19, 't', 0, "{1,2}"},
+        {0xA1A, 't', 0, "{3,4}"},       {0xB00, 'n', 300, nullptr},     {0xB01, 'n', 1, nullptr},
+        {0xB02, 'n', 0, nullptr},       {0xF018, 't', 0, "(5,6,7,8)"},  {0xC00, 't', 0, "(9,3)"},
+        {0xC01, 'n', 0xC03, nullptr},   {0x40A, 'n', 0x4A, nullptr},    {0x1000, 'n', 0, nullptr},
+        {0x1001, 'n', 1, nullptr},      {0x1002, 'n', 0, nullptr},      {0x1003, 'n', 1, nullptr},
+        {0x1004, 't', 0, "(13,14)"},    {0x1005, 'n', 0x15, nullptr},   {0x1006, 't', 0, "(16,16,16)"},
+        {0x1007, 't', 0, "(17,17,17)"}, {0x1008, 't', 0, "(18,18,18)"}, {0x1009, 't', 0, "(19,19,19)"},
+        {0x100A, 't', 0, "(20,20,20)"},
+    };
+    PhVector other = {
+        {0xF005, 'n', 0xA0D, nullptr},  {0xF005, 'n', 0xF00E, nullptr}, {0xF005, 'n', 0x206, nullptr},
+        {0xF005, 'n', 0xF007, nullptr}, {0xF005, 'n', 0x204, nullptr},  {0xF005, 'n', 0xF00C, nullptr},
+        {0x202, 't', 0, "(9,8,7)"},     {0xF003, 'n', 0, nullptr},      {0x301, 'n', 2, nullptr},
+        {0xF000, 't', 0, "a font"},     {0xF004, 't', 0, "(1,2,3,4)"},  {0xF015, 'n', 0xF007, nullptr},
+        {0xF011, 't', 0, "(30,31,32)"}, {0x40B, 't', 0, "(1,2,3)(4,5,6)"}, {0xF019, 'n', 0, nullptr},
+        {0x40C, 'n', 5, nullptr},       {0x413, 't', 0, "{1234,4}"},    {0x411, 't', 0, "{5678,1}"},
+        {0x412, 't', 0, "(9,9,9,9)"},   {0x503, 'n', 2, nullptr},       {0x402, 'n', 0, nullptr},
+        {0x401, 'n', 1, nullptr},       {0x502, 'x', 0, nullptr},       {0xA02, 'n', 0, nullptr},
+        {0xF00D, 'n', 1, nullptr},      {0xA07, 'n', 1, nullptr},       {0xF016, 't', 0, "{cd,4}"},
+        {0xA12, 't', 0, "{2026,8}"},    {0xA19, 't', 0, "{5,6}"},       {0xB00, 'n', 128, nullptr},
+        {0xC00, 't', 0, "(3,9)"},       {0xC01, 'n', 5, nullptr},       {0x1000, 'n', 0xF006, nullptr},
+        {0x1008, 't', 0, "(1,2,3)"},    {0xF018, 't', 0, "(1,2)"},
+    };
+    PhVector odd = {
+        {0xF005, 'n', 0xA1B, nullptr}, {0xF000, 'x', 0, nullptr},     {0xF015, 'n', 0xF006, nullptr},
+        {0x200, 't', 0, "(1,2"},       {0xF004, 't', 0, "(1,2,3)"},   {0x40B, 't', 0, "garbage"},
+        {0xF019, 'n', 2, nullptr},     {0x413, 't', 0, "{zz}"},       {0xF016, 't', 0, "{ef,9}"},
+        {0xA18, 'x', 0, nullptr},      {0x1000, 'n', 0xF007, nullptr}, {0xC00, 't', 0, "(5)"},
+        {0xC01, 'n', 0xC03, nullptr},  {0xF003, 'x', 0, nullptr},     {0x304, '0', 0, nullptr},
+        {0xF005, 'n', 0xA09, nullptr}, {0xB00, 'n', 0xFF, nullptr},   {0xF00D, 'x', 0, nullptr},
+    };
+    PhVector empty = {};
+
+    const auto& faces = PhInterfaces();
+    for (std::size_t h = 0; h < std::size(kPhHandlers); ++h) {
+        PhControl control = {PhControlTable(faces[h]), &faces[h], 0, 0};
+        PhWindow window = {PhWindowTable(), &control, false};
+        PhRun(h, window, full, 1);
+        window.give = true;
+        for (PhVector* properties : {&full, &other, &odd, &empty}) {
+            for (uint32_t pass : {0u, 1u})
+                PhRun(h, window, *properties, pass);
+        }
+        log::Write("autotest: prophandle: %08X %08X", faces[h].iid, g_phHash);
+    }
+    for (const PhImage& image : g_phImages)
+        Mix(image.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    Mix(held.count);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    PhStage("handle");
+}
+
+// OPENSC4_TEST_PROPHANDLE=<day>: part u12's third slice by address. Every
+// result goes into the fingerprint's `ph` part.
+void DrivePropHandleDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_PROPHANDLE") || !game::IsBuild641())
+        return;
+    g_phOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_phHash;
+    DrivePhWords();
+    DrivePhHandlers();
+    g_into = saved;
+    log::Write("autotest: prophandle driven (hash %08X)", g_phHash);
+}
+
+void PhFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_phOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | ph %08X", g_phHash);
+    line += text;
+}
+
+const FingerprintPart kPhFingerprint{"prophandle", 4, &PhFingerprint};
+const DayHook kPhDrive{"prophandle", 4, &DrivePropHandleDay};
 
 } // namespace
 } // namespace opensc4::autotest
