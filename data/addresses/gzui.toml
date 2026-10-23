@@ -5873,6 +5873,111 @@ kind = "data"
 expect = "13 C8 94 00 CE C7 94 00"
 source = "Name ours. The vtable of the 8-byte object GZWinGen's handler gives the window's slot 7 (+4 zeroed)."
 
+# Part u12, slice 3 (src/core/gzui_props.cpp, docs/gzui.md): the property handlers of eight controls, the filler of
+# the variable table's words, and the data they read.
+
+[[entry]]
+name = "cGZUIScriptProps::AddWords"
+address = 0x0094D641
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 14 A1 88"
+source = "Name ours. No arguments; called once by the first LEGACY reader's constructor (0x0095B8C4) when it makes the variable table 0x00B63588. 64 words of a window's script properties (clsid -1, iid -2, yes/true/on 1, no/false/off 0, GZWin 0xE2BA00EE, id 0x100 to transparent 0x107, font 0xF000 to outline 0xF019, comments 0x108 to commentskd 0x10F, winflag_visible to winflag_acceptfocus 0xF01A to 0xF026) each made a game string (SC4String::FromText) and given to the table's slot 3 with its value; the string destroyed inline. Ours in framework.uiscript.propwords (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::HandleC2AFA76F"
+address = 0x0094E33B
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 0C 8B 4D"
+source = "Name ours. The property handler of the interface 0xC2AFA76F (the window's slot 0 with an out; released at the end). Second pass only: a flags byte (kept in the window argument's top byte) from every 0xF005 number pair to the control's slot 12, the colours 0x200 to 0x203 as three bytes each to slot 10 (the index first). Ours in framework.uiscript.prophandle (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle212CDC1F"
+address = 0x0094E516
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 2C 53 8B"
+source = "Name ours. The property handler of the text control 0x212CDC1F. First pass: the 0xF015 alignment to slot 21. Second pass: notify and two flags to slot 7, the font number to slot 19 and back as a number value (else the text back), two colours to slot 9, the gutters to slot 23, the 0x305 pair to slot 25. Both: 0x304 as a boolean under 0xDACF8F9C (the window's slot 114). Ours in framework.uiscript.prophandle (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle231A1C57"
+address = 0x0094E7C8
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 64 83 65"
+source = "Name ours. The property handler of the text edit 0x231A1C57. First pass: 0x304. Second pass: the flags (slot 80 through 0x0094C719 with the table 0x00AD56C8) to slot 77, the font, eight colours, the outline, the gutters, 0x409 to 0x410 and two images by key with their rectangles (written back under 0x8B4BFEFC and 0x8B4BFEFD). Ours in framework.uiscript.prophandle (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle4132242B"
+address = 0x0094EE39
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 50 56 8B"
+source = "Name ours. The property handler of the interface 0x4132242B. First pass: every 0x502 text to slot 7, 0x501, 0x503, 0x505, 0x506 and 0x304. Second pass: 0x401 and 0x402 to slot 35, the font through 0x00913C72's slot 5, four colours, 0x40B's \"(%d,%d,%d)(%d,%d,%d)\" as two colours to slot 55, 0xF019, 0xF00B, 0x504 and two pairs. Ours in framework.uiscript.prophandle (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle8810"
+address = 0x0094F757
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8D 6C 24 94 81 EC B0"
+source = "Name ours. `ebp` at esp-0x6C. The property handler of the button 0x8810. First pass: 0xA02 to slot 5. Second pass: ten flags to slot 5, the style as a kind, the font (else the default \"main9\" font), six colours, the gutters by the text's commas, the image with the kind to slot 12, the alignment, two texts to slot 35, 0xA11, 0xA18 and two keys as 8-byte values under 0x0A5BE39D and 0x4A5BE2F8. Ours in framework.uiscript.prophandle (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::HandleC12CEA13"
+address = 0x0095002C
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 2C 53 56"
+source = "Name ours. The property handler of the interface 0xC12CEA13. First pass: the 0xF018 rectangle to slot 8 and slot 11 (0x10). Second pass: 0xB00 (at most 0xFF) over 255 as a float to slot 6, three flags to slot 11, the image to slot 4 with its width and height to the window's slot 53. Ours in framework.uiscript.prophandle (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle21325207"
+address = 0x00950218
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 44 8B 4D"
+source = "Name ours. The property handler of the interface 0x21325207. First pass: 0x40A (slot 75) to slot 5. Second pass: the 0xC00 range (larger to slot 8, smaller to slot 6), 0xC01 to slot 10, the image with the 0xF018 rectangle to slot 12. Ours in framework.uiscript.prophandle (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle612CE0C3"
+address = 0x00950AF6
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 5C 8B 4D"
+source = "Name ours. The property handler of the interface 0x612CE0C3. First pass: the 0x1004 pair to slot 10, 0x1005 and 0x40A (slot 75) to slots 12 and 9. Second pass: 0x1000 to slot 4, five flags to slot 6, the font, three colours, the image to slot 14, the alignment, the gutters and five colours to slot 31. Ours in framework.uiscript.prophandle (docs/gzui.md, part u12, slice 3)."
+
+[[entry]]
+name = "cGZUIScriptProps::KeyFormat"
+address = 0x00AD5418
+kind = "data"
+expect = "7B 25 78 2C 25 78 7D 00"
+source = "Name ours. \"{%x,%x}\", the resource key format the property handlers scan images and texts with."
+
+[[entry]]
+name = "cGZUIScriptProps::ColorsFormat"
+address = 0x00AD5748
+kind = "data"
+expect = "28 25 64 2C 25 64 2C 25"
+source = "Name ours. \"(%d,%d,%d)(%d,%d,%d)\", two colours, scanned by 0x0094EE39."
+
+[[entry]]
+name = "cGZUIScriptProps::EditFlags"
+address = 0x00AD56C8
+kind = "data"
+expect = "00 04 00 00 01 00 00 00"
+source = "Name ours. The text edit's (key, mask) table for 0x0094C719, ending with key 0: 0x400 1, 0x300 2, 0x401 4, 0x402 8, 0xF019 0x10, 0x301 0x20, 0x403 0x40, 0x404 0x80, 0x405 0x100, 0x406 0x200, 0x415 0x400, 0x416 0x800, 0x417 0x8000, 0x418 0x1000, 0x419 0x2000."
+
 # Part u14 (src/core/gzui_widgets2.cpp, docs/gzui.md): GZWinFileBrowser's registration and property handler,
 # with the separator its filters are cut at.
 
