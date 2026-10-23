@@ -81,7 +81,7 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u10** | 0x0094A079 to 0x0094AF18, 0x0094BBFE to 0x0094BF3B | 48 of 54 | 25 | **Ours** (below): the MP3 decoder director 0x1CEC20BE ("HitMP3Decoder"), its stream 0x3CEC2B47 and maker 0x9CEC2B58, the decoder's feed, decode, reset, frame header and ID3 size; the UI script root holder 0x5A354595's slots, its vector's insert and copies, the rectangle test; two jump thunks, a shared stub, the ID getter and the holder's two folded slots stay the game's |
 | **u11** | 0x0094C000 to 0x0094C8FF | 21 of 50 | 35 | **Ours** (below): the rest of the UI script root holder 0x5A354595 (constructor, slot 4, destructors, the vector's constructor, push and erase) and the LEGACY reader 0xFA450242's own slots; 8 adjustors, helpers that take their arguments in registers and other classes' small functions stay the game's |
 | **u12** | 0x0094C900 to 0x00951268 | 4 of 49 | 16 | **Ours** (below), first slice: the readers of a window's script properties (the text finder and its three scanners); the property handlers, their map and tree code and the shared AddRef are still the game's |
-| u13 | 0x00951269 to 0x00953FFF | 17 | 17 | The widget readers that run (11.8 KB) |
+| **u13** | 0x00951269 to 0x00953FFF | 17 of 17 | 17 | **Ours** (below): the 16 stock widget classes' registrations (their names and property words into the LEGACY readers' variable table, their handlers and interfaces into two maps) and GZWinGen's property handler |
 | u14, u15, u16 | 0x00954000 to 0x0095BBFF | 98 | 16 | The other widgets' readers and helpers (31 KB) |
 | u17 | 0x0095BC00 to 0x0095FFFF | 29 | 0 | The writers (17.7 KB, never run) |
 
@@ -997,3 +997,57 @@ Both batches: all five legs the same (r1's `pm` was BA41AF31, before the test ha
 **Reached:** in every plain (muted) leg side B logs 13 first calls: slice 1's 4 and 9 of these 10 (the property handlers make, load and look up through them when a city's UI loads); the text maker 0x0094C255 is reached only by the test (it did not run in the coverage runs either). In a game run the loader has a held object, so the loaders' resource manager path is the test's alone.
 
 **What is left:** of part u11's range, 19 of the 29 it left (its adjustors and the other classes' small functions, which go with their classes); of u12's range, the 45 of slice 1 (the property handlers 0x0094CE28, 0x0094D17E, 0x0094E33B to 0x00951084 and the large 0x0094D641, STLport map and tree code 0x0094C92D to 0x0094CDB5, the shared AddRef 0x0094D34F and small wrappers 0x0094D147 to 0x0094D490). With the readers, makers, loaders and lookups ours, the handlers are the natural next slice: every helper they call is now ours.
+
+## Part u13: the stock widgets' registrations and GZWinGen's property handler
+
+0x00951269 to 0x00953FFF holds 17 functions, all of which ran in the coverage runs: 16 registrations, one for each stock widget class, and GZWinGen's property handler. The LEGACY reader's constructor 0x0095B8C4 calls the 16 (in the order FlatRect, Text, TextEdit, ListBox, Combo, Btn, BMP, Slider, Scrollbar, LineInput, Spinner, Outline, TextTicker, Folders, Custom, Gen, with other classes' among them) whenever it makes the shared variable table (part u11). Ours: all 17, in `src/core/gzui_widgets.cpp`, two groups, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.widgets` | 16 | the registrations of GZWinTextTicker 0x00951269, Folders 0x009518A8, Custom 0x0095195E, FlatRect 0x00951A14, Text 0x00951C9F, TextEdit 0x00952046, ListBox 0x00952645, Combo 0x00952868, Btn 0x009529EF, BMP 0x00953056, Slider 0x009531A9, Scrollbar 0x00953330, LineInput 0x00953483, Spinner 0x009537AA, Outline 0x00953A9D and Gen 0x00953BF0 |
+| `framework.uiscript.widgetgen` | 1 | GZWinGen's property handler 0x009513BC |
+
+**The registrations** (void, no arguments) are one shape: each name goes into the variable table by its slot 3 (a string made from the game's literal by SC4String::FromText 0x00408480, and the word; the string destroyed inline), first the class's names (the class and its interface; GZWinGen's also `SC3WinGen`, the same word as `GZWinGen`), then the class's handler under its interface into the handler map 0x00B6358C (an STLport map, inserted by 0x0094950A) and its interface under the class into the interface map 0x00B63598 (0x004FB6C0), then its property words (none for Folders and Custom; 3 to 28 for the others; 179 names in all). The dispatcher (the LEGACY reader's 0x00957A9B) finds a script's class in the interface map and its handler in the handler map, and calls it with the window, its properties and 1. Ours are tables of the game's literals (by address) and words, in the game's order; the maps get the game's handler addresses (Custom's is 0x00A6D837, a shared stub), so they hold what the game's would. EAX at the end is the last string's (the free's) or, for the two classes without words, the interface map insert's; the constructor does not read it.
+
+**GZWinGen's handler** (cdecl: the window, its properties' vector of 8-byte (key, value) pairs and a byte) asks the window for IGZWinGen (QueryInterface 0x5386D516); without it nothing. With the byte set (the dispatcher's 1):
+
+- 14 flags, each a number found by 0x0094C675: 0x10004 to 0x10009 (masks 1, 2, 4, 0x10, 0x20, 0x40), 0x1000A to 0x1000C (0x100, 0x200, 0x400) and 0x1000F (0x10000) set when the word is not 0; 0x1000D, 0xF00D, 0xF019 and 0x1000E (0x1000, 0x2000, 0x4000, 0x8000) set when it is 0; given to the interface's slot 6 (mask, bool), the bool pushed over the EDX 0x0094C675 leaves (part u12, slice 2);
+- the user word 0x10000 (slot 19);
+- the background image: the text of 0xF016 (0x0094CCD9) scanned as `{%x,%x}` (0x00AD5418) into a group and an instance; the image loaded by 0x0094C4E0; the mode a number of 0x10001 (0 when there is none; 0 and 2 as they are, else 1) given with the image to slot 13; the key (0x856DDBAC, group, instance) put under 0xAB428C5D (0x0094C1A4) and the two words under 0 (0x0094C1DA) through the window's slot 114; the image released;
+- the pair of 0xF004 (0x0094D55A, slot 26);
+- a new 8-byte object (vtable 0x00AD53EC, +4 zeroed; none without memory) given to slot 7.
+
+With the byte clear, every pair (the vector's start read each time) with a text value: 0x10002 scanned as `(%u,%d)` (0x00AD5784) for slot 30, 0x10003 as `(%u,%d,%d,%d,%d)` (0x00AD578C) for slot 29 (the word, 0, 0 and the rectangle); the loop's index is kept in the window's own argument slot (the count there at the end, 0 for an empty vector), as the game does. The interface is released at the end and its EAX answered (without it the QueryInterface's).
+
+The handler calls part u12's register-argument helpers by address (ours when their groups are on) through a naked helper that sets EAX, EBX, ESI and EDI to the game's values at each call and hands EDX back. Its thunk gives the body the argument slots.
+
+### Testing
+
+`OPENSC4_TEST_WIDGETREAD=<day>` is a test of its own (the fingerprint's `wr` part). It calls the 17 by address (EBX, ESI, EDI and EBP checked kept after each call). Two stages, each logged as `autotest: widgetread: <stage> <hash>`:
+
+- **reg:** a variable table of our own put in the shared table's place (its slot 3 hashes every name's text and word), the 16 registrations in the constructor's order, after each the count of names and both maps' entries for the class (read from the trees); the game's table put back;
+- **gen:** the UI script loader's held object set to one of our own (slot 3 gives one of two images of our own for even instances, none for odd), windows of our own (QueryInterface failing, answering the interface, and giving it with AL 0; slot 114 part u12's, which hashes what it gets), an interface of our own (every slot the handler calls hashes its arguments; slot 7 checks the object's vtable and frees it), number and text values of our own (slot 73 leaves a mark in EDX): the set pass on six vectors (every flag, words 0, 1, 2, 3, 5 and 7, a text and a null among them, good and bad image texts, odd and even instances, a missing and a present mode, good and bad pairs) and an empty one, with the byte 1 and 0xFFFFFF01; the raw pass on vectors of good and bad texts of both keys (a null, a number, a big word, negative numbers, another key) and an empty one, with 0 and 0x100; the handler's EAX and argument slots after each call; the counts of the interface, the images and the held object at the end.
+
+With the groups on, each of the 17 logs its first call in a test run. `wr` is FBA9BCE8 (muted), the same on both sides; the stages reg 2C51068A and gen FBA9BCE8. A check with two deliberate slips in ours (the last property word dropped, the flags' bool without EDX's upper bytes) changed both stages' hashes.
+
+The 17 were checked against the disassembly by the author and by an independent audit: every table row (literal and word) and both map inserts in order, the calls, their arguments and order, vtable slots, memory written and its order, the registers at each helper call (EAX, EBX, ESI and EDI where the helper reads them; the EDX the flags' bool is pushed over), EAX on every path, the argument slot the raw pass writes, the callers (the constructor reads no register after the registrations; the dispatcher none after the handler) and that nothing jumps into the first five bytes of any of the 17: no difference in what they do. Ours give the helpers 0 in registers they do not read where the game has leftovers there, and zero two locals the game leaves unset that are read only after a hit writes them. The handler's only reference is its map entry, and the dispatcher, the map's only reader, passes 1: the raw pass is reached only by the test. The audit found three comments to fix (the tables' order, two property-word lists in the address database, the handler's EAX without an interface); fixed.
+
+### Parity
+
+Batches `gzu13-r1` (before the comment fixes) and `gzu13-r2` (the final build), 2026-10-23, muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.uiscript.*` (with `widgets` and `widgetgen`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu13`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_WIDGETREAD=2` | 12 | 12 same; `wr` FBA9BCE8 in every run |
+| Making Money d0000, 4 days, `OPENSC4_TEST_WIDGETREAD=2` | 1 | same; `wr` FBA9BCE8 |
+
+r2: all five legs the same on the first pair. r1: the same but for Big City d0000 in the test leg, partly: B's first run parted from A at token 357 on the first day, and its two retry runs both matched A (B differing from itself; the same save parted this way in the audio batches, docs/audio.md).
+
+**Reached:** in every plain (muted) leg side B logs all 17 first calls (14 of 14 runs): every LEGACY reader's constructor that makes the table registers the 16 classes, and the dispatcher calls GZWinGen's handler (the set pass) when a city's UI loads. The raw pass is the test's alone.
+
+**Part u13 complete:** the whole range is ours.
+
+**What is left:** u14 to u16 (0x00954000 to 0x0095BBFF, the other widgets' registrations, readers and helpers) and u17 (the writers); u12's property handlers, which the other widgets' registrations put in the handler map.

@@ -8231,6 +8231,431 @@ void PmFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kPmFingerprint{"propmake", 4, &PmFingerprint};
 const DayHook kPmDrive{"propmake", 4, &DrivePropMakeDay};
+// ====================================================================================
+// Part u13: the stock widgets' registrations and GZWinGen's property handler
+// (OPENSC4_TEST_WIDGETREAD). The 17 called by address (registers checked
+// kept after): the registrations with a variable table of our own put in
+// the shared table's place (its slot 3 hashes every name and word; the
+// game's put back after), then the two maps' entries for every class;
+// GZWinGen's handler on windows, interfaces, number and text values, held
+// image objects and images of our own, both passes. Addresses never go
+// into the hash.
+
+bool g_wrOn = false;
+uint32_t g_wrHash = 2166136261u;
+
+void WrStage(const char* name) { log::Write("autotest: widgetread: %s %08X", name, g_wrHash); }
+
+// The variable table of our own: slot 3 (a string and a word).
+uint32_t g_wrAdds = 0;
+
+uint32_t __fastcall WrTableAdd(void*, void*, char* string, uint32_t word)
+{
+    Mix(0xADD0u);
+    PrMixText(string);
+    Mix(word);
+    ++g_wrAdds;
+    return 0x00AD0000u + g_wrAdds;
+}
+
+void** WrTableTable()
+{
+    static void* table[4] = {};
+    table[3] = reinterpret_cast<void*>(&WrTableAdd);
+    return table;
+}
+
+// An entry of one of the two maps (STLport tree: the header's +4 the root,
+// a node's +8 left, +0xC right, +0x10 key, +0x14 value); 0xFFFFFFFF none.
+uint32_t WrMapFind(std::uintptr_t map, uint32_t key)
+{
+    char* const header = *reinterpret_cast<char**>(map);
+    if (!header)
+        return 0xFFFFFFFEu;
+    for (char* node = At<char*>(header, 4); node;) {
+        const uint32_t nodeKey = At<uint32_t>(node, 0x10);
+        if (key < nodeKey)
+            node = At<char*>(node, 8);
+        else if (nodeKey < key)
+            node = At<char*>(node, 0xC);
+        else
+            return At<uint32_t>(node, 0x14);
+    }
+    return 0xFFFFFFFFu;
+}
+
+void DriveWrRegister()
+{
+    // The 16 by address in the constructor's order, with the class's
+    // interface and the class (the maps' keys).
+    struct Registration {
+        std::uintptr_t address;
+        uint32_t iface;
+        uint32_t klass;
+    };
+    const Registration registrations[] = {
+        {addr::cGZUIScriptWidgets_RegisterFlatRect, 0xC2AFA76F, 0xC2AFA76E},
+        {addr::cGZUIScriptWidgets_RegisterText, 0x212CDC1F, 0x00000592},
+        {addr::cGZUIScriptWidgets_RegisterTextEdit, 0x231A1C57, 0x231A1C58},
+        {addr::cGZUIScriptWidgets_RegisterListBox, 0x4132242B, 0x00000598},
+        {addr::cGZUIScriptWidgets_RegisterCombo, 0x412CE496, 0x0000059B},
+        {addr::cGZUIScriptWidgets_RegisterBtn, 0x00008810, 0x22ECFC47},
+        {addr::cGZUIScriptWidgets_RegisterBMP, 0xC12CEA13, 0x82FE68C4},
+        {addr::cGZUIScriptWidgets_RegisterSlider, 0x21325207, 0x21325208},
+        {addr::cGZUIScriptWidgets_RegisterScrollbar, 0x61325A2D, 0x61325A2E},
+        {addr::cGZUIScriptWidgets_RegisterLineInput, 0x21335C59, 0x21335C5A},
+        {addr::cGZUIScriptWidgets_RegisterSpinner, 0x612CE0C3, 0x612CE0C4},
+        {addr::cGZUIScriptWidgets_RegisterOutline, 0xE303E5AE, 0x4303E5B6},
+        {addr::cGZUIScriptWidgets_RegisterTextTicker, 0x032F0B3C, 0xE32F0B31},
+        {addr::cGZUIScriptWidgets_RegisterFolders, 0xA13351B8, 0x078E8055},
+        {addr::cGZUIScriptWidgets_RegisterCustom, 0x678D1E84, 0x478D1E6F},
+        {addr::cGZUIScriptWidgets_RegisterGen, 0x5386D516, 0x4386D516},
+    };
+    void** const tableAt = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *tableAt;
+    Mix(old ? 1u : 0u);
+    void* table[1] = {WrTableTable()};
+    *tableAt = table;
+    for (const Registration& registration : registrations) {
+        // EAX is the game's free's or a stack place: not hashed.
+        PmRegs regs = PmRegsOf(0x13131313u, kPmEsi, kPmEdi, 0xA0A0A0A0u, 0xA1A1A1A1u);
+        PmCall(registration.address, regs);
+        Mix(g_wrAdds);
+        Mix(WrMapFind(addr::cGZUIScriptWidgets_Handlers, registration.iface));
+        Mix(WrMapFind(addr::cGZUIScriptWidgets_Interfaces, registration.klass));
+    }
+    *tableAt = old;
+    WrStage("reg");
+}
+
+// The window: slot 0 (QueryInterface: 0 none, 1 the interface, 2 the
+// interface given but AL 0) and slot 114 (part u12's, which hashes what it
+// is given).
+struct WrWindow {
+    void** vtable;
+    uint32_t mode;
+    void* face;
+};
+
+uint32_t __fastcall WrWindowQuery(WrWindow* self, void*, uint32_t iid, void** out)
+{
+    Mix(0x0E00u | self->mode);
+    Mix(iid);
+    if (self->mode == 0)
+        return 0x12345600u;
+    *out = self->face;
+    Virtual<uint32_t>(self->face, 4);
+    return self->mode == 1 ? 0x12345601u : 0x12345700u;
+}
+
+void** WrWindowTable()
+{
+    static void* table[115] = {};
+    table[0] = reinterpret_cast<void*>(&WrWindowQuery);
+    table[114] = reinterpret_cast<void*>(&PmWindowPut);
+    return table;
+}
+
+// The images our held object gives (slot 2 Release counted).
+struct WrImage {
+    void** vtable;
+    uint32_t tag;
+    uint32_t count;
+};
+
+uint32_t __fastcall WrImageRelease(WrImage* self, void*)
+{
+    Mix(0x1A00u | self->tag);
+    return --self->count;
+}
+
+void** WrImageTable()
+{
+    static void* table[3] = {};
+    table[2] = reinterpret_cast<void*>(&WrImageRelease);
+    return table;
+}
+
+WrImage g_wrImages[2] = {};
+
+// The held object: AddRef, Release, slot 3 (an image by key: for even
+// instances one of ours, held; for odd none).
+uint32_t __fastcall WrHeldImage(PmHeld*, void*, const uint32_t* key)
+{
+    Mix(0x3013u);
+    PmMixKey(key);
+    if (key[2] & 1)
+        return 0;
+    WrImage& image = g_wrImages[(key[2] >> 1) & 1];
+    ++image.count;
+    return PrArg(&image);
+}
+
+void** WrHeldTable()
+{
+    static void* table[5] = {};
+    table[1] = reinterpret_cast<void*>(&PmHeldAddRef);
+    table[2] = reinterpret_cast<void*>(&PmHeldRelease);
+    table[3] = reinterpret_cast<void*>(&WrHeldImage);
+    return table;
+}
+
+// The interface (IGZWinGen): AddRef, Release, and the slots the handler
+// calls, each hashing what it gets.
+struct WrFace {
+    void** vtable;
+    uint32_t count;
+};
+
+uint32_t __fastcall WrFaceAddRef(WrFace* self, void*) { return ++self->count; }
+
+uint32_t __fastcall WrFaceRelease(WrFace* self, void*)
+{
+    Mix(0xF2F2u);
+    return 0x00F20000u + --self->count;
+}
+
+uint32_t __fastcall WrFaceFlag(WrFace*, void*, uint32_t mask, uint32_t set)
+{
+    Mix(0xF6u);
+    Mix(mask);
+    Mix(set);
+    return 0x00F60000u | mask;
+}
+
+uint32_t __fastcall WrFaceObject(WrFace*, void*, char* object)
+{
+    Mix(0xF7u);
+    Mix(object ? 1u : 0u);
+    if (object) {
+        Mix(At<std::uintptr_t>(object, 0) == addr::cGZUIScriptWidgets_GenObjectVtable ? 0x7AB1u : 0x7AB0u);
+        Mix(At<uint32_t>(object, 4));
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(object);
+    }
+    return 0x00F70000u;
+}
+
+uint32_t __fastcall WrFaceImage(WrFace*, void*, uint32_t mode, WrImage* image)
+{
+    Mix(0xF13u);
+    Mix(mode);
+    Mix(image ? image->tag : 0xDEADu);
+    return 0x00F13000u;
+}
+
+uint32_t __fastcall WrFaceUser(WrFace*, void*, uint32_t word)
+{
+    Mix(0xF19u);
+    Mix(word);
+    return 0x00F19000u;
+}
+
+uint32_t __fastcall WrFacePair(WrFace*, void*, uint32_t first, uint32_t second)
+{
+    Mix(0xF26u);
+    Mix(first);
+    Mix(second);
+    return 0x00F26000u;
+}
+
+uint32_t __fastcall WrFaceRect(WrFace*, void*, uint32_t word, uint32_t zero1, uint32_t zero2, const int32_t* rect)
+{
+    Mix(0xF29u);
+    Mix(word);
+    Mix(zero1);
+    Mix(zero2);
+    for (int i = 0; i < 4; ++i)
+        Mix(static_cast<uint32_t>(rect[i]));
+    return 0x00F29000u;
+}
+
+uint32_t __fastcall WrFacePoint(WrFace*, void*, uint32_t word, uint32_t point)
+{
+    Mix(0xF30u);
+    Mix(word);
+    Mix(point);
+    return 0x00F30000u;
+}
+
+void** WrFaceTable()
+{
+    static void* table[31] = {};
+    table[1] = reinterpret_cast<void*>(&WrFaceAddRef);
+    table[2] = reinterpret_cast<void*>(&WrFaceRelease);
+    table[6] = reinterpret_cast<void*>(&WrFaceFlag);
+    table[7] = reinterpret_cast<void*>(&WrFaceObject);
+    table[13] = reinterpret_cast<void*>(&WrFaceImage);
+    table[19] = reinterpret_cast<void*>(&WrFaceUser);
+    table[26] = reinterpret_cast<void*>(&WrFacePair);
+    table[29] = reinterpret_cast<void*>(&WrFaceRect);
+    table[30] = reinterpret_cast<void*>(&WrFacePoint);
+    return table;
+}
+
+// The values: slot 3 the kind, slot 55 the text into a string, slot 73
+// the word (+8) with a mark in EDX.
+struct WrValue {
+    void** vtable;
+    uint32_t kind;
+    uint32_t word;
+    const char* text;
+};
+
+uint32_t __fastcall WrValueKind(WrValue* self, void*)
+{
+    Mix(0x3000u | self->kind);
+    return self->kind;
+}
+
+uint32_t __fastcall WrValueText(WrValue* self, void*, char* string)
+{
+    Mix(0x55u);
+    Virtual<uint32_t>(string, 0xC, self->text, static_cast<uint32_t>(std::strlen(self->text)));
+    return 0x5555u;
+}
+
+__declspec(naked) void WrValue73()
+{
+    __asm lea eax, [ecx + 8]
+    __asm mov edx, 0x73A5A573
+    __asm ret
+}
+
+void** WrValueTable()
+{
+    static void* table[74] = {};
+    table[3] = reinterpret_cast<void*>(&WrValueKind);
+    table[55] = reinterpret_cast<void*>(&WrValueText);
+    table[73] = reinterpret_cast<void*>(&WrValue73);
+    return table;
+}
+
+WrValue WrNumber(uint32_t word) { return {WrValueTable(), 6, word, ""}; }
+WrValue WrText(const char* text) { return {WrValueTable(), 0x800E, 0x7E7E7E7Eu, text}; }
+
+struct WrPair {
+    uint32_t key;
+    WrValue* value;
+};
+
+// One call of the handler: the window, a vector of the pairs and the
+// byte's word; its EAX and its first argument slot after.
+void WrGen(WrWindow& window, WrPair* pairs, std::size_t count, uint32_t set)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    PmRegs regs = PmRegsOf(0x26262626u, kPmEsi, kPmEdi, PrArg(&window), PrArg(vector));
+    regs.args[2] = set;
+    Mix(PmCall(addr::cGZUIScriptWidgets_GenRead, regs));
+    Mix(regs.args[0] == PrArg(&window) ? 0x77DDu : regs.args[0]);
+    Mix(regs.args[1] == PrArg(vector) ? 0x77DEu : 0xBAD1u);
+    Mix(regs.args[2]);
+}
+
+void DriveWrGen()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    if (!holder) {
+        WrStage("gen");
+        return;
+    }
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {WrHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    g_wrImages[0] = {WrImageTable(), 0xA0, 0};
+    g_wrImages[1] = {WrImageTable(), 0xA1, 0};
+
+    WrFace face = {WrFaceTable(), 1};
+    WrWindow windows[3] = {{WrWindowTable(), 0, &face}, {WrWindowTable(), 1, &face}, {WrWindowTable(), 2, &face}};
+
+    // The set pass's values: numbers, texts, a value that is neither.
+    WrValue n0 = WrNumber(0), n1 = WrNumber(1), n2 = WrNumber(2), n3 = WrNumber(3), n5 = WrNumber(5),
+            n7 = WrNumber(7), user = WrNumber(0x12345678), other = {WrValueTable(), 9, 1, "(1,2)"};
+    WrValue image0 = WrText("{1a2b,3c4c}"), image1 = WrText("{11,13}"), image2 = WrText("{2,6}"),
+            imageBad = WrText("{zz}"), imageOne = WrText("{7}"), pairGood = WrText("(5,-6)"),
+            pairBad = WrText("(5)"), flagText = WrText("1");
+    WrPair full[] = {
+        {0x10004, &n1},     {0x10005, &n0},      {0x10006, &n7},      {0x10007, &flagText}, {0x10008, nullptr},
+        {0x1000A, &n1},     {0x1000B, &n0},      {0x1000C, &n2},      {0x1000D, &n0},       {0xF00D, &n1},
+        {0xF019, &n0},      {0x1000E, &n5},      {0x1000F, &n1},      {0x10000, &user},     {0xF016, &image0},
+        {0x10001, &n2},     {0xF004, &pairGood}, {0x10004, &n0},      {0x10009, &other},
+    };
+    WrPair second[] = {
+        {0x10009, &n1}, {0x1000D, &n3}, {0xF016, &image1}, {0x10001, &n3}, {0xF004, &pairBad}, {0x10000, &other},
+    };
+    WrPair third[] = {{0xF016, &imageBad}, {0xF004, &image0}, {0x1000E, &n0}};
+    WrPair fourth[] = {{0xF016, &image2}, {0x1000F, &n0}};
+    WrPair fifth[] = {{0xF016, &n1}, {0x10001, &n1}, {0xF016, &imageOne}};
+    WrPair sixth[] = {{0x10001, &n1}, {0xF016, &image2}, {0x10001, &n0}};
+
+    // The raw pass's: texts of 0x10002 and 0x10003, good and not.
+    WrValue point = WrText("(7,-8)"), pointBad = WrText("(1)"), pointBig = WrText("(4294967295,-1)"),
+            rect = WrText("(9,1,2,3,4)"), rectBad = WrText("(1,2,3,4)"), rectNeg = WrText("(0,-1,-2,-3,-4)");
+    WrPair raw[] = {
+        {0x10002, &point},   {0x10003, &rect},     {0x10002, nullptr}, {0x10003, &n1},     {0x10002, &pointBad},
+        {0x10003, &rectBad}, {0x55, &point},       {0x10002, &pointBig}, {0x10003, &rectNeg}, {0x10004, &n1},
+    };
+    WrPair rawNone[] = {{0x10004, &n1}, {0x55, &rect}};
+
+    for (WrWindow& window : windows) {
+        for (uint32_t set : {1u, 0xFFFFFF01u}) {
+            WrGen(window, full, std::size(full), set);
+            WrGen(window, second, std::size(second), set);
+            WrGen(window, third, std::size(third), set);
+            WrGen(window, fourth, std::size(fourth), set);
+            WrGen(window, fifth, std::size(fifth), set);
+            WrGen(window, sixth, std::size(sixth), set);
+            WrGen(window, full, 0, set);
+        }
+        for (uint32_t set : {0u, 0x100u}) {
+            WrGen(window, raw, std::size(raw), set);
+            WrGen(window, rawNone, std::size(rawNone), set);
+            WrGen(window, full, std::size(full), set);
+            WrGen(window, raw, 0, set);
+        }
+    }
+    Mix(face.count);
+    Mix(g_wrImages[0].count);
+    Mix(g_wrImages[1].count);
+    Mix(held.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    WrStage("gen");
+}
+
+// OPENSC4_TEST_WIDGETREAD=<day>: part u13 by address. Every result goes
+// into the fingerprint's `wr` part.
+void DriveWidgetReadDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_WIDGETREAD") || !game::IsBuild641())
+        return;
+    g_wrOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_wrHash;
+    DriveWrRegister();
+    DriveWrGen();
+    g_into = saved;
+    log::Write("autotest: widgetread driven (hash %08X)", g_wrHash);
+}
+
+void WrFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_wrOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | wr %08X", g_wrHash);
+    line += text;
+}
+
+const FingerprintPart kWrFingerprint{"widgetread", 4, &WrFingerprint};
+const DayHook kWrDrive{"widgetread", 4, &DriveWidgetReadDay};
+
 
 } // namespace
 } // namespace opensc4::autotest
