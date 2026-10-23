@@ -2,8 +2,8 @@
 // docs/renderer.md, "The overlays", "Bookkeeping").
 //
 //   OPENSC4_TEST_OVERLAYS=<day>   token "ovl": on that day, drives every
-//                                 function of renderer.overlays.manage1 and
-//                                 manage2 on the city's four overlay
+//                                 function of renderer.overlays.manage1,
+//                                 manage2 and manage3 on the city's four overlay
 //                                 managers (the terrain view's +0x6C to
 //                                 +0x78) through their vtables, or by address
 //                                 for the ones the vtable does not reach, and
@@ -31,7 +31,13 @@
 // helpers by address on scratch records and ring decals until all three
 // vectors have grown; then everything added removed again, last first, which
 // leaves the overlays in use as they were (the vectors larger, their free
-// lists longer). Works muted and in the original game. The token leaves out
+// lists longer). Then part 3 on a scratch manager made with operator new,
+// constructed and set up with the first manager's view: its buckets' lists
+// assigned (cut, copied, from themselves), the buckets' vector shrunk,
+// lists inserted in place (with more after them than inserted, with fewer,
+// from one of its own), at full capacity and at the end, a decal added,
+// then Clear and the last Release (the deleting destructor). Works muted
+// and in the original game. The token leaves out
 // what frames change (alphas, decal descriptions, the draw counts in the
 // stats text).
 #include "core/autotest_hooks.h"
@@ -48,6 +54,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -462,6 +469,151 @@ void DriveAdds(void* m, bool grow)
     reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::SC4TextureBinding_Release)(texture);
 }
 
+// Part 3: the set-up and the containers, on a scratch manager.
+
+struct Node {
+    Node* next;
+    uint32_t value;
+};
+
+Node* MakeList(std::initializer_list<uint32_t> values)
+{
+    Node* head = nullptr;
+    Node** link = &head;
+    for (uint32_t value : values) {
+        Node* const node = reinterpret_cast<Node*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(8);
+        node->next = nullptr;
+        node->value = value;
+        *link = node;
+        link = &node->next;
+    }
+    return head;
+}
+
+void FreeList(Node* node)
+{
+    while (node) {
+        Node* const next = node->next;
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(node);
+        node = next;
+    }
+}
+
+// The buckets' vector: its size and capacity and every list's values.
+void MixBuckets(char* vector)
+{
+    Node** const begin = At<Node**>(vector, 0);
+    const uint32_t size = static_cast<uint32_t>(At<Node**>(vector, 4) - begin);
+    Mix(size);
+    Mix(static_cast<uint32_t>(At<Node**>(vector, 8) - begin));
+    for (uint32_t i = 0; i < size; ++i)
+        for (const Node* node = begin[i]; node; node = node->next) {
+            Mix(i);
+            Mix(node->value);
+        }
+}
+
+uint32_t g_scratch = 0;
+
+// A manager made (0x0073BC20) in memory from operator new and set up (Init
+// 0x0073CB60) with the real one's view, as the terrain view makes its
+// first; the fields that do not depend on memory mixed in. Its buckets'
+// lists assigned from longer, shorter and equal lists and from themselves
+// (the cut and the copy of nodes); the vector shrunk (the copy of an empty
+// range, the lists destroyed), lists inserted with more after them than
+// inserted (the copy backwards), with fewer, with a list of the vector's
+// own, at full capacity (a new block, one list, the tail copied) and grown
+// at the end. A decal added (part 2's slot 4), then Clear (the records
+// destroyed) and the last Release (the deleting destructor 0x0073C980).
+void DriveSetup(void* real)
+{
+    using ConstructFn = char*(__thiscall*)(void*);
+    using InitFn = void(__thiscall*)(void*, void*, uint32_t, uint32_t);
+    using SelfFn = void(__thiscall*)(void*);
+    using AssignFn = Node**(__thiscall*)(Node**, Node* const*);
+    using InsertFn = void(__thiscall*)(void*, Node**, uint32_t, Node* const*);
+    using ResizeFn = void(__thiscall*)(void*, uint32_t, Node* const*);
+    const auto assign = reinterpret_cast<AssignFn>(addr::cSC4OverlayManager_AssignList);
+    const auto insert = reinterpret_cast<InsertFn>(addr::cSC4OverlayManager_InsertLists);
+    const auto resize = reinterpret_cast<ResizeFn>(addr::cSC4OverlayManager_ResizeBuckets);
+    char* const m = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0xFC);
+    if (!m)
+        return;
+    ++g_scratch;
+    reinterpret_cast<ConstructFn>(addr::cSC4OverlayManager_Construct)(m);
+    Mix(m, 0x14);
+    // Held as the terrain view holds its managers (the message server's
+    // Release in Clear must not destroy it).
+    Virtual<uint32_t>(m, 0x4);
+    Mix(m + 0x18, 0x9);
+    Mix(m + 0x24, 0x5C - 0x24);
+    Mix(m + 0x6C, 0xC);
+    Mix(m + 0x88, 0xC);
+    Mix(m + 0x98, 0xD8 - 0x98);
+    Mix(m + 0xF0, 0xC);
+    reinterpret_cast<InitFn>(addr::cSC4OverlayManager_Init)(m, At<void*>(real, 0x8C), 0, 0);
+    Mix(m + 0x14, 0x3);
+    Mix(m + 0x5C, 0x7C - 0x5C);
+    Mix(static_cast<uint32_t>(At<void*>(m, 0x88) == At<void*>(real, 0x88)));
+    Mix(static_cast<uint32_t>(At<void*>(m, 0x90) == At<void*>(real, 0x90)));
+    Mix(static_cast<uint32_t>(At<void*>(m, 0xD4) == At<void*>(real, 0xD4)));
+    Mix(At<char*>(m, 0x24), 5 * 8);
+    Mix(static_cast<uint32_t>(At<char*>(m, 0x28) - At<char*>(m, 0x24)));
+    Mix(m + 0x38, 0x5C - 0x38);
+    Mix(At<uint16_t>(m, 0xE0));
+    Mix(m + 0xE4, 0xC);
+    char* const vector = m + 0xF0;
+    MixBuckets(vector);
+    Node* const three = MakeList({7, 8, 9});
+    Node* const one = MakeList({5});
+    Node* const empty = nullptr;
+    const auto bucket = [&](uint32_t i) { return At<Node**>(vector, 0) + i; };
+    const uint32_t size = static_cast<uint32_t>(At<Node**>(vector, 4) - At<Node**>(vector, 0));
+    if (size >= 16) {
+        assign(bucket(0), &three);
+        assign(bucket(1), &one);
+        assign(bucket(0), &one);
+        assign(bucket(2), &three);
+        assign(bucket(2), bucket(2));
+        assign(bucket(1), &three);
+        MixBuckets(vector);
+        resize(vector, size - 10, &empty);
+        insert(vector, bucket(1), 2, &three);
+        insert(vector, At<Node**>(vector, 4) - 1, 3, &one);
+        MixBuckets(vector);
+        insert(vector, bucket(3), 5, bucket(0));
+        insert(vector, bucket(2), 1, &three);
+        const uint32_t now = static_cast<uint32_t>(At<Node**>(vector, 4) - At<Node**>(vector, 0));
+        resize(vector, now + 4, &one);
+        MixBuckets(vector);
+        resize(vector, size, &empty);
+        MixBuckets(vector);
+    }
+    FreeList(three);
+    FreeList(one);
+    void* const textures = At<void*>(m, 0x90);
+    void* texture = nullptr;
+    if (textures)
+        Virtual<void>(textures, 0x14, kShadowTexture, static_cast<void*>(&texture));
+    if (texture) {
+        const float cell = At<float>(m, 0x64);
+        const float at[2] = {static_cast<float>(At<int32_t>(m, 0x5C)) * cell * 0.5f, static_cast<float>(At<int32_t>(m, 0x60)) * cell * 0.5f};
+        Mix(Virtual<uint32_t>(m, 0x10, texture, static_cast<const void*>(at), 32.0f, 0.0f));
+        reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::SC4TextureBinding_Release)(texture);
+    }
+    Mix(static_cast<uint32_t>((At<char*>(m, 0x9C) - At<char*>(m, 0x98)) / kOverlaySize));
+    reinterpret_cast<SelfFn>(addr::cSC4OverlayManager_Clear)(m);
+    Mix(m + 0x14, 1);
+    Mix(static_cast<uint32_t>(At<char*>(m, 0x9C) - At<char*>(m, 0x98)));
+    Mix(static_cast<uint32_t>(At<char*>(m, 0xB0) - At<char*>(m, 0xAC)));
+    Mix(m + 0x88, 0xC);
+    Mix(m + 0xA4, 8);
+    Mix(m + 0xB8, 8);
+    // The last reference: the deleting destructor through the adjustor
+    // thunk 0x0073BDC0.
+    Virtual<uint32_t>(m, 0x8);
+}
+
 void DriveOverlays(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_OVERLAYS") || !game::IsBuild641())
@@ -492,11 +644,13 @@ void DriveOverlays(const Day& day)
         Drive(m);
         const bool grow = !grown && !At<uint8_t>(m, kWaterRows);
         DriveAdds(m, grow);
+        if (grow)
+            DriveSetup(m);
         grown = grown || grow;
     }
     log::Write("autotest: overlays driven: %u managers, %u overlays, %u handles (%u with groups), %u added (%u vectors grown, "
-               "source references %d), hash %08X",
-               g_managers, g_overlays, g_handles, g_groups, g_added, g_grown, g_source.references, g_hash);
+               "source references %d), %u scratch managers, hash %08X",
+               g_managers, g_overlays, g_handles, g_groups, g_added, g_grown, g_source.references, g_scratch, g_hash);
 }
 
 void Fingerprint(cISC4City*, std::string& line)

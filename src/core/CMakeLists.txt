@@ -352,6 +352,8 @@ add_library(opensc4_core SHARED
   overlay_manage_1.cpp
   overlay_manage_2.cpp
   overlay_manage_2_hooks.cpp
+  overlay_manage_3.cpp
+  overlay_manage_3_hooks.cpp
   overlay_manage_autotest.cpp
   terrain_brush.cpp
   terrain_brush_autotest.cpp
