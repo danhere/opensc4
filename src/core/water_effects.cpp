@@ -1101,8 +1101,14 @@ void BGiveBackOwn()
     }
 }
 
+// Noted in the second class's noted run (renderer.effects.description_b).
+bool BdNoting(char* self);
+uint32_t BdPartDescriptionNoted(char* part, uint32_t description);
+
 uint32_t __fastcall DSC4EffectPartB_SetDescription(char* part, void*, uint32_t description)
 {
+    if (BdNoting(part - kEffectPartB))
+        return BdPartDescriptionNoted(part, description);
     if (!BNoting() || part != g_bSelf + kEffectPartB)
         return BBusy() ? g_SC4EffectPartB_SetDescription(part, nullptr, description)
                        : PartDescriptionByMode(part, description);
@@ -13240,8 +13246,14 @@ uint32_t __fastcall SuBatchNoted(char* self, void*, uint32_t batch)
 }
 OPENSC4_THUNK(TSuBatchNoted, SuBatchNoted, 4)
 
+// Noted as one call in the second class's noted run (renderer.effects.description_b).
+bool BdNoting(char* self);
+uint32_t BdBaseNoted(char* self, uint32_t description);
+
 uint32_t __fastcall SuDescriptionByMode(char* self, void*, uint32_t description)
 {
+    if (BdNoting(self))
+        return BdBaseNoted(self, description);
     const auto game = [&] { return g_SC4Effect_SetDescription(self, nullptr, description); };
     const auto ours = [&] {
         SetEffectDescription(self, Ptr(description));
@@ -13286,6 +13298,362 @@ const bool g_registeredDescription = registry::Register({
     "the notes (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallDescription,
+});
+
+// --- The second class's model and description ------------------------------------------------
+//
+// The second class loading its model (0x005AC610) and taking a description
+// (0x005AEC90), effects_model.h. The load is compared by running both for
+// real on an effect that has no model yet (as its one caller leaves it):
+// ours first, its model's materials read and its model released twice, as
+// the class lets go of one; the effect put back and the game's run. The
+// effect but for the two pointers, whether there is a model, and the
+// materials must be the same.
+//
+// The description's comparison is the store's (StSpansCompared on the
+// effect and the generator at 0x00B22DF8): the game's runs noted, the
+// effect and the generator are put back, and ours runs with its calls
+// answered from the notes. Noted are the base class's whole run
+// (0x005B7C90, by its detour, with the bytes it leaves in the effect), the
+// releases of the instance (+0x220) and of the model's counting part and
+// the end of the object at +0x278 (their tables proxied: slot 8, slot
+// 0x20), the load (slot 0x54, by its detour, with +0x220 and +0x274), the
+// instance's tint (slot 0x40, its block by its set bytes) and the part's
+// three functions (0x008038D0, 0x00802DB0, 0x005AC110, by detours, with
+// the part's bytes). The pick among the description's models is made by
+// ours from the generator; the tint block, the part's +8 and the names
+// asked of the manager run for real in both. A game's run that changed
+// the bytes of the model ours reads the counting part from (it was let go
+// of for good) is only counted.
+
+StepMode g_modelBMode = StepMode::Original, g_descriptionBMode = StepMode::Original;
+Call1Fn g_SC4EffectB_LoadModel = nullptr, g_SC4EffectB_SetDescription = nullptr, g_SC4EffectPartB_Attach = nullptr,
+        g_SC4EffectPartB_Place = nullptr;
+char* g_bdSelf = nullptr;
+
+bool BdNoting(char* self)
+{
+    return g_bdSelf && self == g_bdSelf && StNoting();
+}
+
+// The function a slot of the object's table holds: a proxied object's from
+// its own table (in a replay the object may be gone); in a replay nothing
+// else is read.
+uint32_t BdOriginalSlot(char* object, uint32_t slot)
+{
+    if (VrProxy* const proxy = VrFind(object))
+        return At<uint32_t>(Ptr(proxy->original), slot);
+    if (g_stReplay && g_stDepth == 0 && GetCurrentThreadId() == g_stThread)
+        return 0;
+    return At<uint32_t>(Ptr(VrOriginalOf(At<uint32_t>(object, 0))), slot);
+}
+
+uint32_t BdSlot0(char* object, uint32_t slot)
+{
+    const uint32_t function = BdOriginalSlot(object, slot);
+    return VrNotedInto(StMake(function, object), {}, [&] { return CallThis<uint32_t>(function, object); });
+}
+
+uint32_t BdBytes(const char* bytes, uint32_t size, uint32_t skip = 0, uint32_t skipped = 0)
+{
+    uint32_t hash = 2166136261u;
+    for (uint32_t i = 0; i < size; ++i) {
+        if (i < skip || i >= skip + skipped)
+            hash = (hash ^ static_cast<uint8_t>(bytes[i])) * 16777619u;
+    }
+    return hash;
+}
+
+// The tint block's bytes 2 and 3 are left as the stack held them.
+uint32_t BdTint(char* instance, const char* block)
+{
+    const uint32_t function = BdOriginalSlot(instance, 0x40);
+    return VrNotedInto(StMake(function, instance, nullptr, nullptr, BdBytes(block, 0x14, 2, 2)), {},
+                       [&] { return CallThis<uint32_t>(function, instance, block); });
+}
+
+uint32_t __fastcall BdTintSlot(char* instance, void*, uint32_t block)
+{
+    return BdTint(instance, Ptr(block));
+}
+
+const VrKind kBdEnded{{VrPlain(0x20, 0, VR_SLOT(0, 0x20))}};
+const VrKind kBdInstance{{VrPlain(8, 0, VR_SLOT(0, 8)),
+                          {0x40, 1, {{-1, 0}, {-1, 0}}, nullptr, nullptr, -1, 0,
+                           reinterpret_cast<uint32_t>(&BdTintSlot)}}};
+
+uint32_t BdBaseNoted(char* self, uint32_t description)
+{
+    return VrNotedInto(StMake(addr::SC4Effect_SetDescription, self, Ptr(description)), {{self, kEffectSize}},
+                       [&] { return g_SC4Effect_SetDescription(self, nullptr, description); });
+}
+
+void BdBase(char* self, char* description)
+{
+    VrNotedInto(StMake(addr::SC4Effect_SetDescription, self, description), {{self, kEffectSize}},
+                [&] { return CallThis<uint32_t>(addr::SC4Effect_SetDescription, self, description); });
+}
+
+uint32_t BdPartDescriptionNoted(char* part, uint32_t description)
+{
+    return VrNotedInto(StMake(addr::SC4EffectPartB_SetDescription, part, Ptr(description)), {{part, 0x44}},
+                       [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); });
+}
+
+void BdPartDescription(char* part, char* description)
+{
+    VrNotedInto(StMake(addr::SC4EffectPartB_SetDescription, part, description), {{part, 0x44}},
+                [&] { return CallThis<uint32_t>(addr::SC4EffectPartB_SetDescription, part, description); });
+}
+
+uint8_t BdAttach(char* part, char* instance)
+{
+    return VrNotedInto(StMake(addr::SC4EffectPartB_Attach, part, instance), {{part, 0x44}},
+                       [&] { return CallThis<uint32_t>(addr::SC4EffectPartB_Attach, part, instance); }) &
+           0xFF;
+}
+
+void BdPlace(char* part, const float* place)
+{
+    VrNotedInto(
+        StMake(addr::SC4EffectPartB_Place, part, nullptr, nullptr, BdBytes(reinterpret_cast<const char*>(place), 12)),
+        {{part, 0x44}}, [&] { return CallThis<uint32_t>(addr::SC4EffectPartB_Place, part, place); });
+}
+
+uint32_t __fastcall BdAttachByMode(char* part, void*, uint32_t instance)
+{
+    if (BdNoting(part - kEffectPartB))
+        return VrNotedInto(StMake(addr::SC4EffectPartB_Attach, part, Ptr(instance)), {{part, 0x44}},
+                           [&] { return g_SC4EffectPartB_Attach(part, nullptr, instance); });
+    return g_SC4EffectPartB_Attach(part, nullptr, instance);
+}
+OPENSC4_THUNK(TBdAttach, BdAttachByMode, 4)
+
+uint32_t __fastcall BdPlaceByMode(char* part, void*, uint32_t place)
+{
+    if (BdNoting(part - kEffectPartB))
+        return VrNotedInto(StMake(addr::SC4EffectPartB_Place, part, nullptr, nullptr, BdBytes(Ptr(place), 12)),
+                           {{part, 0x44}}, [&] { return g_SC4EffectPartB_Place(part, nullptr, place); });
+    return g_SC4EffectPartB_Place(part, nullptr, place);
+}
+OPENSC4_THUNK(TBdPlace, BdPlaceByMode, 4)
+
+void BdLoadModel(char* self, uint32_t which);
+#include "core/effects_model.h"
+
+// The materials' flags of a model's instance (eight bytes each, from +4).
+std::vector<char> BdMaterials(char* instance)
+{
+    std::vector<char> bytes;
+    if (!instance)
+        return bytes;
+    char* materials = nullptr;
+    SuSlot<uint32_t>(instance, 0, 0x26A68448u, &materials);
+    if (!materials)
+        return bytes;
+    const uint32_t count = SuSlot<uint32_t>(materials, 0xC);
+    for (uint32_t i = 0; i < count; ++i) {
+        const char* const material = reinterpret_cast<const char*>(SuSlot<uint32_t>(materials, 0x18, i));
+        bytes.insert(bytes.end(), material + 4, material + 12);
+    }
+    SuSlot<uint32_t>(materials, 8);
+    return bytes;
+}
+
+uint32_t BdModelCompared(char* self, uint32_t which)
+{
+    const auto game = [&] { return g_SC4EffectB_LoadModel(self, nullptr, which); };
+    if (At<char*>(self, 0x220) || At<char*>(self, 0x224)) {
+        StRecord("effects.model_b.skipped", true, std::string(), std::string());
+        return game();
+    }
+    std::vector<char> before(self, self + kEffectSizeB);
+    LoadEffectModelB(self, which);
+    std::vector<char> mine(self, self + kEffectSizeB);
+    char* const ourInstance = At<char*>(self, 0x220);
+    char* const ourModel = At<char*>(self, 0x224);
+    const std::vector<char> ourMaterials = BdMaterials(ourInstance);
+    if (ourInstance)
+        SuSlot<uint32_t>(ourInstance, 8);
+    if (ourModel)
+        SuSlot<uint32_t>(BdCounted(ourModel), 8);
+    std::memcpy(self, before.data(), kEffectSizeB);
+    const uint32_t result = game();
+    std::vector<char> theirs(self, self + kEffectSizeB);
+    const std::vector<char> theirMaterials = BdMaterials(At<char*>(self, 0x220));
+    const bool sameModel = (ourInstance != nullptr) == (At<char*>(self, 0x220) != nullptr) &&
+                           (ourModel != nullptr) == (At<char*>(self, 0x224) != nullptr);
+    std::memset(mine.data() + 0x220, 0, 8);
+    std::memset(theirs.data() + 0x220, 0, 8);
+    const char* const id = theirMaterials.empty() ? "effects.model_b.none" : "effects.model_b";
+    char text[64];
+    if (!sameModel) {
+        StRecord(id, false, At<char*>(self, 0x220) ? "a model" : "no model", ourInstance ? "a model" : "no model");
+    } else if (theirMaterials != ourMaterials) {
+        std::snprintf(text, sizeof text, "%zu materials ", theirMaterials.size() / 8);
+        const std::string game = text + Hex(theirMaterials.data(), std::min<std::size_t>(theirMaterials.size(), 32));
+        std::snprintf(text, sizeof text, "%zu materials ", ourMaterials.size() / 8);
+        StRecord(id, false, game, text + Hex(ourMaterials.data(), std::min<std::size_t>(ourMaterials.size(), 32)));
+    } else if (theirs != mine) {
+        std::size_t at = 0;
+        while (theirs[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "effect+%zX ", at);
+        StRecord(id, false, text + Hex(theirs.data() + at, 8), text + Hex(mine.data() + at, 8));
+    } else {
+        StRecord(id, true, std::string(), std::string());
+    }
+    return result;
+}
+
+uint32_t LoadModelBRun(char* self, uint32_t which)
+{
+    if (g_modelBMode == StepMode::Original || g_stNoting || g_stReplay)
+        return g_SC4EffectB_LoadModel(self, nullptr, which);
+    if (g_modelBMode == StepMode::Ours) {
+        LoadEffectModelB(self, which);
+        return 0;
+    }
+    if (g_effectRecord || g_effectReplay || BBusy())
+        return g_SC4EffectB_LoadModel(self, nullptr, which);
+    return BdModelCompared(self, which);
+}
+
+// In the description's noted run the load is one noted call, its instance
+// proxied for its tint.
+void BdLoadModel(char* self, uint32_t which)
+{
+    VrNotedInto(StMake(addr::SC4EffectB_LoadModel, self, Ptr(which)), {{self + 0x220, 8}, {self + 0x274, 4}},
+                [&] { return SuSlot<uint32_t>(self, 0x54, which); });
+    VrProxyObject(At<char*>(self, 0x220), kBdInstance);
+}
+
+uint32_t __fastcall BdLoadModelByMode(char* self, void*, uint32_t which)
+{
+    if (!BdNoting(self))
+        return LoadModelBRun(self, which);
+    const uint32_t result = VrNotedInto(StMake(addr::SC4EffectB_LoadModel, self, Ptr(which)),
+                                        {{self + 0x220, 8}, {self + 0x274, 4}}, [&] {
+                                            // The game's or ours, or both compared, one level down.
+                                            const bool noting = g_stNoting;
+                                            g_stNoting = false;
+                                            const uint32_t loaded = LoadModelBRun(self, which);
+                                            g_stNoting = noting;
+                                            return loaded;
+                                        });
+    VrProxyObject(At<char*>(self, 0x220), kBdInstance);
+    return result;
+}
+OPENSC4_THUNK(TBdLoadModel, BdLoadModelByMode, 4)
+
+uint32_t BdDescriptionCompared(char* self, uint32_t description)
+{
+    const auto game = [&] { return g_SC4EffectB_SetDescription(self, nullptr, description); };
+    const auto ours = [&] {
+        SetEffectDescriptionB(self, Ptr(description));
+        return 0u;
+    };
+    VrScope scope;
+    VrProxyObject(At<char*>(self, 0x220), kVrUnknown);
+    char* const model = At<char*>(self, 0x224);
+    char modelBytes[8] = {};
+    if (model) {
+        std::memcpy(modelBytes, model, 8);
+        VrProxyObject(BdCounted(model), kVrUnknown);
+    }
+    VrProxyObject(At<char*>(self, 0x278), kBdEnded);
+    char* const outer = g_bdSelf;
+    g_bdSelf = self;
+    const uint32_t result = StSpansCompared(
+        At<uint8_t>(Ptr(description), 8) & 1 ? "effects.description_b" : "effects.description_b.none",
+        {{self, kEffectSizeB}, {Ptr(kSetupGenerator), kSetupGeneratorSize}}, false, game, ours,
+        [&] {
+            if (!model || std::memcmp(model, modelBytes, 8) == 0)
+                return true;
+            StRecord("effects.description_b.skipped", true, std::string(), std::string());
+            return false;
+        });
+    g_bdSelf = outer;
+    return result;
+}
+
+uint32_t __fastcall BdDescriptionByMode(char* self, void*, uint32_t description)
+{
+    if (g_descriptionBMode == StepMode::Original || g_stNoting || g_stReplay)
+        return g_SC4EffectB_SetDescription(self, nullptr, description);
+    if (g_descriptionBMode == StepMode::Ours) {
+        SetEffectDescriptionB(self, Ptr(description));
+        return 0;
+    }
+    // Not inside a record and replay of the effects' (another comparison's run).
+    if (g_effectRecord || g_effectReplay || BBusy())
+        return g_SC4EffectB_SetDescription(self, nullptr, description);
+    return BdDescriptionCompared(self, description);
+}
+OPENSC4_THUNK(TBdDescription, BdDescriptionByMode, 4)
+
+bool HookLoadModelB()
+{
+    return g_SC4EffectB_LoadModel || Detour(addr::SC4EffectB_LoadModel, &TBdLoadModel, &g_SC4EffectB_LoadModel);
+}
+
+bool InstallModelB(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookLoadModelB())
+        return false;
+    g_modelBMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the second class's model load %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallDescriptionB(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4EffectB_SetDescription, &TBdDescription, &g_SC4EffectB_SetDescription))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookLoadModelB() &&
+          (g_SC4Effect_SetDescription ||
+           Detour(addr::SC4Effect_SetDescription, &TSuDescription, &g_SC4Effect_SetDescription)) &&
+          (g_SC4EffectPartB_SetDescription || Detour(addr::SC4EffectPartB_SetDescription,
+                                                     &TSC4EffectPartB_SetDescription,
+                                                     &g_SC4EffectPartB_SetDescription)) &&
+          Detour(addr::SC4EffectPartB_Attach, &TBdAttach, &g_SC4EffectPartB_Attach) &&
+          Detour(addr::SC4EffectPartB_Place, &TBdPlace, &g_SC4EffectPartB_Place)))
+        return false;
+    g_descriptionBMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the second class taking a description %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredModelB = registry::Register({
+    "renderer.effects.model_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_LoadModel,
+    "The second class loading its model (0x005AC610): the resource asked for, the model and its counting part "
+    "kept, its box's largest side and its materials' flags; compare mode runs both for real on an effect without a "
+    "model (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallModelB,
+});
+
+const bool g_registeredDescriptionB = registry::Register({
+    "renderer.effects.description_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_SetDescription,
+    "The second class taking a description (0x005AEC90): the base class's, its model let go of and another loaded, "
+    "the instance and the part set up; compare mode notes the game's calls (the base class's run, the releases, "
+    "the load, the tint and the part's functions) and answers ours from the notes (docs/renderer.md, \"Water "
+    "effects, sky and clouds\")",
+    true,
+    InstallDescriptionB,
 });
 
 // --- A particle's life -----------------------------------------------------------------------
