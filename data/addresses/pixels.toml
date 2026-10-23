@@ -1,0 +1,235 @@
+# The GZ framework's vertex format and pixel helpers, 0x008D01F0 to 0x008D2993 (docs/pixels.md): leaf functions the stock drivers, UIPictureTextures::Upload and game code call. Ours in src/core/pixels.cpp, groups renderer.pixels.*.
+
+[[entry]]
+name = "GDVertexFormat::Expand"
+address = 0x008D01F0
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (uint32_t format)"
+expect = "8B 44 24 04 85 C0 78 5E"
+source = "Name ours (docs/pixels.md, \"Vertex formats\"). A legacy format ID (1, 2, 3, 10, 11, 0x20 to 0x26) to its bit field; a bit field (bit 31) back as it is; 0 for any other. Keeps ECX and EDX, which 0x008D04A0 and 0x008D0520 rely on. Ours in renderer.pixels.vertex."
+
+[[entry]]
+name = "GDVertexFormat::Make"
+address = 0x008D02C0
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (uint32_t count, const int32_t* types)"
+expect = "83 EC 28 8B 54 24 2C 33"
+source = "Name ours (docs/pixels.md, \"Vertex formats\"). Counts the element types (0 to 9) of the list and packs the counts, unmasked, at the bit positions of the table 0x00ACC0D4, with bit 31. Ours in renderer.pixels.vertex."
+
+[[entry]]
+name = "GDVertexFormat::Stride"
+address = 0x008D0370
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (uint32_t format)"
+expect = "8B 44 24 04 8D 48 FF 83"
+source = "Name ours (docs/pixels.md, \"Vertex formats\"). Bytes per vertex: a table for the legacy IDs, else from the expanded bit field's counts (the second group of elements only when its low nibble is non-zero). Ours in renderer.pixels.vertex."
+
+[[entry]]
+name = "GDVertexFormat::ElementOffset"
+address = 0x008D04A0
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (uint32_t format, int32_t type, uint32_t index)"
+expect = "8B 4C 24 08 8B 44 24 04"
+source = "Name ours (docs/pixels.md, \"Vertex formats\"). Byte offset of the index-th element of a type: index times its size (0x00ACC0AC) plus the stride of the format masked to the types laid out before it (0x00ACC120). Ours in renderer.pixels.vertex."
+
+[[entry]]
+name = "GDVertexFormat::ElementCount"
+address = 0x008D04F0
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (uint32_t format, int32_t type)"
+expect = "8B 44 24 04 85 C0 78 09"
+source = "Name ours (docs/pixels.md, \"Vertex formats\"). How many elements of a type the expanded format has (shift 0x00ACC0D4, mask 0x00ACC0FC). Ours in renderer.pixels.vertex."
+
+[[entry]]
+name = "GDVertexFormat::Gather"
+address = 0x008D0520
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t count, const void* vertices, void* out, uint32_t format, int32_t type, uint32_t index)"
+expect = "51 53 55 56 57 8B 7C 24"
+source = "Name ours (docs/pixels.md, \"Vertex formats\"). Copies one element (type, index) of each of count vertices to a packed array: dword moves for elements of 4, 8 and 12 bytes, rep movs for others. Ours in renderer.pixels.vertex."
+
+[[entry]]
+name = "GZPixels::KeyCopy16"
+address = 0x008D0660
+kind = "function"
+convention = "cdecl"
+signature = "void (const void* source, int32_t sourcePitch, void* target, int32_t targetPitch, uint32_t width, uint32_t height, uint32_t key, uint32_t mask)"
+expect = "55 57 56 53 8B 6C 24 28"
+source = "Name ours (docs/pixels.md, \"Colour keys\"). MMX: copies 16-bit pixels, each whose masked value is the masked key becoming 0; rows in 16, 8, 4 and 2-byte pieces. Ours in renderer.pixels.key."
+
+[[entry]]
+name = "GZPixels::KeyCopy32"
+address = 0x008D0750
+kind = "function"
+convention = "cdecl"
+signature = "void (const void* source, int32_t sourcePitch, void* target, int32_t targetPitch, uint32_t width, uint32_t height, uint32_t key, uint32_t mask)"
+expect = "55 57 56 53 8B 6C 24 28"
+source = "Name ours (docs/pixels.md, \"Colour keys\"). The same for 32-bit pixels, rows in 16, 8 and 4-byte pieces. Ours in renderer.pixels.key."
+
+[[entry]]
+name = "GZPixels::KeyCopy1555"
+address = 0x008D0820
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t key)"
+expect = "8B 44 24 1C 8B 4C 24 18"
+source = "Name ours (docs/pixels.md, \"Colour keys\"). 0x008D0660 with mask 0x7FFF (the alpha bit left out). UIPictureTextures::Upload calls it. Ours in renderer.pixels.key."
+
+[[entry]]
+name = "GZPixels::KeyCopy4444"
+address = 0x008D0860
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t key)"
+expect = "8B 44 24 1C 8B 4C 24 18"
+source = "Name ours (docs/pixels.md, \"Colour keys\"). 0x008D0660 with mask 0x0FFF. UIPictureTextures::Upload calls it. Ours in renderer.pixels.key."
+
+[[entry]]
+name = "GZPixels::KeyCopy8888"
+address = 0x008D08A0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t key)"
+expect = "8B 44 24 1C 8B 4C 24 18"
+source = "Name ours (docs/pixels.md, \"Colour keys\"). 0x008D0750 with mask 0xFFFFFF. UIPictureTextures::Upload calls it. Ours in renderer.pixels.key."
+
+[[entry]]
+name = "GZPixels::Modulate8888"
+address = 0x008D08E0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t colour)"
+expect = "83 EC 0C 8B 44 24 20 53"
+source = "Name ours (docs/pixels.md, \"Modulation\"). Each channel times the colour's, rounded (two channels per multiply). Picked from a table by 0x00492CC0. Ours in renderer.pixels.modulate."
+
+[[entry]]
+name = "GZPixels::Modulate888"
+address = 0x008D09C0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t colour)"
+expect = "8B 4C 24 0C 8B 44 24 04"
+source = "Name ours (docs/pixels.md, \"Modulation\"). The same for 24-bit pixels, a byte at a time. Ours in renderer.pixels.modulate."
+
+[[entry]]
+name = "GZPixels::Modulate4444"
+address = 0x008D0A60
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t colour)"
+expect = "83 EC 10 8B 44 24 24 8B"
+source = "Name ours (docs/pixels.md, \"Modulation\"). The same for 4444 pixels; rows advance by the pitch less twice the row's bytes, as the 32-bit one. Ours in renderer.pixels.modulate."
+
+[[entry]]
+name = "GZPixels::Modulate1555"
+address = 0x008D0B60
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t colour)"
+expect = "83 EC 10 8B 44 24 24 8B"
+source = "Name ours (docs/pixels.md, \"Modulation\"). The same for 1555 pixels, the alpha bit ANDed with the colour's top bit; the same row step. Ours in renderer.pixels.modulate."
+
+[[entry]]
+name = "GZPixels::ModulateDXT1"
+address = 0x008D0C60
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t colour)"
+expect = "83 EC 18 8B 4C 24 2C 8B"
+source = "Name ours (docs/pixels.md, \"Modulation\"). A DXT1 block's two 565 colours modulated, swapped and the indices remapped where their order changes. Ours in renderer.pixels.modulate."
+
+[[entry]]
+name = "GZPixels::ModulateDXT3"
+address = 0x008D0E10
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* source, int32_t sourcePitch, uint32_t width, uint32_t height, uint32_t colour)"
+expect = "83 EC 18 8B 44 24 2C 8B"
+source = "Name ours (docs/pixels.md, \"Modulation\"). The same for DXT3 blocks, alpha copied; the colours are written back unswapped and the indices remapped from the alpha's second dword (as the game does). Ours in renderer.pixels.modulate."
+
+[[entry]]
+name = "GZPixels::WriteBlock8888"
+address = 0x008D0FD0
+kind = "function"
+convention = "stdcall"
+signature = "void (void* target, int32_t pitch, uint32_t indices, const uint32_t* palette)"
+expect = "55 57 56 53 8B 7C 24 14"
+source = "Name ours (docs/pixels.md, \"DXT decoding\"). A 4 by 4 block of 32-bit pixels from 2-bit indices into a palette of four; ret 0x10. Called by 0x008D1030. Ours in renderer.pixels.dxt."
+
+[[entry]]
+name = "GZPixels::DecodeDXT1To8888"
+address = 0x008D1030
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* blocks, uint32_t blockPitch, uint32_t blocksWide, uint32_t blocksHigh)"
+expect = "8B 54 24 14 83 EC 24 85"
+source = "Name ours (docs/pixels.md, \"DXT decoding\"). DXT1 blocks (rows blockPitch blocks apart) to 32-bit pixels, opaque, the third and fourth colours interpolated or averaged. Ours in renderer.pixels.dxt."
+
+[[entry]]
+name = "GZPixels::DecodeDXT3To1555"
+address = 0x008D1240
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* blocks, uint32_t blockPitch, uint32_t blocksWide, uint32_t blocksHigh)"
+expect = "83 EC 38 53 8B 5C 24 50"
+source = "Name ours (docs/pixels.md, \"DXT decoding\"). DXT3 blocks to 1555 pixels, the alpha bit from the top bit of each 4-bit alpha. Ours in renderer.pixels.dxt."
+
+[[entry]]
+name = "GZPixels::DecodeDXT3To4444"
+address = 0x008D1630
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* blocks, uint32_t blockPitch, uint32_t blocksWide, uint32_t blocksHigh)"
+expect = "83 EC 38 53 8B 5C 24 50"
+source = "Name ours (docs/pixels.md, \"DXT decoding\"). DXT3 blocks to 4444 pixels. Ours in renderer.pixels.dxt."
+
+[[entry]]
+name = "GZPixels::DecodeDXT3To8888"
+address = 0x008D1A30
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* blocks, uint32_t blockPitch, uint32_t blocksWide, uint32_t blocksHigh)"
+expect = "83 EC 44 57 8B 7C 24 5C"
+source = "Name ours (docs/pixels.md, \"DXT decoding\"). DXT3 blocks to 32-bit pixels, each 4-bit alpha times 0x11. Ours in renderer.pixels.dxt."
+
+[[entry]]
+name = "GZPixels::WriteBlock16"
+address = 0x008D1E70
+kind = "function"
+convention = "custom"
+signature = "void (int32_t pitch)"
+expect = "56 57 8B F9 83 E7 03 66"
+source = "Name ours (docs/pixels.md, \"DXT decoding\"). The target in EAX, the 2-bit indices in ECX, a palette of four 16-bit pixels in EDX, the pitch on the stack, ret 4: a 4 by 4 block of 16-bit pixels. Leaves EAX three rows on and ECX the last pixel. Called by 0x008D1F80 and 0x008D2140. Ours in renderer.pixels.dxt."
+
+[[entry]]
+name = "GZPixels::DecodeDXT1To1555"
+address = 0x008D1F80
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* blocks, uint32_t blockPitch, uint32_t blocksWide, uint32_t blocksHigh)"
+expect = "8B 4C 24 14 83 EC 1C 85"
+source = "Name ours (docs/pixels.md, \"DXT decoding\"). DXT1 blocks to 1555 pixels, the fourth colour of a three-colour block transparent. Ours in renderer.pixels.dxt."
+
+[[entry]]
+name = "GZPixels::DecodeDXT1To4444"
+address = 0x008D2140
+kind = "function"
+convention = "cdecl"
+signature = "void (void* target, int32_t targetPitch, const void* blocks, uint32_t blockPitch, uint32_t blocksWide, uint32_t blocksHigh)"
+expect = "8B 4C 24 14 83 EC 1C 85"
+source = "Name ours (docs/pixels.md, \"DXT decoding\"). DXT1 blocks to 4444 pixels. Ours in renderer.pixels.dxt."
+
+[[entry]]
+name = "GZPixels::FormatBits"
+address = 0x008D2790
+kind = "function"
+convention = "cdecl"
+signature = "bool (uint32_t pixelFormat, uint32_t dataType, uint32_t* red, uint32_t* blue, uint32_t* green, uint32_t* alpha)"
+expect = "8B 44 24 08 83 F8 0E 0F"
+source = "Name ours (docs/pixels.md, \"Format bits\"). The bits per channel of a LoadTextureLevel source (pixel format and data type, src/core/gd/gd_types.h): 8 bits for bytes, 565, 1555 or 4444 for the packed types, and 565, 555 plus 1 or 565 plus 4 for the DXT formats; AL 0 and nothing written for an unknown pair. The third pointer gets the 6 of 565; the first two are always equal. Called by 0x00809CD0 and 0x0080A110. Ours in renderer.pixels.format."

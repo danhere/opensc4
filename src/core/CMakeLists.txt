@@ -344,6 +344,8 @@ add_library(opensc4_core SHARED
   gd/driver.cpp
   gd/frame_trace.cpp
   s3d_camera.cpp
+  pixels.cpp
+  pixels_autotest.cpp
   camera_control.cpp
   photo_mode.cpp
   terrain_view.cpp
