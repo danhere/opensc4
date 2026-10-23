@@ -223,6 +223,37 @@
 //   map's slot 44 answering yes and no, four frames of 0.5 s each. The
 //   fakes' calls and reference counts go into the hashes; the base object
 //   is deleted with its references cleared and +0x98 and +0x33 put back.
+//   Part vb4 adds `,<states>,<ahead>,<steps>` (the flags 8 when it ran): a
+//   second base object held the same way, its vtable the base's with the
+//   core's slots the vb4 code calls on frames (13, 19, 52, 53, 61, 62, 67,
+//   73, 79, 83, 86 to 89, 102, 103, 105, 131, 132, 134, 141, 142, 159, 160)
+//   and the vb4 and vb3 slots driven at their own addresses (109, 129, 130,
+//   148, 163 to 166) answering a probe of the test's that mixes each call;
+//   the city global and 0x00B43D54 point at the test's while the calls run,
+//   0x00B09964 is set for slot 163. states: 0x0054E380; slot 72 over four
+//   smoothed values and the probe's answers (96 calls); slot 109 with no
+//   state and four current ones; slot 163 over five timers, the flags 0x20
+//   and 0x80 and the map's wait answer; slot 164 with and without a speed
+//   over three timers; slots 110 and 111 for null, 0x1E, 5, 0xD, 0x15 and 7,
+//   and 0x10 without an occupant, on a lane and on a tunnel lane answering
+//   its slot 9 (the game's entries object 0x00B22C30 adds and removes the
+//   entry; its handles are not mixed); 0x00552B80 and 0x0054ECC0 on a record
+//   list of the test's; slot 145 with an empty route and a 45-cell one.
+//   ahead: slot 147 on an occupant's eight automata of the test's and its
+//   neighbours (depths 1, 0, -1), with the flag 0x2000 and without an
+//   occupant; slot 148 over three and one steps and the neighbour; slot 161
+//   over three automata ahead, seven flag sets and five ways (the byte +0x33,
+//   slot 141, the part's slot 13, the state 0xD); slot 162 over chains of 1
+//   to 55 and three occupant types; slot 173 over five occupants and two
+//   keys. steps: 0x00504C40 and 0x00553720 over 25 steps; slot 169 over
+//   nine key counts with and without the flag 0x40, from the first and the
+//   last step; slot 167 over three neighbours, two side masks, three tries
+//   and three ways; slot 168 over an empty route, one cell, a cell ahead in
+//   each direction and 46 pops of 50 cells; slot 166 with slots 167 and 168
+//   the test's (fails, last steps, no occupant), then the game's once; slot
+//   165 over nine cases (no manager, no occupant, the flag 0x2000, a last
+//   step, two to four steps, slot 88). To the log only: the tuning floats
+//   0x00B21C84, 0x00B21C74 and 0x00B21D2C, slot 175's byte.
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the

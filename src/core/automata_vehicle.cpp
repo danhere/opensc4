@@ -1,4 +1,4 @@
-// Our automaton base and cSC4Vehicle, parts vb1 to vb3 (build 641). vb1:
+// Our automaton base and cSC4Vehicle, parts vb1 to vb4 (build 641). vb1:
 // the object (the vehicle's factory and pool, the two constructors, the two
 // destructor bodies with their deques, the two deleting destructors,
 // QueryInterface of both and the vehicle's GetGZCLSID) and the queries that
@@ -11,7 +11,11 @@
 // the base's movement on frames (SetDestination, the moves along a path and
 // straight to the destination, the path's walk and sideways offset,
 // entering an occupant, placing on the network, the next route cell, the
-// room ahead, the side weights and the route's pop_front). The
+// room ahead, the side weights and the route's pop_front). vb4: the base's
+// states on frames (the frame, the state frames, entering and leaving
+// states with the entry and the record list's erase, the route, the
+// same-type removal, the automaton ahead and the wait, the queue test, the
+// steps ahead on the +0x204 deque and entering from a key). The
 // class map is in src/core/automata_vehicle.h and the survey in
 // docs/automata.md, "Part vb". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and
@@ -20,7 +24,8 @@
 //
 // Group, off by default:
 //   simulators.automata.vehicle: the 36 detours in kObject (vb1), the 30
-//   in kLife (vb2) and the 13 in kMove (vb3) below.
+//   in kLife (vb2), the 13 in kMove (vb3) and the 22 in kStates (vb4)
+//   below.
 //
 // What it does. cSC4Vehicle's factory takes a 0x2B8-byte block from the
 // vehicle pool (0x00B0A0F8; other sizes go to SC4::operator_new) and runs
@@ -90,6 +95,26 @@
 // out words and cells its callees always write (0x0054E6F0's table, slot
 // 134's cells and out word, slot 142's out word). AL only in the game:
 // slots 129 to 131, 133, 134, 142 and 170; ours zero-extends.
+//
+// vb4's oddities kept: slot 110 calls the core's 0x00511450 twice for the
+// state 0x10; slot 147 passes the occupant argument's stack slot (its low
+// byte the side) to the map's slot 15; slot 162 indexes the 4 x 4 weight
+// table by the groups' bytes without a bound (past it the game reads its own
+// stack, ours past its table); slot 163 hands the map's slot 33 a wait word
+// holding the object's address, slot 173 the occupant argument's slot as the
+// out word; slots 167 and 168 pass sides with the upper bytes of a pointer
+// (the neighbour, the automaton, the step) and slot 167 calls the network
+// part's slot 9 without a null test; slot 169 takes a path's first point
+// without testing the path, adds the distance's squares in two orders
+// (one key: (dy^2 + dz^2) + dx^2; more: (dx^2 + dy^2) + dz^2) and skips a
+// key whose next step has none. Stack garbage the game passes (ours
+// zeros): slot 148's side to 0x00B43D54's slot 0x3C, slot 168's opposite
+// side, slot 169's entry and side words to the part's slot 6, the entry's
+// three bytes after +0x3C (slot 110), the locals the callees write before a
+// read (slot 162's table, slot 165's key and distance, slot 166's key when
+// the deque was not empty). AL only in the game: slots 72, 145, 162 to
+// 169, 173, 0x0054ECC0 and 0x00552B80; ours zero-extends. Slot 109 and
+// slots 110 and 111 where they end in the core's pass that call's EAX on.
 //
 // Still the game's, at their addresses: the automata core (constructor
 // 0x005140A0, destructor 0x00513E60, QueryInterface 0x00505D80, AddRef,
