@@ -5404,7 +5404,7 @@ address = 0x0094AC43
 kind = "function"
 convention = "cdecl"
 expect = "B8 14 F2 A6 00 E8 83 6C"
-source = "Name ours. A framework COM director, one of five the audio director adds at its start."
+source = "Name ours. A framework COM director, one of five the audio director adds at its start: the MP3 decoder director 0x1CEC20BE (HitMP3Decoder), the static one at 0x00B634D0, made on first use (the guard bit 1 of 0x00B6351C; its constructor 0x0094ABC9, its destructor 0x00A7F63C given to SC4::atexit). Ours in framework.mp3.object (docs/gzui.md, part u10)."
 
 [[entry]]
 name = "GZDirector::Get9361D5"
