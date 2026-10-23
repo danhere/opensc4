@@ -364,10 +364,13 @@ void UnpokeParticles()
 bool g_poolHooked = false;
 // Letting go of what an effect holds records two more, once their detours are in.
 bool g_letGoHooked = false;
+// While an emitter is compared, its steps (0x005B9BA0) are recorded and answered too.
+bool g_emitterRecording = false;
 
 bool Steers(uint32_t target)
 {
     return target == addr::SC4EffectBase_Finish ||
+           (g_emitterRecording && target == addr::SC4Effect_StepParticle) ||
            (g_poolHooked &&
             (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle));
 }
@@ -376,7 +379,7 @@ bool Steers(uint32_t target)
 // particle pool's only once their detours are in).
 bool Recorded(uint32_t target)
 {
-    if (target == addr::SC4EffectBase_Finish)
+    if (target == addr::SC4EffectBase_Finish || (g_emitterRecording && target == addr::SC4Effect_StepParticle))
         return true;
     return g_poolHooked &&
            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
@@ -13308,6 +13311,8 @@ uint32_t __fastcall LfStepByMode(char* self, void*, uint32_t particle, uint32_t 
 {
     const auto game = [&] { return g_SC4Effect_StepParticle(self, nullptr, particle, step); };
     const auto ours = [&] { return StepParticle(self, Ptr(particle), LfFloat(step)); };
+    if (g_effectRecord && g_emitterRecording)
+        return EffectRecorded(addr::SC4Effect_StepParticle, g_SC4Effect_StepParticle, self, particle, step);
     if (g_stepMode == StepMode::Original || g_effectRecord || g_effectReplay)
         return game();
     if (g_stepMode == StepMode::Ours)
@@ -13354,13 +13359,16 @@ void LfNoteEmitter(LfEmitNote& note, char* self, uintptr_t emitter, uint32_t tim
     std::memcpy(note.effect, self, kEffectSize);
 }
 
+// The emitters by their own switches (effects_emit.h, at the end of the file).
+uint32_t EmitterByMode(uintptr_t emitter, Call1Fn original, char* self, uint32_t time);
+
 uint32_t LfEmitterNoted(uintptr_t emitter, Call1Fn original, char* self, uint32_t time)
 {
     if (g_emitWatch) {
         g_emitWatch = false;
         LfNoteEmitter(g_emitGame, self, emitter, time);
     }
-    return original(self, nullptr, time);
+    return EmitterByMode(emitter, original, self, time);
 }
 
 uint32_t __fastcall LfEmitToCountNoted(char* self, void*, uint32_t time)
@@ -13651,6 +13659,177 @@ const bool g_registeredLifeHit = registry::Register({
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallLifeHit,
+});
+
+// --- An effect's emitters --------------------------------------------------------------------
+//
+// The three emitters (effects_emit.h) take, step, add and give back
+// particles, which cannot run twice: they are compared by the record and
+// replay of the effect's draw (RecordAndReplay), the pool's functions and
+// the particle's step recorded in the game's run and answered from the
+// record in ours. The stream's and the burst's own draws from the
+// generator are recorded too (a detour on 0x00913761 that notes only the
+// draws made by the emitter itself, on the emitter's thread) and handed
+// to ours in the replay. The emit's comparison detours the same three
+// functions; both go through one thunk each (TLfEmitToCount and its two),
+// which notes for the emit and then goes by the emitter's own switch.
+using UniformFn = double(__fastcall*)(void*, void*, double, double);
+UniformFn g_SC4Random_Uniform = nullptr;
+std::vector<double> g_emitterDraws;
+std::size_t g_emitterDraw = 0;
+
+uint32_t LfFloatBits(double value)
+{
+    const float f = static_cast<float>(value);
+    uint32_t bits = 0;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+double __fastcall LfUniformNoted(void* random, void*, double low, double high)
+{
+    const double value = g_SC4Random_Uniform(random, nullptr, low, high);
+    if (g_emitterRecording && g_effectRecord && g_effectNested == 0 && GetCurrentThreadId() == g_effectThread) {
+        g_effectGameCalls.push_back(
+            EffectCall{addr::SC4Random_Uniform, reinterpret_cast<uint32_t>(random), {LfFloatBits(low), LfFloatBits(high)}});
+        g_effectChanges.emplace_back();
+        g_emitterDraws.push_back(value);
+    }
+    return value;
+}
+OPENSC4_THUNK(TLfUniform, LfUniformNoted, 16)
+
+// The emitter's draw between two of the description's floats: in the
+// replay the game's draw, noted as a call.
+double LfEmitterUniform(double low, double high)
+{
+    if (!g_effectReplay)
+        return SuUniform(low, high);
+    g_effectOurCalls.push_back(EffectCall{addr::SC4Random_Uniform, 0x00B22DF8u, {LfFloatBits(low), LfFloatBits(high)}});
+    return g_emitterDraw < g_emitterDraws.size() ? g_emitterDraws[g_emitterDraw++] : 0.0;
+}
+
+#include "core/effects_emit.h"
+
+StepMode g_emitCountMode = StepMode::Original, g_emitStreamMode = StepMode::Original,
+         g_emitBurstMode = StepMode::Original;
+
+struct LfEmitterCall {
+    char* self;
+    float time;
+    void (*ours)(char*, float);
+};
+
+uint32_t EmitterByMode(uintptr_t emitter, Call1Fn original, char* self, uint32_t time)
+{
+    StepMode mode = StepMode::Original;
+    const char* id = nullptr;
+    void (*ours)(char*, float) = nullptr;
+    if (emitter == addr::SC4Effect_EmitToCount) {
+        mode = g_emitCountMode;
+        id = "effects.emit_count";
+        ours = &EmitToCount;
+    } else if (emitter == addr::SC4Effect_EmitStream) {
+        mode = g_emitStreamMode;
+        id = "effects.emit_stream";
+        ours = &EmitStream;
+    } else if (emitter == addr::SC4Effect_EmitBurst) {
+        mode = g_emitBurstMode;
+        id = "effects.emit_burst";
+        ours = &EmitBurst;
+    }
+    if (mode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return original(self, nullptr, time);
+    if (mode == StepMode::Ours) {
+        ours(self, LfFloat(time));
+        return 0;
+    }
+    g_emitterDraws.clear();
+    g_emitterDraw = 0;
+    LfEmitterCall call{self, LfFloat(time), ours};
+    g_emitterRecording = true;
+    const uint32_t result = RecordAndReplay(
+        id, self, false, [&] { return original(self, nullptr, time); },
+        [](void* c) {
+            const auto* const call = static_cast<LfEmitterCall*>(c);
+            call->ours(call->self, call->time);
+            return 0u;
+        },
+        &call);
+    g_emitterRecording = false;
+    return result;
+}
+
+bool InstallEmitter(registry::Mode mode, StepMode& target, uintptr_t address, void (*thunk)(), Call1Fn* original,
+                    const char* what)
+{
+    if (!game::IsBuild641() || !(*original || Detour(address, thunk, original)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookFrees() && HookPool() &&
+          (g_SC4Effect_StepParticle || Detour(addr::SC4Effect_StepParticle, &TLfStep, &g_SC4Effect_StepParticle)) &&
+          (g_SC4Random_Uniform || Detour(addr::SC4Random_Uniform, &TLfUniform, &g_SC4Random_Uniform))))
+        return false;
+    target = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: %s %s", what, mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallEmitCount(registry::Mode mode)
+{
+    return InstallEmitter(mode, g_emitCountMode, addr::SC4Effect_EmitToCount, &TLfEmitToCount,
+                          &g_SC4Effect_EmitToCount, "the count emitter");
+}
+
+bool InstallEmitStream(registry::Mode mode)
+{
+    return InstallEmitter(mode, g_emitStreamMode, addr::SC4Effect_EmitStream, &TLfEmitStream,
+                          &g_SC4Effect_EmitStream, "the stream emitter");
+}
+
+bool InstallEmitBurst(registry::Mode mode)
+{
+    return InstallEmitter(mode, g_emitBurstMode, addr::SC4Effect_EmitBurst, &TLfEmitBurst, &g_SC4Effect_EmitBurst,
+                          "the burst emitter");
+}
+
+const bool g_registeredEmitCount = registry::Register({
+    "renderer.effects.emit_count",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_EmitToCount,
+    "The count emitter (0x005B3CF0): the time times the rate added up, and particles taken until the effect has "
+    "the number its description wants; compare mode records the game's run and replays ours (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallEmitCount,
+});
+
+const bool g_registeredEmitStream = registry::Register({
+    "renderer.effects.emit_stream",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_EmitStream,
+    "The stream emitter (0x005B87B0): particles taken and stepped slice by slice at the description's rate, with "
+    "pauses drawn between them; compare mode records the game's run, its steps and draws, and replays ours "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallEmitStream,
+});
+
+const bool g_registeredEmitBurst = registry::Register({
+    "renderer.effects.emit_burst",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_EmitBurst,
+    "The burst emitter (0x005B8B50): bursts of the description's size taken and stepped, with pauses drawn "
+    "between them; compare mode records the game's run, its steps and draws, and replays ours (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallEmitBurst,
 });
 
 } // namespace
