@@ -5872,3 +5872,31 @@ address = 0x00AD53EC
 kind = "data"
 expect = "13 C8 94 00 CE C7 94 00"
 source = "Name ours. The vtable of the 8-byte object GZWinGen's handler gives the window's slot 7 (+4 zeroed)."
+
+# Part u14 (src/core/gzui_widgets2.cpp, docs/gzui.md): GZWinFileBrowser's registration and property handler,
+# with the separator its filters are cut at.
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterFileBrowser"
+address = 0x009552BE
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinFileBrowser and IGZWinFileBrowser into the table (its slot 3 with a string from SC4String::FromText), the class's handler 0x00954212 under its interface 0x3AA52E64 (0x0094950A into 0x00B6358C) and its interface under the class 0x1AA52EA4 (0x004FB6C0 into 0x00B63598), then its 66 property words (0x1301 defaultpath to 0x1342 filter). Ours in framework.uiscript.filebrowser (docs/gzui.md, part u14)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::FileBrowserRead"
+address = 0x00954212
+kind = "function"
+convention = "cdecl"
+signature = "void (cIGZWin* window, void* properties, bool set)"
+expect = "55 8D 6C 24 94 81 EC E8"
+source = "Name ours. GZWinFileBrowser's property handler (0x00B6358C under 0x3AA52E64; the dispatcher 0x00957A9B calls it with the byte 1, then with 0 after the window's slot 23, which only queries and releases). The window's IGZWinFileBrowser (QueryInterface 0x3AA52E64); with it and the byte set: the default path (slot 15), the default selection (slot 28 with its kind and two texts), the file sorts (slots 34 and 35) and the directory sort (slot 37), the columns (slots 38 and 40), for file names, extensions and drive names a font (a number: the font service 0x00913C72's slot 5, put under the window by 0x0094C222; else a text by 0x0094C255), six colours (0x0094D4CD, the colour service 0x00913C1A's slot 34) and an alignment (the face's slots 45 to 47, 51 to 53, 57 to 59); the two column widths and the row height, the grids and highlight (getter and setter pairs), the back text, the drive list size, the background colour, transparency (a bool over the EDX 0x0094C675 leaves) and 0xF019; with the background image's text ({%x,%x}: 0x0094C4E0, slot 85, 0x0094C1DA) the filters (0x1342: name:number:{group,instance}, slot 21). The interface released, its EAX answered. Ours in framework.uiscript.filebrowserread (docs/gzui.md, part u14)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::FilterSeparator"
+address = 0x00AA0424
+kind = "data"
+expect = "3A 00"
+source = "Name ours. \":\", the separator GZWinFileBrowser's handler 0x00954212 cuts its filters' texts at (SplitOff 0x0090E98C)."
