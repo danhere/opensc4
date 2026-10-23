@@ -20,7 +20,7 @@ The survey of 2026-10-19 put "`cGZPropertySet` and its property values" in 0x009
 | 0x009456EC to 0x00945FFF | 58 | 25 | 5 | The framework's sound director (part u5; constructor 0x009456EC, ID 0xFD53FF17, vtables 0x00AD47C0 and 0x00AD4790; the audio director adds it through the thunk 0x00945785, in audio.toml) and three of the five classes it registers: a 64 by 64 table of sound descriptions (0x5C1CF5A3, constructor 0x0094585F, vtable 0x00AD4818, whose QueryInterface is the base one at 0x009457C6 that dozens of classes jump to); the sound instance (0xBDD9D7A5, constructors 0x009458D6 and 0x00945C6C, two vtables after an abstract base's); the sound description (0x7DD9C9F2, constructor 0x00945DCC, 43 slots, mostly setters). The `0123456789abcdefABCDEF` text is the instance's 8-hex-digit test 0x00945F38 |
 | 0x00946000 to 0x00948E62 | 75 | 45 | 4 | One large class (constructor 0x009489AE, vtables 0x00AD4B34 and 0x00AD4B48, 65 slots), and its helpers |
 | 0x00948E63 to 0x0094A078 | 71 | 7 | 5 | The framework's sound mixer 0xBDDA72DD (part u8; constructor 0x00949902, vtables 0x00AD4CF4, 0x00AD4C60 and 0x00AD4C4C); the 7 that ran are shared code |
-| 0x0094A079 to 0x0094BFFF | 108 | 51 | 26 | The UI script tree (`_null`, `_children`, `_/children`, `_define`, `_name`, `_val`, `none`, `children` at 0x0094B73A; list node 0x0094B33A); its node classes (constructor 0x0094AF64: eleven vtables 0x00AD502C to 0x00AD5158; 0x0094A4D8; 0x0094ABC9; 0x0094C0AF) |
+| 0x0094A079 to 0x0094BFFF | 108 | 51 | 26 | The UI script loader 0xFA3562FB and its director (part u9: 0x0094AF19 to 0x0094BBFD; the loader's constructor 0x0094B400 behind its factory 0x0094AF64, seven vtables 0x00AD50B8 to 0x00AD5158; the words `_null` to `_val`, `none`, `children` ... defined at 0x0094B73A; list node 0x0094B33A); below and above it other classes (0x0094A4D8; 0x0094ABC9; 0x0094BBFE to 0x0094BF3B, vtable 0x00AD5240), part u10 |
 | 0x0094C000 to 0x00951268 | 99 | 51 | 7 | The framework window (`GZWin`; AddRef 0x0094C47C, in ui.toml) and its UI script properties (`clsid`, `iid`, `area`, `{%x,%x}`, `(%d,%d,%d)`); 0x0094C900 on are few, big functions (18.7 KB in 49) |
 | 0x00951269 to 0x00953FFF | 17 | 17 | 0 | The stock widgets' UI script readers, one function each: TextTicker, Folders, Custom, FlatRect, Text, TextEdit, ListBox, Combo, Btn, BMP, Slider, Scrollbar, LineInput, Spinner, Outline, Gen (11.8 KB, all ran) |
 | 0x00954000 to 0x0095BBFF | 98 | 16 | 3 | FileBrowser, OptGrp, TreeView and Grid readers and their helpers; most never ran |
@@ -77,7 +77,8 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u6** | 0x00946000 to 0x00948E62, first half | 40 of 75 | 29 | **Ours** (below): the framework's sound service 0x3C1CF59E (the audio layer's score player): constructor, interface, destructors, Init with the sound table's reader and text loader, Prepare, Play, the fade, the tempo, the window and slots 3 to 37; 2 adjustors, 2 AddRefs, 2 thunks and a getter the description shares stay the game's |
 | **u7** | 0x00946000 to 0x00948E62, the rest | 30 | 14 | **Ours** (below): the service's slots 38 to 64 but the shared 44 and 45, its message target's slot 3 (the beats) and the neighbour pick, the table's reader by path, the sound instance's slot 5 and its listener path |
 | **u8** | 0x00948E63 to 0x0094A078 | 36 of 71 | 7 | **Ours** (below): the framework's sound mixer 0xBDDA72DD (constructor 0x00949902); 5 adjustors, 5 shared getters and stubs, 20 STLport functions and 5 shared reference and list functions stay the game's |
-| u9, u10 | 0x0094A079 to 0x0094BFFF | 108 | 51 | The UI script tree |
+| **u9** | 0x0094AF19 to 0x0094BBFD | 31 of 54 | 26 | **Ours** (below): the UI script loader 0xFA3562FB (the framework's system service that makes the UI file parser and builds windows from UI scripts) and its director; 19 adjustors, the base service's two AddRef and Release adjustors, the director's ID getter and the shared list node stay the game's |
+| u10 | 0x0094A079 to 0x0094AF18, 0x0094BBFE to 0x0094BFFF | 54 | 25 | The classes around the loader: 0x0094A079 to 0x0094AF18 (constructors 0x0094A4D8 and 0x0094ABC9, vtables 0x00AD4EC0 to 0x00AD4FA0; 0x0094AC43 is in audio.toml) and 0x0094BBFE to 0x0094BF3B (vtable 0x00AD5240 to 0x00AD5274; 0x0094BC3F and 0x0094BC5D shared with other vtables) |
 | u11 | 0x0094C000 to 0x0094C8FF | 50 | 35 | The framework window's small methods |
 | u12 | 0x0094C900 to 0x00951268 | 49 | 16 | The window's script properties (18.7 KB) |
 | u13 | 0x00951269 to 0x00953FFF | 17 | 17 | The widget readers that run (11.8 KB) |
@@ -687,3 +688,78 @@ The batch `gzu8-r1` on the build before the test's last change (which touches on
 **Reached:** in the plain (muted) legs none of the 36 logs a first call. An unmuted run with the groups on (Making Money, 30 s, no test) reached none either, while the sound services of parts u6 and u7 ran (40 of their first calls): the game registers the mixer's class but never makes one in play. In the test runs all 36 are reached.
 
 **Part u8 complete:** the range 0x00948E63 to 0x0094A078 is ours but for the adjustors, the shared getters and stubs and the STLport and shared reference and list code.
+
+## Part u9: the UI script loader and its director
+
+`src/core/gzui_uiscript.cpp`, entry detours, off by default, installed at Attach:
+
+| Replacement | Functions |
+|---|---|
+| `framework.uiscript.object` | the director's start 0x0094AF1F (slot 4), constructor 0x0094AFF6, deleting destructor 0x0094AFCD (16) and the static one's getter 0x0094B053; its four factories 0x0094AF64 (the loader, whose constructor 0x0094B400 ours does inside the factory), 0x0094AF7A, 0x0094AF90 and 0x0094AFA6; the loader's QueryInterface 0x0094B120 (0), Create 0x0094B08B (3), Load 0x0094B210 (4), SetHeld 0x0094B0C7 (10), SetContext 0x0094B0F3 (slot 4 at +4), Init 0x0094B07E and Shutdown 0x0094B5F4 (the base service's slots 8 and 9), the destructor 0x0094B6EC and the deleting destructor 0x0094BBE2 (17) |
+| `framework.uiscript.parse` | the parser made and its words defined 0x0094B73A, ParseString 0x0094BA22 (5), ParseFile 0x0094BA51 (6), ParseResource 0x0094BA80 (7), the parser's getter 0x0094BAAF (8), the parent set 0x0094B676 (slot 3 at +4) (6) |
+| `framework.uiscript.events` | the parser's events: the document's start 0x0094B19D and end 0x0094B55D (the listener's slots 3 and 4), a tag's start 0x0094B364 and the end of its start tag 0x0094B1F4 (the tag events' 3 and 4), the attribute list 0x0094BABC (the attribute events' 3); the stack of parents: its top 0x0094B354, push 0x0094B653 and pop 0x0094B53A (8) |
+
+31 of the 54 functions of 0x0094AF19 to 0x0094BBFD, the first half of the range by count (54 of 108; 26 of its 51 that ran). Addresses in `data/addresses/gzui.toml` (the "Part u9" part) with the game code and data they use. Ours call each other directly where the game does (the parses the parser's maker, the destructor Shutdown, the events the stack's top, push and pop, the factory the constructor); every call the game makes through a vtable stays one (Create calls Load, Load calls ParseResource and the parent's setter through the vtables).
+
+Still the game's, 23: the 19 adjustors 0x0094B4A2 to 0x0094B532 (three per interface vtable and the deleting destructor's 0x0094B532), the base service's AddRef and Release adjustors 0x0094B18D and 0x0094B195 (`add ecx, 0x14` and a jump to cRZBaseSystemService's), the director's ID getter 0x0094AF19 (`mov eax, 0x9A3559B0`), and the list node 0x0094B33A, an STLport node maker two other lists call. The primary slot 9 (0x009D41AD, `mov eax, [ecx+0x5C]`) and the listener's and tag events' slot 5 (0x0092B33A, 0x0092973B: `mov al, 1`) are shared code outside the range.
+
+### The class
+
+The director (ID 0x9A3559B0, the static one at 0x00B63538, made by its getter, which 0x0046019A calls) registers four classes and, at its start, makes the loader through its COM with interface 0x287FB697 and gives it to the framework as a system service:
+
+| Class | Factory | Size | What |
+|---|---|---:|---|
+| 0xFA3562FB | 0x0094AF64 | 0x60 | the loader (below) |
+| 0x5A354595 | 0x0094AF7A | 0x24 | the root holder a parse fills with the windows it makes (constructor 0x0094C0AF, part u11's range); slot 4 takes a reader, slot 5 gives a window by its id |
+| 0xFA450242 | 0x0094AF90 | 0x20 | the LEGACY reader: the class of the `LEGACY` tag (constructor 0x0095B8C4, which once makes a variable table at 0x00B63588 and has every widget reader add its words, 21 calls) |
+| 0x478D1E6F | 0x0094AFA6 | 0xDC | (constructor 0x0095BAB3; the factory answers its interface at +0xD8) |
+
+**The loader** is the framework's system service 0x5A356E15 (cRZBaseSystemService at +0x14 with priority 0xFFD23940). Seven vtables: the primary one 0x00AD5158 (11 slots), the interface 0x7A4A48ED at +4 (0x00AD5144: the parent, the context), and the three faces it shows the UI file parser of part u4: its listener 0x1A2BDEB8 at +8 (0x00AD512C), its tag events 0x1A2BDEB9 at +0xC (0x00AD5114) and its attribute events 0x1A2BDEBA at +0x10 (0x00AD5104); the base service's at +0x14 and +0x18 (0x00AD50D0, 0x00AD50B8). Fields: +0x30 Init ran, +0x34 the parser, +0x38 the variable table pushed at a document's start, +0x3C set while the words are defined, +0x40 the stack of parents (an STLport list, its top at the front), +0x44 the last reader (not counted), +0x48 the reader's table pushed, +0x4C the tag, +0x50 the root holder, +0x54 the tag's reader, +0x58 the readers' context, +0x5C slot 10's object.
+
+**How a UI script is read.** The first parse makes the parser (0xBA2E7953) and defines `_null` 0, `_children` 1, `_/children` 2, `_define` 3, `_name` 4 and `_val` 5, then (with the listener given) `none`, `children`, `/children`, `define`, `name`, `val` the same, `LEGACY` 0xFA450242, `comic9` 0x12 and `comic10` 0x13. A parse gives the parser the listener and the source (a game string, a file or a resource key) and answers the root holder, which the caller then owns:
+
+- the document's start pushes a fresh variable table on the parser and makes the root holder;
+- a tag's start makes the tag's number as a class through the COM (interface 0x1A356083): a reader. It gets the context, the stack's top as its parent, and its own variable table goes on the parser for the tag's attributes (`clsid`, `area` ...), popped at the end of the start tag. A tag whose number is no class is refused;
+- the attribute list goes to the reader, which makes its window, and the reader to the root holder. With no reader, `children` pushes the last reader as the parent of what follows, `/children` pops back, and `define name="x" val=...` sets a parser variable (only text names; without `val` it is removed), so a later tag or value can use `x`;
+- the document's end lets go of the table and empties the stack; a failed document also drops the root holder.
+
+Load (slot 4) reads a UI file by its resource key with the parent window (slot 3 at +4 puts a LEGACY reader for it at the bottom of the stack) and answers the window under an id; the key's group is first tried in the language's form (`0x%.4u%.4u` of the locale service's slots 41 and 42). Create (slot 3) asks that window for an interface.
+
+Quirks kept: the document's start overwrites +0x38 and +0x50 without releasing what they held; the end releases +0x38 without a null check; +0x44 holds the reader without a reference while the stack holds one; slot 10 adds the new reference before it releases the old one, the context setter the other way round; Init only sets its byte, and Shutdown does nothing without it (so the destructor of a loader never Init'ed leaves its parser).
+
+The methods answer a byte. Ours give the game's EAX where it comes from a call or a value, and 0 or 1 above the byte where the game leaves its caller's EAX (Init, slot 10 when nothing changes, a push or Shutdown with nothing to do, the end of a start tag without a table).
+
+### Testing
+
+`OPENSC4_TEST_UISCRIPT=<day>` is a test of its own (the fingerprint's `us` part). It drives the loader through its slots and addresses with real loaders, parsers, variable tables, root holders and LEGACY readers where the game makes them, and readers, root holders, windows, values and a parser of its own where a field or an argument can hold one (each hashes every call it gets). Four stages, each logged as `autotest: uiscript: <stage> <hash>`:
+
+- **objects:** a loader by the factory's address and its fields; QueryInterface with eight interfaces by its address and through the listener's adjustor; Init and Shutdown twice each, by slot and address; slot 10 and the context setter over the same object, another, none; the destructor and the deleting destructor (flags 0 and 1) by their addresses; the other three factories' objects made, held and released; the director made on the stack, its start with a COM of ours that has no loader, its deleting destructor (flag 0); the static director's getter.
+- **stack:** pop and push on an empty stack, three readers pushed, the top after each, `/children` and `children` through the attribute events with and without a reader, pops past the bottom, a loader released with readers on its stack.
+- **events:** the document's start (a real table and root holder), tag starts with numbers that are no class, the end of a start tag with and without a table; the attribute list with a reader and a root holder of ours; `define` with a name and a value, the pairs reversed, a name only, a name that is not a text, no name, no pairs; tags that are none of these; the document's end done and not, and while the words are defined; Load and Create (slot and address) with a parser and root holder of ours.
+- **parse:** the loader's own parser made and its words defined (twice), 19 UI scripts through ParseString's slot and address: empty, white space, text only, defines (and a defined word used as a tag, then as a name), numbers as names, a name that is not a text, the `_` words, nested and unbalanced `children`, unknown tags, malformed and truncated, and LEGACY windows (`GZWinGen`, one alone and one with a child: the root holder gives the windows by their ids); a file, an empty one and a missing one; a UI file of the game's (0x00000000, 0x96A006B0, 0xCBC905CD) and a key that is not there through ParseResource, Load and Create; the parent set on its own; Shutdown.
+
+With the groups on, each of the 31 logs its first call (and the constructor inside the factory as `LoaderConstruct`), and all 32 do in a test run. `us` is 9F09A91A (muted), the same on both sides.
+
+A first trial died in the parse stage on both sides: the test's loader had no reference of its own, and the parser, swapping the listener for the same one, released the loader to nothing in the middle of the parse. The game's loader is always held by the framework; the test now holds each of its loaders.
+
+An independent audit compared all 31 with the disassembly: ret sizes against the thunks, arguments and their order, the vtable offsets and addresses called (and their conventions), call order, the reference counts, field offsets through each interface's `this`, branches, EAX on every path, the constructor's writes and the address entries' expected bytes. It found no difference in behaviour; its three notes on the text (the director's deleting destructor is its slot 16, not 15; two methods' comments lacked "ours 0" where the game leaves its caller's EAX) are fixed.
+
+### Parity
+
+Batch `gzu9-r2` (2026-10-23, the final build), muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.uiscript.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu9`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_UISCRIPT=2` | 12 | 12 same; `us` 9F09A91A in all 24 runs |
+| Making Money d0000, 4 days, `OPENSC4_TEST_UISCRIPT=2` | 1 | same; `us` 9F09A91A |
+
+The batch `gzu9-r1` on the build before the audit's fixes (comments and address-entry text only) ran the same legs: all the same, on the first pair, `us` 9F09A91A in all 26 test runs.
+
+**Reached:** this code runs at every start-up. In every plain (muted) leg side B logs 28 first calls: 27 of the 31 and the constructor. The director is got, made and started, the loader made, held and Init'ed, its parser made, and every UI file read through Load and ParseResource with the parent set, the document's and tags' events, the stack, the LEGACY reader, the root holder and the class 0x478D1E6F; Create, and at the end Shutdown and the destructors. Not reached in play: SetContext, ParseString, ParseFile and the director's deleting destructor (the static director is never destroyed before the process ends). The test runs reach all 31.
+
+**Part u9 complete:** 0x0094AF19 to 0x0094BBFD is ours but for the adjustors, the director's ID getter and the shared list node.
+
+**What is left for u10:** the other 54 functions of the range, 25 of which ran: 0x0094A079 to 0x0094AF18 (37: the classes made by 0x0094A4D8 and 0x0094ABC9, vtables 0x00AD4EC0 to 0x00AD4FA0, with 0x0094A5EA shared by many vtables and 0x0094AC43 already named in audio.toml) and 0x0094BBFE to 0x0094BF3B (17: vtable 0x00AD5240 to 0x00AD5274; 0x0094BC3F and 0x0094BC5D are shared by other vtables, 0x0094BBFE and 0x0094BC46 are jumped to from 0x0094C0DF and 0x0094C0E7). The loader's constructor 0x0094B400 needs no entry of its own (only its factory calls it).
