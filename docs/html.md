@@ -2,7 +2,7 @@
 
 The HTML control the game uses for advice, news and the text pages, at 0x008F673E to 0x0090AD25: a COM director, the `HTML Window` class, a document that tokenizes and parses the page into a tree of nodes, the nodes' layout and paint, and under them an Internet service with a cookie store and a file cache that the game's pages hardly touch. It is the "HTML viewer" line of [uncharted-code.md](uncharted-code.md) and the "HTML parser" line of [framework.md](framework.md); the code starts a little below 0x008F6800 (the director), and 0x0090AD26 to 0x0090B1A0 belongs to the picture codecs, not to the viewer.
 
-Everything here was read from the disassembly with Ghidra (no game runs). Names are ours. The addresses the doc relies on are in [data/addresses/html.toml](../data/addresses/html.toml) (none hooked) and [data/names-641.txt](../data/names-641.txt). "Ran" counts a function that ran in at least one of the 46 coverage files on TurboToaster (`%LOCALAPPDATA%\opensc4\analysis`, the `*coverage*.csv` and `cov.csv` files; [dev-environment.md](dev-environment.md), "Coverage"); code that runs only while the game starts is never recorded there.
+Everything here was read from the disassembly; the parser (h3) is ours and was checked in the game ("Ours: the parser" below). Names are ours. The addresses the doc relies on are in [data/addresses/html.toml](../data/addresses/html.toml) (none hooked) and [data/names-641.txt](../data/names-641.txt). "Ran" counts a function that ran in at least one of the 46 coverage files on TurboToaster (`%LOCALAPPDATA%\opensc4\analysis`, the `*coverage*.csv` and `cov.csv` files; [dev-environment.md](dev-environment.md), "Coverage"); code that runs only while the game starts is never recorded there.
 
 ## Library or Maxis
 
@@ -67,11 +67,11 @@ The document's tree is one family of small classes with an 11-slot vtable: slot 
 
 ## The parser
 
-The tag table (0x00902D4F, built once) maps about 160 names to IDs, each start and end tag its own ID (`!DOCTYPE` 2, `HTML` 4, `BODY` 8, `FONT` 0x20, `A` 0x36, `IMG` 0x38, `BR` 0x3B, `P` 0x65, `TABLE` 0x78, `TD` 0x8F, `TR` 0x93, `NOBR` 0xA1). The tokenizer is three functions on the document: 0x008FFAC2 collects text up to the next `<`, skipping `<!-- -->`; 0x00905CF0 reads the next tag and looks its name up (the current ID at +0xE8); 0x009056DA splits its attributes (quoted with `"` or `'`, or bare). Colours go through 0x0090AA54: `#rrggbb` or the 16 HTML colour names.
+The tag table (0x00902D4F, built once into the hash map at 0x00B624A4) maps 160 names to IDs, each start and end tag its own ID (`!DOCTYPE` 2, `HTML` 4, `BODY` 8, `FONT` 0x20, `A` 0x36, `IMG` 0x38, `BR` 0x3B, `P` 0x65, `TABLE` 0x78, `TD` 0x8F, `TR` 0x93, `NOBR` 0xA1). The tokenizer is three functions on the document: 0x008FFAC2 collects text up to the next `<`, skipping `<!-- -->`; 0x00905CF0 reads the next tag and looks its name up (the current ID at +0xE8); 0x009056DA splits its attributes (quoted with `"` or `'`, or bare). Colours go through 0x0090AA54: `#rrggbb` or the 16 HTML colour names.
 
 Parsing is recursive descent. 0x00908122 (document slot 8) starts it: it checks `<!DOCTYPE ... DTD HTML x.y>` (slot 9, 0x008FFF91) and runs 0x009080A2, which makes the body node and calls 0x00907E42 for `BODY`; text that does not start with a tag becomes one plain text run (slot 11, 0x00905985). From there 0x00907135 handles block tags (HR, P, PRE, DL, DIV, BLOCKQUOTE, FORM, TABLE, CENTER, headings, lists; NOSCRIPT, FIELDSET, ADDRESS, DIR and MENU are skipped to their end tag by 0x009065C5) and 0x00907CCA handles text and inline tags: text (ID 3) becomes a text node (0x008FE6E2), and four tag sets go to 0x0090727D (font tags: TT, I, B, U, STRIKE, BIG, SMALL, FONT), 0x00906985 (phrase tags), 0x00907C3E (A, IMG, BR, SCRIPT, MAP, SPAN, BLINK; OBJECT, Q, SUB, SUP, BDO skipped to their end tag) and 0x00906E59 (INPUT, SELECT; TEXTAREA, LABEL, BUTTON skipped).
 
-Images are fetched while parsing: 0x008FFBFC reads the file through `cRZFile` and the picture reader, and the document's slot 16 (0x009059FC) hands an image that arrives later to its node.
+Images are asked for while parsing: the document's slot 16 (0x009059FC) gives a node the picture of an address already in the image map (+0x198), or queues the node and asks the Internet service (its slot 17) for a new address; 0x008FFBFC reads an image that arrives (`cRZFile` and the picture reader) and hands it to the nodes waiting for it. Named entities are decoded by the text node's constructor through 0x00901222, which fills each document's own entity map (a tree at +8) on first use.
 
 ## Pieces
 
@@ -79,7 +79,7 @@ Images are fetched while parsing: 0x008FFBFC reads the file through `cRZFile` an
 |---|---|---:|---:|---|
 | h1 | 0x008F673E to 0x008F67A6, 0x008FA317 to 0x008FC3EE | 74 | 35 | The director (below 0x008F6800), the HTML window class, its factory and slots, the empty second director |
 | h2 | 0x008FE5F9 to 0x009010FC | 137 | 85 | The document: node constructors and destructors, the tokenizer, the small tag handlers (INPUT, AREA, HR, IMG, LINK, META), image fetching, the document's slots |
-| h3 | 0x009010FD to 0x009081BA | 57 | 32 | The parser: entity table (0x00901222, 6.9 KB), tag table (0x00902D4F, 10.6 KB), next tag, attributes, the block, inline, list, table and body handlers |
+| h3 | 0x009010FD to 0x009081BA | 57 | 32 | The parser: entity table (0x00901222, 6.9 KB), tag table (0x00902D4F, 10.6 KB), next tag, attributes, the block, inline, list, table and body handlers. **Ours** (below) |
 | h4 | 0x008FDE3F to 0x008FE5F8 | 28 | 20 | The layout context (pen, line height, margins, floats, rectangle offsets) and STL vector code the linker folded here, which other code calls (0x008FDE8D, 0x008FDFF5, 0x008FE324, 0x008FE3DC, 0x008FE4DE, 0x008FE5AC) |
 | h5 | 0x009081BB to 0x0090AD25 | 127 | 91 | The nodes' layout and paint: the node classes' slots, text runs (line breaking, DrawString), tables, cells, images (0x00908FD5), rules, colour names, the multibyte character helpers |
 | h6 | 0x008F67A7 to 0x008FA316 | 115 | 12 | The Internet service and the cookie store. The 12 are the service's QueryInterface, Release, request (slot 16 of the +4 vtable) and its helpers, and 0x008F6E80, an STLport list push_back with 13 callers elsewhere (gzui.toml's `SC4PtrList::PushBack`) |
@@ -88,14 +88,53 @@ Images are fetched while parsing: 0x008FFBFC reads the file through `cRZFile` an
 
 The 18 functions from 0x0090AD26 to 0x0090B1A0 (5 ran) are the picture codecs' director (0x0090AD97: classes 0xA2FFB5D3, 0x2A316C02, 0xCA316C55; getter 0x0090ADE3) and 16-bit pixel converters, which go with `cGZImageReader` from 0x0090B1A1 on.
 
-Planned toggle groups, off by default until each piece is ours: `ui.html.window` (h1), `ui.html.document` (h2), `ui.html.parser` (h3), `ui.html.layout` (h4), `ui.html.nodes` (h5), `ui.html.internet` (h6), `ui.html.cache` (h7). h6 and h7 hardly run: the game's pages come through the service's scheme handlers and never reach HTTP, the cache's files or the cookies.
+Planned toggle groups, off by default until each piece is ours: `ui.html.window` (h1), `ui.html.document` (h2), `ui.html.parser.*` (h3, ours: six groups, below), `ui.html.layout` (h4), `ui.html.nodes` (h5), `ui.html.internet` (h6), `ui.html.cache` (h7). h6 and h7 hardly run: the game's pages come through the service's scheme handlers and never reach HTTP, the cache's files or the cookies.
 
 ### Calls from outside
 
 Almost everything comes in through vtables. The direct calls from game code are the HTML director's getter (from the director list 0x00460090), the service's constructor (0x00450350), the codec director's getter, and helpers that other code shares, mostly STL container code the linker folded in (h2, h4, h5 and h6: 0x008F6E80, 0x008FDE8D, 0x008FDFF5, 0x008FE324, 0x008FE3DC, 0x008FE4DE, 0x008FE5AC, 0x008FE833, 0x008FE9D9, 0x008FEA1C, 0x008FEB1E, 0x008FEBE9, 0x008FEC00, 0x008FEF47, 0x008FF040, 0x008FF785, 0x0090990F, 0x009098CC, 0x00909B33, 0x009090E0, 0x009091B2, 0x009086AC; 0x008FF785 is music.toml's vector push_back). Those stay the game's when the pieces they sit in are translated. 0x008FB729 and 0x008FB72E are bare jumps to the framework window's AddRef and Release that 39 window vtables share (ui.toml).
 
-## Testing idea
+## Ours: the parser (h3)
 
-Lay out pages at a fixed width with no window: the advice list's HTML (ui.toml's static strings at 0x00B20964 up, built by 0x0041E4B0) and the news ticker's rows, at 300 and 450 pixels with both font step tables, and hash every node's box (vtable, rectangle at +0xC, font, colour) in tree order. The same document run through the game's code and ours must give the same hashes. The parser alone can be checked the same way earlier, by hashing the tree before layout.
+All 57 functions of h3 and the tokenizer's text step of h2 (0x008FFAC2) are ours, written by hand from the disassembly ([src/core/html_parser.cpp](../src/core/html_parser.cpp), [src/core/html_parser_tree.h](../src/core/html_parser_tree.h)), in six groups, off by default and installed at Attach:
 
-The best first piece is h3 with the tokenizer functions of h2: it is pure text in, a node tree out, deterministic and testable that way without a window or a picture, and every page the game shows runs through it.
+| Group | Functions | What |
+|---|---:|---|
+| `ui.html.parser.tokens` | 4 | the text up to a tag (0x008FFAC2), the next tag (0x00905CF0), the attributes split (0x009056DA) and their insert (0x00901149) |
+| `ui.html.parser.names` | 5 | the tag table (0x00902D4F) as a table of 160 names and IDs, with its inserts (0x0090116D, 0x00902D3B); the named entities (0x00901222) as a table of 100, with 0x009010FD |
+| `ui.html.parser.document` | 12 | the document's constructor (0x00905AC5), Parse (slot 8, 0x00908122), the page after a DOCTYPE (slot 10, 0x0090818E), HTML (0x009080A2), HEAD (0x00906E94), TITLE (0x00906476), BODY (0x00907E42), plain text (slot 11, 0x00905985), images asked for (slot 16, 0x009059FC) and the image map's insert (0x00901191), the font stack (0x00902D28, 0x00901111) |
+| `ui.html.parser.blocks` | 18 | the block dispatch (0x00907135), P, CENTER, DIV and their common part (0x009065FD), BLOCKQUOTE, FORM, H1 to H6, PRE, DL, DT, DD, UL, OL, LI, the list dispatch, the skips to an end tag (0x009065C5) and past a script (0x00906ACD) |
+| `ui.html.parser.table` | 8 | TABLE (0x00906F3C), TR, TD, TH, THEAD, TBODY, TFOOT, COLGROUP |
+| `ui.html.parser.inline` | 11 | the inline dispatch (0x00907CCA), font tags (0x0090727D), phrase tags (0x00906985), the special ones (0x00907C3E), A, SPAN, BLINK, MAP, the form tags, SELECT, OPTION |
+
+Still the game's: the tokenizer's helpers in h2 and h5 (the tag's name split 0x00900138, the tag table's and the attribute map's hash code, GetAttribute 0x0090072C, the character helpers 0x0090A929 and 0x0090A947, the text node's constructor), the handlers in h2 (HR, IMG, BR, INPUT, AREA, BASE, META, LINK), the node constructors, the colour and length parsers, and every STLport and string helper. Ours call them with the same arguments in the same order, so the heap sees the same allocations. Calls between the parser's functions go through the game's addresses, so any mix of groups works.
+
+Kept as the game has them:
+
+- Attributes: the character after an opening quote is always taken, so `a=""` takes the closing quote and reads on to the next one; a quote never closed runs to the tag's end; a name in quotes loses them, names are upper-cased and empty names dropped; a tag's attributes last until the next tag.
+- FONT's SIZE: `+n` and a plain number are capped at the seventh step but not kept from going below the first, `-n` the other way round, so `SIZE=+-9` reads a "step" from before the table. A font tag's handler reached with an ID it does not know returns false with the font still pushed (the dispatch never sends one).
+- SPAN's `font-size` looks for `px` or `pt` in the key, not in the value, so it never sets a size; it only puts a size of 0 or above 255 back to 14.
+- Tables: the parts are read in the order THEAD, TFOOT, TBODY, so a TFOOT after a TBODY is skipped with the rest of the table; COLGROUP gives back its end tag, which ends the table's parts the same way; TH cells are the row's children but not in its cell list (+0x28); a row's VALIGN is not read.
+- Nesting: a tag closed out of order (`<B><I></B></I>`) makes the inner handler skip to its own end tag and the outer one to its, which may be past the end of the page: the rest of the page is lost.
+- Lists: the depth counters (+0x128 for OL, +0x12C for UL) count every list the document ever made, never down.
+- The colour maker (slot 34 of 0x00913C1A) gets red, green and blue as the dwords the game finds at those bytes of its stack; it reads only the low byte of each (0x00825DA0), so ours pass them clean.
+
+## Testing
+
+**`OPENSC4_TEST_HTML_PARSER=<day>`** (fingerprint ` | hp`, [src/core/html_parser_autotest.cpp](../src/core/html_parser_autotest.cpp)): text in, a node tree out, no window on screen. The pages: 30 of ours, one feature or edge case after another (every tag the parser knows, the failing paths of the handlers, attributes and comments at their odd ends, entities, unclosed and badly nested tags), and the rows a news ticker of the test's own makes from every advice of the city (titles, messages and images as the news list and the ticker show them; 187 different rows in Making Money). Each page gets a document of its own, as ShowHTML makes one: the constructor, Init (0x009007CA) with a window from the HTML window's factory (never created on screen) and a stand-in Internet service (slot 17 takes image requests, 22 cancels them, 24 answers that no link was visited; any other slot ends the run), then Parse. `OPENSC4_TEST_HTML_PARSER_FILE=<path>` parses the pages of a file instead (separated by lines of `====`), `OPENSC4_TEST_HTML_PARSER_DUMP=1` logs every page.
+
+Hashed per page: the token stream (NextTag over the page in a document of its own, asking for text every other time: each ID, the tag's text, name and rest, the run text, the attribute map bucket by bucket), and after parsing the document's fields (tokenizer state, font record, the strings and lists it keeps, the entity map in order) and the tree in order: each node's vtable, kind, flags, box and the fields its class sets (strings by their text, vectors by their length; a pointer into the heap by what it points to). The static tag table is hashed bucket by bucket. With any parser group ours, each page is run twice in the same run, through the game's functions and through ours, and the two compared, together with the text nodes' fonts by identity (the font system reuses its fonts); a page that differs is logged with both trees.
+
+A mutation check (three changes planted in ours: a cell's VALIGN TOP, BIG's font step, the end of an unclosed quoted value) made 4 comparisons differ, each where it should; the test found two real gaps on the way, both in the test (pages that never reached TFOOT and the phrase tags, and a hash that read a row's cell vector as three numbers).
+
+Results, 2026-10-23:
+
+| Check | Result |
+|---|---|
+| Parser test, groups off vs all six on (Making Money, 217 pages) | `hp` the same (23F3D3BA); in the run with them on, 0 of 217 pages differ, game against ours (tokens, trees, fonts); all 58 functions reached; tag table 675794CC (160 tags) both ways |
+| Parity `h3-r1`, 12 saves, 7 days, muted, own folder `p4env-h3`, two jobs, A `determinism.dispatch_info`, B that and the six groups | `h3-r1` (build of 8c05b18): 11 same, Making Money d1095 partly (one B run of four off in the advice and advisors tokens on day 1; its three retries matched A, and the save alone again was the same on its first pair). `h3-r2` (final build): 12 same |
+| The same with `OPENSC4_TEST_HTML_PARSER=2` | `h3-r1` and `h3-r2`: 12 same each; `hp` the same in A and B for every save, and 0 pages differing, game against ours, in all 12 B runs of each |
+
+In a running city the parser runs for the HTML the game makes (27 of the 58 functions in a B run of Making Money), so parity shows that the groups leave the simulation alone; the parser test is what compares the parser.
+
+Still to do for the viewer: the nodes' layout and paint (h5, h4), which the same documents can test by laying them out at a fixed width and hashing every box; the window (h1), the document's other slots (h2), the Internet service and the cache (h6, h7).
