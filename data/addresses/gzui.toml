@@ -4260,7 +4260,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, uint32_t flags)"
 expect = "56 8B F1 C7 06 E0 4F AD"
-source = "Name ours. Slot 15 of the director; `ret 4`. The vtables back, cRZCOMDllDirector::Destruct, SC4::operator_delete with flag 1; answers `this`. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+source = "Name ours. Slot 16 of the director; `ret 4`. The vtables back, cRZCOMDllDirector::Destruct, SC4::operator_delete with flag 1; answers `this`. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
 
 [[entry]]
 name = "cGZUIScriptDirector::Construct"
@@ -4359,7 +4359,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* object)"
 expect = "56 8B F1 8B 4E 54 57 8B"
-source = "Name ours. Slot 4 of the part at +4 (interface 0x7A4A48ED); `ret 4`. The readers' context +0x58 held (the old one's Release, then the new one's AddRef); AL 1 over the last call's EAX. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+source = "Name ours. Slot 4 of the part at +4 (interface 0x7A4A48ED); `ret 4`. The readers' context +0x58 held (the old one's Release, then the new one's AddRef); AL 1 over the last call's EAX (the caller's when it is the same one; ours 0). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
 
 [[entry]]
 name = "cGZUIScriptLoader::MakeParser"
@@ -4431,7 +4431,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* parser, bool done)"
 expect = "53 56 33 DB 38 5C 24 10"
-source = "Name ours. Slot 4 of the listener at +8; `ret 8`. Without the flag: the root holder +0x50 and the reader +0x54 released and cleared, a pushed table (+0x48) popped (slot 14). Unless +0x3C: the parser's slot 14, the table +0x38 released (unchecked) and cleared, the stack popped empty, +0x44 cleared. AL 1 over the last call's EAX. Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+source = "Name ours. Slot 4 of the listener at +8; `ret 8`. Without the flag: the root holder +0x50 and the reader +0x54 released and cleared, a pushed table (+0x48) popped (slot 14). Unless +0x3C: the parser's slot 14, the table +0x38 released (unchecked) and cleared, the stack popped empty, +0x44 cleared. AL 1 over the last call's EAX (the caller's when there is none; ours 0). Ours in framework.uiscript.events (docs/gzui.md, part u9)."
 
 [[entry]]
 name = "cGZUIScriptLoader::TagStart"
@@ -4492,7 +4492,7 @@ name = "cGZUIScriptDirector::Vtable"
 address = 0x00AD4FE0
 kind = "data"
 expect = "02 DE 90 00 B1 C4 94 00"
-source = "Name ours. The UI script director's vtable (cRZCOMDllDirector's slots but 4, 13 and 15: 0x0094AF1F, 0x0094AF19 and 0x0094AFCD)."
+source = "Name ours. The UI script director's vtable (cRZCOMDllDirector's slots but 4, 13 and 16: 0x0094AF1F, 0x0094AF19 and 0x0094AFCD)."
 
 [[entry]]
 name = "cGZUIScriptDirector::UnknownVtable"

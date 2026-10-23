@@ -197,7 +197,7 @@ char* __fastcall DirectorCreate478D1E6F(void*, void*)
     return object ? object + 0xD8 : nullptr;
 }
 
-// The game's 0x0094AFCD (slot 15, `ret 4`).
+// The game's 0x0094AFCD (slot 16, `ret 4`).
 void* __fastcall DirectorDeletingDestructor(void* self, void*, uint32_t flags)
 {
     OPENSC4_FIRST("DirectorDeletingDestructor");
@@ -524,7 +524,8 @@ uint32_t __fastcall LoaderSetHeld(char* self, void*, void* object)
 }
 
 // The game's 0x0094B0F3 (slot 4 of the part at +4, `ret 4`): the readers'
-// context +0x58 held (the old one's Release first); AL 1.
+// context +0x58 held (the old one's Release first); AL 1 over the last
+// call's EAX (the caller's when it is the same one; ours 0).
 uint32_t __fastcall LoaderSetContext(char* part, void*, void* object)
 {
     OPENSC4_FIRST("LoaderSetContext");
@@ -664,7 +665,8 @@ uint32_t DocumentEndTail(char* self, void* parser)
 // The game's 0x0094B55D (the listener's slot 4, `ret 8`): the document's
 // end. Without the flag (it failed) the root holder and the reader are
 // released and a pushed reader's table popped (slot 14). Unless the words
-// are being defined, the tail above. AL 1 over the last call's EAX.
+// are being defined, the tail above. AL 1 over the last call's EAX (the
+// caller's when there is none; ours 0).
 uint32_t __fastcall LoaderDocumentEnd(char* listener, void*, void* parser, uint32_t done)
 {
     OPENSC4_FIRST("LoaderDocumentEnd");
