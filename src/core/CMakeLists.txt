@@ -449,6 +449,7 @@ add_library(opensc4_core SHARED
   gzui_legacy.cpp
   gzui_props.cpp
   gzui_widgets.cpp
+  gzui_widgets2.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp

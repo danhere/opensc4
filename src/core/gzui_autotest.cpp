@@ -8658,6 +8658,335 @@ void WrFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kWrFingerprint{"widgetread", 4, &WrFingerprint};
 const DayHook kWrDrive{"widgetread", 4, &DriveWidgetReadDay};
+// ====================================================================================
+// Part u14: GZWinFileBrowser's registration and property handler
+// (OPENSC4_TEST_FILEBROWSER). The two called by address (registers checked
+// kept after): the registration with part u13's variable table of our own
+// in the shared table's place, then the two maps' entries for the class;
+// the handler on part u13's windows and on an interface of our own (every
+// slot it calls hashes its number and what it gets; the getters give words
+// of their own), with number and text values and the held image object of
+// part u13, and the game's font and colour services. Addresses never go
+// into the hash.
+
+bool g_fbOn = false;
+uint32_t g_fbHash = 2166136261u;
+
+void FbStage(const char* name) { log::Write("autotest: filebrowser: %s %08X", name, g_fbHash); }
+
+void DriveFbRegister()
+{
+    void** const tableAt = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *tableAt;
+    Mix(old ? 1u : 0u);
+    void* table[1] = {WrTableTable()};
+    *tableAt = table;
+    const uint32_t before = g_wrAdds;
+    // EAX is the game's free's: not hashed.
+    PmRegs regs = PmRegsOf(0x14141414u, kPmEsi, kPmEdi, 0xA0A0A0A0u, 0xA1A1A1A1u);
+    PmCall(addr::cGZUIScriptWidgets_RegisterFileBrowser, regs);
+    Mix(g_wrAdds - before);
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Handlers, 0x3AA52E64));
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Interfaces, 0x1AA52EA4));
+    *tableAt = old;
+    FbStage("reg");
+}
+
+// The fonts the test's numbers ask the window manager for (its slot 5),
+// as the game gives them; a font slot hashes which it got.
+constexpr uint32_t kFbFontWords[3] = {0xE9C86B5E, 0xE9C86B5F, 0x4A809914};
+void* g_fbFonts[3] = {};
+
+// The interface (IGZWinFileBrowser): AddRef, Release and the slots the
+// handler calls, each hashing its own number first. The getters write
+// words of their own (the column grid's only when `grid` is set: else the
+// handler hands on what the line grid's left).
+struct FbFace {
+    void** vtable;
+    uint32_t count;
+    uint32_t grid;
+};
+
+uint32_t __fastcall FbFaceAddRef(FbFace* self, void*) { return ++self->count; }
+
+uint32_t __fastcall FbFaceRelease(FbFace* self, void*)
+{
+    Mix(0xFBF2u);
+    return 0x00FB0000u + --self->count;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbSet1(FbFace*, void*, uint32_t a)
+{
+    Mix(0xFB000000u | Slot);
+    Mix(a);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbSet2(FbFace*, void*, uint32_t a, uint32_t b)
+{
+    Mix(0xFB000000u | Slot);
+    Mix(a);
+    Mix(b);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbSet3(FbFace*, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    Mix(0xFB000000u | Slot);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbString(FbFace*, void*, char* string)
+{
+    Mix(0xFB000000u | Slot);
+    PrMixText(string);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbFont(FbFace*, void*, void* font)
+{
+    Mix(0xFB000000u | Slot);
+    uint32_t which = 0xFF;
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (font == g_fbFonts[i])
+            which = i;
+    }
+    Mix(which);
+    Mix(font ? 1u : 0u);
+    return 0x00FB0000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall FbGet2(FbFace*, void*, uint32_t* first, uint32_t* second)
+{
+    Mix(0xFB000000u | Slot);
+    *first = 0xC1C1C100u | Slot;
+    *second = 0xC2C2C200u | Slot;
+    return 0x00FB0000u | Slot;
+}
+
+uint32_t __fastcall FbGetGrid(FbFace* self, void*, uint32_t* first, uint32_t* second)
+{
+    Mix(0xFB000044u | (self->grid << 8));
+    if (self->grid) {
+        *first = 0xC5C5C501u;
+        *second = 0xC6C6C6C6u;
+    }
+    return 0x00FB0044u;
+}
+
+uint32_t __fastcall FbGet3(FbFace*, void*, uint32_t* first, uint32_t* second, uint32_t* third)
+{
+    Mix(0xFB000026u);
+    *first = 0xC3C3C3C3u;
+    *second = 0xC4C4C4C4u;
+    *third = 7u;
+    return 0x00FB0026u;
+}
+
+uint32_t __fastcall FbSelection(FbFace*, void*, uint32_t kind, char* name, char* extension)
+{
+    Mix(0xFB00001Cu);
+    Mix(kind);
+    PrMixText(name);
+    PrMixText(extension);
+    return 0x00FB001Cu;
+}
+
+uint32_t __fastcall FbFilter(FbFace*, void*, char* name, WrImage* image, uint32_t number, uint32_t zero)
+{
+    Mix(0xFB000015u);
+    PrMixText(name);
+    Mix(image ? image->tag : 0xDEADu);
+    Mix(number);
+    Mix(zero);
+    return 0x00FB0015u;
+}
+
+uint32_t __fastcall FbImage(FbFace*, void*, WrImage* image)
+{
+    Mix(0xFB000055u);
+    Mix(image ? image->tag : 0xDEADu);
+    return 0x00FB0055u;
+}
+
+void** FbFaceTable()
+{
+    static void* table[88] = {};
+    table[1] = reinterpret_cast<void*>(&FbFaceAddRef);
+    table[2] = reinterpret_cast<void*>(&FbFaceRelease);
+    table[15] = reinterpret_cast<void*>(&FbString<15>);
+    table[21] = reinterpret_cast<void*>(&FbFilter);
+    table[28] = reinterpret_cast<void*>(&FbSelection);
+    table[34] = reinterpret_cast<void*>(&FbGet2<34>);
+    table[35] = reinterpret_cast<void*>(&FbSet2<35>);
+    table[37] = reinterpret_cast<void*>(&FbSet1<37>);
+    table[38] = reinterpret_cast<void*>(&FbGet3);
+    table[40] = reinterpret_cast<void*>(&FbSet3<40>);
+    table[45] = reinterpret_cast<void*>(&FbFont<45>);
+    table[46] = reinterpret_cast<void*>(&FbSet2<46>);
+    table[47] = reinterpret_cast<void*>(&FbSet1<47>);
+    table[51] = reinterpret_cast<void*>(&FbFont<51>);
+    table[52] = reinterpret_cast<void*>(&FbSet2<52>);
+    table[53] = reinterpret_cast<void*>(&FbSet1<53>);
+    table[57] = reinterpret_cast<void*>(&FbFont<57>);
+    table[58] = reinterpret_cast<void*>(&FbSet2<58>);
+    table[59] = reinterpret_cast<void*>(&FbSet1<59>);
+    table[61] = reinterpret_cast<void*>(&FbSet1<61>);
+    table[63] = reinterpret_cast<void*>(&FbSet1<63>);
+    table[65] = reinterpret_cast<void*>(&FbSet1<65>);
+    table[66] = reinterpret_cast<void*>(&FbGet2<66>);
+    table[67] = reinterpret_cast<void*>(&FbSet2<67>);
+    table[68] = reinterpret_cast<void*>(&FbGetGrid);
+    table[69] = reinterpret_cast<void*>(&FbSet2<69>);
+    table[70] = reinterpret_cast<void*>(&FbGet2<70>);
+    table[71] = reinterpret_cast<void*>(&FbSet2<71>);
+    table[77] = reinterpret_cast<void*>(&FbString<77>);
+    table[79] = reinterpret_cast<void*>(&FbSet1<79>);
+    table[81] = reinterpret_cast<void*>(&FbSet1<81>);
+    table[83] = reinterpret_cast<void*>(&FbSet1<83>);
+    table[85] = reinterpret_cast<void*>(&FbImage);
+    table[87] = reinterpret_cast<void*>(&FbSet1<87>);
+    return table;
+}
+
+// One call of the handler: the window, a vector of the pairs and the
+// byte's word; its EAX and its argument slots after.
+void FbRead(WrWindow& window, WrPair* pairs, std::size_t count, uint32_t set)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    PmRegs regs = PmRegsOf(0x27272727u, kPmEsi, kPmEdi, PrArg(&window), PrArg(vector));
+    regs.args[2] = set;
+    Mix(PmCall(addr::cGZUIScriptWidgets_FileBrowserRead, regs));
+    Mix(regs.args[0] == PrArg(&window) ? 0x77DDu : 0xBAD0u);
+    Mix(regs.args[1] == PrArg(vector) ? 0x77DEu : 0xBAD1u);
+    Mix(regs.args[2]);
+}
+
+void DriveFbRead()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    void* const fonts = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C72)();
+    Mix(fonts ? 1u : 0u);
+    if (!holder || !fonts) {
+        FbStage("read");
+        return;
+    }
+    for (uint32_t i = 0; i < 3; ++i)
+        g_fbFonts[i] = Virtual<void*>(fonts, 0x14, kFbFontWords[i]);
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {WrHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    g_wrImages[0] = {WrImageTable(), 0xB0, 0};
+    g_wrImages[1] = {WrImageTable(), 0xB1, 0};
+
+    FbFace face = {FbFaceTable(), 1, 0};
+    WrWindow windows[3] = {{WrWindowTable(), 0, &face}, {WrWindowTable(), 1, &face}, {WrWindowTable(), 2, &face}};
+
+    // Numbers: the choices' words, fonts, widths; texts: paths, colours
+    // (good, short, out of a byte's range, not numbers), images, filters.
+    WrValue nBackdir = WrNumber(0x1302), nDir = WrNumber(0x1303), nFile = WrNumber(0x1304), nBad = WrNumber(0x1399),
+            nSort0 = WrNumber(0x1308), nSort1 = WrNumber(0x1309), nSort2 = WrNumber(0x130A), nSort3 = WrNumber(0x130B),
+            nDir0 = WrNumber(0x130E), nDir3 = WrNumber(0x1311), nDir2 = WrNumber(0x1310), nIcon = WrNumber(0x1313),
+            nName = WrNumber(0x1314), nExt = WrNumber(0x1315), nEmpty = WrNumber(0x1316), nUnused = WrNumber(0x1317),
+            nDefault = WrNumber(0x1318), nF006 = WrNumber(0xF006), nF007 = WrNumber(0xF007), nF008 = WrNumber(0xF008),
+            nFont0 = WrNumber(kFbFontWords[0]), nFont1 = WrNumber(kFbFontWords[1]), nFont2 = WrNumber(kFbFontWords[2]),
+            n0 = WrNumber(0), n1 = WrNumber(1), n5 = WrNumber(5), n16 = WrNumber(16), n40 = WrNumber(40),
+            nBig = WrNumber(0xFFFFFFFFu), other = {WrValueTable(), 9, 1, "(1,2,3)"};
+    WrValue path = WrText("C:\\Cities\\Saves"), name = WrText("region"), ext = WrText("sc4"),
+            fontText = WrText("font text"), back = WrText(".."), c1 = WrText("(1,2,3)"), c2 = WrText("(255,128,0)"),
+            c3 = WrText("(300,-1,256)"), c4 = WrText("(10,20,30)"), cShort = WrText("(4,5)"), cWord = WrText("red"),
+            c5 = WrText("(7,8,9)"), c6 = WrText("(0,0,0)"), image0 = WrText("{1a2b,3c4c}"), image1 = WrText("{11,13}"),
+            imageBad = WrText("{zz}"), f1 = WrText("All files:3:{11,13}"), f2 = WrText("Saves:0:{2,6}"),
+            f3 = WrText("Odd:-7:{zz}"), f4 = WrText("Word:x:{1a,4}"), f5 = WrText("a:1:b:{1,2}"),
+            f6 = WrText("Big:4294967295:{abc,10}");
+    WrPair full[] = {
+        {0x1301, &path},     {0x1305, &nDir},     {0x1306, &name},    {0x1307, &ext},      {0x130C, &nSort2},
+        {0x130D, &nSort1},   {0x1312, &nDir3},    {0x1319, &nEmpty},  {0x131A, &nIcon},    {0x131B, &nExt},
+        {0x131C, &nFont0},   {0x131D, &c1},       {0x131E, &c2},      {0x131F, &c3},       {0x1320, &cShort},
+        {0x1321, &cWord},    {0x1322, &c4},       {0x1323, &nF007},   {0x1324, &fontText}, {0x1325, &c2},
+        {0x132A, &c5},       {0x132B, &nDefault}, {0x132C, &nFont2},  {0x132D, &c3},       {0x1333, &nF008},
+        {0x1334, &n16},      {0x1335, &n40},      {0x1336, &n5},      {0x1337, &n0},       {0x1338, &c4},
+        {0x1339, &n5},       {0x133A, &c5},       {0x133B, &c6},      {0x133C, &c1},       {0x133D, &back},
+        {0x133E, &nBig},     {0x133F, &c2},       {0x1341, &n1},      {0xF019, &n0},       {0x1340, &image0},
+        {0x1342, &f1},       {0x1342, &other},    {0x1342, &f2},      {0x55, &f1},         {0x1342, &f3},
+        {0x1342, &f4},       {0x1342, &f5},       {0x1342, &f6},      {0x131C, &nFont1},   {0x1305, &nFile},
+    };
+    WrPair second[] = {
+        {0x1305, &nBackdir}, {0x130C, &nSort0},  {0x130D, &nSort3}, {0x130D, &nBad},    {0x1312, &nDir0},
+        {0x1319, &nName},    {0x131A, &nUnused}, {0x131C, &fontText}, {0x1323, &nUnused}, {0x1324, &nFont1},
+        {0x1326, &c1},       {0x132B, &nF006},   {0x132C, &back},   {0x1332, &c6},      {0x1333, &nBad},
+        {0x1337, &n1},       {0x1339, &n0},      {0x1341, &n0},     {0xF019, &n5},      {0x1340, &imageBad},
+        {0x1342, &f2},       {0x1301, &other},   {0x1306, &nDir},
+    };
+    WrPair third[] = {
+        {0x1305, &nBad}, {0x1312, &nDir2}, {0x1319, &nBad},  {0x131C, &other}, {0x1340, &image1},
+        {0x1342, &f1},   {0x1342, &f6},    {0x133F, &cWord}, {0x1323, &nF006}, {0x133D, &path},
+    };
+    WrPair fourth[] = {{0x1342, &f1}, {0x1342, &f2}, {0x1340, &n1}, {0x1301, &back}, {0x132C, &nFont0}};
+
+    for (WrWindow& window : windows) {
+        for (uint32_t set : {1u, 0xFFFFFF01u, 0u, 0x100u}) {
+            for (uint32_t grid : {1u, 0u}) {
+                face.grid = grid;
+                FbRead(window, full, std::size(full), set);
+                FbRead(window, second, std::size(second), set);
+                FbRead(window, third, std::size(third), set);
+                FbRead(window, fourth, std::size(fourth), set);
+                FbRead(window, full, 0, set);
+            }
+        }
+    }
+    Mix(face.count);
+    Mix(g_wrImages[0].count);
+    Mix(g_wrImages[1].count);
+    Mix(held.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    FbStage("read");
+}
+
+// OPENSC4_TEST_FILEBROWSER=<day>: part u14 by address. Every result goes
+// into the fingerprint's `fb` part.
+void DriveFileBrowserDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_FILEBROWSER") || !game::IsBuild641())
+        return;
+    g_fbOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_fbHash;
+    DriveFbRegister();
+    DriveFbRead();
+    g_into = saved;
+    log::Write("autotest: filebrowser driven (hash %08X)", g_fbHash);
+}
+
+void FbFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_fbOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | fb %08X", g_fbHash);
+    line += text;
+}
+
+const FingerprintPart kFbFingerprint{"filebrowser", 4, &FbFingerprint};
+const DayHook kFbDrive{"filebrowser", 4, &DriveFileBrowserDay};
 
 
 
