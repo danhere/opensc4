@@ -2,8 +2,10 @@
 // docs/gzui.md): the property set test (OPENSC4_TEST_PROPSETS, part u1) and
 // the readers, writers and factory test (OPENSC4_TEST_PROPIO, parts u2,
 // u2b and u3), the UI file parser test (OPENSC4_TEST_XMLPARSE, part u4),
-// the framework sound classes' test (OPENSC4_TEST_GZSOUND, part u5) and
-// the sound service's test (OPENSC4_TEST_GZSOUNDSVC, part u6).
+// the framework sound classes' test (OPENSC4_TEST_GZSOUND, part u5), the
+// sound service's test (OPENSC4_TEST_GZSOUNDSVC, part u6), the sound
+// mixer's (OPENSC4_TEST_GZSOUNDMIX, part u8) and the UI script loader's
+// (OPENSC4_TEST_UISCRIPT, part u9).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -5832,6 +5834,676 @@ void MxFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kMxFingerprint{"gzsoundmix", 4, &MxFingerprint};
 const DayHook kMxDrive{"gzsoundmix", 4, &DriveGzSoundMix};
+
+
+// ====================================================================================
+// Part u9: the UI script loader 0xFA3562FB and its director
+// (OPENSC4_TEST_UISCRIPT). Real loaders, parsers, tables, root holders and
+// LEGACY readers where the game makes them; readers, root holders, values
+// and a parser of our own where a field or an argument can take one. Every
+// call into ours goes into the hash; addresses never do.
+
+bool g_usOn = false;
+uint32_t g_usHash = 2166136261u;
+
+void UsStage(const char* name) { log::Write("autotest: uiscript: %s %08X", name, g_usHash); }
+
+// One of our objects: an id and a reference count.
+struct UsObject {
+    void* const* vtable;
+    uint32_t id;
+    int32_t refs;
+    UsObject* table;  // a reader's slot 4
+};
+
+std::vector<UsObject*> g_usObjects;
+
+// An object by its id when it is ours, else whether there is one.
+void MixUsObject(const void* object)
+{
+    for (const UsObject* ours : g_usObjects) {
+        if (ours == object) {
+            Mix(ours->id);
+            return;
+        }
+    }
+    Mix(object ? 0xEEEEu : 0u);
+}
+
+uint32_t __fastcall UsQueryInterface(UsObject* self, void*, uint32_t iid, void** out)
+{
+    Mix(0x9100);
+    Mix(self->id);
+    Mix(iid);
+    if (iid != 0x9A4527CB)
+        return 0;
+    *out = self;
+    ++self->refs;
+    return 1;
+}
+uint32_t __fastcall UsAddRef(UsObject* self, void*)
+{
+    Mix(0x9101);
+    Mix(self->id);
+    return static_cast<uint32_t>(++self->refs);
+}
+uint32_t __fastcall UsRelease(UsObject* self, void*)
+{
+    Mix(0x9102);
+    Mix(self->id);
+    return static_cast<uint32_t>(--self->refs);
+}
+// Slots with one argument (an object) and with none.
+uint32_t __fastcall UsSlotObject(UsObject* self, void*, void* object)
+{
+    Mix(0x9110);
+    Mix(self->id);
+    MixUsObject(object);
+    return 0x21;
+}
+void* __fastcall UsReaderTable(UsObject* self, void*)
+{
+    Mix(0x9114);
+    Mix(self->id);
+    return self->table;
+}
+// A root holder's slot 5: the window under an id (ours under 7).
+void* __fastcall UsRootWindow(UsObject* self, void*, uint32_t id)
+{
+    Mix(0x9115);
+    Mix(self->id);
+    Mix(id);
+    return id == 7 ? self->table : nullptr;
+}
+// A window's slot 3 (Load's): the window itself.
+void* __fastcall UsWindowSelf(UsObject* self, void*)
+{
+    Mix(0x9113);
+    Mix(self->id);
+    return self;
+}
+// A value's slot 3 (its type: the id's high word) and slot 55 (its text).
+uint32_t __fastcall UsValueType(UsObject* self, void*)
+{
+    Mix(0x9120);
+    Mix(self->id);
+    return self->id >> 16;
+}
+uint32_t __fastcall UsValueText(UsObject* self, void*, void* text)
+{
+    Mix(0x9121);
+    Mix(self->id);
+    Mix(text ? 1u : 0u);
+    return 0x31;
+}
+
+// A reader (slots 3, 5, 6 and 9 an object, 4 its table), a root holder
+// (4 an object, 5 a window by id, 9 an object), a value (3, 55).
+void* const* UsReaderVtable()
+{
+    static void* table[12];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[0] = reinterpret_cast<void*>(&UsQueryInterface);
+        table[1] = reinterpret_cast<void*>(&UsAddRef);
+        table[2] = reinterpret_cast<void*>(&UsRelease);
+        table[3] = reinterpret_cast<void*>(&UsSlotObject);
+        table[4] = reinterpret_cast<void*>(&UsReaderTable);
+        table[5] = reinterpret_cast<void*>(&UsSlotObject);
+        table[6] = reinterpret_cast<void*>(&UsSlotObject);
+        table[9] = reinterpret_cast<void*>(&UsSlotObject);
+    }
+    return table;
+}
+void* const* UsRootVtable()
+{
+    static void* table[12];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[0] = reinterpret_cast<void*>(&UsQueryInterface);
+        table[1] = reinterpret_cast<void*>(&UsAddRef);
+        table[2] = reinterpret_cast<void*>(&UsRelease);
+        table[4] = reinterpret_cast<void*>(&UsSlotObject);
+        table[5] = reinterpret_cast<void*>(&UsRootWindow);
+        table[9] = reinterpret_cast<void*>(&UsSlotObject);
+    }
+    return table;
+}
+void* const* UsWindowVtable()
+{
+    static void* table[6];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[0] = reinterpret_cast<void*>(&UsQueryInterface);
+        table[1] = reinterpret_cast<void*>(&UsAddRef);
+        table[2] = reinterpret_cast<void*>(&UsRelease);
+        table[3] = reinterpret_cast<void*>(&UsWindowSelf);
+    }
+    return table;
+}
+void* const* UsValueVtable()
+{
+    static void* table[56];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[0] = reinterpret_cast<void*>(&UsQueryInterface);
+        table[1] = reinterpret_cast<void*>(&UsAddRef);
+        table[2] = reinterpret_cast<void*>(&UsRelease);
+        table[3] = reinterpret_cast<void*>(&UsValueType);
+        table[55] = reinterpret_cast<void*>(&UsValueText);
+    }
+    return table;
+}
+
+// The objects a stage makes, kept until it ends.
+struct UsObjects {
+    std::vector<UsObject*> made;
+    UsObject* Make(void* const* vtable, uint32_t id, UsObject* table = nullptr)
+    {
+        UsObject* const object = new UsObject{vtable, id, 1, table};
+        made.push_back(object);
+        g_usObjects.push_back(object);
+        return object;
+    }
+    ~UsObjects()
+    {
+        for (UsObject* object : made) {
+            Mix(static_cast<uint32_t>(object->refs));
+            for (auto it = g_usObjects.begin(); it != g_usObjects.end(); ++it) {
+                if (*it == object) {
+                    g_usObjects.erase(it);
+                    break;
+                }
+            }
+            delete object;
+        }
+    }
+};
+
+// A parser of ours: slots 3, 6 to 11, 13 and 14 mix their arguments.
+struct UsParser {
+    void* const* vtable;
+};
+uint32_t __fastcall UsParserOne(UsParser*, void*, void* object)
+{
+    Mix(0x9201);
+    MixUsObject(object);
+    return 0x41;
+}
+uint32_t __fastcall UsParserTwo(UsParser*, void*, void* text, void* value)
+{
+    Mix(0x9202);
+    Mix(text ? 1u : 0u);
+    MixUsObject(value);
+    return 0x42;
+}
+uint32_t __fastcall UsParserPush(UsParser*, void*, void* table)
+{
+    Mix(0x9203);
+    MixUsObject(table);
+    return 0x43;
+}
+uint32_t __fastcall UsParserPop(UsParser*, void*)
+{
+    Mix(0x9204);
+    return 0x44;
+}
+void* const* UsParserVtable()
+{
+    static void* table[16];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        for (int slot : {3, 6, 7, 8, 11})
+            table[slot] = reinterpret_cast<void*>(&UsParserOne);
+        table[9] = reinterpret_cast<void*>(&UsParserTwo);
+        table[10] = reinterpret_cast<void*>(&UsParserTwo);
+        table[13] = reinterpret_cast<void*>(&UsParserPush);
+        table[14] = reinterpret_cast<void*>(&UsParserPop);
+    }
+    return table;
+}
+
+void UsDelete(void* memory) { reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(memory); }
+
+char* NewLoader() { return reinterpret_cast<char*(__cdecl*)()>(addr::cGZUIScriptDirector_CreateLoader)(); }
+
+// The loader's state: the counted fields' objects, the bytes, the tag, the
+// stack's top.
+void MixLoader(char* loader)
+{
+    Mix(At<uint8_t>(loader, 0x30));
+    Mix(At<void*>(loader, 0x34) ? 1u : 0u);
+    MixUsObject(At<void*>(loader, 0x38));
+    Mix(At<uint8_t>(loader, 0x3C));
+    MixUsObject(At<void*>(loader, 0x44));
+    Mix(At<uint8_t>(loader, 0x48));
+    Mix(At<uint32_t>(loader, 0x4C));
+    MixUsObject(At<void*>(loader, 0x50));
+    MixUsObject(At<void*>(loader, 0x54));
+    MixUsObject(At<void*>(loader, 0x58));
+    MixUsObject(At<void*>(loader, 0x5C));
+    MixUsObject(CallThis<void*>(addr::cGZUIScriptLoader_Top, loader));
+}
+
+// The base service's AddRef and Release (the primary slots 1 and 2).
+uint32_t UsLoaderAddRef(char* loader) { return Virtual<uint32_t>(loader, 0x4); }
+uint32_t UsLoaderRelease(char* loader) { return Virtual<uint32_t>(loader, 0x8); }
+
+// A director of ours for the director's start: its slot 12 a COM of ours
+// whose GetClassObject gives nothing.
+struct UsCom {
+    void* const* vtable;
+};
+uint32_t __fastcall UsComGetClassObject(UsCom*, void*, uint32_t clsid, uint32_t iid, void** out)
+{
+    Mix(0x9300);
+    Mix(clsid);
+    Mix(iid);
+    *out = nullptr;
+    return 0;
+}
+UsCom g_usCom;
+void* __fastcall UsDirectorCom(void*, void*)
+{
+    Mix(0x9301);
+    return &g_usCom;
+}
+
+// The loader's objects: made by the factory, its interfaces, Init and
+// Shutdown, its setters, its destructors by address; the director made on
+// the stack, its start, destructor and getter; the director's other
+// factories' objects made and released.
+void DriveUiScriptObjects()
+{
+    UsObjects objects;
+    char* const loader = NewLoader();
+    Mix(loader ? 1u : 0u);
+    if (!loader)
+        return;
+    Mix(At<std::uintptr_t>(loader, 0) == addr::cGZUIScriptLoader_Vtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(loader, 0x18) == addr::cGZUIScriptLoader_ServiceUnknownVtable ? 1u : 0u);
+    MixLoader(loader);
+    Mix(UsLoaderAddRef(loader));
+    const uint32_t iids[] = {1, 0xFA3562FA, 0x1A2BDEB8, 0x1A2BDEB9, 0x1A2BDEBA, 0x7A4A48ED, 0x287FB697, 0x12345678};
+    for (const uint32_t iid : iids) {
+        void* out = nullptr;
+        MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_QueryInterface, loader, iid, &out));
+        Mix(out ? static_cast<uint32_t>(static_cast<char*>(out) - loader) : 0xFFFFFFFFu);
+        if (out)
+            Mix(UsLoaderRelease(loader));
+        // Through the listener's adjustor too.
+        out = nullptr;
+        MixByte(Virtual<uint32_t>(loader + 8, 0x0, iid, &out));
+        Mix(out ? static_cast<uint32_t>(static_cast<char*>(out) - loader) : 0xFFFFFFFFu);
+        if (out)
+            Mix(UsLoaderRelease(loader));
+    }
+    // Init (the service's slot 8) twice, Shutdown (9) twice.
+    MixByte(Virtual<uint32_t>(loader + 0x14, 0x20));
+    MixByte(Virtual<uint32_t>(loader + 0x14, 0x20));
+    MixLoader(loader);
+    MixByte(Virtual<uint32_t>(loader + 0x14, 0x24));
+    MixByte(Virtual<uint32_t>(loader + 0x14, 0x24));
+    MixLoader(loader);
+    // Slot 10 and the part's slot 4.
+    UsObject* const a = objects.Make(UsReaderVtable(), 0x101);
+    UsObject* const b = objects.Make(UsReaderVtable(), 0x102);
+    for (UsObject* object : {a, a, b, static_cast<UsObject*>(nullptr), a}) {
+        Virtual<uint32_t>(loader, 0x28, object);
+        MixUsObject(At<void*>(loader, 0x5C));
+        MixByte(Virtual<uint32_t>(loader + 4, 0x10, object));
+        MixUsObject(At<void*>(loader, 0x58));
+    }
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_SetContext, loader + 4, static_cast<void*>(nullptr)));
+    CallThis<uint32_t>(addr::cGZUIScriptLoader_SetHeld, loader, static_cast<void*>(b));
+    // Shutdown after an Init releases the held one; the last Release deletes.
+    MixByte(Virtual<uint32_t>(loader + 0x14, 0x20));
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Shutdown, loader + 0x14));
+    MixLoader(loader);
+    Mix(UsLoaderRelease(loader));
+    // The destructor and the deleting destructor by address.
+    char* const second = NewLoader();
+    CallThis<uint32_t>(addr::cGZUIScriptLoader_SetHeld, second, static_cast<void*>(a));
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Init, second + 0x14));
+    CallThis<uint32_t>(addr::cGZUIScriptLoader_Destruct, second);
+    Mix(At<std::uintptr_t>(second, 0) == addr::cGZUIScriptLoader_Vtable ? 1u : 0u);
+    UsDelete(second);
+    char* const third = NewLoader();
+    MixIs(CallThis<char*>(addr::cGZUIScriptLoader_DeletingDestructor, third, 0u), third);
+    UsDelete(third);
+    char* const fourth = NewLoader();
+    MixIs(CallThis<char*>(addr::cGZUIScriptLoader_DeletingDestructor, fourth, 1u), fourth);
+    // The other factories' objects.
+    for (const std::uintptr_t factory : {addr::cGZUIScriptDirector_CreateRoot, addr::cGZUIScriptDirector_CreateLegacy,
+                                         addr::cGZUIScriptDirector_Create478D1E6F}) {
+        void* const object = reinterpret_cast<void*(__cdecl*)()>(factory)();
+        Mix(object ? 1u : 0u);
+        if (object) {
+            Mix(Virtual<uint32_t>(object, 0x4));
+            Mix(Virtual<uint32_t>(object, 0x8));
+        }
+    }
+    // The director on the stack, its start with a COM of ours, its
+    // destructor; the static one's getter.
+    alignas(8) char director[0x80] = {};
+    MixIs(CallThis<void*>(addr::cGZUIScriptDirector_Construct, director), director);
+    Mix(At<std::uintptr_t>(director, 0) == addr::cGZUIScriptDirector_Vtable ? 1u : 0u);
+    static void* comTable[4];
+    comTable[3] = reinterpret_cast<void*>(&UsComGetClassObject);
+    g_usCom.vtable = comTable;
+    static void* directorTable[16];
+    directorTable[12] = reinterpret_cast<void*>(&UsDirectorCom);
+    struct {
+        void* const* vtable;
+    } fake{directorTable};
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptDirector_Start, &fake, static_cast<void*>(nullptr)));
+    MixIs(CallThis<void*>(addr::cGZUIScriptDirector_DeletingDestructor, director, 0u), director);
+    MixIs(reinterpret_cast<void*(__cdecl*)()>(addr::cGZUIScriptDirector_Get)(),
+          reinterpret_cast<void*>(addr::cGZUIScriptDirector_Static));
+}
+
+// The stack of parents: push, top, pop, and the attribute list's
+// `children` and `/children`.
+void DriveUiScriptStack()
+{
+    UsObjects objects;
+    char* const loader = NewLoader();
+    Mix(UsLoaderAddRef(loader));
+    UsParser parser{UsParserVtable()};
+    char* const pairs[3] = {nullptr, nullptr, nullptr};
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Pop, loader));
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Push, loader));
+    UsObject* readers[3];
+    for (uint32_t i = 0; i < 3; ++i) {
+        readers[i] = objects.Make(UsReaderVtable(), 0x201 + i);
+        At<void*>(loader, 0x44) = readers[i];
+        MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Push, loader));
+        MixLoader(loader);
+    }
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Pop, loader));
+    MixLoader(loader);
+    // `/children` (2), `children` (1) with and without a reader.
+    MixByte(Virtual<uint32_t>(loader + 0x10, 0xC, &parser, 2u, pairs));
+    MixLoader(loader);
+    MixByte(Virtual<uint32_t>(loader + 0x10, 0xC, &parser, 1u, pairs));
+    MixLoader(loader);
+    MixByte(Virtual<uint32_t>(loader + 0x10, 0xC, &parser, 1u, pairs));
+    MixLoader(loader);
+    for (int i = 0; i < 4; ++i) {
+        MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Attributes, loader + 0x10, static_cast<void*>(&parser),
+                                   2u, pairs));
+        MixLoader(loader);
+    }
+    // Shutdown with readers on the stack.
+    At<void*>(loader, 0x44) = readers[0];
+    CallThis<uint32_t>(addr::cGZUIScriptLoader_Push, loader);
+    At<void*>(loader, 0x44) = readers[1];
+    CallThis<uint32_t>(addr::cGZUIScriptLoader_Push, loader);
+    Virtual<uint32_t>(loader + 0x14, 0x20);
+    Mix(UsLoaderRelease(loader));
+}
+
+// The parser's events with a parser, readers, root holders and values of
+// ours: the document's start and end (done or not, with the words being
+// defined or not), a tag's start (classes the COM does not have), its end,
+// the attribute list (a reader and a holder; `define` with a name and a
+// value, a name only, a name that is not a text, no name, no pairs; a tag
+// that is none of these).
+void DriveUiScriptEvents()
+{
+    UsObjects objects;
+    char* const loader = NewLoader();
+    Mix(UsLoaderAddRef(loader));
+    UsParser parser{UsParserVtable()};
+    // The start makes a real table and root holder.
+    MixByte(Virtual<uint32_t>(loader + 8, 0xC, &parser));
+    Mix(At<void*>(loader, 0x38) ? 1u : 0u);
+    Mix(At<void*>(loader, 0x50) ? 1u : 0u);
+    for (const uint32_t tag : {0x12345678u, 0u, 3u}) {
+        MixByte(Virtual<uint32_t>(loader + 0xC, 0xC, &parser, tag));
+        MixLoader(loader);
+    }
+    MixByte(Virtual<uint32_t>(loader + 0xC, 0x10, &parser, 0u));
+    At<uint8_t>(loader, 0x48) = 1;
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_TagEnd, loader + 0xC, static_cast<void*>(&parser), 0u));
+    MixLoader(loader);
+    // A reader and a root holder of ours.
+    Virtual<uint32_t>(At<void*>(loader, 0x50), 0x8);
+    UsObject* const table = objects.Make(UsReaderVtable(), 0x310);
+    UsObject* const reader = objects.Make(UsReaderVtable(), 0x301, table);
+    UsObject* const window = objects.Make(UsWindowVtable(), 0x320);
+    UsObject* const root = objects.Make(UsRootVtable(), 0x302, window);
+    At<void*>(loader, 0x50) = root;
+    At<void*>(loader, 0x54) = reader;
+    char pairBytes[4][8] = {};
+    char* list[3] = {pairBytes[0], pairBytes[0], pairBytes[4 - 1] + 8};
+    MixByte(Virtual<uint32_t>(loader + 0x10, 0xC, &parser, 9u, list));
+    MixLoader(loader);
+    // `define`.
+    UsObject* const text = objects.Make(UsValueVtable(), 0x800E0001);
+    UsObject* const number = objects.Make(UsValueVtable(), 0x00060002);
+    UsObject* const value = objects.Make(UsValueVtable(), 0x00060003);
+    struct Pair {
+        uint32_t number;
+        void* value;
+    };
+    const Pair cases[][3] = {
+        {{4, text}, {5, value}, {0, nullptr}},
+        {{5, value}, {4, text}, {7, number}},
+        {{4, text}, {0, nullptr}, {0, nullptr}},
+        {{4, number}, {5, value}, {0, nullptr}},
+        {{5, value}, {6, text}, {0, nullptr}},
+        {{4, number}, {4, text}, {5, nullptr}},
+    };
+    for (const auto& pairs : cases) {
+        Pair copy[3];
+        std::memcpy(copy, pairs, sizeof copy);
+        uint32_t n = 0;
+        while (n < 3 && (copy[n].number || copy[n].value))
+            ++n;
+        char* const bounds[3] = {reinterpret_cast<char*>(copy), reinterpret_cast<char*>(copy + n),
+                                 reinterpret_cast<char*>(copy + 3)};
+        MixByte(Virtual<uint32_t>(loader + 0x10, 0xC, &parser, 3u, bounds));
+    }
+    MixByte(Virtual<uint32_t>(loader + 0x10, 0xC, &parser, 3u, list));
+    for (const uint32_t tag : {0u, 4u, 0x12345678u})
+        MixByte(Virtual<uint32_t>(loader + 0x10, 0xC, &parser, tag, list));
+    // The end, done: the table released, the stack emptied.
+    At<void*>(loader, 0x44) = reader;
+    CallThis<uint32_t>(addr::cGZUIScriptLoader_Push, loader);
+    MixByte(Virtual<uint32_t>(loader + 8, 0x10, &parser, 1u));
+    MixLoader(loader);
+    // Again, not done: the holder and the reader released, the table popped.
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_DocumentStart, loader + 8, static_cast<void*>(&parser)));
+    Virtual<uint32_t>(At<void*>(loader, 0x50), 0x8);
+    At<void*>(loader, 0x50) = root;
+    ++root->refs;
+    At<void*>(loader, 0x54) = reader;
+    ++reader->refs;
+    At<uint8_t>(loader, 0x48) = 1;
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_DocumentEnd, loader + 8, static_cast<void*>(&parser), 0u));
+    MixLoader(loader);
+    // While the words are defined: no table, nothing let go.
+    At<uint8_t>(loader, 0x3C) = 1;
+    MixByte(Virtual<uint32_t>(loader + 8, 0xC, &parser));
+    MixLoader(loader);
+    MixByte(Virtual<uint32_t>(loader + 8, 0x10, &parser, 1u));
+    MixByte(Virtual<uint32_t>(loader + 8, 0x10, &parser, 0u));
+    MixLoader(loader);
+    At<uint8_t>(loader, 0x3C) = 0;
+    // Load and Create with a parse of ours: the parser at +0x34 is ours.
+    At<void*>(loader, 0x34) = &parser;
+    At<void*>(loader, 0x50) = root;
+    ++root->refs;
+    const uint32_t key[3] = {0x0BADF00D, 0x96A006B0, 0x12345678};
+    void* const loaded = Virtual<void*>(loader, 0x10, key, static_cast<void*>(nullptr), 7u);
+    MixUsObject(loaded);
+    MixLoader(loader);
+    At<void*>(loader, 0x50) = root;
+    ++root->refs;
+    void* out = nullptr;
+    MixByte(Virtual<uint32_t>(loader, 0xC, key, static_cast<void*>(nullptr), 7u, 0x9A4527CBu, &out));
+    MixUsObject(out);
+    At<void*>(loader, 0x50) = root;
+    ++root->refs;
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Create, loader, key, static_cast<void*>(nullptr), 8u,
+                               0x9A4527CBu, &out));
+    MixUsObject(CallThis<void*>(addr::cGZUIScriptLoader_Parser, loader));
+    At<void*>(loader, 0x34) = nullptr;
+    At<void*>(loader, 0x50) = nullptr;
+    while (CallThis<uint32_t>(addr::cGZUIScriptLoader_Pop, loader) & 0xFF) {
+    }
+    Mix(UsLoaderRelease(loader));
+}
+
+// Real parses: the loader's parser made and its words defined, UI scripts
+// read from texts (defines, names, values, nested children, a LEGACY
+// window, unknown tags, malformed, empty), a file, resources, Load and
+// Create with keys that are there and not.
+void DriveUiScriptParse()
+{
+    char* const loader = NewLoader();
+    Mix(UsLoaderAddRef(loader));
+    Virtual<uint32_t>(loader + 0x14, 0x20);
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_MakeParser, loader));
+    void* const parser = Virtual<void*>(loader, 0x20);
+    Mix(parser ? 1u : 0u);
+    MixIs(CallThis<void*>(addr::cGZUIScriptLoader_Parser, loader), parser);
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_MakeParser, loader));
+    MixLoader(loader);
+    const char* const texts[] = {
+        "",
+        "   \r\n\t",
+        "text only",
+        "<define name=\"foo\" val=7>",
+        "<3 4=\"bar\" 5=9>",
+        "<define name=\"x\">",
+        "<define name=1 val=2>",
+        "<_define _name=\"z\" _val=3>",
+        "<define name=\"t\" val=3><t name=\"u\" val=4><u>",
+        "<children><define name=\"a\" val=1></children>",
+        "</children><children><children>",
+        "<none>",
+        "<0x12345678 a=1>",
+        "<comic9 x=1>",
+        "<LEGACY",
+        "<<>>",
+        "<define name=\"q\" val=\"text\" name=\"r\">",
+        "<LEGACY clsid=GZWinGen iid=IGZWin area=(0,0,10,10) id=0x77>",
+        ("<LEGACY clsid=GZWinGen iid=IGZWin area=(0,0,40,40) id=0x10><children>"
+         "<LEGACY clsid=GZWinGen iid=IGZWin area=(1,1,9,9) id=0x11></children>"),
+    };
+    for (const char* text : texts) {
+        GameText script(text);
+        void* const root = std::strlen(text) % 2 ? Virtual<void*>(loader, 0x14, script.get())
+                                                  : CallThis<void*>(addr::cGZUIScriptLoader_ParseString, loader,
+                                                                    script.get());
+        Mix(root ? 1u : 0u);
+        MixLoader(loader);
+        if (root) {
+            for (const uint32_t id : {0x77u, 0x10u, 0x11u, 0x12u})
+                Mix(Virtual<void*>(root, 0x14, id) ? 1u : 0u);
+            Virtual<uint32_t>(root, 0x24, 0u);
+            Mix(Virtual<uint32_t>(root, 0x8));
+        }
+    }
+    // A file, an empty one, a missing one.
+    const char* const folder = std::getenv("TEMP");
+    const std::string base =
+        std::string(folder ? folder : ".") + "\\opensc4-uiscript-" + std::to_string(_getpid()) + "-";
+    const std::string full = base + "full.txt";
+    const std::string none = base + "empty.txt";
+    if (std::FILE* f = std::fopen(full.c_str(), "wb")) {
+        const char* const text = "<define name=\"f\" val=5>\r\n<f name=\"g\" val=6>";
+        std::fwrite(text, 1, std::strlen(text), f);
+        std::fclose(f);
+    }
+    if (std::FILE* f = std::fopen(none.c_str(), "wb"))
+        std::fclose(f);
+    for (const std::string& path : {full, none, base + "missing.txt"}) {
+        GameText name(path.c_str());
+        void* const root = path == none ? CallThis<void*>(addr::cGZUIScriptLoader_ParseFile, loader, name.get())
+                                        : Virtual<void*>(loader, 0x18, name.get());
+        Mix(root ? 1u : 0u);
+        MixLoader(loader);
+        if (root)
+            Mix(Virtual<uint32_t>(root, 0x8));
+    }
+    std::remove(full.c_str());
+    std::remove(none.c_str());
+    // A UI file of the game's and a key that is not there.
+    const uint32_t keys[][3] = {{0, 0x96A006B0, 0xCBC905CD}, {0, 0x96A006B0, 0x0BADF00D}};
+    for (const auto& key : keys) {
+        for (int way = 0; way < 2; ++way) {
+            void* const root = way ? CallThis<void*>(addr::cGZUIScriptLoader_ParseResource, loader, key)
+                                   : Virtual<void*>(loader, 0x1C, key);
+            Mix(root ? 1u : 0u);
+            MixLoader(loader);
+            if (root) {
+                Virtual<uint32_t>(root, 0x24, 0u);
+                Mix(Virtual<uint32_t>(root, 0x8));
+            }
+        }
+        void* const window = CallThis<void*>(addr::cGZUIScriptLoader_Load, loader, key, static_cast<void*>(nullptr),
+                                             0u);
+        Mix(window ? 1u : 0u);
+        MixLoader(loader);
+        if (window)
+            Virtual<uint32_t>(window, 0x8);
+        void* out = nullptr;
+        MixByte(Virtual<uint32_t>(loader, 0xC, key, static_cast<void*>(nullptr), 0u, 0x9A4527CBu, &out));
+        Mix(out ? 1u : 0u);
+        if (out)
+            Virtual<uint32_t>(out, 0x8);
+        MixLoader(loader);
+    }
+    // The parent set on its own: a LEGACY reader on the stack.
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_SetParent, loader + 4, static_cast<void*>(nullptr)));
+    MixLoader(loader);
+    MixByte(Virtual<uint32_t>(loader + 4, 0xC, static_cast<void*>(nullptr)));
+    MixLoader(loader);
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptLoader_Shutdown, loader + 0x14));
+    MixLoader(loader);
+    Mix(UsLoaderRelease(loader));
+}
+
+// OPENSC4_TEST_UISCRIPT=<day>: part u9's functions through their slots and
+// addresses. Every result goes into the fingerprint's `us` part.
+void DriveUiScript(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_UISCRIPT") || !game::IsBuild641())
+        return;
+    g_usOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_usHash;
+    DriveUiScriptObjects();
+    UsStage("objects");
+    DriveUiScriptStack();
+    UsStage("stack");
+    DriveUiScriptEvents();
+    UsStage("events");
+    DriveUiScriptParse();
+    UsStage("parse");
+    g_into = saved;
+    log::Write("autotest: uiscript driven (hash %08X)", g_usHash);
+}
+
+void UsFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_usOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | us %08X", g_usHash);
+    line += text;
+}
+
+const FingerprintPart kUsFingerprint{"uiscript", 4, &UsFingerprint};
+const DayHook kUsDrive{"uiscript", 4, &DriveUiScript};
 
 } // namespace
 } // namespace opensc4::autotest

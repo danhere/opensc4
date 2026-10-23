@@ -4204,3 +4204,458 @@ convention = "cdecl"
 signature = "void* (void* node)"
 expect = "8B 4C 24 04 8B 41 0C 85"
 source = "Name ours (also cSC4Advisor::F40D4C0). An STLport red-black tree node's successor. Stays the game's; called by ours."
+
+# Part u9 (src/core/gzui_uiscript.cpp, docs/gzui.md): the UI script loader 0xFA3562FB and its director; the game
+# code and data they use.
+
+[[entry]]
+name = "cGZUIScriptDirector::Start"
+address = 0x0094AF1F
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* unused)"
+expect = "55 8B EC 51 8B 01 83 65"
+source = "Name ours. Slot 4 of the director (vtable 0x00AD4FE0); `ret 4`. The loader 0xFA3562FB made through the director's COM (its slot 12; interface 0x287FB697) and given to the framework (RZGetFramework, slot 3), then released; AL 1 over the last call's EAX. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptDirector::CreateLoader"
+address = 0x0094AF64
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "6A 60 E8 75 A6 C9 FF 85"
+source = "Name ours. The loader's factory: 0x60 bytes (SC4::operator_new) and its constructor 0x0094B400 (a tail jump; ours is part of this detour): the base vtables 0x00AD502C to 0x00AD509C, cRZBaseSystemService at +0x14 (0x5A356E15, priority 0xFFD23940), the vtables, the list +0x40, the fields zero. 0 when the memory is not there. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptDirector::CreateRoot"
+address = 0x0094AF7A
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "6A 24 E8 5F A6 C9 FF 85"
+source = "Name ours. The factory of the root holder 0x5A354595: 0x24 bytes and the game's constructor 0x0094C0AF. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptDirector::CreateLegacy"
+address = 0x0094AF90
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "6A 20 E8 49 A6 C9 FF 85"
+source = "Name ours. The factory of the LEGACY reader 0xFA450242: 0x20 bytes and the game's constructor 0x0095B8C4. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptDirector::Create478D1E6F"
+address = 0x0094AFA6
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "68 DC 00 00 00 E8 30 A6"
+source = "Name ours. The factory of the class 0x478D1E6F: 0xDC bytes and the game's constructor 0x0095BAB3; its interface at +0xD8 answered (0 for none). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptDirector::DeletingDestructor"
+address = 0x0094AFCD
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 C7 06 E0 4F AD"
+source = "Name ours. Slot 15 of the director; `ret 4`. The vtables back, cRZCOMDllDirector::Destruct, SC4::operator_delete with flag 1; answers `this`. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptDirector::Construct"
+address = 0x0094AFF6
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 8F 31 FC FF"
+source = "Name ours. cRZCOMDllDirector::Construct, the vtables 0x00AD4FE0 and 0x00AD4FB4, the classes 0xFA3562FB, 0x5A354595, 0xFA450242 and 0x478D1E6F added with their factories (AddCls). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptDirector::Get"
+address = 0x0094B053
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "F6 05 84 35 B6 00 01 75"
+source = "Name ours. The static director 0x00B63538, made on first use (the guard bit 1 of 0x00B63584; its destructor 0x00A7F650 given to SC4::atexit). Called by 0x0046019A. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::QueryInterface"
+address = 0x0094B120
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "55 8B EC 8B 45 08 83 F8"
+source = "Name ours. Slot 0 (also through the adjustors 0x0094B4A2, 0x0094B4BA, 0x0094B4D2, 0x0094B4EA, 0x0094B502 and 0x0094B51A); `ret 8`. 1 and 0xFA3562FA give the loader, 0x1A2BDEB8 its listener (+8), 0x1A2BDEB9 its tag events (+0xC), 0x1A2BDEBA its attribute events (+0x10), 0x7A4A48ED its part at +4 (0 for a null loader); AddRef through the primary vtable, AL 1 over its EAX. Anything else to cRZBaseSystemService::QueryInterface at +0x14 (its EAX). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Init"
+address = 0x0094B07E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "80 79 1C 00 75 04 C6 41"
+source = "Name ours. Slot 8 of the base service at +0x14 (`this`). The byte +0x30 (the service's +0x1C) set; AL 1 over the caller's EAX (ours 0). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Shutdown"
+address = 0x0094B5F4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "53 56 8B F1 33 DB 38 5E"
+source = "Name ours. Slot 9 of the base service at +0x14 (`this`). After an Init (+0x30): the parser +0x34, the root holder +0x50, the reader +0x54 and +0x5C released and cleared, the stack popped empty (0x0094B53A), +0x30 cleared; AL 1 over the last call's EAX (the caller's without Init; ours 0). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Destruct"
+address = 0x0094B6EC
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 57 8D 7E 14 8B"
+source = "Name ours. The vtables back, Shutdown (0x0094B5F4), the list +0x40 destroyed, a tail jump to cRZBaseSystemService::Destroy at +0x14 (its EAX). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::DeletingDestructor"
+address = 0x0094BBE2
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 02 FB FF FF"
+source = "Name ours. Through the adjustor 0x0094B532 (the base service's second vtable's slot 3); `ret 4`. The destructor, then SC4::operator_delete with flag 1; answers `this`. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Create"
+address = 0x0094B08B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const uint32_t* key, void* parent, uint32_t id, uint32_t iid, void** out)"
+expect = "55 8B EC 8B 01 53 56 FF"
+source = "Name ours. Slot 3; `ret 0x14`. Slot 4's window asked for the interface (its slot 0) and released; AL whether it gave one, over the release's EAX (EAX 0 without a window). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Load"
+address = 0x0094B210
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key, void* parent, uint32_t id)"
+expect = "55 8B EC 83 EC 48 83 65"
+source = "Name ours. Slot 4; `ret 0xC`. A window by its UI script's resource key: with the resource manager (SC4RefPtr::ResourceManager), the group made from the locale service's (cSC4Advisors::F4177C0, slot 3) slots 41 and 42 written `0x%.4u%.4u` (SC4::sprintf, SC4::TextToInt), kept when the manager's slot 14 finds that key (the locale reference released either way). The parent set (slot 3 at +4), the key parsed (slot 7); the root holder's slot 5 with the id asked for 0x9A4527CB, whose slot 3 is held and answered; the holder's slot 9 with 0 and its release. 0 for none. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::SetHeld"
+address = 0x0094B0C7
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* object)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Slot 10; `ret 4`. +0x5C held: the new one's AddRef, the old one's Release (the last call's EAX; the caller's when the same; ours 0). Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::SetContext"
+address = 0x0094B0F3
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* object)"
+expect = "56 8B F1 8B 4E 54 57 8B"
+source = "Name ours. Slot 4 of the part at +4 (interface 0x7A4A48ED); `ret 4`. The readers' context +0x58 held (the old one's Release, then the new one's AddRef); AL 1 over the last call's EAX. Ours in framework.uiscript.object (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::MakeParser"
+address = 0x0094B73A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Name ours. Once: the UI file parser 0xBA2E7953 (interface 0x5A2C1570) from the COM into +0x34; `_null` 0, `_children` 1, `_/children` 2, `_define` 3, `_name` 4, `_val` 5 defined (its slot 9, game strings made by SC4String::FromText and freed inline), the listener +8 given (slot 3) with the byte +0x3C set, then `none` 0, `children` 1, `/children` 2, `define` 3, `name` 4, `val` 5, `LEGACY` 0xFA450242, `comic9` 0x12, `comic10` 0x13; +0x3C cleared. EAX 1 when there is a parser, else 0. Ours in framework.uiscript.parse (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::ParseString"
+address = 0x0094BA22
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* text)"
+expect = "56 8B F1 E8 10 FD FF FF"
+source = "Name ours. Slot 5; `ret 4`. With a parser (0x0094B73A): the listener given (slot 3), the parser's slot 6 with the game string. The root holder +0x50 answered and cleared. Ours in framework.uiscript.parse (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::ParseFile"
+address = 0x0094BA51
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* path)"
+expect = "56 8B F1 E8 E1 FC FF FF"
+source = "Name ours. Slot 6; `ret 4`. As ParseString with the parser's slot 7 (a file). Ours in framework.uiscript.parse (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::ParseResource"
+address = 0x0094BA80
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key)"
+expect = "56 8B F1 E8 B2 FC FF FF"
+source = "Name ours. Slot 7; `ret 4`. As ParseString with the parser's slot 8 (a resource key). Ours in framework.uiscript.parse (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Parser"
+address = 0x0094BAAF
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 83 FC FF FF"
+source = "Name ours. Slot 8. 0x0094B73A, then the parser +0x34. Ours in framework.uiscript.parse (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::SetParent"
+address = 0x0094B676
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 51 51 83 65 F8"
+source = "Name ours. Slot 3 of the part at +4; `ret 4`. A LEGACY reader 0xFA450242 (interface 0x1A356083) from the COM; its 0x9A4527CB interface given the parent (slot 5) and released; the reader put at +0x44 and pushed (0x0094B653), then released. AL 1 over the COM's EAX or the release's. Ours in framework.uiscript.parse (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::DocumentStart"
+address = 0x0094B19D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parser)"
+expect = "57 8B F9 80 7F 34 00 75"
+source = "Name ours. Slot 3 of the listener at +8; `ret 4`. Unless +0x3C: a variable table 0xBA2E7954 (interface 0x1A2BDEBB) from the COM into +0x38 (not released first) and pushed on the parser (slot 13). Then a root holder 0x5A354595 (interface 0x1A35608A) into +0x50 (not released first); AL whether the COM made it, over its EAX. Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::DocumentEnd"
+address = 0x0094B55D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parser, bool done)"
+expect = "53 56 33 DB 38 5C 24 10"
+source = "Name ours. Slot 4 of the listener at +8; `ret 8`. Without the flag: the root holder +0x50 and the reader +0x54 released and cleared, a pushed table (+0x48) popped (slot 14). Unless +0x3C: the parser's slot 14, the table +0x38 released (unchecked) and cleared, the stack popped empty, +0x44 cleared. AL 1 over the last call's EAX. Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::TagStart"
+address = 0x0094B364
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parser, uint32_t tag)"
+expect = "55 8B EC 53 8B 5D 0C 56"
+source = "Name ours. Slot 3 of the tag events at +0xC; `ret 8`. The tag at +0x4C, the reader +0x54 released, the tag's class from the COM with interface 0x1A356083 into +0x54 (AL 0 over the COM's EAX without). Its 0x9A4527CB interface given the context +0x58 (slot 6); the reader's slot 9 with the stack's top (0x0094B354, EDX kept across it); +0x44 the reader (not counted); its slot 4's table pushed on the parser (slot 13); +0x48 set; AL 1 over the push's EAX. Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::TagEnd"
+address = 0x0094B1F4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parser, uint32_t unused)"
+expect = "56 8B F1 80 7E 3C 00 74"
+source = "Name ours. Slot 4 of the tag events at +0xC; `ret 8`. With +0x48: the parser's slot 14, +0x48 cleared; AL 1 over its EAX (the caller's without; ours 0). Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Attributes"
+address = 0x0094BABC
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parser, uint32_t tag, const void* list)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. Slot 3 of the attribute events at +0x10; `ret 0xC`. With a reader +0x54 and a root holder +0x50: the reader's slot 3 with the list, the holder's slot 4 with the reader, the reader released and cleared (AL 1 over its EAX). Else by the tag: 1 pushes +0x44 when there is one (0x0094B653) and clears it; 2 pops (0x0094B53A) and puts the top at +0x44 (AL 1 over it); 3 sets the parser variable named by the pair 4 (a text value: its slot 3 0x800E, its text by slot 55 into a game string) to the pair 5 (the parser's slots 11, then 10; only 11 without one; the last pair of each wins); AL 0 over the tag less 3 otherwise. Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Top"
+address = 0x0094B354
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B 41 40 39 00 74 06 8B"
+source = "Name ours. The value of the list +0x40's first node; 0 when empty. Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Push"
+address = 0x0094B653
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 57 8B F9 8D 77 44 8B"
+source = "Name ours. With a reader at +0x44: its AddRef, pushed at the front of the list +0x40 (SC4PtrList::PushFront), +0x44 cleared; AL 1 over the push's EAX (the caller's without; ours 0). Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptLoader::Pop"
+address = 0x0094B53A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8D 71 40 8B 06 39 00"
+source = "Name ours. With a node in the list +0x40: its value released, the front popped (SC4PtrList::PopFront); AL 1 over its EAX. AL 0 over the list's header otherwise. Ours in framework.uiscript.events (docs/gzui.md, part u9)."
+
+[[entry]]
+name = "cGZUIScriptDirector::Vtable"
+address = 0x00AD4FE0
+kind = "data"
+expect = "02 DE 90 00 B1 C4 94 00"
+source = "Name ours. The UI script director's vtable (cRZCOMDllDirector's slots but 4, 13 and 15: 0x0094AF1F, 0x0094AF19 and 0x0094AFCD)."
+
+[[entry]]
+name = "cGZUIScriptDirector::UnknownVtable"
+address = 0x00AD4FB4
+kind = "data"
+expect = "50 0F 46 00 60 0F 46 00"
+source = "Name ours. The UI script director's second vtable, at +4."
+
+[[entry]]
+name = "cGZUIScriptDirector::Static"
+address = 0x00B63538
+kind = "data"
+source = "Name ours. The static UI script director (0x4C bytes), made by 0x0094B053."
+
+[[entry]]
+name = "cGZUIScriptDirector::Guard"
+address = 0x00B63584
+kind = "data"
+source = "Name ours. The static UI script director's guard (bit 1)."
+
+[[entry]]
+name = "cGZUIScriptDirector::StaticDestroy"
+address = 0x00A7F650
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "C7 05 38 35 B6 00 E0 4F"
+source = "Name ours. The static UI script director's destructor, given to SC4::atexit (the vtables back and cRZCOMDllDirector::Destruct). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZUIScriptLoader::Vtable"
+address = 0x00AD5158
+kind = "data"
+expect = "20 B1 94 00 8D B1 94 00"
+source = "Name ours. The UI script loader's primary vtable, 11 slots: QueryInterface, the base service's AddRef and Release adjustors 0x0094B18D and 0x0094B195, Create, Load, ParseString, ParseFile, ParseResource, Parser, 0x009D41AD (shared), SetHeld."
+
+[[entry]]
+name = "cGZUIScriptLoader::PartVtable"
+address = 0x00AD5144
+kind = "data"
+expect = "A2 B4 94 00 AA B4 94 00"
+source = "Name ours. The loader's interface 0x7A4A48ED at +4, 5 slots: three adjustors, SetParent, SetContext."
+
+[[entry]]
+name = "cGZUIScriptLoader::ListenerVtable"
+address = 0x00AD512C
+kind = "data"
+expect = "BA B4 94 00 C2 B4 94 00"
+source = "Name ours. The loader's parser listener 0x1A2BDEB8 at +8, 6 slots: three adjustors, DocumentStart, DocumentEnd, 0x0092B33A (text; shared)."
+
+[[entry]]
+name = "cGZUIScriptLoader::TagsVtable"
+address = 0x00AD5114
+kind = "data"
+expect = "D2 B4 94 00 DA B4 94 00"
+source = "Name ours. The loader's tag events 0x1A2BDEB9 at +0xC, 6 slots: three adjustors, TagStart, TagEnd, 0x0092973B (an attribute; shared)."
+
+[[entry]]
+name = "cGZUIScriptLoader::AttributesVtable"
+address = 0x00AD5104
+kind = "data"
+expect = "EA B4 94 00 F2 B4 94 00"
+source = "Name ours. The loader's attribute events 0x1A2BDEBA at +0x10, 4 slots: three adjustors, Attributes."
+
+[[entry]]
+name = "cGZUIScriptLoader::ServiceVtable"
+address = 0x00AD50D0
+kind = "data"
+expect = "02 B5 94 00 0A B5 94 00"
+source = "Name ours. The loader's base system service vtable at +0x14 (cRZBaseSystemService's slots but 0 to 2, three adjustors, and 8 and 9, Init and Shutdown)."
+
+[[entry]]
+name = "cGZUIScriptLoader::ServiceUnknownVtable"
+address = 0x00AD50B8
+kind = "data"
+expect = "1A B5 94 00 22 B5 94 00"
+source = "Name ours. The loader's base service's second vtable at +0x18, 4 slots: three adjustors and 0x0094B532 (the deleting destructor's adjustor)."
+
+[[entry]]
+name = "cGZUIScriptLoader::BaseVtable"
+address = 0x00AD502C
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the loader's constructor writes at +0 before its own (every slot 0x005D4A10)."
+
+[[entry]]
+name = "cGZUIScriptLoader::PartBaseVtable"
+address = 0x00AD5058
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the loader's constructor writes at +4 before its own."
+
+[[entry]]
+name = "cGZUIScriptLoader::ListenerBaseVtable"
+address = 0x00AD506C
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the loader's constructor writes at +8 before its own."
+
+[[entry]]
+name = "cGZUIScriptLoader::TagsBaseVtable"
+address = 0x00AD5084
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the loader's constructor writes at +0xC before its own."
+
+[[entry]]
+name = "cGZUIScriptLoader::AttributesBaseVtable"
+address = 0x00AD509C
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the loader's constructor writes at +0x10 before its own."
+
+[[entry]]
+name = "cGZUIScriptRoot::Construct"
+address = 0x0094C0AF
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 C7 06 F0 51 AD"
+source = "Name ours. The constructor of the root holder 0x5A354595 (0x24 bytes; part u11's range). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Construct"
+address = 0x0095B8C4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 33 DB 56 8B F1 C7 46"
+source = "Name ours. The constructor of the LEGACY reader 0xFA450242 (0x20 bytes): once, the variable table 0xBA2E7954 at 0x00B63588 made and every widget reader's words added (21 calls). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::Construct"
+address = 0x0095BAB3
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 7D 1E 04 00"
+source = "Name ours. The constructor of the class 0x478D1E6F (0xDC bytes). Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4PtrList::PopFront"
+address = 0x009D6185
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list)"
+expect = "51 8B 11 8B 12 51 8B C4"
+source = "Name ours. An STLport list's pop_front (SC4PtrList::Erase on the first node). Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4PtrList::PushFront"
+address = 0x009D74D9
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list, void* const* value)"
+expect = "55 8B EC FF 75 08 8B 11"
+source = "Name ours. `ret 4`. A pointer put at the front of an STLport list (cGZDBSegmentPackedFile::ListInsertBefore). Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4::sprintf"
+address = 0x009F06B2
+kind = "function"
+convention = "cdecl"
+signature = "int (char* buffer, const char* format, ...)"
+expect = "55 8B EC 83 EC 20 56 8B"
+source = "Name ours. The C library's sprintf. Stays the game's; called by ours."

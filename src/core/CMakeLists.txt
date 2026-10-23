@@ -437,6 +437,7 @@ add_library(opensc4_core SHARED
   gzui_sound.cpp
   gzui_soundsvc.cpp
   gzui_soundmix.cpp
+  gzui_uiscript.cpp
   protection_sim.cpp
   fire_sim.cpp
   police_sim.cpp
