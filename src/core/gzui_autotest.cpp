@@ -7,8 +7,9 @@
 // mixer's (OPENSC4_TEST_GZSOUNDMIX, part u8), the UI script loader's
 // (OPENSC4_TEST_UISCRIPT, part u9), the MP3 decoder's and the UI script
 // root holder's (OPENSC4_TEST_MP3, part u10) and the root holder's life and
-// the LEGACY reader's (OPENSC4_TEST_LEGACY, part u11) and the readers of a
-// window's script properties (OPENSC4_TEST_PROPREAD, part u12).
+// the LEGACY reader's (OPENSC4_TEST_LEGACY, part u11), the readers of a
+// window's script properties (OPENSC4_TEST_PROPREAD, part u12) and their
+// makers, loaders and lookups (OPENSC4_TEST_PROPMAKE, part u12, slice 2).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -7786,6 +7787,450 @@ void PrFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kPrFingerprint{"propread", 4, &PrFingerprint};
 const DayHook kPrDrive{"propread", 4, &DrivePropReadDay};
+
+
+// Part u12, slice 2: the makers, loaders and lookups of a window's script
+// properties (OPENSC4_TEST_PROPMAKE). The ten called by address with their
+// registers set (and checked kept after), on a window of our own (its slot
+// 114 hashes the key and the value it gets, then destroys the value), the
+// UI script loader's held object set to one of our own and then to none
+// (the resource manager's path; the game's own held object put back after),
+// and vectors of pairs with number values of our own. Every result goes
+// into the hash; addresses never do.
+
+bool g_pmOn = false;
+uint32_t g_pmHash = 2166136261u;
+
+void PmStage(const char* name) { log::Write("autotest: propmake: %s %08X", name, g_pmHash); }
+
+struct PmRegs {
+    uint32_t eax, ebx, esi, edi;
+    uint32_t args[4];
+    uint32_t outEax, outEbx, outEsi, outEdi, outEbp;
+    std::uintptr_t address;
+    uint32_t outEdx;
+};
+
+// The address called with EAX, EBX, ESI and EDI set and four stack
+// arguments; EAX, EDX, the four registers and the argument slots (as the
+// callee left them) back in the block.
+__declspec(naked) void __cdecl PmCallRaw(PmRegs*)
+{
+    __asm push ebx
+    __asm push esi
+    __asm push edi
+    __asm push ebp
+    __asm mov ebp, [esp + 20]
+    __asm push ebp
+    __asm push dword ptr [ebp + 28]
+    __asm push dword ptr [ebp + 24]
+    __asm push dword ptr [ebp + 20]
+    __asm push dword ptr [ebp + 16]
+    __asm mov eax, [ebp + 0]
+    __asm mov ebx, [ebp + 4]
+    __asm mov esi, [ebp + 8]
+    __asm mov edi, [ebp + 12]
+    __asm call dword ptr [ebp + 52]
+    __asm push eax
+    __asm mov eax, [esp + 20]
+    __asm mov [eax + 36], ebx
+    __asm mov [eax + 40], esi
+    __asm mov [eax + 44], edi
+    __asm mov [eax + 48], ebp
+    __asm mov [eax + 56], edx
+    __asm pop dword ptr [eax + 32]
+    __asm mov ebx, [esp]
+    __asm mov [eax + 16], ebx
+    __asm mov ebx, [esp + 4]
+    __asm mov [eax + 20], ebx
+    __asm mov ebx, [esp + 8]
+    __asm mov [eax + 24], ebx
+    __asm mov ebx, [esp + 12]
+    __asm mov [eax + 28], ebx
+    __asm add esp, 20
+    __asm pop ebp
+    __asm pop edi
+    __asm pop esi
+    __asm pop ebx
+    __asm ret
+}
+
+constexpr uint32_t kPmEbx = 0xB0B0B0B1u;
+constexpr uint32_t kPmEsi = 0x51515152u;
+constexpr uint32_t kPmEdi = 0xD1D1D1D2u;
+
+// A call with the registers' values (the ones the callee does not use set
+// to marks); whether EBX, ESI, EDI and EBP were kept goes into the hash.
+uint32_t PmCall(std::uintptr_t address, PmRegs& regs)
+{
+    regs.address = address;
+    PmCallRaw(&regs);
+    const bool kept = regs.outEbx == regs.ebx && regs.outEsi == regs.esi && regs.outEdi == regs.edi &&
+                      regs.outEbp == PrArg(&regs);
+    Mix(kept ? 0x4B1u : 0xBAD0u);
+    return regs.outEax;
+}
+
+PmRegs PmRegsOf(uint32_t eax, uint32_t esi, uint32_t edi, uint32_t a0, uint32_t a1)
+{
+    PmRegs regs = {};
+    regs.eax = eax;
+    regs.ebx = kPmEbx;
+    regs.esi = esi;
+    regs.edi = edi;
+    regs.args[0] = a0;
+    regs.args[1] = a1;
+    regs.args[2] = 0xA2A2A2A2u;
+    regs.args[3] = 0xA3A3A3A3u;
+    return regs;
+}
+
+// A script value: the word +0xC, the kind +0xE, +8 and the size +0x10;
+// with the kind's 0x8000 the bytes at +4, else the word there.
+void PmMixValue(char* value)
+{
+    Mix(At<uint16_t>(value, 0xC));
+    const uint16_t kind = At<uint16_t>(value, 0xE);
+    Mix(kind);
+    Mix(At<uint32_t>(value, 8));
+    const uint32_t size = At<uint32_t>(value, 0x10);
+    Mix(size);
+    if (kind & 0x8000) {
+        const uint8_t* const bytes = At<const uint8_t*>(value, 4);
+        Mix(bytes ? 1u : 0u);
+        for (uint32_t i = 0; bytes && i < size && i < 64; ++i)
+            Mix(bytes[i]);
+    } else {
+        Mix(At<uint32_t>(value, 4));
+    }
+}
+
+uint32_t g_pmPuts = 0;
+
+uint32_t __fastcall PmWindowPut(void*, void*, uint32_t key, char* value)
+{
+    Mix(0x114000u);
+    Mix(key);
+    if (value) {
+        PmMixValue(value);
+        Virtual<void>(value, 0x1FC, 1u);
+    } else {
+        Mix(0xDEADu);
+    }
+    ++g_pmPuts;
+    return 0x00770042u + (g_pmPuts << 8) + (g_pmPuts << 20);
+}
+
+void** PmWindowTable()
+{
+    static void* table[115] = {};
+    table[114] = reinterpret_cast<void*>(&PmWindowPut);
+    return table;
+}
+
+// The held object we give the UI script loader: AddRef, Release, slot 3
+// (an image by key: a word of our own), slot 4 (a text by key into a
+// string, for odd instances).
+struct PmHeld {
+    void** vtable;
+    uint32_t count;
+};
+
+uint32_t __fastcall PmHeldAddRef(PmHeld* self, void*) { return ++self->count; }
+uint32_t __fastcall PmHeldRelease(PmHeld* self, void*) { return --self->count; }
+
+void PmMixKey(const uint32_t* key)
+{
+    Mix(key[0]);
+    Mix(key[1]);
+    Mix(key[2]);
+}
+
+uint32_t __fastcall PmHeldImage(PmHeld*, void*, const uint32_t* key)
+{
+    Mix(0x3003u);
+    PmMixKey(key);
+    return key[2] ^ 0x5A5A0000u;
+}
+
+uint32_t __fastcall PmHeldText(PmHeld*, void*, const uint32_t* key, void* string)
+{
+    Mix(0x4004u);
+    PmMixKey(key);
+    if (!(key[2] & 1))
+        return 0x2200u;
+    char text[32];
+    const int length = std::snprintf(text, sizeof text, "held %08X", key[2]);
+    Virtual<uint32_t>(string, 0xC, text, static_cast<uint32_t>(length));
+    return 0x2201u;
+}
+
+void** PmHeldTable()
+{
+    static void* table[5] = {};
+    table[1] = reinterpret_cast<void*>(&PmHeldAddRef);
+    table[2] = reinterpret_cast<void*>(&PmHeldRelease);
+    table[3] = reinterpret_cast<void*>(&PmHeldImage);
+    table[4] = reinterpret_cast<void*>(&PmHeldText);
+    return table;
+}
+
+// The number values of the lookups: slot 3 the kind, slots 73 and 75 point
+// at two words of their own (+8 and +0xC).
+struct PmNumber {
+    void** vtable;
+    uint32_t kind;
+    uint32_t word73;
+    uint32_t word75;
+};
+
+uint32_t __fastcall PmNumberKind(PmNumber* self, void*)
+{
+    Mix(0x3000u | self->kind);
+    return self->kind;
+}
+
+// Slots 73 and 75 leave a mark in EDX, which the finders leave to their
+// callers.
+__declspec(naked) void PmNumber73()
+{
+    __asm lea eax, [ecx + 8]
+    __asm mov edx, 0x73737373
+    __asm ret
+}
+
+__declspec(naked) void PmNumber75()
+{
+    __asm lea eax, [ecx + 12]
+    __asm mov edx, 0x75757575
+    __asm ret
+}
+
+void** PmNumberTable()
+{
+    static void* table[76] = {};
+    table[3] = reinterpret_cast<void*>(&PmNumberKind);
+    table[73] = reinterpret_cast<void*>(&PmNumber73);
+    table[75] = reinterpret_cast<void*>(&PmNumber75);
+    return table;
+}
+
+// A game string (SC4String's constructor) with a text, and its end.
+void PmStringMake(char* string, const char* text)
+{
+    CallThis<void*>(addr::SC4String_SC4String, string);
+    if (text)
+        Virtual<uint32_t>(string, 0xC, text, static_cast<uint32_t>(std::strlen(text)));
+}
+
+void PmStringEnd(char* string)
+{
+    if (char* const begin = At<char*>(string, 4))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin);
+    At<std::uintptr_t>(string, 0) = addr::SC4String_Vtable;
+}
+
+void DrivePmMake()
+{
+    void* window[2] = {PmWindowTable(), nullptr};
+    const uint32_t window32 = PrArg(window);
+
+    // 0x0094C1A4: none without a window (the caller's EAX back), then three
+    // keys of 12 bytes.
+    const uint32_t keys[3][3] = {
+        {0x856DDBAC, 0x46A006B0, 0x12345678}, {0x2026960B, 0, 0xFFFFFFFF}, {0, 0, 0}};
+    PmRegs regs = PmRegsOf(0x13572468u, 0, kPmEdi, 0x8B4BFEFC, PrArg(keys[0]));
+    Mix(PmCall(addr::cGZUIScriptProps_MakeKey, regs));
+    for (uint32_t i = 0; i < 3; ++i) {
+        regs = PmRegsOf(0x24681357u, window32, kPmEdi, 0x8B4BFEFC + i, PrArg(keys[i]));
+        Mix(PmCall(addr::cGZUIScriptProps_MakeKey, regs));
+    }
+    // 0x0094C1DA: two words (the first in EAX) under a key's offset.
+    const uint32_t pairs[3][3] = {{0, 0, 0}, {0x856DDBAC, 1, 0x2B343BEC}, {0xFFFFFFFF, 0x80000000, 0x25C5A6B8}};
+    for (const auto& pair : pairs) {
+        regs = PmRegsOf(pair[0], window32, kPmEdi, pair[1], pair[2]);
+        Mix(PmCall(addr::cGZUIScriptProps_MakePair, regs));
+    }
+    // 0x0094C222: numbers; 0x0094C255: texts.
+    const uint32_t numbers[] = {0, 5, 0xFFFFFFFF, 0x3F800000};
+    for (uint32_t i = 0; i < std::size(numbers); ++i) {
+        regs = PmRegsOf(0x5555AAAAu, window32, kPmEdi, numbers[i], 0x1000 + i);
+        Mix(PmCall(addr::cGZUIScriptProps_MakeNumber, regs));
+    }
+    const char* const texts[] = {nullptr, "hello", "(1,2,3)", "a longer text of a window's script property"};
+    for (uint32_t i = 0; i < std::size(texts); ++i) {
+        alignas(4) char string[0x14];
+        PmStringMake(string, texts[i]);
+        regs = PmRegsOf(0x6666BBBBu, window32, kPmEdi, PrArg(string), 0x2000 + i);
+        Mix(PmCall(addr::cGZUIScriptProps_MakeText, regs));
+        PmStringEnd(string);
+    }
+    Mix(g_pmPuts);
+    PmStage("make");
+}
+
+// The two loaders with the group in EAX (the text loader's string in EDI);
+// what they leave in their argument slot: unchanged, zero or set.
+void PmLoadImage(uint32_t group, uint32_t instance, bool pointer)
+{
+    PmRegs regs = PmRegsOf(group, kPmEsi, kPmEdi, instance, 0xA1A1A1A1u);
+    const uint32_t eax = PmCall(addr::cGZUIScriptProps_LoadImage, regs);
+    Mix(pointer ? (eax ? 1u : 0u) : eax);
+    Mix(regs.args[0] == instance ? 0x11u : regs.args[0] ? 0x12u : 0x10u);
+    Mix(regs.args[1]);
+}
+
+void PmLoadText(uint32_t group, uint32_t instance)
+{
+    alignas(4) char string[0x14];
+    PmStringMake(string, "before");
+    PmRegs regs = PmRegsOf(group, kPmEsi, PrArg(string), instance, 0xA1A1A1A1u);
+    regs.ebx = kPmEbx;
+    MixByte(PmCall(addr::cGZUIScriptProps_LoadText, regs));
+    Mix(regs.args[0] == instance ? 0x11u : regs.args[0] ? 0x12u : 0x10u);
+    PrMixText(string);
+    PmStringEnd(string);
+}
+
+void DrivePmLoad()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    if (!holder) {
+        PmStage("load");
+        return;
+    }
+    void* const old = Virtual<void*>(holder, 0x24);
+    Mix(old ? 1u : 0u);
+    log::Write("autotest: propmake: the loader's held object %s", old ? "set" : "none");
+    if (old)
+        Virtual<uint32_t>(old, 4);
+
+    PmHeld held = {PmHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    for (uint32_t instance : {0u, 1u, 2u, 0x7EC82BF1u}) {
+        PmLoadImage(0x11223344u, instance, false);
+        PmLoadText(0x55667788u, instance);
+    }
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(nullptr));
+    Mix(held.count);
+
+    // The resource manager's: images the game ships (the region screen's
+    // first edge picture) and none, the text the audio layer's first
+    // freshness score reads and none.
+    PmLoadImage(0x6A1EED2Cu, At<uint32_t>(reinterpret_cast<void*>(addr::SC4RegionScreen_EdgePictures), 0), true);
+    PmLoadImage(0x12345678u, 0x9ABCDEF0u, true);
+    PmLoadText(0x0A5BCDA5u, 0x7EC82BF0u);
+    PmLoadText(0x12345678u, 0x9ABCDEF0u);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    PmStage("load");
+}
+
+// The lookups' EAX: a found word, a count, a kind or the caller's mark in
+// full; on a miss over a pair's place, whether it is the last pair's.
+void PmMixEax(uint32_t eax, const void* lastPair)
+{
+    if ((eax & 0xFF) == 1 || eax < 0x10000u || (eax & 0xFFFFFF00u) == 0x77777700u)
+        Mix(eax);
+    else
+        Mix((eax & ~0xFFu) == (PrArg(lastPair) & ~0xFFu) ? 0xADD1u : 0xADD0u);
+}
+
+void DrivePmLook()
+{
+    PmNumber numbers[] = {
+        {PmNumberTable(), 6, 1, 0x3F800000},  {PmNumberTable(), 5, 1, 2},  {PmNumberTable(), 6, 0, 0xFFFFFFFF},
+        {PmNumberTable(), 6, 2, 7},           {PmNumberTable(), 0x800E, 1, 1},
+        {PmNumberTable(), 6, 0x12345601, 0x99}, {PmNumberTable(), 6, 1, 0x42},
+    };
+    struct Pair {
+        uint32_t key;
+        PmNumber* value;
+    };
+    Pair pairs[] = {
+        {0x304, &numbers[0]}, {0x40A, nullptr},     {0x40A, &numbers[1]}, {0x40A, &numbers[2]},
+        {0x107, &numbers[3]}, {0x1005, &numbers[4]}, {0x1005, &numbers[5]}, {0x20, &numbers[6]},
+        {0x21, nullptr},      {0x22, &numbers[4]},
+    };
+    const uint32_t lookKeys[] = {0, 0x304, 0x40A, 0x107, 0x1005, 0x20, 0x21, 0x22, 0x999};
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + std::size(pairs)), nullptr};
+    char* emptyVector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs), nullptr};
+    const void* const last = &pairs[std::size(pairs) - 1];
+
+    // 0x0094C64E: the vector in EAX.
+    for (uint32_t key : lookKeys) {
+        PmRegs regs = PmRegsOf(PrArg(vector), kPmEsi, kPmEdi, key, 0);
+        Mix(PmCall(addr::cGZUIScriptProps_HasKey, regs));
+    }
+    PmRegs regs = PmRegsOf(PrArg(emptyVector), kPmEsi, kPmEdi, 0x304, 0);
+    Mix(PmCall(addr::cGZUIScriptProps_HasKey, regs));
+
+    // 0x0094C675 and 0x0094C6C7: the vector in EDI, the out pre-set; EAX a
+    // mark (the empty vector's answer).
+    for (std::uintptr_t address : {addr::cGZUIScriptProps_FindWord73, addr::cGZUIScriptProps_FindWord75}) {
+        for (uint32_t key : lookKeys) {
+            uint32_t out = 0xEEEEEEEEu;
+            regs = PmRegsOf(0x77777777u, kPmEsi, PrArg(vector), key, PrArg(&out));
+            PmMixEax(PmCall(address, regs), last);
+            Mix(out);
+            if ((regs.outEax & 0xFF) == 1)
+                Mix(regs.outEdx);
+        }
+        uint32_t out = 0xEEEEEEEEu;
+        regs = PmRegsOf(0x77777777u, kPmEsi, PrArg(emptyVector), 0x304, PrArg(&out));
+        PmMixEax(PmCall(address, regs), last);
+        Mix(out);
+    }
+
+    // 0x0094C719: tables of (key, mask) in EAX; the flags' slot after.
+    const uint32_t table[] = {0x304, 0x1, 0x40A, 0x2, 0x107, 0x4, 0x20, 0x8, 0x21, 0x10, 0x999, 0x20, 0x22, 0x40,
+                              0x1005, 0x80, 0};
+    const uint32_t emptyTable[] = {0, 0xFF};
+    for (uint32_t flags : {0u, 0xFFFFFFFFu, 0x55u, 0xAAu}) {
+        regs = PmRegsOf(PrArg(table), kPmEsi, kPmEdi, PrArg(vector), flags);
+        Mix(PmCall(addr::cGZUIScriptProps_ReadFlags, regs));
+        Mix(regs.args[1]);
+        regs = PmRegsOf(PrArg(table), kPmEsi, kPmEdi, PrArg(emptyVector), flags);
+        Mix(PmCall(addr::cGZUIScriptProps_ReadFlags, regs));
+        regs = PmRegsOf(PrArg(emptyTable), kPmEsi, kPmEdi, PrArg(vector), flags);
+        Mix(PmCall(addr::cGZUIScriptProps_ReadFlags, regs));
+        Mix(regs.args[1]);
+    }
+    PmStage("look");
+}
+
+// OPENSC4_TEST_PROPMAKE=<day>: part u12's second slice by address. Every
+// result goes into the fingerprint's `pm` part.
+void DrivePropMakeDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_PROPMAKE") || !game::IsBuild641())
+        return;
+    g_pmOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_pmHash;
+    DrivePmMake();
+    DrivePmLoad();
+    DrivePmLook();
+    g_into = saved;
+    log::Write("autotest: propmake driven (hash %08X)", g_pmHash);
+}
+
+void PmFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_pmOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | pm %08X", g_pmHash);
+    line += text;
+}
+
+const FingerprintPart kPmFingerprint{"propmake", 4, &PmFingerprint};
+const DayHook kPmDrive{"propmake", 4, &DrivePropMakeDay};
 
 } // namespace
 } // namespace opensc4::autotest
