@@ -637,6 +637,15 @@ expect = "8B 54 24 04 8B 42 04 53"
 source = "Name ours, not analysed. (packed render state*): applies a packed render state (docs/renderer.md, \"The grid\")."
 
 [[entry]]
+name = "SC4RenderContext::DrawBox"
+address = 0x007D5030
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4RenderContext* this, const float* box, const float* colour)"
+expect = "A1 20 E3 B4 00 83 EC 6C"
+source = "Name ours, not analysed. Ret 8. SC4EffectsManager::Draw calls it for each effect in view with its box (0x005B26F0) and a colour of green at 0.3 when the render property at +0x35C is set (0x005938A9); detoured in compare mode of renderer.effects.draw_manager only."
+
+[[entry]]
 name = "SC4RenderContext::UpdateViewMatrix"
 address = 0x007D2D20
 kind = "function"

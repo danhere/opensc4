@@ -366,11 +366,15 @@ bool g_poolHooked = false;
 bool g_letGoHooked = false;
 // While an emitter is compared, its steps (0x005B9BA0) are recorded and answered too.
 bool g_emitterRecording = false;
+// While an effect's draw is compared, so are its steps and the other calls
+// DwRecorded lists (effects_draw.h's switches, at the end of the file).
+bool g_drawRecording = false;
+bool DwRecorded(uint32_t target);
 
 bool Steers(uint32_t target)
 {
     return target == addr::SC4EffectBase_Finish ||
-           (g_emitterRecording && target == addr::SC4Effect_StepParticle) ||
+           ((g_emitterRecording || g_drawRecording) && target == addr::SC4Effect_StepParticle) ||
            (g_poolHooked &&
             (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle));
 }
@@ -379,7 +383,8 @@ bool Steers(uint32_t target)
 // particle pool's only once their detours are in).
 bool Recorded(uint32_t target)
 {
-    if (target == addr::SC4EffectBase_Finish || (g_emitterRecording && target == addr::SC4Effect_StepParticle))
+    if (target == addr::SC4EffectBase_Finish || (g_emitterRecording && target == addr::SC4Effect_StepParticle) ||
+        (g_drawRecording && DwRecorded(target)))
         return true;
     return g_poolHooked &&
            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
@@ -12868,6 +12873,8 @@ uint32_t __fastcall SuAxesByMode(char* self, void*, uint32_t context)
         SetEffectAxes(self, Ptr(context));
         return 0u;
     };
+    if (g_effectRecord && g_drawRecording)
+        return EffectRecorded(addr::SC4Effect_BeforeParticles, g_SC4Effect_BeforeParticles, self, context);
     if (g_axesMode == StepMode::Original)
         return game();
     if (g_axesMode == StepMode::Ours)
@@ -13684,7 +13691,7 @@ uint32_t __fastcall LfStepByMode(char* self, void*, uint32_t particle, uint32_t 
 {
     const auto game = [&] { return g_SC4Effect_StepParticle(self, nullptr, particle, step); };
     const auto ours = [&] { return StepParticle(self, Ptr(particle), LfFloat(step)); };
-    if (g_effectRecord && g_emitterRecording)
+    if (g_effectRecord && (g_emitterRecording || g_drawRecording))
         return EffectRecorded(addr::SC4Effect_StepParticle, g_SC4Effect_StepParticle, self, particle, step);
     if (g_stepMode == StepMode::Original || g_effectRecord || g_effectReplay)
         return game();
@@ -13704,6 +13711,8 @@ uint32_t __fastcall LfBoxByMode(char* self, void*)
         KeepEffectBox(self);
         return 0u;
     };
+    if (g_effectRecord && g_drawRecording)
+        return EffectRecorded(addr::SC4Effect_NotDrawn, g_SC4Effect_NotDrawn, self);
     if (g_boxMode == StepMode::Original || g_effectRecord || g_effectReplay)
         return game();
     if (g_boxMode == StepMode::Ours)
@@ -13764,6 +13773,8 @@ OPENSC4_THUNK(TLfEmitStream, LfEmitStreamNoted, 4)
 
 uint32_t __fastcall LfEmitByMode(char* self, void*)
 {
+    if (g_effectRecord && g_drawRecording)
+        return EffectRecorded(addr::SC4Effect_Emit, g_SC4Effect_Emit, self);
     if (g_emitMode == StepMode::Original || g_effectRecord || g_effectReplay)
         return g_SC4Effect_Emit(self, nullptr);
     if (g_emitMode == StepMode::Ours) {
@@ -13890,6 +13901,8 @@ uint32_t __fastcall LfWanderByMode(char* self, void*, uint32_t step)
         WanderEffect(self, LfFloat(step));
         return 0u;
     };
+    if (g_effectRecord && g_drawRecording)
+        return EffectRecorded(addr::SC4Effect_StepFlag800000, g_SC4Effect_Wander, self, step);
     if (g_wanderMode == StepMode::Original || g_effectRecord || g_effectReplay)
         return game();
     if (g_wanderMode == StepMode::Ours)
@@ -13908,6 +13921,8 @@ uint32_t __fastcall LfPullByMode(char* self, void*)
         PullEffect(self);
         return 0u;
     };
+    if (g_effectRecord && g_drawRecording)
+        return EffectRecorded(addr::SC4Effect_PathVelocity, g_SC4Effect_PathVelocity, self);
     if (g_pullMode == StepMode::Original || g_effectRecord || g_effectReplay)
         return game();
     if (g_pullMode == StepMode::Ours)
@@ -14479,6 +14494,8 @@ uint32_t __fastcall GiveBackBByMode(char* base, void*, uint32_t particle)
 // An effect whose list is broken is not compared.
 uint32_t __fastcall NotDrawnBByMode(char* self, void*)
 {
+    if (g_effectRecord && g_drawRecording)
+        return EffectRecorded(addr::SC4EffectB_NotDrawn, g_SC4EffectB_NotDrawn, self);
     if (g_notDrawnBMode == StepMode::Original || g_effectRecord || g_effectReplay || BBusy())
         return g_SC4EffectB_NotDrawn(self, nullptr);
     if (g_notDrawnBMode == StepMode::Ours) {
@@ -14669,6 +14686,695 @@ const bool g_registeredBlockB = registry::Register({
     "effects, sky and clouds\")",
     true,
     InstallBlockB,
+});
+
+// --- The draws without particles -------------------------------------------------------------
+//
+// The manager's draw, an effect's draw, a decal's step and its update
+// (effects_draw.h).
+//
+// The effect's draw is compared by the record and replay of the emitters:
+// the game's run with its calls recorded (the particle's step answered),
+// ours replayed. Its calls of functions with detours of their own (the
+// step, the emit, the axes, the box, the wandering, the pull and the second
+// class's step out of view) are recorded by those detours while
+// g_drawRecording is set; the rest get detours here (OPENSC4_DRAW_HOOK*),
+// which record only then.
+//
+// The manager's draw cannot run twice either: its effects and decals move
+// on when drawn. Ours runs first with the calls that draw or step
+// something only noted (DwManagerCall), the manager is put back, and the
+// game's runs with the same calls noted at their entry (the effect's draw
+// and the decal's step through their own detours, the three rarer ones and
+// the boxes' draw through detours here) and made. The two vectors are
+// given room first, so that neither run moves them. Compared: the notes
+// (the clean-up, which the game's run reaches through the clean-up's own
+// detour, ours' last note), what ours wrote of the manager (the particle
+// count against the counts the game's draws found before drawing), that
+// ours wrote nothing else, and the two vectors' contents. An effect's draw
+// may add, take away or stop decals of the fourth list: when the list the
+// game's run steps (and which of it runs) is not the one it started with,
+// the decals' notes and their count are left out.
+//
+// The decal's step only calls its owner and its own slot 4: it is given a
+// stand-in owner and a copy of its table with slot 4 replaced, which note
+// each call (the slot, the handle and the values behind the pointers);
+// ours runs with the calls only noted, the decal is put back, and the
+// game's runs with them noted and passed on. The update only writes the
+// decal (DcDecalCompared), but for its calls on the owner, which run the
+// game's only.
+#include "core/effects_draw.h"
+
+bool DwRecorded(uint32_t target)
+{
+    for (const uint32_t address :
+         {addr::SC4Effect_StepFlag2000, addr::SC4Effect_PathVelocity, addr::SC4Effect_StepFlag80000000,
+          addr::SC4Effect_StepParticle, addr::SC4Effect_Emit, addr::SC4Effect_BeforeParticles,
+          addr::SC4Effect_DrawParticlesTextured, addr::SC4Effect_DrawParticles, addr::SC4EffectB_DrawParticles,
+          addr::SC4Effect_NotDrawn, addr::SC4EffectB_NotDrawn, addr::SC4Effect_StepFlag800000,
+          addr::SC4RenderContext_SetColourAlt, addr::SC4RenderContext_UpdateViewMatrix,
+          addr::SC4RenderContext_SetRenderState, addr::SC4RenderContext_ResetColour}) {
+        if (target == address)
+            return true;
+    }
+    return false;
+}
+
+#define OPENSC4_DRAW_HOOK0(Name)                                                                                       \
+    Call0Fn g_Dw##Name = nullptr;                                                                                      \
+    uint32_t __fastcall DDw##Name(char* self, void*)                                                                   \
+    {                                                                                                                  \
+        return g_drawRecording && g_effectRecord ? EffectRecorded(addr::Name, g_Dw##Name, self)                        \
+                                                 : g_Dw##Name(self, nullptr);                                          \
+    }                                                                                                                  \
+    OPENSC4_THUNK(TDw##Name, DDw##Name, 0)
+#define OPENSC4_DRAW_HOOK1(Name)                                                                                       \
+    Call1Fn g_Dw##Name = nullptr;                                                                                      \
+    uint32_t __fastcall DDw##Name(char* self, void*, uint32_t a)                                                       \
+    {                                                                                                                  \
+        return g_drawRecording && g_effectRecord ? EffectRecorded(addr::Name, g_Dw##Name, self, a)                     \
+                                                 : g_Dw##Name(self, nullptr, a);                                       \
+    }                                                                                                                  \
+    OPENSC4_THUNK(TDw##Name, DDw##Name, 4)
+
+OPENSC4_DRAW_HOOK1(SC4Effect_StepFlag2000)
+OPENSC4_DRAW_HOOK0(SC4Effect_StepFlag80000000)
+OPENSC4_DRAW_HOOK1(SC4Effect_DrawParticlesTextured)
+OPENSC4_DRAW_HOOK1(SC4Effect_DrawParticles)
+OPENSC4_DRAW_HOOK1(SC4EffectB_DrawParticles)
+OPENSC4_DRAW_HOOK1(SC4RenderContext_SetColourAlt)
+OPENSC4_DRAW_HOOK0(SC4RenderContext_UpdateViewMatrix)
+OPENSC4_DRAW_HOOK1(SC4RenderContext_SetRenderState)
+OPENSC4_DRAW_HOOK0(SC4RenderContext_ResetColour)
+
+// The manager's notes: which call (DwKind), on what, with what.
+struct DwNote {
+    uint32_t kind, self, a, b;
+    bool operator==(const DwNote& other) const
+    {
+        return kind == other.kind && self == other.self && a == other.a && b == other.b;
+    }
+};
+enum class DwTrace { Off, Ours, Game };
+DwTrace g_dwTrace = DwTrace::Off;
+int g_dwDepth = 0;
+DWORD g_dwThread = 0;
+std::vector<DwNote> g_dwOurs, g_dwGame;
+uint32_t g_dwCounted = 0;
+std::vector<uint32_t> g_dwFourth;
+bool g_dwFourthTaken = false;
+
+// The fourth list as the manager has it: its indices, what they point at
+// and whether that runs (its slot 8; an effect's draw may stop a decal).
+std::vector<uint32_t> DwFourth(char* self)
+{
+    std::vector<uint32_t> words;
+    for (uint32_t* it = At<uint32_t*>(self, 0xBCC); it != At<uint32_t*>(self, 0xBD0); ++it) {
+        char* const decal = At<char**>(self, 0xBC0)[*it];
+        words.push_back(*it);
+        words.push_back(Word(decal));
+        words.push_back(SuSlot<uint32_t>(decal, 8) & 0xFF);
+    }
+    return words;
+}
+
+char* g_dwManager = nullptr;
+
+bool DwNoting()
+{
+    return g_dwTrace == DwTrace::Game && g_dwDepth == 0 && GetCurrentThreadId() == g_dwThread;
+}
+
+void DwAddNote(uint32_t kind, char* self, uint32_t a, uint32_t b)
+{
+    if (kind >= kDwDecal && !g_dwFourthTaken) {
+        g_dwFourth = DwFourth(g_dwManager);
+        g_dwFourthTaken = true;
+    }
+    g_dwGame.push_back(DwNote{kind, Word(self), a, b});
+}
+
+uint32_t DwManagerCall(uint32_t kind, uint32_t target, char* self, uint32_t a, uint32_t b)
+{
+    if (g_dwTrace == DwTrace::Ours) {
+        g_dwOurs.push_back(DwNote{kind, Word(self), a, b});
+        return 0;
+    }
+    switch (kind) {
+    case kDwBeforeDraw:
+    case kDwDecal:
+    case kDwShake:
+        return CallThis<uint32_t>(target, self, a);
+    case kDwAfter:
+        return CallThis<uint32_t>(target, self);
+    default:
+        return CallThis<uint32_t>(target, self, a, b);
+    }
+}
+
+// The rarer calls of the manager's draw, noted in the game's run.
+Call1Fn g_DwBeforeDraw = nullptr, g_DwStepShake = nullptr;
+Call2Fn g_DwDrawFlash = nullptr, g_DwDrawBox = nullptr;
+
+template <typename Fn, typename... Args>
+uint32_t DwNoted(uint32_t kind, Fn original, char* self, Args... args)
+{
+    if (!DwNoting())
+        return original(self, nullptr, args...);
+    uint32_t words[2] = {0, 0};
+    std::size_t n = 0;
+    ((words[n++] = args), ...);
+    DwAddNote(kind, self, words[0], words[1]);
+    ++g_dwDepth;
+    const uint32_t result = original(self, nullptr, args...);
+    --g_dwDepth;
+    return result;
+}
+
+uint32_t __fastcall DwBeforeDrawNoted(char* self, void*, uint32_t context)
+{
+    return DwNoted(kDwBeforeDraw, g_DwBeforeDraw, self, context);
+}
+OPENSC4_THUNK(TDwBeforeDraw, DwBeforeDrawNoted, 4)
+
+uint32_t __fastcall DwDrawFlashNoted(char* self, void*, uint32_t context, uint32_t step)
+{
+    return DwNoted(kDwFlash, g_DwDrawFlash, self, context, step);
+}
+OPENSC4_THUNK(TDwDrawFlash, DwDrawFlashNoted, 8)
+
+uint32_t __fastcall DwStepShakeNoted(char* self, void*, uint32_t step)
+{
+    return DwNoted(kDwShake, g_DwStepShake, self, step);
+}
+OPENSC4_THUNK(TDwStepShake, DwStepShakeNoted, 4)
+
+uint32_t __fastcall DwDrawBoxNoted(char* self, void*, uint32_t box, uint32_t colour)
+{
+    return DwNoted(kDwBox, g_DwDrawBox, self, box, colour);
+}
+OPENSC4_THUNK(TDwDrawBox, DwDrawBoxNoted, 8)
+
+// --- An effect's draw by its mode
+
+StepMode g_dwEffectMode = StepMode::Original;
+Call2Fn g_SC4Effect_Draw = nullptr;
+
+struct DwEffectCall {
+    char* self;
+    uint32_t step, context;
+};
+
+uint32_t DwEffectDrawRun(char* self, uint32_t step, uint32_t context)
+{
+    const auto game = [&] { return g_SC4Effect_Draw(self, nullptr, step, context); };
+    if (g_dwEffectMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_dwEffectMode == StepMode::Ours)
+        return DrawEffect(self, LfFloat(step), Ptr(context));
+    DwEffectCall call{self, step, context};
+    g_drawRecording = true;
+    const uint32_t result = RecordAndReplay(
+        "effects.draw_effect", self, true, game,
+        [](void* c) {
+            const auto* const call = static_cast<DwEffectCall*>(c);
+            return DrawEffect(call->self, LfFloat(call->step), Ptr(call->context));
+        },
+        &call);
+    g_drawRecording = false;
+    return result;
+}
+
+uint32_t __fastcall DwEffectDrawByMode(char* self, void*, uint32_t step, uint32_t context)
+{
+    if (!DwNoting())
+        return DwEffectDrawRun(self, step, context);
+    DwAddNote(kDwEffect, self, step, context);
+    if (context)
+        g_dwCounted += At<uint32_t>(self, 0x18);
+    ++g_dwDepth;
+    const uint32_t result = DwEffectDrawRun(self, step, context);
+    --g_dwDepth;
+    return result;
+}
+OPENSC4_THUNK(TDwEffectDraw, DwEffectDrawByMode, 8)
+
+// --- A decal's step by its mode
+
+StepMode g_dwDecalMode = StepMode::Original;
+Call1Fn g_SC4EffectDecal_Draw = nullptr;
+constexpr std::uintptr_t kDwDecalTable = 0x00A9EE78;
+constexpr std::size_t kDwDecalSlots = 64;
+
+struct DwDecalCall {
+    uint32_t slot, handle;
+    char data[0x24];
+    bool operator==(const DwDecalCall& other) const
+    {
+        return slot == other.slot && handle == other.handle && std::memcmp(data, other.data, sizeof data) == 0;
+    }
+};
+std::vector<DwDecalCall> g_dwDecalOurs, g_dwDecalGame;
+bool g_dwDecalForward = false, g_dwDecalEnded = false;
+char* g_dwDecal = nullptr;
+char* g_dwDecalOwner = nullptr;
+char g_dwDecalAtEnd[kDecalSize];
+uint32_t g_dwStandInTable[kDwDecalSlots], g_dwDecalTable[kDwDecalSlots];
+uint32_t* g_dwStandIn = g_dwStandInTable;
+
+void DwNoteDecalCall(uint32_t slot, uint32_t handle, const void* data, std::size_t size)
+{
+    DwDecalCall call{slot, handle, {}};
+    std::memcpy(call.data, data, size);
+    (g_dwDecalForward ? g_dwDecalGame : g_dwDecalOurs).push_back(call);
+}
+
+void DwGiveDecalBack()
+{
+    At<uint32_t>(g_dwDecal, 0) = kDwDecalTable;
+    At<char*>(g_dwDecal, 0x120) = g_dwDecalOwner;
+}
+
+uint32_t DwPassToOwner(uint32_t slot, uint32_t handle, uint32_t value)
+{
+    return g_dwDecalForward ? SuSlot<uint32_t>(g_dwDecalOwner, slot, handle, value) : 0;
+}
+
+uint32_t __fastcall DwOwnerBlock(void*, void*, uint32_t handle, uint32_t block)
+{
+    DwNoteDecalCall(0x34, handle, Ptr(block), 0x24);
+    return DwPassToOwner(0x34, handle, block);
+}
+
+uint32_t __fastcall DwOwnerOpacity(void*, void*, uint32_t handle, uint32_t value)
+{
+    DwNoteDecalCall(0x44, handle, &value, 4);
+    return DwPassToOwner(0x44, handle, value);
+}
+
+uint32_t __fastcall DwOwnerPlace(void*, void*, uint32_t handle, uint32_t place)
+{
+    DwNoteDecalCall(0x48, handle, Ptr(place), 12);
+    return DwPassToOwner(0x48, handle, place);
+}
+
+uint32_t __fastcall DwDecalEnd(char* self, void*, uint32_t value)
+{
+    DwNoteDecalCall(4, value, &value, 0);
+    std::memcpy(g_dwDecalAtEnd, self, kDecalSize);
+    g_dwDecalEnded = true;
+    if (!g_dwDecalForward)
+        return 0;
+    // The decal may be gone when this returns: it is given its own back
+    // first, and not touched again.
+    DwGiveDecalBack();
+    return CallThis<uint32_t>(M<uint32_t>(kDwDecalTable + 4), self, value);
+}
+
+uint32_t DwDecalCompared(char* self, uint32_t step)
+{
+    g_dwDecal = self;
+    g_dwDecalOwner = At<char*>(self, 0x120);
+    std::memcpy(g_dwDecalTable, reinterpret_cast<const void*>(kDwDecalTable), sizeof g_dwDecalTable);
+    g_dwDecalTable[1] = Word(reinterpret_cast<void*>(&DwDecalEnd));
+    std::memset(g_dwStandInTable, 0, sizeof g_dwStandInTable);
+    g_dwStandInTable[0x34 / 4] = Word(reinterpret_cast<void*>(&DwOwnerBlock));
+    g_dwStandInTable[0x44 / 4] = Word(reinterpret_cast<void*>(&DwOwnerOpacity));
+    g_dwStandInTable[0x48 / 4] = Word(reinterpret_cast<void*>(&DwOwnerPlace));
+    At<uint32_t*>(self, 0) = g_dwDecalTable;
+    At<uint32_t**>(self, 0x120) = &g_dwStandIn;
+    char before[kDecalSize], mine[kDecalSize], theirs[kDecalSize];
+    std::memcpy(before, self, kDecalSize);
+    g_dwDecalOurs.clear();
+    g_dwDecalGame.clear();
+    g_dwDecalForward = false;
+    g_dwDecalEnded = false;
+    StepDecal(self, LfFloat(step));
+    std::memcpy(mine, g_dwDecalEnded ? g_dwDecalAtEnd : self, kDecalSize);
+    std::memcpy(self, before, kDecalSize);
+    g_dwDecalForward = true;
+    g_dwDecalEnded = false;
+    const uint32_t result = g_SC4EffectDecal_Draw(self, nullptr, step);
+    if (g_dwDecalEnded) {
+        std::memcpy(theirs, g_dwDecalAtEnd, kDecalSize);
+    } else {
+        std::memcpy(theirs, self, kDecalSize);
+        DwGiveDecalBack();
+    }
+    g_dwDecal = nullptr;
+    char text[96];
+    if (!(g_dwDecalGame == g_dwDecalOurs)) {
+        std::size_t at = 0;
+        while (at < g_dwDecalGame.size() && at < g_dwDecalOurs.size() && g_dwDecalGame[at] == g_dwDecalOurs[at])
+            ++at;
+        const auto describe = [&](const std::vector<DwDecalCall>& calls) {
+            if (at >= calls.size()) {
+                std::snprintf(text, sizeof text, "%zu calls", calls.size());
+                return std::string(text);
+            }
+            std::snprintf(text, sizeof text, "call %zu of %zu: slot %X (%08X) ", at, calls.size(), calls[at].slot,
+                          calls[at].handle);
+            return text + Hex(calls[at].data, sizeof calls[at].data);
+        };
+        const std::string game = describe(g_dwDecalGame);
+        compare::Record("effects.decal_step", false, game, describe(g_dwDecalOurs));
+    } else if (std::memcmp(theirs, mine, kDecalSize) != 0) {
+        std::size_t at = 0;
+        while (theirs[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "decal+%zX ", at);
+        compare::Record("effects.decal_step", false, text + Hex(theirs + at, 4), text + Hex(mine + at, 4));
+    } else {
+        compare::Record(g_dwDecalEnded ? "effects.decal_step.ended" : "effects.decal_step", true, std::string(),
+                        std::string());
+    }
+    return result;
+}
+
+uint32_t DwDecalStepRun(char* self, uint32_t step)
+{
+    if (g_dwDecalMode == StepMode::Original)
+        return g_SC4EffectDecal_Draw(self, nullptr, step);
+    if (g_dwDecalMode == StepMode::Ours) {
+        StepDecal(self, LfFloat(step));
+        return 0;
+    }
+    if (At<uint32_t>(self, 0) != kDwDecalTable || g_dwDecal)
+        return g_SC4EffectDecal_Draw(self, nullptr, step);
+    return DwDecalCompared(self, step);
+}
+
+uint32_t __fastcall DwDecalStepByMode(char* self, void*, uint32_t step)
+{
+    if (!DwNoting())
+        return DwDecalStepRun(self, step);
+    DwAddNote(kDwDecal, self, step, 0);
+    ++g_dwDepth;
+    const uint32_t result = DwDecalStepRun(self, step);
+    --g_dwDepth;
+    return result;
+}
+OPENSC4_THUNK(TDwDecalStep, DwDecalStepByMode, 4)
+
+// --- A decal's update by its mode
+
+StepMode g_dwUpdateMode = StepMode::Original;
+Call2Fn g_SC4EffectDecal_Update = nullptr;
+
+uint32_t __fastcall DwUpdateByMode(char* decal, void*, uint32_t first, uint32_t second)
+{
+    const auto game = [&] { return g_SC4EffectDecal_Update(decal, nullptr, first, second); };
+    const auto ours = [&] {
+        UpdateDecal(decal, Ptr(first), Ptr(second));
+        return 0u;
+    };
+    if (g_dwUpdateMode == StepMode::Original || g_stNoting || g_stReplay)
+        return game();
+    if (g_dwUpdateMode == StepMode::Ours)
+        return ours();
+    if (!At<uint8_t>(decal, 0x110) && (At<uint32_t>(decal, 0xC) >> 6 & 1) && At<int32_t>(decal, 0x70) != -1) {
+        compare::Record("effects.decal_update.not_compared", true, std::string(), std::string());
+        return game();
+    }
+    return DcDecalCompared("effects.decal_update", decal, false, game, ours);
+}
+OPENSC4_THUNK(TDwUpdate, DwUpdateByMode, 8)
+
+// --- The manager's draw by its mode
+
+StepMode g_dwManagerMode = StepMode::Original;
+Call1Fn g_SC4EffectsManager_Draw = nullptr;
+
+// Gives the two vectors the draw fills room for every effect (from the
+// game's allocator, as their own growth would), so that neither compared
+// run moves them: a copy cannot undo that.
+void DwReserve(char* self)
+{
+    std::size_t count = 0;
+    for (const std::size_t list : {std::size_t{0xBF0}, std::size_t{0xC38}, std::size_t{0xC5C}})
+        count += static_cast<std::size_t>(At<char*>(self, list + 4) - At<char*>(self, list)) / 4;
+    for (const auto& [vector, size] :
+         {std::pair{std::size_t{0xDA0}, std::size_t{8}}, std::pair{std::size_t{0xDAC}, std::size_t{4}}}) {
+        char* const begin = At<char*>(self, vector);
+        const std::size_t used = static_cast<std::size_t>(At<char*>(self, vector + 4) - begin);
+        if (static_cast<std::size_t>(At<char*>(self, vector + 8) - begin) >= count * size)
+            continue;
+        char* const grown = reinterpret_cast<char*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(count * size);
+        if (used)
+            std::memcpy(grown, begin, used);
+        if (begin)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin);
+        At<char*>(self, vector) = grown;
+        At<char*>(self, vector + 4) = grown + used;
+        At<char*>(self, vector + 8) = grown + count * size;
+    }
+}
+
+// What ours writes of the manager (offsets from the interface).
+constexpr std::size_t kDwWritten[][2] = {{0x1B4, 0x1BC}, {0xC8C, 0xC90}, {0xC94, 0xCA0}, {0xDA0, 0xDB8}};
+
+std::string DwDescribe(const std::vector<DwNote>& notes, std::size_t at)
+{
+    char text[96];
+    if (at < notes.size())
+        std::snprintf(text, sizeof text, "note %zu of %zu: %u on %08X (%08X, %08X)", at, notes.size(), notes[at].kind,
+                      notes[at].self, notes[at].a, notes[at].b);
+    else
+        std::snprintf(text, sizeof text, "%zu notes", notes.size());
+    return text;
+}
+
+uint32_t DwManagerCompared(char* self, char* context)
+{
+    const char* const id = "effects.draw_manager";
+    DwReserve(self);
+    char* const manager = self - 4;
+    const std::vector<char> before(manager, manager + kManagerSize);
+    const std::vector<uint32_t> fourth = DwFourth(self);
+    const bool early = At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x39C) != 0;
+    g_dwOurs.clear();
+    g_dwTrace = DwTrace::Ours;
+    DrawEffects(self, context);
+    g_dwTrace = DwTrace::Off;
+    const std::vector<char> mine(manager, manager + kManagerSize);
+    const std::vector<char> ourShown(At<char*>(self, 0xDA0), At<char*>(self, 0xDA4));
+    const std::vector<char> ourHidden(At<char*>(self, 0xDAC), At<char*>(self, 0xDB0));
+    std::memcpy(manager, before.data(), kManagerSize);
+    g_dwGame.clear();
+    g_dwCounted = 0;
+    g_dwFourthTaken = false;
+    g_dwManager = self;
+    g_dwThread = GetCurrentThreadId();
+    g_dwTrace = DwTrace::Game;
+    const uint32_t result = g_SC4EffectsManager_Draw(self, nullptr, Word(context));
+    g_dwTrace = DwTrace::Off;
+    if (!g_dwFourthTaken)
+        g_dwFourth = DwFourth(self);
+    const bool sameFourth = g_dwFourth == fourth;
+    std::vector<DwNote> ours = g_dwOurs, game = g_dwGame;
+    char text[96];
+    if (!early) {
+        const DwNote last{kDwAfter, Word(manager), 0, 0};
+        if (ours.empty() || !(ours.back() == last)) {
+            compare::Record(id, false, "the clean-up last", DwDescribe(ours, ours.size() - (ours.empty() ? 0 : 1)));
+            return result;
+        }
+        ours.pop_back();
+    }
+    if (!sameFourth) {
+        compare::Record("effects.draw_manager.fourth_changed", true, std::string(), std::string());
+        const auto drop = [](std::vector<DwNote>& notes) {
+            notes.erase(std::remove_if(notes.begin(), notes.end(), [](const DwNote& n) { return n.kind == kDwDecal; }),
+                        notes.end());
+        };
+        drop(ours);
+        drop(game);
+    }
+    if (!(ours == game)) {
+        std::size_t at = 0;
+        while (at < ours.size() && at < game.size() && ours[at] == game[at])
+            ++at;
+        compare::Record(id, false, DwDescribe(game, at), DwDescribe(ours, at));
+        return result;
+    }
+    for (const auto& [from, to] : kDwWritten) {
+        for (std::size_t at = from; at < to; at += 4) {
+            if (at == 0xC8C || (at == 0xC98 && !sameFourth))
+                continue;
+            if (std::memcmp(self + at, mine.data() + 4 + at, 4) != 0) {
+                std::snprintf(text, sizeof text, "manager+%zX ", at);
+                compare::Record(id, false, text + Hex(self + at, 4), text + Hex(mine.data() + 4 + at, 4));
+                return result;
+            }
+        }
+    }
+    if (!early && std::memcmp(mine.data() + 4 + 0xC8C, &g_dwCounted, 4) != 0) {
+        compare::Record(id, false, "particles counted " + Hex(&g_dwCounted, 4),
+                        "particles counted " + Hex(mine.data() + 4 + 0xC8C, 4));
+        return result;
+    }
+    for (std::size_t at = 0; at < kManagerSize; ++at) {
+        bool written = false;
+        for (const auto& [from, to] : kDwWritten)
+            written = written || (at >= from + 4 && at < to + 4);
+        if (!written && mine[at] != before[at]) {
+            std::snprintf(text, sizeof text, "manager+%zX ", (at & ~std::size_t{3}) - 4);
+            compare::Record(id, false, std::string(text) + "as it was", std::string(text) + "written by ours");
+            return result;
+        }
+    }
+    if (ourShown != std::vector<char>(At<char*>(self, 0xDA0), At<char*>(self, 0xDA4)) ||
+        ourHidden != std::vector<char>(At<char*>(self, 0xDAC), At<char*>(self, 0xDB0))) {
+        compare::Record(id, false, "the effects in view, sorted, and those out of view", "another order or set");
+        return result;
+    }
+    compare::Record(early ? "effects.draw_manager.off" : id, true, std::string(), std::string());
+    return result;
+}
+
+uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
+{
+    if (g_dwManagerMode == StepMode::Original || g_dwTrace != DwTrace::Off || g_depth > 0)
+        return g_SC4EffectsManager_Draw(self, nullptr, context);
+    if (g_dwManagerMode == StepMode::Ours)
+        return DrawEffects(self, Ptr(context));
+    return DwManagerCompared(self, Ptr(context));
+}
+OPENSC4_THUNK(TDwManager, DwManagerByMode, 4)
+
+// The effect's draw and the decal's step have one detour each, which the
+// manager's comparison and their own switches share.
+bool DwHookEffectDraw()
+{
+    return g_SC4Effect_Draw || Detour(addr::SC4Effect_Draw, &TDwEffectDraw, &g_SC4Effect_Draw);
+}
+
+bool DwHookDecalStep()
+{
+    return g_SC4EffectDecal_Draw || Detour(addr::SC4EffectDecal_Draw, &TDwDecalStep, &g_SC4EffectDecal_Draw);
+}
+
+bool InstallDrawEffect(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !DwHookEffectDraw())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(HookFrees() && HookPool() && HookFinish() &&
+          (g_SC4Effect_StepParticle || Detour(addr::SC4Effect_StepParticle, &TLfStep, &g_SC4Effect_StepParticle)) &&
+          (g_SC4Effect_Emit || Detour(addr::SC4Effect_Emit, &TLfEmit, &g_SC4Effect_Emit)) &&
+          (g_SC4Effect_BeforeParticles ||
+           Detour(addr::SC4Effect_BeforeParticles, &TSuAxes, &g_SC4Effect_BeforeParticles)) &&
+          (g_SC4Effect_NotDrawn || Detour(addr::SC4Effect_NotDrawn, &TLfBox, &g_SC4Effect_NotDrawn)) &&
+          (g_SC4Effect_Wander || Detour(addr::SC4Effect_StepFlag800000, &TLfWander, &g_SC4Effect_Wander)) &&
+          (g_SC4Effect_PathVelocity ||
+           Detour(addr::SC4Effect_PathVelocity, &TLfPull, &g_SC4Effect_PathVelocity)) &&
+          Detour(addr::SC4Effect_StepFlag2000, &TDwSC4Effect_StepFlag2000, &g_DwSC4Effect_StepFlag2000) &&
+          Detour(addr::SC4Effect_StepFlag80000000, &TDwSC4Effect_StepFlag80000000,
+                 &g_DwSC4Effect_StepFlag80000000) &&
+          Detour(addr::SC4Effect_DrawParticlesTextured, &TDwSC4Effect_DrawParticlesTextured,
+                 &g_DwSC4Effect_DrawParticlesTextured) &&
+          Detour(addr::SC4Effect_DrawParticles, &TDwSC4Effect_DrawParticles, &g_DwSC4Effect_DrawParticles) &&
+          Detour(addr::SC4EffectB_DrawParticles, &TDwSC4EffectB_DrawParticles, &g_DwSC4EffectB_DrawParticles) &&
+          (g_SC4EffectB_NotDrawn || Detour(addr::SC4EffectB_NotDrawn, &TSdNotDrawn, &g_SC4EffectB_NotDrawn)) &&
+          Detour(addr::SC4RenderContext_SetColourAlt, &TDwSC4RenderContext_SetColourAlt,
+                 &g_DwSC4RenderContext_SetColourAlt) &&
+          Detour(addr::SC4RenderContext_UpdateViewMatrix, &TDwSC4RenderContext_UpdateViewMatrix,
+                 &g_DwSC4RenderContext_UpdateViewMatrix) &&
+          Detour(addr::SC4RenderContext_SetRenderState, &TDwSC4RenderContext_SetRenderState,
+                 &g_DwSC4RenderContext_SetRenderState) &&
+          Detour(addr::SC4RenderContext_ResetColour, &TDwSC4RenderContext_ResetColour,
+                 &g_DwSC4RenderContext_ResetColour)))
+        return false;
+    g_dwEffectMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: an effect's draw %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallDrawManager(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(DwHookEffectDraw() && DwHookDecalStep() &&
+          Detour(addr::SC4EffectsManager_BeforeDraw, &TDwBeforeDraw, &g_DwBeforeDraw) &&
+          Detour(addr::SC4EffectsManager_DrawFlash, &TDwDrawFlash, &g_DwDrawFlash) &&
+          Detour(addr::SC4EffectsManager_StepShake, &TDwStepShake, &g_DwStepShake) &&
+          Detour(addr::SC4RenderContext_DrawBox, &TDwDrawBox, &g_DwDrawBox)))
+        return false;
+    if (!Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
+        return false;
+    g_dwManagerMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the effects manager's draw %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallDecalStep(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !DwHookDecalStep())
+        return false;
+    g_dwDecalMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a decal's step %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallDecalUpdate(registry::Mode mode)
+{
+    return SuInstall(mode, g_dwUpdateMode, addr::SC4EffectDecal_Update, &TDwUpdate, &g_SC4EffectDecal_Update,
+                     "a decal's update");
+}
+
+const bool g_registeredDrawManager = registry::Register({
+    "renderer.effects.draw_manager",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_Draw,
+    "The effects manager's draw (0x00593120): the effects in view collected from three lists, the particle budget "
+    "steered, the effects sorted by depth and drawn, the fourth list's decals stepped, the clean-up; compare mode "
+    "runs ours with the calls that draw only noted, then the game's, and compares the notes and the manager "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDrawManager,
+});
+
+const bool g_registeredDrawEffect = registry::Register({
+    "renderer.effects.draw_effect",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Draw,
+    "An effect's draw (0x005B8540): its clock and velocity, its particles stepped and the ended ones given back, "
+    "new ones emitted, drawn or kept as not drawn; compare mode records the game's run and replays ours "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDrawEffect,
+});
+
+const bool g_registeredDecalStep = registry::Register({
+    "renderer.effects.decal_step",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDecal_Draw,
+    "A decal's step (0x00582920): its time, and the curves read there given to its owner; compare mode gives the "
+    "decal a stand-in owner that notes the calls, runs ours and the game's and compares the notes and the decal "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDecalStep,
+});
+
+const bool g_registeredDecalUpdate = registry::Register({
+    "renderer.effects.decal_update",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDecal_Update,
+    "A decal's update (0x00582600): its place, scale and turn from two transforms; compare mode runs the game's "
+    "and ours on the same decal (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDecalUpdate,
 });
 
 } // namespace
