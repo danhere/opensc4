@@ -19,7 +19,7 @@ The survey of 2026-10-19 put "`cGZPropertySet` and its property values" in 0x009
 | 0x00944462 to 0x009456EB | 67 | 40 | 0 | The UI file parser (part u4; not XML, see there): a director (0x0094448E) that registers the parser 0xBA2E7953 (0x5C bytes, constructor 0x00945404, vtable 0x00AD4718, interface 0x5A2C1570) and its handler 0xBA2E7954 (0x14 bytes, vtable 0x00AD4764, interface 0x1A2BDEBB); an element stack, an attribute vector, the text tokenizer (`\t\n\r <>="`) |
 | 0x009456EC to 0x00945FFF | 58 | 25 | 5 | The framework's sound director (part u5; constructor 0x009456EC, ID 0xFD53FF17, vtables 0x00AD47C0 and 0x00AD4790; the audio director adds it through the thunk 0x00945785, in audio.toml) and three of the five classes it registers: a 64 by 64 table of sound descriptions (0x5C1CF5A3, constructor 0x0094585F, vtable 0x00AD4818, whose QueryInterface is the base one at 0x009457C6 that dozens of classes jump to); the sound instance (0xBDD9D7A5, constructors 0x009458D6 and 0x00945C6C, two vtables after an abstract base's); the sound description (0x7DD9C9F2, constructor 0x00945DCC, 43 slots, mostly setters). The `0123456789abcdefABCDEF` text is the instance's 8-hex-digit test 0x00945F38 |
 | 0x00946000 to 0x00948E62 | 75 | 45 | 4 | One large class (constructor 0x009489AE, vtables 0x00AD4B34 and 0x00AD4B48, 65 slots), and its helpers |
-| 0x00948E63 to 0x0094A078 | 71 | 7 | 5 | A class with three vtables (constructor 0x00949902: 0x00AD4C4C, 0x00AD4C60, 0x00AD4CF4); 7 functions ran |
+| 0x00948E63 to 0x0094A078 | 71 | 7 | 5 | The framework's sound mixer 0xBDDA72DD (part u8; constructor 0x00949902, vtables 0x00AD4CF4, 0x00AD4C60 and 0x00AD4C4C); the 7 that ran are shared code |
 | 0x0094A079 to 0x0094BFFF | 108 | 51 | 26 | The UI script tree (`_null`, `_children`, `_/children`, `_define`, `_name`, `_val`, `none`, `children` at 0x0094B73A; list node 0x0094B33A); its node classes (constructor 0x0094AF64: eleven vtables 0x00AD502C to 0x00AD5158; 0x0094A4D8; 0x0094ABC9; 0x0094C0AF) |
 | 0x0094C000 to 0x00951268 | 99 | 51 | 7 | The framework window (`GZWin`; AddRef 0x0094C47C, in ui.toml) and its UI script properties (`clsid`, `iid`, `area`, `{%x,%x}`, `(%d,%d,%d)`); 0x0094C900 on are few, big functions (18.7 KB in 49) |
 | 0x00951269 to 0x00953FFF | 17 | 17 | 0 | The stock widgets' UI script readers, one function each: TextTicker, Folders, Custom, FlatRect, Text, TextEdit, ListBox, Combo, Btn, BMP, Slider, Scrollbar, LineInput, Spinner, Outline, Gen (11.8 KB, all ran) |
@@ -75,8 +75,8 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u4** | 0x00944462 to 0x009456EB | 49 of 67 | 40 | **Ours** (below): the UI file parser 0xBA2E7953, its variable table 0xBA2E7954, its director; the next director's deleting destructor and factories; 16 STLport functions and two ID getters stay the game's |
 | **u5** | 0x009456EC to 0x00945FFF | 44 of 58 | 25 | **Ours** (below): the framework's sound director, its sound table, the sound instance and the sound description; 4 adjustors, a thunk, the base QueryInterface, 4 two-instruction getters and 4 setters other classes share stay the game's (and the instance's AddRef 0x00945942, which the function list lacks and five other vtables share) |
 | **u6** | 0x00946000 to 0x00948E62, first half | 40 of 75 | 29 | **Ours** (below): the framework's sound service 0x3C1CF59E (the audio layer's score player): constructor, interface, destructors, Init with the sound table's reader and text loader, Prepare, Play, the fade, the tempo, the window and slots 3 to 37; 2 adjustors, 2 AddRefs, 2 thunks and a getter the description shares stay the game's |
-| u7 | 0x00946000 to 0x00948E62, the rest | 30 | 14 | The service's slots 38 to 64 and its message target's slot 3, slot 39's file reader, the sound instance's slot 5 |
-| u8 | 0x00948E63 to 0x0094A078 | 71 | 7 | The class 0x00949902 |
+| **u7** | 0x00946000 to 0x00948E62, the rest | 30 | 14 | **Ours** (below): the service's slots 38 to 64 but the shared 44 and 45, its message target's slot 3 (the beats) and the neighbour pick, the table's reader by path, the sound instance's slot 5 and its listener path |
+| **u8** | 0x00948E63 to 0x0094A078 | 36 of 71 | 7 | **Ours** (below): the framework's sound mixer 0xBDDA72DD (constructor 0x00949902); 5 adjustors, 5 shared getters and stubs, 20 STLport functions and 5 shared reference and list functions stay the game's |
 | u9, u10 | 0x0094A079 to 0x0094BFFF | 108 | 51 | The UI script tree |
 | u11 | 0x0094C000 to 0x0094C8FF | 50 | 35 | The framework window's small methods |
 | u12 | 0x0094C900 to 0x00951268 | 49 | 16 | The window's script properties (18.7 KB) |
@@ -481,12 +481,12 @@ Everything that changes the window or the play runs under one lock, a critical s
 | 28 to 35 | settings: +0x40BC, +0x40A4 and +0x40A8, the grids' size, the byte grid, the dword grids, the key | u6 |
 | 36 | the thunk 0x00948568 (GZRefPtr::Assign on +0x4140) | game |
 | 37 | the deleting destructor 0x00948C98 | u6 |
-| 38, 39, 40 | load by path 0x00948CB4 (the name split into a folder and a file), load a file 0x00948D5F (a new table read by 0x00946B30), take a table and a name and Prepare 0x00948E0B | u7 |
-| 41, 42, 43 | 0x00947150, stop the fade 0x00947197, every instance's level 0x0094758E | u7 |
+| 38, 39, 40 | load by path 0x00948CB4 (the name split into a folder and a file), load a file 0x00948D5F (a new table read by 0x00946B30), take a table and a name and Prepare 0x00948E0B | u7 ours |
+| 41, 42, 43 | 0x00947150, stop the fade 0x00947197, every instance's level 0x0094758E | u7 ours |
 | 44, 45 | the empty 0x0091559A, 0x009DB663 (shared) | game |
-| 46 to 51 | 0x00948E4E, 0x009478EA, 0x009478FD, 0x00948BC3, 0x00948BD0, 0x00947914 | u7 |
-| 52, 53 | whether a cell is in the window 0x009471EE, Stop 0x00947E90 (the part at +4 taken back from the sound service, the stopwatch deleted, the instances stopped) | u7 |
-| 54 to 64 | 0x00948719, 0x00947220, 0x00947519, 0x009482C5, 0x00948573, 0x009477A6, 0x0094780D, 0x00947858, 0x009478BF, 0x00947925, 0x00947982 | u7 |
+| 46 to 51 | 0x00948E4E, 0x009478EA, 0x009478FD, 0x00948BC3, 0x00948BD0, 0x00947914 | u7 ours |
+| 52, 53 | whether a cell is in the window 0x009471EE, Stop 0x00947E90 (the part at +4 taken back from the sound service, the stopwatch deleted, the instances stopped) | u7 ours |
+| 54 to 64 | 0x00948719, 0x00947220, 0x00947519, 0x009482C5, 0x00948573, 0x009477A6, 0x0094780D, 0x00947858, 0x009478BF, 0x00947925, 0x00947982 | u7 ours |
 
 **The table's text form** (0x00946039, versions 5 to 7): a line starting `version` and the number after it, a line, 14 tab-separated settings (the level +8, a grid flag +0xC, +0x10, +0x14, the rows +0x28, the columns +0x2C, the tempo +0x30, the first beat +0x34, the spreads +0x24 and +0x20, +0x38, +0x3C, +0x18, +0x1C), a line, then a line per cell, row by row: 17 numbers (18 in version 7, the last the description's +0x60) for the description's level, flags and fields, its name, and pairs `(a,b)` for its list. A cell named `NONE` in any case is left empty. The loader checks neither the counts against 64 nor the version line's place.
 
@@ -539,3 +539,151 @@ The Big City d0090 pair in `gzu6-r1` ran none of the 40 (no first call in any of
 **Reached:** in the plain legs none of the 40 logs a first call. The legs are muted (`-audio:off`), and a muted game makes no score, so no service. An unmuted run with the groups on (Making Money, 30 s) reached 26 of them at start-up and shutdown: the constructor, QueryInterface, Release, Init, SetKey, the reader, the loader, Prepare, slots 28 and 29, Play, the count, the four edges, SetColumn, SetRow, SetLevel, slot 16, the beat time, Stop, Shutdown, the table's deleting destructor, the service's deleting destructor and the destructor. In the test runs all 40 are reached.
 
 **What u7 has left:** the 30 other functions of the range: slots 38 to 43 and 46 to 64 (0x00948CB4, 0x00948D5F, 0x00948E0B, 0x00947150, 0x00947197, 0x0094758E, 0x00948E4E, 0x009478EA, 0x009478FD, 0x00948BC3, 0x00948BD0, 0x00947914, 0x009471EE, 0x00947E90, 0x00948719, 0x00947220, 0x00947519, 0x009482C5, 0x00948573, 0x009477A6, 0x0094780D, 0x00947858, 0x009478BF, 0x00947925, 0x00947982), the message target's slot 3 0x00947F58 (the beats) and its helper 0x00947AD9 (also slot 57's), slot 39's file reader 0x00946B30, and the sound instance's slot 5 0x00946C2C with its helper 0x0094680F (both call u5's 8-hex-digit test). 14 of the 30 ran in the survey's coverage runs.
+
+## Part u7: the framework's sound service, the rest
+
+`src/core/gzui_soundsvc.cpp`, entry detours, off by default, installed at Attach:
+
+| Replacement | Functions |
+|---|---|
+| `framework.soundsvc.file` | load by path 0x00948CB4 (38), load a folder and file 0x00948D5F (39), take a table and a name 0x00948E0B (40), the name 0x00948E4E (46); the table's reader by path 0x00946B30 |
+| `framework.soundsvc.control` | level and play 0x00947150 (41), stop the fade 0x00947197 (42), every level 0x0094758E (43), the spreads 0x009478EA (47) and 0x009478FD (48), the setters 0x00948BC3 (49), 0x00948BD0 (50, the pause) and 0x00947914 (51), the unlocked Stop 0x00947E90 (53), a cell again 0x00947519 (56) |
+| `framework.soundsvc.count` | in the window 0x009471EE (52), the counts 0x009477A6 (59, active), 0x0094780D (60, marked) and 0x00947858 (61, playing), 0x009478BF (62), how many may sound 0x00947925 (63) and the spare 0x00947982 (64) |
+| `framework.soundsvc.beat` | the beats 0x00947F58 (the message target's slot 3), the neighbour pick 0x00947AD9, the best cell 0x00948719 (54), one to let go 0x00947220 (55), play a cell 0x009482C5 (57), a cell's score 0x00948573 (58) |
+| `framework.soundsvc.instance` | the sound instance's play 0x00946C2C (its slot 5) and its listener path 0x0094680F |
+
+All 30 of the part's functions. Addresses in `data/addresses/gzui.toml` (the "Part u7" part, with the audio system's getter 0x00913CCA, four file spec getters, the semitone and chance tables, the counters and the two cached objects the test swaps). Ours call each other directly where the game does (the beats the pick and u6's beat time, slot 57 the pick, slot 39 the reader, the reader u6's loader, the play its listener path); every call the game makes through a vtable stays one. Nothing in the range is left to the game but what part u6 left: the adjustors 0x00948C01 and 0x00948C09, the AddRefs 0x0094C47C and 0x009359BD, the getter 0x00948B85 and the thunks 0x00948321 and 0x00948568; the shared slots 18 to 20, 44 and 45 are outside it.
+
+### The beats
+
+The framework's sound service calls the message target's slot 3 for each service that plays (u6's Play hands it the part at +4, with 250). Under the lock it runs every beat the stopwatch has passed:
+
+- On a beat one or six before the bar's end (the table's +0x34), with as many sounding as slot 63 wants, slot 55 picks one to let go (its byte +0x2D marked: Update lets a marked looping sound end); with fewer active unmarked than slot 64's, slot 54 finds the best cell in the window, the pick 0x00947AD9 places its instance by the neighbour grids (part u6's slots 28 to 33), and it gets its description, the service's reference at +0x4140 (as its listener) and plays.
+- Then every instance's Update, and the beat steps.
+
+A cell's score (slot 58) is 0 when it cannot sound (busy, outside the window, the last cell of slot 56, or another of its group or of a cell its pairs name sounding), 0x64 at weight 20, 2 for the group asked, else 1 when `rand()` falls below the weight's chance over the cells in the window. The play (the instance's slot 5) asks the audio system for a buffer by a hex name's number or by the file's name, places it, plays it, sets its level and a pitch from the description's range of semitones; with a listener it hands all of that to the listener instead.
+
+Quirks kept:
+- Slots 52, 55, 56, 57 and 58 do not check the instances: an empty cell in the table makes them read a null instance (only full tables are tested).
+- Slot 55 allocates two buffers the size of the window and never frees them; slot 54 makes a list for nothing (and walks it for group 3).
+- The listener path reads a negative semitone index at its opposite and does not divide; the buffer path divides. Neither checks the index against the table's 13.
+- The beats count calls, beats, tries and plays in globals (0x00B634A8 to 0x00B634CC) that nothing reads; slot 39 ignores the reader's answer; slots 39 and 40 leave an old table where it was.
+
+The methods answer a byte. Ours give the game's EAX where it comes from a call or a value, and 0 or 1 above the byte where the game leaves its caller's EAX (slots 42, 43, 50, 53 and 62 on their early paths).
+
+### Testing
+
+`OPENSC4_TEST_GZSOUNDSVC=<day>` (part u6's test, the fingerprint's `gzv` part) has five more stages. For the whole test (part u6's stages too) ours stand in for the sound service and the audio system the game caches at 0x00B628C8 and 0x00B628CC, with buffers, a listener and a stopwatch of our own, so nothing reaches real audio:
+
+- **slots:** on a prepared 4 by 5 table, slots 41 to 53 (Play taken by our sound service, a fade stopped, the levels, the name, the spreads, the setters, the window over cells and spreads), 59 to 64 over five patterns of states and marks, the shares and sizes of slot 63, slot 56 on cells in each state, slot 53 letting the target go.
+- **pick:** slot 55 (strays outside the window, inside it, none), slot 58 on every cell with and without a group (the cells in the window set so that `rand()` never decides: huge, or 1 with weights of 11 and up; the scores of a chance between 1 and 32767 are not hashed), slot 54, slot 57 and the pick by address over the grid set, set in one cell or all, and the last pick kept.
+- **beat:** the beats by the target's address on our stopwatch (the game's mode 1, stopped): not playing, paused, times before, on and past beats over three patterns, the four settings that stop letting go and playing, a day passed, the counts cleared after 10 s; the game's counters are set first and put back after.
+- **file:** a table text written to the temporary folder, loaded by slot 38 (a path) and 39 (a folder and a file, and one that is not there), the reader by its address (the path by value), slot 40 with a table and slot 46; the score's name (the folder) is checked, not hashed.
+- **instance:** the play over six names (a hex number, a hex 0, plain names, paths), random levels, looping, pitch ranges, place and time, with the audio system refusing, giving no buffer or one (with and without its two optional interfaces), through the listener (accepting or not) and its path by address, and busy.
+
+With the groups on, each of the 30 logs its first call, and all 30 do in a test run. `gzv` is now 06E40C6A (part u6's `load` and `init` hash as before; from `play` on, the stand-ins' calls go into the hash too).
+
+A first unmuted trial of the test died on the game's side in part u6's play stage: a service played by the real sound service gets its beats from the audio layer while the test changes it. Muted games make no audio layer, which is why part u6's runs never showed it. With our stand-ins the test runs unmuted too, the same on both sides. Two later faults were the test's, found by parity: the batch `gzu7-r1` had three saves of the test leg differ, the game's side as much as ours, because the test hashed slot 42's answer while a fade ran (the timer's deletion, whose EAX is its address); then the token differed between a plain run and one with the parity base list, because the test hashed three fields the instance's constructor leaves unset (+0x28, +0x30, +0x38, heap contents). The test now sets them, and hashes only what the play writes in an instance.
+
+An independent audit compared all 30 with the disassembly: ret sizes, arguments and their order, call order, the addresses and vtable offsets called, field offsets (the beats run on the part at +4), signedness, loop bounds and whether they are read again, the x87 conversions, EAX on every path and the 5-byte entry rule. It found no difference; its one wording note is fixed.
+
+### Parity
+
+Batch `gzu7-r3` (2026-10-22, the final build), muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu7`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same, first pair |
+| Rush Hour t0000, 7 days | 1 | same, first pair |
+| 12 saves, 7 days | 12 | 12 same, first pair |
+| 12 saves, 7 days, `OPENSC4_TEST_GZSOUNDSVC=2` | 12 | 12 same, first pair; `gzv` 06E40C6A in all 24 runs |
+| Making Money d0000, 4 days, `OPENSC4_TEST_GZSOUNDSVC=2` | 1 | same, first pair |
+
+The two earlier batches on the same code ran the same legs: `gzu7-r1` all same but the test leg's three saves above (the test's fault), `gzu7-r2` all same on the first pair (its token still the environment's).
+
+**Reached:** in the plain (muted) legs none of the 30 logs a first call: a muted game makes no score. An unmuted run with the groups on (Making Money, 30 s, no test) reached 14 of them, with real sounds: the beats, the neighbour pick, slots 54 and 58, the instance's play, the counts (59 to 61), slots 63 and 64, slot 52, slot 43, the fade's stop and the unlocked Stop. In the test runs all 30 are reached.
+
+**Part u6 and u7 complete:** the range 0x00946000 to 0x00948E62 is ours but for the adjustors, AddRefs, the shared getter and the two thunks.
+
+## Part u8: the framework's sound mixer
+
+`src/core/gzui_soundmix.cpp`, entry detours, off by default, installed at Attach:
+
+| Replacement | Functions |
+|---|---|
+| `framework.soundmix.object` | the constructor 0x00949902, QueryInterface 0x00948E7A (0), Release 0x00948E63 (2), the destructor 0x00949BC7, the deleting destructor 0x00949BAB (5) |
+| `framework.soundmix.play` | Prepare 0x009490E6 (interface slot 4), add a score 0x00949C27 (5), a score's table 0x00949348 (6), Play 0x00949100 (8), IsPlaying 0x00949AE1 (9), Stop 0x0094915A (10); a score on or off 0x00949EA4 (primary slot 4), the pool 0x00949D19, the tick 0x0094970D (the message target's slot 3), the neighbour pick 0x00948F62 |
+| `framework.soundmix.control` | the interface's slots 11 to 16 (0x00949222, 0x00948EBB, 0x00949FF9, 0x00949FB9, 0x0094A039, 0x00949E8D), 20 (0x00949B40), 21 (0x00949AE8), 26 (0x00949B4A), 27 (Reseed 0x00949F6F); the primary slots 6 to 8 (0x00949B1C, 0x00949B39, 0x00949B76) |
+| `framework.soundmix.grid` | the interface's slots 28 to 35: 0x00949AF7, 0x00949B03, 0x00948F38, 0x00948F4D, 0x00948ED1, 0x00948EFB, 0x00949B4F, 0x00949B6C |
+
+36 of the range's 71 functions. Addresses in `data/addresses/gzui.toml` (the "Part u8" part; part u4's placeholder `cGZSoundDirector::Construct190` is now `cGZSoundMixer::Construct`, and part u4's director makes it under that name). Ours call each other directly where the game does (the setters and Reseed the pool, the tick the pick, the deleting destructor the destructor); every call the game makes through a vtable stays one (Add turns the new score off through the primary slot 4).
+
+Still the game's, 35:
+- the five adjustors 0x00949B83, 0x00949B8B, 0x00949B93, 0x00949B9B and 0x00949BA3;
+- the shared getters 0x00949B2B (interface slot 19) and 0x00949B32 (18), which two other vtables hold, and the shared stubs 0x00949ADE (slot 7, `mov al, 1`), 0x00949B47 (slots 22 to 25, `xor eax, eax`) and 0x00949B73 (36, `ret 4`), which dozens to hundreds of other vtables hold;
+- the STLport code the class's maps and list instantiate, 20 functions: the node and pair constructors 0x009490C9, 0x00949188 and 0x00949327, the erases 0x009491A5, 0x009491D2, 0x009492F0 and 0x009493C7, the clears 0x00949279, 0x009492A2, 0x0094939E and 0x009495A5, the destructors 0x00949370, 0x00949387, 0x0094958E and 0x00949873, the inserts 0x009493FE, 0x00949486 and 0x009495CE, 0x0094988A and the map's operator[] 0x009498A7;
+- and the counted-reference and list code other classes share: GZRefPtr::Assign 0x0094909A (84 callers), the reference holder's destructor 0x009491FF, the list's erase 0x00949259, the map's lower bound 0x009492CB and the insert 0x0094950A.
+
+The AddRef 0x0094D34F and the slots 0x009CFA36 (primary 3) and 0x0093878E (interface 3 and 17) are outside the range.
+
+### The class
+
+The sound director registers it as 0xBDDA72DD (0x190 bytes, interface 0xDDDA72F1). It answers the sound service's interface 0xDC1CF595 too, with a part at +4 whose 37 slots follow the sound service's first 37 (part u6): a mixer can stand where a score can. It holds several scores (sound services made through the COM) under keys, turns them on and off, and plays their instances itself instead of their beats. Three vtables: 0x00AD4CF4 (9 slots), the interface's 0x00AD4C60 (37) and the message target's 0x00AD4C4C (4), whose slot 3 the framework's sound service calls once Play has handed it the target (with 250, as the sound service's Play does).
+
+- +0x10 the count, +0x14 the framework's sound service (Prepare);
+- maps (STLport, by uint32 key): +0x18 the scores, +0x24 their tables, +0x30 whether each is on, +0x3C the pool of instances and +0x48 their descriptions (by an index); a list +0x54 of the instances that sound;
+- the neighbour grids as the sound service's (its slots 28 to 33): the size +0x58 and +0x5C (2), the byte +0x60, a 3 by 3 byte grid +0x61, three 3 by 3 dword grids +0x6C, +0x90 and +0xB4, the distances +0xD8 and +0xDC (100 and 1000), the last pick +0xE0;
+- a stopwatch +0xE8, its start +0x100 and last time +0x104; the pool's size +0x108, its weights +0x10C, the scores on +0x110; a generator +0x118;
+- running +0x134, the level +0x138, the column +0x13C, the row +0x140, +0x144, +0x14C, +0x164, the bytes +0x16C, +0x16D and +0x17C, the key +0x180.
+
+**The pool** (0x00949D19) is made again whenever a score is turned on or off and whenever the row, column, slot 15, slot 16 or the seed change: every instance in the window of each score that is on (its key not 0), with its description, whose weight adds up. Nothing changes while the framework's sound service answers its slot 49.
+
+**The tick** (0x0094970D): the first sounding instance that no longer plays leaves the list; with a level, every 7 less the scores on (at least 2) seconds and while fewer than 4 sound, an instance of the pool is drawn by weight, joins the list, gets the level and a place from the neighbour grids (0x00948F62, the sound service's 0x00947AD9 on the mixer's fields) and plays; then every sounding instance's Update.
+
+Quirks kept:
+- Release deletes at a count of 1 or less (signed), so 0 and below delete too.
+- The tick asks the first listed instance whether it plays without a null check, and lets only one go per tick; slots 13 to 15 and 27 do not check the scores they hold.
+- The pool's descriptions map is never cleared, only written over; the destructor leaves the generator.
+- Reseed seeds the mixer's generator once for each score held (with none, not at all).
+- Turning a score off gives every instance of its window its slot 7 and leaves the list of sounding instances as it is.
+- Slot 5 keeps a counted reference to the score's table (+0x24), but the score's own Shutdown deletes its table regardless; the destructor releases the tables before the scores, so a mixer destroyed while it holds a score of slot 5 deletes that table twice. The game never makes a mixer (below), so it never happens there.
+
+The methods answer a byte. Ours give the game's EAX where it comes from a call or a value, and 0 or 1 above the byte where the game leaves its caller's EAX (QueryInterface refused, IsPlaying, Play while running, Stop while not, slots 12, 21 and 28, the primary slot 8).
+
+### Testing
+
+`OPENSC4_TEST_GZSOUNDMIX=<day>` is a test of its own (the fingerprint's `gzm` part). The framework's sound service the game caches (0x00B628C8) is ours while it runs (with the audio system of part u7's test), and so are the mixer's scores, instances and descriptions in all but the last stage; each hashes every call it gets. Seven stages, each logged as `autotest: gzsoundmix: <stage> <hash>`:
+
+- **objects:** the constructor by its address and every field it sets; QueryInterface with four interfaces through each of the three parts; Release through each part, by its address and below 0; the end with a sound service held; the destructor and the deleting destructor (flag 0) by their addresses.
+- **grid:** slots 28 to 35 over edge values; the pick by its address over no cell set, one, all, the last pick kept, grid sizes 0 to 2, on a seeded generator.
+- **control:** slots 11 to 16, 20, 21, 26 and 27 and the primary 6 to 8, with no score and with four (one under key 0) and two sounding instances; the setters while the sound service waits.
+- **pool:** scores turned on and off (keys held, not held, 0, a score missing, a flag above a byte), the pool by its address over an empty window, missing descriptions and a large weight; while the sound service waits; a mixer without one.
+- **tick:** the tick by the target's address on the mixer's stopwatch set to a time of ours (mode 1, stopped): no level; times before, on and past the wait with 3, 5, 9 and a negative count of scores on; a time below the last; four sounding; none playing (one leaves a tick); a weight that reaches every draw; waiting; a null listed instance behind a finished one.
+- **play:** Prepare, Play, IsPlaying and Stop twice each, the table getter.
+- **add:** slot 5 with a score file of ours and with one that is not there; a sound service of part u6 over a table of ours, held by hand; those keys turned on, the settings, Reseed, turned off; the mixer counted down to its end, which releases them.
+
+With the groups on, each of the 36 logs its first call, and all 36 do in a test run. `gzm` is 54A5D5D9 (muted).
+
+In a muted game the COM has no sound service class (the audio layer registers the sound director), so slot 5 answers its refusal there; an unmuted test run, where the COM makes the score, gives `add` another hash (F530DDC9), the same on both sides. A first unmuted trial died there on both sides on the table deleted twice (the quirk above); the test now drops the mixer's table references before its end.
+
+Two faults of a first trial were the test's: the tick answers the list's header when nothing sounds and the test hashed its low byte; Stop while not running answers over its caller's EAX and the test hashed all of it. A first build also refused the primary slot 7: its address entry's expected bytes ran into slot 20's first byte, which the same group had already hooked. The entries of the range now expect only the function's own bytes.
+
+An independent audit compared all 36 with the disassembly: ret sizes against the thunks, arguments and their order, call order, the addresses and vtable offsets called, field offsets, signedness, loop bounds and whether they are read again, null checks, EAX on every path and the constructor's and destructor's writes. It found no difference; its two wording notes on the comments are fixed.
+
+### Parity
+
+Batch `gzu8-r2` (2026-10-23, the final build), muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu8`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same, first pair |
+| Rush Hour t0000, 7 days | 1 | same, first pair |
+| 12 saves, 7 days | 12 | 12 same, first pair |
+| 12 saves, 7 days, `OPENSC4_TEST_GZSOUNDMIX=2` | 12 | 12 same, first pair; `gzm` 54A5D5D9 in all 24 runs |
+| Making Money d0000, 4 days, `OPENSC4_TEST_GZSOUNDMIX=2` | 1 | same, first pair |
+
+The batch `gzu8-r1` on the build before the test's last change (which touches only the unmuted `add` stage) ran the same legs with the same results.
+
+**Reached:** in the plain (muted) legs none of the 36 logs a first call. An unmuted run with the groups on (Making Money, 30 s, no test) reached none either, while the sound services of parts u6 and u7 ran (40 of their first calls): the game registers the mixer's class but never makes one in play. In the test runs all 36 are reached.
+
+**Part u8 complete:** the range 0x00948E63 to 0x0094A078 is ours but for the adjustors, the shared getters and stubs and the STLport and shared reference and list code.

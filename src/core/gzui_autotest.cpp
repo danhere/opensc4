@@ -4084,11 +4084,897 @@ void DriveSvObjects()
     CallThis<char*>(addr::cGZSoundTable_DeletingDestructor, other, 1u);
 }
 
+// ====================================================================================
+// Part u7: slots 38 to 64, the beats, the sound instance's play (the same
+// test). The audio system and the sound service the game caches
+// (0x00B628CC, 0x00B628C8) are ours for these stages, and so are the
+// buffers, the listener and the stopwatch: nothing reaches real audio.
+
+// A buffer and its interfaces in one object: 0xFD584467 (slot 3), the place
+// 0x306077D2 (slots 5, 12, 14, 15), the handle 0x5B34F0AF; slots 6, 7, 20,
+// 21, 22, 26 and 27 of the buffer. Every call goes into the hash.
+struct SvSound {
+    void* const* vtable;
+    int32_t refs;
+    bool control;
+    bool handle;
+    uint32_t playing;
+};
+uint32_t __fastcall SvSoundQueryInterface(SvSound* self, void*, uint32_t iid, void** out)
+{
+    Mix(0x8100);
+    Mix(iid);
+    const bool yes = iid == 0x306077D2 || (iid == 0xFD584467 && self->control) || (iid == 0x5B34F0AF && self->handle);
+    if (!yes)
+        return 0;
+    ++self->refs;
+    *out = self;
+    return 1;
+}
+uint32_t __fastcall SvSoundAddRef(SvSound* self, void*) { return static_cast<uint32_t>(++self->refs); }
+uint32_t __fastcall SvSoundRelease(SvSound* self, void*)
+{
+    Mix(0x8108);
+    return static_cast<uint32_t>(--self->refs);
+}
+uint32_t __fastcall SvSoundControl(SvSound*, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    Mix(0x810C);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    return 0x0C00;
+}
+uint32_t __fastcall SvSoundPlace(SvSound*, void*, float x, float y, float z)
+{
+    Mix(0x8114);
+    Mix(Bits32(x));
+    Mix(Bits32(y));
+    Mix(Bits32(z));
+    return 0x1400;
+}
+uint32_t __fastcall SvSoundPlay(SvSound*, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    Mix(0x8118);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    return 0x1800;
+}
+uint32_t __fastcall SvSoundPlaying(SvSound* self, void*)
+{
+    Mix(0x811C);
+    return self->playing;
+}
+uint32_t __fastcall SvSoundFloat(SvSound*, void*, float value)
+{
+    Mix(0x8130);
+    Mix(Bits32(value));
+    return 0x3000;
+}
+uint32_t __fastcall SvSoundByte(SvSound*, void*, uint32_t value)
+{
+    Mix(0x813C);
+    Mix(value);
+    return 0x3C00;
+}
+uint32_t __fastcall SvSoundStatus(SvSound*, void*)
+{
+    Mix(0x8150);
+    return 0;
+}
+uint32_t __fastcall SvSoundLevel(SvSound*, void*, uint32_t level)
+{
+    Mix(0x8154);
+    Mix(level);
+    return 0x5400;
+}
+uint32_t __fastcall SvSoundPlay4(SvSound*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+    Mix(0x8158);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    Mix(d);
+    return 0x5800;
+}
+uint32_t __fastcall SvSoundRate(SvSound*, void*)
+{
+    Mix(0x8168);
+    return 22050;
+}
+uint32_t __fastcall SvSoundSetRate(SvSound*, void*, uint32_t rate)
+{
+    Mix(0x816C);
+    Mix(rate);
+    return 0x6C00;
+}
+
+void* const* SvSoundVtable()
+{
+    static void* table[28];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[0] = reinterpret_cast<void*>(&SvSoundQueryInterface);
+        table[1] = reinterpret_cast<void*>(&SvSoundAddRef);
+        table[2] = reinterpret_cast<void*>(&SvSoundRelease);
+        table[3] = reinterpret_cast<void*>(&SvSoundControl);
+        table[5] = reinterpret_cast<void*>(&SvSoundPlace);
+        table[6] = reinterpret_cast<void*>(&SvSoundPlay);
+        table[7] = reinterpret_cast<void*>(&SvSoundPlaying);
+        table[12] = reinterpret_cast<void*>(&SvSoundFloat);
+        table[14] = reinterpret_cast<void*>(&SvSoundFloat);
+        table[15] = reinterpret_cast<void*>(&SvSoundByte);
+        table[20] = reinterpret_cast<void*>(&SvSoundStatus);
+        table[21] = reinterpret_cast<void*>(&SvSoundLevel);
+        table[22] = reinterpret_cast<void*>(&SvSoundPlay4);
+        table[26] = reinterpret_cast<void*>(&SvSoundRate);
+        table[27] = reinterpret_cast<void*>(&SvSoundSetRate);
+    }
+    return table;
+}
+
+// The audio system: slots 17 (by name) and 18 (by id) give the buffer, no
+// buffer, or refuse.
+struct SvAudio {
+    void* const* vtable;
+    uint32_t mode; // 0 refuse, 1 no buffer, 2 the buffer
+    SvSound* sound;
+};
+uint32_t SvAudioGive(SvAudio* self, uint32_t iid, void** out)
+{
+    Mix(iid);
+    if (self->mode == 2) {
+        ++self->sound->refs;
+        *out = self->sound;
+    }
+    return self->mode != 0 ? 1u : 0u;
+}
+uint32_t __fastcall SvAudioByName(SvAudio* self, void*, const void* name, uint32_t a, uint32_t b, uint32_t iid,
+                                  void** out)
+{
+    Mix(0x8244);
+    MixString(name);
+    Mix(a);
+    Mix(b);
+    return SvAudioGive(self, iid, out);
+}
+uint32_t __fastcall SvAudioById(SvAudio* self, void*, uint32_t id, uint32_t a, uint32_t b, uint32_t iid, void** out)
+{
+    Mix(0x8248);
+    Mix(id);
+    Mix(a);
+    Mix(b);
+    return SvAudioGive(self, iid, out);
+}
+
+// The framework's sound service: slots 30 (take a target) and 31 (let it
+// go).
+struct SvSoundService {
+    void* const* vtable;
+    uint32_t taken;
+};
+uint32_t __fastcall SvServiceTake(SvSoundService* self, void*, void*, uint32_t period)
+{
+    Mix(0x8378);
+    Mix(period);
+    ++self->taken;
+    return 0x7800;
+}
+uint32_t __fastcall SvServiceDrop(SvSoundService* self, void*, void*)
+{
+    Mix(0x837C);
+    --self->taken;
+    return 0x7C00;
+}
+
+// The instance's listener: slots 3 (play; refused or not), 4 (finished), 5
+// (place), 6 (level), 7 (pitch), 8 (distances), 9 (go on).
+struct SvListener {
+    void* const* vtable;
+    int32_t refs;
+    uint32_t accept;
+};
+uint32_t __fastcall SvListenerAddRef(SvListener* self, void*) { return static_cast<uint32_t>(++self->refs); }
+uint32_t __fastcall SvListenerRelease(SvListener* self, void*) { return static_cast<uint32_t>(--self->refs); }
+uint32_t __fastcall SvListenerPlay(SvListener* self, void*, const char* text, uint32_t id, void*, uint32_t a,
+                                   uint32_t b, float time)
+{
+    Mix(0x840C);
+    Mix(static_cast<uint32_t>(std::strlen(text)));
+    Mix(BytesChecksum(text, std::strlen(text)));
+    Mix(id);
+    Mix(a);
+    Mix(b);
+    Mix(Bits32(time));
+    return 0x0C00 | self->accept;
+}
+uint32_t __fastcall SvListenerFinished(SvListener*, void*, void*, float time)
+{
+    Mix(0x8410);
+    Mix(Bits32(time));
+    return 0x1000;
+}
+uint32_t __fastcall SvListenerPlace(SvListener*, void*, void*, float x, float y, float z)
+{
+    Mix(0x8414);
+    Mix(Bits32(x));
+    Mix(Bits32(y));
+    Mix(Bits32(z));
+    return 0x1400;
+}
+uint32_t __fastcall SvListenerLevel(SvListener*, void*, void*, float level)
+{
+    Mix(0x8418);
+    Mix(Bits32(level));
+    return 0x1800;
+}
+uint32_t __fastcall SvListenerPitch(SvListener*, void*, void*, float pitch)
+{
+    Mix(0x841C);
+    Mix(Bits32(pitch));
+    return 0x1C00;
+}
+uint32_t __fastcall SvListenerDistances(SvListener*, void*, void*, float near, float far)
+{
+    Mix(0x8420);
+    Mix(Bits32(near));
+    Mix(Bits32(far));
+    return 0x2000;
+}
+uint32_t __fastcall SvListenerGoOn(SvListener*, void*, void*)
+{
+    Mix(0x8424);
+    return 1;
+}
+
+void* const* SvListenerVtable()
+{
+    static void* table[10];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[1] = reinterpret_cast<void*>(&SvListenerAddRef);
+        table[2] = reinterpret_cast<void*>(&SvListenerRelease);
+        table[3] = reinterpret_cast<void*>(&SvListenerPlay);
+        table[4] = reinterpret_cast<void*>(&SvListenerFinished);
+        table[5] = reinterpret_cast<void*>(&SvListenerPlace);
+        table[6] = reinterpret_cast<void*>(&SvListenerLevel);
+        table[7] = reinterpret_cast<void*>(&SvListenerPitch);
+        table[8] = reinterpret_cast<void*>(&SvListenerDistances);
+        table[9] = reinterpret_cast<void*>(&SvListenerGoOn);
+    }
+    return table;
+}
+
+void* const* SvAudioVtable()
+{
+    static void* table[19];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[17] = reinterpret_cast<void*>(&SvAudioByName);
+        table[18] = reinterpret_cast<void*>(&SvAudioById);
+    }
+    return table;
+}
+
+void* const* SvServiceVtable()
+{
+    static void* table[32];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[30] = reinterpret_cast<void*>(&SvServiceTake);
+        table[31] = reinterpret_cast<void*>(&SvServiceDrop);
+    }
+    return table;
+}
+
+SvSound g_svSound{SvSoundVtable(), 1, true, false, 1};
+SvAudio g_svAudio{SvAudioVtable(), 2, &g_svSound};
+SvSoundService g_svService{SvServiceVtable(), 0};
+SvListener g_svListener{SvListenerVtable(), 1, 1};
+
+// The game's two cached objects swapped for ours while a stage runs.
+struct SvFakes {
+    void* sound;
+    void* audio;
+    SvFakes()
+    {
+        sound = At<void*>(reinterpret_cast<void*>(addr::SC4_SoundServiceCache), 0);
+        audio = At<void*>(reinterpret_cast<void*>(addr::SC4_AudioSystemCache), 0);
+        At<void*>(reinterpret_cast<void*>(addr::SC4_SoundServiceCache), 0) = &g_svService;
+        At<void*>(reinterpret_cast<void*>(addr::SC4_AudioSystemCache), 0) = &g_svAudio;
+    }
+    ~SvFakes()
+    {
+        At<void*>(reinterpret_cast<void*>(addr::SC4_SoundServiceCache), 0) = sound;
+        At<void*>(reinterpret_cast<void*>(addr::SC4_AudioSystemCache), 0) = audio;
+    }
+    SvFakes(const SvFakes&) = delete;
+    SvFakes& operator=(const SvFakes&) = delete;
+};
+
+// A table of rows by columns with every cell filled: weights, groups, pitch
+// ranges, pairs and flags cycling.
+std::string FullText(int32_t rows, int32_t columns, int32_t grid)
+{
+    std::string text = TableHeader("version 7", rows, columns, grid);
+    const int32_t weights[] = {0, 20, 5, 12, 19, 25, -3, 11, 20, 14};
+    const int32_t low[] = {0, -3, 2, 5, 0, 1};
+    const int32_t high[] = {0, 2, 2, 1, 4, 12};
+    for (int32_t i = 0; i < rows * columns; ++i) {
+        const char* rest = i % 3 == 0 ? "Cell\t(1,2)" : i % 3 == 1 ? "a1b2c3d4.wav" : "Other(0,1)";
+        text += CellLine({0x100 + 0x20 * (i % 8), i % 5 == 0, 0x200, 0x200, 0, 30 + i, 100 * (i % 4), 0, 0, 2 + i % 3,
+                          i % 4 == 0, 500 + i, weights[i % 10], low[i % 6], high[i % 6], 0, i % 4, i & 1},
+                         rest);
+    }
+    return text;
+}
+
+// The instances' states: playing (2), waiting (3) or idle, marked or not;
+// the fields the constructor leaves unset set too.
+void SetStates(char* service, uint32_t pattern)
+{
+    char* const table = At<char*>(service, kSvTable);
+    for (int32_t r = 0; r < At<int32_t>(table, 0x28); ++r) {
+        for (int32_t c = 0; c < At<int32_t>(table, 0x2C); ++c) {
+            char* const instance = At<char*>(service, kSvInstances + (r * 64 + c) * 4);
+            const uint32_t k = (static_cast<uint32_t>(r * 7 + c * 3) + pattern) % 5;
+            At<uint32_t>(instance, 0x20) = k == 0 ? 0u : k == 1 ? 3u : 2u;
+            At<uint8_t>(instance, 0x2D) = k == 4 ? 1 : 0;
+            At<uint8_t>(instance, 0x58) = 0;
+            // The constructor leaves these three unset.
+            At<uint32_t>(instance, 0x28) = 0;
+            At<uint32_t>(instance, 0x30) = 0x400;
+            At<uint32_t>(instance, 0x38) = 0;
+        }
+    }
+}
+
+void MixStates(char* service)
+{
+    char* const table = At<char*>(service, kSvTable);
+    for (int32_t r = 0; r < At<int32_t>(table, 0x28); ++r) {
+        for (int32_t c = 0; c < At<int32_t>(table, 0x2C); ++c) {
+            char* const instance = At<char*>(service, kSvInstances + (r * 64 + c) * 4);
+            Mix(At<uint32_t>(instance, 0x20));
+            Mix(At<uint8_t>(instance, 0x2D));
+            Mix(At<void*>(instance, 0x1C) ? 1u : 0u);
+            Mix(At<void*>(instance, 0x54) ? 1u : 0u);
+        }
+    }
+}
+
+char* SeededService(const std::string& text, uint32_t seed)
+{
+    char* const service = PreparedService(text);
+    CallThis<void>(addr::cRZRandom_Seed, At<void*>(service, 0x10), seed);
+    return service;
+}
+
+// The service let go: no stopwatch of ours left, the instances' buffers
+// and listeners dropped, Shutdown, the count down.
+void EndService(char* service)
+{
+    At<void*>(service, 0x18) = nullptr;
+    At<uint8_t>(service, 0x20) = 0;
+    for (uint32_t i = 0; i < 64 * 64; ++i) {
+        if (char* const instance = At<char*>(service, kSvInstances + i * 4)) {
+            At<void*>(instance, 0x1C) = nullptr;
+            At<void*>(instance, 0x54) = nullptr;
+            At<uint32_t>(instance, 0x20) = 0;
+        }
+    }
+    MixWord(Virtual<uint32_t>(service, 0x1C) & 0xFF);
+    Mix(Virtual<uint32_t>(service, 0x8));
+}
+
+// Slots 41 to 53, 56 and 59 to 64 on a prepared service.
+void DriveU7Slots()
+{
+    SvFakes fakes;
+    char* const service = SeededService(FullText(4, 5, 0), 101);
+    // Not prepared, not playing.
+    char* const fresh = NewService();
+    MixByte(Virtual<uint32_t>(fresh, 0xAC, 0x200u));
+    MixByte(Virtual<uint32_t>(fresh, 0xD4));
+    MixByte(Virtual<uint32_t>(fresh, 0xF8));
+    Virtual<uint32_t>(fresh, 0x4);
+    Mix(Virtual<uint32_t>(fresh, 0x8));
+    MixByte(Virtual<uint32_t>(service, 0xF8));
+
+    // 41: the level, then Play (the fake sound service takes the target).
+    MixWord(Virtual<uint32_t>(service, 0xA4, 0x300u));
+    Mix(g_svService.taken);
+    MixService(service);
+    // 42 with a fade running (a long timer) and without.
+    MixWord(Virtual<uint32_t>(service, 0x30, 400000, 0x100u, 0u));
+    Mix(At<uint8_t>(service, 0x4091));
+    // Slot 42 answers the timer's deletion: its address, not hashed.
+    Virtual<uint32_t>(service, 0xA8);
+    Mix(At<uint8_t>(service, 0x4091));
+    Mix(At<void*>(service, 0x4094) ? 1u : 0u);
+    Virtual<uint32_t>(service, 0xA8);
+    // 43.
+    MixByte(Virtual<uint32_t>(service, 0xAC, 0x280u));
+    Mix(At<uint32_t>(service, 0x14));
+    // 46 to 51.
+    GameText name("a score");
+    CallThis<void*>(addr::cRZBaseString_Assign, service + 0x4074, name.get());
+    GameText out("before");
+    MixWord(Virtual<uint32_t>(service, 0xB8, out.get()) & 0xFF);
+    MixString(out.get());
+    MixWord(Virtual<uint32_t>(service, 0xBC, 2u, 1u));
+    uint32_t rows = 0, columns = 0;
+    MixWord(Virtual<uint32_t>(service, 0xC0, &rows, &columns));
+    Mix(rows);
+    Mix(columns);
+    MixWord(Virtual<uint32_t>(service, 0xC4, 0x12345u));
+    MixByte(Virtual<uint32_t>(service, 0xC8, 0x101u));
+    Mix(At<uint8_t>(service, 0x4090));
+    Virtual<uint32_t>(service, 0xC8, 0u);
+    MixWord(Virtual<uint32_t>(service, 0xCC, 7u, 9u));
+    MixService(service);
+
+    // 52 over cells and windows.
+    const int32_t windows[][4] = {{2, 1, 1, 1}, {0, 0, 0, 0}, {4, 3, 2, 1}, {1, 2, -1, 3}};
+    for (const auto& w : windows) {
+        At<int32_t>(service, 0x28) = w[0];
+        At<int32_t>(service, 0x2C) = w[1];
+        At<int32_t>(service, 0x54) = w[2];
+        At<int32_t>(service, 0x58) = w[3];
+        for (int32_t r : {-1, 0, 1, 2, 3, 5})
+            for (int32_t c : {0, 1, 3, 4, 7})
+                MixWord(Virtual<uint32_t>(service, 0xD0, r, c));
+        MixWord(CallThis<uint32_t>(addr::cGZSoundService_InWindow, service, 0x80000000u, 0u));
+    }
+    At<int32_t>(service, 0x28) = 2;
+    At<int32_t>(service, 0x2C) = 1;
+    At<int32_t>(service, 0x54) = 1;
+    At<int32_t>(service, 0x58) = 1;
+
+    // 59 to 64 over states, +0x4088 and the window.
+    for (uint32_t pattern = 0; pattern < 5; ++pattern) {
+        SetStates(service, pattern);
+        for (std::size_t slot : {0xECu, 0xF0u, 0xF4u, 0xFCu, 0x100u})
+            Mix(Virtual<uint32_t>(service, slot));
+        MixWord(Virtual<uint32_t>(service, 0xF8));
+    }
+    char* const table = At<char*>(service, kSvTable);
+    for (uint32_t share : {0u, 50u, 100u, 250u}) {
+        At<uint32_t>(service, 0x4088) = share;
+        for (int32_t groups : {0, 2, 40}) {
+            At<int32_t>(service, 0x50) = groups;
+            Mix(Virtual<uint32_t>(service, 0xFC));
+            Mix(Virtual<uint32_t>(service, 0x100));
+        }
+    }
+    const int32_t sizes[][2] = {{1, 1}, {1, 5}, {4, 1}, {0, 0}};
+    for (const auto& s : sizes) {
+        At<int32_t>(table, 0x28) = s[0];
+        At<int32_t>(table, 0x2C) = s[1];
+        Mix(Virtual<uint32_t>(service, 0xFC));
+        Mix(Virtual<uint32_t>(service, 0xF0));
+    }
+    At<int32_t>(table, 0x28) = 4;
+    At<int32_t>(table, 0x2C) = 5;
+    At<uint32_t>(service, 0x4088) = 100;
+
+    // 56 on cells in each state.
+    for (uint32_t pattern : {0u, 2u}) {
+        SetStates(service, pattern);
+        for (uint32_t cell : {0u, 1u, 2u, 3u, 4u, 6u})
+            MixByte(Virtual<uint32_t>(service, 0xE0, cell / 5, cell % 5));
+        Mix(At<uint32_t>(service, 0x5C));
+        Mix(At<uint32_t>(service, 0x60));
+        MixStates(service);
+    }
+
+    // 53: the target let go, the stopwatch deleted, the active stopped.
+    SetStates(service, 1);
+    MixByte(Virtual<uint32_t>(service, 0xD4));
+    Mix(g_svService.taken);
+    MixService(service);
+    MixStates(service);
+    MixByte(Virtual<uint32_t>(service, 0xD4));
+    EndService(service);
+}
+
+// What the play and the neighbour pick write in an instance (not its
+// base part at +4, which holds the game's own counts).
+void MixPlayed(char* instance)
+{
+    Mix(At<void*>(instance, 0x1C) ? 1u : 0u);
+    for (std::size_t offset : {0x20, 0x28, 0x30, 0x38, 0x40, 0x44, 0x48, 0x4C, 0x50})
+        Mix(At<uint32_t>(instance, offset));
+    for (std::size_t offset : {0x2D, 0x3C, 0x3D, 0x58})
+        Mix(At<uint8_t>(instance, offset));
+    Mix(At<void*>(instance, 0x54) ? 1u : 0u);
+}
+
+// Slots 55, 58, 54 and 57 and the neighbour pick.
+void DriveU7Pick()
+{
+    SvFakes fakes;
+    char* const service = SeededService(FullText(5, 6, 0), 202);
+    At<int32_t>(service, 0x28) = 2;
+    At<int32_t>(service, 0x2C) = 2;
+    At<int32_t>(service, 0x54) = 1;
+    At<int32_t>(service, 0x58) = 1;
+    char* const table = At<char*>(service, kSvTable);
+
+    // 55: strays outside the window, then within it, then none.
+    for (uint32_t pattern = 0; pattern < 5; ++pattern) {
+        SetStates(service, pattern);
+        for (int k = 0; k < 3; ++k) {
+            int32_t row = -7, column = -7;
+            const uint32_t eax = Virtual<uint32_t>(service, 0xDC, &row, &column);
+            MixWord((eax & 0xFF) && eax > 0x10000 ? 0x1u : eax);
+            Mix(static_cast<uint32_t>(row));
+            Mix(static_cast<uint32_t>(column));
+        }
+    }
+    At<int32_t>(service, 0x54) = 6;
+    At<int32_t>(service, 0x58) = 6;
+    for (uint32_t pattern : {0u, 3u}) {
+        SetStates(service, pattern);
+        int32_t row = 0, column = 0;
+        const uint32_t eax = Virtual<uint32_t>(service, 0xDC, &row, &column);
+        MixWord((eax & 0xFF) && eax > 0x10000 ? 0x1u : eax);
+        Mix(static_cast<uint32_t>(row));
+        Mix(static_cast<uint32_t>(column));
+    }
+    // Every cell idle: none.
+    SetStates(service, 0);
+    for (uint32_t i = 0; i < 30; ++i)
+        At<uint32_t>(At<char*>(service, kSvInstances + ((i / 6) * 64 + i % 6) * 4), 0x20) = 0;
+    {
+        int32_t row = 0, column = 0;
+        MixWord(Virtual<uint32_t>(service, 0xDC, &row, &column));
+        Mix(static_cast<uint32_t>(row));
+    }
+    At<int32_t>(service, 0x54) = 1;
+    At<int32_t>(service, 0x58) = 1;
+
+    // 58: every cell, with and without a group, over the cells in the window
+    // (huge: rand never under; 1: only weights 11 and up always; 0: 10).
+    for (int32_t cells : {0x7FFFFFFF, 1}) {
+        for (uint32_t pattern : {0u, 1u, 4u}) {
+            SetStates(service, pattern);
+            for (int32_t group : {0, 1, 3}) {
+                for (int32_t r = 0; r < 5; ++r) {
+                    for (int32_t c = 0; c < 6; ++c) {
+                        At<int32_t>(service, 0x38) = cells;
+                        char* const desc = At<char*>(table, 0x48 + (r * 64 + c) * 4);
+                        const int32_t weight = At<int32_t>(desc, 0x40);
+                        const int32_t score = Virtual<int32_t>(service, 0xE8, r, c, group);
+                        // A chance between 1 and 32767 would depend on rand().
+                        if (cells == 1 && weight >= 1 && weight <= 10 && score <= 1)
+                            Mix(0xC4A7);
+                        else
+                            Mix(static_cast<uint32_t>(score));
+                        Mix(static_cast<uint32_t>(At<int32_t>(desc, 0x40)));
+                    }
+                }
+            }
+        }
+    }
+    At<int32_t>(service, 0x38) = 0;
+    At<uint8_t>(At<char*>(service, kSvInstances + (1 * 64 + 1) * 4), 0x58) = 1;
+    MixWord(Virtual<uint32_t>(service, 0xE8, 1, 1, 0));
+    Mix(At<uint32_t>(service, 0x38));
+    At<int32_t>(service, 0x5C) = 2;
+    At<int32_t>(service, 0x60) = 2;
+    MixWord(Virtual<uint32_t>(service, 0xE8, 2, 2, 0));
+
+    // 54: the best cell over states and groups (cells huge: deterministic).
+    for (uint32_t pattern : {0u, 1u, 2u}) {
+        SetStates(service, pattern);
+        for (uint32_t group : {0u, 1u, 3u}) {
+            At<int32_t>(service, 0x38) = 0x7FFFFFFF;
+            int32_t row = -1, column = -1;
+            MixWord(Virtual<uint32_t>(service, 0xD8, &row, &column, group) & 0xFF);
+            Mix(static_cast<uint32_t>(row));
+            Mix(static_cast<uint32_t>(column));
+        }
+    }
+
+    // The neighbour grid's pick through slot 57 (idle cells are placed and
+    // played; active ones go to slot 56): no cell set, one, all, the last
+    // pick kept.
+    g_svAudio.mode = 2;
+    g_svSound.control = true;
+    g_svSound.handle = false;
+    for (uint32_t setting = 0; setting < 4; ++setting) {
+        for (uint32_t r = 0; r < 3; ++r)
+            for (uint32_t c = 0; c < 3; ++c)
+                Virtual<uint32_t>(service, 0x80, r, c,
+                                  setting == 0 ? 0u : setting == 1 ? (r == 1 && c == 2 ? 1u : 0u) : 1u);
+        Virtual<uint32_t>(service, 0x78, setting == 3 ? 0u : 2u);
+        Virtual<uint32_t>(service, 0x7C, setting == 3 ? 1u : 2u);
+        for (uint32_t r = 0; r < 3; ++r)
+            for (uint32_t c = 0; c < 3; ++c)
+                Virtual<uint32_t>(service, 0x84, r, c, r * 10 + c, 100u + r, 200u + c);
+        SetStates(service, setting);
+        for (uint32_t cell : {0u, 7u, 8u, 13u, 29u}) {
+            MixWord(Virtual<uint32_t>(service, 0xE4, cell / 6, cell % 6) & 0xFF);
+            Mix(At<uint32_t>(service, 0x40AC));
+            Mix(At<uint32_t>(service, 0x40B0));
+            char* const instance = At<char*>(service, kSvInstances + ((cell / 6) * 64 + cell % 6) * 4);
+            MixPlayed(instance);
+            At<void*>(instance, 0x1C) = nullptr;
+        }
+        // By its address.
+        char* const instance = At<char*>(service, kSvInstances + 3 * 4);
+        MixWord(CallThis<uint32_t>(addr::cGZSoundService_PlaceInstance, service, static_cast<void*>(instance)) & 0xFF);
+        MixPlayed(instance);
+    }
+    Mix(static_cast<uint32_t>(g_svSound.refs));
+    g_svSound.refs = 1;
+    EndService(service);
+}
+
+// A stopwatch of our own that the game's ElapsedMilliseconds reads: mode 1,
+// not running, the time in its total.
+struct SvWatch {
+    uint32_t mode;
+    uint32_t pad;
+    uint32_t start[2];
+    uint32_t total[2];
+};
+
+// The beats by the target's address, on a stopwatch of our own: early
+// returns, beats passed and not, the bar's ends with retiring and playing
+// (through the service's listener, so the plays go to it), the day's end,
+// the 10 s clearing. The game's counts are set first and put back after.
+void DriveU7Beat()
+{
+    SvFakes fakes;
+    uint32_t saved[8];
+    uint32_t* const stats = reinterpret_cast<uint32_t*>(addr::cGZSoundService_BeatStats);
+    uint32_t& plays = *reinterpret_cast<uint32_t*>(addr::cGZSoundService_BeatPlays);
+    std::memcpy(saved, stats, 7 * 4);
+    saved[7] = plays;
+
+    char* const service = SeededService(FullText(4, 6, 1), 303);
+    SvWatch watch{1, 0, {0, 0}, {0, 0}};
+    char* const part = service + 4;
+    auto beat = [&](uint32_t time) {
+        watch = SvWatch{1, 0, {0, 0}, {time, 0}};
+        const uint32_t eax = CallThis<uint32_t>(addr::cGZSoundService_Beat, part, 0xBEEFu);
+        MixWord(eax);
+        for (uint32_t i = 0; i < 7; ++i)
+            Mix(stats[i]);
+        Mix(plays);
+        for (std::size_t offset : {0x3Cu, 0x40u, 0x44u, 0x64u, 0x68u})
+            Mix(At<uint32_t>(service, offset));
+        MixStates(service);
+    };
+    for (uint32_t i = 0; i < 7; ++i)
+        stats[i] = 0;
+    plays = 0;
+    // Not prepared? (prepared), not playing, paused.
+    beat(0);
+    At<uint8_t>(service, 0x20) = 1;
+    At<void*>(service, 0x18) = &watch;
+    At<uint32_t>(service, 0x24) = 120;
+    At<uint32_t>(service, 0x44) = 0;
+    At<uint32_t>(service, 0x3C) = 1;
+    At<uint32_t>(service, 0x40) = 1;
+    At<uint8_t>(service, 0x4090) = 1;
+    beat(10000);
+    At<uint8_t>(service, 0x4090) = 0;
+
+    At<void*>(service, 0x4140) = &g_svListener;
+    g_svListener.refs = 1;
+    At<int32_t>(service, 0x28) = 2;
+    At<int32_t>(service, 0x2C) = 1;
+    CallThis<uint32_t>(addr::cGZSoundService_CountCells, service);
+    At<int32_t>(service, 0x38) = 0x7FFFFFFF;
+    for (uint32_t pattern : {2u, 3u, 0u}) {
+        SetStates(service, pattern);
+        for (uint32_t time : {0u, 400u, 499u, 500u, 2600u, 9000u}) {
+            beat(time);
+            At<int32_t>(service, 0x38) = 0x7FFFFFFF;
+        }
+        At<uint32_t>(service, 0x3C) = 1;
+        At<uint32_t>(service, 0x40) = 1;
+    }
+    // The settings that stop letting go and playing.
+    for (int k = 0; k < 4; ++k) {
+        SetStates(service, 2);
+        At<uint8_t>(service, 0x21) = k == 0;
+        At<uint32_t>(service, 0x4088) = k == 1 ? 0u : 100u;
+        At<uint8_t>(service, 0x4091) = k == 2;
+        At<uint32_t>(At<char*>(service, kSvTable), 0xC) = k == 3 ? 0u : 1u;
+        At<uint32_t>(service, 0x3C) = 3;
+        At<uint32_t>(service, 0x40) = 1;
+        beat(3000);
+    }
+    At<uint8_t>(service, 0x21) = 0;
+    At<uint32_t>(service, 0x4088) = 100;
+    At<uint8_t>(service, 0x4091) = 0;
+    // A day passed: the beats start over and the stopwatch is restarted
+    // (its time then is the clock's, not hashed).
+    watch = SvWatch{1, 0, {0, 0}, {86400001u, 0}};
+    MixWord(CallThis<uint32_t>(addr::cGZSoundService_Beat, part, 0u));
+    for (std::size_t offset : {0x3Cu, 0x40u, 0x44u})
+        Mix(At<uint32_t>(service, offset));
+    // The counts cleared after 10 s.
+    stats[5] = 1;
+    stats[4] = 0;
+    beat(20000);
+    Mix(static_cast<uint32_t>(g_svListener.refs));
+
+    EndService(service);
+    std::memcpy(stats, saved, 7 * 4);
+    plays = saved[7];
+    g_svListener.refs = 1;
+}
+
+// A file of our own in the temporary folder: slots 38 and 39 load it (and
+// one that is not there), the reader by its address, slot 40 and 46.
+void DriveU7File()
+{
+    SvFakes fakes;
+    const char* const temp = std::getenv("TEMP");
+    std::string folder = temp ? temp : ".";
+    folder += "\\";
+    char file[64];
+    std::snprintf(file, sizeof file, "opensc4-gzu7-%d.txt", _getpid());
+    const std::string path = folder + file;
+    const std::string text = FullText(2, 3, 0);
+    if (FILE* const out = std::fopen(path.c_str(), "wb")) {
+        std::fwrite(text.data(), 1, text.size(), out);
+        std::fclose(out);
+    }
+    auto settle = [&](char* service) {
+        // The name is the folder (machine dependent): only whether it is.
+        char* const name = service + 0x4074;
+        const std::size_t length = static_cast<std::size_t>(At<char*>(name, 8) - At<char*>(name, 4));
+        Mix(length == folder.size() || length == folder.size() - 1 ? 1u : 0u);
+        GameText fixed("fixed");
+        CallThis<void*>(addr::cRZBaseString_Assign, name, fixed.get());
+        MixService(service);
+        if (char* const table = At<char*>(service, kSvTable))
+            MixCells(table);
+    };
+    {
+        char* const service = NewService();
+        GameText whole(path.c_str());
+        MixByte(Virtual<uint32_t>(service, 0x98, whole.get()));
+        settle(service);
+        EndService(service);
+    }
+    for (const char* name : {static_cast<const char*>(file), "opensc4-gzu7-none.txt"}) {
+        char* const service = NewService();
+        GameText where(folder.c_str());
+        GameText what(name);
+        MixByte(Virtual<uint32_t>(service, 0x9C, where.get(), what.get()));
+        settle(service);
+        EndService(service);
+    }
+    // The reader by its address (the path by value; it destroys it).
+    struct ByValue {
+        alignas(4) char bytes[0x14];
+    };
+    for (const std::string& name : {path, folder + "opensc4-gzu7-none.txt"}) {
+        char* const table = NewTable();
+        ByValue copy;
+        CallThis<void*>(addr::SC4String_FromText, copy.bytes, name.c_str());
+        MixByte(reinterpret_cast<uint32_t(__thiscall*)(void*, ByValue)>(addr::cGZSoundTable_ReadPath)(table, copy));
+        MixCells(table);
+        Virtual<uint32_t>(table, 0x10, 1u);
+    }
+    // 40 and 46.
+    {
+        char* const service = NewService();
+        char* const table = NewTable();
+        GameText input(text.c_str());
+        CallThis<uint32_t>(addr::cGZSoundTable_Load, table, input.get());
+        GameText name("by table");
+        MixWord(Virtual<uint32_t>(service, 0xA0, static_cast<void*>(table), name.get()) & 0xFF);
+        MixService(service);
+        GameText out("");
+        MixWord(Virtual<uint32_t>(service, 0xB8, out.get()) & 0xFF);
+        MixString(out.get());
+        EndService(service);
+    }
+    std::remove(path.c_str());
+}
+
+// The instance's play (slot 5) and its listener path by its address: hex
+// names (a number, and 0), plain names, the audio system refusing, giving no
+// buffer or one (with and without its 0xFD584467 and 0x5B34F0AF), busy
+// instances, random levels, looping, pitch ranges, place and time.
+void DriveU7Instance()
+{
+    SvFakes fakes;
+    GsService service;
+    InitService(service, 9090, 0x300, 0x380);
+    StackDesc desc;
+    char* const instance = NewInstance(service);
+    At<char*>(instance, 0x24) = desc.bytes;
+    struct Case {
+        const char* name;
+        uint8_t random, looping;
+        int32_t low, high, time;
+    };
+    const Case cases[] = {
+        {"a1b2c3d4.wav", 0, 0, 0, 0, 0},     {"00000000.wav", 1, 1, -3, 2, 7},  {"bird.wav", 0, 1, 2, 2, 0},
+        {"x/1234abcd", 1, 0, 5, 1, 250},     {"Wind", 0, 0, -12, -1, 0},       {"deadBEEF.xml.wav", 1, 1, 0, 12, 3},
+    };
+    auto setUp = [&](const Case& c) {
+        GameText name(c.name);
+        CallThis<void*>(addr::cRZBaseString_Assign, desc.bytes + 0xC, name.get());
+        At<uint8_t>(desc.bytes, 0x30) = c.random;
+        At<uint8_t>(desc.bytes, 0x50) = c.looping;
+        At<int32_t>(desc.bytes, 0x54) = c.low;
+        At<int32_t>(desc.bytes, 0x58) = c.high;
+        At<int32_t>(desc.bytes, 0x34) = c.time;
+        At<int32_t>(desc.bytes, 0x38) = c.time * 3;
+        At<int32_t>(desc.bytes, 0x48) = 4;
+        At<uint32_t>(desc.bytes, 0x8) = 0;
+        At<uint32_t>(instance, 0x20) = 0;
+        At<uint8_t>(instance, 0x58) = 0;
+        At<uint8_t>(instance, 0x3C) = c.time != 0;
+        At<uint32_t>(instance, 0x40) = 0x10 + c.time;
+        At<uint32_t>(instance, 0x44) = 0xFFFFFFF0u;
+        At<uint32_t>(instance, 0x48) = 3;
+        At<uint32_t>(instance, 0x4C) = 0x80000010u;
+        At<uint32_t>(instance, 0x50) = 77;
+        At<void*>(instance, 0x1C) = nullptr;
+        At<void*>(instance, 0x54) = nullptr;
+    };
+    auto after = [&](uint32_t eax) {
+        MixWord(eax & 0xFF);
+        MixPlayed(instance);
+        Mix(At<uint32_t>(desc.bytes, 0x8));
+        Mix(static_cast<uint32_t>(g_svSound.refs));
+        Mix(g_svService.taken);
+    };
+    for (const Case& c : cases) {
+        for (uint32_t mode = 0; mode < 3; ++mode) {
+            for (int extras = 0; extras < 2; ++extras) {
+                setUp(c);
+                g_svAudio.mode = mode;
+                g_svSound = SvSound{SvSoundVtable(), 1, extras == 1, extras == 1, 1};
+                after(Virtual<uint32_t>(instance, 0x14));
+            }
+        }
+        // Through the listener, accepting and not; then by its address.
+        for (uint32_t accept : {1u, 0u}) {
+            setUp(c);
+            g_svListener = SvListener{SvListenerVtable(), 1, accept};
+            At<void*>(instance, 0x54) = &g_svListener;
+            after(Virtual<uint32_t>(instance, 0x14));
+            setUp(c);
+            At<void*>(instance, 0x54) = &g_svListener;
+            after(CallThis<uint32_t>(addr::cGZSoundInstance_PlayThrough, instance, static_cast<void*>(desc.bytes)));
+        }
+    }
+    // Busy: slot 12's byte, then a state.
+    setUp(cases[0]);
+    At<uint8_t>(instance, 0x58) = 1;
+    after(Virtual<uint32_t>(instance, 0x14));
+    setUp(cases[0]);
+    At<uint32_t>(instance, 0x20) = 3;
+    after(Virtual<uint32_t>(instance, 0x14));
+    setUp(cases[0]);
+    g_svSound = SvSound{SvSoundVtable(), 1, true, false, 1};
+    g_svListener = SvListener{SvListenerVtable(), 1, 1};
+    Mix(Virtual<uint32_t>(instance + 4, 0x8));
+}
+
 // OPENSC4_TEST_GZSOUNDSVC=<day>: part u6's functions through their slots
 // and addresses: the loader over texts and a file of our own, Init with a
 // score the game has, Play and the fade, the window, the settings, the
-// objects. Every result goes into the fingerprint's `gzv` part; addresses
-// never do.
+// objects; then part u7's: slots 41 to 64, the cell picks, the beats, the
+// score files, the instance's play. Every result goes into the
+// fingerprint's `gzv` part; addresses never do.
 void DriveGzSoundSvc(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_GZSOUNDSVC") || !game::IsBuild641())
@@ -4096,6 +4982,10 @@ void DriveGzSoundSvc(const Day& day)
     g_svOn = true;
     uint32_t* const saved = g_into;
     g_into = &g_svHash;
+    // Ours stand in for the game's sound service and audio system all along:
+    // a service played by the real one would get its beats from the audio
+    // layer while the test changes it (an unmuted game died in "play").
+    SvFakes fakes;
     DriveLoad();
     SvStage("load");
     char* const scored = DriveInit();
@@ -4110,6 +5000,16 @@ void DriveGzSoundSvc(const Day& day)
     SvStage("settings");
     DriveSvObjects();
     SvStage("objects");
+    DriveU7Slots();
+    SvStage("slots");
+    DriveU7Pick();
+    SvStage("pick");
+    DriveU7Beat();
+    SvStage("beat");
+    DriveU7File();
+    SvStage("file");
+    DriveU7Instance();
+    SvStage("instance");
     g_into = saved;
     log::Write("autotest: gzsoundsvc driven (hash %08X)", g_svHash);
 }
@@ -4125,6 +5025,813 @@ void SvFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kSvFingerprint{"gzsoundsvc", 4, &SvFingerprint};
 const DayHook kSvDrive{"gzsoundsvc", 4, &DriveGzSoundSvc};
+
+// ====================================================================================
+// Part u8: the framework's sound mixer 0xBDDA72DD (OPENSC4_TEST_GZSOUNDMIX).
+// The framework's sound service the game caches (0x00B628C8) is ours while
+// it runs, and so are the mixer's scores, instances and descriptions but
+// for the stage that adds real scores: every call goes into the hash.
+
+uint32_t Bits(const void* pointer) { return static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(pointer)); }
+
+bool g_mxOn = false;
+uint32_t g_mxHash = 2166136261u;
+
+void MxStage(const char* name) { log::Write("autotest: gzsoundmix: %s %08X", name, g_mxHash); }
+
+// A description: its slot 14 the weight.
+struct MxDesc {
+    void* const* vtable;
+    uint32_t id;
+    uint32_t weight;
+};
+uint32_t __fastcall MxDescWeight(MxDesc* self, void*)
+{
+    Mix(0x9038);
+    Mix(self->id);
+    return self->weight;
+}
+
+void* const* MxDescVtable()
+{
+    static void* table[15];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[14] = reinterpret_cast<void*>(&MxDescWeight);
+    }
+    return table;
+}
+
+// An instance: slots 3 (its description), 5 (play), 6 (update), 7, 9 (a
+// level), 10 (whether it plays), 15, 16 and 17 (the place).
+struct MxInstance {
+    void* const* vtable;
+    uint32_t id;
+    MxDesc* desc;
+    uint32_t playing;
+};
+uint32_t __fastcall MxInstanceDesc(MxInstance* self, void*)
+{
+    Mix(0x900C);
+    Mix(self->id);
+    return Bits(self->desc);
+}
+uint32_t __fastcall MxInstancePlay(MxInstance* self, void*)
+{
+    Mix(0x9014);
+    Mix(self->id);
+    return 0x1400 | self->id;
+}
+uint32_t __fastcall MxInstanceUpdate(MxInstance* self, void*)
+{
+    Mix(0x9018);
+    Mix(self->id);
+    return 0x1800 | self->id;
+}
+uint32_t __fastcall MxInstanceStart(MxInstance* self, void*)
+{
+    Mix(0x901C);
+    Mix(self->id);
+    return 0x1C00;
+}
+uint32_t __fastcall MxInstanceLevel(MxInstance* self, void*, uint32_t level)
+{
+    Mix(0x9024);
+    Mix(self->id);
+    Mix(level);
+    return 0x2400 | self->id;
+}
+uint32_t __fastcall MxInstancePlaying(MxInstance* self, void*)
+{
+    Mix(0x9028);
+    Mix(self->id);
+    return 0x2800 | self->playing;
+}
+uint32_t __fastcall MxInstanceByte(MxInstance* self, void*, uint32_t value)
+{
+    Mix(0x903C);
+    Mix(self->id);
+    Mix(value);
+    return 0x3C00;
+}
+uint32_t __fastcall MxInstanceGrid(MxInstance* self, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    Mix(0x9040);
+    Mix(self->id);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    return 0x4000 | self->id;
+}
+uint32_t __fastcall MxInstanceDistances(MxInstance* self, void*, uint32_t a, uint32_t b)
+{
+    Mix(0x9044);
+    Mix(self->id);
+    Mix(a);
+    Mix(b);
+    return 0x4400;
+}
+
+void* const* MxInstanceVtable()
+{
+    static void* table[18];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[3] = reinterpret_cast<void*>(&MxInstanceDesc);
+        table[5] = reinterpret_cast<void*>(&MxInstancePlay);
+        table[6] = reinterpret_cast<void*>(&MxInstanceUpdate);
+        table[7] = reinterpret_cast<void*>(&MxInstanceStart);
+        table[9] = reinterpret_cast<void*>(&MxInstanceLevel);
+        table[10] = reinterpret_cast<void*>(&MxInstancePlaying);
+        table[15] = reinterpret_cast<void*>(&MxInstanceByte);
+        table[16] = reinterpret_cast<void*>(&MxInstanceGrid);
+        table[17] = reinterpret_cast<void*>(&MxInstanceDistances);
+    }
+    return table;
+}
+
+// A score (the sound service's interface): references, the table (6), the
+// settings (11, 13 to 15), the window's edges (22 to 25), the instance at a
+// cell (26; a 4 by 4 grid of ours, null outside), Reseed (27).
+struct MxScore {
+    void* const* vtable;
+    int32_t refs;
+    uint32_t id;
+    int32_t edges[4];
+    MxInstance* cells[4][4];
+};
+uint32_t __fastcall MxScoreAddRef(MxScore* self, void*)
+{
+    Mix(0x9104);
+    return static_cast<uint32_t>(++self->refs);
+}
+uint32_t __fastcall MxScoreRelease(MxScore* self, void*)
+{
+    Mix(0x9108);
+    return static_cast<uint32_t>(--self->refs);
+}
+uint32_t __fastcall MxScoreTable(MxScore* self, void*, uint32_t value)
+{
+    Mix(0x9118);
+    Mix(self->id);
+    Mix(value);
+    return 0x1800 | self->id;
+}
+uint32_t __fastcall MxScoreSetting(MxScore* self, uint32_t marker, uint32_t value)
+{
+    Mix(marker);
+    Mix(self->id);
+    Mix(value);
+    return marker << 8;
+}
+uint32_t __fastcall MxScoreLevel(MxScore* self, void*, uint32_t value) { return MxScoreSetting(self, 0x912C, value); }
+uint32_t __fastcall MxScoreRow(MxScore* self, void*, uint32_t value) { return MxScoreSetting(self, 0x9134, value); }
+uint32_t __fastcall MxScoreColumn(MxScore* self, void*, uint32_t value) { return MxScoreSetting(self, 0x9138, value); }
+uint32_t __fastcall MxScore3C(MxScore* self, void*, uint32_t value) { return MxScoreSetting(self, 0x913C, value); }
+uint32_t __fastcall MxScoreReseed(MxScore* self, void*, uint32_t value) { return MxScoreSetting(self, 0x916C, value); }
+int32_t MxScoreEdge(MxScore* self, uint32_t which)
+{
+    Mix(0x9158 + which * 4);
+    Mix(self->id);
+    return self->edges[which];
+}
+int32_t __fastcall MxScoreEdge0(MxScore* self, void*) { return MxScoreEdge(self, 0); }
+int32_t __fastcall MxScoreEdge1(MxScore* self, void*) { return MxScoreEdge(self, 1); }
+int32_t __fastcall MxScoreEdge2(MxScore* self, void*) { return MxScoreEdge(self, 2); }
+int32_t __fastcall MxScoreEdge3(MxScore* self, void*) { return MxScoreEdge(self, 3); }
+uint32_t __fastcall MxScoreInstance(MxScore* self, void*, int32_t row, int32_t column, uint32_t third)
+{
+    Mix(0x9168);
+    Mix(self->id);
+    Mix(static_cast<uint32_t>(row));
+    Mix(static_cast<uint32_t>(column));
+    Mix(third);
+    if (row < 0 || row > 3 || column < 0 || column > 3)
+        return 0;
+    return Bits(self->cells[row][column]);
+}
+
+void* const* MxScoreVtable()
+{
+    static void* table[28];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[1] = reinterpret_cast<void*>(&MxScoreAddRef);
+        table[2] = reinterpret_cast<void*>(&MxScoreRelease);
+        table[6] = reinterpret_cast<void*>(&MxScoreTable);
+        table[11] = reinterpret_cast<void*>(&MxScoreLevel);
+        table[13] = reinterpret_cast<void*>(&MxScoreRow);
+        table[14] = reinterpret_cast<void*>(&MxScoreColumn);
+        table[15] = reinterpret_cast<void*>(&MxScore3C);
+        table[22] = reinterpret_cast<void*>(&MxScoreEdge0);
+        table[23] = reinterpret_cast<void*>(&MxScoreEdge1);
+        table[24] = reinterpret_cast<void*>(&MxScoreEdge2);
+        table[25] = reinterpret_cast<void*>(&MxScoreEdge3);
+        table[26] = reinterpret_cast<void*>(&MxScoreInstance);
+        table[27] = reinterpret_cast<void*>(&MxScoreReseed);
+    }
+    return table;
+}
+
+// The framework's sound service: references, slots 30 (take a target), 31
+// (let it go) and 49 (whether everything waits).
+struct MxSound {
+    void* const* vtable;
+    int32_t refs;
+    uint32_t waiting;
+    void* target;
+};
+uint32_t __fastcall MxSoundAddRef(MxSound* self, void*)
+{
+    Mix(0x9204);
+    return static_cast<uint32_t>(++self->refs);
+}
+uint32_t __fastcall MxSoundRelease(MxSound* self, void*)
+{
+    Mix(0x9208);
+    return static_cast<uint32_t>(--self->refs);
+}
+uint32_t __fastcall MxSoundTake(MxSound* self, void*, void* target, uint32_t period)
+{
+    Mix(0x9278);
+    Mix(period);
+    self->target = target;
+    return 0x7800;
+}
+uint32_t __fastcall MxSoundDrop(MxSound* self, void*, void* target)
+{
+    Mix(0x927C);
+    Mix(target == self->target ? 1u : 0u);
+    self->target = nullptr;
+    return 0x7C00;
+}
+uint32_t __fastcall MxSoundWaiting(MxSound* self, void*)
+{
+    Mix(0x92C4);
+    return 0xC400 | self->waiting;
+}
+
+void* const* MxSoundVtable()
+{
+    static void* table[50];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[1] = reinterpret_cast<void*>(&MxSoundAddRef);
+        table[2] = reinterpret_cast<void*>(&MxSoundRelease);
+        table[30] = reinterpret_cast<void*>(&MxSoundTake);
+        table[31] = reinterpret_cast<void*>(&MxSoundDrop);
+        table[49] = reinterpret_cast<void*>(&MxSoundWaiting);
+    }
+    return table;
+}
+
+MxSound g_mxSound{MxSoundVtable(), 1, 0, nullptr};
+
+// The game's cached sound service and audio system swapped for ours.
+struct MxFakes {
+    void* sound;
+    void* audio;
+    MxFakes()
+    {
+        sound = At<void*>(reinterpret_cast<void*>(addr::SC4_SoundServiceCache), 0);
+        audio = At<void*>(reinterpret_cast<void*>(addr::SC4_AudioSystemCache), 0);
+        At<void*>(reinterpret_cast<void*>(addr::SC4_SoundServiceCache), 0) = &g_mxSound;
+        At<void*>(reinterpret_cast<void*>(addr::SC4_AudioSystemCache), 0) = &g_svAudio;
+    }
+    ~MxFakes()
+    {
+        At<void*>(reinterpret_cast<void*>(addr::SC4_SoundServiceCache), 0) = sound;
+        At<void*>(reinterpret_cast<void*>(addr::SC4_AudioSystemCache), 0) = audio;
+    }
+    MxFakes(const MxFakes&) = delete;
+    MxFakes& operator=(const MxFakes&) = delete;
+};
+
+// Ours by its id; a game object as 0xFEED; none as 0.
+uint32_t MxWho(void* object)
+{
+    if (!object)
+        return 0;
+    if (*static_cast<void* const* const*>(object) == MxInstanceVtable())
+        return static_cast<MxInstance*>(object)->id;
+    if (*static_cast<void* const* const*>(object) == MxDescVtable())
+        return static_cast<MxDesc*>(object)->id;
+    return 0xFEED;
+}
+
+char* TreeNext(char* node) { return reinterpret_cast<char*(__cdecl*)(char*)>(addr::SC4Tree_Next)(node); }
+
+// A map's keys and values (as bytes or by who they are).
+void MixMap(char* mixer, std::size_t offset, bool bytes)
+{
+    char* const header = At<char*>(mixer, offset);
+    Mix(At<uint32_t>(mixer, offset + 4));
+    for (char* node = At<char*>(header, 8); node != header; node = TreeNext(node)) {
+        Mix(At<uint32_t>(node, 0x10));
+        Mix(bytes ? At<uint8_t>(node, 0x14) : MxWho(At<void*>(node, 0x14)));
+    }
+}
+
+void MixSounding(char* mixer)
+{
+    char* const header = At<char*>(mixer, 0x54);
+    uint32_t count = 0;
+    for (char* node = At<char*>(header, 0); node != header; node = At<char*>(node, 0)) {
+        Mix(MxWho(At<void*>(node, 8)));
+        ++count;
+    }
+    Mix(count);
+}
+
+// The mixer's fields but the stopwatch and its times (+0xE8 to +0x107), the
+// generator and what the constructor leaves unset.
+void MixMixer(char* mixer)
+{
+    Mix(At<uint8_t>(mixer, 0xC));
+    Mix(At<uint32_t>(mixer, 0x10));
+    void* const sound = At<void*>(mixer, 0x14);
+    Mix(sound == &g_mxSound ? 1u : sound ? 2u : 0u);
+    Mix(At<uint32_t>(mixer, 0x18 + 4));
+    Mix(At<uint32_t>(mixer, 0x24 + 4));
+    MixMap(mixer, 0x30, true);
+    MixMap(mixer, 0x3C, false);
+    MixMap(mixer, 0x48, false);
+    MixSounding(mixer);
+    for (std::size_t offset = 0x58; offset < 0x60; offset += 4)
+        Mix(At<uint32_t>(mixer, offset));
+    for (std::size_t offset = 0x60; offset < 0x6A; ++offset)
+        Mix(At<uint8_t>(mixer, offset));
+    for (std::size_t offset = 0x6C; offset < 0xE8; offset += 4)
+        Mix(At<uint32_t>(mixer, offset));
+    for (std::size_t offset = 0x108; offset < 0x114; offset += 4)
+        Mix(At<uint32_t>(mixer, offset));
+    Mix(At<uint32_t>(mixer, 0x130));
+    Mix(At<uint8_t>(mixer, 0x134));
+    Mix(At<uint8_t>(mixer, 0x135));
+    for (std::size_t offset = 0x138; offset < 0x16C; offset += 4)
+        Mix(At<uint32_t>(mixer, offset));
+    Mix(At<uint8_t>(mixer, 0x16C));
+    Mix(At<uint8_t>(mixer, 0x16D));
+    for (std::size_t offset = 0x170; offset < 0x17C; offset += 4)
+        Mix(At<uint32_t>(mixer, offset));
+    Mix(At<uint8_t>(mixer, 0x17C));
+    for (std::size_t offset = 0x180; offset < 0x18C; offset += 4)
+        Mix(At<uint32_t>(mixer, offset));
+}
+
+char* NewMixer()
+{
+    char* const mixer = static_cast<char*>(New(0x190));
+    MixIs(CallThis<char*>(addr::cGZSoundMixer_Construct, mixer), mixer);
+    return mixer;
+}
+
+// Counted down to its deletion (the maps release the scores they hold).
+void EndMixer(char* mixer)
+{
+    At<uint32_t>(mixer, 0x10) = 1;
+    Mix(Virtual<uint32_t>(mixer, 0x8));
+}
+
+// A score of ours kept under the key (as slot 5 keeps one).
+void Keep(char* mixer, uint32_t key, MxScore* score)
+{
+    void* const kept = CallThis<void*>(addr::cGZSoundMixer_ScoresIndex, mixer + 0x18, &key);
+    if (score) {
+        void* held = score;
+        CallThis<void*>(addr::SC4RefPtr_AssignFrom, kept, &held);
+    }
+}
+
+void Sound(char* mixer, MxInstance* instance)
+{
+    void* held = instance;
+    CallThis<void>(addr::SC4PtrList_PushBack, mixer + 0x54, &held);
+}
+
+// The stopwatch as ours: mode 1, stopped, the time in its total.
+void SetWatch(char* mixer, uint32_t time)
+{
+    At<uint32_t>(mixer, 0xE8) = 1;
+    At<uint32_t>(mixer, 0xEC) = 0;
+    At<uint32_t>(mixer, 0xF0) = 0;
+    At<uint32_t>(mixer, 0xF4) = 0;
+    At<uint32_t>(mixer, 0xF8) = time;
+    At<uint32_t>(mixer, 0xFC) = 0;
+}
+
+// The fakes every stage but the last uses: 24 descriptions, 24 instances, 4
+// scores over them.
+struct MxWorld {
+    MxDesc descs[24];
+    MxInstance instances[24];
+    MxScore scores[4];
+    MxWorld()
+    {
+        const uint32_t weights[] = {5, 0, 20, 1, 7, 100, 3, 0, 12, 9, 40, 2};
+        for (uint32_t i = 0; i < 24; ++i) {
+            descs[i] = MxDesc{MxDescVtable(), 0x300 + i, weights[i % 12]};
+            instances[i] = MxInstance{MxInstanceVtable(), 0x100 + i, i % 7 == 6 ? nullptr : &descs[i], i % 3 != 0 ? 1u : 0u};
+        }
+        const int32_t edges[4][4] = {{0, 1, 0, 2}, {1, 3, 1, 1}, {2, 1, 0, 3}, {-1, 0, 3, 4}};
+        for (uint32_t s = 0; s < 4; ++s) {
+            scores[s] = MxScore{MxScoreVtable(), 1, 0x200 + s, {edges[s][0], edges[s][1], edges[s][2], edges[s][3]}, {}};
+            for (uint32_t r = 0; r < 4; ++r)
+                for (uint32_t c = 0; c < 4; ++c)
+                    scores[s].cells[r][c] = (r * 4 + c + s) % 5 == 4 ? nullptr : &instances[(s * 6 + r * 4 + c) % 24];
+        }
+    }
+};
+
+// The constructor, the interfaces, the counts, the destructors.
+void DriveMixObjects()
+{
+    char* const mixer = NewMixer();
+    Mix(At<std::uintptr_t>(mixer, 0) == addr::cGZSoundMixer_Vtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(mixer, 4) == addr::cGZSoundMixer_ServiceVtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(mixer, 8) == addr::cGZSoundMixer_TargetVtable ? 1u : 0u);
+    MixMixer(mixer);
+    At<uint32_t>(mixer, 0x10) = 10;
+    for (std::size_t part : {0u, 4u, 8u}) {
+        for (uint32_t iid : {1u, 0xDDDA72F1u, 0xDC1CF595u, 0x12345678u}) {
+            void* out = nullptr;
+            const uint32_t eax = Virtual<uint32_t>(mixer + part, 0x0, iid, &out);
+            MixByte(eax);
+            Mix(out == mixer ? 1u : out == mixer + 4 ? 2u : out ? 3u : 0u);
+        }
+        Mix(At<uint32_t>(mixer, 0x10));
+        // Down through the part's Release (not to the end).
+        for (int k = 0; k < 2; ++k)
+            Mix(Virtual<uint32_t>(mixer + part, 0x8));
+        Mix(At<uint32_t>(mixer, 0x10));
+    }
+    // By address; then a count below 0 deletes it.
+    {
+        void* out = reinterpret_cast<void*>(1);
+        At<uint32_t>(mixer, 0x10) = 5;
+        MixByte(CallThis<uint32_t>(addr::cGZSoundMixer_QueryInterface, mixer, 0xDC1CF595u, &out));
+        Mix(out == mixer + 4 ? 1u : 0u);
+        Mix(CallThis<uint32_t>(addr::cGZSoundMixer_Release, mixer));
+        At<int32_t>(mixer, 0x10) = -3;
+        Mix(CallThis<uint32_t>(addr::cGZSoundMixer_Release, mixer) == 0 ? 1u : 2u);
+    }
+    // Counted down with a sound service held: the deleting destructor.
+    char* const second = NewMixer();
+    MixWord(Virtual<uint32_t>(second + 4, 0x10));
+    Mix(static_cast<uint32_t>(g_mxSound.refs));
+    EndMixer(second);
+    Mix(static_cast<uint32_t>(g_mxSound.refs));
+    // The destructor and the deleting destructor by address, flag 0.
+    char* const third = NewMixer();
+    MixWord(Virtual<uint32_t>(third + 4, 0x10));
+    MixWord(CallThis<uint32_t>(addr::cGZSoundMixer_Destruct, third));
+    Mix(static_cast<uint32_t>(g_mxSound.refs));
+    reinterpret_cast<uint32_t(__cdecl*)(void*)>(addr::SC4_operator_delete)(third);
+    char* const fourth = NewMixer();
+    MixIs(CallThis<char*>(addr::cGZSoundMixer_DeletingDestructor, fourth, 0u), fourth);
+    reinterpret_cast<uint32_t(__cdecl*)(void*)>(addr::SC4_operator_delete)(fourth);
+}
+
+// Slots 28 to 35 over edge values and the neighbour pick by address.
+void DriveMixGrid()
+{
+    MxWorld world;
+    char* const mixer = NewMixer();
+    char* const part = mixer + 4;
+    MixByte(Virtual<uint32_t>(part, 0x70, 0x1FFu));
+    MixWord(Virtual<uint32_t>(part, 0x74, 0x12345u, 0xFFFFFFF0u));
+    for (uint32_t v : {0u, 1u, 2u, 3u, 0x80000000u}) {
+        MixWord(Virtual<uint32_t>(part, 0x78, v));
+        MixWord(Virtual<uint32_t>(part, 0x7C, v));
+    }
+    for (uint32_t r : {0u, 1u, 2u, 3u, 0xFFFFFFFFu})
+        for (uint32_t c : {0u, 2u, 3u})
+            MixWord(Virtual<uint32_t>(part, 0x80, r, c, 0x100u + r * 3 + c));
+    for (uint32_t r : {0u, 2u, 3u})
+        for (uint32_t c : {0u, 1u, 2u, 5u})
+            MixWord(Virtual<uint32_t>(part, 0x84, r, c, r * 10 + c, 100u + r, 200u + c));
+    const uint32_t key[3] = {0x11, 0x22, 0x33};
+    Mix(Virtual<uint32_t>(part, 0x88, key) == Bits(mixer + 0x180) ? 1u : 0u);
+    Mix(Virtual<uint32_t>(part, 0x8C) == Bits(mixer + 0x180) ? 1u : 0u);
+    MixMixer(mixer);
+
+    // The pick: no cell set, one, all, the last pick kept; sizes 0 to 2.
+    CallThis<void>(addr::cRZRandom_Seed, mixer + 0x118, 4242u);
+    MxInstance& instance = world.instances[0];
+    for (uint32_t setting = 0; setting < 5; ++setting) {
+        for (uint32_t r = 0; r < 3; ++r)
+            for (uint32_t c = 0; c < 3; ++c)
+                Virtual<uint32_t>(part, 0x80, r, c,
+                                  setting == 0 ? 0u : setting == 1 ? (r == 1 && c == 2 ? 1u : 0u) : 1u);
+        Virtual<uint32_t>(part, 0x78, setting == 3 ? 0u : setting == 4 ? 1u : 2u);
+        Virtual<uint32_t>(part, 0x7C, setting == 3 ? 1u : 2u);
+        for (int k = 0; k < 4; ++k) {
+            MixWord(CallThis<uint32_t>(addr::cGZSoundMixer_PlaceInstance, mixer, static_cast<void*>(&instance)));
+            Mix(At<uint32_t>(mixer, 0xE0));
+            Mix(At<uint32_t>(mixer, 0xE4));
+        }
+    }
+    EndMixer(mixer);
+}
+
+// The settings every score gets, the level the sounding get, Reseed and
+// the plain slots.
+void DriveMixControl()
+{
+    MxWorld world;
+    char* const mixer = NewMixer();
+    char* const part = mixer + 4;
+    MixWord(Virtual<uint32_t>(part, 0x10));
+    // With no score and no sounding instance first.
+    MixWord(Virtual<uint32_t>(part, 0x2C, 0x200u));
+    MixWord(Virtual<uint32_t>(part, 0x34, 5u));
+    MixWord(Virtual<uint32_t>(part, 0x6C, 77u));
+    for (uint32_t s = 0; s < 3; ++s)
+        Keep(mixer, 0x40 + s, &world.scores[s]);
+    Keep(mixer, 0, &world.scores[3]);
+    Sound(mixer, &world.instances[3]);
+    Sound(mixer, &world.instances[8]);
+    MixWord(Virtual<uint32_t>(part, 0x2C, 0x380u));
+    MixByte(Virtual<uint32_t>(part, 0x30, 1u, 2u, 0x1ABu));
+    MixWord(Virtual<uint32_t>(part, 0x34, 0x30u));
+    MixWord(Virtual<uint32_t>(part, 0x38, 0x31u));
+    MixWord(Virtual<uint32_t>(part, 0x3C, 0x32u));
+    MixWord(Virtual<uint32_t>(part, 0x40, 0x33u));
+    Mix(Virtual<uint32_t>(part, 0x50));
+    MixByte(Virtual<uint32_t>(part, 0x54, 0x1FEu));
+    Mix(Virtual<uint32_t>(part, 0x68, 1u, 2u, 3u));
+    MixWord(Virtual<uint32_t>(part, 0x6C, 9999u));
+    MixWord(Virtual<uint32_t>(mixer, 0x18, 0xCAFEu));
+    Mix(Virtual<uint32_t>(mixer, 0x1C));
+    MixByte(Virtual<uint32_t>(mixer, 0x20, 0x2C3u));
+    MixMixer(mixer);
+    // While the sound service waits, the pool is left as it is.
+    g_mxSound.waiting = 1;
+    MixWord(Virtual<uint32_t>(part, 0x40, 0x34u));
+    MixWord(Virtual<uint32_t>(part, 0x34, 0x35u));
+    g_mxSound.waiting = 0;
+    MixMixer(mixer);
+    EndMixer(mixer);
+    for (const MxScore& score : world.scores)
+        Mix(static_cast<uint32_t>(score.refs));
+}
+
+// Scores turned on and off (slot 4) and the pool by address.
+void DriveMixPool()
+{
+    MxWorld world;
+    char* const mixer = NewMixer();
+    char* const part = mixer + 4;
+    MixWord(Virtual<uint32_t>(part, 0x10));
+    for (uint32_t s = 0; s < 4; ++s)
+        Keep(mixer, 0x50 + s, &world.scores[s]);
+    Keep(mixer, 0, &world.scores[0]);
+    Keep(mixer, 0x58, nullptr);
+    const uint32_t steps[][2] = {{0x50, 1}, {0x51, 1}, {0x58, 1}, {0, 1},    {0x99, 1},  {0x52, 0x100},
+                                 {0x53, 1}, {0x51, 0}, {0x58, 0}, {0x99, 0}, {0x50, 2},  {0x53, 0}};
+    for (const auto& step : steps) {
+        MixWord(Virtual<uint32_t>(mixer, 0x10, step[0], step[1]));
+        MixMixer(mixer);
+    }
+    // By address, with an empty window and descriptions missing.
+    world.scores[2].edges[1] = -1;
+    world.descs[0].weight = 0x10000;
+    MixWord(CallThis<uint32_t>(addr::cGZSoundMixer_Rebuild, mixer));
+    MixMixer(mixer);
+    g_mxSound.waiting = 1;
+    MixWord(CallThis<uint32_t>(addr::cGZSoundMixer_Rebuild, mixer));
+    MixWord(Virtual<uint32_t>(mixer, 0x10, 0x51u, 1u));
+    MixMixer(mixer);
+    g_mxSound.waiting = 0;
+    // Without the sound service.
+    {
+        char* const bare = NewMixer();
+        Keep(bare, 0x60, &world.scores[1]);
+        MixWord(Virtual<uint32_t>(bare, 0x10, 0x60u, 1u));
+        MixMixer(bare);
+        MixWord(Virtual<uint32_t>(bare, 0x10, 0x60u, 0u));
+        EndMixer(bare);
+    }
+    EndMixer(mixer);
+    for (const MxScore& score : world.scores)
+        Mix(static_cast<uint32_t>(score.refs));
+}
+
+// The tick by the target's address on a stopwatch of ours.
+void DriveMixTick()
+{
+    MxWorld world;
+    char* const mixer = NewMixer();
+    char* const part = mixer + 4;
+    char* const target = mixer + 8;
+    MixWord(Virtual<uint32_t>(part, 0x10));
+    for (uint32_t s = 0; s < 3; ++s)
+        Keep(mixer, 0x70 + s, &world.scores[s]);
+    for (uint32_t s = 0; s < 3; ++s)
+        Virtual<uint32_t>(mixer, 0x10, 0x70 + s, 1u);
+    Virtual<uint32_t>(part, 0x6C, 31337u);
+    MixMixer(mixer);
+    auto tick = [&](uint32_t time, uint32_t last) {
+        SetWatch(mixer, time);
+        At<uint32_t>(mixer, 0x104) = last;
+        // With none sounding the tick answers the list's header: not hashed.
+        const uint32_t eax = CallThis<uint32_t>(addr::cGZSoundMixer_Tick, target, 0xBEEFu);
+        MixWord(eax == Bits(At<char*>(mixer, 0x54)) ? 0xEEEEu : eax);
+        Mix(At<uint32_t>(mixer, 0x104));
+        Mix(At<uint32_t>(mixer, 0xE0));
+        Mix(At<uint32_t>(mixer, 0xE4));
+        MixSounding(mixer);
+    };
+    // No level: only the finished leave and the rest update.
+    tick(100000, 0);
+    Sound(mixer, &world.instances[0]);
+    Sound(mixer, &world.instances[1]);
+    tick(100000, 0);
+    // A level: before and past the wait (7 less 3 scores on: 4 s).
+    Virtual<uint32_t>(part, 0x2C, 0x300u);
+    for (uint32_t time : {3000u, 4000u, 4001u, 9000u, 2000u, 12000u, 30000u, 50000u, 70000u})
+        tick(time, time > 5000 ? 1000u : 0u);
+    // The wait at its least: 2 s with 5 or more on; a time below +0x104.
+    for (uint32_t on : {5u, 9u, 0xFFFFFFF0u}) {
+        At<uint32_t>(mixer, 0x110) = on;
+        tick(2001, 0);
+        tick(2000, 0);
+    }
+    tick(10, 20);
+    At<uint32_t>(mixer, 0x110) = 3;
+    // Four sounding: no pick; none playing: one leaves at a time.
+    for (MxInstance& instance : world.instances)
+        instance.playing = 1;
+    for (uint32_t i = 0; i < 6; ++i)
+        Sound(mixer, &world.instances[10 + i]);
+    tick(60000, 0);
+    for (MxInstance& instance : world.instances)
+        instance.playing = 0;
+    for (int k = 0; k < 4; ++k)
+        tick(60000, 0);
+    // Draws over the whole weight: a weight that alone reaches every draw.
+    world.descs[5].weight = 0xFFFFFFF0u;
+    Virtual<uint32_t>(mixer, 0x10, 0x70u, 1u);
+    for (int k = 0; k < 6; ++k)
+        tick(80000 + k, 0);
+    world.descs[5].weight = 100;
+    // Waiting.
+    g_mxSound.waiting = 1;
+    tick(90000, 0);
+    g_mxSound.waiting = 0;
+    // A null instance in the list (Update skips it; the first one finished
+    // leaves before the unchecked check reaches it).
+    Sound(mixer, nullptr);
+    for (MxInstance& instance : world.instances)
+        instance.playing = 0;
+    tick(1, 0);
+    MixMixer(mixer);
+    EndMixer(mixer);
+}
+
+// Prepare, Play, IsPlaying, Stop, the table getter.
+void DriveMixPlay()
+{
+    char* const mixer = NewMixer();
+    char* const part = mixer + 4;
+    MixWord(Virtual<uint32_t>(part, 0x10));
+    MixByte(Virtual<uint32_t>(part, 0x24));
+    MixByte(Virtual<uint32_t>(part, 0x28));
+    for (int k = 0; k < 2; ++k) {
+        // Play answers the stopwatch's time: only AL.
+        MixByte(Virtual<uint32_t>(part, 0x20));
+        Mix(g_mxSound.target == mixer + 8 ? 1u : 0u);
+        Mix(At<uint32_t>(mixer, 0x100) == At<uint32_t>(mixer, 0x104) ? 1u : 0u);
+        MixByte(Virtual<uint32_t>(part, 0x24));
+    }
+    for (int k = 0; k < 2; ++k) {
+        // Not running, Stop answers over its caller's EAX: only AL.
+        MixByte(Virtual<uint32_t>(part, 0x28));
+        MixByte(Virtual<uint32_t>(part, 0x24));
+        Mix(g_mxSound.target ? 1u : 0u);
+    }
+    for (uint32_t key : {0u, 1u, 0x70u})
+        Mix(Virtual<uint32_t>(part, 0x18, key));
+    At<uint32_t>(mixer, 0x100) = 0;
+    At<uint32_t>(mixer, 0x104) = 0;
+    MixMixer(mixer);
+    EndMixer(mixer);
+}
+
+// Real scores: slot 5 with a file of ours and one that is not there (the
+// COM's sound service, which a muted game may not have), and a prepared
+// service of part u6 kept by hand; turned on, the settings, turned off.
+void DriveMixAdd()
+{
+    const char* const temp = std::getenv("TEMP");
+    std::string folder = temp ? temp : ".";
+    folder += "\\";
+    char file[64];
+    std::snprintf(file, sizeof file, "opensc4-gzu8-%d.txt", _getpid());
+    const std::string path = folder + file;
+    const std::string text = FullText(2, 3, 0);
+    if (FILE* const out = std::fopen(path.c_str(), "wb")) {
+        std::fwrite(text.data(), 1, text.size(), out);
+        std::fclose(out);
+    }
+    char* const mixer = NewMixer();
+    char* const part = mixer + 4;
+    MixWord(Virtual<uint32_t>(part, 0x10));
+    {
+        GameText name(path.c_str());
+        const uint32_t eax = Virtual<uint32_t>(part, 0x14, name.get(), 0x81u);
+        MixByte(eax);
+        const uint32_t table = Virtual<uint32_t>(part, 0x18, 0x81u);
+        Mix(table != 0 ? 1u : 0u);
+    }
+    {
+        GameText name((folder + "opensc4-gzu8-none.txt").c_str());
+        MixByte(Virtual<uint32_t>(part, 0x14, name.get(), 0x82u));
+    }
+    char* const service = PreparedService(FullText(3, 4, 0));
+    {
+        uint32_t key = 0x83;
+        void* const kept = CallThis<void*>(addr::cGZSoundMixer_ScoresIndex, mixer + 0x18, &key);
+        void* held = service;
+        CallThis<void*>(addr::SC4RefPtr_AssignFrom, kept, &held);
+    }
+    Mix(At<uint32_t>(mixer, 0x18 + 4));
+    Mix(At<uint32_t>(mixer, 0x24 + 4));
+    for (uint32_t key : {0x81u, 0x82u, 0x83u}) {
+        MixWord(Virtual<uint32_t>(mixer, 0x10, key, 1u));
+        Mix(At<uint32_t>(mixer, 0x108));
+        Mix(At<uint32_t>(mixer, 0x10C));
+        Mix(At<uint32_t>(mixer, 0x110));
+    }
+    MixWord(Virtual<uint32_t>(part, 0x34, 500u));
+    MixWord(Virtual<uint32_t>(part, 0x38, 300u));
+    MixWord(Virtual<uint32_t>(part, 0x3C, 7u));
+    MixWord(Virtual<uint32_t>(part, 0x6C, 12u));
+    Mix(At<uint32_t>(mixer, 0x108));
+    Mix(At<uint32_t>(mixer, 0x10C));
+    for (uint32_t key : {0x83u, 0x81u}) {
+        MixWord(Virtual<uint32_t>(mixer, 0x10, key, 0u));
+        Mix(At<uint32_t>(mixer, 0x108));
+        Mix(At<uint32_t>(mixer, 0x110));
+    }
+    // The tables slot 5 keeps (+0x24) are let go without a release: the
+    // destructor releases them before the scores, whose Shutdown deletes its
+    // table again (the game's own; an unmuted game, whose COM makes the
+    // score, died there on both sides).
+    char* const tables = At<char*>(mixer, 0x24);
+    for (char* node = At<char*>(tables, 8); node != tables; node = TreeNext(node))
+        At<void*>(node, 0x14) = nullptr;
+    EndMixer(mixer);
+    std::remove(path.c_str());
+}
+
+// OPENSC4_TEST_GZSOUNDMIX=<day>: part u8's functions through their slots
+// and addresses with scores, instances, descriptions and a sound service of
+// our own, then with real scores. Every result goes into the fingerprint's
+// `gzm` part; addresses never do.
+void DriveGzSoundMix(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_GZSOUNDMIX") || !game::IsBuild641())
+        return;
+    g_mxOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_mxHash;
+    MxFakes fakes;
+    g_mxSound = MxSound{MxSoundVtable(), 1, 0, nullptr};
+    DriveMixObjects();
+    MxStage("objects");
+    DriveMixGrid();
+    MxStage("grid");
+    DriveMixControl();
+    MxStage("control");
+    DriveMixPool();
+    MxStage("pool");
+    DriveMixTick();
+    MxStage("tick");
+    DriveMixPlay();
+    MxStage("play");
+    DriveMixAdd();
+    MxStage("add");
+    Mix(static_cast<uint32_t>(g_mxSound.refs));
+    g_into = saved;
+    log::Write("autotest: gzsoundmix driven (hash %08X)", g_mxHash);
+}
+
+void MxFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_mxOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | gzm %08X", g_mxHash);
+    line += text;
+}
+
+const FingerprintPart kMxFingerprint{"gzsoundmix", 4, &MxFingerprint};
+const DayHook kMxDrive{"gzsoundmix", 4, &DriveGzSoundMix};
 
 } // namespace
 } // namespace opensc4::autotest
