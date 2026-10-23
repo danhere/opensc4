@@ -1,0 +1,172 @@
+# The GZ framework's 2D blits and their neighbours, 0x008D8760 to 0x008DA8BF (docs/pixels.md, "Blits"). TileBlit 0x008D8BC0 is in region.toml (GZBuffer::TileBlit). Ours in src/core/gzbuffer_blit.cpp, groups renderer.blits.*.
+
+[[entry]]
+name = "GZBlit::Shade"
+address = 0x008D8760
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (uint8_t red, uint8_t green, uint8_t blue, int32_t delta)"
+expect = "0F B6 44 24 04 56 8B 74"
+source = "Name ours (docs/pixels.md, \"Blits\"). 0xFF000000 | red << 16 | green << 8 | blue, each byte plus delta clamped to 0..255 by the sum's sign. Called by 0x008D9870 for its bevel. Ours in renderer.blits.math."
+
+[[entry]]
+name = "GZBlit::DrawFrame"
+address = 0x008D8800
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, cIGZUnknown* picture, const cRZRect* cell, const cRZRect* target, bool centre)"
+expect = "83 EC 2C 8B 44 24 38 8B"
+source = "Name ours (docs/pixels.md, \"Blits\"). A frame of nine cells of the picture (the cell and the cells right of and below it) laid over the target through a drawing context: slot 10, the colour (the picture's 0x86D72B57 slot 4, or -1) to slot 21, corners by slot 38, edges and the centre (when set) tiled by slot 39, slot 11. Called by six framework widgets (0x0099xxxx to 0x009Cxxxx). Ours in renderer.blits.tile."
+
+[[entry]]
+name = "GZBlit::StretchBlit"
+address = 0x008D9020
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZBuffer* target, cIGZBuffer* source, const cRZRect* sourceArea, const cRZRect* targetArea, const cRZRect* clip)"
+expect = "83 EC 58 55 8B 6C 24 60"
+source = "Name ours (docs/pixels.md, \"Blits\"). The source area stretched over the target area: through the drawing context of the target's 0xAB300B2B when it has one, else pixel by pixel in 16.16 steps (GetPixel, the RGBA conversions, SetPixel) over the target area cut to the target's area and the clip. False for an empty area or a source area outside the source. Called by 0x007C0220 and 0x00908FD5. Ours in renderer.blits.tile."
+
+[[entry]]
+name = "GZBlit::Outline"
+address = 0x008D9360
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, const cRZRect* rect, uint32_t colour, int32_t width)"
+expect = "83 EC 10 53 56 8B 74 24"
+source = "Name ours (docs/pixels.md, \"Blits\"). An outline width pixels wide on a drawing context: slot 10, the pen width (slot 25, a float), the colour (slot 21), four rectangles by slot 35, slot 11. Ours in renderer.blits.frame."
+
+[[entry]]
+name = "GZBlit::Bevel"
+address = 0x008D9470
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, const cRZRect* rect, uint32_t light, uint32_t dark)"
+expect = "83 EC 10 8B 4C 24 1C 56"
+source = "Name ours (docs/pixels.md, \"Blits\"). A one-pixel bevel: the top and left edges in light, the bottom and right in dark (slots 21 and 35). Ours in renderer.blits.frame."
+
+[[entry]]
+name = "GZBlit::ThreePart"
+address = 0x008D9550
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZBuffer* target, cIGZBuffer* source, const cRZRect* sourceArea, const cRZRect* targetArea, bool middle)"
+expect = "83 EC 20 53 55 8B 6C 24"
+source = "Name ours (docs/pixels.md, \"Blits\"). Three source areas side by side laid over the target area in three rows: corners copied (Blt), edges tiled (TileBlit), the middle tiled when set. Always true. Called by 0x00794100. Ours in renderer.blits.tile."
+
+[[entry]]
+name = "GZBlit::Panel"
+address = 0x008D9870
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, const cRZRect* rect, uint8_t red, uint8_t green, uint8_t blue, bool sunken)"
+expect = "8A 44 24 18 0F B6 4C 24"
+source = "Name ours (docs/pixels.md, \"Blits\"). The rectangle filled with the colour (slots 21 and 35) and bevelled (0x008D9470) 0x38 lighter at the top left, darker when sunken (0x008D8760). Ours in renderer.blits.frame."
+
+[[entry]]
+name = "GZBlit::PanelRGB"
+address = 0x008D9900
+kind = "function"
+convention = "cdecl"
+signature = "void (void* context, const cRZRect* rect, uint32_t rgb, bool sunken, uint32_t unused)"
+expect = "8B 44 24 14 8B 4C 24 10"
+source = "Name ours (docs/pixels.md, \"Blits\"). 0x008D9870 with the bytes of 0x00RRGGBB (the fifth argument passed on, unread). Called by eleven framework widgets. Ours in renderer.blits.frame."
+
+[[entry]]
+name = "GZBlit::PushSpan"
+address = 0x008D9930
+kind = "function"
+convention = "thiscall"
+signature = "int32_t* (int32_t row, int32_t x1, int32_t x2, int32_t dir)"
+expect = "53 56 57 8B D9 8B 3B 6A"
+source = "Name ours (docs/pixels.md, \"Blits\"). this = the flood fill's list (a pointer to its head node); a 0x18-byte node from SC4::stl_allocate, its span zeroed, linked at the end, then the span set; ret 0x10, the span's address answered. Ours in renderer.blits.fill."
+
+[[entry]]
+name = "GZBlit::FloodFill8"
+address = 0x008D9990
+kind = "function"
+convention = "custom"
+signature = "void (int32_t y, int32_t width, int32_t height, uint8_t* bits, int32_t stride, uint32_t colour)"
+expect = "83 EC 1C 53 55 56 57 8B"
+source = "Name ours (docs/pixels.md, \"Blits\"). cdecl with x in EAX: a scanline flood fill of 8-bit pixels from (x, y) with the colour's low byte, spans on a list (0x008D9930) freed as popped, the list destroyed with SC4PairList::Destroy. The row below the start is looked at unchecked. Ours in renderer.blits.fill."
+
+[[entry]]
+name = "GZBlit::FloodFill16"
+address = 0x008D9BE0
+kind = "function"
+convention = "custom"
+signature = "void (int32_t y, int32_t width, int32_t height, uint8_t* bits, int32_t stride, uint32_t colour)"
+expect = "83 EC 1C 53 55 56 57 8B"
+source = "Name ours (docs/pixels.md, \"Blits\"). The same for 16-bit pixels. Ours in renderer.blits.fill."
+
+[[entry]]
+name = "GZBlit::FloodFill24"
+address = 0x008D9E30
+kind = "function"
+convention = "custom"
+signature = "void (int32_t y, int32_t width, int32_t height, uint8_t* bits, int32_t stride, uint32_t colour)"
+expect = "83 EC 1C 53 55 8B 6C 24"
+source = "Name ours (docs/pixels.md, \"Blits\"). The same for 24-bit pixels (three bytes, low first). Ours in renderer.blits.fill."
+
+[[entry]]
+name = "GZBlit::FloodFill32"
+address = 0x008DA100
+kind = "function"
+convention = "custom"
+signature = "void (int32_t y, int32_t width, int32_t height, uint8_t* bits, int32_t stride, uint32_t colour)"
+expect = "83 EC 1C 53 8B 5C 24 24"
+source = "Name ours (docs/pixels.md, \"Blits\"). The same for 32-bit pixels, compared on their low 24 bits, written whole. Ours in renderer.blits.fill."
+
+[[entry]]
+name = "GZBlit::FloodFill"
+address = 0x008DA370
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZBuffer* buffer, int32_t x, int32_t y, uint32_t colour)"
+expect = "53 55 56 8B 74 24 10 8B"
+source = "Name ours (docs/pixels.md, \"Blits\"). The buffer's flood fill (its bits, stride, width, height: slots 34, 35, 9, 10) by its bits per pixel (slot 16): 8, 16, 24 or 32, else false. Called by 0x0047CF90 and 0x009B6AE5. Ours in renderer.blits.fill."
+
+[[entry]]
+name = "GZBlit::SoftwareClassID"
+address = 0x008DA490
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t ()"
+expect = "B8 C6 35 CA 7A C3 CC CC"
+source = "Name ours (docs/pixels.md, \"Blits\"). Answers 0x7ACA35C6, the Software driver's class ID; 0x00466250 registers it. Ours in renderer.blits.math."
+
+[[entry]]
+name = "GZBlit::ColourFromFloats"
+address = 0x008DA4A0
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (float red, float green, float blue, float alpha)"
+expect = "D9 44 24 04 D8 1D 54 10"
+source = "Name ours (docs/pixels.md, \"Blits\"). Each float clamped to 0..1 and made a byte by adding 49152.0f (the float's low 8 bits then hold v * 256, rounded) and folding 256 to 255; alpha << 24 | red << 16 | green << 8 | blue. Called by the Software driver (0x008DA9E0, 0x008DB780, 0x008DB7C0). Ours in renderer.blits.math."
+
+[[entry]]
+name = "GZBlit::MatrixMultiply"
+address = 0x008DA610
+kind = "function"
+convention = "cdecl"
+signature = "void (float* out, const float* a, const float* b)"
+expect = "8B 44 24 0C 8B 4C 24 08"
+source = "Name ours (docs/pixels.md, \"Blits\"). out = a * b, 4 by 4 floats in rows, x87 sums in a fixed order per element, each stored before the next is read. Called by the Software driver (0x008DB8D0). Ours in renderer.blits.math."
+
+[[entry]]
+name = "GZBlit::VectorTimesMatrix"
+address = 0x008DA830
+kind = "function"
+convention = "cdecl"
+signature = "void (float* out, const float* v, const float* m)"
+expect = "8B 4C 24 0C 8B 44 24 08"
+source = "Name ours (docs/pixels.md, \"Blits\"). out = v * m for a row vector of four floats, the same way. Called by the Software driver (0x008DB8D0, 0x008DBE20). Ours in renderer.blits.math."
+
+[[entry]]
+name = "cRZRect::IsEmpty"
+address = 0x007C1870
+kind = "function"
+convention = "thiscall"
+signature = "bool ()"
+expect = "8B 41 08 3B 01 7E 0B 8B"
+source = "Name ours. EAX 1 when right <= left or bottom <= top, else 0. 0x008D9020 asks it of the area it draws."
