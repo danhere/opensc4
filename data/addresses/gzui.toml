@@ -2220,13 +2220,13 @@ expect = "55 8B EC 83 EC 10 53 33"
 source = "Name ours. Plain ret. The framework's sound service 0x3C1CF59E (0x4144 bytes; vtables 0x00AD4B48 and, at +4, the message target's 0x00AD4B34, after 0x00A943C0; interface 0xDC1CF595): a byte +8, the count +0xC, a generator +0x10 (0x00913A5C and seeded with -1, 0x18 bytes), the level +0x14 (0x400), a stopwatch +0x18, the table +0x1C, the bytes +0x20 and +0x21, the tempo +0x24, the column +0x28 and row +0x2C (1), +0x30 and +0x34 (1), the count +0x38 (0xF), beats +0x3C to +0x44 (+0x40 1), +0x48, +0x4C (4), +0x50, the spreads +0x54 and +0x58 (3), +0x5C to +0x68, +0x6C and +0x70 (1), 64 by 64 instances +0x74, a name +0x4074, +0x4088 (100), the fade +0x408C to +0x40A0 (+0x4098 100), +0x40A4 (100) and +0x40A8 (1000), +0x40AC, +0x40B0, the grid sizes +0x40B4 and +0x40B8 (2), the byte +0x40BC (1), a 3 by 3 byte grid +0x40BD (the four middles of the edges 1), three 3 by 3 dword grids +0x40C8, +0x40EC (0) and +0x4110 (by row and by column, in steps of +0x40A4), the key +0x4134, a reference +0x4140. Ours in framework.soundsvc.object (docs/gzui.md, part u6)."
 
 [[entry]]
-name = "cGZSoundDirector::Construct190"
+name = "cGZSoundMixer::Construct"
 address = 0x00949902
 kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "55 8B EC 83 EC 14 53 56"
-source = "Name ours. The constructor of the next director's class 0xBDDA72DD (0x190 bytes; part u8). Stays the game's; called by ours."
+source = "Name ours. Plain ret. The framework's sound mixer 0xBDDA72DD (0x190 bytes; vtables 0x00AD4CF4, at +4 the sound service interface 0x00AD4C60 after 0x00AD4AA0, at +8 the message target 0x00AD4C4C after 0x00A943C0): the byte +0xC, the count +0x10, the sound service +0x14, the maps +0x18, +0x24, +0x30, +0x3C and +0x48, the list +0x54, the grid sizes +0x58 and +0x5C (2), the byte +0x60 (1), a 3 by 3 byte grid +0x61 (the four middles of the edges 1), three 3 by 3 dword grids +0x6C (by row), +0x90 (0) and +0xB4 (by column; in steps of +0xD8), +0xD8 (100) and +0xDC (1000), the pick +0xE0 and +0xE4, a stopwatch +0xE8 (mode 4), +0x108 to +0x110, a generator +0x118 (seeded with -1), +0x130 to +0x188 zero; +0xD4, +0x100, +0x104 and +0x114 left unset. Ours in framework.soundmix.object (docs/gzui.md, part u8)."
 
 [[entry]]
 name = "SC4AttrVector::Construct"
@@ -3750,3 +3750,457 @@ name = "SC4::AudioSystemCache"
 address = 0x00B628CC
 kind = "data"
 source = "Name ours. SC4::Singleton913CCA's cached object."
+
+# Part u8 (src/core/gzui_soundmix.cpp, docs/gzui.md): the framework's sound mixer 0xBDDA72DD (its constructor is in
+# part u4's list, renamed); the game code and data it uses.
+
+[[entry]]
+name = "cGZSoundMixer::QueryInterface"
+address = 0x00948E7A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "55 8B EC 83 7D 08 01 75"
+source = "Name ours. Slot 0 (also through the adjustors 0x00949B83 and 0x00949B93); `ret 8`. 1 and 0xDDDA72F1 give the mixer, 0xDC1CF595 its part at +4 (0 for a null mixer); AddRef through the primary vtable, AL 1 over its EAX; AL 0 over the caller's EAX otherwise (ours 0). Ours in framework.soundmix.object (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Release"
+address = 0x00948E63
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 10 83 F8 01 7F 0A"
+source = "Name ours. Slot 2 (also through the adjustors 0x00949B8B and 0x00949BA3). A count (+0x10) of 1 or less (signed): slot 5 with 1, EAX 0; else the count lowered, which it answers. Ours in framework.soundmix.object (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Destruct"
+address = 0x00949BC7
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8D 8E E8 00 00"
+source = "Name ours. The vtables back; the stopwatch +0xE8 (SC4Stopwatch::Destruct), the list +0x54 and the maps +0x48, +0x3C, +0x30, +0x24 and +0x18 destroyed (the generator +0x118 is not); a tail jump to the sound service +0x14's Release when there is one (its EAX; else the last map's). Ours in framework.soundmix.object (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::DeletingDestructor"
+address = 0x00949BAB
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 14 00 00 00"
+source = "Name ours. Slot 5; `ret 4`. The destructor, then SC4::operator_delete with flag 1; answers `this`. Ours in framework.soundmix.object (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Prepare"
+address = 0x009490E6
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8D 71 10 E8 AF AB FC"
+source = "Name ours. Slot 4 of the interface. The interface's part at +4 is `this`. The framework's sound service (SC4::Singleton913C9E) held at +0x14 (SC4RefPtr::Assign); EAX 1 when there is one, else 0. Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Add"
+address = 0x00949C27
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* name, uint32_t key)"
+expect = "55 8B EC 51 53 56 57 33"
+source = "Name ours. Slot 5 of the interface; `ret 8`. The interface's part at +4 is `this`. A sound service 0x3C1CF59E (interface 0xDC1CF595) from the COM (RZGetCOM, slot 3) loads the name (its slot 5, with 0); then it is kept under the key in the map +0x18, its table (slot 6) in +0x24, the key turned off (the primary slot 4 with 0), and it gets +0x138, +0x13C, +0x140 and +0x14C by its slots 11, 14, 13 and 15. AL 1 over our reference's release; AL 0 over the COM's EAX without a service, over the release when it does not load. Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Table"
+address = 0x00949348
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t key)"
+expect = "56 8B 71 20 8B 46 08 EB"
+source = "Name ours. Slot 6 of the interface; `ret 4`. The interface's part at +4 is `this`. The table under the key in the map +0x24, found by walking it; 0 when none. Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Play"
+address = 0x00949100
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 80 BE 30 01 00"
+source = "Name ours. Slot 8 of the interface. The interface's part at +4 is `this`. Unless running (+0x134): the message target (+8, null for a null mixer) given to the framework sound service +0x14 (unchecked; its slot 30, 250), the stopwatch +0xE8 reset and started, its time at +0x100 and +0x104, +0x134 set; AL 1 over the time. AL 1 over the caller's EAX when running (ours 1). Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::IsPlaying"
+address = 0x00949AE1
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8A 81 30 01 00 00 C3"
+source = "Name ours. Slot 9 of the interface. The interface's part at +4 is `this`. AL the byte +0x134 over the caller's EAX (ours 0). Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Stop"
+address = 0x0094915A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 80 BE 30 01 00"
+source = "Name ours. Slot 10 of the interface. The interface's part at +4 is `this`. While running: the message target taken back (slot 31), +0x134 cleared; AL 1 over its EAX. AL 1 over the caller's EAX when not running (ours 1). Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Enable"
+address = 0x00949EA4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t key, bool on)"
+expect = "55 8B EC 51 51 57 8B F9"
+source = "Name ours. Slot 4; `ret 8`. The key's byte in the map +0x30 (SC4UI::F76BD80); turned off, the score under the key (cGZCOM::ClassMapFind on +0x18), held, gives every instance of its window (slot 6 with 0, slots 22 to 26, signed) its slot 7. Then 0x00949D19; AL 1 over its EAX. Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Rebuild"
+address = 0x00949D19
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 1C 56 8B"
+source = "Name ours. Nothing while the framework sound service +0x14 answers its slot 49 (AL 1 over its EAX). Else the pool +0x3C cleared, +0x108 to +0x110 zero; for each score of the map +0x18 whose key is not 0 and is on (+0x30): +0x110 counted, and with a service every instance of its window (slot 6 with 0, slots 22 to 26; rows then columns, signed) goes into the pool under the index +0x108, its description (slot 3) into +0x48 with its weight (its slot 14) added to +0x10C. AL 1 over the map's header (the last step's EAX). Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Tick"
+address = 0x0094970D
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* target, uint32_t unused)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. The message target's slot 3 (`this` the part at +8; `ret 4`, the argument not read). AL over slot 49's EAX of the framework sound service when it answers. Else the first instance of the list +0x54 that no longer plays (slot 10, unchecked) erased; with a level (+0x138), once the stopwatch +0xE8 has passed (7 - +0x110, at least 2) s since +0x104 (unsigned) and fewer than 4 sound, a draw below +0x10C (the generator +0x118) picks the first instance of the pool whose descriptions' running weights (slot 14) reach it; it joins the list, gets the level (slot 9), a place (0x00948F62) and plays (slot 5); the stopwatch reset and started and +0x104 zero either way. Then every listed instance's slot 6; the last one's EAX (the list's header with none). Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::PlaceInstance"
+address = 0x00948F62
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* instance)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. `ret 4`. As the sound service's 0x00947AD9 on the mixer's grids: a cell of the byte grid +0x61 (rows +0x58 + 1, columns +0x5C + 1, unsigned) drawn (cRZRandom::Below of 1000 a cell set; the generator +0x118) among those set but the last pick +0xE0 and +0xE4 (kept when the draw passes them all); the instance's slot 15 the byte +0x60, 17 +0xD8 and +0xDC, 16 the three dword grids' (+0x6C, +0x90, +0xB4) cells. AL 0 (EAX 0) with no cell set; else AL 1 over slot 16's EAX. Called by the tick. Ours in framework.soundmix.play (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetLevel"
+address = 0x00949222
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t level)"
+expect = "8B 44 24 04 56 57 8B F9"
+source = "Name ours. Slot 11 of the interface; `ret 4`. The interface's part at +4 is `this`. +0x138, and every listed instance's slot 9 with it; AL 1 over the last call's EAX (the list's header with none). Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Set17C"
+address = 0x00948EBB
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, uint32_t b, uint32_t c)"
+expect = "8A 44 24 0C 88 81 78 01"
+source = "Name ours. Slot 12 of the interface (the sound service's Fade); `ret 0xC`. The interface's part at +4 is `this`. The byte +0x17C the third argument's, +0x16D 1; AL 1 over the caller's EAX (ours 0). Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetRow"
+address = 0x00949FF9
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t row)"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Name ours. Slot 13 of the interface; `ret 4`. The interface's part at +4 is `this`. +0x140, every score's slot 13 (unchecked), 0x00949D19; AL 1 over its EAX. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetColumn"
+address = 0x00949FB9
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t column)"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Name ours. Slot 14 of the interface; `ret 4`. The interface's part at +4 is `this`. +0x13C, every score's slot 14 (unchecked), 0x00949D19; AL 1 over its EAX. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Set14C"
+address = 0x0094A039
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Name ours. Slot 15 of the interface; `ret 4`. The interface's part at +4 is `this`. +0x14C, every score's slot 15 (unchecked), 0x00949D19; AL 1 over its EAX. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Set164"
+address = 0x00949E8D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 81 60 01"
+source = "Name ours. Slot 16 of the interface; `ret 4`. The interface's part at +4 is `this`. +0x164, 0x00949D19; AL 1 over its EAX. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Get14C"
+address = 0x00949B40
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 48 01 00 00 C3"
+source = "Name ours. Slot 20 of the interface. The interface's part at +4 is `this`. +0x14C. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Set135"
+address = 0x00949AE8
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint8_t value)"
+expect = "8A 44 24 04 88 81 31 01"
+source = "Name ours. Slot 21 of the interface; `ret 4`. The interface's part at +4 is `this`. The byte +0x135; AL 1 over the caller's EAX (ours 0). Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::NoInstance"
+address = 0x00949B4A
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t row, uint32_t column, uint32_t unused)"
+expect = "33 C0 C2 0C 00"
+source = "Name ours. Slot 26 of the interface; `ret 0xC`. 0. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Reseed"
+address = 0x00949F6F
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t seed)"
+expect = "56 57 8B F9 8B 47 14 8B"
+source = "Name ours. Slot 27 of the interface; `ret 4`. The interface's part at +4 is `this`. Every score's slot 27 (unchecked) and, after each, the generator +0x118 (cRZRandom::Seed); 0x00949D19; AL 1 over its EAX. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Set144"
+address = 0x00949B1C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 81 44 01"
+source = "Name ours. Slot 6; `ret 4`. +0x144; AL 1 over the value. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Get144"
+address = 0x00949B39
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 44 01 00 00 C3"
+source = "Name ours. Slot 7. +0x144. Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Set16C"
+address = 0x00949B76
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint8_t value)"
+expect = "8A 44 24 04 88 81 6C 01"
+source = "Name ours. Slot 8; `ret 4`. The byte +0x16C; AL the byte over the caller's EAX (ours 0). Ours in framework.soundmix.control (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetPlace"
+address = 0x00949AF7
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint8_t value)"
+expect = "8A 44 24 04 88 41 5C B0"
+source = "Name ours. Slot 28 of the interface; `ret 4`. The interface's part at +4 is `this`. The byte +0x60 (the instances' slot 15); AL 1 over the caller's EAX (ours 0). Ours in framework.soundmix.grid (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetDistances"
+address = 0x00949B03
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t near, uint32_t far)"
+expect = "8B 44 24 04 89 81 D4 00"
+source = "Name ours. Slot 29 of the interface; `ret 8`. The interface's part at +4 is `this`. +0xD8 and +0xDC; AL 1 over the second. Ours in framework.soundmix.grid (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetGridRows"
+address = 0x00948F38
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t rows)"
+expect = "8B 44 24 04 83 F8 03 72"
+source = "Name ours. Slot 30 of the interface; `ret 4`. The interface's part at +4 is `this`. +0x58 when below 3; AL whether, over the value. Ours in framework.soundmix.grid (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetGridColumns"
+address = 0x00948F4D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t columns)"
+expect = "8B 44 24 04 83 F8 03 72"
+source = "Name ours. Slot 31 of the interface; `ret 4`. The interface's part at +4 is `this`. +0x5C when below 3; AL whether, over the value. Ours in framework.soundmix.grid (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetGrid"
+address = 0x00948ED1
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t row, uint32_t column, uint8_t value)"
+expect = "8B 44 24 04 83 F8 03 73"
+source = "Name ours. Slot 32 of the interface; `ret 0xC`. The interface's part at +4 is `this`. A cell of the byte grid +0x61 within 3 by 3 (unsigned); AL 1 over the row + 0x1F; AL 0 over the row outside. Ours in framework.soundmix.grid (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetGridCell"
+address = 0x00948EFB
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t row, uint32_t column, uint32_t a, uint32_t b, uint32_t c)"
+expect = "55 8B EC 8B 45 08 83 F8"
+source = "Name ours. Slot 33 of the interface; `ret 0x14`. The interface's part at +4 is `this`. A cell of the dword grids +0x6C, +0x90 and +0xB4 within 3 by 3; AL 1 over the cell's index; AL 0 over the row outside. Ours in framework.soundmix.grid (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::SetKey"
+address = 0x00949B4F
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key)"
+expect = "8D 81 7C 01 00 00 8B 4C"
+source = "Name ours. Slot 34 of the interface; `ret 4`. The interface's part at +4 is `this`. The three words copied to +0x180; answers that address. Ours in framework.soundmix.grid (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Key"
+address = 0x00949B6C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 81 7C 01 00 00 C3"
+source = "Name ours. Slot 35 of the interface. The interface's part at +4 is `this`. The key's address, +0x180. Ours in framework.soundmix.grid (docs/gzui.md, part u8)."
+
+[[entry]]
+name = "cGZSoundMixer::Vtable"
+address = 0x00AD4CF4
+kind = "data"
+expect = "7A 8E 94 00 4F D3 94 00"
+source = "Name ours. The mixer's primary vtable, 9 slots: QueryInterface, AddRef 0x0094D34F (shared), Release, 0x009CFA36 (shared), Enable, the deleting destructor, slots 6 to 8."
+
+[[entry]]
+name = "cGZSoundMixer::ServiceVtable"
+address = 0x00AD4C60
+kind = "data"
+expect = "83 9B 94 00 79 2D 9D 00"
+source = "Name ours. The mixer's sound service interface 0xDC1CF595 at +4, 37 slots (the adjustors 0x00949B83 and 0x00949B8B at 0 and 2)."
+
+[[entry]]
+name = "cGZSoundMixer::TargetVtable"
+address = 0x00AD4C4C
+kind = "data"
+expect = "93 9B 94 00 9B 9B 94 00"
+source = "Name ours. The mixer's message target at +8, 4 slots: the adjustors 0x00949B93, 0x00949B9B (AddRef 0x0094D34F) and 0x00949BA3, the tick 0x0094970D."
+
+[[entry]]
+name = "cGZSoundMixer::ServiceBaseVtable"
+address = 0x00AD4AA0
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the mixer's constructor writes at +4 before its own (37 slots, every one 0x005D4A10)."
+
+[[entry]]
+name = "cGZSoundMixer::ScoresIndex"
+address = 0x009498A7
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, const uint32_t* key)"
+expect = "55 8B EC 83 EC 0C 53 8B"
+source = "Name ours. `ret 4`. The map +0x18's operator[] (STLport): the counted reference under the key, made when missing. Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZSoundMixer::PoolClear"
+address = 0x00949279
+kind = "function"
+convention = "thiscall"
+signature = "void (void* map)"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. A map's clear (STLport; the pool +0x3C). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZSoundMixer::ScoresDestroy"
+address = 0x0094958E
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* map)"
+expect = "56 8B F1 E8 08 FE FF FF"
+source = "Name ours. The map +0x18's destructor (STLport; the references released). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZSoundMixer::TablesDestroy"
+address = 0x00949873
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* map)"
+expect = "56 8B F1 E8 2A FD FF FF"
+source = "Name ours. The map +0x24's destructor (STLport; the references released). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZSoundMixer::PoolDestroy"
+address = 0x00949370
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* map)"
+expect = "56 8B F1 E8 01 FF FF FF"
+source = "Name ours. The map +0x3C's destructor (STLport). Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZSoundMixer::DescMapDestroy"
+address = 0x00949387
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* map)"
+expect = "56 8B F1 E8 13 FF FF FF"
+source = "Name ours. The map +0x48's destructor (STLport). Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4PtrList::Erase"
+address = 0x00949259
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list, void** out, void* node)"
+expect = "8B 4C 24 08 8B 41 04 56"
+source = "Name ours. `ret 8`. A list node unlinked and freed (`this` not read); the next node written out. Shared by 26 callers. Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4PtrList::PushBack"
+address = 0x008F6E80
+kind = "function"
+convention = "thiscall"
+signature = "void (void* list, void* const* value)"
+expect = "55 8B EC FF 75 08 8B 11"
+source = "Name ours. `ret 4`. A pointer appended to an STLport list. Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4FlagMap::Find"
+address = 0x00426AA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, const uint32_t* key)"
+expect = "8B 01 8B 48 04 85 C9 56"
+source = "Name ours. `ret 4`. An STLport map's find by a uint32 key: the node, or the header. Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4PtrMap::Index"
+address = 0x0096A7B0
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* map, const uint32_t* key)"
+expect = "55 8B EC 51 51 56 8B 75"
+source = "Name ours. `ret 4`. An STLport map's operator[] by a uint32 key (a pointer value). Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4RefMap::Index"
+address = 0x0096982E
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* map, const uint32_t* key)"
+expect = "55 8B EC 83 EC 0C 53 8B"
+source = "Name ours. `ret 4`. An STLport map's operator[] by a uint32 key (a counted reference value). Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4Tree::Next"
+address = 0x0040D4C0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* node)"
+expect = "8B 4C 24 04 8B 41 0C 85"
+source = "Name ours (also cSC4Advisor::F40D4C0). An STLport red-black tree node's successor. Stays the game's; called by ours."
