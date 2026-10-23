@@ -474,3 +474,1042 @@ convention = "thiscall"
 signature = "bool (void* this, void* window, void* service, const void* base)"
 expect = "56 8B F1 80 7E 18 00 75"
 source = "Name ours, not hooked. `ret 0xC`. Once per document (flag +0x18): keeps the window (+0x2C) and the Internet service (+0x30, may be null), each with a reference, and the base address (0x00900302); the link colour from 0x00B62494. The HTML window's ShowHTML (0x008FBDE4) calls it before Parse; so does the parser test (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseFromHTML"
+address = 0x0090818E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 E8 22 66 FF FF"
+source = "Name ours. Slot 10 of 0x00ACD938; plain ret. After a DOCTYPE: spaces skipped (0x008FE7B8), the page must open with `<HTML>` (0x009080A2). Ours in ui.html.parser.document (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseHead"
+address = 0x00906E94
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 83 BE E8 00 00"
+source = "Name ours. Plain ret. The head: TITLE, BASE, META, LINK read; STYLE, OBJECT, SCRIPT skipped; up to `</HEAD>` or another tag (given back). Ours in ui.html.parser.document (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseTitle"
+address = 0x00906476
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 6A 00 8B F1 E8 70 F8"
+source = "Name ours. Plain ret. The title's text into +0x98; true when `</TITLE>` follows. Ours in ui.html.parser.document (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParsePlain"
+address = 0x00905985
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 4E 14 85 C9"
+source = "Name ours. Slot 11 of 0x00ACD938; plain ret. The whole page as one preformatted text run in a new root. Ours in ui.html.parser.document (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::AddImage"
+address = 0x009059FC
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* target, const void* address)"
+expect = "55 8B EC 83 EC 44 53 56"
+source = "Name ours. Slot 16 of 0x00ACD938; `ret 8`. An image for a node by address: from the image map (+0x198) or asked of the Internet service (slot 17). Ours in ui.html.parser.document (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLImageMap::InsertUnique"
+address = 0x00901191
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, const void* entry)"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Name ours. `ret 8`. The image map's insert unless the address is there (an STLport tree, keys ordered by 0x004B5E10). Ours in ui.html.parser.document (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::PushFont"
+address = 0x00902D28
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "8D 81 30 01 00 00 50 81"
+source = "Name ours. Plain ret. The font record (+0x130) onto the font stack (+0x15C); 0x00900E5F pops it. Ours in ui.html.parser.document (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLFontStack::Push"
+address = 0x00901111
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* font)"
+expect = "55 8B EC 56 8B F1 8B 4E"
+source = "Name ours. `ret 4`. The font stack's push_back (0x28-byte records copied by 0x008FFE11, growth by 0x00900E91). Ours in ui.html.parser.document (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::SkipTo"
+address = 0x009065C5
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t end)"
+expect = "56 8B F1 EB 15 6A 00 8B"
+source = "Name ours. `ret 4`. Tags read until the given ID (true) or the end of the page (false). Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::SkipScript"
+address = 0x00906ACD
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. Plain ret. To `</SCRIPT>` (0x009065C5 with 0x3D). Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseParagraph"
+address = 0x0090614F
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. `ret 4`. P: its inline content in a paragraph node (vtable 0x00ACD824). Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseAligned"
+address = 0x009065FD
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent, uint32_t end, int32_t align)"
+expect = "55 8B EC 51 53 56 57 6A"
+source = "Name ours. `ret 0xC`. CENTER and DIV: an aligned block (vtable 0x00ACD6C4) with the alignment (+0x158) pushed (+0x168). Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseCenter"
+address = 0x00906D22
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "6A 01 6A 7F FF 74 24 0C"
+source = "Name ours. `ret 4`. CENTER: 0x009065FD with `</CENTER>` and 1. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseDiv"
+address = 0x00906D32
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. `ret 4`. DIV: 0x009065FD with `</DIV>` and its ALIGN (0x008FE8D6) or the current alignment. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseQuote"
+address = 0x00906C6B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "56 57 6A 28 8B F9 E8 6A"
+source = "Name ours. `ret 4`. BLOCKQUOTE (vtable 0x00ACD66C). Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseForm"
+address = 0x00906D9B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "56 57 6A 28 8B F1 E8 3A"
+source = "Name ours. `ret 4`. FORM (vtable 0x00ACD71C). Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseHeading"
+address = 0x00906754
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Name ours. `ret 4`. H1 to H6 (vtable 0x00ACD748) in the heading font of 0x00ACD4BC, 0x00ACD4D4, 0x00ACD4EC. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParsePre"
+address = 0x00906A5D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "56 57 8B F1 E8 C2 C2 FF"
+source = "Name ours. `ret 4`. PRE: preformatted inline content into the parent. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseDefinitions"
+address = 0x009066A3
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "53 56 57 6A 28 8B F1 B3"
+source = "Name ours. `ret 4`. DL: a container (kind 8) of DT, DD and blocks. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseDD"
+address = 0x00905ED9
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "53 56 57 6A 28 8B F1 B3"
+source = "Name ours. `ret 4`. DD (vtable 0x00ACD698) up to `</DD>`. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseDT"
+address = 0x00905F63
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "53 56 57 6A 28 8B F1 B3"
+source = "Name ours. `ret 4`. DT (vtable 0x00ACD6F0) up to `</DT>`. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseList"
+address = 0x00906F1D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "8B 81 E8 00 00 00 83 F8"
+source = "Name ours. `ret 4`. UL or OL. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseBullets"
+address = 0x00907D6B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 51 56 57 6A 2C"
+source = "Name ours. `ret 4`. UL: a list (vtable 0x00ACE20C, kind 6, depth from +0x12C) of bulleted items. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseNumbers"
+address = 0x0090689F
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 51 51 56 57 6A"
+source = "Name ours. `ret 4`. OL: a list (kind 7, depth from +0x128) of items numbered from 1. Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseItem"
+address = 0x00905FED
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent, int32_t number)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. `ret 8`. LI with its bullet (number below 0) or number (`%3d. `). Ours in ui.html.parser.blocks (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseRow"
+address = 0x009064B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* table)"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Name ours. `ret 4`. TR (vtable 0x00ACD8A8, 0x3C bytes) and its cells; listed in the table's rows (+0x4C). Ours in ui.html.parser.table (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseCell"
+address = 0x009061DC
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* row)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. `ret 4`. TD (vtable 0x00ACE264): VALIGN, WIDTH, BGCOLOR, NOWRAP, ALIGN; listed in the row's cells (+0x28). Ours in ui.html.parser.table (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseHeaderCell"
+address = 0x009063E6
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* row)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. `ret 4`. TH (vtable 0x00ACD8D4), in the row only. Ours in ui.html.parser.table (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseTableBody"
+address = 0x00906B90
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* table)"
+expect = "56 8B F1 81 BE E8 00 00"
+source = "Name ours. `ret 4`. TBODY, and rows without one. Ours in ui.html.parser.table (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseTableFoot"
+address = 0x00906BE1
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* table)"
+expect = "56 57 6A 01 8B F1 E8 04"
+source = "Name ours. `ret 4`. TFOOT's rows. Ours in ui.html.parser.table (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseTableHead"
+address = 0x00906C26
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* table)"
+expect = "56 57 6A 01 8B F1 E8 BF"
+source = "Name ours. `ret 4`. THEAD's rows. Ours in ui.html.parser.table (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::SkipColumns"
+address = 0x00905EA7
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* table)"
+expect = "53 56 57 6A 01 8B F1 E8"
+source = "Name ours. `ret 4`. COLGROUP: its COL tags passed over. Ours in ui.html.parser.table (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseFontTag"
+address = 0x0090727D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 20 53 56"
+source = "Name ours. `ret 4`. TT, I, B, STRIKE, BIG, SMALL, U and FONT (SIZE, COLOR, FACE). Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParsePhrase"
+address = 0x00906985
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "53 55 56 33 DB 8B F1 43"
+source = "Name ours. `ret 4`. EM to ACRONYM (italic, bold, fixed width or nothing). Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseSpecial"
+address = 0x00907C3E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 8B 81 E8 00 00"
+source = "Name ours. `ret 4`. A, IMG, BR, MAP, SPAN, BLINK, SCRIPT; OBJECT, Q, SUB, SUP, BDO skipped. Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseLink"
+address = 0x00907A47
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8D 6C 24 8C 81 EC DC"
+source = "Name ours. `ret 4`. A (vtable 0x00ACE290): HREF, its address resolved, NAME; the link colour. Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseSpan"
+address = 0x009075FD
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 70 53 57"
+source = "Name ours. `ret 4`. SPAN (vtable 0x00ACD87C) and its STYLE: color, text-decoration, font-family, font-size. Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseBlink"
+address = 0x009079A8
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "56 57 6A 28 8B F1 E8 2D"
+source = "Name ours. `ret 4`. BLINK (vtable 0x00ACD640); sets the document's blinking flag (+0x2A). Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseMap"
+address = 0x009074D3
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Name ours. `ret 4`. MAP (vtable 0x00ACD7CC): NAME, its AREA tags or blocks. Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseFormInline"
+address = 0x00906E59
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "8B 81 E8 00 00 00 83 E8"
+source = "Name ours. `ret 4`. INPUT, SELECT; TEXTAREA, LABEL, BUTTON skipped. Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseSelect"
+address = 0x00906AFF
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "53 56 57 6A 28 8B F1 B3"
+source = "Name ours. `ret 4`. SELECT (vtable 0x00ACD850) and its OPTION tags. Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseOption"
+address = 0x009060DF
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "53 56 57 6A 28 8B F1 B3"
+source = "Name ours. `ret 4`. OPTION (vtable 0x00ACD7F8) and its text. Ours in ui.html.parser.inline (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::AddText"
+address = 0x008FE6E2
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text, void* parent)"
+expect = "56 6A 58 8B F1 E8 F4 6E"
+source = "Name ours. `ret 8`. A text node (0x58 bytes, 0x00908CA6) of the text in the current font (+0x130) and alignment (+0x158), given to the parent (slot 1). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLTagSet::Contains"
+address = 0x008FEE4A
+kind = "function"
+convention = "cdecl"
+signature = "bool (uint32_t id, const void* set)"
+expect = "56 8B 74 24 0C 8D 44 24"
+source = "Name ours. Whether a tag ID is in one of the tag sets at 0x00B624B8 to 0x00B62518 (trees made by 0x008FF1B9). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseFlow"
+address = 0x008FEEFA
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "56 57 8B F1 8B BE E8 00"
+source = "Name ours. `ret 4`. The current tag as inline content (0x00907CCA) or a block (0x00907135); false for anything else. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::GetAttribute"
+address = 0x0090072C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const char* name, void* value, bool unknown)"
+expect = "55 8B EC 83 EC 14 56 57"
+source = "Name ours. `ret 0xC`. The value of the current tag's attribute (names upper case) into a string; false when the tag has none. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::PopFont"
+address = 0x00900E5F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8D B1 5C 01 00 00 8B"
+source = "Name ours. Plain ret. The font record (+0x130) back from the top of the font stack (+0x15C). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::CheckAttributes"
+address = 0x008FF7FD
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const char* handler, const char* tag)"
+expect = "55 8B EC 51 51 83 B9 24"
+source = "Name ours. `ret 8`. Walks the attribute map (+0x114) when it is not empty and does nothing else: a report of unread attributes left out of the game. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLIntVector::PushBack"
+address = 0x008FF7B6
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const int32_t* value)"
+expect = "55 8B EC 8B 41 04 3B 41"
+source = "Name ours. `ret 4`. push_back of a dword vector: the alignment stack (+0x168). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::MakeBullet"
+address = 0x008FF8AB
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t kind)"
+expect = "55 8B EC 83 EC 3C 83 65"
+source = "Name ours. `ret 4`. A list item's bullet: an image node. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLText::ParseLength"
+address = 0x0090A9EE
+kind = "function"
+convention = "cdecl"
+signature = "void (const void* text, void* length)"
+expect = "55 8B EC 83 EC 14 8B 55"
+source = "Name ours. A length (pixels, or percent) from a string into a two-dword field. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLText::ParseNumber"
+address = 0x0090A915
+kind = "function"
+convention = "cdecl"
+signature = "void (const void* text, int32_t* value)"
+expect = "8B 44 24 04 FF 70 04 E8"
+source = "Name ours. A number from a string (a table's BORDER). Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLNode::SetBackground"
+address = 0x008FE68F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "55 8B EC 51 51 56 8D 45"
+source = "Name ours. `ret 4`. A row's or cell's BGCOLOR: the colour at +0x34 and the flag at +0x38. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLTableNode::SetBackground"
+address = 0x008FE64E
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "55 8B EC 51 51 56 8D 45"
+source = "Name ours. `ret 4`. A table's BGCOLOR: the colour at +0x44 and the flag at +0x48. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLTableNode::SetWidth"
+address = 0x009083C5
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "83 C1 2C 51 FF 74 24 08"
+source = "Name ours. `ret 4`. A table's WIDTH. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLCellNode::SetNoWrap"
+address = 0x008FFF0A
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "55 8B EC 83 EC 14 8B 45"
+source = "Name ours. `ret 4`. A cell's NOWRAP (+0x39). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLText::ParseAlign"
+address = 0x008FE8D6
+kind = "function"
+convention = "cdecl"
+signature = "int32_t (const void* text)"
+expect = "56 8B 74 24 08 8B CE E8"
+source = "Name ours. LEFT, RIGHT, CENTER and so on as an alignment number. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLText::StartsWith"
+address = 0x0090A9AA
+kind = "function"
+convention = "cdecl"
+signature = "bool (const void* text, char c)"
+expect = "8B 44 24 04 8B 48 08 2B"
+source = "Name ours. Whether a string starts with the character. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "SC4StringBody::Substr"
+address = 0x004980A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* out, uint32_t position, uint32_t count)"
+expect = "56 8B F1 8B 46 04 8B 16"
+source = "Name ours. `ret 0xC`. STLport's substr into a new body. Called by ours (the HTML parser's SPAN); still the game's."
+
+[[entry]]
+name = "SC4String::Less"
+address = 0x004B5E10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* a, const void* b)"
+expect = "8B 44 24 08 85 C0 74 05"
+source = "Name ours. `ret 8`. The order of a tree keyed by game strings (`this` the comparator). Called by ours (the HTML image map); still the game's."
+
+[[entry]]
+name = "SC4Url::Construct"
+address = 0x008216E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 33 DB 56 8B F1 88 1E"
+source = "Name ours. An empty address object (0xC0 bytes). Called by ours (the HTML parser's A and BODY); still the game's."
+
+[[entry]]
+name = "SC4Url::Resolve"
+address = 0x00823A90
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* address, const void* base)"
+expect = "81 EC C0 01 00 00 53 56"
+source = "Name ours. `ret 8`. An address resolved against a base. Called by ours (the HTML parser's A and BODY); still the game's."
+
+[[entry]]
+name = "SC4Url::Destroy"
+address = 0x008128A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 57 8B F1 BF 10 08 A8"
+source = "Name ours. An address object's destructor. Called by ours (the HTML parser's A and BODY); still the game's."
+
+[[entry]]
+name = "HTMLMapNode::SetName"
+address = 0x00900519
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "56 6A 14 8B F1 E8 BD 50"
+source = "Name ours. `ret 4`. A MAP's NAME. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseArea"
+address = 0x0090083A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 14 56 57"
+source = "Name ours. `ret 4`. AREA (vtable 0x00ACD614). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseIMG"
+address = 0x00900A58
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 81 EC FC 00 00"
+source = "Name ours. `ret 4`. IMG (vtable 0x00ACE188): SRC asked for through slot 16. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseBR"
+address = 0x008FF725
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 14 56 6A"
+source = "Name ours. `ret 4`. BR (vtable 0x00ACD530). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseInput"
+address = 0x008FF82E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "56 57 6A 1C 8B F9 E8 A7"
+source = "Name ours. `ret 4`. INPUT (vtable 0x00ACD588). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseHR"
+address = 0x0090097A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 14 56 57"
+source = "Name ours. `ret 4`. HR (vtable 0x00ACD55C). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseBase"
+address = 0x0090092D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Name ours. Plain ret. BASE: the base address. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseMeta"
+address = 0x00900D78
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 18 56 57"
+source = "Name ours. Plain ret. META (vtable 0x00ACE1E0). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseLinkTag"
+address = 0x00900C31
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8D 6C 24 88 81 EC DC"
+source = "Name ours. Plain ret. LINK (vtable 0x00ACE1B4). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLLinkNode::SetHref"
+address = 0x008FFE8F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "56 6A 14 8B F1 E8 47 57"
+source = "Name ours. `ret 4`. A link's HREF as written (a string at +0x28). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLLinkNode::SetAddress"
+address = 0x008FFEB8
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "56 6A 14 8B F1 E8 1E 57"
+source = "Name ours. `ret 4`. A link's resolved address (+0x2C). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLLinkNode::SetName"
+address = 0x008FFEE1
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "56 6A 14 8B F1 E8 F5 56"
+source = "Name ours. `ret 4`. A link's NAME (+0x30). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLBodyNode::SetBackground"
+address = 0x008FE5D1
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const uint32_t* colour)"
+expect = "56 6A 04 8B F1 E8 05 70"
+source = "Name ours. `ret 4`. The body's BGCOLOR (a colour of its own at +0x2C). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLBodyNode::SetLink"
+address = 0x009081D2
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "55 8B EC 51 51 56 8D 45"
+source = "Name ours. `ret 4`. The body's LINK colour (+0x30). Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBodyNode::SetActiveLink"
+address = 0x0090820F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "55 8B EC 51 51 56 8D 45"
+source = "Name ours. `ret 4`. The body's ALINK colour (+0x38). Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBodyNode::SetVisitedLink"
+address = 0x0090824C
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text)"
+expect = "55 8B EC 51 51 56 8D 45"
+source = "Name ours. `ret 4`. The body's VLINK colour (+0x34). Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLDocument::SkipSpaces"
+address = 0x008FE7B8
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 57 8B F1 FF B6 94 01"
+source = "Name ours. Plain ret. The page's position moved past spaces. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageMap::Find"
+address = 0x008FEB1E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* address)"
+expect = "53 56 8B D9 57 8B 3B 8B"
+source = "Name ours. `ret 4`. The image map's node for an address, or its header. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageEntry::Construct"
+address = 0x008FFD2D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* address, const void* image)"
+expect = "56 6A FF 6A 00 FF 74 24"
+source = "Name ours. `ret 8`. An image map entry: the address and the image record (0x14 bytes, 0x008FEF6A). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageEntry::Destroy"
+address = 0x008FF76C
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 18 85 C0"
+source = "Name ours. An image map entry's destructor. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageMap::Insert"
+address = 0x0090104C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, void* x, void* parent, const void* entry, void* where)"
+expect = "55 8B EC 53 8B 5D 10 56"
+source = "Name ours. `ret 0x14`. The image map's node inserted under `parent`. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFont::Copy"
+address = 0x008FFE11
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* font)"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours. `ret 4`. A font record copied (its face string and the rest). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFontStack::Grow"
+address = 0x00900E91
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* font, const void* tag, uint32_t count, bool atEnd)"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. `ret 0x14`. The font stack's insert when full. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDDNode::Construct"
+address = 0x008FED20
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 0A 8B F1 E8 93 FF"
+source = "Name ours. Vtable 0x00ACD698. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDTNode::Construct"
+address = 0x008FED48
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 09 8B F1 E8 6B FF"
+source = "Name ours. Vtable 0x00ACD6F0. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLItemNode::Construct"
+address = 0x008FED84
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 0C 8B F1 E8 2F FF"
+source = "Name ours. Vtable 0x00ACD774. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLItemBodyNode::Construct"
+address = 0x008FED98
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 0C 8B F1 E8 1B FF"
+source = "Name ours. Vtable 0x00ACD7A0. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLOptionNode::Construct"
+address = 0x008FEDC4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 1F 8B F1 E8 EF FE"
+source = "Name ours. Vtable 0x00ACD7F8. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLParagraphNode::Construct"
+address = 0x008FEDD8
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 15 8B F1 E8 DB FE"
+source = "Name ours. Vtable 0x00ACD824. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLCellNode::Construct"
+address = 0x00908781
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 10 8B F1 E8 32 65"
+source = "Name ours. Vtable 0x00ACE264, 0x3C bytes. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLHeaderCellNode::Construct"
+address = 0x008FEE36
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 11 8B F1 E8 7D FE"
+source = "Name ours. Vtable 0x00ACD8D4. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLRowNode::Construct"
+address = 0x008FEE14
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 0F 8B F1 E8 9F FE"
+source = "Name ours. Vtable 0x00ACD8A8, 0x3C bytes. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLAlignNode::Construct"
+address = 0x008FED34
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 13 8B F1 E8 7F FF"
+source = "Name ours. Vtable 0x00ACD6C4. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLHeadingNode::Construct"
+address = 0x008FED70
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 02 8B F1 E8 43 FF"
+source = "Name ours. Vtable 0x00ACD748, 0x2C bytes. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLListNode::Construct"
+address = 0x00908704
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t kind, uint32_t depth)"
+expect = "56 FF 74 24 08 8B F1 E8"
+source = "Name ours. `ret 8`. Vtable 0x00ACE20C, 0x2C bytes. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLSelectNode::Construct"
+address = 0x008FEDEC
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 1E 8B F1 E8 C7 FE"
+source = "Name ours. Vtable 0x00ACD850. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLQuoteNode::Construct"
+address = 0x008FED0C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 14 8B F1 E8 A7 FF"
+source = "Name ours. Vtable 0x00ACD66C. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFormNode::Construct"
+address = 0x008FED5C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 1C 8B F1 E8 57 FF"
+source = "Name ours. Vtable 0x00ACD71C. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLTableNode::Construct"
+address = 0x00908723
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 6A 0E 8B F1 E8 8F"
+source = "Name ours. Vtable 0x00ACE238, 0x94 bytes. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLMapNode::Construct"
+address = 0x008FEDAC
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 17 8B F1 E8 07 FF"
+source = "Name ours. Vtable 0x00ACD7CC, 0x2C bytes. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLSpanNode::Construct"
+address = 0x008FEE00
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 23 8B F1 E8 B3 FE"
+source = "Name ours. Vtable 0x00ACD87C. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLLinkNode::Construct"
+address = 0x009087A7
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 04 8B F1 E8 0C 65"
+source = "Name ours. Vtable 0x00ACE290, 0x34 bytes. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBlinkNode::Construct"
+address = 0x008FECF8
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 6A 22 8B F1 E8 BB FF"
+source = "Name ours. Vtable 0x00ACD640. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLBodyNode::Construct"
+address = 0x00908811
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t link, uint32_t visited, uint32_t active)"
+expect = "56 6A 00 8B F1 E8 A2 64"
+source = "Name ours. `ret 0xC`. Vtable 0x00ACE2C0, 0x44 bytes: the root, with the three link colours. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "SC4StringMap::Construct"
+address = 0x00671890
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 6A 28 C7 06 00"
+source = "Name ours. An empty tree keyed by game strings (the HTML document's entity map at +8). Called by ours; still the game's."
+
+[[entry]]
+name = "HTMLTagSets::Init"
+address = 0x008FF1B9
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Fills the tag sets at 0x00B624B8 to 0x00B62518 once, from the first document's constructor. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::SetFontSteps"
+address = 0x008FEEB8
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const int32_t* steps, uint32_t count)"
+expect = "55 8B EC 51 56 6A 07 58"
+source = "Name ours. `ret 8`. Up to seven font steps into +0x1A8, the fourth into the faces' sizes. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::Vtable"
+address = 0x00ACD938
+kind = "vtable"
+source = "Name ours. The HTML document's main vtable (24 slots: 8 Parse, 9 DOCTYPE, 10 after the DOCTYPE, 11 plain text, 15 layout, 16 an image) (docs/html.md)."
+
+[[entry]]
+name = "HTMLDocument::SecondVtable"
+address = 0x00ACD928
+kind = "vtable"
+source = "Name ours. The HTML document's vtable at +4 (the part the Internet service answers) (docs/html.md)."
+
+[[entry]]
+name = "HTMLDocument::LinkColour"
+address = 0x00B62490
+kind = "data"
+source = "Name ours. The default link colour (0, 0, 255), made by the first document (docs/html.md)."
+
+[[entry]]
+name = "HTMLDocument::TextColour"
+address = 0x00B62494
+kind = "data"
+source = "Name ours. The default text colour (black), made by the first document (docs/html.md)."
+
+[[entry]]
+name = "HTMLDocument::VisitedColour"
+address = 0x00B62498
+kind = "data"
+source = "Name ours. The default visited link colour (0x64, 0x20, 0xA4), made by the first document (docs/html.md)."
+
+[[entry]]
+name = "HTMLDocument::ActiveColour"
+address = 0x00B6249C
+kind = "data"
+source = "Name ours. The default active link colour (0xC0, 0, 0xFF), made by the first document (docs/html.md)."
+
+[[entry]]
+name = "HTMLDocument::ColoursMade"
+address = 0x00B624A0
+kind = "data"
+source = "Name ours. Byte: set by the first document, which makes the four colours, the tag table and the tag sets (docs/html.md)."
+
+[[entry]]
+name = "HTMLDocument::FontSteps"
+address = 0x00ACD4A0
+kind = "data"
+source = "Name ours. The default seven font steps: 8, 10, 12, 14, 18, 24, 36 (docs/html.md)."
+

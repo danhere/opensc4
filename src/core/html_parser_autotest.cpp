@@ -67,6 +67,8 @@ enum class Field : uint8_t {
     Byte,   // a byte
     Body,   // an STL string body (begin, end, storage): its text
     Object, // a pointer to an object of its own: null or not, and its vtable
+    Shared, // a pointer to an object others share (a text node's font): its
+            // vtable, and the pointer itself in the run's identity hash
     Vector, // begin, end, storage: the number of bytes
     TextPtr, // a pointer to a game string of its own (or null): its text
 };
@@ -74,6 +76,7 @@ enum class Field : uint8_t {
 struct FieldAt {
     uint16_t offset;
     Field kind;
+    uint16_t flag = 0; // when set: hashed only when the byte at this offset is set
 };
 
 struct NodeClass {
@@ -103,22 +106,23 @@ const std::vector<NodeClass>& Classes()
         {0x00ACD748, true, {}},                                                                   // H1 to H6
         {0x00ACD774, true, {}},                                                                   // LI
         {0x00ACD7A0, true, {}},                                                                   // LI (numbered)
-        {0x00ACD7CC, true, {{0x28, Field::Word}}},                                                // MAP
+        {0x00ACD7CC, true, {{0x28, Field::TextPtr}}},                                                // MAP
         {0x00ACD7F8, true, {}},                                                                   // OPTION
         {0x00ACD824, true, {}},                                                                   // P
         {0x00ACD850, true, {}},                                                                   // SELECT
         {0x00ACD87C, true, {}},                                                                   // SPAN
-        {0x00ACD8A8, true, {{0x28, Field::Vector}, {0x38, Field::Byte}}}, // TR
+        {0x00ACD8A8, true, {{0x28, Field::Vector}, {0x34, Field::Word, 0x38}, {0x38, Field::Byte}}}, // TR
         {0x00ACD8D4, true, {}},                                                                   // TH
         {0x00ACE20C, true, {{0x28, Field::Word}}},                                                // UL, OL
         {0x00ACE238, true, {{0x28, Field::Word}, {0x2C, Field::Word}, {0x34, Field::Word}, {0x3C, Field::Word},
-                            {0x48, Field::Byte}, {0x70, Field::Word}, {0x74, Field::Word}, {0x78, Field::Word},
+                            {0x44, Field::Word, 0x48}, {0x48, Field::Byte}, {0x4C, Field::Vector}, {0x58, Field::Vector},
+                            {0x64, Field::Vector}, {0x70, Field::Word}, {0x74, Field::Word}, {0x78, Field::Word},
                             {0x7C, Field::Vector}, {0x88, Field::Vector}}},                       // TABLE
-        {0x00ACE264, true, {{0x28, Field::Word}, {0x2C, Field::Word}, {0x38, Field::Byte}, {0x39, Field::Byte}}}, // TD
+        {0x00ACE264, true, {{0x28, Field::Word}, {0x2C, Field::Word}, {0x34, Field::Word, 0x38}, {0x38, Field::Byte}, {0x39, Field::Byte}}}, // TD
         {0x00ACE290, true, {{0x28, Field::TextPtr}, {0x2C, Field::TextPtr}, {0x30, Field::TextPtr}}}, // A
         {0x00ACE2C0, true, {{0x28, Field::Word}, {0x2C, Field::Word}, {0x30, Field::Word}, {0x34, Field::Word},
                             {0x38, Field::Word}, {0x3C, Field::Word}, {0x40, Field::Byte}}},      // the body
-        {0x00ACE300, false, {{0x1C, Field::Word}, {0x24, Field::Body}, {0x34, Field::Word}, {0x38, Field::Word},
+        {0x00ACE300, false, {{0x1C, Field::Word}, {0x24, Field::Body}, {0x34, Field::Shared}, {0x38, Field::Word},
                              {0x3C, Field::Byte}, {0x3D, Field::Byte}, {0x40, Field::Word}, {0x44, Field::Word},
                              {0x48, Field::Word}, {0x4C, Field::Word}, {0x50, Field::Word}, {0x54, Field::Word}}}, // text
         {0x00ACE188, false, {{0x1C, Field::Word}, {0x20, Field::Word}, {0x24, Field::Word}, {0x28, Field::Word},
@@ -136,6 +140,11 @@ const NodeClass* ClassOf(uint32_t vtable)
             return &c;
     return nullptr;
 }
+
+// The pointers to shared objects a parse hashed: the same in the game's
+// parse and ours of one page within a run (the font system reuses its
+// fonts), not from run to run, so compared but kept out of the fingerprint.
+Fnv g_identity;
 
 // While a page that differs is parsed again, every value hashed is also
 // written here, a node to a line.
@@ -173,6 +182,8 @@ void HashWord(Fnv& f, uint32_t value)
 
 void HashField(Fnv& f, char* object, const FieldAt& field)
 {
+    if (field.flag && !At<uint8_t>(object, field.flag))
+        return;
     switch (field.kind) {
     case Field::Word:
         HashWord(f, At<uint32_t>(object, field.offset));
@@ -192,6 +203,9 @@ void HashField(Fnv& f, char* object, const FieldAt& field)
         }
         break;
     }
+    case Field::Shared:
+        g_identity.Word(At<uint32_t>(object, field.offset));
+        [[fallthrough]];
     case Field::Object: {
         char* const p = At<char*>(object, field.offset);
         f.Byte(p != nullptr);
@@ -522,6 +536,9 @@ const char* const kPages[] = {
     " -dash=z>link</A><A HREF=sc4://cmd?a=b&c=d>sc4</A><FONT COLOR=\"#12AB34\" COLOR=\"#000000\">dup</FONT>"
     "<SPAN STYLE=\"color: #102030; text-decoration: underline; font-size: 12pt; font-family: arial\">span</SPAN>"
     "<SPAN STYLE=\"color: rgb(1,2,3)\">rgb</SPAN></BODY></HTML>",
+    // Quotes never closed, an empty name, `=` with nothing after it.
+    "<HTML><BODY><A HREF=\"never closed>x</A><A NAME='single>y</A><FONT =red COLOR=>z</FONT><A HREF=>w</A>"
+    "<A HREF=\"a\"NAME=\"b\">v</A></BODY></HTML>",
     // Blocks.
     "<HTML><BODY><P>para<P ALIGN=center>two</P><BR><BR CLEAR=all><HR><HR SIZE=4 WIDTH=50% NOSHADE>"
     "<HR WIDTH=120><CENTER>c</CENTER><DIV ALIGN=right>r</DIV><DIV ALIGN=left>l</DIV><BLOCKQUOTE>q</BLOCKQUOTE>"
@@ -545,6 +562,41 @@ const char* const kPages[] = {
     // Forms.
     "<HTML><BODY><FORM ACTION=x><INPUT TYPE=text NAME=a VALUE=b><SELECT NAME=s><OPTION>one<OPTION SELECTED>two"
     "</SELECT><TEXTAREA>t</TEXTAREA><LABEL>l</LABEL><BUTTON>b</BUTTON></FORM></BODY></HTML>",
+    // Every phrase tag, each closed; font tags one by one; FONT's sizes.
+    "<HTML><BODY><EM>em</EM><STRONG>strong</STRONG><DFN>dfn</DFN><CODE>code</CODE><SAMP>samp</SAMP><KBD>kbd</KBD>"
+    "<VAR>var</VAR><CITE>cite</CITE><ABBR>abbr</ABBR><ACRONYM>acronym</ACRONYM><EM>open <B>bold</B> on</EM>"
+    "<CODE>not closed</BODY></HTML>",
+    "<HTML><BODY><TT>tt</TT><I>i</I><B>b</B><STRIKE>s</STRIKE><BIG>big</BIG><SMALL>small</SMALL><U>u</U>"
+    "<FONT SIZE=7>7</FONT><FONT SIZE=0>0</FONT><FONT SIZE=+9>+9</FONT><FONT SIZE=-9>-9</FONT><FONT SIZE=+0>+0</FONT>"
+    "<FONT SIZE=abc>abc</FONT><FONT SIZE=>none</FONT><FONT FACE=\"Courier New\" COLOR=blue>face</FONT>"
+    "<FONT COLOR=\"#zz\">bad colour</FONT><B><P>block in B</P></B></BODY></HTML>",
+    // Table parts in the order the game looks for them; COL and COLGROUP
+    // (COLGROUP's end tag is given back and ends the table's parts).
+    "<HTML><BODY><TABLE><COL><COL WIDTH=3><COLGROUP><COL><COL></COLGROUP><THEAD><TR><TH>h</TH></TR></THEAD>"
+    "<TFOOT><TR><TD>foot</TD></TR></TFOOT><TBODY><TR><TD>body</TD></TR></TBODY><TBODY><TR><TD>second</TD>"
+    "</TR></TBODY><TR><TD>bare row</TD></TR></TABLE></BODY></HTML>",
+    "<HTML><BODY><TABLE><COLGROUP><TR><TD>after colgroup</TD></TR></TABLE><TABLE><CAPTION>c</CAPTION><TR></TR>"
+    "</TABLE><TABLE><TR><TD VALIGN=top>t</TD><TD VALIGN=middle>m</TD><TD VALIGN=baseline>b</TD><TD VALIGN=other ALIGN=right>o</TD>"
+    "<TD ALIGN=center>c</TD></TR><TR BGCOLOR=\"#FF00FF\"><TH>t</TH><TD>d</TD></TR></TABLE><TABLE BGCOLOR=red>"
+    "<TR><TD>coloured</TD></TR></TABLE><TABLE></BODY></HTML>",
+    "<HTML><BODY><TABLE><THEAD><TR><TH>h</TH></TR></THEAD><TFOOT><TR><TD>foot</TD></TR></TFOOT><TBODY><TR>"
+    "<TD>body</TD></TR></TBODY></TABLE><TABLE><TFOOT><TR><TD>f</TD></TR><TR><TD>g</TD></TR></TABLE></BODY></HTML>",
+    // Handlers that fail: empty lists, an unclosed list, a SELECT without
+    // options, a MAP with nothing, DL without its end.
+    "<HTML><BODY><UL></UL><OL></OL><UL><LI>never closed</BODY></HTML>",
+    "<HTML><BODY><SELECT></SELECT><SELECT><OPTGROUP><OPTION>x</OPTGROUP><OPTION></SELECT><MAP NAME=e></MAP>"
+    "<MAP><P>p in map</P></MAP><DL><DT>t<DD>d</DL><DL><DT>no end</BODY></HTML>",
+    "<HTML><BODY><DIV ALIGN=center><DIV ALIGN=right><P>nested</P></DIV></DIV><CENTER><TABLE><TR><TD>in centre"
+    "</TD></TR></TABLE></CENTER><BLOCKQUOTE><SCRIPT>x</SCRIPT><UL><LI>in quote</UL></BLOCKQUOTE><FORM><FORM>"
+    "inner</FORM><SCRIPT></SCRIPT><P>f</P></FORM><H1>never closed</BODY></HTML>",
+    // The head's tags.
+    "<HTML><HEAD><TITLE>t</TITLE><BASE HREF=\"http://www.example.com/dir/\"><STYLE>B { x }</STYLE>"
+    "<SCRIPT>s</SCRIPT><OBJECT>o</OBJECT><ISINDEX><META HTTP-EQUIV=refresh CONTENT=5></HEAD><BODY>"
+    "<A HREF=rel.html>relative</A><IMG SRC=pic.png></BODY></HTML>",
+    "<HTML><HEAD><TITLE>no end<P>after</HEAD><BODY>b</BODY></HTML>",
+    // Text with entities in many runs, preformatted text, BR in odd places.
+    "<HTML><BODY>&lt;tag&gt; &amp;amp; &nbsp;&nbsp;x&copy;y&#169;&#xA9;&#1234;&#x;&unknown<PRE>a\n\n  b\tc</PRE>"
+    "<BR><B><BR>b</B></BODY></HTML>",
     // Images.
     "<HTML><BODY><IMG SRC=\"a.png\"><IMG SRC=b.jpg ALT=\"bee\" WIDTH=10 HEIGHT=20 ALIGN=left>"
     "<IMG SRC=\"c.png\" ALIGN=right BORDER=0><IMG></BODY></HTML>",
@@ -663,7 +715,7 @@ uint32_t g_hash = 2166136261u;
 
 bool AnyOurs()
 {
-    for (const char* id : {"ui.html.parser.tokens", "ui.html.parser.tables"})
+    for (const char* id : {"ui.html.parser.tokens", "ui.html.parser.names", "ui.html.parser.document", "ui.html.parser.blocks", "ui.html.parser.table", "ui.html.parser.inline"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -720,14 +772,18 @@ void DriveParserDay(const Day& day)
     // compares; a page that differs is run again on both sides with a trace.
     auto stage = [&](const char* name, std::size_t i, auto run) {
         uint32_t game = 0;
+        uint32_t gameIdentity = 0;
         if (compare) {
             html_parser::g_useGame = true;
+            g_identity = Fnv{};
             game = run();
+            gameIdentity = g_identity.h;
             html_parser::g_useGame = false;
         }
+        g_identity = Fnv{};
         const uint32_t ours = run();
         total.Word(ours);
-        if (compare && game != ours) {
+        if (compare && (game != ours || gameIdentity != g_identity.h)) {
             ++differ;
             log::Write("autotest: html parser: %s %zu differs: game %08X ours %08X (%zu bytes)", name, i, game, ours,
                        pages[i].size());

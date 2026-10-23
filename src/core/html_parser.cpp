@@ -454,7 +454,7 @@ void* __fastcall DInsertAttribute(void* map, void*, void* result, const void* pa
 }
 
 // ====================================================================================
-// The tag table and the entities (ui.html.parser.tables)
+// The tag table and the entities (ui.html.parser.names)
 
 using TagsInitFn = void(__cdecl*)();
 using EntityFn = Text*(__thiscall*)(char*, Text*, const Text*);
@@ -670,6 +670,8 @@ Text* __fastcall DEntity(char* doc, void*, Text* out, const Text* name)
     return Entity(doc, out, name);
 }
 
+#include "core/html_parser_tree.h"
+
 // ====================================================================================
 // Installation
 
@@ -710,7 +712,7 @@ bool InstallTokens(registry::Mode)
     return InstallAll("tokens", detours);
 }
 
-bool InstallTables(registry::Mode)
+bool InstallNames(registry::Mode)
 {
     const Detour detours[] = {
         {addr::HTMLTags_Init, reinterpret_cast<void*>(&DTagsInit), Slot(&g_tagsInit)},
@@ -719,7 +721,84 @@ bool InstallTables(registry::Mode)
         {addr::HTMLEntities_Lookup, reinterpret_cast<void*>(&DEntity), Slot(&g_entity)},
         {addr::HTMLEntities_InsertCall, reinterpret_cast<void*>(&DInsertEntityCall), Slot(&g_insertEntityCall)},
     };
-    return InstallAll("tables", detours);
+    return InstallAll("names", detours);
+}
+
+bool InstallDocument(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::HTMLDocument_Parse, reinterpret_cast<void*>(&DParse), Slot(&g_Parse)},
+        {addr::HTMLDocument_ParseFromHTML, reinterpret_cast<void*>(&DParseFromHTML), Slot(&g_ParseFromHTML)},
+        {addr::HTMLDocument_ParseHTML, reinterpret_cast<void*>(&DParseHTML), Slot(&g_ParseHTML)},
+        {addr::HTMLDocument_ParseHead, reinterpret_cast<void*>(&DParseHead), Slot(&g_ParseHead)},
+        {addr::HTMLDocument_ParseTitle, reinterpret_cast<void*>(&DParseTitle), Slot(&g_ParseTitle)},
+        {addr::HTMLDocument_ParseBody, reinterpret_cast<void*>(&DParseBody), Slot(&g_ParseBody)},
+        {addr::HTMLDocument_ParsePlain, reinterpret_cast<void*>(&DParsePlain), Slot(&g_ParsePlain)},
+        {addr::HTMLDocument_AddImage, reinterpret_cast<void*>(&DAddImage), Slot(&g_AddImage)},
+        {addr::HTMLImageMap_InsertUnique, reinterpret_cast<void*>(&DInsertImage), Slot(&g_InsertImage)},
+        {addr::HTMLDocument_Construct, reinterpret_cast<void*>(&DConstruct), Slot(&g_Construct)},
+        {addr::HTMLDocument_PushFont, reinterpret_cast<void*>(&DPushFontRecord), Slot(&g_PushFontRecord)},
+        {addr::HTMLFontStack_Push, reinterpret_cast<void*>(&DPushFontCopy), Slot(&g_PushFontCopy)},
+    };
+    return InstallAll("document", detours);
+}
+
+bool InstallBlocks(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::HTMLDocument_ParseBlock, reinterpret_cast<void*>(&DParseBlock), Slot(&g_ParseBlock)},
+        {addr::HTMLDocument_SkipTo, reinterpret_cast<void*>(&DSkipToTag), Slot(&g_SkipToTag)},
+        {addr::HTMLDocument_SkipScript, reinterpret_cast<void*>(&DSkipScriptTag), Slot(&g_SkipScriptTag)},
+        {addr::HTMLDocument_ParseParagraph, reinterpret_cast<void*>(&DParseParagraph), Slot(&g_ParseParagraph)},
+        {addr::HTMLDocument_ParseAligned, reinterpret_cast<void*>(&DParseAligned), Slot(&g_ParseAligned)},
+        {addr::HTMLDocument_ParseCenter, reinterpret_cast<void*>(&DParseCenter), Slot(&g_ParseCenter)},
+        {addr::HTMLDocument_ParseDiv, reinterpret_cast<void*>(&DParseDiv), Slot(&g_ParseDiv)},
+        {addr::HTMLDocument_ParseQuote, reinterpret_cast<void*>(&DParseQuote), Slot(&g_ParseQuote)},
+        {addr::HTMLDocument_ParseForm, reinterpret_cast<void*>(&DParseForm), Slot(&g_ParseForm)},
+        {addr::HTMLDocument_ParseHeading, reinterpret_cast<void*>(&DParseHeading), Slot(&g_ParseHeading)},
+        {addr::HTMLDocument_ParsePre, reinterpret_cast<void*>(&DParsePre), Slot(&g_ParsePre)},
+        {addr::HTMLDocument_ParseDefinitions, reinterpret_cast<void*>(&DParseDefinitions), Slot(&g_ParseDefinitions)},
+        {addr::HTMLDocument_ParseDD, reinterpret_cast<void*>(&DParseDD), Slot(&g_ParseDD)},
+        {addr::HTMLDocument_ParseDT, reinterpret_cast<void*>(&DParseDT), Slot(&g_ParseDT)},
+        {addr::HTMLDocument_ParseList, reinterpret_cast<void*>(&DParseList), Slot(&g_ParseList)},
+        {addr::HTMLDocument_ParseBullets, reinterpret_cast<void*>(&DParseBullets), Slot(&g_ParseBullets)},
+        {addr::HTMLDocument_ParseNumbers, reinterpret_cast<void*>(&DParseNumbers), Slot(&g_ParseNumbers)},
+        {addr::HTMLDocument_ParseItem, reinterpret_cast<void*>(&DParseItem), Slot(&g_ParseItem)},
+    };
+    return InstallAll("blocks", detours);
+}
+
+bool InstallTable(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::HTMLDocument_ParseTable, reinterpret_cast<void*>(&DParseTable), Slot(&g_ParseTable)},
+        {addr::HTMLDocument_ParseRow, reinterpret_cast<void*>(&DParseRow), Slot(&g_ParseRow)},
+        {addr::HTMLDocument_ParseCell, reinterpret_cast<void*>(&DParseCell), Slot(&g_ParseCell)},
+        {addr::HTMLDocument_ParseHeaderCell, reinterpret_cast<void*>(&DParseHeaderCell), Slot(&g_ParseHeaderCell)},
+        {addr::HTMLDocument_ParseTableBody, reinterpret_cast<void*>(&DParseTableBody), Slot(&g_ParseTableBody)},
+        {addr::HTMLDocument_ParseTableFoot, reinterpret_cast<void*>(&DParseTableFoot), Slot(&g_ParseTableFoot)},
+        {addr::HTMLDocument_ParseTableHead, reinterpret_cast<void*>(&DParseTableHead), Slot(&g_ParseTableHead)},
+        {addr::HTMLDocument_SkipColumns, reinterpret_cast<void*>(&DSkipColumns), Slot(&g_SkipColumns)},
+    };
+    return InstallAll("table", detours);
+}
+
+bool InstallInline(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::HTMLDocument_ParseInline, reinterpret_cast<void*>(&DParseInline), Slot(&g_ParseInline)},
+        {addr::HTMLDocument_ParseFontTag, reinterpret_cast<void*>(&DParseFontTag), Slot(&g_ParseFontTag)},
+        {addr::HTMLDocument_ParsePhrase, reinterpret_cast<void*>(&DParsePhrase), Slot(&g_ParsePhrase)},
+        {addr::HTMLDocument_ParseSpecial, reinterpret_cast<void*>(&DParseSpecial), Slot(&g_ParseSpecial)},
+        {addr::HTMLDocument_ParseLink, reinterpret_cast<void*>(&DParseLink), Slot(&g_ParseLink)},
+        {addr::HTMLDocument_ParseSpan, reinterpret_cast<void*>(&DParseSpan), Slot(&g_ParseSpan)},
+        {addr::HTMLDocument_ParseBlink, reinterpret_cast<void*>(&DParseBlink), Slot(&g_ParseBlink)},
+        {addr::HTMLDocument_ParseMap, reinterpret_cast<void*>(&DParseMap), Slot(&g_ParseMap)},
+        {addr::HTMLDocument_ParseFormInline, reinterpret_cast<void*>(&DParseFormInline), Slot(&g_ParseFormInline)},
+        {addr::HTMLDocument_ParseSelect, reinterpret_cast<void*>(&DParseSelect), Slot(&g_ParseSelect)},
+        {addr::HTMLDocument_ParseOption, reinterpret_cast<void*>(&DParseOption), Slot(&g_ParseOption)},
+    };
+    return InstallAll("inline", detours);
 }
 
 const bool g_registered[] = {
@@ -728,10 +807,30 @@ const bool g_registered[] = {
                         "Our HTML tokenizer: the text up to a tag, the next tag and its ID, the tag's attributes "
                         "(4 detours; docs/html.md)",
                         false, InstallTokens}),
-    registry::Register({"ui.html.parser.tables", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+    registry::Register({"ui.html.parser.names", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
                         addr::HTMLTags_Init,
                         "Our HTML tag table and named entities, as tables (5 detours; docs/html.md)", false,
-                        InstallTables}),
+                        InstallNames}),
+    registry::Register({"ui.html.parser.document", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_Parse,
+                        "Our HTML document: its constructor, Parse, the page, head, title and body, plain text, "
+                        "images asked for, the font stack (12 detours; docs/html.md)",
+                        false, InstallDocument}),
+    registry::Register({"ui.html.parser.blocks", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_ParseBlock,
+                        "Our HTML block tags: P, CENTER, DIV, BLOCKQUOTE, FORM, headings, PRE, DL, UL, OL, LI and "
+                        "the skips (18 detours; docs/html.md)",
+                        false, InstallBlocks}),
+    registry::Register({"ui.html.parser.table", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_ParseTable,
+                        "Our HTML tables: TABLE, TR, TD, TH, THEAD, TBODY, TFOOT, COLGROUP (8 detours; "
+                        "docs/html.md)",
+                        false, InstallTable}),
+    registry::Register({"ui.html.parser.inline", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_ParseInline,
+                        "Our HTML inline tags: text, font and phrase tags, A, SPAN, BLINK, MAP, the form tags "
+                        "(11 detours; docs/html.md)",
+                        false, InstallInline}),
 };
 
 } // namespace
