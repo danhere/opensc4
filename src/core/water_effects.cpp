@@ -10358,6 +10358,21 @@ void HsDelete(char* object)
         reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(object);
 }
 
+// The dword hash's clear (0x008EBA60), which renderer.effects.tail's
+// comparison detours to note: with that detour on, the game's end of a
+// hash is noted as the clear and the free, so ours' replay notes its
+// inlined clear as that one call (its frees inside it are not noted, as
+// the game's are not).
+extern Call0Fn g_SC4Uint32HashSet_Clear;
+
+bool HsClearNoted(char* table)
+{
+    if (!g_stReplay || !g_SC4Uint32HashSet_Clear)
+        return false;
+    StReplayed(StMake(addr::SC4Uint32HashSet_Clear, table), nullptr);
+    return true;
+}
+
 #include "core/effects_hashes.h"
 
 // A comparison whose game's run frees what is put back for ours: the
