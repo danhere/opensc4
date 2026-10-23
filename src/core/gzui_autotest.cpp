@@ -7,7 +7,8 @@
 // mixer's (OPENSC4_TEST_GZSOUNDMIX, part u8), the UI script loader's
 // (OPENSC4_TEST_UISCRIPT, part u9), the MP3 decoder's and the UI script
 // root holder's (OPENSC4_TEST_MP3, part u10) and the root holder's life and
-// the LEGACY reader's (OPENSC4_TEST_LEGACY, part u11).
+// the LEGACY reader's (OPENSC4_TEST_LEGACY, part u11) and the readers of a
+// window's script properties (OPENSC4_TEST_PROPREAD, part u12).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -7629,6 +7630,162 @@ void LgFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kLgFingerprint{"legacy", 4, &LgFingerprint};
 const DayHook kLgDrive{"legacy", 4, &DriveLegacy};
+
+
+// Part u12: the readers of a window's script properties
+// (OPENSC4_TEST_PROPREAD). A vector of pairs of our own with properties of
+// our own (text ones answer 0x800E and put their text in the string through
+// its slot 3, the characters and their count; each hashes every call it gets), strings made by the game's
+// constructor; the four called by address with their registers set. Every
+// result goes into the hash; addresses never do.
+
+bool g_prOn = false;
+uint32_t g_prHash = 2166136261u;
+
+void PrStage(const char* name) { log::Write("autotest: propread: %s %08X", name, g_prHash); }
+
+struct PrProperty {
+    void** vtable;
+    uint32_t kind;
+    const char* text;
+};
+
+uint32_t __fastcall PrKind(PrProperty* self, void*)
+{
+    Mix(0x30000u | self->kind);
+    return self->kind;
+}
+
+uint32_t __fastcall PrText(PrProperty* self, void*, void* string)
+{
+    Mix(0x37000u);
+    const uint32_t length = static_cast<uint32_t>(std::strlen(self->text));
+    Virtual<uint32_t>(string, 0xC, self->text, length);
+    return 0x100u | (length & 0xFF);
+}
+
+void** PrTable()
+{
+    static void* table[56] = {};
+    table[3] = reinterpret_cast<void*>(&PrKind);
+    table[55] = reinterpret_cast<void*>(&PrText);
+    return table;
+}
+
+// The game's address called with EBX, ESI and EDI set and four stack
+// arguments (cdecl; the readers take fewer and leave the rest).
+__declspec(naked) uint32_t __cdecl PrCall(std::uintptr_t, void*, void*, void*, uint32_t, uint32_t, uint32_t,
+                                          uint32_t)
+{
+    __asm push ebx
+    __asm push esi
+    __asm push edi
+    __asm push ebp
+    __asm mov ebp, esp
+    __asm mov ebx, [ebp + 24]
+    __asm mov esi, [ebp + 28]
+    __asm mov edi, [ebp + 32]
+    __asm push dword ptr [ebp + 48]
+    __asm push dword ptr [ebp + 44]
+    __asm push dword ptr [ebp + 40]
+    __asm push dword ptr [ebp + 36]
+    __asm call dword ptr [ebp + 20]
+    __asm mov esp, ebp
+    __asm pop ebp
+    __asm pop edi
+    __asm pop esi
+    __asm pop ebx
+    __asm ret
+}
+
+uint32_t PrArg(const void* pointer) { return static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(pointer)); }
+
+void PrMixText(char* string)
+{
+    const char* const begin = At<const char*>(string, 4);
+    const char* const end = At<const char*>(string, 8);
+    Mix(static_cast<uint32_t>(end - begin));
+    for (const char* c = begin; c < end; ++c)
+        Mix(static_cast<uint8_t>(*c));
+}
+
+void DrivePropRead()
+{
+    PrProperty properties[] = {
+        {PrTable(), 0x800E, "(1,2,3)"},          {PrTable(), 5, "(9,9,9)"},
+        {PrTable(), 0x800E, "(7,-8)"},           {PrTable(), 0x800E, "(10,20,30,40)"},
+        {PrTable(), 0x800E, "(1,2"},             {PrTable(), 0x800E, "garbage"},
+        {PrTable(), 0x800E, "(300,-1,256)"},     {PrTable(), 0x800E, "(5,6,7,8,9)"},
+        {PrTable(), 0x800E, ""},                 {PrTable(), 0x800E, "( 4 , 5 , 6 )"},
+    };
+    struct Pair {
+        uint32_t key;
+        PrProperty* property;
+    };
+    Pair pairs[] = {
+        {1, &properties[0]}, {2, nullptr},         {3, &properties[1]}, {3, &properties[2]},
+        {4, &properties[3]}, {5, &properties[4]},  {6, &properties[5]}, {7, &properties[6]},
+        {8, &properties[7]}, {9, &properties[8]},  {10, &properties[9]}, {1, &properties[2]},
+    };
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + std::size(pairs)), nullptr};
+    char* emptyVector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs), nullptr};
+
+    alignas(4) char string[0x14];
+    CallThis<void*>(addr::SC4String_SC4String, string);
+    for (uint32_t key = 0; key <= 11; ++key) {
+        MixByte(PrCall(addr::cGZUIScriptProps_FindText, string, nullptr, vector, key, 0, 0, 0));
+        PrMixText(string);
+    }
+    MixByte(PrCall(addr::cGZUIScriptProps_FindText, string, nullptr, emptyVector, 1, 0, 0, 0));
+    PrMixText(string);
+    if (char* const begin = At<char*>(string, 4))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin);
+    At<std::uintptr_t>(string, 0) = addr::SC4String_Vtable;
+    PrStage("find");
+
+    for (uint32_t key = 0; key <= 11; ++key) {
+        uint8_t bytes[3] = {0xAA, 0xBB, 0xCC};
+        MixByte(PrCall(addr::cGZUIScriptProps_ReadBytes, nullptr, nullptr, vector, key, PrArg(&bytes[0]),
+                       PrArg(&bytes[1]), PrArg(&bytes[2])));
+        Mix(bytes[0] | bytes[1] << 8 | bytes[2] << 16);
+        int32_t pair[2] = {-77, -78};
+        MixByte(PrCall(addr::cGZUIScriptProps_ReadPair, nullptr, nullptr, vector, key, PrArg(&pair[0]),
+                       PrArg(&pair[1]), 0));
+        Mix(static_cast<uint32_t>(pair[0]));
+        Mix(static_cast<uint32_t>(pair[1]));
+        int32_t rect[4] = {-1, -2, -3, -4};
+        MixByte(PrCall(addr::cGZUIScriptProps_ReadRect, nullptr, rect, vector, key, 0, 0, 0));
+        for (int32_t value : rect)
+            Mix(static_cast<uint32_t>(value));
+    }
+    PrStage("scan");
+}
+
+// OPENSC4_TEST_PROPREAD=<day>: part u12's readers by address. Every result
+// goes into the fingerprint's `pr` part.
+void DrivePropReadDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_PROPREAD") || !game::IsBuild641())
+        return;
+    g_prOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_prHash;
+    DrivePropRead();
+    g_into = saved;
+    log::Write("autotest: propread driven (hash %08X)", g_prHash);
+}
+
+void PrFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_prOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | pr %08X", g_prHash);
+    line += text;
+}
+
+const FingerprintPart kPrFingerprint{"propread", 4, &PrFingerprint};
+const DayHook kPrDrive{"propread", 4, &DrivePropReadDay};
 
 } // namespace
 } // namespace opensc4::autotest

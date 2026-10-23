@@ -5496,3 +5496,63 @@ convention = "cdecl"
 signature = "void** (void* const* first, void* const* last, void** to)"
 expect = "8B 44 24 04 56 8B 74 24"
 source = "Name ours. Pointers copied forward (a memmove); the destination's end answered. STLport code; Stays the game's; called by ours."
+
+# Part u12 (src/core/gzui_props.cpp, docs/gzui.md): the readers of a window's script properties (the text finder
+# and its three scanners) and the formats they scan with.
+
+[[entry]]
+name = "cGZUIScriptProps::FindText"
+address = 0x0094CCD9
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t key)"
+expect = "55 8B EC 51 8B 43 04 3B"
+source = "Name ours. cdecl with the string in EBX and the vector of 8-byte pairs (key, property) in EDI. The string emptied; the first pair with the key whose property is set and answers 0x800E (slot 3) puts its text in the string (slot 55; its EAX answered); AL 0 when none. Called by the property handlers and the scanners. Ours in framework.uiscript.propread (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::ReadBytes"
+address = 0x0094D4CD
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t key, uint8_t* first, uint8_t* second, uint8_t* third)"
+expect = "55 8B EC 83 EC 20 53 8D"
+source = "Name ours. cdecl with the vector in EDI. The key's text (0x0094CCD9, in a string of its own) scanned as \"(%d,%d,%d)\"; with all three the low bytes stored and AL 1, else AL 0 and nothing stored. Ours in framework.uiscript.propread (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::ReadPair"
+address = 0x0094D55A
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t key, int32_t* first, int32_t* second)"
+expect = "55 8B EC 83 EC 14 53 8D"
+source = "Name ours. cdecl with the vector in EDI. The key's text scanned as \"(%d,%d)\" straight into the pointers; AL 1 when both were read. Ours in framework.uiscript.propread (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::ReadRect"
+address = 0x0094D5CA
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t key)"
+expect = "55 8B EC 83 EC 14 53 8D"
+source = "Name ours. cdecl with the rectangle's four ints in ESI and the vector in EDI. The key's text scanned as \"(%d,%d,%d,%d)\" into them; AL 1 when all four were read. Ours in framework.uiscript.propread (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::BytesFormat"
+address = 0x00AD5404
+kind = "data"
+expect = "28 25 64 2C 25 64 2C 25"
+source = "Name ours. \"(%d,%d,%d)\", the format 0x0094D4CD scans with."
+
+[[entry]]
+name = "cGZUIScriptProps::PairFormat"
+address = 0x00AD542C
+kind = "data"
+expect = "28 25 64 2C 25 64 29 00"
+source = "Name ours. \"(%d,%d)\", the format 0x0094D55A scans with."
+
+[[entry]]
+name = "cGZUIScriptProps::RectFormat"
+address = 0x00AD5434
+kind = "data"
+expect = "28 25 64 2C 25 64 2C 25"
+source = "Name ours. \"(%d,%d,%d,%d)\", the format 0x0094D5CA scans with."
