@@ -1,4 +1,4 @@
-// The layout of the other road vehicles, part ro1 (build 641; functions,
+// The layout of the other road vehicles, parts ro1 and ro2 (build 641; functions,
 // vtables and data in data/addresses/automata.toml, the survey in
 // docs/automata.md, "Part ro").
 //
@@ -84,7 +84,56 @@ inline constexpr std::size_t kAttachEffect = 0x24;    // the attachments' slot 9
 inline constexpr std::size_t kAttachDone = 0x14;      // the attachments' slot 5
 inline constexpr std::size_t kShotStop = 0x10;        // the shot effect's slot 4: (1), ret 4
 inline constexpr std::size_t kShotRunning = 0x14;     // the shot effect's slot 5: a bool
+// Part ro2's, of the automaton (main vtable) unless noted.
+inline constexpr std::size_t kId = 0x14;                // 5: a word
+inline constexpr std::size_t kGetPosition = 0x1C;       // 7: (float* out), ret 4
+inline constexpr std::size_t kRemove = 0x34;            // 13: (bool), ret 4
+inline constexpr std::size_t kDirection = 0x3C;         // 15: (float* out), ret 4
+inline constexpr std::size_t kPlace = 0x40;             // 16: (point, heading), ret 8
+inline constexpr std::size_t kGetRadius = 0x44;         // 17: a float in ST0
+inline constexpr std::size_t kSound = 0x58;             // 22: (key, 1, 1, float), ret 0x10
+inline constexpr std::size_t kCheckFlag = 0x7C;         // 31: (flag), a bool
+inline constexpr std::size_t kFadeNow = 0x80;           // 32: a float in ST0
+inline constexpr std::size_t kFade = 0x84;              // 33: (float, float), ret 8
+inline constexpr std::size_t kStep = 0x98;              // 38: a float in ST0
+inline constexpr std::size_t kNextAutomaton = 0xC0;     // 48 (also of the bus stop's chain)
+inline constexpr std::size_t kSetLeader = 0xC4;         // 49: (automaton), ret 4; an occupant's: its network part
+inline constexpr std::size_t kPushState = 0xD0;         // 52: seven words, ret 0x1C
+inline constexpr std::size_t kPopState = 0xD4;          // 53
+inline constexpr std::size_t kRecord = 0xE4;            // 57: (word), ret 4
+inline constexpr std::size_t kStateType = 0xEC;         // 59
+inline constexpr std::size_t kSlot61 = 0xF4;            // 61: (word), ret 4
+inline constexpr std::size_t kSlot83 = 0x14C;           // 83: (seconds), ret 4
+inline constexpr std::size_t kEnter = 0x210;            // 132: (occupant, groups, path, keep), ret 0x10
+inline constexpr std::size_t kGroups = 0x220;           // 136
+inline constexpr std::size_t kOccupantOf = 0x224;       // 137
+inline constexpr std::size_t kPosition = 0x230;         // 140: the position's address
+inline constexpr std::size_t kSlot173 = 0x2B4;          // 173: (a, b), ret 8
+inline constexpr std::size_t kManager = 0x2B8;          // 174: the vehicle manager
+inline constexpr std::size_t kSlot178 = 0x2C8;          // 178: (float*), ret 4
+inline constexpr std::size_t kSlot179 = 0x2CC;          // 179: a float*
+inline constexpr std::size_t kSlot180 = 0x2D0;          // 180: (float*), ret 4
+inline constexpr std::size_t kRemember = 0x2D4;         // 181: (deque, count), ret 8
+inline constexpr std::size_t kSlot184 = 0x2E0;          // 184
+inline constexpr std::size_t kPushWord = 0x300;         // the trailer's 192: (word), ret 4
+inline constexpr std::size_t kAddCar = 0x30C;           // the trailer's 195
+inline constexpr std::size_t kFollowPath = 0x310;       // the trailer's 196: (seconds), ret 4
+inline constexpr std::size_t kFollowLeader = 0x314;     // the trailer's 197: (seconds), ret 4
+inline constexpr std::size_t kCrossPath = 0x318;        // the trailer's 198: four pointers, ret 0x10
+inline constexpr std::size_t kRemoveHighlight1 = 0x304; // the tank's 193
+inline constexpr std::size_t kRemoveHighlight2 = 0x310; // the tank's 196
+inline constexpr std::size_t kMakeVehicle = 0x3C;       // the vehicle manager's 15: seven words, ret 0x1C
 } // namespace slot
+
+// cSC4Vehicle's fields part ro2 reads (src/core/automata_vehicle.h has them
+// too).
+namespace field {
+inline constexpr std::size_t kPosition = 0x40, kHeading = 0x58, kRadius = 0x7C, kAutomataFlags = 0x84;
+inline constexpr std::size_t kByte90 = 0x90, kStatesEnd = 0xB8;
+inline constexpr std::size_t kOccupant = 0x1EC, kGroups = 0x1F4, kPath = 0x1F8, kPathIndex = 0x1FC;
+inline constexpr std::size_t kFront = 0x264;
+inline constexpr std::size_t kDeque = 0x27C; // start (cur, first, last, node), finish; elements of 8 bytes
+} // namespace field
 
 // The stream slots (cIGZOStream / cIGZIStream), each one argument.
 namespace stream {

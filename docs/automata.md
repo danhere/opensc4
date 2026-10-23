@@ -35,7 +35,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
-| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15), ro3 (4) (part ro below counts 103) |
+| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3 (4) (part ro below counts 103) |
 | Trains | 79 | 18,124 | 2 |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
@@ -2893,7 +2893,7 @@ What each class overrides of cSC4Vehicle:
   - Seven plain jumps: 0x005240C0, 0x0053CD00, 0x0053CD10, 0x0053CD20, 0x0054A740, 0x0054A770, and 0x00555A50 (the trailer's slot 176, shared with the trains).
   - Two folds: 0x006F7DC0 and 0x005050C0.
 - **ro1 (44, 3,707 bytes, done):** the objects, the save, the life cycle and the queries. Below.
-- **ro2 (15, 5,249 bytes):** the frame code of the trailer, the bus, the van, the carjacked vehicle and the limo.
+- **ro2 (15, 5,249 bytes, done):** the frame code of the trailer, the bus, the van, the carjacked vehicle and the limo. Below.
   - The trailer: 72 0x00555B50, 73 0x00556260, 95 0x00555B10, 132 0x00555A90, 192 0x00556380, 195 0x00556A30, 196 0x00556460, 197 0x00555C70, 198 0x005560D0.
   - The bus: 164 0x00524180, 172 0x005240D0.
   - The carjacked vehicle: 101 0x00524440. The van: 101 0x005339B0. The limo: 121 0x0053CD30.
@@ -2983,3 +2983,86 @@ Every B run carried the ` V` token, equal to the A run's, and reached all 44. Th
 - **ro1-t1 not counted:** its snapshot came from the first trial build. That build's test cut streams inside cSC4Vehicle's part, and both sides crashed there. The exception report has cSC4Vehicle's Read (0x0055BD28) and the bus's (0x0055703B) on the stack, and an allocation of a garbage size failing at 0x005B9FEB. No effects switch was on.
 - **ro1-t2's 12-save leg not counted:** the PC slept during it, so the leg was rerun as ro1-t3.
 - **The audit:** an independent check against the disassembly found no defect in the 44. It corrected one comment.
+
+### What is ours (ro2)
+
+15 functions, in the same group (`simulators.automata.roadveh`, list kFrame in [automata_roadveh.cpp](../src/core/automata_roadveh.cpp)). Each is written by hand from the disassembly.
+
+- **The trailer (9):**
+  - Slot 72 0x00555B50, the frame. It runs cSC4Vehicle's frame. While the point +0x2D0 is unset (x or z below 0), it takes the last car's position, occupant and groups (or its own without cars). It adds a car while there are more words than cars. Then it runs slot 197 with the flag 0x2000, else slot 196.
+  - Slot 73 0x00556260: false for one of its own cars, else the core's slot 73 (0x005059C0).
+  - Slot 95 0x00555B10: the core's slot 95 (0x0050F140), then each word of the template's list (+0x50) pushed by slot 192.
+  - Slot 132 0x00555A90: slot 181 with the deque +0x27C and the word count plus one, then cSC4Vehicle's slot 132.
+  - Slot 192 0x00556380: a word pushed on +0x2B8.
+  - Slot 195 0x00556A30, a car more. The vehicle manager's slot 15 makes the car of the word at the car count. This happens once the last car (or the trailer) is twice its radius from the point. The car is led by the last car, placed at the point with its direction, and given the occupant +0x2DC. It is pushed on the car vector and referenced.
+  - Slot 196 0x00556460, the cars along the path. Each car is placed where the path crosses a segment through the rear point of the one before (slot 198). The path is walked back from +0x1F8 and +0x1FC, then back along the deque +0x27C. Each deque element's occupant gives the next path.
+  - Slot 197 0x00555C70, the cars behind each other. Each car goes its radius behind the rear point of the one before. Its front moves by slot 38, or with the state 0x10's record (its +0x2C below 0) it is set from the terrain's height (0x00B43D54, slot 18).
+  - Slot 198 0x005560D0: where the segment a-b crosses (in x and z) the 200-metre segment through the centre, square to it.
+- **The bus (2):** slot 164 0x00524180 and slot 172 0x005240D0.
+  - Slot 164: the timer runs down. On half the draws of the core's generator, a waiting occupant (0xA9B40F05 in the state 4) in the 16-metre square is removed, else slot 53. Without the flags 0x20 and 4, or at the end of the timer, it runs the base's slot 164.
+  - Slot 172: the state 0x1E when the stop answers 0x1301, else the base's slot 172.
+- **The carjacked vehicle's slot 101** 0x00524440 and **the van's** 0x005339B0: the core's slot 101 (0x0050CE60), then the sound.
+  - The van's siren is loud for the driven automaton (city slot 49). Otherwise it goes by the police map and 0x00B43D70's map at its cell, or else by half the draws.
+- **The limo's slot 121** 0x0053CD30. It runs cSC4Vehicle's slot 121 first. Above 1000 on the controls' +0x98, it pays 50 from the budget (0x00B43DC4's slots 43, 50 and 44), or else it runs the core's 0x0050D870. Then it plays the sound (0x00B43D60's slot 7) and zeroes +0x98.
+- **The tank's slot 127** 0x0054A750: the core's (0x00508D00), then both tank highlights off (slots 193 and 196).
+
+The trailer's +0x2E0 (named a word in ro1) holds the groups of the last car's path (slot 136); +0x2DC is the occupant of that path.
+
+Called at their addresses, the game's (ours where vb is on):
+
+- cSC4Vehicle's slots 72, 121 and 132, the base's 164 and 172.
+- The core's slots 73, 95, 101 and 127 and its 0x0050D870.
+- SC4::FindUint32, SC4PtrVector::InsertN and PushBack, SC4::SegmentsIntersect2D.
+- 0x005D6FC0 (a squared 2D distance), the list helpers.
+
+Floats follow the x87 at 53 bits. Values stay doubles where the game keeps them on the x87, and are stored as floats where it stores them.
+
+Oddities kept:
+
+- **Slot 198** sets the crossing's y by the share of the squared distances (a to the crossing over a to b), not of the distances.
+- **Slot 197** keeps the car's new front y on the x87 only; the front's stored y is never updated.
+- **Slot 196:**
+  - It ends the whole frame, not the car, when the deque walk fails. A path it failed to get (null) is kept.
+  - A path of one point makes its index -1. The steps back then run for about 2^32 iterations.
+  - With no path at the start, the first car is faded only.
+- **Slot 195** reads the word at the car count without a bounds test. It refuses a position with any coordinate below 0.
+- **Slot 132** adds one to the word count's low byte only (INC CL).
+- **The limo's slot 121** uses the literals 50, 48 and 10. It does not read the fields Init sets from the property 0xEC15654A.
+- **The bus's slot 164** releases each answer of its query through the list's element. It keeps its list in the argument's slot.
+- **AL only in the game:** the trailer's slots 72, 73, 195 and 198, the bus's 164 and 172, both slots 101, the limo's 121. Ours zero-extends.
+
+### Test (ro2)
+
+The ` V` token gains `,<rframe>` after rflags (30 fields). rflags gains 0x20 when all 15 ran and 0x40 when a factory failed. The log line is "ro2 rframe", with the calls' hash and a mask of the 15 reached.
+
+Each class's object comes from its factory. Its main vtable is a copy with the test's slots in it (vb's probe: pointers as indices, points by contents). For the calls the test swaps its own objects into the globals: the city, the police simulator, 0x00B43D70, the terrain, the budget, the two services and the network service. Nothing of the real city is changed. Read from it: the traffic map pointer (slot 132's cSC4Vehicle part) and the core's generator, seeded as for vb.
+
+- **The trailer:**
+  - Slot 198 on nine segments: crossings, a miss, two near-degenerate segments and a zero one.
+  - Slot 192 with a null end and a vector that grows.
+  - Slot 73 with null, itself, its own car, and another car under six flag sets with and without 0x200000.
+  - Slot 95 with no template and with lists of 0 to 3 words.
+  - Slot 132 with no occupant.
+  - Slot 195 over seven cases (each coordinate below 0, too near, exactly twice the radius, no manager, no car made), then a second car and no words.
+  - Slot 197 over six runs of three cars, the terrain's and the step's. Then one car whose front is the trailer's rear point, with a step of 0.
+  - Slot 196 over nine runs of six cars along a four-point path and back over a deque of three elements in two blocks of the test's. Also: the deque used up, an element without a network part, a null element, an empty deque, no path, no cars, an index past the path.
+  - Slot 72 over five runs (the point unset or set, cars, words, the flag 0x2000), with cSC4Vehicle's frame on the probe's slots.
+- **The bus:** slot 164 over ten runs on a state of the test's (the flags, the timer, the riders' answers and states, the service's answer). Slot 172 over six (the stop's chain, slot 173).
+- **The carjacked vehicle's slot 101** twice (the core's two early answers). **The van's** over thirteen cases (the driven automaton, the maps, in the city or not, the draws).
+- **The limo's slot 121** over eight (below 1000, paid, too poor, no budget, no services). **The tank's slot 127** once.
+- **Not reached:** the false answer of both slots 101 (the core's slot 101 always answers 1). The bus's real search (the test's service answers). The trailer's frames with the game's own cars and paths.
+
+### Parity (ro2)
+
+2026-10-23, the same setup as ro1's (B = `simulators.automata.vehicle` and `simulators.automata.roadveh`, two jobs, `OPENSC4_MUTE=1`, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-ro2, snapshot ro2-t2 (the Rush Hour leg rerun with more retries as ro2-t3, a copy of it):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days, first pair |
+| Rush Hour Tutorial t0000 | 7 | same on shared outcomes (ro2-t3, 3 pairs) |
+| The 12-save batch | 7 | 12 of 12 saves, all on the first pair |
+
+Every B run reached all 15, and its ro2 field equalled the A run's. The game itself reaches the trailer's slots 72, 73, 132, 196 and 198 before the test day in Rush Hour t0000.
+
+- **Rush Hour t0000 and ad3's field:** ro2-t2 found Rush Hour different after 3 pairs. The only difference in every pair was ad3's `chighlight` in the ` V` token; the city's records and every other token were identical. That field copies a live city vehicle, so it depends on frame time. It took three values over the runs (0x86FDBB8E, 0xB49EAE5C, 0xB7A37F8C), on either side: ad3-t1 had 0x86FDBB8E on both, ro1-t2 0xB49EAE5C on both, and a single run of the original gave 0x86FDBB8E. A single B run with all 15 ro2 detours skipped gave 0x86FDBB8E too. ro2-t3 found the sides sharing outcomes.
+- **The audit:** an independent check against the disassembly found no defect in the 15. It added slot 198 to the AL-only list in the file's comment.
