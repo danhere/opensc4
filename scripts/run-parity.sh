@@ -174,7 +174,7 @@ else
 fi
 
 summary="$out/summary.txt"
-printf 'days %s, retries %s, jobs %s, quick %s\nA: %s\nB: %s\n' "$days" "$retries" "$jobs" "$OPENSC4_TEST_QUICK" "$replace_a" "$replace_b" >"$summary"
+printf 'days %s, retries %s, jobs %s, quick %s, mods %s\nA: %s\nB: %s\n' "$days" "$retries" "$jobs" "$OPENSC4_TEST_QUICK" "${OPENSC4_TEST_MODS:-none}" "$replace_a" "$replace_b" >"$summary"
 same=0
 differ=0
 failed=0

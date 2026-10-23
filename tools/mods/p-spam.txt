@@ -1,0 +1,3 @@
+# P-spam: P-content plus SPAM (#16). Its own region. Never with the CAM.
+include p-content
+pkg peg:spam st

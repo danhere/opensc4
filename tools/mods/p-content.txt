@@ -1,0 +1,30 @@
+# P-content: the content mods (#11-#14, #17-#20) on top of P-nam. Load time,
+# memory and drawing. Light Replacement Mod 4 itself (#18) is not in sc4pac;
+# only its props are.
+include p-nam
+pkg bsc:essentials
+pkg bsc:mega-props-cp-vol01
+pkg bsc:mega-props-cp-vol02
+pkg bsc:mega-props-sg-vol01
+pkg bsc:textures-vol01
+pkg bsc:textures-vol02
+pkg bsc:textures-vol03
+pkg bsc:texturepack-cycledogg-vol01
+pkg bsc:bat-props-mattb325-vol01
+pkg bsc:bat-props-mattb325-vol02
+pkg bsc:bat-props-mattb325-vol03
+pkg bsc:bat-props-mattb325-vol04
+pkg sfbt:essentials st
+pkg shk:parking-pack st
+pkg supershk:mega-parking-textures st
+pkg peg:mtp-super-pack st
+pkg memo:industrial-revolution-mod st
+pkg simfox:day-and-nite-mod st
+pkg mandelsoft:light-replacement-mod-props st
+pkg cycledogg:columbus-terrain
+pkg girafe:maples-v2
+pkg memo:essential-fixes st
+variant nightmode dark
+variant sfbt:essentials:tree-family Maxis-deciduous-trees
+variant CAM no
+variant memo:industrial-revolution-mod:enabled yes

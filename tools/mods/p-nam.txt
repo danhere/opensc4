@@ -1,0 +1,18 @@
+# P-nam: NAM 50 with its DLL (#1) plus Submenus and Resource Loading Hooks
+# (#3, #4). Network tool and traffic. Everything comes from GitHub: no token.
+pkg nam:network-addon-mod
+pkg nam:dll
+pkg memo:submenus-dll
+pkg null-45:sc4-resource-loading-hooks
+variant config:sc4-edition:edition Windows-digital
+variant nam:network-addon-mod:version current
+variant driveside right
+variant roadstyle US
+variant nightmode standard
+variant nam:real-highway:enabled yes
+variant nam:traffic-simulator:capacity classic
+variant nam:automata-controller:animation-style standard
+variant nam:canals:style CAL
+variant nam:maxis-highway:style default
+variant nam:maxis-transit-lots:airport-capacity standard
+variant nam:one-way-arrows:style single

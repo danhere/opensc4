@@ -25,6 +25,9 @@
 # OPENSC4_REPLACE names it), and only a game still running in this same test
 # folder stops the run. OPENSC4_PARALLEL is no longer needed.
 # OPENSC4_LAUNCHER_ARGS adds launcher options, e.g. "--large-address".
+# OPENSC4_TEST_MODS=<profile> puts a mod profile's files into the test folder's
+# Plugins (scripts/fetch-mods.sh, scripts/sync-mods.sh); without it the last
+# profile's files are taken out again.
 set -euo pipefail
 
 build="${1:?usage: run-autotest.sh <build dir> [VAR=value...]}"
@@ -82,6 +85,8 @@ if [ -n "$pid" ] && tasklist //FI "PID eq $pid" //FI "IMAGENAME eq SimCity 4.exe
     exit 1
 fi
 
+# Mods: exactly the profile's files, or none (plans/mod-testing.md).
+"$repo/scripts/sync-mods.sh" "$testenv/Plugins" "${OPENSC4_TEST_MODS:-}" >/dev/null
 SC4_PLUGINS="$testenv/Plugins" "$repo/scripts/deploy-plugin.sh" "$build" >/dev/null
 rm -f "$testenv/Plugins/opensc4.log" "$testenv/Plugins/opensc4-coverage.csv"
 # Function list for diagnostics.coverage (written by scripts/ghidra-setup.sh).
