@@ -4659,3 +4659,586 @@ convention = "cdecl"
 signature = "int (char* buffer, const char* format, ...)"
 expect = "55 8B EC 83 EC 20 56 8B"
 source = "Name ours. The C library's sprintf. Stays the game's; called by ours."
+
+# Part u10 (src/core/gzui_mp3.cpp, docs/gzui.md): the MP3 decoder director 0x1CEC20BE and its classes, the root
+# holder 0x5A354595; the game code and data they use.
+
+[[entry]]
+name = "cMP3Decoder::Feed"
+address = 0x0094A079
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const uint8_t* frame, int32_t size, int32_t limit)"
+expect = "56 8B F1 83 BE 48 4A 00"
+source = "Name ours. `ret 0xC`. A frame given to the decoder: -1 while it still holds input (+0x4A48), -2 for fewer than 4 bytes or a header 0x00A667FE refuses (the big-endian first dword; the input +0x4A44 already kept), else 0 with the limit +0x4A4C and the size +0x4A48 kept. Called by the stream's Read. Ours in framework.mp3.decode (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cMP3Decoder::Decode"
+address = 0x0094A0E4
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, int16_t** channels, int32_t count)"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Name ours. `ret 8`. Up to `count` samples a channel (no more than a limit +0x4A4C when it is not negative; 0 at 0) into the channels' buffers (a null one skipped) from the frame's interleaved samples +0x1244; when none is ready (+0x4A50) and there is input, the frame decoded: the first (byte +0x4A5C) through 0x00A66BEF and the samples to drop +0x4A58 from 0x00AD4D20 by the byte +0x2490, else +0x24A4 and +0x24AC set; 0x00A66B32 (a failure is silence: memset of +0x248C bytes); the input moved on by +0x2498 + 4, the samples ready +0x248C over twice the channels +0x4A40. Answers the samples given. Ours in framework.mp3.decode (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cMP3Decoder::Reset"
+address = 0x0094A2AB
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 A1 48 4A 00 00 00 83"
+source = "Name ours. No input (+0x4A48), nothing ready (+0x4A50), the next frame the first (byte +0x4A5C). EAX the caller's (ours 0). Ours in framework.mp3.decode (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cMP3Decoder::ParseHeader"
+address = 0x0094A2C1
+kind = "function"
+convention = "cdecl"
+signature = "int32_t (const uint8_t* header, int32_t* info)"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Name ours. An MPEG audio frame header into six dwords (memset first): the layer, the frame's size, its samples (0x180, 0x240 or 0x480), the channels (1 for mode 3, else 2), the sample rate (0x00AD4D30) and the bit rate (0x00AD4D1C). -1 for no sync, version 1 (reserved), layer 0, bit rate 15 or sample rate 3; else 0. Ours in framework.mp3.decode (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cMP3Decoder::Id3Size"
+address = 0x0094A3F8
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (const uint8_t* header)"
+expect = "8B 44 24 04 80 38 49 75"
+source = "Name ours. An ID3v2 tag's size with its 10-byte header (the 7-bit size bytes 6 to 9); 0 without `ID3`. Ours in framework.mp3.decode (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Maker::Construct"
+address = 0x0094A437
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "51 56 8B F1 83 66 04 00"
+source = "Name ours. The maker 0x9CEC2B58 (0xC bytes): the count +4 zero, the vtable 0x00AD4EC0, the list +8 (SC4RefList::Construct). Ours in framework.mp3.object (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Maker::QueryInterface"
+address = 0x0094A457
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "83 7C 24 04 01 74 0E 81"
+source = "Name ours. Slot 0; `ret 8`. 1 and 0xFCEFF549 give the maker; AddRef through the vtable, AL 1 over its EAX; AL 0 over the caller's EAX otherwise (ours 0). Ours in framework.mp3.object (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Maker::DeletingDestructor"
+address = 0x0094A47C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 14 00 00 00"
+source = "Name ours. Slot 4; `ret 4`. The destructor, SC4::operator_delete with flag 1; answers `this`. Ours in framework.mp3.object (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Maker::Destruct"
+address = 0x0094A498
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C7 01 C0 4E AD 00 83 C1"
+source = "Name ours. The vtable back, a tail jump to SC4PairList::Destroy at +8 (its EAX). Ours in framework.mp3.object (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Maker::Create"
+address = 0x0094A4A6
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "B8 6C F1 A6 00 E8 20 74"
+source = "Name ours. The maker's factory: 0xC bytes (SC4::operator_new) and its constructor; 0 without the memory. Ours in framework.mp3.object (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Maker::MakeStream"
+address = 0x0094AB03
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* path, uint32_t iid, void** out)"
+expect = "B8 EA F1 A6 00 E8 C3 6D"
+source = "Name ours. Slot 3; `ret 0xC`; `this` unused. A game string from the IGZString path, a stream (0x1104 bytes and 0x0094A4D8) opened by its slot 3 with the text and asked for the interface (slot 0): AL its answer, over the string's free's EAX (the QueryInterface's without a buffer). The stream is not released; without memory the game calls through null. Ours in framework.mp3.object (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Director::Construct"
+address = 0x0094ABC9
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "B8 FC F1 A6 00 E8 FD 6C"
+source = "Name ours. cRZCOMDllDirector::Construct, the vtables 0x00AD4F60 and 0x00AD4F34, the classes 0x3CEC2B47 (0x0094AB94) and 0x9CEC2B58 (0x0094A4A6) added (AddCls). Ours in framework.mp3.object (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Director::DeletingDestructor"
+address = 0x0094AC27
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 03 F8 FF FF"
+source = "Name ours. Slot 16; `ret 4`. cRZCOMDllDirector::Destruct through the thunk 0x0094A432 (the vtables not put back), SC4::operator_delete with flag 1; answers `this`. Ours in framework.mp3.object (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Construct"
+address = 0x0094A4D8
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "B8 81 F1 A6 00 E8 EE 73"
+source = "Name ours. The stream 0x3CEC2B47 (0x1104 bytes): the vtable 0x00AD4ED8, the count +4, the cRZFile +0x20 (ConstructEmpty), the fields zero, the path +0x10D4 (SC4String::SC4String), the wave format +0x10EC: tag 1, 2 channels, 44100, 176400 a second, 16 bits, the block +0x10F8 made from the bits word before it is set (what the memory held, times 2 over 8). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Release"
+address = 0x0094A5C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 04 83 F8 01 75 0E"
+source = "Name ours. Slot 2. At 1 the count goes to 0 and the deleting destructor (slot 21, flag 1) runs, answering 0; else the count less 1. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::FileSlot4"
+address = 0x0094A5DB
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 C1 20 8B 01 FF 60 10"
+source = "Name ours. Slot 9. A tail jump to the file's (+0x20) slot 4. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Length"
+address = 0x0094A5E3
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 00 11 00 00 C3"
+source = "Name ours. Slot 10. The length +0x1100. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Read"
+address = 0x0094A5ED
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* out, int32_t bytes)"
+expect = "55 8B EC 53 56 8B F1 0F"
+source = "Name ours. Slot 14; `ret 8`. Whole blocks of 16-bit PCM: the last frame's samples left, then frames from the file (slot 14: the 4-byte header at +0xB4, 0x0094A2C1 into +8, the rest at +0xB8), fed (0x0094A079) and decoded (0x0094A0E4 into +0xA4, +0xA8) until enough or no more. The format then takes the frame's channels and rate. Answers the bytes given. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Rewind"
+address = 0x0094A81A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "51 53 56 8B F1 83 A6 C0"
+source = "Name ours. Slot 15. Nothing decoded or given, the file back to its start (slot 9), 10 bytes read (slot 14; AL 0 over its EAX without); an ID3 tag (0x0094A3F8 into +0x10B8) skipped byte by byte, AL 1 over its size less 10; without one back to the start again, AL 1 over its EAX. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Format"
+address = 0x0094A892
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 81 EC 10 00 00 C3"
+source = "Name ours. Slot 16. The wave format +0x10EC. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Flag"
+address = 0x0094A899
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "80 B9 E9 10 00 00 00 75"
+source = "Name ours. Slot 17. The byte +0x10E8 when +0x10E9 is set, else AL 0; EAX the caller's above AL (ours 0). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::SetFlag"
+address = 0x0094A8AC
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, bool flag)"
+expect = "8A 44 24 04 88 81 E8 10"
+source = "Name ours. Slot 18; `ret 4`. +0x10E8 the argument's byte, +0x10E9 set; AL 1 over the caller's EAX (ours 0). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::ClearFlag"
+address = 0x0094A8C2
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C6 81 E9 10 00 00 00 C3"
+source = "Name ours. Slot 22. +0x10E9 cleared; EAX the caller's (ours 0). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::FileSlot6"
+address = 0x0094A8CA
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 C1 20 8B 01 FF 60 18"
+source = "Name ours. Slot 19. A tail jump to the file's (+0x20) slot 6. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Seek"
+address = 0x0094A8D2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t position)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Slot 20; `ret 4`. 0 rewinds (slot 15) and answers AL 0 over its EAX; else with the file open (its slot 4; AL 0 over its EAX) EAX 1 when the file's slot 12 answers the position, else 0. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Close"
+address = 0x0094A907
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "53 56 8B F1 33 DB 38 9E"
+source = "Name ours. Slot 8. When open (+0x10D0): the file's slot 5, the sample buffers +0xA4 and +0xA8 and the decoder +0xA0 (its destructor through 0x0094A972) freed (CRT::free) and cleared, +0x10D0 cleared. AL 1 over the decoder's free's EAX, else the right buffer's free's, else 0 (each buffer is loaded into EAX before its test); the caller's EAX when not open (ours 0). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::OpenKey"
+address = 0x0094A977
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const uint32_t* key)"
+expect = "B8 AB F1 A6 00 E8 4F 6F"
+source = "Name ours. Slot 5; `ret 4`. The resource manager's (SC4RefPtr::ResourceManager) slot 32 finds the key's record, its interface 0x856C8CF7's slot 18 gives the path (a game string), opened by slot 3 (cRZBaseString::Data). AL its answer (0 when a step fails), over SC4RefPtr::Destruct's EAX. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::DeletingDestructor"
+address = 0x0094AA9C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 14 00 00 00"
+source = "Name ours. Slot 21; `ret 4`. The destructor, SC4::operator_delete with flag 1; answers `this`. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Destruct"
+address = 0x0094AAB8
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "B8 CE F1 A6 00 E8 0E 6E"
+source = "Name ours. The vtable back, Close (0x0094A907), SC4String::Destroy at +0x10D4, cRZFile::Destruct at +0x20 (its EAX). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Create"
+address = 0x0094AB94
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "B8 6C F1 A6 00 E8 32 6D"
+source = "Name ours. The stream's factory: 0x1104 bytes (SC4::operator_new) and its constructor; 0 without the memory. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::Open"
+address = 0x0094AC88
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "B8 3B F2 A6 00 E8 3E 6C"
+source = "Name ours. Slot 7. The path's (+0x10D4, a cRZFileSpec on the stack) extension, lower case, must match 0x00B63528 (SC4UI::F43AB70), else slot 18 with 0 and AL 0. Unless open: marked open, the old decoder freed, a new one (0x4A60 bytes, CRT::malloc, 0x00A667B4, reset 0x0094A2AB, and reset again through ECX), two 0x2000-byte buffers, the file's path (slot 28) and open (slot 3 with 1, 2, 1; AL 0 when it fails, still marked open); rewound (slot 15), unless +0x10E9 slot 18 with whether a 4-byte read (slot 14) gives any (AL over the read's EAX) and rewound again; the length +0x1100: _ftol of the file's size (slot 7) times 8 over (float)(the bit rate << 10) times +0x10F4 on the x87. AL 1 over SC4UI::F43AF80's EAX. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Stream::OpenPath"
+address = 0x0094AEAE
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const char* path)"
+expect = "B8 4D F2 A6 00 E8 18 6A"
+source = "Name ours. Slot 3; `ret 4`. Slot 22, the path's buffer +0x10D8 set from the text (SC4String::FromText, cSC4Advice::F408C40; the string freed inline), then slot 7 (its EAX). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::QueryInterface"
+address = 0x0094BBFE
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "55 8B EC 83 7D 08 01 74"
+source = "Name ours. Slot 0; `ret 8`; also the tail of the adjustor 0x0094C0DF. 1 and 0x1A35608A give the holder, 0xFA35615F its +4 (0 for null); AddRef through the primary vtable, AL 1 over its EAX; AL 0 over the caller's EAX otherwise (ours 0). Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::Release"
+address = 0x0094BC46
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 20 83 F8 01 76 05"
+source = "Name ours. Slot 2; also the tail of 0x0094C0E7. Above 1 the count +0x20 goes down and is answered; else the deleting destructor (slot 12, flag 1) and 0. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::WindowById"
+address = 0x0094BC69
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t id)"
+expect = "55 8B EC 8B 01 56 FF 75"
+source = "Name ours. Slot 7; `ret 4`. Slot 5's window's interface 0x9A4527CB: its slot 3, then released; 0 without. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::WindowAt"
+address = 0x0094BCAA
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t index)"
+expect = "55 8B EC 8B 01 56 FF 75"
+source = "Name ours. Slot 8; `ret 4`. As slot 7 with slot 6's window. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::VectorCopy"
+address = 0x0094BCEB
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void* const* first, void* const* last, void** to)"
+expect = "55 8B EC 8B 45 08 EB 14"
+source = "Name ours. `ret 0xC`; `this` unused. Pointers copied forward (a null destination skipped); the end answered. Called by 0x0094BF3B. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::VectorCopyBackward"
+address = 0x0094BD13
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void* const* first, void* const* last, void** to)"
+expect = "55 8B EC 8B 45 0C 39 45"
+source = "Name ours. `ret 0xC`; `this` unused. Pointers copied backward to end at `to`; the first answered. Called by 0x0094BF3B. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "GZRect::Contains"
+address = 0x0094BD38
+kind = "function"
+convention = "thiscall"
+signature = "bool (const int32_t* rect, const int32_t* point)"
+expect = "8B 44 24 04 8B 10 3B 11"
+source = "Name ours. `ret 4`. EAX 1 when the point is in the rectangle (left, top, right, bottom; edges in), else 0. Also called by 0x009B4E7E. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::ById"
+address = 0x0094BD5E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t id)"
+expect = "53 55 56 57 8B F9 8B 77"
+source = "Name ours. Slot 5; `ret 4`. The first window whose slot 5 answers the id (the count taken once); 0 for none. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::At"
+address = 0x0094BD96
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t index)"
+expect = "8B 51 0C 2B 51 08 8B 44"
+source = "Name ours. Slot 6; `ret 4`. The window at the index; 0 past the end. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::Each"
+address = 0x0094BDB4
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t argument)"
+expect = "53 56 57 8B F9 8B 77 0C"
+source = "Name ours. Slot 9; `ret 4`. Every window's slot 7 with the argument (the count taken once); EAX the last call's (the caller's with none; ours 0). Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::Count"
+address = 0x0094BDE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 0C 2B 41 08 C1 F8"
+source = "Name ours. Slot 10. The windows' count. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::All"
+address = 0x0094BDEA
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, uint32_t argument)"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. Slot 11; `ret 8`. Every window that gives the interface (slot 0) gets its slot 8 with the holder, its index, the interface and the argument while all before said yes, and is released (the window); AL whether all did, over the count. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::PartEach"
+address = 0x0094BE64
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t argument)"
+expect = "55 8B EC 51 53 56 57 8B"
+source = "Name ours. Slot 3 of the interface 0xFA35615F at +4 (`this`); `ret 4`. Every window's interface 0x5A356159: its slot 3 with the argument, then released. AL 1 over the last call's EAX (the caller's with none; ours 0). Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::PartAt"
+address = 0x0094BEBA
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const int32_t* point, uint32_t argument)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. Slot 4 of the interface at +4; `ret 8`. From the last window back until one says yes: its interface 0x5A356159's rectangle (slot 5) holds the point (0x0094BD38) and its slot 6 with the point and the argument. AL 0 over the last call's EAX (ours 0 with none). Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::VectorInsert"
+address = 0x0094BF3B
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void** at, void* const* value)"
+expect = "B8 57 F2 A6 00 E8 8B 59"
+source = "Name ours. `ret 8`; the vector at +8. A pointer put in: with room the last moved up and the rest copied back (0x0094BD13; its EAX); else a block twice the count (1 for none) from the allocator +0x10 (slot 3), the pointers copied around it (0x0094BCEB), the old block freed (slot 4); the block's end answered. Called by slot 4 0x0094C0EC. Ours in framework.uiscript.root (docs/gzui.md, part u10)."
+
+[[entry]]
+name = "cHitMP3Director::Vtable"
+address = 0x00AD4F60
+kind = "data"
+expect = "02 DE 90 00 B1 C4 94 00"
+source = "Name ours. The MP3 decoder director's vtable (cRZCOMDllDirector's slots but 13 and 16: 0x0094AC21 and 0x0094AC27)."
+
+[[entry]]
+name = "cHitMP3Director::UnknownVtable"
+address = 0x00AD4F34
+kind = "data"
+expect = "50 0F 46 00 60 0F 46 00"
+source = "Name ours. The MP3 decoder director's second vtable, at +4."
+
+[[entry]]
+name = "cHitMP3Director::Static"
+address = 0x00B634D0
+kind = "data"
+source = "Name ours. The static MP3 decoder director, made by 0x0094AC43."
+
+[[entry]]
+name = "cHitMP3Director::Guard"
+address = 0x00B6351C
+kind = "data"
+source = "Name ours. The static MP3 decoder director's guard (bit 1)."
+
+[[entry]]
+name = "cHitMP3Director::StaticDestroy"
+address = 0x00A7F63C
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "B9 D0 34 B6 00 E9 EC AD"
+source = "Name ours. The static MP3 decoder director's destructor, given to SC4::atexit (0x0094A432 on it). Stays the game's; called by ours."
+
+[[entry]]
+name = "cHitMP3Director::DestructThunk"
+address = 0x0094A432
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "E9 6E 3C FC FF"
+source = "Name ours. A jump to cRZCOMDllDirector::Destruct. Stays the game's; called by ours."
+
+[[entry]]
+name = "cHitMP3Maker::Vtable"
+address = 0x00AD4EC0
+kind = "data"
+expect = "57 A4 94 00 60 8B 96 00"
+source = "Name ours. The MP3 maker's vtable, 5 slots: QueryInterface, cRZBaseRefCount::AddRef, 0x00892A51 (Release), MakeStream, the deleting destructor."
+
+[[entry]]
+name = "cHitMP3Stream::Vtable"
+address = 0x00AD4ED8
+kind = "data"
+expect = "90 C3 96 00 60 8B 96 00"
+source = "Name ours. The MP3 stream's vtable, 24 slots (0 0x0096C390, 1 cRZBaseRefCount::AddRef, 4 and 6 0x0093878E, 11 0x0093877E, 12 and 13 0x0094A5EA and 23 0x00460F50 are the game's shared code)."
+
+[[entry]]
+name = "cHitMP3Stream::Extension"
+address = 0x00B63528
+kind = "data"
+source = "Name ours. The text the MP3 stream's path's extension must match (part of the static string 0x00B63524)."
+
+[[entry]]
+name = "cMP3Decoder::Construct"
+address = 0x00A667B4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8D 8E BC 24 00"
+source = "Name ours. The MP3 decoder's constructor (0x4A60 bytes). Stays the game's; called by ours."
+
+[[entry]]
+name = "cMP3Decoder::Header"
+address = 0x00A667FE
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, uint32_t header)"
+expect = "55 8B EC 51 56 8B 75 08"
+source = "Name ours. `ret 4`. A frame header taken (negative when refused). Stays the game's; called by ours."
+
+[[entry]]
+name = "cMP3Decoder::Frame"
+address = 0x00A66B32
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, int16_t* out)"
+expect = "56 8B F1 8B 06 57 33 FF"
+source = "Name ours. `ret 4`. A frame decoded (negative when it fails). Stays the game's; called by ours."
+
+[[entry]]
+name = "cMP3Decoder::Destruct"
+address = 0x00A66BBE
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "80 B9 38 4A 00 00 00 C7"
+source = "Name ours. The MP3 decoder's destructor. Stays the game's; called by ours."
+
+[[entry]]
+name = "cMP3Decoder::FirstFrame"
+address = 0x00A66BEF
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const uint8_t* frame, uint32_t zero)"
+expect = "55 8B EC 51 56 8B F1 57"
+source = "Name ours. `ret 8`. The first frame decoded. Stays the game's; called by ours."
+
+[[entry]]
+name = "cMP3Decoder::DestructThunk"
+address = 0x0094A972
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "E9 47 C2 11 00"
+source = "Name ours. A jump to the MP3 decoder's destructor 0x00A66BBE. Stays the game's; called by ours."
+
+[[entry]]
+name = "cMP3Decoder::BitRates"
+address = 0x00AD4D1C
+kind = "data"
+expect = "E0 06 A8 00 00 00 00 00"
+source = "Name ours. The MPEG audio bit rates in kbit/s, 15 a layer (indexed from 15: the layer plus 3 for the lower sampling frequencies, times 15)."
+
+[[entry]]
+name = "cMP3Decoder::SkipTable"
+address = 0x00AD4D20
+kind = "data"
+expect = "00 00 00 00 E1 01 00 00"
+source = "Name ours. The samples the MP3 decoder drops at its first frame, by a byte it sets (+0x2490)."
+
+[[entry]]
+name = "cMP3Decoder::SampleRates"
+address = 0x00AD4D30
+kind = "data"
+expect = "11 2B 00 00 E0 2E 00 00"
+source = "Name ours. The MPEG audio sample rates, three a version (2.5, 2, 1)."
+
+[[entry]]
+name = "cRZFileSpec::F91C31F"
+address = 0x0091C31F
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8D 71 3C 56 E8 D5 FF"
+source = "Name ours. A file spec's part at +0x3C made (0x0091C2FE) and answered. Stays the game's; called by ours."
+
+[[entry]]
+name = "CRT::ftol"
+address = 0x009EEF04
+kind = "function"
+convention = "cdecl"
+signature = "int64_t ()"
+expect = "55 8B EC 83 EC 20 83 E4"
+source = "Name ours. The C library's float-to-integer conversion of ST(0), truncated (EDX:EAX). Stays the game's; called by ours."

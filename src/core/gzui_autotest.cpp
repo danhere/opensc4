@@ -4,8 +4,9 @@
 // u2b and u3), the UI file parser test (OPENSC4_TEST_XMLPARSE, part u4),
 // the framework sound classes' test (OPENSC4_TEST_GZSOUND, part u5), the
 // sound service's test (OPENSC4_TEST_GZSOUNDSVC, part u6), the sound
-// mixer's (OPENSC4_TEST_GZSOUNDMIX, part u8) and the UI script loader's
-// (OPENSC4_TEST_UISCRIPT, part u9).
+// mixer's (OPENSC4_TEST_GZSOUNDMIX, part u8), the UI script loader's
+// (OPENSC4_TEST_UISCRIPT, part u9) and the MP3 decoder's and the UI
+// script root holder's (OPENSC4_TEST_MP3, part u10).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -20,6 +21,9 @@
 #include <process.h>
 #include <string>
 #include <vector>
+
+// For the game's folder (part u10 reads one of its radio MP3 files).
+extern "C" __declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(void* module, char* path, unsigned long size);
 
 namespace opensc4::autotest {
 namespace {
@@ -6504,6 +6508,731 @@ void UsFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kUsFingerprint{"uiscript", 4, &UsFingerprint};
 const DayHook kUsDrive{"uiscript", 4, &DriveUiScript};
+
+// ====================================================================================
+// Part u10: the MP3 decoder director 0x1CEC20BE, its stream 0x3CEC2B47 and
+// maker 0x9CEC2B58, the decoder's own functions, and the UI script's root
+// holder 0x5A354595 (OPENSC4_TEST_MP3). Real streams, decoders, makers and
+// root holders made by the game's code, one of the game's radio MP3 files
+// (and files made from it); windows, interfaces and an allocator of our own
+// where the root holder takes them (each hashes every call it gets).
+// Every result goes into the hash; addresses never do.
+
+bool g_mpOn = false;
+uint32_t g_mpHash = 2166136261u;
+
+void MpStage(const char* name) { log::Write("autotest: mp3: %s %08X", name, g_mpHash); }
+
+template <typename R, typename... Args>
+inline R MpCdecl(std::uintptr_t address, Args... args)
+{
+    return reinterpret_cast<R(__cdecl*)(Args...)>(address)(args...);
+}
+
+std::string MpGameFolder()
+{
+    char path[520] = {};
+    GetModuleFileNameA(nullptr, path, sizeof path);
+    std::string folder(path);
+    for (int up = 0; up < 2; ++up) {
+        const std::size_t at = folder.find_last_of("\\/");
+        if (at == std::string::npos)
+            return ".";
+        folder.erase(at);
+    }
+    return folder;
+}
+
+std::vector<uint8_t> MpReadFile(const std::string& path)
+{
+    std::vector<uint8_t> data;
+    if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+        uint8_t chunk[4096];
+        std::size_t got;
+        while ((got = std::fread(chunk, 1, sizeof chunk, f)) > 0)
+            data.insert(data.end(), chunk, chunk + got);
+        std::fclose(f);
+    }
+    return data;
+}
+
+void MpWriteFile(const std::string& path, const std::vector<uint8_t>& data)
+{
+    if (std::FILE* f = std::fopen(path.c_str(), "wb")) {
+        if (!data.empty())
+            std::fwrite(data.data(), 1, data.size(), f);
+        std::fclose(f);
+    }
+}
+
+void MixSamples(const void* data, uint32_t bytes)
+{
+    const uint8_t* const p = static_cast<const uint8_t*>(data);
+    uint32_t word = 0;
+    for (uint32_t i = 0; i < bytes; ++i) {
+        word = word * 31 + p[i];
+        if ((i & 63) == 63) {
+            Mix(word);
+            word = 0;
+        }
+    }
+    Mix(word);
+}
+
+// The decoder's counters (not its pointers).
+void MixDecoder(char* decoder)
+{
+    Mix(At<uint32_t>(decoder, 0x4A48));
+    Mix(At<uint32_t>(decoder, 0x4A4C));
+    Mix(At<uint32_t>(decoder, 0x4A50));
+    Mix(At<uint32_t>(decoder, 0x4A54));
+    Mix(At<uint32_t>(decoder, 0x4A58));
+    Mix(At<uint8_t>(decoder, 0x4A5C));
+}
+
+// A stream's fields (not its pointers; the block +0x10F8 only when `block`,
+// as a new stream's comes from what its memory held).
+void MixStream(char* stream, bool block)
+{
+    Mix(At<uint32_t>(stream, 4));
+    for (std::size_t at = 8; at < 0x20; at += 4)
+        Mix(At<uint32_t>(stream, at));
+    Mix(At<uint32_t>(stream, 0xA0) ? 1u : 0u);
+    Mix(At<uint32_t>(stream, 0x10B8));
+    Mix(At<uint32_t>(stream, 0x10BC));
+    Mix(At<uint32_t>(stream, 0x10C0));
+    Mix(At<uint8_t>(stream, 0x10D0));
+    Mix(At<uint8_t>(stream, 0x10E8));
+    Mix(At<uint8_t>(stream, 0x10E9));
+    Mix(At<uint16_t>(stream, 0x10EC));
+    Mix(At<uint16_t>(stream, 0x10EE));
+    Mix(At<uint32_t>(stream, 0x10F0));
+    Mix(At<uint32_t>(stream, 0x10F4));
+    if (block)
+        Mix(At<uint16_t>(stream, 0x10F8));
+    Mix(At<uint16_t>(stream, 0x10FA));
+    Mix(At<uint32_t>(stream, 0x10FC));
+    Mix(At<uint32_t>(stream, 0x1100));
+}
+
+// Headers, ID3 tags, a decoder fed frame by frame.
+void DriveMp3Decode(const std::vector<uint8_t>& music)
+{
+    const uint8_t headers[][4] = {
+        {0xFF, 0xFB, 0x90, 0x44}, {0xFF, 0xFB, 0x92, 0xC4}, {0xFF, 0xF3, 0x64, 0x00}, {0xFF, 0xE3, 0x54, 0xC0},
+        {0xFF, 0xFF, 0x10, 0x00}, {0xFF, 0xFD, 0xA8, 0x80}, {0xFF, 0xF7, 0xE6, 0x40}, {0xFF, 0xF5, 0x02, 0x00},
+        {0xFE, 0xFB, 0x90, 0x44}, {0xFF, 0xCB, 0x90, 0x44}, {0xFF, 0xEB, 0x90, 0x44}, {0xFF, 0xF9, 0x90, 0x44},
+        {0xFF, 0xFB, 0xF0, 0x44}, {0xFF, 0xFB, 0x9C, 0x44}, {0xFF, 0xFA, 0x93, 0xFF}, {0xFF, 0xE5, 0xEB, 0x80},
+    };
+    for (const auto& header : headers) {
+        int32_t info[6] = {7, 7, 7, 7, 7, 7};
+        Mix(static_cast<uint32_t>(MpCdecl<int32_t>(addr::cMP3Decoder_ParseHeader, header, info)));
+        for (const int32_t value : info)
+            Mix(static_cast<uint32_t>(value));
+    }
+    const uint8_t tags[][10] = {
+        {'I', 'D', '3', 3, 0, 0, 0, 0, 0, 0x14}, {'I', 'D', '3', 4, 0, 0, 0x7F, 0x7F, 0x7F, 0x7F},
+        {'I', 'D', '3', 3, 0, 0, 1, 2, 3, 4},    {'I', 'D', '2', 3, 0, 0, 0, 0, 0, 0x14},
+        {'X', 'D', '3', 3, 0, 0, 0, 0, 0, 0x14}, {'I', 'X', '3', 3, 0, 0, 0, 0, 0, 0x14},
+        {'I', 'D', '3', 3, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF},
+    };
+    for (const auto& tag : tags)
+        Mix(MpCdecl<uint32_t>(addr::cMP3Decoder_Id3Size, tag));
+    if (music.size() >= 10)
+        Mix(MpCdecl<uint32_t>(addr::cMP3Decoder_Id3Size, music.data()));
+
+    char* const decoder = MpCdecl<char*>(addr::CRT_malloc, 0x4A60u);
+    std::memset(decoder, 0, 0x4A60);
+    CallThis<void*>(addr::cMP3Decoder_Construct, decoder);
+    CallThis<uint32_t>(addr::cMP3Decoder_Reset, decoder);
+    MixDecoder(decoder);
+    static int16_t left[0x1800];
+    static int16_t right[0x1800];
+    int16_t* both[2] = {left, right};
+    int16_t* onlyRight[2] = {nullptr, right};
+    const uint8_t shortFrame[3] = {0xFF, 0xFB, 0x90};
+    Mix(static_cast<uint32_t>(CallThis<int32_t>(addr::cMP3Decoder_Feed, decoder, shortFrame, 3, -1)));
+    MixDecoder(decoder);
+    Mix(static_cast<uint32_t>(CallThis<int32_t>(addr::cMP3Decoder_Decode, decoder, both, 100)));
+    MixDecoder(decoder);
+    std::size_t at = music.size() >= 10 ? MpCdecl<uint32_t>(addr::cMP3Decoder_Id3Size, music.data()) : 0;
+    const int32_t counts[] = {0, 100, 2000, 1152, 576, 1, 5000, -3};
+    for (int frame = 0; frame < 40 && at + 4 <= music.size(); ++frame) {
+        int32_t info[6];
+        if (MpCdecl<int32_t>(addr::cMP3Decoder_ParseHeader, &music[at], info) < 0 || info[1] <= 4 ||
+            at + static_cast<std::size_t>(info[1]) > music.size())
+            break;
+        const int32_t limit = frame == 5 ? 0 : frame == 12 ? 300 : -1;
+        Mix(static_cast<uint32_t>(CallThis<int32_t>(addr::cMP3Decoder_Feed, decoder, &music[at], info[1], limit)));
+        Mix(static_cast<uint32_t>(CallThis<int32_t>(addr::cMP3Decoder_Feed, decoder, &music[at], info[1], -1)));
+        MixDecoder(decoder);
+        for (int part = 0; part < 3; ++part) {
+            const int32_t count = counts[(frame + part) % 8];
+            std::memset(left, 0, sizeof left);
+            std::memset(right, 0, sizeof right);
+            const int32_t got = CallThis<int32_t>(addr::cMP3Decoder_Decode, decoder, frame % 4 == 3 ? onlyRight : both,
+                                                  count);
+            Mix(static_cast<uint32_t>(got));
+            MixDecoder(decoder);
+            if (got > 0) {
+                MixSamples(left, static_cast<uint32_t>(got) * 2);
+                MixSamples(right, static_cast<uint32_t>(got) * 2);
+            }
+        }
+        if (frame == 10 || frame == 14)
+            CallThis<uint32_t>(addr::cMP3Decoder_Reset, decoder);
+        at += static_cast<std::size_t>(info[1]);
+    }
+    MixDecoder(decoder);
+    CallThis<void>(addr::cMP3Decoder_Destruct, decoder);
+    MpCdecl<void>(addr::CRT_free, decoder);
+}
+
+// A stream by its factory and held. The frame header's six dwords are what
+// the memory held until a header is read, and a read takes the format from
+// them: the test sets them (2 channels, 22050) so that both sides agree.
+char* MpNewStream()
+{
+    char* const stream = MpCdecl<char*>(addr::cHitMP3Stream_Create);
+    if (!stream)
+        return nullptr;
+    std::memset(stream + 8, 0, 0x18);
+    At<int32_t>(stream, 0x14) = 2;
+    At<int32_t>(stream, 0x18) = 22050;
+    Virtual<uint32_t>(stream, 0x4);
+    return stream;
+}
+
+// A stream through its slots and addresses on one file. Without `reads`
+// (a file with no frame: the game's read would then divide by 0 channels)
+// only opened, rewound and closed.
+void DriveMp3StreamFile(const std::string& path, bool byAddress, bool reads = true)
+{
+    char* const stream = MpNewStream();
+    Mix(stream ? 1u : 0u);
+    if (!stream)
+        return;
+    MixStream(stream, false);
+    GameText name(path.c_str());
+    const char* const text = At<const char*>(name.get(), 4);
+    const uint32_t opened = byAddress ? CallThis<uint32_t>(addr::cHitMP3Stream_OpenPath, stream, text)
+                                      : Virtual<uint32_t>(stream, 0xC, text);
+    MixByte(opened);
+    MixStream(stream, false);
+    MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_FileSlot4, stream));
+    Mix(CallThis<uint32_t>(addr::cHitMP3Stream_FileSlot6, stream));
+    Mix(CallThis<uint32_t>(addr::cHitMP3Stream_Length, stream));
+    MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_Open, stream));
+    if (!reads) {
+        MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_Seek, stream, 0u));
+        MixStream(stream, true);
+        MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_Close, stream));
+        Mix(Virtual<uint32_t>(stream, 0x8));
+        return;
+    }
+    static uint8_t out[0x10000];
+    const int32_t sizes[] = {4, 6, 1000, 4608, 0x4000, 3, 0xC000};
+    for (const int32_t size : sizes) {
+        std::memset(out, 0, sizeof out);
+        const uint32_t got = byAddress ? CallThis<uint32_t>(addr::cHitMP3Stream_Read, stream, out, size)
+                                       : Virtual<uint32_t>(stream, 0x38, out, size);
+        Mix(got);
+        MixSamples(out, got < sizeof out ? got : 0);
+        MixStream(stream, true);
+        if (size == 4608 && path.size() > 4 && path.compare(path.size() - 4, 4, ".mp3") == 0)
+            log::Write("autotest: mp3: read %u of %d (opened %u, %u Hz, %u channels)", got, size, opened & 0xFF,
+                       At<uint32_t>(stream, 0x10F0), At<uint16_t>(stream, 0x10EE));
+    }
+    const uint32_t seeks[] = {1000, 0, 0x7FFFFF};
+    for (const uint32_t to : seeks) {
+        Mix(byAddress ? CallThis<uint32_t>(addr::cHitMP3Stream_Seek, stream, to) : Virtual<uint32_t>(stream, 0x50, to));
+        Mix(CallThis<uint32_t>(addr::cHitMP3Stream_FileSlot6, stream));
+        MixStream(stream, true);
+    }
+    MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_Rewind, stream));
+    MixStream(stream, true);
+    std::memset(out, 0, sizeof out);
+    const uint32_t got = CallThis<uint32_t>(addr::cHitMP3Stream_Read, stream, out, 2000);
+    Mix(got);
+    MixSamples(out, got < sizeof out ? got : 0);
+    Mix(At<uint8_t>(CallThis<char*>(addr::cHitMP3Stream_Format, stream), 0) == 1 ? 1u : 0u);
+    MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_Flag, stream));
+    MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_SetFlag, stream, 0x105u));
+    MixByte(Virtual<uint32_t>(stream, 0x44));
+    CallThis<uint32_t>(addr::cHitMP3Stream_ClearFlag, stream);
+    MixByte(Virtual<uint32_t>(stream, 0x44));
+    MixByte(byAddress ? CallThis<uint32_t>(addr::cHitMP3Stream_Close, stream) : Virtual<uint32_t>(stream, 0x20));
+    MixStream(stream, true);
+    MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_Close, stream));
+    Mix(byAddress ? CallThis<uint32_t>(addr::cHitMP3Stream_Release, stream) : Virtual<uint32_t>(stream, 0x8));
+}
+
+void DriveMp3Stream(const std::string& musicPath, const std::vector<uint8_t>& music)
+{
+    const char* const folder = std::getenv("TEMP");
+    const std::string base = std::string(folder ? folder : ".") + "\\opensc4-mp3-" + std::to_string(_getpid()) + "-";
+    const std::size_t head = music.size() < 0x30000 ? music.size() : 0x30000;
+    std::vector<uint8_t> tagged = {'I', 'D', '3', 3, 0, 0, 0, 0, 0, 0x14};
+    tagged.resize(30, 0x20);
+    const std::size_t skip = music.size() >= 10 ? MpCdecl<uint32_t>(addr::cMP3Decoder_Id3Size, music.data()) : 0;
+    if (skip < head)
+        tagged.insert(tagged.end(), music.begin() + static_cast<std::ptrdiff_t>(skip),
+                      music.begin() + static_cast<std::ptrdiff_t>(head));
+    std::vector<uint8_t> garbage(3000);
+    for (std::size_t i = 0; i < garbage.size(); ++i)
+        garbage[i] = static_cast<uint8_t>(i * 37 + 11);
+    std::vector<uint8_t> cut(music.begin(), music.begin() + static_cast<std::ptrdiff_t>(head < 2000 ? head : 2000));
+    const std::string files[] = {base + "tagged.mp3", base + "garbage.mp3", base + "empty.mp3", base + "cut.MP3",
+                                 base + "text.txt"};
+    MpWriteFile(files[0], tagged);
+    MpWriteFile(files[1], garbage);
+    MpWriteFile(files[2], {});
+    MpWriteFile(files[3], cut);
+    MpWriteFile(files[4], garbage);
+    DriveMp3StreamFile(musicPath, false);
+    DriveMp3StreamFile(musicPath, true);
+    for (const std::string& file : files)
+        DriveMp3StreamFile(file, file == files[3], file != files[1]);
+    DriveMp3StreamFile(base + "missing.mp3", false);
+    for (const std::string& file : files)
+        std::remove(file.c_str());
+
+    // By resource key: one that is not there, one whose record is no path.
+    const uint32_t keys[][3] = {{0, 0x96A006B0, 0x0BADF00D}, {0, 0x96A006B0, 0xCBC905CD}};
+    for (int way = 0; way < 2; ++way) {
+        for (const auto& key : keys) {
+            char* const stream = MpNewStream();
+            MixByte(way ? CallThis<uint32_t>(addr::cHitMP3Stream_OpenKey, stream, key)
+                        : Virtual<uint32_t>(stream, 0x14, key));
+            MixStream(stream, false);
+            Mix(Virtual<uint32_t>(stream, 0x8));
+        }
+    }
+
+    // On memory of our own: the block from the bits word it held.
+    static char memory[2][0x1104];
+    std::memset(memory[0], 0xA5, sizeof memory[0]);
+    std::memset(memory[1], 0x3C, sizeof memory[1]);
+    char* const first = CallThis<char*>(addr::cHitMP3Stream_Construct, memory[0]);
+    Mix(first == memory[0] ? 1u : 0u);
+    MixStream(first, true);
+    Mix(At<uint32_t>(first, 0) == addr::cHitMP3Stream_Vtable ? 1u : 0u);
+    MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_SetFlag, first, 1u));
+    MixByte(CallThis<uint32_t>(addr::cHitMP3Stream_Flag, first));
+    CallThis<void>(addr::cHitMP3Stream_Destruct, first);
+    char* const second = CallThis<char*>(addr::cHitMP3Stream_Construct, memory[1]);
+    MixStream(second, true);
+    Mix(CallThis<char*>(addr::cHitMP3Stream_DeletingDestructor, second, 0u) == second ? 1u : 0u);
+    // Release by its slots: a count of 2 down to 0 (the deleting destructor).
+    char* const counted = MpNewStream();
+    Virtual<uint32_t>(counted, 0x4);
+    Mix(CallThis<uint32_t>(addr::cHitMP3Stream_Release, counted));
+    Mix(Virtual<uint32_t>(counted, 0x8));
+}
+
+// The director and the maker.
+void DriveMp3Object(const std::string& musicPath)
+{
+    void* const director = MpCdecl<void*>(addr::GZDirector_Get94AC43);
+    Mix(director == reinterpret_cast<void*>(addr::cHitMP3Director_Static) ? 1u : 0u);
+    Mix(MpCdecl<void*>(addr::GZDirector_Get94AC43) == director ? 1u : 0u);
+    Mix(At<uint32_t>(reinterpret_cast<void*>(addr::cHitMP3Director_Guard), 0) & 1);
+    static char own[0x4C];
+    std::memset(own, 0, sizeof own);
+    void* const made = CallThis<void*>(addr::cHitMP3Director_Construct, own);
+    Mix(made == own ? 1u : 0u);
+    Mix(At<uint32_t>(own, 0) == addr::cHitMP3Director_Vtable ? 1u : 0u);
+    Mix(At<uint32_t>(own, 4) == addr::cHitMP3Director_UnknownVtable ? 1u : 0u);
+    Mix(Virtual<uint32_t>(own, 0x34));
+    Mix(CallThis<void*>(addr::cHitMP3Director_DeletingDestructor, own, 0u) == own ? 1u : 0u);
+
+    // The maker by its factory.
+    char* const maker = MpCdecl<char*>(addr::cHitMP3Maker_Create);
+    Mix(maker ? 1u : 0u);
+    Mix(At<uint32_t>(maker, 4));
+    const uint32_t iids[] = {1, 0xFCEFF549, 0x3CEC2B47, 0};
+    for (int way = 0; way < 2; ++way) {
+        for (const uint32_t iid : iids) {
+            void* out = nullptr;
+            MixByte(way ? CallThis<uint32_t>(addr::cHitMP3Maker_QueryInterface, maker, iid, &out)
+                        : Virtual<uint32_t>(maker, 0x0, iid, &out));
+            Mix(out == maker ? 1u : out ? 2u : 0u);
+            Mix(At<uint32_t>(maker, 4));
+        }
+    }
+    // Streams made for a path: the music, a text file, a missing MP3 (only
+    // the music's frame header is read, so only its fields are mixed).
+    const std::string paths[] = {musicPath, musicPath + ".txt", musicPath + ".none.mp3"};
+    for (int way = 0; way < 2; ++way) {
+        for (const std::string& path : paths) {
+            GameText name(path.c_str());
+            void* stream = nullptr;
+            MixByte(way ? CallThis<uint32_t>(addr::cHitMP3Maker_MakeStream, maker, name.get(), 1u, &stream)
+                        : Virtual<uint32_t>(maker, 0xC, name.get(), 1u, &stream));
+            Mix(stream ? 1u : 0u);
+            if (!stream)
+                continue;
+            char* const made = static_cast<char*>(stream);
+            Mix(At<uint32_t>(made, 4));
+            Mix(At<uint8_t>(made, 0x10D0));
+            Mix(At<uint8_t>(made, 0x10E8));
+            Mix(At<uint8_t>(made, 0x10E9));
+            if (path != musicPath) {
+                Mix(Virtual<uint32_t>(stream, 0x8));
+                continue;
+            }
+            MixStream(made, true);
+            static uint8_t out[4608];
+            const uint32_t got = Virtual<uint32_t>(stream, 0x38, out, static_cast<int32_t>(sizeof out));
+            Mix(got);
+            MixSamples(out, got <= sizeof out ? got : 0);
+            Mix(Virtual<uint32_t>(stream, 0x8));
+        }
+    }
+    {
+        GameText name(paths[2].c_str());
+        void* stream = nullptr;
+        MixByte(CallThis<uint32_t>(addr::cHitMP3Maker_MakeStream, maker, name.get(), 0xDEADu, &stream));
+        Mix(stream ? 1u : 0u);
+    }
+    while (At<uint32_t>(maker, 4) > 1)
+        Mix(Virtual<uint32_t>(maker, 0x8));
+    Mix(Virtual<uint32_t>(maker, 0x8));
+
+    static char memory[2][0xC];
+    char* const first = CallThis<char*>(addr::cHitMP3Maker_Construct, memory[0]);
+    Mix(first == memory[0] ? 1u : 0u);
+    Mix(At<uint32_t>(first, 0) == addr::cHitMP3Maker_Vtable ? 1u : 0u);
+    Mix(At<uint32_t>(first, 4));
+    CallThis<uint32_t>(addr::cHitMP3Maker_Destruct, first);
+    char* const second = CallThis<char*>(addr::cHitMP3Maker_Construct, memory[1]);
+    Mix(CallThis<char*>(addr::cHitMP3Maker_DeletingDestructor, second, 0u) == second ? 1u : 0u);
+}
+
+// Windows of our own for a root holder: the window (slot 0 its two faces
+// and itself for 0x77 when its id is odd, 5 its id, 7 and 8 calls), the
+// face 0x9A4527CB (slot 3 a value) and the face 0x5A356159 (3 a call, 5 a
+// rectangle, 6 a point).
+struct MpObject {
+    void* const* vtable;
+    uint32_t id;
+    int32_t refs;
+    MpObject* face9A;
+    MpObject* face5A;
+};
+
+uint32_t __fastcall MpQueryInterface(MpObject* self, void*, uint32_t iid, void** out)
+{
+    Mix(0xA100);
+    Mix(self->id);
+    Mix(iid);
+    MpObject* answer = nullptr;
+    if (iid == 0x9A4527CB)
+        answer = self->face9A;
+    else if (iid == 0x5A356159)
+        answer = self->face5A;
+    else if (iid == 0x77 && (self->id & 1))
+        answer = self;
+    if (!answer)
+        return 0;
+    ++answer->refs;
+    *out = answer;
+    return 1;
+}
+uint32_t __fastcall MpAddRef(MpObject* self, void*)
+{
+    Mix(0xA101);
+    Mix(self->id);
+    return static_cast<uint32_t>(++self->refs);
+}
+uint32_t __fastcall MpRelease(MpObject* self, void*)
+{
+    Mix(0xA102);
+    Mix(self->id);
+    return static_cast<uint32_t>(--self->refs);
+}
+uint32_t __fastcall MpWindowId(MpObject* self, void*)
+{
+    Mix(0xA105);
+    return self->id;
+}
+uint32_t __fastcall MpWindowCall(MpObject* self, void*, uint32_t argument)
+{
+    Mix(0xA107);
+    Mix(self->id);
+    Mix(argument);
+    return 0x70 + self->id;
+}
+uint32_t __fastcall MpWindowEach(MpObject* self, void*, void* holder, uint32_t index, uint32_t iid, uint32_t argument)
+{
+    Mix(0xA108);
+    Mix(self->id);
+    Mix(holder ? 1u : 0u);
+    Mix(index);
+    Mix(iid);
+    Mix(argument);
+    return self->id != 4 ? 1u : 0u;
+}
+uint32_t __fastcall MpFaceValue(MpObject* self, void*)
+{
+    Mix(0xA203);
+    Mix(self->id);
+    return self->id * 16;
+}
+uint32_t __fastcall MpFaceCall(MpObject* self, void*, uint32_t argument)
+{
+    Mix(0xA303);
+    Mix(self->id);
+    Mix(argument);
+    return 0x90;
+}
+uint32_t __fastcall MpFaceRect(MpObject* self, void*, int32_t* rect)
+{
+    Mix(0xA305);
+    Mix(self->id);
+    const int32_t k = static_cast<int32_t>(self->id & 0xFF);
+    rect[0] = k * 10;
+    rect[1] = k * 10;
+    rect[2] = k * 10 + 15;
+    rect[3] = k * 10 + 15;
+    return (self->id & 0xFF) != 2 ? 1u : 0u;
+}
+uint32_t __fastcall MpFaceAt(MpObject* self, void*, const int32_t* point, uint32_t argument)
+{
+    Mix(0xA306);
+    Mix(self->id);
+    Mix(static_cast<uint32_t>(point[0]));
+    Mix(static_cast<uint32_t>(point[1]));
+    Mix(argument);
+    return (self->id & 0xFF) == 3 || (self->id & 0xFF) == 5 ? 1u : 0u;
+}
+
+void* const* MpTable(int kind)
+{
+    static void* tables[3][10];
+    void** const table = tables[kind];
+    if (!table[0]) {
+        for (int slot = 0; slot < 10; ++slot)
+            table[slot] = reinterpret_cast<void*>(&GsTrap);
+        table[0] = reinterpret_cast<void*>(&MpQueryInterface);
+        table[1] = reinterpret_cast<void*>(&MpAddRef);
+        table[2] = reinterpret_cast<void*>(&MpRelease);
+        if (kind == 0) {
+            table[5] = reinterpret_cast<void*>(&MpWindowId);
+            table[7] = reinterpret_cast<void*>(&MpWindowCall);
+            table[8] = reinterpret_cast<void*>(&MpWindowEach);
+        } else if (kind == 1) {
+            table[3] = reinterpret_cast<void*>(&MpFaceValue);
+        } else {
+            table[3] = reinterpret_cast<void*>(&MpFaceCall);
+            table[5] = reinterpret_cast<void*>(&MpFaceRect);
+            table[6] = reinterpret_cast<void*>(&MpFaceAt);
+        }
+    }
+    return table;
+}
+
+// An allocator of our own for a vector (slot 3 a block, 4 its free).
+struct MpAllocator {
+    void* const* vtable;
+};
+void* __fastcall MpAllocate(MpAllocator*, void*, uint32_t bytes)
+{
+    Mix(0xA403);
+    Mix(bytes);
+    return std::malloc(bytes ? bytes : 1);
+}
+void __fastcall MpFree(MpAllocator*, void*, void* block)
+{
+    Mix(0xA404);
+    Mix(block ? 1u : 0u);
+    std::free(block);
+}
+
+void MixPointers(void* const* begin, void* const* end)
+{
+    Mix(static_cast<uint32_t>(end - begin));
+    for (void* const* at = begin; at != end; ++at)
+        Mix(*at ? static_cast<MpObject*>(*at)->id : 0u);
+}
+
+void DriveMp3Root()
+{
+    std::vector<MpObject*> objects;
+    auto make = [&](int kind, uint32_t id) {
+        MpObject* const object = new MpObject{MpTable(kind), id, 0, nullptr, nullptr};
+        objects.push_back(object);
+        return object;
+    };
+    char* const root = MpCdecl<char*>(addr::cGZUIScriptDirector_CreateRoot);
+    Mix(root ? 1u : 0u);
+    if (!root)
+        return;
+    Mix(Virtual<uint32_t>(root, 0x4));
+    const uint32_t iids[] = {1, 0x1A35608A, 0xFA35615F, 0x9A4527CB, 0};
+    for (int way = 0; way < 2; ++way) {
+        for (const uint32_t iid : iids) {
+            void* out = nullptr;
+            MixByte(way ? CallThis<uint32_t>(addr::cGZUIScriptRoot_QueryInterface, root, iid, &out)
+                        : Virtual<uint32_t>(root + 4, 0x0, iid, &out));
+            Mix(out == root ? 1u : out == root + 4 ? 2u : out ? 3u : 0u);
+            if (out)
+                Mix(CallThis<uint32_t>(addr::cGZUIScriptRoot_Release, root));
+        }
+    }
+    auto all = [&](bool byAddress) {
+        Mix(CallThis<uint32_t>(addr::cGZUIScriptRoot_Count, root));
+        Mix(Virtual<uint32_t>(root, 0x28));
+        for (uint32_t id = 0; id <= 7; ++id) {
+            void* const window = byAddress ? CallThis<void*>(addr::cGZUIScriptRoot_ById, root, id)
+                                           : Virtual<void*>(root, 0x14, id);
+            Mix(window ? static_cast<MpObject*>(window)->id : 0xFFu);
+            Mix(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptRoot_WindowById, root, id)
+                          : Virtual<uint32_t>(root, 0x1C, id));
+        }
+        for (uint32_t index = 0; index <= 8; ++index) {
+            void* const window = byAddress ? CallThis<void*>(addr::cGZUIScriptRoot_At, root, index)
+                                           : Virtual<void*>(root, 0x18, index);
+            Mix(window ? static_cast<MpObject*>(window)->id : 0xFFu);
+            Mix(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptRoot_WindowAt, root, index)
+                          : Virtual<uint32_t>(root, 0x20, index));
+        }
+        if (byAddress)
+            CallThis<uint32_t>(addr::cGZUIScriptRoot_Each, root, 0x55u);
+        else
+            Virtual<uint32_t>(root, 0x24, 0x56u);
+        for (const uint32_t iid : {0x77u, 0x9A4527CBu, 0x5A356159u, 0u}) {
+            MixByte(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptRoot_All, root, iid, 0x99u)
+                              : Virtual<uint32_t>(root, 0x2C, iid, 0x98u));
+        }
+        MixByte(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptRoot_PartEach, root + 4, 0x66u)
+                          : Virtual<uint32_t>(root + 4, 0xC, 0x67u));
+        const int32_t points[][2] = {{12, 12}, {31, 31}, {40, 40}, {25, 25}, {55, 54}, {100, 100}, {-1, 5}, {10, 25}};
+        for (const auto& point : points) {
+            MixByte(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptRoot_PartAt, root + 4, point, 0x44u)
+                              : Virtual<uint32_t>(root + 4, 0x10, point, 0x45u));
+        }
+    };
+    all(true);
+    all(false);
+    // Windows added (the game's slot 4; the vector grows through 0x0094BF3B).
+    for (uint32_t id = 1; id <= 6; ++id) {
+        MpObject* const window = make(0, id);
+        if (id != 6) {
+            window->face9A = make(1, 0x100 + id);
+            window->face5A = make(2, 0x200 + id);
+        }
+        MixByte(Virtual<uint32_t>(root, 0x10, window));
+    }
+    MixByte(Virtual<uint32_t>(root, 0x10, static_cast<void*>(nullptr)));
+    MixPointers(At<void**>(root, 8), At<void**>(root, 0xC));
+    all(true);
+    all(false);
+    // The vector's insert with room: at its second place.
+    MpObject* const extra = make(0, 7);
+    extra->face5A = make(2, 0x205);
+    void* const value = extra;
+    void** const begin = At<void**>(root, 8);
+    Mix(At<void**>(root, 0x10) != At<void**>(root, 0xC) ? 1u : 0u);
+    CallThis<void*>(addr::cGZUIScriptRoot_VectorInsert, root + 8, begin + 1, &value);
+    MixPointers(At<void**>(root, 8), At<void**>(root, 0xC));
+    all(true);
+
+    // Rectangles.
+    const int32_t rects[][4] = {{0, 0, 10, 10}, {-5, -5, 5, 5}, {10, 10, 0, 0}, {3, 4, 3, 4}};
+    const int32_t probes[][2] = {{0, 0}, {10, 10}, {11, 10}, {5, -5}, {3, 4}, {-6, 0}, {4, 3}};
+    for (const auto& rect : rects) {
+        for (const auto& probe : probes)
+            Mix(CallThis<uint32_t>(addr::GZRect_Contains, const_cast<int32_t*>(rect), probe));
+    }
+
+    // The vector's copies and insert on a vector of our own.
+    MpObject* const items[5] = {make(0, 11), make(0, 12), make(0, 13), make(0, 14), make(0, 15)};
+    void* source[5];
+    for (int i = 0; i < 5; ++i)
+        source[i] = items[i];
+    void* target[8] = {};
+    void** end = CallThis<void**>(addr::cGZUIScriptRoot_VectorCopy, root + 8, source, source + 5, target + 1);
+    Mix(static_cast<uint32_t>(end - target));
+    MixPointers(target, target + 8);
+    // A null destination is skipped but still moves on (one pointer only:
+    // the next would be written at 4).
+    end = CallThis<void**>(addr::cGZUIScriptRoot_VectorCopy, root + 8, source, source + 1,
+                           static_cast<void**>(nullptr));
+    Mix(static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(end)));
+    end = CallThis<void**>(addr::cGZUIScriptRoot_VectorCopy, root + 8, source, source, target);
+    Mix(static_cast<uint32_t>(end - target));
+    end = CallThis<void**>(addr::cGZUIScriptRoot_VectorCopyBackward, root + 8, source, source + 4, target + 8);
+    Mix(static_cast<uint32_t>(end - target));
+    MixPointers(target, target + 8);
+    end = CallThis<void**>(addr::cGZUIScriptRoot_VectorCopyBackward, root + 8, source, source, target + 8);
+    Mix(static_cast<uint32_t>(end - target));
+    static void* const allocatorTable[5] = {reinterpret_cast<void*>(&GsTrap), reinterpret_cast<void*>(&GsTrap),
+                                            reinterpret_cast<void*>(&GsTrap), reinterpret_cast<void*>(&MpAllocate),
+                                            reinterpret_cast<void*>(&MpFree)};
+    MpAllocator allocator{allocatorTable};
+    struct {
+        void** begin;
+        void** end;
+        void** capacity;
+        uint32_t unused;
+        MpAllocator* allocator;
+    } vector{nullptr, nullptr, nullptr, 0, &allocator};
+    const int places[] = {0, 0, 1, 2, 4, 0, 3, 6};
+    for (int i = 0; i < 8; ++i) {
+        void* const item = items[i % 5];
+        void** const at = vector.begin + (places[i] <= vector.end - vector.begin ? places[i] : 0);
+        CallThis<void*>(addr::cGZUIScriptRoot_VectorInsert, &vector, at, &item);
+        Mix(static_cast<uint32_t>(vector.capacity - vector.begin));
+        MixPointers(vector.begin, vector.end);
+    }
+    std::free(vector.begin);
+
+    // Released to nothing (the game's deleting destructor releases each).
+    while (At<uint32_t>(root, 0x20) > 1)
+        Mix(Virtual<uint32_t>(root, 0x8));
+    Mix(CallThis<uint32_t>(addr::cGZUIScriptRoot_Release, root));
+    for (MpObject* object : objects) {
+        Mix(static_cast<uint32_t>(object->refs));
+        delete object;
+    }
+}
+
+// OPENSC4_TEST_MP3=<day>: part u10's functions through their slots and
+// addresses. Every result goes into the fingerprint's `mp` part.
+void DriveMp3(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_MP3") || !game::IsBuild641())
+        return;
+    g_mpOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_mpHash;
+    const std::string musicPath = MpGameFolder() + "\\Radio\\Stations\\Mayor\\Music\\SC4ep1_01_M.mp3";
+    const std::vector<uint8_t> music = MpReadFile(musicPath);
+    Mix(music.empty() ? 0u : 1u);
+    DriveMp3Decode(music);
+    MpStage("decode");
+    DriveMp3Stream(musicPath, music);
+    MpStage("stream");
+    DriveMp3Object(musicPath);
+    MpStage("object");
+    DriveMp3Root();
+    MpStage("root");
+    g_into = saved;
+    log::Write("autotest: mp3 driven (hash %08X, music %u bytes)", g_mpHash, static_cast<unsigned>(music.size()));
+}
+
+void MpFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_mpOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | mp %08X", g_mpHash);
+    line += text;
+}
+
+const FingerprintPart kMpFingerprint{"mp3", 4, &MpFingerprint};
+const DayHook kMpDrive{"mp3", 4, &DriveMp3};
 
 } // namespace
 } // namespace opensc4::autotest
