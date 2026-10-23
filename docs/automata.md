@@ -34,7 +34,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | City situation manager | 167 | 44,037 | c1 (41, done), c2 to c5 (part c below counts 164) |
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
-| Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (part vb below counts 163) |
+| Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
 | Trains | 79 | 18,124 | 2 |
 | Emergency vehicles | 101 | 19,149 | 3 |
@@ -2160,7 +2160,7 @@ The group is found by the two classes' vtables less the core's slots, plus the f
 - **vb5 (10, about 5,900 bytes, done): cSC4Vehicle's movement.** Slots 72 0x0055BA20, 129 0x0055CAF0, 131 0x0055D210, 132 0x0055D5A0, 151 0x0055D9D0, 121 0x0055C600, 109 0x0055CA90, 135 0x0055BE90, 125 0x0055DF50, 65 0x0055C8C0 (HandleCollision: a sound, a message).
 - **vb6 (12, about 7,500 bytes, done): cSC4Vehicle's lanes and turns.** Slots 176 0x0055DBE0, 177 0x0055DD10, 188 0x0055C480 with 0x0055C350 and 0x0055BB10 (shared with the trains), 185 0x0055E1F0, 186 0x0055E550, 187 0x0055ED10 (1,760 bytes) with 0x0055EA20, 0x0055BF70, 0x0055C030, 191 0x0055DD50 (a model matrix: SC4Matrix::FromDirection, the renderer).
 - **vb7 (14, about 6,500 bytes, done): cSC4Vehicle's queues.** Slots 182 0x0055FE60 with 0x0055CFD0, 181 0x00561910 with the +0x27C deque's 0x0055FA90, 0x0055FAF0, 0x005614B0, 0x00560250, and 0x0055F930 (entering the next occupant, slot 115's), 189 0x00561D20 with 0x00561A30 (the wall and cell tests), 190 0x005620E0 (the collisions: not a drawing function), 110 0x0055B6D0, and the trains' shared 0x0055F3F0 (the damage) and 0x0055F7B0 (an impact).
-- **vb8 (1, 4,279 bytes): cSC4Vehicle's frame.** Slot 115 0x005603F0, the vehicle's frame (it calls vb7's 0x0055F930, 0x0055F3F0 and 0x0055F7B0), split off from vb7 for its size.
+- **vb8 (1, 4,279 bytes, done): cSC4Vehicle's frame.** Slot 115 0x005603F0, the vehicle's frame (it calls vb7's 0x0055F930, 0x0055F3F0 and 0x0055F7B0), split off from vb7 for its size.
 
 vb3 to vb8 run on frames, so the family's frame caveat applies (top of this page): the comparison of those parts is inside one run, or values from automata the test makes itself.
 
@@ -2170,7 +2170,7 @@ Mods: no NAM site and none of SC4UIScale's addresses is in the group. SC4UIScale
 
 ### What is ours
 
-137 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)): vb1's 36 (kObject), vb2's 30 (kLife), vb3's 13 (kMove), vb4's 22 (kStates), vb5's 10 (kVehicleMove), vb6's 12 (kVehicleLanes) and vb7's 14 (kVehicleQueues).
+138 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)): vb1's 36 (kObject), vb2's 30 (kLife), vb3's 13 (kMove), vb4's 22 (kStates), vb5's 10 (kVehicleMove), vb6's 12 (kVehicleLanes), vb7's 14 (kVehicleQueues) and vb8's 1 (kVehicleFrame).
 
 #### vb1
 
@@ -2446,6 +2446,62 @@ Return values: the game sets only AL in 0x0055F930; ours zero-extends. 0x0055FA9
 
 Reimplemented the same way, five writers in parallel (one per group of slots), then an independent audit of all 14 against the disassembly, every call's argument count checked against the callee's `ret` (0x00554400, ApplyTrafficEvent, is a thunk to the ret 0xC 0x00554040, though a `ret` scan of the thunk says 4). The audit found no defect; its one note (a comment of slot 189's) is fixed.
 
+#### vb8
+
+- **The driven frame (slot 115) 0x005603F0 (frame seconds), the U-Drive car's frame:** the controls are the current state (slot 56) and the entry is the template's (slot 67: its +0x64, else SC4AutomatonTemplate::FindInherited64 on its parent +0xC). Without either the answer is AL 0. When the damage +0x60 (unsigned) is above the entry's most (+0x5C) the answer is AL 1 at once.
+  - Whether the key +0x80 was up (at or below 0) is read before the keys' frame 0x00508C50 runs. That frame moves the controls' 13 key timers from +0x7C on by the seconds and calls slot 121 and the occupant manager's slot 17; its AL 0 (with the automata flag 1) answers 0. Before it, the sound 0x12 goes to the event system (0x00602640): slot 5 when the smoothed speed is below 0, else slot 6.
+  - The floor under the front point +0x264 (0x0055C030). The car is off the network when, with the controls' +0x8C at -1, there is no floor occupant, or otherwise when the floor was not found (its found byte 0). A change goes to slot 102 (0xA, off) and the byte +0x228. Then the throttle (0x0055EA20: the key pressed this frame and off; limited on a floor occupant), its answer dropped.
+  - The frame runs in ceil(seconds / 33) steps (the float magic on seconds x 1/33 + 0.5, one less when that is exact). Each is seconds / steps long and covers the smoothed speed x that.
+  - On a floor occupant (and not off): the sounds 5 and 0x10 stopped (slot 6), the haze stopped (slot 45 with the name "haze", an SC4String from the text 0x00B0A0D8 points to), and the heading turned about y by the wheel +0x5C. With the flag 0x2000 or the front point unset, it finds a path:
+    - the occupant's network part (slot 49);
+    - slot 171 (the occupant, the turned heading, a side byte, 1);
+    - the part's keys (slot 6: kind 1, the front, the entry 0xFF, the side, 16.0) and the nearest path (0x0055BF70);
+    - without one, the keys again with the side 0xFF, copied over the first list (SC4Uint32Vector::CopyAssign; the new list freed) and tried once more;
+    - then slot 132 (occupant, key, path, 1) and, with a path, its index into +0x1FC; both lists freed.
+
+    The flag 0x2000 is then cleared.
+  - Each step: slot 133 along the path by the step to the next point, else onto the next occupant (0x0055F930), else Remove (slot 13, false) and AL 1 with nothing more.
+    - The direction is the path's segment at +0x1FC when it is above 1e-5 long, averaged (2 d + +0x270) / 3 unless +0x270 is unset. For a shorter segment it is +0x270, or (0, 0, 1) when that is unset.
+    - +0x4C becomes the next point. Slot 16 gets the point half the radius behind it and the direction. +0x270 becomes the direction and the front the next point, and the flag 0x20 is cleared.
+    - The controls' rear +0x44 is set the radius behind the next point, and +0x50 and +0x38 become the direction.
+    - Then the collisions (slot 190): on one, 0x0055F7B0 (the push, the share, the controls, the entry) and no more steps.
+  - After the steps, the turn onto another path: when the wheel is past the entry's +0x34 to the right, or past minus it to the left with a path. Slot 171 runs on the own occupant with the turned heading, then the network part's path (slot 5: 1, the byte +0x1F5, the side, the front, a key out, 0). A new path (not the current one) whose point (slot 19 on a copy of the front) stays within 4 in y gives slot 132 (occupant, key, path, 1), +0x1FC its index and +0x4C the point.
+  - Then the lane change, when moving (slot 38 above 0) on a path with the byte +0xE6 or +0xE7 set. A point 5 to that side of the heading (added to the heading, not to the position) goes to the network part's slot 39 (+0x1F4's word, the position, it, 0.8, a point out, a key out, an index out). The path for its answer (slot 3) is used when its point (slot 19, its answer dropped) stays within 4 of the position's y: slot 132 (the floor occupant, the key, null, 1) and +0x1FC the index.
+  - Off the network:
+    - the flag 0x2000 is set, and slot 132 (the floor occupant or null, 0, null, 1) runs when that is not the own occupant;
+    - with an own occupant and +0x228, the sound 5 (slot 5);
+    - without one and moving (the smoothed speed not 0, or unordered), the sounds 0x10 and 5 (slot 5) and the haze started (slot 44, the name, 0, 1); else the sound 0x10 stopped and the haze stopped;
+    - each step: slot 187 (the step's seconds as a word, the controls, the step, the entry, the floor occupant), whose AL becomes the answer, then the collisions as above.
+  - At the end:
+    - the controls' effect +0x74 is placed at the position (its slot 8 with 0x0055F3F0's block);
+    - the sound source **+0x70 gets the position's x and z, -atan2(heading x, heading z), its +0x28 plus the position's y, and the speed x the heading's x and z x 1000;
+    - when the disaster service 0x00B43D3C's slot 10 says a disaster runs, its disaster 0xC4C90997 (slot 7, held for the call) is asked, as 0xA9B5AB9E (slot 5), for the level at the position's cell (x and z / 16, rounded as 0x0055C030 rounds them). A level above 0, x 3 and rounded by the float magic, is added to the damage and 0x0055F3F0 runs;
+    - +0x94 becomes the distance moved over the seconds.
+
+    AL is the keys' frame's, or the last slot 187's.
+
+Kept as the game's for vb8: the keys' frame 0x00508C50 (the core's), the event system 0x00602640 and its slots 5 and 6, SC4String::FromText and Destroy, SC4Uint32Vector::CopyAssign, SC4::Free, SC4AutomatonTemplate::FindInherited64, the smoothed value 0x004FA960; vb6's 0x0055C030, 0x0055EA20 and 0x0055BF70 and vb7's 0x0055F930, 0x0055F3F0 and 0x0055F7B0 (ours, called at their addresses); the vehicle's slots 13, 16, 30, 31, 38, 44, 45, 56, 67, 102, 132, 133, 171, 187 and 190; the network parts' slots 3, 5, 6, 19 and 39; the effect, the sound source, the disaster service and its objects.
+
+vb8's oddities kept:
+
+- The key +0x80 is read before the keys' frame and again after it, so the throttle's reverse means "pressed this frame and off".
+- The +0x8C test picks which floor answer counts: at -1 the floor occupant, otherwise (and when unordered) the found byte.
+- The step count is a ceiling made with the float magic (+0.5, then one less when exact). 0 seconds gives 0 steps and seconds / 0 is NaN, so +0x94 becomes NaN.
+- The turn keeps the cosine unrounded on the x87 (vb6's turn rounds it); the rows are otherwise vb6's.
+- The direction's average doubles x through a float and y and z unrounded. z's third is unrounded; x's and y's go through a float. Slots 129 and 131 round differently.
+- The keys' second list is copied over the first (CopyAssign) instead of swapped, and the copy, not the original, is searched; the new list is freed at once.
+- The lane change's point is the heading plus 5 to the side, not the position plus it.
+- The lane change drops its path's index answer (slot 19) and takes the index from slot 39; slot 132 then gets the floor occupant and a null path.
+- The turn's slot 171 and slot 5, and the first block's slot 6, get the side (and the +0x1F5 byte) as words whose upper three bytes are the game's stack (earlier floats). Ours passes 0 above the bytes.
+- Slot 171 writes 0xFF into the side first, so the game's own 0xFF preset is redundant.
+- The throttle's two bytes have the upper bytes of ECX and of an earlier stack word above them; ours zero-extends them.
+- Slot 44 is a jump to +0x18C's slot 12 (rt.py reads it as ret 8); the game pushes three words and the callee pops 0xC.
+- Off the network the answer is the last step's slot 187 AL, not the keys' frame's.
+- The sound source's speed is the smoothed speed read before the steps, not the one at the end.
+- AL only in the game; ours zero-extends.
+
+Reimplemented by hand from the Ghidra listing (no translator), then an independent audit against the disassembly. The audit found two branches inverted by a misread JP: the +0x8C floor test and the sound 0x12's slot. Both were fixed before parity; the rest matched.
+
 ### Test
 
 `OPENSC4_TEST_AUTOMATA_VEHICLE=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, drives the base and cSC4Vehicle on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). Vehicles run on frames, so everything in the fingerprint comes from objects the test makes and removes itself. The automata's generator (0x00B21D78) is saved and seeded first and put back after: the drawn times are the same on both sides, and the game's own draws do not change.
@@ -2526,6 +2582,45 @@ vb7 reached: all 14 in every B run of vb7-r1 (the test drives each at its addres
 
 Not covered by the fingerprint (vb7): 0x0055F3F0's crash (ApplyTrafficEvent writes the city's vehicle manager's record list), so neither a damage at or past the entry's most nor 0x0055F7B0's unsigned wrap of a negative sum (both lead there); slot 182 on a path of fewer than 2 points (the game's index counts down from 2^32) or an empty one; slot 190's sound (slot 57 answers 0) and its rectangles without models; slots 132 and 171 under 0x0055F930 at their real addresses (the probe answers them); the base's state 0x10 path after slot 110 with a template there (the template is answered once).
 
+vb8 adds `,<vframe8>` to the token. Its flags: 0x80000 when its part ran, 0x100000 when the factory gave no vehicle, 0x200000 when the fake city trapped, 0x400000 when there was no event system and it was skipped. Slot 115 is driven at its address on a cSC4Vehicle from the factory. Its states, +0x1EC..+0x1FF, the byte +0x33, the flags and both vtables are put back after.
+
+Its vtable is vb7's copy with these slots the test's:
+- 44 and 45, the haze (the name's text is mixed, not its stack address);
+- 121, the probe's, under the keys' frame;
+- 171, vb7's without the side byte the game hands it;
+- 187, the probe's AL;
+- 190, a scripted collision: push (0.5, 0, -0.25) and share 1.5 on the chosen call.
+
+Its occupant part's slot 22 is vb6's probe. While it runs, these globals point at the test's:
+- the city: vb3's, with vb6's terrain as its ground;
+- 0x00B43D54: a cell list with one floor of vb6's kind and no neighbour, so 0x0055F930 answers false;
+- 0x00B43D1C: vb6's effects;
+- the occupant manager 0x00B43D0C: one answering the keys' frame's slot 17;
+- the disaster service 0x00B43D3C.
+
+The floor's and +0x1F0's network parts, the paths, the effect, the sound source, the template and the entry are the test's too. The sounds go to the game's event system, and every sound id slot 115 starts (0x12, 5, 0x10) is stopped after.
+
+- vframe8: 14 frames over fixed seconds (0, 16, 33, 50, 99, 400). They cover:
+  - the damage above the entry's most, and the keys' frame refusing (the flag 1);
+  - on a floor occupant (+0x8C at -1, or found with +0x8C NaN): the flag 0x2000 with the front unset (the first key list, and an empty one copied over); steps along a three-point path with +0x270 set or unset, and a zero-length segment; steps running off the path (Remove);
+  - the turn both ways past the wheel's most, and the lane change both ways;
+  - collisions on the first and second step into the impact (the injured way once);
+  - the disaster's level at 0, 2.5 and 3, and a disaster that does not answer the interface;
+  - off the network (no floor; a floor not found with +0x8C at 0), with and without an own occupant, moving or stopped, and slot 187 answering 0 and 1.
+
+  Each frame mixes AL, the position, +0x4C, the front, +0x270, +0x1FC, +0x260, +0x94, the flags, the controls' +0x28..+0x5C, the key timers, the damage and +0x228, the effect held, the sound source and the smoothed value. At the end the fakes' calls and references are mixed in. The frame seconds are the test's own, so nothing in the hash comes from the game's clock.
+
+To the log only: each frame's AL, flags, index, +0x94, damage, collision count and running hash; the traps and the references left.
+
+vb8 reached: slot 115 in every B run of vb8-r1 (the test drives it at its address). The game itself never reaches it before the test day (U-Drive only); only the test does. In the trial (Making Money d0000, 4 days) the token was the same on both sides.
+
+Not covered by the fingerprint (vb8):
+- the damage reaching the entry's most inside the frame (0x0055F3F0's crash needs the city's vehicle manager);
+- slot 133, slot 187 and the collisions with the game's own objects (slots 187 and 190 are the test's here; vb6 and vb7 cover them);
+- a held floor (0x80000, SC4RefPtr::Assign);
+- the real effect, haze and sound source;
+- NaN steps and wheels (the x87's NaN payloads would differ from ours in the hash).
+
 Not covered by the fingerprint (vb1): slot 152's branch through the next occupant (with no occupant 0x00B43D54's slot 0x3C answers null at once), 0x0054FC30 and slot 123 (the log only), a tie in 0x0050AAF0.
 
 ### Parity
@@ -2599,3 +2694,13 @@ vb7, 2026-10-23, the same lists and setup, env p4env-vb7, snapshot vb7-r1 (137 d
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run carried the ` V` token with vb7's two hashes, equal to the A run's, and the first-call lines of all 14 vb7 functions.
+
+vb8, 2026-10-23, the same lists and setup, env p4env-vb8, snapshot vb8-r1 (138 detours), with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. All the same:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` V` token with vb8's hash, equal to the A run's, and the first-call line of slot 115.

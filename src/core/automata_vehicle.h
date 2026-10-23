@@ -170,6 +170,12 @@ inline constexpr std::size_t kRef78 = 0x78, kFloat8C = 0x8C, kByte228 = 0x228;
 inline constexpr std::uint32_t kWait = 0xD, kParked = 0x10, kPlace = 0x15, kDrive = 0x1E;
 // Part vb7's (the state 0x10's controls: slot 110, 0x0055F3F0, 0x0055F7B0).
 inline constexpr std::size_t kPedal = 0x28, kSpeed = 0x2C, kFloat30 = 0x30, kSpeed34 = 0x34, kDamage = 0x60;
+// Part vb8's (slot 115): the wheel, the rear point, the velocity, the
+// direction copy, the key timer +0x80 (the keys' frame 0x00508C50 runs
+// +0x7C.. on, -1 up), the bytes of the lane change keys and the sound
+// source (a pointer to an object pointer).
+inline constexpr std::size_t kWheel = 0x5C, kRear = 0x44, kVelocity = 0x50, kDirection38 = 0x38, kKey80 = 0x80;
+inline constexpr std::size_t kLaneLeft = 0xE6, kLaneRight = 0xE7, kSource70 = 0x70;
 } // namespace state
 
 // The template's entry (its +0x64, else SC4AutomatonTemplate::FindInherited64
@@ -178,6 +184,7 @@ namespace entryField {
 inline constexpr std::size_t kSpeed = 0x08;      // the top speed (slot 110 copies it to the state's +0x34)
 inline constexpr std::size_t kMass = 0x48;       // 0x0055F7B0 divides the push by it
 inline constexpr std::size_t kMostDamage = 0x5C; // 0x0055F3F0: injured from half of it, crashed at it
+inline constexpr std::size_t kMostWheel = 0x34;  // slot 115: past it (either way) the turn onto another path
 } // namespace entryField
 
 namespace deque {
@@ -285,6 +292,10 @@ inline constexpr std::size_t kGetSpeed = 0x98;          // 38: the core's 0x004F
 inline constexpr std::size_t kHandleCollision = 0x104;  // 65: cSC4Vehicle 0x0055C8C0, (hit, a word), ret 8
 inline constexpr std::size_t kRememberOccupant = 0x2D4; // 181: cSC4Vehicle 0x00561910, (deque, count), ret 8
 inline constexpr std::size_t kSlot190 = 0x2F8;          // 190: cSC4Vehicle 0x005620E0, (push*, share*), ret 8
+// Part vb8's.
+inline constexpr std::size_t kSlot115 = 0x1CC;    // 115: cSC4Vehicle 0x005603F0, (seconds), ret 4
+inline constexpr std::size_t kStartEffect = 0xB0; // 44: the core's 0x004FADF0 (+0x18C's slot 12), (name, word, word), ret 0xC
+inline constexpr std::size_t kStopEffect = 0xB4;  // 45: the core's 0x004FAE00, (name, word), ret 8
 // The occupant part's (+4).
 inline constexpr std::size_t kPartType = 0x1C;        // 7: 0x006BDD80, the occupant type (+0x28)
 inline constexpr std::size_t kPartFlags = 0x84;       // 33: 0x005E8BE0, the byte +0x33
@@ -340,6 +351,7 @@ inline constexpr std::size_t kFlat = 0x40;            // 16: a bool, no argument
 inline constexpr std::size_t kIndexOf = 0x4C;         // 19: (point, path), ret 8: an index
 inline constexpr std::size_t kEndPoint = 0x58;        // 22: (path, float* out), ret 8
 inline constexpr std::size_t kKeys = 0x18;            // 6: (vector* out, kind, point, entry, side, float), ret 0x18
+inline constexpr std::size_t kLaneChange = 0x9C;      // 39 (part vb8): seven words (a point, a key, an index out), a bool
 } // namespace part
 // Part vb4's.
 inline constexpr std::size_t kOccupantFlag9 = 0x24;   // an occupant's slot 9: (flag), ret 4, a bool
@@ -386,5 +398,11 @@ inline constexpr std::size_t kQueueKeySlot = 0xEC;       // a +0x27C element's o
 inline constexpr std::size_t kViewRemoveSlot = 0x74;     // the view 0x00B43DD0's (model), ret 4
 inline constexpr std::size_t kTransformSlot = 0x24;      // 0x00B43DDC's: a bool, no arguments
 inline constexpr std::size_t kStringToChar = 0x14;       // cIGZString's ToChar
+// Part vb8's: the disaster service 0x00B43D3C (slot 115).
+inline constexpr std::size_t kDisasterActive = 0x28;          // its slot 10: a bool, no arguments
+inline constexpr std::size_t kDisasterById = 0x1C;            // its slot 7: (id), ret 4: the disaster or null
+inline constexpr std::uint32_t kDriveDisasterId = 0xC4C90997; // the disaster slot 115 asks for
+inline constexpr std::uint32_t kDisasterHazardIid = 0xA9B5AB9E; // the interface it is asked as
+inline constexpr std::size_t kHazardAt = 0x14;                // that interface's slot 5: (cell x, cell z), ret 8, a float in ST0
 
 } // namespace opensc4::automata_vehicle

@@ -10410,3 +10410,36 @@ address = 0x00B0A0B8
 kind = "data"
 expect = "00 00 FA 44"
 source = "Name ours. The float 2000.0: 0x0055F7B0's damage per unit of impact. Called by address from src/core/automata_vehicle.cpp (part vb7)."
+
+# Part vb8: cSC4Vehicle's frame (src/core/automata_vehicle.cpp, docs/automata.md "Part vb").
+
+[[entry]]
+name = "cSC4Vehicle::DriveFrame"
+address = 0x005603F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "81 EC 0C 01 00 00 53 55"
+source = "Name ours. Slot 115, ret 4: the driven vehicle's frame (U-Drive). The controls (slot 56) and the template's entry; AL 0 without them, AL 1 at once when the damage +0x60 is above the entry's +0x5C. The keys' frame 0x00508C50 (AL 0 answers 0), the floor under the front point (0x0055C030), the throttle (0x0055EA20), then ceil(seconds / 33) steps: on a floor occupant the heading turned by the wheel, the path found (slot 171, the part's slot 6, 0x0055BF70, slot 132), each step along it (slot 133, else 0x0055F930, else Remove and AL 1) with +0x4C, slot 16, +0x270, the front, the controls' rear and velocity and the collisions (slot 190, 0x0055F7B0); the turn and lane change onto other paths; off it slot 187 per step (its AL the answer) and the collisions. The sounds (0x00602640), the haze (slots 44 and 45), the effect +0x74 and the sound source **+0x70 placed, the disaster service's hazard at the cell onto the damage (0x0055F3F0), +0x94 the distance over the seconds. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb8)."
+
+[[entry]]
+name = "cSC4AutomatonCore::DriveKeys"
+address = 0x00508C50
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "56 8B F1 8B 06 6A 01 FF"
+source = "Name ours. Ret 4: AL 0 with the automata flag 1 (slot 31); else the controls' (slot 56) 13 key timers from +0x7C moved on by the seconds when not below 0 (capped by 0x00A952E4), slot 121 (controls, seconds), the occupant manager's (0x00B43D0C) slot 17 (x, z, controls +0x26C, +0x270), AL 1. Called at its address by slot 115 (src/core/automata_vehicle.cpp, part vb8)."
+
+[[entry]]
+name = "cSC4Vehicle::StepRate"
+address = 0x00A9D350
+kind = "data"
+expect = "10 3E F8 3C"
+source = "Name ours. The float 1/33: slot 115 runs ceil(seconds x it) steps. Called by address from src/core/automata_vehicle.cpp (part vb8)."
+
+[[entry]]
+name = "cSC4Vehicle::HazeName"
+address = 0x00B0A0D8
+kind = "data"
+source = "Name ours. A pointer to the name haze (0x00A9D0F4) slot 115 starts (slot 44) and stops (slot 45) the effect by. Called by address from src/core/automata_vehicle.cpp (part vb8)."
