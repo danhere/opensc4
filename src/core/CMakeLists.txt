@@ -348,6 +348,8 @@ add_library(opensc4_core SHARED
   pixels.cpp
   pixels_autotest.cpp
   gzbuffer_blit.cpp
+  font_blitter.cpp
+  font_blitter_autotest.cpp
   gzbuffer_blit_autotest.cpp
   camera_control.cpp
   photo_mode.cpp

@@ -1,4 +1,4 @@
-# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Nothing here is hooked yet.
+# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). The glyph blitter (GZFontBlitter, f4) is ours in framework.font.blitter.draw and framework.font.blitter.object; nothing else here is hooked yet.
 
 [[entry]]
 name = "GZFontDirector::Construct"
@@ -142,7 +142,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "56 8B F1 83 66 04 00 C7"
-source = "Name ours, not hooked. Class 0x08CDA30B, 8 bytes, vtable 0x00AC55B4 (QueryInterface answers 0xA8BC2A75). The first one builds the blend tables at 0x00B54418 (0x0089618D). Plain ret (docs/fonts.md, f4)."
+source = "Name ours. Class 0x08CDA30B, 8 bytes, vtable 0x00AC55B4 (QueryInterface answers 0xA8BC2A75). Clears the count at +4, sets the vtable and, if the byte 0x00B5C418 is clear, builds the blend tables (0x0089618D) and sets it. Plain ret, EAX this. Made by the font's Load (0x00899641) and the director's factory (0x00895F73). Ours in framework.font.blitter.object (docs/fonts.md, f4)."
 
 [[entry]]
 name = "GZFontBlitter::Begin"
@@ -151,7 +151,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* font, void* picture, uint32_t mode)"
 expect = "8B 4C 24 08 8B 01 68 80"
-source = "Name ours, not hooked. Slot 5 (+0x14); `ret 0xC`. The picture's slot 6 (+0x18) with 0x8080: locks it for drawing. this and font unused (docs/fonts.md, f4)."
+source = "Name ours. Slot 5 (+0x14); `ret 0xC`. The picture's Lock (slot 6, +0x18) with 0x8080; its EAX comes back as it is. this, font and mode unused. Ours in framework.font.blitter.object (docs/fonts.md, f4)."
 
 [[entry]]
 name = "GZFontBlitter::End"
@@ -160,7 +160,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* font, void* picture, uint32_t mode)"
 expect = "8B 4C 24 08 8B 01 68 80"
-source = "Name ours, not hooked. Slot 6 (+0x18); `ret 0xC`. The picture's slot 7 (+0x1C) with 0x8080: unlocks it (docs/fonts.md, f4)."
+source = "Name ours. Slot 6 (+0x18); `ret 0xC`. The picture's Unlock (slot 7, +0x1C) with 0x8080; its EAX comes back as it is. Ours in framework.font.blitter.object (docs/fonts.md, f4)."
 
 [[entry]]
 name = "GZFontBlitter::DrawGlyphs"
@@ -169,7 +169,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* font, void* picture, const void* glyphs, uint32_t count, uint32_t mode, const uint32_t* colours, const int32_t* clip)"
 expect = "55 8B EC 83 EC 10 53 8B"
-source = "Name ours, not hooked. Slot 7 (+0x1C); `ret 0x1C`. Walks DrawString's list of placed glyphs (0x24 bytes each: left, top, right, bottom, sheet pixels, pitch, width, height, character) and composites each one of a printable character (0x20 or more) with 0x00896E63. The last step before the text is pixels in the picture (docs/fonts.md, \"Crisp text hook points\")."
+source = "Name ours. Slot 7 (+0x1C); `ret 0x1C`. Walks DrawString's list of placed glyphs (0x24 bytes each: left, top, right, bottom, sheet pixels, pitch, width, height, character) and composites each one of a printable character (0x20 or more) with 0x00896E63, its coverage from (0, 0, width, height). Returns AL 1. The last step before the text is pixels in the picture (docs/fonts.md, \"Crisp text hook points\"). Ours in framework.font.blitter.draw."
 
 [[entry]]
 name = "GZFontBlitter::DrawGlyph"
@@ -178,7 +178,7 @@ kind = "function"
 convention = "stdcall"
 signature = "void (void* font, void* picture, const void* glyph, uint32_t character, const void* pixels, int32_t* origin, uint32_t pitch, uint32_t mode, const uint32_t* colours, const int32_t* clip)"
 expect = "55 8B EC 83 EC 3C 53 8B"
-source = "Name ours, not hooked. `ret 0x28`, 995 bytes, no calls. Blends one glyph's coverage into the picture's pixels with the colour (or the 16-step colour ramp of 0x0089838C for anti-aliased text) (docs/fonts.md, f4)."
+source = "Name ours. `ret 0x28`, 995 bytes. Cuts the glyph's box to the clip and the picture (Width +0x24, Height +0x28), then by the picture's bits (+0x40): 16-bit mode 1 writes the colour where coverage is over 0x7F, mode 2 colours[coverage], mode 3 blends with 0x00896053, 0x008960C1 or 0x0089612A by the colour type (+0x38, asked only in mode 3); 32 and 24-bit (both as four bytes) the same, any mode but 1 and 2 blending by coverage / 256. Stride +0x8C, pixels +0x88. Returns AL 1. Ours in framework.font.blitter.draw (docs/fonts.md, f4)."
 
 [[entry]]
 name = "GZFontFile::Open"
@@ -188,3 +188,76 @@ convention = "thiscall"
 signature = "bool (void* this, void* file)"
 expect = "55 8B EC 51 56 57 33 FF"
 source = "Name ours, not hooked. `ret 4`, this the font's 0x34-byte T2K holder. tsi_NewMemhandler (0x0089A594), an input stream over the file (0x00896D2F, read callback 0x00896E4A), the font type (0x008A1C10: 1 Type 1, whose .pfb is unwrapped by 0x0089F7C6 and reopened; 2 likely TrueType; 7 and 0x16 not identified), then the sfnt and scaler objects (0x0089D662, 0x0089D8DC) (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontBlitter::Blend4444"
+address = 0x00896053
+kind = "function"
+convention = "custom"
+signature = "uint32_t (uint32_t target /*EAX*/, uint32_t colour /*ECX*/, uint32_t alpha /*EDX*/)"
+expect = "53 56 8B F0 57 8B C1 C1"
+source = "Name ours. Registers: target pixel EAX, colour ECX, alpha 0 to 31 EDX; the pixel back in EAX, EDX kept, ECX lost. Each 4-bit channel blended through the tables at 0x00B54418; alpha comes out 0xF. Called only by DrawGlyph (0x00896E63) for A4R4G4B4 pictures in mode 3. Ours in framework.font.blitter.draw (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::Blend555"
+address = 0x008960C1
+kind = "function"
+convention = "custom"
+signature = "uint32_t (uint32_t target /*EAX*/, uint32_t colour /*ECX*/, uint32_t alpha /*EDX*/)"
+expect = "53 56 8B F0 57 8B C1 C1"
+source = "Name ours. Registers as 0x00896053. 5-bit channels at bits 10, 5 and 0 through the tables; bit 15 comes out clear. Called only by DrawGlyph for R5G5B5 and A1R5G5B5 pictures in mode 3. Ours in framework.font.blitter.draw (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::Blend565"
+address = 0x0089612A
+kind = "function"
+convention = "custom"
+signature = "uint32_t (uint32_t target /*EAX*/, uint32_t colour /*ECX*/, uint32_t alpha /*EDX*/)"
+expect = "53 56 8B F0 57 8B C1 C1"
+source = "Name ours. Registers as 0x00896053. Red is everything from bit 11 up (unmasked), green the five bits from bit 6 (its lowest bit comes out 0), blue the low five, through the tables. Called only by DrawGlyph for R5G6B5 pictures in mode 3. Ours in framework.font.blitter.draw (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::BuildBlendTables"
+address = 0x0089618D
+kind = "function"
+convention = "cdecl"
+signature = "bool ()"
+expect = "55 8B EC 83 EC 0C 83 65"
+source = "Name ours. Fills 0x00B54418 with 32 x 32 x 32 bytes, (colour, target, alpha) at (colour * 32 + target) * 32 + alpha: alpha / 32 * colour + (1 - alpha / 32) * target on the x87 (1/32 at 0x00A8ED98), truncated by __ftol2 (0x009EEF04). Returns AL 1. Called by the constructor (0x00897722). Ours in framework.font.blitter.object (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::Release"
+address = 0x008961F6
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 04 83 F8 01 7E 05"
+source = "Name ours. Slot 2 (+8) of 0x00AC55B4; plain ret. The count at +4 less one while above 1 (signed); else operator delete (0x005E5620, no destructor) and 0. AddRef (slot 1) is the framework's shared 0x00968B60. Ours in framework.font.blitter.object (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::QueryInterface"
+address = 0x0089620D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "83 7C 24 04 01 74 0E 81"
+source = "Name ours. Slot 0 of 0x00AC55B4; `ret 8`. For 1 and 0xA8BC2A75: *out = this, then its own slot 1 (AddRef), AL 1; else AL 0. Ours in framework.font.blitter.object (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::Vtable"
+address = 0x00AC55B4
+kind = "vtable"
+expect = "0D 62 89 00 60 8B 96 00"
+source = "Name ours. The glyph blitter's vtable, 8 slots: QueryInterface 0x0089620D, AddRef 0x00968B60, Release 0x008961F6, two shared 0x0091559A (AL 1, ret 4), Begin 0x00896232, End 0x00896243, DrawGlyphs 0x00897246. Our constructor stores it (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::BlendTable"
+address = 0x00B54418
+kind = "data"
+source = "Name ours. 0x8000 bytes: the blend tables of the 16-bit blends (0x00896053, 0x008960C1, 0x0089612A), built once by 0x0089618D (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::TablesBuilt"
+address = 0x00B5C418
+kind = "data"
+source = "Name ours. The byte right after the blend tables: set by the first blitter constructed (0x00897722) once it has built them (docs/fonts.md, f4)."
