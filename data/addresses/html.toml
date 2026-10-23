@@ -1,4 +1,4 @@
-# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). Nothing here is hooked yet.
+# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups; the rest is not hooked.
 
 [[entry]]
 name = "HTMLDirector::Construct"
@@ -124,7 +124,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "55 8B EC 83 EC 14 53 56"
-source = "Name ours, not hooked. 0x1C4 bytes, vtables 0x00ACD938 (24 slots) and 0x00ACD928 at +4. The first one builds the tag table (0x00902D4F), the tag sets (0x008FF1B9) and four colours; each sets the default font steps (0x00ACD4A0: 8, 10, 12, 14, 18, 24, 36) and the faces arial and courier new. Plain ret (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.parser.document. 0x1C4 bytes, vtables 0x00ACD938 (24 slots) and 0x00ACD928 at +4. The first one builds the tag table (0x00902D4F), the tag sets (0x008FF1B9) and four colours; each sets the default font steps (0x00ACD4A0: 8, 10, 12, 14, 18, 24, 36) and the faces arial and courier new. Plain ret (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::Parse"
@@ -133,7 +133,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* text)"
 expect = "56 FF 74 24 08 8B F1 8D"
-source = "Name ours, not hooked. Slot 8 of 0x00ACD938; `ret 4`. Takes the page text, reads the first text and tag, then by the tag: `<!DOCTYPE` checks the DTD (slot 9), `<HTML` parses the page (0x009080A2); anything else shows the whole text as one plain text run (slot 11, 0x00905985) (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.document. Slot 8 of 0x00ACD938; `ret 4`. Takes the page text, reads the first text and tag, then by the tag: `<!DOCTYPE` checks the DTD (slot 9), `<HTML` parses the page (0x009080A2); anything else shows the whole text as one plain text run (slot 11, 0x00905985) (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLDocument::ReadText"
@@ -142,7 +142,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this)"
 expect = "55 8B EC 51 56 57 8B F9"
-source = "Name ours, not hooked. Plain ret. The tokenizer's text step: collects the text from the position at +0x194 up to the next `<`, skipping `<!-- -->` comments; true when it found any (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.parser.tokens. Plain ret. The tokenizer's text step: collects the text from the position at +0x194 up to the next `<`, skipping `<!-- -->` comments; true when it found any (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::NextTag"
@@ -151,7 +151,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, bool stop_at_text)"
 expect = "55 8B EC 83 EC 14 53 56"
-source = "Name ours, not hooked. `ret 4`. The tokenizer's tag step: text first (0x008FFAC2; ID 3 when stop_at_text and there was some), then the tag up to `>`, its name looked up in the tag table (ID at +0xE8; 1 at the end of the text) and its attributes split (0x009056DA) (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.tokens. `ret 4`. The tokenizer's tag step: text first (0x008FFAC2; ID 3 when stop_at_text and there was some), then the tag up to `>`, its name looked up in the tag table (ID at +0xE8; 1 at the end of the text) and its attributes split (0x009056DA) (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLDocument::ParseAttributes"
@@ -160,7 +160,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "55 8B EC 83 EC 74 56 8B"
-source = "Name ours, not hooked. Plain ret. Splits the current tag's text into name and value pairs (values quoted with \" or ', or bare) and keeps them in the document's attribute map (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.tokens. Plain ret. Splits the current tag's text into name and value pairs (values quoted with \" or ', or bare) and keeps them in the document's attribute map (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLTags::Init"
@@ -169,7 +169,7 @@ kind = "function"
 convention = "cdecl"
 signature = "void ()"
 expect = "55 8B EC 83 EC 3C 53 56"
-source = "Name ours, not hooked. Builds the static tag table (10.6 KB of code): about 160 names, each start and end tag with its own ID (!DOCTYPE 2, HTML 4, BODY 8, FONT 0x20, A 0x36, IMG 0x38, BR 0x3B, P 0x65, TABLE 0x78, TD 0x8F, TR 0x93). Called once from the document's constructor (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.names. Builds the static tag table (10.6 KB of code): about 160 names, each start and end tag with its own ID (!DOCTYPE 2, HTML 4, BODY 8, FONT 0x20, A 0x36, IMG 0x38, BR 0x3B, P 0x65, TABLE 0x78, TD 0x8F, TR 0x93). Called once from the document's constructor (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLEntities::Lookup"
@@ -178,7 +178,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, void* out, const void* name)"
 expect = "55 8B EC 83 EC 48 53 8B"
-source = "Name ours, not hooked. `ret 8`. The text of a named entity (`&name;`); on first use builds the entity map at +0xC (quot, amp, nbsp and the Latin-1 names; 6.9 KB, nearly all of it the map). The text node's constructor 0x00908CA6 calls it for each `&...;` that is not numeric (`&#n;` and `&#xn;` it converts itself) (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.names. `ret 8`. The text of a named entity (`&name;`); on first use builds the document's entity map (a tree at +8, its count at +0xC) (quot, amp, nbsp and the Latin-1 names; 6.9 KB, nearly all of it the map). The text node's constructor 0x00908CA6 calls it for each `&...;` that is not numeric (`&#n;` and `&#xn;` it converts itself) (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLDocument::ParseBlock"
@@ -187,7 +187,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* parent)"
 expect = "55 8B EC 56 8B F1 57 8B"
-source = "Name ours, not hooked. `ret 4`. The block tags by the current ID: HR, P, PRE, DL, DIV, BLOCKQUOTE, FORM, TABLE, CENTER, headings, lists; NOSCRIPT, FIELDSET, ADDRESS, DIR and MENU skipped to their end tag. False when the tag is not a block tag (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.blocks. `ret 4`. The block tags by the current ID: HR, P, PRE, DL, DIV, BLOCKQUOTE, FORM, TABLE, CENTER, headings, lists; NOSCRIPT, FIELDSET, ADDRESS, DIR and MENU skipped to their end tag. False when the tag is not a block tag (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLDocument::ParseInline"
@@ -196,7 +196,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* parent)"
 expect = "55 8B EC 56 8B F1 57 8B"
-source = "Name ours, not hooked. `ret 4`. Text (ID 3) becomes a text node (0x008FE6E2); font tags go to 0x0090727D, phrase tags to 0x00906985, A, IMG, BR, SCRIPT, MAP, SPAN and BLINK to 0x00907C3E, form tags to 0x00906E59 (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.inline. `ret 4`. Text (ID 3) becomes a text node (0x008FE6E2); font tags go to 0x0090727D, phrase tags to 0x00906985, A, IMG, BR, SCRIPT, MAP, SPAN and BLINK to 0x00907C3E, form tags to 0x00906E59 (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLDocument::ParseBody"
@@ -205,7 +205,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "55 8D 6C 24 88 81 EC F4"
-source = "Name ours, not hooked. Plain ret. The BODY tag's attributes (BACKGROUND, BGCOLOR, LINK, ALINK, VLINK, TEXT, BGPROPERTIES), then block and inline content to `</BODY>` (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.document. Plain ret. The BODY tag's attributes (BACKGROUND, BGCOLOR, LINK, ALINK, VLINK, TEXT, BGPROPERTIES), then block and inline content to `</BODY>` (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLDocument::ParseHTML"
@@ -214,7 +214,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this)"
 expect = "56 6A 44 8B F1 E8 34 D5"
-source = "Name ours, not hooked. Plain ret. Makes the body node (0x44 bytes, 0x00908811) and reads HEAD and BODY (0x00907E42) (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.document. Plain ret. Makes the body node (0x44 bytes, 0x00908811) and reads HEAD and BODY (0x00907E42) (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLDocument::ParseTable"
@@ -223,7 +223,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* parent)"
 expect = "55 8B EC 83 EC 18 53 56"
-source = "Name ours, not hooked. `ret 4`. The TABLE tag (BORDER, WIDTH, BGCOLOR, CELLPADDING, CELLSPACING) and its rows (0x009064B0); makes the table node (vtable 0x00ACE238) (docs/html.md, h3)."
+source = "Name ours. Ours in ui.html.parser.table. `ret 4`. The TABLE tag (BORDER, WIDTH, BGCOLOR, CELLPADDING, CELLSPACING) and its rows (0x009064B0); makes the table node (vtable 0x00ACE238) (docs/html.md, h3)."
 
 [[entry]]
 name = "HTMLNode::Construct"

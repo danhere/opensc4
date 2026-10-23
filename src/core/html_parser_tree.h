@@ -166,7 +166,9 @@ constexpr uint32_t kFixedFace = 0xA;
 
 // A colour from the framework's colour maker (slot 34 of the singleton at
 // 0x00913C1A), as the handlers make one from the bytes of an 0xAARRGGBB
-// value: red, green, blue.
+// value: red, green, blue. The game pushes each as the dword at that byte,
+// with the bytes above it from its stack; the maker reads only the low
+// byte of each (its slot 34 ends in 0x00825DA0), so ours pass them clean.
 uint32_t MakeColour(uint32_t colour)
 {
     void* const maker = CallPlain<void*>(addr::SC4_Singleton913C1A);
