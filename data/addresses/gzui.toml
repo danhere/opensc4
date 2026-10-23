@@ -4613,7 +4613,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "56 8B F1 C7 06 F0 51 AD"
-source = "Name ours. The constructor of the root holder 0x5A354595 (0x24 bytes; part u11's range). Stays the game's; called by ours."
+source = "Name ours. The constructor of the root holder 0x5A354595 (0x24 bytes): the interim vtables 0x00AD51F0 and 0x00AD5220, the vector (0x0094C05E), the count +0x20 zero, the vtables 0x00AD5248 and 0x00AD5234. Ours in framework.uiscript.rootlife (docs/gzui.md, part u11)."
 
 [[entry]]
 name = "cGZUIScriptLegacy::Construct"
@@ -5242,3 +5242,257 @@ convention = "cdecl"
 signature = "int64_t ()"
 expect = "55 8B EC 83 EC 20 83 E4"
 source = "Name ours. The C library's float-to-integer conversion of ST(0), truncated (EDX:EAX). Stays the game's; called by ours."
+
+# Part u11 (src/core/gzui_legacy.cpp, docs/gzui.md): the rest of the root holder 0x5A354595, the LEGACY
+# reader 0xFA450242; the game code and data they use.
+
+[[entry]]
+name = "cGZUIScriptRoot::VectorPush"
+address = 0x0094C037
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void* const* value)"
+expect = "8B 41 04 3B 41 08 74 12"
+source = "Name ours. `ret 4`; the vector at +8. With room the value put at the end (not through a null end) and the end moved on, EAX the old end; else the insert 0x0094BF3B at the end (its EAX). Called by slot 4 0x0094C0EC. Ours in framework.uiscript.rootlife (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptRoot::VectorConstruct"
+address = 0x0094C05E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector)"
+expect = "56 8B F1 57 33 FF 6A 08"
+source = "Name ours. The vector at +8: the fields zero, a counted allocator (8 bytes, SC4::operator_new; the vtable 0x00AD1DC0, its count zero) held (slot 1) at +0x10, a block of 8 pointers from its slot 3. Without the memory the game calls through null. Ours in framework.uiscript.rootlife (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptRoot::VectorErase"
+address = 0x0094C113
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* vector, void** first, void** last)"
+expect = "56 8B 74 24 0C 57 FF 74"
+source = "Name ours. `ret 8`. The pointers from `last` to the end moved down to `first` (0x00407A50), the end down as many; `first` answered. Called by the destructor 0x0094C144. Ours in framework.uiscript.rootlife (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptRoot::Add"
+address = 0x0094C0EC
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* window)"
+expect = "56 8B F1 8B 4C 24 08 85"
+source = "Name ours. Slot 4; `ret 4`. A window held (its slot 1) and pushed (0x0094C037), AL 1 over the push's EAX; AL 0 for none, over the caller's EAX (ours 0). Ours in framework.uiscript.rootlife (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptRoot::Destruct"
+address = 0x0094C144
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 57 8D 79 08 C7 01"
+source = "Name ours. The vtables back, every window released (slot 2; the count taken once), the vector emptied (0x0094C113) and a tail jump to SC4AttrVector::Destruct on it (its EAX). Ours in framework.uiscript.rootlife (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptRoot::DeletingDestructor"
+address = 0x0094C188
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 B4 FF FF FF"
+source = "Name ours. Slot 12; `ret 4`. The destructor, SC4::operator_delete with flag 1; answers `this`. Ours in framework.uiscript.rootlife (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Destruct"
+address = 0x0094C288
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B F1 8B 4E 10 33"
+source = "Name ours. The vtables back; the window +0x10 when there is one: with the flag +0x1C its slot 11's object (when one) gets slot 15 with the window, then the window's slot 5; the window released. Then the value +0x14, the variable table 0x00B63588 (forgotten when that answers 0) and the object +0x18 released, in that order; each released field cleared. EAX the last call's (the caller's with none; ours 0). Called by 0x0094C761. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::TableSlot"
+address = 0x0094C30E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "A1 88 35 B6 00 C3"
+source = "Name ours. Slot 4; `this` unused. The variable table 0x00B63588. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::SetFlag"
+address = 0x0094C314
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, bool flag)"
+expect = "8A 44 24 04 88 41 1C C2"
+source = "Name ours. Slot 7 (and slot 4 of the face at +8 through 0x0094C4D8); `ret 4`. The flag +0x1C the argument's byte; AL that byte over the caller's EAX (ours 0). Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::SetParent"
+address = 0x0094C31E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 56 8B F1 8B 4E"
+source = "Name ours. Slot 9; `ret 4`. The old value +0x14 released and cleared; the parent's interface 0x9A4527CB (slot 0; the argument's own stack slot its out): its slot 3 the new value (held), the interface released. AL 1 over the last call's EAX (the caller's with none; ours 0). Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::SetObject"
+address = 0x0094C375
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* face, void* object)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Slot 6 of the face 0x9A4527CB at +8 (`this`); `ret 4`. Unless the same: the new object held, the old released, +0x18 set. EAX the last call's (the caller's with none; ours 0). Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::SetWindow"
+address = 0x0094C3A1
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* face, void* window)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Slot 5 of the face at +8; `ret 4`. As slot 6 with the window +0x10. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Window63"
+address = 0x0094C3CD
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 79 10 00 74 0B 8B 49"
+source = "Name ours. Slot 5. A tail jump to the window's slot 63; 0 without a window. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Window64"
+address = 0x0094C3E1
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t argument)"
+expect = "83 79 10 00 74 0B 8B 49"
+source = "Name ours. Slot 6; `ret 4`. A tail jump to the window's slot 64 with the argument; without a window the caller's EAX (ours 0). Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Window54"
+address = 0x0094C3F5
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* face, uint32_t argument)"
+expect = "83 79 0C 00 74 13 8B 49"
+source = "Name ours. Slot 4 of the face 0x5A356159 at +4 (`this`); `ret 4`. The window's slot 54 with the argument, AL 1 over its EAX; AL 0 without a window, over the caller's EAX (ours 0). Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Window47"
+address = 0x0094C413
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* face, uint32_t argument)"
+expect = "83 79 0C 00 74 13 8B 49"
+source = "Name ours. Slot 5 of the face at +4; `ret 4`. As slot 4 with the window's slot 47. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::QueryInterface"
+address = 0x0094C431
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "55 8B EC 8B 45 08 83 F8"
+source = "Name ours. Slot 0 (and of the faces through 0x0094C4B8 and 0x0094C4C8); `ret 8`. 1 and 0x1A356083 give the reader, 0x5A356159 its +4, 0x9A4527CB its +8 (0 for null); AddRef through the primary vtable, AL 1 over its EAX; otherwise AL 0 over the iid. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::AddRef"
+address = 0x0094C47C
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "FF 41 0C 8B 41 0C C3"
+source = "Name ours. Slot 1. The count +0xC up and answered. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Release"
+address = 0x0094C483
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 0C 83 F8 01 76 05"
+source = "Name ours. Slot 2 (and of the faces through 0x0094C4C0 and 0x0094C4D0). Above 1 the count down and answered; else the deleting destructor (slot 10, flag 1) and 0. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::DeletingDestructor"
+address = 0x0094C761
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 1F FB FF FF"
+source = "Name ours. Slot 10; `ret 4`. The destructor 0x0094C288, SC4::operator_delete with flag 1; answers `this`. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+
+[[entry]]
+name = "cGZUIScriptRoot::Vtable"
+address = 0x00AD5248
+kind = "data"
+expect = "FE BB 94 00 3F BC 94 00"
+source = "Name ours. The root holder 0x5A354595's vtable, 13 slots (1 0x0094BC3F and 3 0x0094BC5D are folded with other classes')."
+
+[[entry]]
+name = "cGZUIScriptRoot::PartVtable"
+address = 0x00AD5234
+kind = "data"
+expect = "DC C0 94 00 FC 5B 99 00"
+source = "Name ours. The root holder's interface 0xFA35615F at +4, 5 slots (the adjustors 0x0094C0DC and 0x0094C0E4, 0x00995BFC, slots 3 and 4)."
+
+[[entry]]
+name = "cGZUIScriptRoot::InterimVtable"
+address = 0x00AD51F0
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The root holder's base vtable its constructor puts first (every slot the stub 0x005D4A10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::InterimPartVtable"
+address = 0x00AD5220
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The root holder's base vtable at +4 its constructor puts first (every slot 0x005D4A10)."
+
+[[entry]]
+name = "cGZUIScriptRoot::AllocatorVtable"
+address = 0x00AD1DC0
+kind = "data"
+expect = "28 05 93 00 60 8B 96 00"
+source = "Name ours. The vtable of the counted allocator the root holder's vector makes (8 bytes: the vtable, a count; slot 3 a block, 4 its free)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Vtable"
+address = 0x00AD5360
+kind = "data"
+expect = "31 C4 94 00 7C C4 94 00"
+source = "Name ours. The LEGACY reader 0xFA450242's vtable, 11 slots (3 0x00957A9B and 8 0x00935EA0 are other code)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::ChildVtable"
+address = 0x00AD5344
+kind = "data"
+expect = "B8 C4 94 00 BD 59 93 00"
+source = "Name ours. The LEGACY reader's face 0x5A356159 at +4, 7 slots (the adjustors 0x0094C4B8 and 0x0094C4C0, slots 4 and 5)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::WindowVtable"
+address = 0x00AD5324
+kind = "data"
+expect = "C8 C4 94 00 D5 59 93 00"
+source = "Name ours. The LEGACY reader's face 0x9A4527CB at +8, 8 slots (the adjustors 0x0094C4C8, 0x0094C4D0, 0x0094C4D8, slots 5 and 6)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Table"
+address = 0x00B63588
+kind = "data"
+source = "Name ours. The variable table 0xBA2E7954 every LEGACY reader shares and holds (made by the first reader's constructor 0x0095B8C4, forgotten when the last one releases it)."
+
+[[entry]]
+name = "STLport::CopyPointers"
+address = 0x00407A50
+kind = "function"
+convention = "cdecl"
+signature = "void** (void* const* first, void* const* last, void** to)"
+expect = "8B 44 24 04 56 8B 74 24"
+source = "Name ours. Pointers copied forward (a memmove); the destination's end answered. STLport code; Stays the game's; called by ours."
