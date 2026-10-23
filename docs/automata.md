@@ -3114,3 +3114,17 @@ The tank comes from its factory. Its main vtable is ro2's copy, with slots 18, 1
 - **Slot 121** over twenty-three: slot 18; the turret's range; the velocity key; the pointer picked or not (left, right, near, the long way) by a 0x00B43DC4 of the test's; the fire key with no model, the byte clear, and fired (a barrel model, a shot and an attachments vtable of the test's); the barrel and velocity keys and their bounds; the sound timers. The timers are put back after.
 - The U-Drive sounds are the game's. The sounds 0x13, 0xC and 0xF are stopped after.
 - **Not reached:** the game's own tanks; slot 115 past cSC4Vehicle's frame on its full path (the test's controls make it answer early).
+
+### Parity (ro3a)
+
+2026-10-23, the same setup as ro2's (B = `simulators.automata.vehicle` and `simulators.automata.roadveh`, two jobs, `OPENSC4_MUTE=1`, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-ro3a, snapshot ro3a-t1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached all 3, and its ro3a field equalled the A run's (0xD2870417). The whole ` V` token was equal too, ad3's `chighlight` included. The game itself reaches none of the 3 in these saves, which have no tanks: everything is reached by the test.
+
+- **The audit:** an independent check against the disassembly found no defect in the 3. On its one doubt, the local holding __CIacos's address was renamed so it no longer shares a name with the C runtime's acos.
