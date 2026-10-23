@@ -405,4 +405,45 @@ inline constexpr std::uint32_t kDriveDisasterId = 0xC4C90997; // the disaster sl
 inline constexpr std::uint32_t kDisasterHazardIid = 0xA9B5AB9E; // the interface it is asked as
 inline constexpr std::size_t kHazardAt = 0x14;                // that interface's slot 5: (cell x, cell z), ret 8, a float in ST0
 
+// Part ad1 adds (the core's models, core vtable 0x00A95AC0):
+//   the core's +0x110..+0x118 the models (a vector of pointers: model
+//          instances, each held through a virtual base, the drawable),
+//          +0xC0..+0xC8 their keys (vb2's vector), +0x11C..+0x124 the start
+//          key (+0x124 nonzero when set; +0x128 its third word again),
+//          +0x12C the effect part (SC4EffectPartB), +0x170 the first model's
+//          bounding box, +0x18C the attachments, +0x1C0 a timer (event 9
+//          above 100)
+//   the byte +0x33's bits 1 (in the occupant manager) and 2 (in the view)
+namespace models {
+inline constexpr std::size_t kBegin = 0x110, kEnd = 0x114, kCapacity = 0x118;
+inline constexpr std::size_t kKeysEnd = 0xC4, kStartKey = 0x11C, kStartSet = 0x124, kStartAgain = 0x128;
+inline constexpr std::size_t kEffectPart = 0x12C, kBox = 0x170, kAttachments = 0x18C, kTimer = 0x1C0;
+// The core's slots.
+inline constexpr std::size_t kSlot9 = 0x24;          // 9: (word), ret 4
+inline constexpr std::size_t kSetInManager = 0x118;  // 70: 0x00507E60, (bool), ret 4
+inline constexpr std::size_t kSetInView = 0x11C;     // 71: 0x00507F70, (bool), ret 4
+inline constexpr std::size_t kSlot106 = 0x1A8;       // 106: 0x005093A0, the effect part onto the first model
+// A model instance's slots.
+inline constexpr std::size_t kDrawable = 0x00;       // 0: the drawable (its virtual base)
+inline constexpr std::size_t kZoomRotation = 0x20;   // 8: (zoom, rotation), ret 8
+inline constexpr std::size_t kAlpha = 0x48;          // 18: (translucent, alpha), ret 8
+// The drawable's.
+inline constexpr std::size_t kSetOwner = 0x10;       // 4: (occupant), ret 4
+inline constexpr std::size_t kGetBox = 0x20;         // 8: (float[6] out), ret 4
+inline constexpr std::size_t kRenderFlags = 0x38;    // 14: (word), ret 4
+// The view's (0x00B43DD0, cSC43DRender).
+inline constexpr std::size_t kInsert = 0x70, kRemove = 0x74, kMove = 0x78, kChange = 0x7C;
+// The occupant part's (+4).
+inline constexpr std::size_t kProperties = 0x18;     // 6: the property holder
+inline constexpr std::size_t kSetFlag = 0x74, kClearFlag = 0x7C, kTestFlag = 0x80; // (flag), ret 4
+// The occupant manager's (0x00B43D0C).
+inline constexpr std::size_t kManagerInsert = 0x50;  // (occupant, word), ret 8, a bool
+inline constexpr std::size_t kManagerRemove = 0x54;  // (occupant, word, word), ret 0xC
+inline constexpr std::size_t kManagerMove = 0x60;    // (occupant, word), ret 8
+// The attachments' (+0x18C).
+inline constexpr std::size_t kAttachedTo = 0x0C;     // 3: the drawable they are bound to
+inline constexpr std::size_t kAttach = 0x08;         // 2: (drawable), ret 4
+inline constexpr std::uint32_t kAttachmentModels = 0xCC21420D; // the property of the models made by index
+} // namespace models
+
 } // namespace opensc4::automata_vehicle

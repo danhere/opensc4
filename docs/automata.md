@@ -2704,3 +2704,45 @@ vb8, 2026-10-23, the same lists and setup, env p4env-vb8, snapshot vb8-r1 (138 d
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run carried the ` V` token with vb8's hash, equal to the A run's, and the first-call line of slot 115.
+
+## AD1: the automata core's models
+
+The first piece of the automata drawing plan (the read-only survey of how the automata are drawn: Ghidra, build 641). The core (vtable 0x00A95AC0) keeps its models in the vector +0x110..+0x118 (model instances, each held through a virtual base, the drawable), their keys in +0xC0 (12-byte resource keys, vb2's vector) and a start key at +0x11C (+0x124 nonzero when set). The flag 1 of the byte +0x33 says the automaton is in the occupant manager (0x00B43D0C), the flag 2 that its models are in the view (0x00B43DD0, cSC43DRender; its slots 0x70 InsertModel, 0x74 RemoveModel, 0x78 MoveModel and 0x7C ChangeModel stay the game's, called through its vtable).
+
+### What is ours
+
+10 functions, in the same group `simulators.automata.vehicle` (list kCoreModels in [automata_vehicle.cpp](../src/core/automata_vehicle.cpp); the group now has 148): the core's slots 70 (in and out of the occupant manager, 0x00507E60), 71 (the models in and out of the view, 0x00507F70), 74 (the level of detail: model slot 8 with the zoom and rotation, 0x00509660), 97 (CreateModels, 0x0050E8B0), 98 (ReleaseModels, 0x0050D3C0), 99 (a model by index, 0x0050EB20), 100 (the view after a move, 0x00508610) and 120 (the light frame, 0x00508D70); the model from a key 0x0050E4D0 and the removal of one model 0x0050B400. The survey's model-make, model-release, view and lod rows of the core, less those of AD2 and AD3 and the ones below.
+
+Left the game's: the factory SC4::GetKeyedResource (0x007FEDE0) and the model instances' and drawables' own code; the matrix of one model 0x005094A0 (AD2's transforms); the camera's ZoomAndRotation, the property readers, SC4PtrVector::InsertN, SC4KeyVector::PushBack, SC4EffectPartB::Attach, the smoothed value 0x004FA960; the core's slots 9, 31, 83, 102 and 106 (called through the vtable).
+
+Not in AD1 (gaps of the model life still the game's): the swaps 0x0050E620 (the model of a key replaced, the billboard falling back to the 3D model) with slots 19 and 20 that call it, and SC4Automaton::SetStart 0x00510360 (the start key added and made, called by aw3's code), and the state 0x13's LeaveState 0x0050E3F0 (AD2's one-shot animation).
+
+Oddities kept:
+
+- Slot 71's way in answers AL 0 even when every model went in (only the way out and the early ways answer 1); the first refusal of InsertModel ends it with the flag 2 left clear and the models already in left there.
+- Slot 71 rounds the smoothed fade +0x1B0 to a float and gives it as the alpha below 1 ((1, alpha)); at 1 or above, or NaN, (0, 1).
+- CreateModels answers AL 0 at once on the first key the factory refuses (no slot 83 or 106 then), keeping the models made before it; with models already there it answers 0 after slots 83 and 106. The radius is half the first model's z extent of a box that starts as (1, 1, 1), (0, 0, 0), compared with 32 before it is rounded to a float.
+- CreateModels gives each model alpha (1, 0) and render flags 3; the model from a key (0x0050E4D0) gives render flags 1 and no alpha, and passes the null-tested virtual base to 0x005094A0 where CreateModels passes the drawable from slot 0.
+- 0x0050E4D0 keeps the first key it is given as the start key (+0x128 gets its third word again).
+- Slot 99 writes the out only when the property is there (null too); the other indices are the property ID itself.
+- 0x0050B400 always answers AL 0; it releases a matched model without a null test, and takes the models out of the view and back around the erase only when there were models before and after.
+- Slots 100 and 120 call the first model's drawable without a null test (a null first model is the game's crash too); slot 100 leaves EAX as the x87 status word, ours as it is.
+- Stack the game reuses: 0x0050E4D0's rotation out is its key argument's stack slot, InsertN's allocator argument is a byte local (CreateModels: its answer byte); ours pass zeroed locals (both callees always write or never read them).
+
+### Test
+
+The ` V` token gains `,<cmodels>` (23 fields). Its flags: 0x1000000 when the part ran, 0x2000000 when its game-model half ran, 0x4000000 when the factory gave no vehicle, 0x8000000 when no city vehicle had a model key. On a cSC4Vehicle from the factory (its vtable a copy with the core's slots 70, 71, 74, 97 to 100 and 120 at the core's addresses and slots 9, 83, 102 and 106 the test's; its occupant part's slots 6, 29, 31 and 32 the test's, the flags kept in +0x33), with a test view and occupant manager in the two globals: four test models (one null entry among them) in and out of the manager and the view, moved, changed, the timer's event, the light frame, the level of detail, refusals of the view and the manager, no view and no manager, a removal and the release; then the game's models from the first city vehicle's first model key: CreateModels with no key, with a key the factory refuses and with the real one (and the test's property 0xCC21420D listing 0, 1, 5 and 3: index 1 the real key, 3 a refused key, 2 absent), into the view, moved, the level of detail, by index and by key, removed and released. Per step it mixes the answer's AL, the flags, the counts, the box +0x170, the timer, the radius and the test objects' call hash (the game's drawables by the order first seen); log lines "ad1 step N" and "ad1 cmodels".
+
+### Parity
+
+2026-10-23, the same lists and setup as part vb (B = `simulators.automata.vehicle`, the switch list includes `determinism.dispatch_info=ours`, two jobs, `OPENSC4_MUTE=1`), env p4env-ad1, snapshot ad1-r3 (148 detours), with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` V` token with ad1's hash, equal to the A run's. The game itself reaches slots 70, 98 and 100, 0x0050B400 and CreateModels before the test day in every run (slots 71 and 74 and 0x0050E4D0 in some, slot 120 in two); the test reaches all 10 but slot 99 in the four Big City saves, where no city vehicle has a model key (flag 0x8000000: the game-model half is skipped). The first trials (ad1-r1, r2) hashed the EAX of slots 100 and 74, which return nothing (A and B differed there only), and missed the game-model half (the vehicle's own start key, which the factory refuses, made CreateModels fail at once); the audit against the disassembly found no difference.
+
+Not covered: the game's InsertN growth while the view is refused part way, slot 99's property with a key list of other sizes, NaN fades.
