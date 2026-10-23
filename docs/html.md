@@ -132,8 +132,8 @@ Results, 2026-10-23:
 | Check | Result |
 |---|---|
 | Parser test, groups off vs all six on (Making Money, 217 pages) | `hp` the same (23F3D3BA); in the run with them on, 0 of 217 pages differ, game against ours (tokens, trees, fonts); all 58 functions reached; tag table 675794CC (160 tags) both ways |
-| Parity `h3-r1`, 12 saves, 7 days, muted, own folder `p4env-h3`, two jobs, A `determinism.dispatch_info`, B that and the six groups | PLAIN |
-| The same with `OPENSC4_TEST_HTML_PARSER=2` | TEST |
+| Parity `h3-r1`, 12 saves, 7 days, muted, own folder `p4env-h3`, two jobs, A `determinism.dispatch_info`, B that and the six groups | `h3-r1` (build of 8c05b18): 11 same, Making Money d1095 partly (one B run of four off in the advice and advisors tokens on day 1; its three retries matched A, and the save alone again was the same on its first pair). `h3-r2` (final build): 12 same |
+| The same with `OPENSC4_TEST_HTML_PARSER=2` | `h3-r1` and `h3-r2`: 12 same each; `hp` the same in A and B for every save, and 0 pages differing, game against ours, in all 12 B runs of each |
 
 In a running city the parser runs for the HTML the game makes (27 of the 58 functions in a B run of Making Money), so parity shows that the groups leave the simulation alone; the parser test is what compares the parser.
 
