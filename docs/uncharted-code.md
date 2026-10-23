@@ -5,7 +5,7 @@ A survey of the three address blocks that had almost no address-database entries
 ## Summary
 
 - Ghidra's project has **34,557 functions** in `.text` (0x00401000 to 0x00A7FA23), one more than the 34,556 that `tools/progress.py` and the coverage meter use.
-- **4,491** of them are compiler-generated stubs and **2,593** are third-party libraries the project keeps as they are. That leaves **27,473 functions of Maxis code** (game and GZ framework), 5.7 MB of the 6.4 MB.
+- **4,491** of them are compiler-generated stubs and **2,914** are third-party libraries the project keeps as they are. That leaves **27,152 functions of Maxis code** (game and GZ framework), 5.7 MB of the 6.4 MB.
 - The three blocks hold 2,905 functions. Only 783 of them (block 1) are one thing, and it is a dead end: span routines of a software rasterizer, of which 10 ever ran. Block 2 is seven different things, a third of it the Lua runtime. Block 3 is the GZ framework's property sets, its UI script tree and the stock `GZWin` widgets.
 - With the honest denominator the same counter gives **21.3%** (5,839 of 27,473), not 17.5%. Fixing the counter's wording problem as well (about 2,260 placeholder entries the docs call ours) would put it near **29%** (inferred, not re-measured).
 
@@ -56,7 +56,7 @@ The survey's three blocks are not the only gaps. Ranges with few entries for the
 |---|---:|---:|---|
 | 0x00810000 to 0x0082B77F | 529 | 99 | Network layer: FTP (`PORT`, `RETR`, `CWD`), HTTP (`cRZNetCommandGenerator`), sockets, RAS dial-up |
 | 0x00864B60 to 0x008747D3 | 333 | 19 | **AEMS, EA's sound library.** [audio.md](audio.md) gives 0x00864D10 to 0x00867A00 (30 functions); the call graph and the alignment change say it runs to about 0x008747D3 (inferred): calls into the range come only from the game's AEMS event system (0x004E1xxx), the framework's sound code and static initializers |
-| 0x00894000 to 0x008A7FFF | 380 | 176 | Font engine (`*.mxf`, `*.otf`, `*.pfb`, `*.tt?`, Type 1 `eexec` and `/BlueValues` parsing, `uni%04X`). Could be a third-party rasterizer (not checked) |
+| 0x00894000 to 0x008A7FFF | 380 | 176 | Fonts ([fonts.md](fonts.md)): the framework's font system, font and glyph blitter (0x00893D2C to 0x0089A577, Maxis), then **T2K, Bitstream's Font Fusion scaler** (0x0089A578 to 0x008AE76D, 321 functions; identified by its memory manager's stamps) |
 | 0x009DC730 to 0x00A07FFF | 1,049 | 162 | STLport 4.6 iostreams and locales, then the MSVC C runtime |
 | 0x00A08000 to 0x00A6410F | 600 | | EA's Gimex image library with libpng 1.0.5, zlib 1.1.3, a JPEG codec, an IJL loader (`ijl15.dll`) and EAGL texture formats |
 | 0x00A66742 to 0x00A6EE4F | 91 | | `CMpegBase` MPEG audio decoder, then the rest of the C runtime |
@@ -77,11 +77,12 @@ The survey's three blocks are not the only gaps. Ranges with few entries for the
 | Lua 5.0 runtime | 527 | 0x008B96F0 to 0x008D01EF, less the thread table and tag library that are ours ([lua.md](lua.md)) |
 | STLport and the C runtime | 1,042 | 0x009DC730 to 0x00A07FFF |
 | Gimex and its codecs | 600 | 0x00A08000 to 0x00A6410F |
+| T2K font scaler | 321 | 0x0089A578 to 0x008AE76D ([fonts.md](fonts.md)) |
 | MPEG decoder and the C runtime's tail | 91 | 0x00A66742 to 0x00A6EE4F |
-| **Third-party** | **2,593** | |
-| **Maxis code** | **27,473** | the rest |
+| **Third-party** | **2,914** | |
+| **Maxis code** | **27,152** | the rest (27,473 until the font scaler was identified, 2026-10-23) |
 
-What is left out of the third-party line, so the 27,473 is if anything a little high: STLport templates instantiated inside game code (container helpers, which the project keeps as the game's), CRT functions linked outside the two CRT ranges, and the font engine if it turns out to be a library.
+What is left out of the third-party line, so the 27,152 is if anything a little high: STLport templates instantiated inside game code (container helpers, which the project keeps as the game's), CRT functions linked outside the two CRT ranges. The font scaler was one of these until 2026-10-23.
 
 Judgment calls that are not in the table, with their sizes, in case the measure should leave out code that never runs in our setup: the Software driver (344 functions, 5 ran), the rasterizer's span variants (783, 10 ran), the network layer's FTP/HTTP/RAS (529, 99 ran) and the HTML viewer's cache and cookies. The stock DirectX and OpenGL drivers are already replaced wholesale by ours when it is on ([renderer.md](renderer.md)).
 
