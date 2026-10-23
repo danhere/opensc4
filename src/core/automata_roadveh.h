@@ -1,4 +1,4 @@
-// The layout of the other road vehicles, parts ro1 and ro2 (build 641; functions,
+// The layout of the other road vehicles, parts ro1 to ro3a (build 641; functions,
 // vtables and data in data/addresses/automata.toml, the survey in
 // docs/automata.md, "Part ro").
 //
@@ -123,7 +123,39 @@ inline constexpr std::size_t kCrossPath = 0x318;        // the trailer's 198: fo
 inline constexpr std::size_t kRemoveHighlight1 = 0x304; // the tank's 193
 inline constexpr std::size_t kRemoveHighlight2 = 0x310; // the tank's 196
 inline constexpr std::size_t kMakeVehicle = 0x3C;       // the vehicle manager's 15: seven words, ret 0x1C
+// Part ro3a's, of the automaton unless noted.
+inline constexpr std::size_t kSlot18 = 0x48;           // 18: a bool (the tank's slot 121 then only steers)
+inline constexpr std::size_t kControls = 0xE0;         // 56: the U-Drive controls, or null
+inline constexpr std::size_t kTemplate = 0x10C;        // 67: the template
+inline constexpr std::size_t kSlot100 = 0x190;         // 100: (word, word), ret 8
+inline constexpr std::size_t kModelTransform = 0x24;   // the model's virtual base's slot 9: (out), ret 4
+inline constexpr std::size_t kAttachPlace = 0x10;      // the attachments' slot 4: (point, heading, word), ret 0xC
+inline constexpr std::size_t kShotVelocity = 0x2C;     // the shot effect's slot 11: (0xF, float*, 1), ret 0xC
+inline constexpr std::size_t kShotSpeed = 0x30;        // the shot effect's slot 12: (0, float*, 1), ret 0xC
+inline constexpr std::size_t kShotStart = 0x0C;        // the shot effect's slot 3: (0), ret 4
+inline constexpr std::size_t kPick = 0x90;             // 0x00B43DC4's slot 36: (x, y, out, 0), ret 0x10
+inline constexpr std::size_t kSoundOn = 0x14;          // the U-Drive sounds' (0x00602640) slot 5: (id), ret 4
+inline constexpr std::size_t kSoundOff = 0x18;         // their slot 6: (id), ret 4
 } // namespace slot
+
+// The U-Drive controls (slot 56's object, part vb8's state) as the tank's
+// slots 110, 115 and 121 use them.
+namespace udrive {
+inline constexpr std::size_t kHeading1 = 0x38, kBack = 0x44, kHeading2 = 0x50; // three floats each
+inline constexpr std::size_t kMouseX = 0x7C, kMouseY = 0x80;              // -1 unset
+inline constexpr std::size_t kTurnLeft = 0x84, kTurnRight = 0x88;         // -1 unset; zeroed when used
+inline constexpr std::size_t kBarrelUp = 0x90, kBarrelDown = 0x94, kFire = 0x98, kTurretKey = 0x9C;
+inline constexpr std::size_t kFaster = 0xA0; // held 250 or more: the velocity up 5 (wraps past 100 to 30)
+inline constexpr std::size_t kVelocityUp = 0xA8, kVelocityDown = 0xAC;
+inline constexpr std::size_t kBarrelUpBefore = 0xC4, kBarrelDownBefore = 0xC8;
+inline constexpr std::size_t kVelocityUpBefore = 0xDC, kVelocityDownBefore = 0xE0;
+inline constexpr std::size_t kWord114 = 0x114, kWord144 = 0x144, kShots = 0x178, kWord1AC = 0x1AC;
+inline constexpr std::size_t kWord1E0 = 0x1E0, kFireByte = 0x1FF, kPointerX = 0x214, kPointerY = 0x218;
+inline constexpr std::size_t kByte228 = 0x228;
+// The turret's record: +0x248 to +0x268 (slot 110 sets them all, slot 121
+// the barrel +0x250, the turn +0x25C and the velocity +0x268).
+inline constexpr std::size_t kRecord = 0x248, kRecordBarrel = 0x250, kRecordTurn = 0x25C, kRecordVelocity = 0x268;
+} // namespace udrive
 
 // cSC4Vehicle's fields part ro2 reads (src/core/automata_vehicle.h has them
 // too).
@@ -131,6 +163,7 @@ namespace field {
 inline constexpr std::size_t kPosition = 0x40, kHeading = 0x58, kRadius = 0x7C, kAutomataFlags = 0x84;
 inline constexpr std::size_t kByte90 = 0x90, kStatesEnd = 0xB8;
 inline constexpr std::size_t kOccupant = 0x1EC, kGroups = 0x1F4, kPath = 0x1F8, kPathIndex = 0x1FC;
+inline constexpr std::size_t kWord94 = 0x94, kSmoothed = 0x1A0;
 inline constexpr std::size_t kFront = 0x264;
 inline constexpr std::size_t kDeque = 0x27C; // start (cur, first, last, node), finish; elements of 8 bytes
 } // namespace field

@@ -294,6 +294,21 @@
 //   121 over eight; the tank's 127. The calls' hash and a bit for each of the
 //   15 reached are mixed in; rflags 0x20 when all 15 ran, 0x40 when a
 //   factory failed. Log line: "ro2 rframe".
+//   Part ro3a (the tank on frames) adds `,<rtank>` after rframe (31
+//   fields): a tank from its factory, its main vtable ro2's copy with slots
+//   18, 19, 56, 67, 100 and 102 the test's (the controls, the template and
+//   its entry of the test's; for the state 0x10 slot 67 makes the state 7
+//   for cSC4Vehicle's and the base's slot 110 and slot 102 makes it 0x10
+//   again, so the base's records and the city's entries are not touched).
+//   Slot 110 over five states; slot 115 over thirteen frames (cSC4Vehicle's
+//   early answers, the mouse point, the occupant, the template, the turn
+//   keys on six headings); slot 121 over twenty-three (slot 18, the
+//   turret's range, the velocity key, the pointer picked by a 0x00B43DC4 of
+//   the test's, the fire key with a barrel model, shot and attachments
+//   vtable of the test's, the barrel and velocity keys, the sound timers,
+//   which are put back after). The U-Drive sounds are the game's; 0x13, 0xC
+//   and 0xF are stopped after. rflags 0x80 when all 3 ran, 0x100 when the
+//   factory or the sound service failed. Log line: "ro3a rtank".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -20380,6 +20395,438 @@ void RoadFrameDrive(Hash& rframe, uint32_t& rflags)
                reached);
 }
 
+// Part ro3a: the tank's slots 110, 115 and 121 on a tank of the factory's
+// (its main vtable ro2's copy, with slots 18, 19, 56, 67, 100 and 102 the
+// test's). Slot 56 answers the controls of the test's and slot 67 a
+// template, each from a list of two (the first for cSC4Vehicle's code
+// before the tank's own call). For slot 110's state 0x10, slot 67 makes the
+// state 7 for cSC4Vehicle's and the base's code (so the base's state 0x10
+// work, the vehicle manager's records and the city's entries, is not done)
+// and slot 102 (the core's call at its end) makes it 0x10 again.
+struct RtAnswers {
+    char* controls[2] = {};
+    uint32_t controlsAt = 0;
+    char* owner[2] = {};
+    uint32_t ownerAt = 0;
+    char* retype = nullptr;
+    float pick[3] = {};
+    uint32_t pickAnswer = 0;
+    float place[3] = {};
+};
+RtAnswers g_rt;
+
+void RtList(char* (&list)[2], uint32_t& at, char* first, char* second)
+{
+    list[0] = first;
+    list[1] = second;
+    at = 0;
+}
+char* __fastcall RtControls(char*, void*)
+{
+    g_probe->calls.Mix(56);
+    char* const c = g_rt.controls[g_rt.controlsAt < 1 ? g_rt.controlsAt : 1];
+    ++g_rt.controlsAt;
+    g_probe->calls.Mix(g_probe->Id(c));
+    return c;
+}
+char* __fastcall RtTemplate(char*, void*)
+{
+    g_probe->calls.Mix(67);
+    if (g_rt.retype)
+        At<uint32_t>(g_rt.retype, 4) = 7;
+    char* const o = g_rt.owner[g_rt.ownerAt < 1 ? g_rt.ownerAt : 1];
+    ++g_rt.ownerAt;
+    g_probe->calls.Mix(g_probe->Id(o));
+    return o;
+}
+uint32_t __fastcall RtSlot102(char*, void*, uint32_t a, uint32_t type)
+{
+    g_probe->calls.Mix(102);
+    g_probe->calls.Mix(a);
+    g_probe->calls.Mix(type);
+    if (g_rt.retype && type == 7)
+        At<uint32_t>(g_rt.retype, 4) = 0x10;
+    return 0;
+}
+// The state's +8 object: slot 29 (automaton, type) answers its word.
+struct RtStateObject {
+    void** vtable;
+    uint32_t answer;
+};
+uint32_t __fastcall RtStateCall(RtStateObject* o, void*, void* automaton, uint32_t type)
+{
+    g_probe->calls.Mix(0x329);
+    g_probe->calls.Mix(g_probe->Id(automaton));
+    g_probe->calls.Mix(type);
+    return o->answer;
+}
+void** RtStateVtable()
+{
+    static void* t[32] = {};
+    t[29] = reinterpret_cast<void*>(&RtStateCall);
+    return t;
+}
+// 0x00B43DC4 for slot 121: slot 36 (x, y, out, word) writes the point unless
+// it answers 0.
+uint32_t __fastcall RtPick(void*, void*, int32_t x, int32_t y, float* out, uint32_t w)
+{
+    g_probe->calls.Mix(0x924);
+    g_probe->calls.Mix(static_cast<uint32_t>(x));
+    g_probe->calls.Mix(static_cast<uint32_t>(y));
+    g_probe->calls.MixBytes(out, 12);
+    g_probe->calls.Mix(w);
+    if (g_rt.pickAnswer)
+        std::memcpy(out, g_rt.pick, 12);
+    return g_rt.pickAnswer;
+}
+void** RtPickerVtable()
+{
+    static void* t[64] = {};
+    t[36] = reinterpret_cast<void*>(&RtPick);
+    return t;
+}
+// The shot: slots 3, 11 and 12 mixed.
+uint32_t __fastcall RtShotStart(void*, void*, uint32_t a)
+{
+    g_probe->calls.Mix(0x503);
+    g_probe->calls.Mix(a);
+    return 1;
+}
+uint32_t __fastcall RtShotFloats(void*, void*, uint32_t a, const float* f, uint32_t b)
+{
+    g_probe->calls.Mix(0x50B);
+    g_probe->calls.Mix(a);
+    g_probe->calls.MixBytes(f, 12);
+    g_probe->calls.Mix(b);
+    return 1;
+}
+uint32_t __fastcall RtShotSpeed(void*, void*, uint32_t a, const float* f, uint32_t b)
+{
+    g_probe->calls.Mix(0x50C);
+    g_probe->calls.Mix(a);
+    g_probe->calls.MixBytes(f, 4);
+    g_probe->calls.Mix(b);
+    return 1;
+}
+void** RtShotVtable()
+{
+    static void* t[32] = {};
+    t[3] = reinterpret_cast<void*>(&RtShotStart);
+    t[11] = reinterpret_cast<void*>(&RtShotFloats);
+    t[12] = reinterpret_cast<void*>(&RtShotSpeed);
+    return t;
+}
+// The barrel model, held through a virtual base (+4 its vbtable, whose
+// second word 4 puts the base at +8): the base's slot 9 mixes the transform
+// it is given (but the two bytes the game leaves as stack garbage) and sets
+// its place.
+struct RtModel {
+    void** vtable;
+    const int32_t* vbtable;
+    void** base;
+};
+const int32_t kRtVbtable[2] = {0, 4};
+uint32_t __fastcall RtTransform(void*, void*, uint8_t* t)
+{
+    g_probe->calls.Mix(0x609);
+    g_probe->calls.MixBytes(t, 2);
+    g_probe->calls.MixBytes(t + 4, 0x34);
+    std::memcpy(t + 0x28, g_rt.place, 12);
+    return 1;
+}
+void** RtModelBaseVtable()
+{
+    static void* t[16] = {};
+    t[9] = reinterpret_cast<void*>(&RtTransform);
+    return t;
+}
+// The attachments' slot 4 (point, heading, word).
+uint32_t __fastcall RtAttach(void*, void*, const float* point, const float* heading, uint32_t w)
+{
+    g_probe->calls.Mix(0x704);
+    g_probe->calls.MixBytes(point, 12);
+    g_probe->calls.MixBytes(heading, 12);
+    g_probe->calls.Mix(w);
+    return 1;
+}
+void** RtAttachVtable()
+{
+    static void* t[16] = {};
+    t[4] = reinterpret_cast<void*>(&RtAttach);
+    return t;
+}
+
+void RoadTankDrive(Hash& rtank, uint32_t& rflags)
+{
+    void* const sounds = reinterpret_cast<void*(__cdecl*)()>(addr::SC4UDrive_GetService602640)();
+    Probe probe;
+    Probe* const savedProbe = g_probe;
+    g_probe = &probe;
+    g_rf = RfAnswers{};
+    g_rt = RtAnswers{};
+    uint32_t madeFlags = 0;
+    char* const tank = sounds ? MakeRoad(4, madeFlags) : nullptr;
+    const bool ok = tank && madeFlags == 0;
+    uint32_t reached = 0;
+    static void* table[200];
+    alignas(4) static char controls[0x300];
+    alignas(4) static char owner[0x70], parent[0x70], entry[0x60];
+    alignas(4) static char state[0x80];
+    RtStateObject stateObject{RtStateVtable(), 0};
+    struct {
+        void** vtable;
+    } picker{RtPickerVtable()}, shot{RtShotVtable()};
+    RtModel model{nullptr, kRtVbtable, RtModelBaseVtable()};
+    float* const timer1 = reinterpret_cast<float*>(addr::cSC4Tank_TurretSoundTimer);
+    float* const timer2 = reinterpret_cast<float*>(addr::cSC4Tank_BarrelSoundTimer);
+    const float savedTimers[2] = {*timer1, *timer2};
+    if (ok) {
+        At<void**>(tank, 0) = RfTable(table, kRoadClasses[4].tables[0], 198, 4);
+        auto use = [&](std::size_t slot, auto fn) { table[slot] = reinterpret_cast<void*>(fn); };
+        use(18, &Stub0<18>);
+        use(19, &Stub1<19>);
+        use(56, &RtControls);
+        use(67, &RtTemplate);
+        use(100, &Stub2<100>);
+        use(102, &RtSlot102);
+        At<uint8_t>(tank, av::field::kByte3C) = 0;
+        std::memset(tank + av::field::kSmoothed, 0, 0x10);
+        for (const void* p : {static_cast<const void*>(tank), static_cast<const void*>(controls),
+                              static_cast<const void*>(owner), static_cast<const void*>(parent),
+                              static_cast<const void*>(entry), static_cast<const void*>(state),
+                              static_cast<const void*>(&stateObject)})
+            probe.known.push_back(p);
+        At<float>(tank, av::field::kRadius) = 3.0f;
+        SetPoint(tank, av::field::kPosition, 100.0f, 5.0f, 200.0f);
+    }
+    auto mixTank = [&]() {
+        rtank.MixBytes(tank + av::field::kPosition, 12);
+        rtank.MixBytes(tank + av::field::kHeading, 12);
+        rtank.MixBytes(tank + rv::field::kFront, 12);
+        rtank.Mix(At<uint8_t>(tank, rv::tank::kFiring));
+        rtank.MixBytes(tank + rv::tank::kMouse, rv::tank::kIndex1 - rv::tank::kMouse);
+    };
+
+    // ---- Slot 110: the state 5, the state 0x10 without and with controls.
+    if (ok) {
+        using Enter = uint32_t(__thiscall*)(void*, void*);
+        const auto enter = reinterpret_cast<Enter>(addr::cSC4Tank_EnterState);
+        struct Case {
+            uint32_t type;
+            bool withControls;
+            bool withObject;
+            float turret, barrel, velocity;
+        };
+        const Case cases[] = {
+            {5, true, true, 1.0f, 0.2f, 65.0f},       {0x10, false, true, 1.0f, 0.2f, 65.0f},
+            {0x10, true, false, 1.0f, 0.2f, 65.0f},   {0x10, true, true, 7.5f, 0.35f, 30.0f},
+            {0x10, true, true, -2.25f, 0.0f, 100.0f},
+        };
+        uint32_t i = 0;
+        for (const Case& c : cases) {
+            std::memset(controls, 0x5A, sizeof controls);
+            std::memset(state, 0, sizeof state);
+            At<uint32_t>(state, 4) = c.type;
+            At<void*>(state, 8) = c.withObject ? &stateObject : nullptr;
+            stateObject.answer = 0x100u | (++i & 1);
+            At<float>(tank, rv::tank::kTurret) = c.turret;
+            At<float>(tank, rv::tank::kBarrel) = c.barrel;
+            At<float>(tank, rv::tank::kVelocity) = c.velocity;
+            RtList(g_rt.controls, g_rt.controlsAt, c.withControls ? controls : nullptr,
+                   c.withControls ? controls : nullptr);
+            RtList(g_rt.owner, g_rt.ownerAt, nullptr, nullptr);
+            g_rt.retype = c.type == 0x10 ? state : nullptr;
+            rtank.Mix(enter(tank, state) & 0xFF);
+            g_rt.retype = nullptr;
+            rtank.MixBytes(state, sizeof state);
+            rtank.MixBytes(controls, sizeof controls);
+        }
+        reached |= 1u;
+    }
+
+    // ---- Slot 115: cSC4Vehicle's early answers, the controls' mouse point,
+    // the occupant, the template (none, no entry, its parent's), the turn
+    // keys on four headings and three rates.
+    if (ok) {
+        using Frame = uint32_t(__thiscall*)(void*, float);
+        const auto frame = reinterpret_cast<Frame>(addr::cSC4Tank_DriveFrame);
+        static Counted occupant{CountedVtable(), 1, 7, 0};
+        std::memset(entry, 0, sizeof entry);
+        At<float>(entry, av::entryField::kMostDamage) = 1.0f;
+        struct Case {
+            int base;    // cSC4Vehicle's: 0 no controls, 1 damaged (AL 1)
+            int mouse;   // 0 unset, 1 x set, 2 y set
+            int occupied; // 0 none, 1 with the byte +0x228 clear, 2 set
+            int tmpl;    // 0 none, 1 no entry, 2 the entry, 3 the parent's
+            float left, right, rate, seconds;
+            float heading[3];
+        };
+        const Case cases[] = {
+            {0, 0, 0, 2, 1.0f, -1.0f, 0.05f, 0.25f, {0.0f, 0.0f, 1.0f}},
+            {1, 1, 0, 2, 1.0f, -1.0f, 0.05f, 0.25f, {0.0f, 0.0f, 1.0f}},
+            {1, 2, 0, 2, 1.0f, -1.0f, 0.05f, 0.25f, {0.0f, 0.0f, 1.0f}},
+            {1, 0, 1, 2, 1.0f, -1.0f, 0.05f, 0.25f, {0.0f, 0.0f, 1.0f}},
+            {1, 0, 2, 0, 1.0f, -1.0f, 0.05f, 0.25f, {0.0f, 0.0f, 1.0f}},
+            {1, 0, 0, 1, 1.0f, -1.0f, 0.05f, 0.25f, {0.0f, 0.0f, 1.0f}},
+            {1, 0, 0, 2, -1.0f, -1.0f, 0.05f, 0.25f, {0.0f, 0.0f, 1.0f}},
+            {1, 0, 2, 2, 1.0f, -1.0f, 0.05f, 0.25f, {0.0f, 0.0f, 1.0f}},
+            {0, 0, 0, 3, 1.0f, 2.0f, 0.05f, 0.25f, {0.6f, 0.0f, 0.8f}},
+            {1, 0, 0, 2, -1.0f, 0.75f, 1.5f, 0.5f, {1.0f, 0.0f, 0.0f}},
+            {1, 0, 0, 2, 33.0f, -1.0f, 0.0125f, 0.5f, {-0.28f, 0.1f, -0.954f}},
+            {1, 0, 0, 3, -1.0f, -3.5f, 0.3f, 1.0f, {0.70710677f, 0.0f, -0.70710677f}},
+            {1, 0, 0, 2, 0.5f, -1.0f, 2.0f, 0.033f, {-0.6f, -0.2f, 0.77459667f}},
+        };
+        for (const Case& c : cases) {
+            std::memset(controls, 0, sizeof controls);
+            At<uint32_t>(controls, av::state::kDamage) = 1000;
+            At<float>(controls, rv::udrive::kMouseX) = c.mouse == 1 ? 12.0f : -1.0f;
+            At<float>(controls, rv::udrive::kMouseY) = c.mouse == 2 ? 0.0f : -1.0f;
+            At<float>(controls, rv::udrive::kTurnLeft) = c.left;
+            At<float>(controls, rv::udrive::kTurnRight) = c.right;
+            At<uint8_t>(controls, rv::udrive::kByte228) = c.occupied == 2 ? 1 : 0;
+            At<void*>(tank, av::field::kOccupant) = c.occupied ? &occupant : nullptr;
+            std::memset(owner, 0, sizeof owner);
+            std::memset(parent, 0, sizeof parent);
+            if (c.tmpl == 2)
+                At<char*>(owner, 0x64) = entry;
+            if (c.tmpl == 3) {
+                At<char*>(owner, 0xC) = parent;
+                At<char*>(parent, 0x64) = entry;
+            }
+            At<float>(entry, 0x58) = c.rate;
+            char* const o = c.tmpl ? owner : nullptr;
+            RtList(g_rt.controls, g_rt.controlsAt, c.base ? controls : nullptr, controls);
+            RtList(g_rt.owner, g_rt.ownerAt, o, o);
+            SetPoint(tank, av::field::kHeading, c.heading[0], c.heading[1], c.heading[2]);
+            rtank.Mix(frame(tank, c.seconds) & 0xFF);
+            mixTank();
+            rtank.MixBytes(controls, 0x270);
+        }
+        At<void*>(tank, av::field::kOccupant) = nullptr;
+        reached |= 2u;
+    }
+
+    // ---- Slot 121: slot 18, the turret's range, the velocity key, the
+    // pointer (picked or not; left, right, near, the long way), the fire key
+    // (no model, the byte clear, fired), the barrel and velocity keys and
+    // their bounds, the sound timers.
+    if (ok) {
+        using Steer = uint32_t(__thiscall*)(void*, void*, float);
+        const auto steer = reinterpret_cast<Steer>(addr::cSC4Tank_Steer);
+        RfSwap swapPicker(addr::SC4_Service43DC4, &picker);
+        void* const keptModel = At<void*>(tank, rv::tank::kBarrelModel);
+        void* const keptShot = At<void*>(tank, rv::tank::kShot);
+        void* const keptAttachments = At<void*>(tank, rv::tank::kAttachments);
+        At<void**>(tank, rv::tank::kAttachments) = RtAttachVtable();
+        At<uint32_t>(tank, rv::field::kWord94) = 0x94949494u;
+        SetSmoothed(tank, 4.0f);
+        struct Case {
+            uint32_t slot18;
+            float turret, barrel, velocity;
+            float faster, turretKey, fire;
+            int model; // 0 none, 1 the byte +0x1FF clear, 2 fired
+            float keys[4], before[4]; // +0x90, +0x94, +0xA8, +0xAC and their befores
+            int32_t pointer[2];
+            uint32_t pick;
+            float point[3];
+            float heading[3];
+            float timers[2];
+            float seconds;
+        };
+        const Case cases[] = {
+            {1, 1.0f, 0.2f, 65.0f, 0.0f, 0.0f, 0.0f, 2, {}, {}, {10, 20}, 1, {110, 5, 200}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 7.0f, 0.2f, 50.0f, 250.0f, -1.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 13.0f, 0.2f, 98.0f, 300.0f, -1.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, -7.0f, 0.2f, 20.0f, 251.0f, -1.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 100.0f, 249.5f, -1.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 96.0f, 1000.0f, -1.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, 0.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {320, 240}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, 0.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {320, 240}, 1, {130, 7, 260}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, 2.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {-5, 7}, 1, {70, 7, 260}, {0, 0, 1}, {0, 0}, 40.0f},
+            {0, 0.5f, 0.2f, 65.0f, 0.0f, 0.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {1, 2}, 1, {100.5f, 5, 230}, {0.6f, 0, 0.8f}, {0, 0}, 500.0f},
+            {0, 6.0f, 0.2f, 65.0f, 0.0f, 0.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {1, 2}, 1, {120, 5, 199}, {0, 0.1f, -1}, {0, 0}, 2000.0f},
+            {0, 0.1f, 0.2f, 65.0f, 0.0f, 0.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {1, 2}, 1, {80, 5, 190}, {0.28f, 0, 0.96f}, {0, 0}, 1.0f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, -1.0f, 0.0f, 0, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, -1.0f, 0.0f, 1, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 72.5f, 0.0f, -1.0f, 3.0f, 2, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0.6f, 0, 0.8f}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, -1.0f, -0.5f, 2, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, -1.0f, -1.0f, 0, {5, 1, 300, 4}, {1, 9, 100, 4}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.39f, 99.0f, 0.0f, -1.0f, -1.0f, 0, {900, -1, 900, -1}, {1, 0, 1, 0}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.01f, 31.0f, 0.0f, -1.0f, -1.0f, 0, {-1, 900, -1, 900}, {0, 1, 0, 1}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, -1.0f, -1.0f, 0, {0, 3, 7, 0}, {0, 3, 2, 0}, {10, 20}, 0, {}, {0, 0, 1}, {0, 0}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, 0.0f, -1.0f, 0, {50, -1, -1, -1}, {1, 0, 0, 0}, {320, 240}, 1, {130, 7, 260}, {0, 0, 1}, {60, 60}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, -1.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {60, 51}, 0.25f},
+            {0, 1.0f, 0.2f, 65.0f, 0.0f, -1.0f, -1.0f, 0, {-1, -1, -1, -1}, {}, {10, 20}, 0, {}, {0, 0, 1}, {50, 49.9f}, 3.0f},
+        };
+        const std::size_t keyAt[4] = {rv::udrive::kBarrelUp, rv::udrive::kBarrelDown, rv::udrive::kVelocityUp,
+                                      rv::udrive::kVelocityDown};
+        const std::size_t beforeAt[4] = {rv::udrive::kBarrelUpBefore, rv::udrive::kBarrelDownBefore,
+                                         rv::udrive::kVelocityUpBefore, rv::udrive::kVelocityDownBefore};
+        for (const Case& c : cases) {
+            std::memset(controls, 0, sizeof controls);
+            At<float>(controls, rv::udrive::kFaster) = c.faster;
+            At<float>(controls, rv::udrive::kTurretKey) = c.turretKey;
+            At<float>(controls, rv::udrive::kFire) = c.fire;
+            At<uint8_t>(controls, rv::udrive::kFireByte) = c.model == 2 ? 1 : 0;
+            At<int32_t>(controls, rv::udrive::kShots) = 3;
+            At<uint32_t>(controls, rv::udrive::kWord1E0) = 0x1E0u;
+            for (int k = 0; k < 4; ++k) {
+                At<float>(controls, keyAt[k]) = c.keys[k];
+                At<float>(controls, beforeAt[k]) = c.before[k];
+            }
+            At<int32_t>(controls, rv::udrive::kPointerX) = c.pointer[0];
+            At<int32_t>(controls, rv::udrive::kPointerY) = c.pointer[1];
+            At<void*>(tank, rv::tank::kBarrelModel) = c.model ? &model : nullptr;
+            At<void*>(tank, rv::tank::kShot) = c.model ? &shot : nullptr;
+            At<uint8_t>(tank, rv::tank::kFiring) = 0;
+            At<float>(tank, rv::tank::kTurret) = c.turret;
+            At<float>(tank, rv::tank::kBarrel) = c.barrel;
+            At<float>(tank, rv::tank::kVelocity) = c.velocity;
+            SetPoint(tank, av::field::kHeading, c.heading[0], c.heading[1], c.heading[2]);
+            probe.answer[18] = c.slot18;
+            g_rt.pickAnswer = c.pick;
+            std::memcpy(g_rt.pick, c.point, 12);
+            g_rt.place[0] = 1.5f;
+            g_rt.place[1] = c.velocity * 0.125f;
+            g_rt.place[2] = -2.0f;
+            RtList(g_rt.owner, g_rt.ownerAt, nullptr, nullptr);
+            *timer1 = c.timers[0];
+            *timer2 = c.timers[1];
+            rtank.Mix(steer(tank, controls, c.seconds) & 0xFF);
+            mixTank();
+            rtank.MixBytes(controls, 0x270);
+            rtank.Mix(Bits(*timer1));
+            rtank.Mix(Bits(*timer2));
+        }
+        rtank.Mix(Global<uint32_t>(addr::cSC4Tank_TurretRate));
+        probe.answer[18] = 0;
+        At<void*>(tank, rv::tank::kBarrelModel) = keptModel;
+        At<void*>(tank, rv::tank::kShot) = keptShot;
+        At<void*>(tank, rv::tank::kAttachments) = keptAttachments;
+        reached |= 4u;
+    }
+
+    *timer1 = savedTimers[0];
+    *timer2 = savedTimers[1];
+    if (sounds)
+        for (const uint32_t id : {0x13u, 0xCu, 0xFu})
+            Virtual<uint32_t>(sounds, 0x18, id);
+    if (tank) {
+        At<std::uintptr_t>(tank, 0) = kRoadClasses[4].tables[0];
+        At<void*>(tank, av::field::kOccupant) = nullptr;
+        ReleaseRoad(tank);
+    }
+    rtank.Mix(probe.calls.h);
+    rtank.Mix(reached);
+    g_probe = savedProbe;
+    if (ok && reached == 7u)
+        rflags |= 0x80;
+    if (!ok)
+        rflags |= 0x100;
+    log::Write("autotest: automata: vehicle: ro3a rtank %08X calls %08X reached %X of 7", rtank.h, probe.calls.h,
+               reached);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -20646,6 +21093,10 @@ void VehicleDrive(cISC4City* city)
     Hash rframe;
     RoadFrameDrive(rframe, rflags);
 
+    // ---- Part ro3a.
+    Hash rtank;
+    RoadTankDrive(rtank, rflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -20701,10 +21152,10 @@ void VehicleDrive(cISC4City* city)
     char text[320];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
-                  vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h);
+                  vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

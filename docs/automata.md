@@ -35,7 +35,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
-| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3 (4) (part ro below counts 103) |
+| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1) (part ro below counts 103) |
 | Trains | 79 | 18,124 | 2 |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
@@ -2898,7 +2898,9 @@ What each class overrides of cSC4Vehicle:
   - The bus: 164 0x00524180, 172 0x005240D0.
   - The carjacked vehicle: 101 0x00524440. The van: 101 0x005339B0. The limo: 121 0x0053CD30.
   - The tank: 127 0x0054A750 (both highlights off).
-- **ro3 (4, 6,322 bytes):** the tank on frames: 110 0x0054A780, 115 0x0054AAE0, 121 0x0054B030, 72 0x0054B7C0.
+- **ro3 (4, 6,322 bytes):** the tank on frames, split in two:
+  - **ro3a (3, 3,484 bytes, done):** 110 0x0054A780, 115 0x0054AAE0, 121 0x0054B030. Below.
+  - **ro3b (1, 2,838 bytes):** the tank's frame, slot 72 0x0054B7C0.
 
 No helper is called only by the group beyond the two destructor bodies. No NAM site and none of SC4UIScale's addresses is in it.
 
@@ -3066,3 +3068,63 @@ Every B run reached all 15, and its ro2 field equalled the A run's. The game its
 
 - **Rush Hour t0000 and ad3's field:** ro2-t2 found Rush Hour different after 3 pairs. The only difference in every pair was ad3's `chighlight` in the ` V` token; the city's records and every other token were identical. That field copies a live city vehicle, so it depends on frame time. It took three values over the runs (0x86FDBB8E, 0xB49EAE5C, 0xB7A37F8C), on either side: ad3-t1 had 0x86FDBB8E on both, ro1-t2 0xB49EAE5C on both, and a single run of the original gave 0x86FDBB8E. A single B run with all 15 ro2 detours skipped gave 0x86FDBB8E too. ro2-t3 found the sides sharing outcomes.
 - **The audit:** an independent check against the disassembly found no defect in the 15. It added slot 198 to the AL-only list in the file's comment.
+
+### What is ours (ro3a)
+
+3 functions, in the same group (`simulators.automata.roadveh`, list kTankFrame in [automata_roadveh.cpp](../src/core/automata_roadveh.cpp)). Each is written by hand from the disassembly.
+
+- **Slot 110** 0x0054A780, entering a state. It runs cSC4Vehicle's slot 110 (0x0055B6D0). For the state 0x10 with the U-Drive controls (slot 56) it sets the turret's record in them: +0x248 to +0x268 (0, 0.4, the barrel angle, 0, 2pi, 2pi less the turret angle, 30, 100, the velocity), +0x144 12, +0x178 0, +0x114 0xAC0ECE77 and +0x1AC 2000.
+- **Slot 115** 0x0054AAE0, the driven frame. It runs cSC4Vehicle's slot 115 (0x005603F0). Then, with the controls, their mouse point unset (-1) and no occupant or the controls' byte +0x228 set:
+  - The template's entry (slot 67, then 0x0046B4A0) gives a turn rate (+0x58). A turn key (+0x84, else +0x88 negated) times the rate turns the heading about its cross with (0, 1, 0). The key is zeroed and the U-Drive sound 0x13 goes on.
+  - The turn is a quaternion's matrix: half the angle's FSIN and FCOS, at the x87's full width.
+  - The front +0x264 goes half the radius ahead of the position, the controls' +0x44 half behind; their +0x38 and +0x50 get the heading. Then slots 16 (the position, the heading) and 100 (0, 1).
+  - Without a turn key, or with the mouse point set, the sound 0x13 goes off.
+- **Slot 121** 0x0054B030, the steering. It sets the byte +0x340; with slot 18 it runs only cSC4Vehicle's slot 121 (0x0055C600). Else:
+  - The turret angle +0x34C is brought into 0 to 2pi.
+  - The key +0xA0 at 250 or more adds 5 to the velocity +0x354 (30 past 100), clamped to 30 to 100.
+  - With the key +0x9C, the pointer (+0x214, +0x218) is picked by 0x00B43DC4's slot 36. The turret turns towards the point by at most a static rate times the seconds, the short way. The angle comes from the C runtime's __CIacos (called at 0x009F0090), or 2pi less it on the other side.
+  - The fire key +0x98, with the barrel model and the controls' byte +0x1FF: the shot. The attachments +0x368 are placed (their slot 4) at the barrel model's place (its virtual base's slot 9). The shot +0x364 gets the heading times the speed (slot 11), the velocity times 0.01 (slot 12) and is started (slot 3).
+  - The keys +0x90 and +0x94 move the barrel angle +0x350 (0.00025 each, 0 to 0.4); +0xA8 and +0xAC the velocity (0.02 each, 30 to 100). Each counts by how far it moved past its value before (+0xC4, +0xC8, +0xDC, +0xE0).
+  - Two sound timers: past 50 the turret's (0xC) and the barrel's (0xF) sounds go on when the angle moved (0.1 degrees, 0.004), else off.
+  - The mouse point +0x344 from the pointer, and the controls' record (barrel, 2pi less the turret, velocity). Then cSC4Vehicle's slot 121.
+
+Called at their addresses, the game's (ours where vb is on): cSC4Vehicle's slots 110, 115 and 121, 0x0046B4A0, the core's smoothed value 0x004FA960, the U-Drive sounds (0x00602640) and __CIacos.
+
+Floats follow the x87 at 53 bits. Slot 115's FSIN and FCOS keep their 64 bits of mantissa in the products, as in the effects code; __CIacos's answer is stored as a float straight from the x87.
+
+Oddities kept:
+
+- **Slot 110** tests the state for null, but cSC4Vehicle's slot 110 has already read its type without a test.
+- **Slot 115** asks the mouse point for -1 a second time. Both are -1 by then, so its branch that would zero the turn keys is never taken. The zero 0x00A9B7A0 is multiplied through the turn's matrix.
+- **Slot 121:**
+  - It tests neither 0x00B43DC4 nor the shot for null.
+  - The velocity key wraps past 100 to 30 before the clamp.
+  - Its turret rate is a function-local static (0.12 degrees, made on first use). Its two sound timers are statics of the game's, shared by every tank.
+  - The two bytes after the transform's flags are stack garbage in the game (ours zero).
+- **AL only in the game:** slots 110 and 115. Ours zero-extends.
+
+### Test (ro3a)
+
+The ` V` token gains `,<rtank>` after rframe (31 fields). rflags gains 0x80 when all 3 ran and 0x100 when the factory or the sound service failed. The log line is "ro3a rtank", with the calls' hash and a mask of the 3 reached.
+
+The tank comes from its factory. Its main vtable is ro2's copy, with slots 18, 19, 56, 67, 100 and 102 the test's. Slot 56 answers the test's controls and slot 67 a template, each from a list of two: the first answer goes to cSC4Vehicle's code, which runs first and returns early on it.
+
+- **Slot 110** over five states: 5, then 0x10 without the controls, without the state's +8 object, and with two sets of angles. For the state 0x10, slot 67 makes the state 7 for cSC4Vehicle's and the base's slot 110, and slot 102 (the core's call at its end) makes it 0x10 again. So the base's own state 0x10 work (the vehicle manager's records, the city's entries) is not done.
+- **Slot 115** over thirteen frames: cSC4Vehicle's early answers (no controls; damaged), the mouse point, the occupant with the byte +0x228 clear and set, the template (none, no entry, its parent's), and the turn keys on six headings and five rates.
+- **Slot 121** over twenty-three: slot 18; the turret's range; the velocity key; the pointer picked or not (left, right, near, the long way) by a 0x00B43DC4 of the test's; the fire key with no model, the byte clear, and fired (a barrel model, a shot and an attachments vtable of the test's); the barrel and velocity keys and their bounds; the sound timers. The timers are put back after.
+- The U-Drive sounds are the game's. The sounds 0x13, 0xC and 0xF are stopped after.
+- **Not reached:** the game's own tanks; slot 115 past cSC4Vehicle's frame on its full path (the test's controls make it answer early).
+
+### Parity (ro3a)
+
+2026-10-23, the same setup as ro2's (B = `simulators.automata.vehicle` and `simulators.automata.roadveh`, two jobs, `OPENSC4_MUTE=1`, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-ro3a, snapshot ro3a-t1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached all 3, and its ro3a field equalled the A run's (0xD2870417). The whole ` V` token was equal too, ad3's `chighlight` included. The game itself reaches none of the 3 before the test day in these saves: everything is reached by the test.
+
+- **The audit:** an independent check against the disassembly found no defect in the 3. On its one doubt, the local holding __CIacos's address was renamed so it no longer shares a name with the C runtime's acos.

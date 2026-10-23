@@ -1,4 +1,4 @@
-// Our other road vehicles, parts ro1 and ro2 (build 641): the trailer, the bus, the
+// Our other road vehicles, parts ro1 to ro3a (build 641): the trailer, the bus, the
 // getaway van, the carjacked vehicle, the tank and the mayor's limo, all
 // derived from cSC4Vehicle (src/core/automata_vehicle.cpp). ro1: the
 // objects (the six factories and constructors, the tank's and the trailer's
@@ -10,14 +10,17 @@
 // frames (the trailer's slots 72, 73, 95, 132 and 192 to 198: its cars made
 // from its words and walked along the path or behind each other; the bus's
 // 164 and 172, the carjacked vehicle's and the van's 101, the limo's 121 and
-// the tank's 127). The layout is in src/core/automata_roadveh.h and the survey in
+// the tank's 127). ro3a: the tank on frames (its slots 110, 115 and 121: the
+// turret's record on entering the state 0x10, the heading turned by the
+// U-Drive turn keys, the turret, barrel, velocity and shot by the keys and
+// the pointer). The layout is in src/core/automata_roadveh.h and the survey in
 // docs/automata.md, "Part ro". Calls between functions of the part go to the
 // game's addresses, so each detour stands alone and OPENSC4_AUTOMATA_SKIP
 // (function addresses, hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.roadveh: the 44 detours in kObject (ro1) and the 15 in
-//   kFrame (ro2) below.
+//   simulators.automata.roadveh: the 44 detours in kObject (ro1), the 15 in
+//   kFrame (ro2) and the 3 in kTankFrame (ro3a) below.
 //
 // What it does. The trailer is 0x2E4 bytes from SC4::operator_new; the other
 // five come from the vehicle pool's allocator (which hands sizes other than
@@ -70,6 +73,18 @@
 // only in the game (ours zero-extends): the trailer's slots 72, 73, 195 and 198,
 // the bus's 164 and 172, both slots 101, the limo's 121.
 //
+// ro3a's oddities kept: slot 110 tests the state for null after cSC4Vehicle's
+// slot 110 has read its type without a test; slot 115 asks the controls'
+// mouse point for -1 a second time, so its branch that would clear the turn
+// keys is never taken, and turns the heading about its cross with (0, 1, 0)
+// with the zero 0x00A9B7A0 multiplied through the matrix; slot 121 tests
+// neither 0x00B43DC4 nor the shot for null, wraps the velocity past 100 to
+// 30 before clamping it, keeps its turret rate in a function-local static
+// (0.12 degrees, made on first use) and its two sound timers in the game's
+// statics (shared by every tank). Stack garbage the game passes (ours zero):
+// the two bytes after the transform's flags. AL only in the game (ours
+// zero-extends): slots 110 and 115.
+//
 // Still the game's, at their addresses: cSC4Vehicle's code (part vb), the
 // jumps the classes' vtables hold into it (0x005240C0, 0x0053CD00,
 // 0x0053CD10, 0x0053CD20, the tank's 0x0054A740 and 0x0054A770, the
@@ -80,7 +95,11 @@
 // (0x005059C0), 95 (0x0050F140), 101 (0x0050CE60) and 127 (0x00508D00), the
 // base's slots 164 and 172, cSC4Vehicle's 72, 121 and 132, the core's
 // 0x0050D870, SC4::FindUint32, SC4PtrVector::PushBack,
-// SC4::SegmentsIntersect2D, 0x005D6FC0 and the list helpers.
+// SC4::SegmentsIntersect2D, 0x005D6FC0 and the list helpers. ro3a calls
+// cSC4Vehicle's slots 110, 115 and 121, 0x0046B4A0, the core's smoothed
+// value 0x004FA960, the U-Drive sounds (0x00602640), __CIacos (0x009F0090)
+// and __ftol2's equal, and the slots of the barrel model, the attachments
+// and the shot.
 
 #include "core/automata_roadveh.h"
 
@@ -1746,6 +1765,478 @@ std::uint32_t __fastcall TankRemoveHighlights(char* self, void*)
 }
 
 // ====================================================================================
+// The tank on frames (ro3a)
+
+float TankZero() { return Global<float>(addr::cSC4Tank_Zero); }
+float TankTwoPi() { return Global<float>(addr::cSC4Tank_TwoPi); }
+float MinusOne() { return Global<float>(addr::cSC4AutomatonBase_MinusOne); }
+
+// An x87 value as the FPU keeps it, its ten bytes: FSIN and FCOS leave 64
+// bits of mantissa whatever the precision control, and slot 115 multiplies
+// them as they are (each product then rounded to the 53 bits the precision
+// control keeps).
+struct X87 {
+    unsigned char bytes[10];
+};
+
+// The sine and the cosine of `angle` (FSIN, FCOS).
+void X87SinCos(double angle, X87* sine, X87* cosine)
+{
+    __asm {
+        mov eax, sine
+        mov edx, cosine
+        fld qword ptr [angle]
+        fld st(0)
+        fcos
+        fstp tbyte ptr [edx]
+        fsin
+        fstp tbyte ptr [eax]
+    }
+}
+
+// `value` times `factor` (FMUL).
+double X87Times(const X87& value, double factor)
+{
+    double product = 0.0;
+    double* const out = &product;
+    const X87* const in = &value;
+    __asm {
+        mov eax, in
+        mov edx, out
+        fld tbyte ptr [eax]
+        fmul qword ptr [factor]
+        fstp qword ptr [edx]
+    }
+    return product;
+}
+
+// The C runtime's __CIacos (0x009F0090, its argument and answer in ST0),
+// the answer stored as a float.
+float CrtAcos(double value)
+{
+    float result;
+    const std::uintptr_t function = addr::CRT_CIacos;
+    __asm {
+        fld value
+        call function
+        fstp result
+    }
+    return result;
+}
+
+void UDriveSound(std::size_t on, std::uint32_t id)
+{
+    void* const sounds = CallCdecl<void*>(addr::SC4UDrive_GetService602640);
+    Virtual<std::uint32_t>(sounds, on, id);
+}
+
+// 0x0054A780, the tank's slot 110 (state), ret 4: cSC4Vehicle's
+// (0x0055B6D0, which reads the state's type without a null test); then for
+// the state 0x10 with the controls (slot 56) the turret's record set: +0x248
+// 0, +0x24C 0.4, +0x250 the barrel, +0x254 0, +0x258 2pi, +0x260 30.0,
+// +0x264 100.0, +0x25C 2pi less the turret (0x00A9B7E0, loaded before the
+// stores), +0x268 the velocity, and +0x144 12, +0x178 0, +0x114 0xAC0ECE77,
+// +0x1AC 2000.0. AL the base's.
+std::uint32_t __fastcall TankEnterState(char* self, void*, char* entered)
+{
+    static bool logged;
+    FirstCall("TankEnterState", logged);
+    const std::uint8_t answer = Bool(CallThis<std::uint32_t>(addr::cSC4Vehicle_EnterState, self, entered));
+    if (!entered || At<std::uint32_t>(entered, 4) != 0x10)
+        return answer;
+    char* const c = Virtual<char*>(self, slot::kControls);
+    if (!c)
+        return answer;
+    const double twoPi = TankTwoPi();
+    At<std::uint32_t>(c, udrive::kRecord) = 0;
+    At<std::uint32_t>(c, udrive::kRecord + 4) = 0x3ECCCCCDu;
+    At<std::uint32_t>(c, udrive::kRecordBarrel) = At<std::uint32_t>(self, tank::kBarrel);
+    At<std::uint32_t>(c, udrive::kRecord + 0xC) = 0;
+    At<std::uint32_t>(c, udrive::kRecord + 0x10) = 0x40C90FDBu;
+    At<std::uint32_t>(c, udrive::kRecord + 0x18) = 0x41F00000u;
+    At<std::uint32_t>(c, udrive::kRecord + 0x1C) = 0x42C80000u;
+    At<float>(c, udrive::kRecordTurn) = static_cast<float>(twoPi - At<float>(self, tank::kTurret));
+    At<std::uint32_t>(c, udrive::kRecordVelocity) = At<std::uint32_t>(self, tank::kVelocity);
+    At<std::uint32_t>(c, udrive::kWord144) = 0xC;
+    At<std::uint32_t>(c, udrive::kShots) = 0;
+    At<std::uint32_t>(c, udrive::kWord114) = 0xAC0ECE77u;
+    At<std::uint32_t>(c, udrive::kWord1AC) = 0x44FA0000u;
+    return answer;
+}
+
+// 0x0054AAE0, the tank's slot 115 (seconds), ret 4: cSC4Vehicle's
+// (0x005603F0); with the controls (slot 56) whose mouse point +0x7C and
+// +0x80 are unset (-1), and the occupant +0x1EC null or the controls' byte
+// +0x228 set: the template's entry (slot 67, 0x0046B4A0 on it; AL 0
+// without either) gives the rate +0x58. A turn key (+0x84, else +0x88
+// negated; zeroed when used) turns the heading about its cross with (0, 1,
+// 0) (k = 0x00A9B7A0, zero, multiplied through) by rate x key x -0.5 (the
+// quaternion's half angle: FSIN and FCOS at the x87's full width), with the
+// U-Drive sound 0x13 on (0x00602640 slot 5). Then the front +0x264 half the
+// radius (slot 17) ahead, the controls' +0x44 half the radius behind and
+// their +0x38 and +0x50 the heading, slot 16 (the position, the heading)
+// and slot 100 (0, 1). Without a turn key, or with the mouse point set, the
+// sound 0x13 off (slot 6). AL the base's but for the 0 above.
+//
+// The x87 at 53 bits: the axis rounded to floats, its length and the
+// quaternion's parts as the game keeps them (x and y floats, z and w
+// unrounded, the matrix's entries floats where the game stores them).
+std::uint32_t __fastcall TankDriveFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("TankDriveFrame", logged);
+    const std::uint8_t driven = Bool(CallThis<std::uint32_t>(addr::cSC4Vehicle_DriveFrame, self, seconds));
+    char* const c = Virtual<char*>(self, slot::kControls);
+    if (!c)
+        return driven;
+    const float unset = MinusOne();
+    // (The game asks +0x7C and +0x80 for -1 a second time here: as both are,
+    // its branch that would clear the turn keys is never taken.)
+    if (At<float>(c, udrive::kMouseX) != unset || At<float>(c, udrive::kMouseY) != unset) {
+        UDriveSound(slot::kSoundOff, 0x13);
+        return driven;
+    }
+    if (At<void*>(self, field::kOccupant) && !At<std::uint8_t>(c, udrive::kByte228))
+        return driven;
+    char* const owner = Virtual<char*>(self, slot::kTemplate);
+    if (!owner)
+        return 0;
+    char* const entry = CallThis<char*>(addr::SC4AutomatonTemplate_FindInherited64, owner);
+    if (!entry)
+        return 0;
+    float* const h = &At<float>(self, field::kHeading);
+    const double k = TankZero();
+    const double rate = At<float>(entry, 0x58);
+    const float axis0 = static_cast<float>(static_cast<double>(h[2]) * k - static_cast<double>(h[0]) * h[1]);
+    const float axis1 = static_cast<float>(static_cast<double>(h[0]) * h[0] - static_cast<double>(-h[2]) * h[2]);
+    const float axis2 = static_cast<float>(static_cast<double>(-h[2]) * h[1] - static_cast<double>(h[0]) * k);
+    double turn;
+    if (At<float>(c, udrive::kTurnLeft) != unset) {
+        turn = rate * At<float>(c, udrive::kTurnLeft);
+        At<std::uint32_t>(c, udrive::kTurnLeft) = 0;
+    } else if (At<float>(c, udrive::kTurnRight) != unset) {
+        turn = rate * At<float>(c, udrive::kTurnRight) * Global<float>(addr::SC4_FloatMinusOne);
+        At<std::uint32_t>(c, udrive::kTurnRight) = 0;
+    } else {
+        UDriveSound(slot::kSoundOff, 0x13);
+        return driven;
+    }
+    const float angle = static_cast<float>(turn);
+    UDriveSound(slot::kSoundOn, 0x13);
+    const double half = static_cast<double>(angle) * Global<float>(addr::SC4_FloatMinusHalf);
+    const double length = std::sqrt((static_cast<double>(axis2) * axis2 + static_cast<double>(axis1) * axis1) +
+                                    static_cast<double>(axis0) * axis0);
+    const double inverse = Global<float>(addr::SC4_FloatOneB0A078) / length;
+    const float n0 = static_cast<float>(axis0 * inverse);
+    const float n1 = static_cast<float>(axis1 * inverse);
+    const float n2 = static_cast<float>(axis2 * inverse);
+    X87 sine, cosine;
+    X87SinCos(half, &sine, &cosine);
+    // The quaternion (x, y, z, w) and its matrix's entries.
+    const float x = static_cast<float>(X87Times(sine, n0));
+    const float y = static_cast<float>(X87Times(sine, n1));
+    const double z = X87Times(sine, n2);
+    const double one = Global<float>(addr::SC4_FloatOneA81228);
+    const double yy = static_cast<double>(y) * y;
+    const double xx = static_cast<double>(x) * x;
+    const double zz = z * z;
+    const float zz2 = static_cast<float>(zz + zz);
+    const double xx1 = one - (xx + xx);
+    const float m70 = static_cast<float>(xx1 - (yy + yy));
+    const float m60 = static_cast<float>(xx1 - zz2);
+    const float m50 = static_cast<float>((one - (yy + yy)) - zz2);
+    const double zx = z * x;
+    const float xz2 = static_cast<float>(zx + zx);
+    const double yx = static_cast<double>(y) * x;
+    const float xy2 = static_cast<float>(yx + yx);
+    const double xw = X87Times(cosine, x);
+    const float xw2 = static_cast<float>(xw + xw);
+    const double zy = z * y;
+    const float yz2 = static_cast<float>(zy + zy);
+    const double yw = X87Times(cosine, y);
+    const float yw2 = static_cast<float>(yw + yw);
+    const double zw = X87Times(cosine, z);
+    const double zw2 = zw + zw;
+    const double a = static_cast<double>(xy2) + zw2;
+    const float m58 = static_cast<float>(static_cast<double>(xz2) - yw2);
+    const double b = static_cast<double>(xy2) - zw2;
+    const double cc = static_cast<double>(yz2) + xw2;
+    const double d = static_cast<double>(yw2) + xz2;
+    const double e = static_cast<double>(yz2) - xw2;
+    // The rows, each entry plus k times the two others it was folded with.
+    const float bk = static_cast<float>(b * k);
+    const double m50k = m50 * k;
+    const float r2c = static_cast<float>((d + m50k) + bk);
+    const float ak = static_cast<float>(a * k);
+    const float m60k = static_cast<float>(m60 * k);
+    const float r30 = static_cast<float>((e + m60k) + ak);
+    const float ck = static_cast<float>(cc * k);
+    const float m58k = static_cast<float>(m58 * k);
+    const float r34 = static_cast<float>((static_cast<double>(m70) + m58k) + ck);
+    const float dk = static_cast<float>(d * k);
+    const float r38 = static_cast<float>((b + dk) + m50k);
+    const float ek = static_cast<float>(e * k);
+    const float r3c = static_cast<float>((static_cast<double>(m60) + ek) + ak);
+    const float m70k = static_cast<float>(m70 * k);
+    const float r40 = static_cast<float>((cc + m70k) + m58k);
+    const float r44 = static_cast<float>((static_cast<double>(m50) + dk) + bk);
+    const double p = (a + ek) + m60k;
+    const double q = (static_cast<double>(m58) + m70k) + ck;
+    const double t0 = (q * h[2] + static_cast<double>(r44) * h[0]) + p * h[1];
+    const double t1 = (static_cast<double>(r40) * h[2] + static_cast<double>(r38) * h[0]) + static_cast<double>(r3c) * h[1];
+    const double t2 = (static_cast<double>(r2c) * h[0] + static_cast<double>(r34) * h[2]) + static_cast<double>(r30) * h[1];
+    h[2] = static_cast<float>(t2);
+    h[0] = static_cast<float>(t0);
+    h[1] = static_cast<float>(t1);
+    // The front half the radius ahead, the controls' point half behind; x by
+    // the unrounded product, y and z by floats.
+    float* const position = &At<float>(self, field::kPosition);
+    const double halfOne = static_cast<double>(Global<float>(addr::SC4_FloatOneB0A078)) * Global<float>(addr::SC4_FloatHalf);
+    const float halfOneF = static_cast<float>(halfOne);
+    {
+        const double radius = Virtual<double>(self, slot::kGetRadius);
+        const double ahead0 = radius * h[0] * halfOne;
+        const float ahead1 = static_cast<float>(static_cast<float>(radius * h[1]) * static_cast<double>(halfOneF));
+        const float ahead2 = static_cast<float>(static_cast<float>(radius * h[2]) * static_cast<double>(halfOneF));
+        float* const front = &At<float>(self, field::kFront);
+        front[0] = static_cast<float>(ahead0 + position[0]);
+        front[1] = static_cast<float>(static_cast<double>(ahead1) + position[1]);
+        front[2] = static_cast<float>(static_cast<double>(ahead2) + position[2]);
+    }
+    {
+        const double radius = Virtual<double>(self, slot::kGetRadius);
+        const double behind0 = radius * h[0] * halfOne;
+        const float behind1 = static_cast<float>(static_cast<float>(radius * h[1]) * static_cast<double>(halfOneF));
+        const float behind2 = static_cast<float>(static_cast<float>(radius * h[2]) * static_cast<double>(halfOneF));
+        float* const back = &At<float>(c, udrive::kBack);
+        back[2] = static_cast<float>(static_cast<double>(position[2]) - behind2);
+        back[0] = static_cast<float>(position[0] - behind0);
+        back[1] = static_cast<float>(static_cast<double>(position[1]) - behind1);
+    }
+    std::memcpy(c + udrive::kHeading1, h, 12);
+    std::memcpy(c + udrive::kHeading2, h, 12);
+    Virtual<std::uint32_t>(self, slot::kPlace, position, h);
+    Virtual<std::uint32_t>(self, slot::kSlot100, 0u, 1u);
+    return driven;
+}
+
+// The velocity +0x354 clamped to 30..100 (0x00A9B7C0, 0x00A9B7C4) as the
+// game stores it: the value's float, or the bound's.
+void ClampVelocity(char* self, double value)
+{
+    const float least = Global<float>(addr::cSC4Tank_VelocityLeast);
+    const float most = Global<float>(addr::cSC4Tank_VelocityMost);
+    At<float>(self, tank::kVelocity) = value < least ? least : value > most ? most : static_cast<float>(value);
+}
+
+// The barrel angle +0x350 clamped to 0..0.4 (0x00A9B7A0, 0x00A9B7A4).
+void ClampBarrel(char* self, double value)
+{
+    const float least = TankZero();
+    const float most = Global<float>(addr::cSC4Tank_BarrelMost);
+    At<float>(self, tank::kBarrel) = value < least ? least : value > most ? most : static_cast<float>(value);
+}
+
+// A key of the controls, held (not below 0) and moved past its value
+// before: by how much, else 0 (the game's FCOM / test ah,0x41: above,
+// ordered).
+bool KeyMoved(char* controls, std::size_t now, std::size_t before, double& by)
+{
+    if (At<float>(controls, now) < TankZero() || At<float>(controls, now) != At<float>(controls, now))
+        return false;
+    by = static_cast<double>(At<float>(controls, now)) - At<float>(controls, before);
+    return by > TankZero();
+}
+
+// A sound timer of the game's (0x00B228FC, 0x00B228F8): past 50 (0x00B0A074)
+// it restarts and the sound `id` goes on (0x00602640 slot 5) when the angle
+// moved more than `least` since the frame began, else off (slot 6); else it
+// runs on by the seconds.
+void SoundTimer(std::uintptr_t timer, float now, float before, std::uintptr_t least, std::uint32_t id, float seconds)
+{
+    float& t = *reinterpret_cast<float*>(timer);
+    if (t > Global<float>(addr::cSC4Tank_SoundTime)) {
+        t = 0.0f;
+        const bool moved = std::fabs(static_cast<double>(now) - before) > Global<float>(least);
+        UDriveSound(moved ? slot::kSoundOn : slot::kSoundOff, id);
+    } else {
+        t = static_cast<float>(static_cast<double>(t) + seconds);
+    }
+}
+
+// The barrel model's transform as its virtual base's slot 9 fills it: two
+// bytes (the game's two after them are stack garbage; ours zero), a matrix
+// by rows, a place and a scale.
+struct TankTransform {
+    std::uint8_t flags[4];
+    float matrix[9];
+    float place[3];
+    float scale;
+};
+
+// 0x0054B030, the tank's slot 121 (controls, seconds), ret 8: the byte
+// +0x340 set; with slot 18 only cSC4Vehicle's (0x0055C600, its EAX). Else:
+//  - the turret +0x34C brought into 0..2pi (2pi taken or added while past);
+//  - the key +0xA0 at 250 or more (0x00A954C0): zeroed, the velocity +0x354
+//    up 5, 30 when that passes 100, then clamped to 30..100;
+//  - with +0x9C not below 0: the pointer (+0x214, +0x218 as floats, then
+//    __ftol2) picked by 0x00B43DC4's slot 36 (no null test) into a point
+//    filled from 0x00B22920; on an answer the turret turns towards it by
+//    at most the static rate 0x00B22900 (0.12 degrees on first use, guard
+//    0x00B22904) x seconds, the short way: the angle from __CIacos of the
+//    flat unit vectors' dot, 2pi less it when their cross is above 0;
+//  - the fire key +0x98 not below 0 with the barrel model +0x360 and the
+//    controls' byte +0x1FF: +0x1E0 and the byte cleared, +0x178 counted,
+//    the attachments +0x368 placed (slot 4) at the barrel model's place (its
+//    virtual base's slot 9) with the heading and +0x94, and the shot +0x364
+//    (no null test) given the heading times the speed (0x004FA960 on
+//    +0x1A0; slot 11 with 0xF), the velocity x 0.01 (slot 12) and started
+//    (slot 3);
+//  - the keys +0x90 and +0x94 (moved past +0xC4 and +0xC8) the barrel up
+//    and down by 0.00025 each (clamped to 0..0.4), +0xA8 and +0xAC (past
+//    +0xDC and +0xE0) the velocity by 0.02 (clamped to 30..100);
+//  - the two sound timers (0x0C the turret's over 0.1 degrees, 0x0F the
+//    barrel's over 0.004);
+//  - the mouse point +0x344 from the pointer, the controls' record barrel,
+//    2pi less the turret and velocity; then cSC4Vehicle's (its EAX).
+std::uint32_t __fastcall TankSteer(char* self, void*, char* controls, float seconds)
+{
+    static bool logged;
+    FirstCall("TankSteer", logged);
+    At<std::uint8_t>(self, tank::kFiring) = 1;
+    const float pointerX = static_cast<float>(At<std::int32_t>(controls, udrive::kPointerX));
+    const float pointerY = static_cast<float>(At<std::int32_t>(controls, udrive::kPointerY));
+    if (Bool(Virtual<std::uint32_t>(self, slot::kSlot18)))
+        return CallThis<std::uint32_t>(addr::cSC4Vehicle_Steer, self, controls, seconds);
+    const double twoPi = TankTwoPi();
+    const double zero = TankZero();
+    float& turret = At<float>(self, tank::kTurret);
+    if (turret > twoPi) {
+        double t = turret;
+        do
+            t -= twoPi;
+        while (t > twoPi);
+        turret = static_cast<float>(t);
+    }
+    if (turret < zero) {
+        double t = turret;
+        do
+            t += twoPi;
+        while (t < zero);
+        turret = static_cast<float>(t);
+    }
+    const float barrelBefore = At<float>(self, tank::kBarrel);
+    const float turretBefore = turret;
+    float& velocity = At<float>(self, tank::kVelocity);
+    if (At<float>(controls, udrive::kFaster) >= Global<float>(addr::cSC4Tank_FasterHeld)) {
+        At<std::uint32_t>(controls, udrive::kFaster) = 0;
+        const double faster = static_cast<double>(velocity) + Global<float>(addr::SC4_FloatFive);
+        velocity = static_cast<float>(faster);
+        if (faster > Global<float>(addr::cSC4Tank_VelocityMost))
+            velocity = 30.0f; // 0x41F00000, a literal of the game's
+        ClampVelocity(self, velocity);
+    }
+    if (At<float>(controls, udrive::kTurretKey) >= zero) {
+        float point[3];
+        const std::uint32_t fill = Global<std::uint32_t>(addr::cSC4Tank_FillValue);
+        std::memcpy(point + 0, &fill, 4);
+        std::memcpy(point + 1, &fill, 4);
+        std::memcpy(point + 2, &fill, 4);
+        std::uint32_t& guard = *reinterpret_cast<std::uint32_t*>(addr::cSC4Tank_TurretRateGuard);
+        if (!(guard & 1)) {
+            guard |= 1;
+            *reinterpret_cast<std::uint32_t*>(addr::cSC4Tank_TurretRate) = 0x3B09421Eu;
+        }
+        void* const picker = Global<void*>(addr::SC4_Service43DC4);
+        const std::int32_t y = Ftol(pointerY);
+        const std::int32_t x = Ftol(pointerX);
+        if (Bool(Virtual<std::uint32_t>(picker, slot::kPick, x, y, static_cast<float*>(point), 0u))) {
+            const float* const position = &At<float>(self, field::kPosition);
+            const double one = Global<float>(addr::SC4_FloatOneB0A078);
+            const double dx = static_cast<double>(point[0]) - position[0];
+            const double dz = static_cast<double>(point[2]) - position[2];
+            const double inverse = one / std::sqrt(dz * dz + dx * dx);
+            point[0] = static_cast<float>(dx * inverse);
+            point[1] = static_cast<float>(zero * inverse);
+            point[2] = static_cast<float>(dz * inverse);
+            const float* const h = &At<float>(self, field::kHeading);
+            const double inverse2 = one / std::sqrt(static_cast<double>(h[0]) * h[0] + static_cast<double>(h[2]) * h[2]);
+            const float e0 = static_cast<float>(inverse2 * h[0]);
+            const float e1 = static_cast<float>(zero * inverse2);
+            const float e2 = static_cast<float>(h[2] * inverse2);
+            float angle = CrtAcos((static_cast<double>(e0) * point[0] + static_cast<double>(e2) * point[2]) +
+                                  static_cast<double>(e1) * point[1]);
+            if (static_cast<double>(point[2]) * e0 - static_cast<double>(e2) * point[0] > zero)
+                angle = static_cast<float>(twoPi - angle);
+            const double diff = static_cast<double>(angle) - turret;
+            const float diffF = static_cast<float>(diff);
+            const double step = static_cast<double>(Global<float>(addr::cSC4Tank_TurretRate)) * seconds;
+            const float stepF = static_cast<float>(step);
+            const float backF = static_cast<float>(-step);
+            double by;
+            if (-step > diffF)
+                by = backF;
+            else if (diff > stepF)
+                by = stepF;
+            else
+                by = diff;
+            const double way = by > zero ? static_cast<double>(diffF) : static_cast<double>(turret) - angle;
+            if (way > Global<float>(addr::cSC4Tank_Pi))
+                turret = static_cast<float>(turret - by);
+            else
+                turret = static_cast<float>(by + turret);
+        }
+    }
+    if (At<float>(controls, udrive::kFire) >= zero && At<void*>(self, tank::kBarrelModel) &&
+        At<std::uint8_t>(controls, udrive::kFireByte)) {
+        At<std::uint32_t>(controls, udrive::kWord1E0) = 0;
+        At<std::uint8_t>(controls, udrive::kFireByte) = 0;
+        ++At<std::int32_t>(controls, udrive::kShots);
+        float speed = static_cast<float>(static_cast<double>(velocity) * Global<float>(addr::cSC4Tank_VelocityScale));
+        TankTransform t = {{0, 0, 0, 0}, {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, 1.0f};
+        char* const model = At<char*>(self, tank::kBarrelModel);
+        char* const base = model + 4 + At<std::int32_t>(At<char*>(model, 4), 4);
+        Virtual<std::uint32_t>(base, slot::kModelTransform, &t);
+        float place[3];
+        std::memcpy(place, t.place, sizeof place);
+        float* const h = &At<float>(self, field::kHeading);
+        Virtual<std::uint32_t>(self + tank::kAttachments, slot::kAttachPlace, static_cast<float*>(place), h,
+                               At<std::uint32_t>(self, field::kWord94));
+        const double now = CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, self + field::kSmoothed);
+        float moving[3] = {static_cast<float>(now * h[0]), static_cast<float>(now * h[1]), static_cast<float>(now * h[2])};
+        void* const shot = At<void*>(self, tank::kShot);
+        Virtual<std::uint32_t>(shot, slot::kShotVelocity, 0xFu, static_cast<float*>(moving), 1u);
+        Virtual<std::uint32_t>(At<void*>(self, tank::kShot), slot::kShotSpeed, 0u, &speed, 1u);
+        Virtual<std::uint32_t>(At<void*>(self, tank::kShot), slot::kShotStart, 0u);
+    }
+    const double barrelRate = Global<float>(addr::cSC4Tank_BarrelRate);
+    const double velocityRate = Global<float>(addr::cSC4Tank_VelocityRate);
+    double by;
+    if (KeyMoved(controls, udrive::kBarrelUp, udrive::kBarrelUpBefore, by)) {
+        const double barrel = by * barrelRate + At<float>(self, tank::kBarrel);
+        ClampBarrel(self, barrel);
+    }
+    if (KeyMoved(controls, udrive::kBarrelDown, udrive::kBarrelDownBefore, by)) {
+        const double barrel = static_cast<double>(At<float>(self, tank::kBarrel)) - by * barrelRate;
+        ClampBarrel(self, barrel);
+    }
+    if (KeyMoved(controls, udrive::kVelocityUp, udrive::kVelocityUpBefore, by))
+        ClampVelocity(self, by * velocityRate + velocity);
+    if (KeyMoved(controls, udrive::kVelocityDown, udrive::kVelocityDownBefore, by))
+        ClampVelocity(self, static_cast<double>(velocity) - by * velocityRate);
+    SoundTimer(addr::cSC4Tank_TurretSoundTimer, turret, turretBefore, addr::cSC4Tank_TurretSoundLeast, 0xC, seconds);
+    SoundTimer(addr::cSC4Tank_BarrelSoundTimer, At<float>(self, tank::kBarrel), barrelBefore,
+               addr::cSC4CitySituationManager_IntensityScale, 0xF, seconds);
+    const std::uint32_t barrel = At<std::uint32_t>(self, tank::kBarrel);
+    At<float>(self, tank::kMouse) = static_cast<float>(At<std::int32_t>(controls, udrive::kPointerX));
+    At<float>(self, tank::kMouse + 4) = static_cast<float>(At<std::int32_t>(controls, udrive::kPointerY));
+    At<std::uint32_t>(controls, udrive::kRecordBarrel) = barrel;
+    At<float>(controls, udrive::kRecordTurn) = static_cast<float>(twoPi - turret);
+    At<std::uint32_t>(controls, udrive::kRecordVelocity) = At<std::uint32_t>(self, tank::kVelocity);
+    return CallThis<std::uint32_t>(addr::cSC4Vehicle_Steer, self, controls, seconds);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1855,12 +2346,20 @@ const Detour kFrame[] = {
     OPENSC4_DETOUR(addr::cSC4Tank_RemoveHighlights, TankRemoveHighlights),
 };
 
+// Part ro3a.
+const Detour kTankFrame[] = {
+    OPENSC4_DETOUR(addr::cSC4Tank_EnterState, TankEnterState),
+    OPENSC4_DETOUR(addr::cSC4Tank_DriveFrame, TankDriveFrame),
+    OPENSC4_DETOUR(addr::cSC4Tank_Steer, TankSteer),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
-           InstallList(kFrame, sizeof kFrame / sizeof kFrame[0], "frame");
+           InstallList(kFrame, sizeof kFrame / sizeof kFrame[0], "frame") &&
+           InstallList(kTankFrame, sizeof kTankFrame / sizeof kTankFrame[0], "tank frame");
 }
 
 const bool g_registered[] = {
@@ -1873,8 +2372,8 @@ const bool g_registered[] = {
                         "tank and the trailer and the Shutdowns of the tank and the trailer; the trailer's rear point "
                         "and counts and the tank's debug text (44 detours, part ro1); the frames: the trailer's "
                         "slots 72, 73, 95, 132 and 192 to 198, the bus's 164 and 172, the carjacked vehicle's and the "
-                        "van's 101, the limo's 121 and the tank's 127 (15 detours, part ro2; "
-                        "src/core/automata_roadveh.cpp)",
+                        "van's 101, the limo's 121 and the tank's 127 (15 detours, part ro2); the tank on "
+                        "frames: its slots 110, 115 and 121 (3 detours, part ro3a; src/core/automata_roadveh.cpp)",
                         false, InstallObject}),
 };
 
