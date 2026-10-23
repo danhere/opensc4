@@ -4679,7 +4679,7 @@ kind = "function"
 convention = "thiscall"
 signature = "int32_t (void* this, int16_t** channels, int32_t count)"
 expect = "55 8B EC 83 EC 10 56 8B"
-source = "Name ours. `ret 8`. Up to `count` samples a channel (no more than a limit +0x4A4C not -1; 0 at 0) into the channels' buffers (a null one skipped) from the frame's interleaved samples +0x1244; when none is ready (+0x4A50) and there is input, the frame decoded: the first (byte +0x4A5C) through 0x00A66BEF and the samples to drop +0x4A58 from 0x00AD4D20 by the byte +0x2490, else +0x24A4 and +0x24AC set; 0x00A66B32 (a failure is silence: memset of +0x248C bytes); the input moved on by +0x2498 + 4, the samples ready +0x248C over twice the channels +0x4A40. Answers the samples given. Ours in framework.mp3.decode (docs/gzui.md, part u10)."
+source = "Name ours. `ret 8`. Up to `count` samples a channel (no more than a limit +0x4A4C when it is not negative; 0 at 0) into the channels' buffers (a null one skipped) from the frame's interleaved samples +0x1244; when none is ready (+0x4A50) and there is input, the frame decoded: the first (byte +0x4A5C) through 0x00A66BEF and the samples to drop +0x4A58 from 0x00AD4D20 by the byte +0x2490, else +0x24A4 and +0x24AC set; 0x00A66B32 (a failure is silence: memset of +0x248C bytes); the input moved on by +0x2498 + 4, the samples ready +0x248C over twice the channels +0x4A40. Answers the samples given. Ours in framework.mp3.decode (docs/gzui.md, part u10)."
 
 [[entry]]
 name = "cMP3Decoder::Reset"
@@ -4895,7 +4895,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this)"
 expect = "53 56 8B F1 33 DB 38 9E"
-source = "Name ours. Slot 8. When open (+0x10D0): the file's slot 5, the sample buffers +0xA4 and +0xA8 and the decoder +0xA0 (its destructor through 0x0094A972) freed (CRT::free) and cleared, +0x10D0 cleared. AL 1 over the last call's EAX (the caller's when closed; ours 0). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+source = "Name ours. Slot 8. When open (+0x10D0): the file's slot 5, the sample buffers +0xA4 and +0xA8 and the decoder +0xA0 (its destructor through 0x0094A972) freed (CRT::free) and cleared, +0x10D0 cleared. AL 1 over the decoder's free's EAX, else the right buffer's free's, else 0 (each buffer is loaded into EAX before its test); the caller's EAX when not open (ours 0). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
 
 [[entry]]
 name = "cHitMP3Stream::OpenKey"
@@ -4940,7 +4940,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this)"
 expect = "B8 3B F2 A6 00 E8 3E 6C"
-source = "Name ours. Slot 7. The path's (+0x10D4, a cRZFileSpec on the stack) extension, lower case, must match 0x00B63528 (SC4UI::F43AB70), else slot 18 with 0 and AL 0. Unless open: marked open, the old decoder freed, a new one (0x4A60 bytes, CRT::malloc, 0x00A667B4, reset 0x0094A2AB, and reset again through ECX), two 0x2000-byte buffers, the file's path (slot 28) and open (slot 3 with 1, 2, 1; AL 0 when it fails, still marked open); rewound (slot 15), unless +0x10E9 slot 18 with whether a 4-byte read (slot 14) gives any and rewound again; the length +0x1100: _ftol of the file's size (slot 7) times 8 over (float)(the bit rate << 10) times +0x10F4 on the x87. AL 1 over SC4UI::F43AF80's EAX. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+source = "Name ours. Slot 7. The path's (+0x10D4, a cRZFileSpec on the stack) extension, lower case, must match 0x00B63528 (SC4UI::F43AB70), else slot 18 with 0 and AL 0. Unless open: marked open, the old decoder freed, a new one (0x4A60 bytes, CRT::malloc, 0x00A667B4, reset 0x0094A2AB, and reset again through ECX), two 0x2000-byte buffers, the file's path (slot 28) and open (slot 3 with 1, 2, 1; AL 0 when it fails, still marked open); rewound (slot 15), unless +0x10E9 slot 18 with whether a 4-byte read (slot 14) gives any (AL over the read's EAX) and rewound again; the length +0x1100: _ftol of the file's size (slot 7) times 8 over (float)(the bit rate << 10) times +0x10F4 on the x87. AL 1 over SC4UI::F43AF80's EAX. Ours in framework.mp3.stream (docs/gzui.md, part u10)."
 
 [[entry]]
 name = "cHitMP3Stream::OpenPath"
@@ -4949,7 +4949,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, const char* path)"
 expect = "B8 4D F2 A6 00 E8 18 6A"
-source = "Name ours. Slot 3; `ret 4`. Slot 22, the path +0x10D8 set from the text (SC4String::FromText, cSC4Advice::F408C40; the string freed inline), then slot 7 (its EAX). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
+source = "Name ours. Slot 3; `ret 4`. Slot 22, the path's buffer +0x10D8 set from the text (SC4String::FromText, cSC4Advice::F408C40; the string freed inline), then slot 7 (its EAX). Ours in framework.mp3.stream (docs/gzui.md, part u10)."
 
 [[entry]]
 name = "cGZUIScriptRoot::QueryInterface"

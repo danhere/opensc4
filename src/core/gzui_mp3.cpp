@@ -140,7 +140,7 @@ constexpr std::size_t kDecFrameBits = 0x24AC;
 constexpr std::size_t kDecChannels = 0x4A40;
 constexpr std::size_t kDecInput = 0x4A44;      // the input's next byte
 constexpr std::size_t kDecInputLeft = 0x4A48;  // the input's bytes left
-constexpr std::size_t kDecLimit = 0x4A4C;      // samples still wanted (-1: no limit)
+constexpr std::size_t kDecLimit = 0x4A4C;      // samples still wanted (negative: no limit)
 constexpr std::size_t kDecReady = 0x4A50;      // samples decoded, not yet given
 constexpr std::size_t kDecReadAt = 0x4A54;     // the next one's index
 constexpr std::size_t kDecSkip = 0x4A58;       // samples to drop
@@ -642,8 +642,9 @@ uint32_t __fastcall StreamSeek(char* self, void*, uint32_t position)
 
 // The game's 0x0094A907 (slot 8): when open, the file closed (slot 5), the
 // sample buffers and the decoder (its destructor through 0x0094A972) freed,
-// the flag cleared. AL 1 over the last call's EAX (the caller's when
-// closed; ours 0).
+// the flag cleared. AL 1 over the decoder's free's EAX, else the right
+// buffer's free's, else 0 (each buffer is loaded into EAX before it is
+// tested); the caller's EAX when not open (ours 0).
 uint32_t __fastcall StreamClose(char* self, void*)
 {
     OPENSC4_FIRST("StreamClose");
@@ -651,11 +652,15 @@ uint32_t __fastcall StreamClose(char* self, void*)
     if (!At<uint8_t>(self, kStrOpen))
         return Answer(eax, true);
     eax = Virtual<uint32_t>(self + kStrFile, 0x14);
-    if (void* const left = At<void*>(self, kStrLeft)) {
+    void* const left = At<void*>(self, kStrLeft);
+    eax = Bits(left);
+    if (left) {
         eax = CallCdecl<uint32_t>(addr::CRT_free, left);
         At<void*>(self, kStrLeft) = nullptr;
     }
-    if (void* const right = At<void*>(self, kStrRight)) {
+    void* const right = At<void*>(self, kStrRight);
+    eax = Bits(right);
+    if (right) {
         eax = CallCdecl<uint32_t>(addr::CRT_free, right);
         At<void*>(self, kStrRight) = nullptr;
     }
@@ -760,7 +765,7 @@ uint32_t __fastcall StreamOpen(char* self, void*)
             if (!At<uint8_t>(self, kStrFlagSet)) {
                 uint32_t first = 0;
                 const uint32_t got = Virtual<uint32_t>(self, 0x38, &first, 4u);
-                Virtual<uint32_t>(self, 0x48, got != 0 ? 1u : 0u);
+                Virtual<uint32_t>(self, 0x48, Answer(got, got != 0));
                 Virtual<uint32_t>(self, 0x3C);
             }
             const int32_t size = Virtual<int32_t>(file, 0x1C);
@@ -1021,7 +1026,7 @@ uint32_t __fastcall RootEach(char* self, void*, uint32_t argument)
 // The game's 0x0094BDE0 (slot 10): the count.
 uint32_t __fastcall RootCountSlot(char* self, void*)
 {
-    OPENSC4_FIRST("RootCount");
+    OPENSC4_FIRST("RootCountSlot");
     return RootCount(self);
 }
 
