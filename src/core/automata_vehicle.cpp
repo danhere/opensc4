@@ -1,4 +1,4 @@
-// Our automaton base and cSC4Vehicle, parts vb1 to vb4 (build 641). vb1:
+// Our automaton base and cSC4Vehicle, parts vb1 to vb5 (build 641). vb1:
 // the object (the vehicle's factory and pool, the two constructors, the two
 // destructor bodies with their deques, the two deleting destructors,
 // QueryInterface of both and the vehicle's GetGZCLSID) and the queries that
@@ -15,7 +15,11 @@
 // states on frames (the frame, the state frames, entering and leaving
 // states with the entry and the record list's erase, the route, the
 // same-type removal, the automaton ahead and the wait, the queue test, the
-// steps ahead on the +0x204 deque and entering from a key). The
+// steps ahead on the +0x204 deque and entering from a key). vb5:
+// cSC4Vehicle's movement (its frame and state frame, the moves along a path
+// with the front point +0x264 and the direction +0x270, the path and
+// occupant entry, the room ahead, the steering, the speed factor, the drop
+// or removal and the collision). The
 // class map is in src/core/automata_vehicle.h and the survey in
 // docs/automata.md, "Part vb". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and
@@ -24,8 +28,8 @@
 //
 // Group, off by default:
 //   simulators.automata.vehicle: the 36 detours in kObject (vb1), the 30
-//   in kLife (vb2), the 13 in kMove (vb3) and the 22 in kStates (vb4)
-//   below.
+//   in kLife (vb2), the 13 in kMove (vb3), the 22 in kStates (vb4) and
+//   the 10 in kVehicleMove (vb5) below.
 //
 // What it does. cSC4Vehicle's factory takes a 0x2B8-byte block from the
 // vehicle pool (0x00B0A0F8; other sizes go to SC4::operator_new) and runs
@@ -116,6 +120,17 @@
 // 169, 173, 0x0054ECC0 and 0x00552B80; ours zero-extends. Slot 109 and
 // slots 110 and 111 where they end in the core's pass that call's EAX on.
 //
+// vb5's oddities kept: slot 129's early way out tests only the route (not
+// the +0x204 deque) and skips +0x94; slot 131 drops the part's index of the
+// front point; slot 132 skips slot 160 before the map's slot 30; the
+// direction's average rounds x and y before the third, not z; slot 131's
+// unit vector goes through a float inverse, slot 129's does not; slot 135
+// compares the absolute height difference; slot 125's off-the-ground case
+// answers before the turn and slope factors; HandleCollision's clock seed is
+// counted under the game's site 0x0055C907. AL only in the game: slots 72,
+// 129, 131, 65 and slot 121's false; ours zero-extends. Slots 109, 121 and
+// 135 pass the callee's EAX on.
+//
 // Still the game's, at their addresses: the automata core (constructor
 // 0x005140A0, destructor 0x00513E60, QueryInterface 0x00505D80, AddRef,
 // Release and the smoothed value 0x004FA960); the adjustor thunks of the six
@@ -127,6 +142,7 @@
 #include "core/automata_vehicle.h"
 
 #include "core/address_check.h"
+#include "core/fixed_seed.h"
 #include "core/game.h"
 #include "core/hook.h"
 #include "core/log.h"
@@ -3537,6 +3553,724 @@ std::uint8_t __fastcall EnterFrom(char* self, void*, void* occupant, std::uint32
 }
 
 // ====================================================================================
+// Part vb5: cSC4Vehicle's movement
+
+// The exe's asin (0x009F03B0, the argument and result on the x87 stack).
+__declspec(naked) double __cdecl X87Asin(double)
+{
+    __asm {
+        fld qword ptr [esp + 4]
+        mov eax, 0x009F03B0
+        call eax
+        ret
+    }
+}
+
+// Three words copied as the game's MOVs copy them.
+void CopyWords(void* to, const void* from) { std::memcpy(to, from, 12); }
+
+void FillWords(std::uint32_t* to, std::uint32_t word) { to[0] = to[1] = to[2] = word; }
+
+// Whether each coordinate is within 1e-4 of the core's default point.
+bool AtDefault(const float* p)
+{
+    const float* const unset = reinterpret_cast<const float*>(addr::cSC4AutomatonCore_DefaultPoint);
+    const float within = Global<float>(addr::cSC4Vehicle_Near);
+    return std::fabs(static_cast<double>(p[0]) - unset[0]) < within &&
+           std::fabs(static_cast<double>(p[1]) - unset[1]) < within &&
+           std::fabs(static_cast<double>(p[2]) - unset[2]) < within;
+}
+
+// Slots 129 and 131: a direction averaged with +0x270, (2 d + p) / 3; x and
+// y go through floats before the third, z does not.
+void AverageWith(float* d, const float* p)
+{
+    const float sx = static_cast<float>(2.0 * d[0] + p[0]);
+    const float sy = static_cast<float>(2.0 * d[1] + p[1]);
+    const double sz = static_cast<double>(static_cast<float>(2.0 * d[2])) + p[2];
+    const float third = static_cast<float>(static_cast<double>(Global<float>(addr::cSC4Vehicle_One)) *
+                                           Global<float>(addr::cSC4Vehicle_Third));
+    d[2] = static_cast<float>(sz * third);
+    d[0] = static_cast<float>(static_cast<double>(third) * sx);
+    d[1] = static_cast<float>(static_cast<double>(sy) * third);
+}
+
+// Slots 129 and 131: the destination +0x4C half the radius behind the point
+// along the direction, then slot 16 (destination, direction).
+void PlaceBehind(char* self, const float* point, float* d)
+{
+    const double radius = At<float>(self, field::kRadius);
+    const double half = Global<float>(addr::SC4_FloatHalf);
+    const double hx = (d[0] * radius) * half;
+    const float ay = static_cast<float>(d[1] * radius);
+    const float az = static_cast<float>(d[2] * radius);
+    const float hy = static_cast<float>(ay * half);
+    const float hz = static_cast<float>(az * half);
+    float* const destination = &At<float>(self, field::kDestination);
+    destination[2] = static_cast<float>(static_cast<double>(point[2]) - hz);
+    destination[0] = static_cast<float>(point[0] - hx);
+    destination[1] = static_cast<float>(static_cast<double>(point[1]) - hy);
+    Virtual<std::uint32_t>(self, slot::kSlot16, destination, d);
+}
+
+// 0x0055BA20, slot 72 (a word, frame seconds), ret 8: slot 191 (seconds)
+// with the automata flag 0x80000; the base's frame (0x0054E050); the float
+// +0x254, unless within 1e-4 of 0, moved towards 0 by seconds x 0.001: from
+// below at 0 or past it zero and slot 176 (0, 0), from above (1, 0); slot
+// 128. AL the base frame's.
+std::uint8_t __fastcall VehicleFrame(char* self, void*, std::uint32_t word, float seconds)
+{
+    static bool logged;
+    FirstCall("VehicleFrame", logged);
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x80000u))
+        Virtual<std::uint32_t>(self, slot::kSlot191, seconds);
+    const std::uint8_t answer = CallThis<std::uint8_t>(addr::cSC4AutomatonBase_Frame, self, word, seconds);
+    float& timer = At<float>(self, field::kTimer254);
+    if (!(std::fabs(static_cast<double>(timer)) < Global<float>(addr::cSC4Vehicle_Near))) {
+        const double step = static_cast<double>(seconds) * Global<float>(addr::cSC4AutomatonBase_Milli);
+        if (timer < Zero()) {
+            const double now = step + timer;
+            timer = static_cast<float>(now);
+            if (now >= Zero()) {
+                At<std::uint32_t>(self, field::kTimer254) = 0;
+                Virtual<std::uint32_t>(self, slot::kSlot176, 0u, 0u);
+            }
+        } else {
+            const double now = timer - step;
+            timer = static_cast<float>(now);
+            if (now <= Zero()) {
+                At<std::uint32_t>(self, field::kTimer254) = 0;
+                Virtual<std::uint32_t>(self, slot::kSlot176, 1u, 0u);
+            }
+        }
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot128);
+    return answer;
+}
+
+// 0x0055CA90, slot 109 (frame seconds), ret 4: the base's (0x00550090);
+// when it answers AL 0 with a state, the state 0xE slot 185 and 0x15 slot
+// 186 (seconds). Answers the last call's EAX.
+std::uint32_t __fastcall VehicleStateFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("VehicleStateFrame", logged);
+    const std::uint32_t answer = CallThis<std::uint32_t>(addr::cSC4AutomatonBase_StateFrame, self, seconds);
+    if (At<char*>(self, field::kStates) != At<char*>(self, field::kStatesEnd) &&
+        !static_cast<std::uint8_t>(answer)) {
+        const std::uint32_t type = At<std::uint32_t>(CurrentState(self), state::kType);
+        if (type == 0xEu)
+            return Virtual<std::uint32_t>(self, slot::kSlot185, seconds);
+        if (type == 0x15u)
+            return Virtual<std::uint32_t>(self, slot::kSlot186, seconds);
+    }
+    return answer;
+}
+
+// 0x0055BE90, slot 135: without the automata flag 1, with the flag 2, in
+// the city (city slot 98) and more than 5 off (above or below) the higher of
+// the terrain's slots 13 and 30 at the position (ties the first): slot 52 (0xE, 0, -1.0,
+// 0, 0, 0, 0); else 0x0054D820. Answers that call's EAX.
+std::uint32_t __fastcall RemoveOrDrop(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RemoveOrDrop", logged);
+    const float* const position = &At<float>(self, field::kPosition);
+    if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 1u) && Virtual<std::uint8_t>(self, slot::kCheckFlag, 2u) &&
+        Virtual<std::uint8_t>(City(), city::kInCity, position[0], position[2])) {
+        const float ground =
+            static_cast<float>(Virtual<double>(Global<void*>(addr::SC4_Terrain), terrain::kHeight, position[0],
+                                               position[2]));
+        const float water =
+            static_cast<float>(Virtual<double>(Global<void*>(addr::SC4_Terrain), terrain::kSlot30, position[0],
+                                               position[2]));
+        const float higher = ground < water ? water : ground;
+        if (std::fabs(static_cast<double>(position[1]) - higher) > Global<float>(addr::cSC4Vehicle_DropHeight))
+            return Virtual<std::uint32_t>(self, slot::kPushState, 0xEu, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_RemoveNow, self);
+}
+
+// 0x0055DF50, slot 125, a float in ST0: the core's rate (0x00505AB0) as a
+// float; with an occupant: off the ground (its group 0xC, or group 2 in the
+// city more than 5 above the terrain) or the state 0x10 noted; unless the
+// automata flag 0x1000 or the state 0x10, times the group table (0x00B21CA8;
+// its third when off the ground, which then answers) for the occupant's
+// first group of 0..12 (slot 22); off the ground or in the state 0x10 it
+// answers. Times 0x00B21C88 x 0.6 when the bytes +0x1F4 and +0x1F5 match,
+// times 0x00B21C88 when +0x1F5 is not the next side and the path has more
+// than 3 points. Without the flag 0x40 the slope: asin of the heading's y x
+// 0x00B21CFC / 0x00B21CF8 (at most 0x00B21CFC, below 0 as 0), 1 less it
+// uphill, 1 plus it downhill, times the factor unrounded.
+double __fastcall SpeedFactor(char* self, void*)
+{
+    static bool logged;
+    FirstCall("SpeedFactor", logged);
+    float factor = static_cast<float>(CallThis<double>(addr::cSC4AutomatonCore_StateRate, self));
+    if (!At<void*>(self, field::kOccupant))
+        return factor;
+    bool off = false;
+    const bool parked = Virtual<std::uint32_t>(self, slot::kStateType) == state::kParked;
+    const float* const position = &At<float>(self, field::kPosition);
+    if (Virtual<std::uint8_t>(At<void*>(self, field::kOccupant), kOccupantGroupSlot, 0xCu)) {
+        off = true;
+    } else if (Virtual<std::uint8_t>(At<void*>(self, field::kOccupant), kOccupantGroupSlot, 2u) &&
+               Virtual<std::uint8_t>(City(), city::kInCity, position[0], position[2])) {
+        const float y = position[1];
+        const double ground =
+            Virtual<double>(Global<void*>(addr::SC4_Terrain), terrain::kHeight, position[0], position[2]);
+        if (y - ground > Global<float>(addr::cSC4Vehicle_DropHeight))
+            off = true;
+    }
+    const float* const table = Global<const float*>(addr::SC4AutomataTuning_GroupSpeeds21CA8);
+    if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x1000u) && !parked) {
+        if (off)
+            return static_cast<float>(static_cast<double>(factor) * table[2]);
+        for (std::uint32_t group = 0; group < 0xD; ++group)
+            if (Virtual<std::uint8_t>(At<void*>(self, field::kOccupant), kOccupantGroupSlot, group)) {
+                factor = static_cast<float>(static_cast<double>(factor) * table[group]);
+                break;
+            }
+    } else if (off || parked) {
+        return factor;
+    }
+    const std::uint8_t side = At<std::uint8_t>(self, field::kByte1F5);
+    const std::uint8_t groups = At<std::uint8_t>(self, field::kGroups1F4);
+    const double turn = Global<float>(addr::SC4AutomataTuning_Turn21C88);
+    if (side == groups) {
+        factor = static_cast<float>((turn * factor) * Global<float>(addr::cSC4Vehicle_SameSide));
+    } else if (side != ((groups + 1u) & 3u)) {
+        char* const* const path = At<char**>(self, field::kPath);
+        if (path && static_cast<std::uint32_t>(PointCount(path)) > 3)
+            factor = static_cast<float>(turn * factor);
+    }
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x40u))
+        return factor;
+    const float y = At<float>(self, field::kHeading + 4);
+    const double angle = X87Asin(y);
+    const double one = Global<float>(addr::SC4_FloatOneA81228);
+    const double scale = Global<float>(addr::SC4AutomataTuning_Slope21CFC);
+    const double most = Global<float>(addr::SC4AutomataTuning_Slope21CFC);
+    if (y > Zero()) {
+        double t = angle * scale / Global<float>(addr::SC4AutomataTuning_Slope21CF8);
+        if (t < Zero())
+            return (one - Zero()) * factor;
+        if (t > most)
+            t = most;
+        return (one - t) * factor;
+    }
+    if (y < Zero()) {
+        double t = angle * scale / Global<float>(addr::SC4AutomataTuning_Slope21CF8);
+        if (t < Zero())
+            return (Zero() + one) * factor;
+        if (t > most)
+            t = most;
+        return (t + one) * factor;
+    }
+    return factor;
+}
+
+// 0x0055D9D0, slot 151, a float in ST0: the room ahead from the front point
+// +0x264. 16, or with a path and the automata flag 0x10 the distance to its
+// last point (0 below 1.0); 16, or with +0xB0 and the flag 8 the distance to
+// +0xB0's back (its position less its heading, slot 15, times its radius,
+// slot 17) less 1, or to its position less 3 when that is nearer, less half
+// the radius. The smaller (ties and unordered the second).
+float __fastcall VehicleClearAhead(char* self, void*)
+{
+    static bool logged;
+    FirstCall("VehicleClearAhead", logged);
+    const float* const front = &At<float>(self, field::kFront);
+    const float x0 = front[0], y0 = front[1], z0 = front[2];
+    float ahead = 16.0f, behind = 16.0f;
+    char* const* const path = At<char**>(self, field::kPath);
+    if (path && Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x10u)) {
+        const float* const last = reinterpret_cast<const float*>(path[1]) - 3;
+        const float dx = static_cast<float>(static_cast<double>(last[0]) - x0);
+        const double dy = static_cast<double>(last[1]) - y0;
+        const double dz = static_cast<double>(last[2]) - z0;
+        const double length = std::sqrt((dz * dz + dy * dy) + static_cast<double>(dx) * dx);
+        ahead = static_cast<float>(length);
+        if (length < Global<float>(addr::cSC4Vehicle_AheadLeast))
+            ahead = 0.0f;
+    }
+    void* const other = At<void*>(self, field::kObjectB0);
+    if (other && Virtual<std::uint8_t>(self, slot::kFlag8)) {
+        const std::uint32_t init = Global<std::uint32_t>(addr::cSC4Vehicle_ReadPointInit);
+        std::uint32_t a[3], b[3];
+        FillWords(a, init);
+        FillWords(b, init);
+        Virtual<std::uint32_t>(At<void*>(self, field::kObjectB0), slot::kGetPosition, a);
+        Virtual<std::uint32_t>(At<void*>(self, field::kObjectB0), slot::kHeadingOut, b);
+        const double radius = Virtual<double>(At<void*>(self, field::kObjectB0), slot::kGetRadius);
+        const float* const p = reinterpret_cast<const float*>(a);
+        const float* const h = reinterpret_cast<const float*>(b);
+        const float ty = static_cast<float>(h[1] * radius);
+        const float tz = static_cast<float>(h[2] * radius);
+        const double fx = p[0] - h[0] * radius;
+        const double fy = static_cast<double>(p[1]) - ty;
+        const float fz = static_cast<float>(static_cast<double>(p[2]) - tz);
+        const float gx = static_cast<float>(fx - x0);
+        const double gy = fy - y0;
+        const double gz = static_cast<double>(fz) - z0;
+        const double back = std::sqrt((gz * gz + gy * gy) + static_cast<double>(gx) * gx);
+        const double hx = static_cast<double>(p[0]) - x0;
+        const double hy = static_cast<double>(p[1]) - y0;
+        const double hz = static_cast<double>(p[2]) - z0;
+        const double centre = std::sqrt((hz * hz + hy * hy) + hx * hx);
+        behind = static_cast<float>(centre);
+        double gap;
+        if (!(centre >= back))
+            gap = static_cast<double>(behind) - Global<float>(addr::cSC4AutomatonBase_FrontGap);
+        else
+            gap = back - Global<float>(addr::SC4_FloatOneA81228);
+        behind = static_cast<float>(
+            gap - static_cast<double>(At<float>(self, field::kRadius)) * Global<float>(addr::SC4_FloatHalf));
+    }
+    return ahead < behind ? ahead : behind;
+}
+
+// 0x0055C600, slot 121 (controls, frame seconds), ret 8: false without the
+// template (slot 67; its +0x64, else 0x0046B4A0 on its +0xC). The rate
+// (+0x14, or +0x10 braking: moving forward with the pedal +0x7C not below 0,
+// or backward with +0x80 not below 0) x seconds x 0.001 added to the
+// controls' +0x28 with +0x7C not below 0, taken off with +0x80, else +0x28
+// 0. The turn: +0x2C, or with the automata flag 0x2000 +0x24 to +0x28 by
+// +0x94 over +8 (clamped to 0..1). The controls' +0x5C less the turn with
+// +0x88 not below 0, else eased up to 0 by +0x30; plus the turn with +0x84
+// not below 0, else eased down to 0; clamped to +-(+0x20) with the flag
+// 0x2000, else to +-pi/2. Then the core's 0x00509070, its EAX.
+std::uint32_t __fastcall Steer(char* self, void*, char* controls, float seconds)
+{
+    static bool logged;
+    FirstCall("Steer", logged);
+    const float scaled = static_cast<float>(static_cast<double>(seconds) * Global<float>(addr::cSC4AutomatonBase_Milli));
+    char* const owner = Virtual<char*>(self, slot::kTemplate);
+    if (!owner)
+        return 0;
+    char* entry = At<char*>(owner, 0x64);
+    if (!entry) {
+        char* const parent = At<char*>(owner, 0xC);
+        if (!parent)
+            return 0;
+        entry = CallThis<char*>(addr::SC4AutomatonTemplate_FindInherited64, parent);
+        if (!entry)
+            return 0;
+    }
+    float rate = At<float>(entry, 0x14);
+    void* const smoothed = self + field::kSmoothed;
+    const float zero = Zero();
+    const float forward = At<float>(controls, 0x7C);
+    const float backward = At<float>(controls, 0x80);
+    bool braking = false;
+    if (CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, smoothed) > zero && forward >= zero)
+        braking = true;
+    else if (CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, smoothed) < zero && backward >= zero)
+        braking = true;
+    if (braking)
+        rate = At<float>(entry, 0x10);
+    float& pedal = At<float>(controls, 0x28);
+    if (forward >= zero)
+        pedal = static_cast<float>(static_cast<double>(rate) * scaled + pedal);
+    else if (backward >= zero)
+        pedal = static_cast<float>(static_cast<double>(pedal) - static_cast<double>(rate) * scaled);
+    else
+        At<std::uint32_t>(controls, 0x28) = 0;
+    double turn;
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x2000u)) {
+        const float ratio =
+            static_cast<float>(static_cast<double>(At<float>(self, field::kSpeed94)) / At<float>(entry, 0x8));
+        const double low = At<float>(entry, 0x24);
+        const double span = At<float>(entry, 0x28) - low;
+        if (ratio < zero)
+            turn = low + span * zero;
+        else if (ratio > Global<float>(addr::SC4_FloatOneA81228))
+            turn = low + span * Global<float>(addr::SC4_FloatOneA81228);
+        else
+            turn = low + span * ratio;
+    } else {
+        turn = At<float>(entry, 0x2C);
+    }
+    float& wheel = At<float>(controls, 0x5C);
+    const double ease = static_cast<double>(scaled) * At<float>(entry, 0x30);
+    if (At<float>(controls, 0x88) >= zero) {
+        wheel = static_cast<float>(static_cast<double>(wheel) - static_cast<double>(scaled) * turn);
+    } else if (wheel < zero) {
+        const double now = ease + wheel;
+        wheel = zero < now ? zero : static_cast<float>(now);
+    }
+    if (At<float>(controls, 0x84) >= zero) {
+        wheel = static_cast<float>(turn * scaled + wheel);
+    } else if (wheel > zero) {
+        const double now = wheel - static_cast<double>(scaled) * At<float>(entry, 0x30);
+        wheel = zero > now ? zero : static_cast<float>(now);
+    }
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x2000u)) {
+        const float most = At<float>(entry, 0x20);
+        const float now = wheel;
+        if (now < -static_cast<double>(most))
+            wheel = -most;
+        else if (now > most)
+            wheel = most;
+    } else {
+        const float most = Global<float>(addr::cSC4Vehicle_HalfPi);
+        const float now = wheel;
+        if (now < -static_cast<double>(most))
+            wheel = -most;
+        else if (now > most)
+            wheel = most;
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_Steer, self, controls, seconds);
+}
+
+// 0x0055CAF0, slot 129 (frame seconds), ret 4: the step (slot 125 x the
+// smoothed speed x seconds). With slot 88, an empty route and the automata
+// flag 0x20 slot 79 and true. Else slot 161, the room ahead (slot 151; below
+// 16 with +0xB0 SetSpeed to +0xB0's speed at 0.5) caps the step; at a step
+// not above 0 the flag 0x20 set and, when minus the radius is above the step
+// and the flag 0x40 is off, Remove(false) and false. Else the front point
+// +0x264 (the position when unset) along the path (slot 133) into a new
+// point: when that fails the flag 4 and slot 102 (4, 0); else the segment's
+// unit vector (at 1e-5 or less +0x270, or (0, 0, 1) when that is unset),
+// averaged with +0x270 when set; the destination half the radius behind the
+// new point and slot 16; +0x270 the direction, +0x264 the point; the flag
+// 0x20 cleared. +0x94 the distance moved over seconds. AL only.
+std::uint8_t __fastcall VehicleMoveOnPath(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("VehicleMoveOnPath", logged);
+    float* const position = &At<float>(self, field::kPosition);
+    const float before[3] = {position[0], position[1], position[2]};
+    Virtual<void*>(City(), city::kTrafficNetwork);
+    const float speed = static_cast<float>(Virtual<double>(self, slot::kSmoothedNow));
+    float step = static_cast<float>((Virtual<double>(self, slot::kSlot125) * speed) * seconds);
+    std::uint8_t answer = 1;
+    char* const route = self + field::kRoute;
+    if (Virtual<std::uint8_t>(self, slot::kSlot88) &&
+        At<char*>(route, deque::kFinish + deque::kCurrent) == At<char*>(route, deque::kStart + deque::kCurrent) &&
+        Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x20u)) {
+        Virtual<std::uint32_t>(self, slot::kSlot79);
+        return 1;
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot161);
+    const float clear = static_cast<float>(Virtual<double>(self, slot::kClearAhead));
+    void* const front = At<void*>(self, field::kObjectB0);
+    if (front && clear < Global<float>(addr::SC4_FloatSixteen)) {
+        const float target = static_cast<float>(Virtual<double>(front, slot::kSmoothedNow));
+        Virtual<std::uint32_t>(self, slot::kSetSpeed, target, 0.5f);
+    }
+    if (!(step < clear))
+        step = clear;
+    if (!(step > Zero())) {
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 1u);
+        const double radius = Virtual<double>(self, slot::kGetRadius);
+        if (-radius > step && !Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x40u)) {
+            Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+            answer = 0;
+        }
+    } else {
+        float* const point = &At<float>(self, field::kFront);
+        if (AtDefault(point))
+            CopyWords(point, position);
+        const std::uint32_t init = Global<std::uint32_t>(addr::cSC4Vehicle_ReadPointInit);
+        std::uint32_t next[3];
+        FillWords(next, init);
+        if (!Virtual<std::uint8_t>(self, slot::kAdvanceOnPath, step, static_cast<const float*>(point),
+                                   reinterpret_cast<float*>(next), &At<std::int32_t>(self, field::kPathIndex),
+                                   At<char**>(self, field::kPath), &At<float>(self, field::kFloat260))) {
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 4u, 1u);
+            Virtual<std::uint32_t>(self, slot::kSlot102, 4u, 0u);
+        } else {
+            std::uint32_t words[3];
+            FillWords(words, init);
+            float* const d = reinterpret_cast<float*>(words);
+            const std::int32_t index = At<std::int32_t>(self, field::kPathIndex);
+            const float* const p = reinterpret_cast<const float*>(At<char**>(self, field::kPath)[0]) + 3 * index;
+            const double dx = static_cast<double>(p[3]) - p[0];
+            const float dy = static_cast<float>(static_cast<double>(p[4]) - p[1]);
+            const double dz = static_cast<double>(p[5]) - p[2];
+            const double length = std::sqrt((dx * dx + dz * dz) + static_cast<double>(dy) * dy);
+            float* const direction = &At<float>(self, field::kDirection);
+            if (!(length > Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon))) {
+                if (!AtDefault(direction)) {
+                    CopyWords(d, direction);
+                } else {
+                    words[0] = 0;
+                    words[1] = 0;
+                    words[2] = 0x3F800000u;
+                }
+            } else {
+                const double inverse = Global<float>(addr::cSC4Vehicle_One) / length;
+                d[0] = static_cast<float>(inverse * dx);
+                d[1] = static_cast<float>(static_cast<double>(dy) * inverse);
+                d[2] = static_cast<float>(dz * inverse);
+                if (!AtDefault(direction))
+                    AverageWith(d, direction);
+            }
+            PlaceBehind(self, reinterpret_cast<const float*>(next), d);
+            CopyWords(direction, d);
+            CopyWords(point, next);
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 0u);
+        }
+    }
+    const double dx = static_cast<double>(position[0]) - before[0];
+    const double dy = static_cast<double>(position[1]) - before[1];
+    const double dz = static_cast<double>(position[2]) - before[2];
+    At<float>(self, field::kSpeed94) = static_cast<float>(std::sqrt((dx * dx + dz * dz) + dy * dy) / seconds);
+    return answer;
+}
+
+// 0x0055D210, slot 131 (occupant, key, exact), ret 0xC: the base's
+// (0x0054E920); with it true, a path and no automata flag 0x2000: with +0x260
+// above 0, +0x260 capped by the room ahead (slot 151), the path's first point
+// advanced by it (slot 133 into the front point +0x264, the index +0x1FC and
+// the leftover +0x260); the direction of the segment reached, or of the
+// path's last when that failed (at 1e-5 or less +0x270), averaged with +0x270
+// when set; the destination half the radius behind the front point and slot
+// 16; +0x270 the direction; the flag 0x20 cleared. Without +0x260 the
+// network part's index of the front point on the path (slot 19, dropped).
+// AL the base's.
+std::uint8_t __fastcall VehiclePathTo(char* self, void*, void* occupant, std::uint32_t key, std::uint32_t exact)
+{
+    static bool logged;
+    FirstCall("VehiclePathTo", logged);
+    const std::uint8_t answer = CallThis<std::uint8_t>(addr::cSC4AutomatonBase_PathTo, self, occupant, key, exact);
+    if (!answer || !At<char**>(self, field::kPath) || Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x2000u))
+        return answer;
+    float& leftover = At<float>(self, field::kFloat260);
+    float* const point = &At<float>(self, field::kFront);
+    if (!(leftover > Zero())) {
+        Virtual<std::int32_t>(At<void*>(self, field::kNetwork), part::kIndexOf, point, At<char**>(self, field::kPath));
+        return answer;
+    }
+    const double clear = Virtual<double>(self, slot::kClearAhead);
+    const float step = leftover < clear ? leftover : static_cast<float>(clear);
+    leftover = step;
+    const std::uint32_t init = Global<std::uint32_t>(addr::cSC4Vehicle_ReadPointInit);
+    std::uint32_t words[3];
+    FillWords(words, init);
+    float* const d = reinterpret_cast<float*>(words);
+    char** const path = At<char**>(self, field::kPath);
+    std::uint32_t from[3];
+    CopyWords(from, path[0]);
+    const std::uint8_t reached =
+        Virtual<std::uint8_t>(self, slot::kAdvanceOnPath, step, reinterpret_cast<const float*>(from), point,
+                              &At<std::int32_t>(self, field::kPathIndex), path, &leftover);
+    const float* const points = reinterpret_cast<const float*>(At<char**>(self, field::kPath)[0]);
+    float dx, dz;
+    double dy;
+    if (reached) {
+        const float* const p = points + 3 * At<std::int32_t>(self, field::kPathIndex);
+        dx = static_cast<float>(static_cast<double>(p[3]) - p[0]);
+        dy = static_cast<float>(static_cast<double>(p[4]) - p[1]);
+        dz = static_cast<float>(static_cast<double>(p[5]) - p[2]);
+    } else {
+        const std::int32_t count = PointCount(At<char**>(self, field::kPath));
+        const float* const last = points + 3 * count - 3;
+        const float* const previous = points + 3 * count - 6;
+        dx = static_cast<float>(static_cast<double>(last[0]) - previous[0]);
+        dy = static_cast<double>(last[1]) - previous[1];
+        dz = static_cast<float>(static_cast<double>(last[2]) - previous[2]);
+    }
+    const double length = std::sqrt((static_cast<double>(dz) * dz + dy * dy) + static_cast<double>(dx) * dx);
+    float* const direction = &At<float>(self, field::kDirection);
+    if (!(length > Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon))) {
+        CopyWords(d, direction);
+    } else {
+        const float inverse = static_cast<float>(Global<float>(addr::cSC4Vehicle_One) / length);
+        d[0] = static_cast<float>(static_cast<double>(inverse) * dx);
+        d[1] = static_cast<float>(dy * inverse);
+        d[2] = static_cast<float>(static_cast<double>(dz) * inverse);
+        if (!AtDefault(direction))
+            AverageWith(d, direction);
+    }
+    PlaceBehind(self, point, d);
+    CopyWords(direction, d);
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 0x20u, 0u);
+    return answer;
+}
+
+// 0x0055D5A0, slot 132 (occupant, groups, path, keep), ret 0x10: as the
+// base's 0x00550760 (the occupant, its network part, the groups, the path,
+// the tunnel's fade and sounds, the traffic network map's slots 31 and 30,
+// +0xB0 from slot 148 with the flag 8) but without slot 160 and with the
+// front point: unless keep (the automata flag 4 cleared), the path's first
+// two points offset sideways (slot 157), +0x264 the first, and slot 16 with
+// the point half the radius behind it along their unit vector.
+void __fastcall VehicleEnterOccupant(char* self, void*, void* occupant, std::uint32_t groups, char** path,
+                                     std::uint32_t keep)
+{
+    static bool logged;
+    FirstCall("VehicleEnterOccupant", logged);
+    void* network = nullptr;
+    void* const old = At<void*>(self, field::kOccupant);
+    if (old)
+        AddRef(old);
+    const std::uint32_t oldGroups = Virtual<std::uint32_t>(self, slot::kGroups);
+    void* const was = At<void*>(self, field::kOccupant);
+    if (occupant != was) {
+        if (occupant)
+            AddRef(occupant);
+        At<void*>(self, field::kOccupant) = occupant;
+        if (was)
+            Release(was);
+    }
+    if (occupant) {
+        network = Virtual<void*>(At<void*>(self, field::kOccupant), kNetworkPartSlot);
+        if (network) {
+            AddRef(network);
+            if (!path)
+                path = Virtual<char**>(network, part::kPath, groups, 0u);
+        }
+    }
+    if (path && network) {
+        At<std::uint32_t>(self, field::kGroups1F4) = groups;
+        void* const before = At<void*>(self, field::kNetwork);
+        if (network != before) {
+            AddRef(network);
+            At<void*>(self, field::kNetwork) = network;
+            if (before)
+                Release(before);
+        }
+        At<char**>(self, field::kPath) = path;
+        const std::uint32_t init = Global<std::uint32_t>(addr::cSC4Vehicle_ReadPointInit);
+        std::uint32_t first[3], second[3], heading[3];
+        FillWords(first, init);
+        FillWords(second, init);
+        FillWords(heading, init);
+        At<std::uint32_t>(self, field::kPathIndex) = 0;
+        if (static_cast<std::uint8_t>(keep)) {
+            Virtual<std::uint32_t>(self, slot::kSetFlag, 4u, 0u);
+        } else {
+            float* const a = reinterpret_cast<float*>(first);
+            float* const b = reinterpret_cast<float*>(second);
+            CopyWords(a, At<char**>(self, field::kPath)[0]);
+            Virtual<std::uint32_t>(self, slot::kOffsetSideways, a);
+            CopyWords(b, At<char**>(self, field::kPath)[0] + 12);
+            Virtual<std::uint32_t>(self, slot::kOffsetSideways, b);
+            const double dx = static_cast<double>(b[0]) - a[0];
+            const double dy = static_cast<double>(b[1]) - a[1];
+            const double dz = static_cast<double>(b[2]) - a[2];
+            float* const front = &At<float>(self, field::kFront);
+            CopyWords(front, a);
+            const float dzf = static_cast<float>(dz);
+            const float inverse = static_cast<float>(Global<float>(addr::cSC4Vehicle_One) /
+                                                     std::sqrt((dz * dzf + dy * dy) + dx * dx));
+            const float nx = static_cast<float>(dx * inverse);
+            const double ny = dy * inverse;
+            const double nz = static_cast<double>(dzf) * inverse;
+            float* const h = reinterpret_cast<float*>(heading);
+            h[0] = nx;
+            h[1] = static_cast<float>(ny);
+            h[2] = static_cast<float>(nz);
+            const double radius = At<float>(self, field::kRadius);
+            const double half = Global<float>(addr::SC4_FloatHalf);
+            const float ax = static_cast<float>(nx * radius);
+            const float ay = static_cast<float>(ny * radius);
+            const double hz = (nz * radius) * half;
+            const float hx = static_cast<float>(ax * half);
+            const float hy = static_cast<float>(ay * half);
+            a[2] = static_cast<float>(front[2] - hz);
+            a[0] = static_cast<float>(static_cast<double>(front[0]) - hx);
+            a[1] = static_cast<float>(static_cast<double>(front[1]) - hy);
+            Virtual<std::uint32_t>(self, slot::kSlot16, a, h);
+        }
+    } else {
+        At<char**>(self, field::kPath) = nullptr;
+        void* const before = At<void*>(self, field::kNetwork);
+        if (before) {
+            At<void*>(self, field::kNetwork) = nullptr;
+            Release(before);
+        }
+        At<std::uint32_t>(self, field::kPathIndex) = 0;
+    }
+    void* const now = At<void*>(self, field::kOccupant);
+    if (now != old) {
+        void* entered = nullptr;
+        void* left = nullptr;
+        if (now && Virtual<std::uint8_t>(now, kOccupantFlag, 0x80000u))
+            Virtual<std::uint32_t>(At<void*>(self, field::kOccupant), slot::kQueryInterface, kTunnelIid, &entered);
+        if (old && Virtual<std::uint8_t>(old, kOccupantFlag, 0x80000u))
+            Virtual<std::uint32_t>(old, slot::kQueryInterface, kTunnelIid, &left);
+        if (entered || left) {
+            const bool in = entered && !left;
+            if (in)
+                Virtual<std::uint32_t>(self, slot::kFade, 0.0f, 0.8f);
+            else
+                Virtual<std::uint32_t>(self, slot::kFade, 1.0f, 0.1f);
+            if (Virtual<std::uint32_t>(self, slot::kSlot57, 0x10u)) {
+                void* const sounds = CallCdecl<void*>(addr::SC4UDrive_GetService602640);
+                Virtual<std::uint32_t>(sounds, in ? 0x14u : 0x18u, 0xEu);
+            }
+            if (entered)
+                Release(entered);
+            if (left)
+                Release(left);
+        }
+    }
+    void* const map = Virtual<void*>(City(), city::kTrafficNetwork);
+    if (map) {
+        if (old)
+            Virtual<std::uint32_t>(map, map::kRemoveAutomaton, self, old, oldGroups);
+        if (At<void*>(self, field::kOccupant)) {
+            Virtual<std::uint32_t>(map, map::kAddAutomaton, self, At<void*>(self, field::kOccupant));
+            if (Virtual<std::uint8_t>(self, slot::kFlag8)) {
+                void* const ahead = Virtual<void*>(self, slot::kSlot148);
+                CallThis<void>(addr::SC4RefPtr_Assign, self + field::kObjectB0, ahead);
+            }
+        }
+    }
+    if (old)
+        Release(old);
+    if (network)
+        Release(network);
+}
+
+// 0x0055C8C0, slot 65 (hit, a word not read), ret 8: with hit the message
+// 0x49E64802 (SC4::PostMessage, five zeros) and, unless in the state 0x14,
+// the heading turned by half a random unit vector (0x0080B730 on a cRZRandom
+// of the stack, clock-seeded) and normalised, the automata flag 0x10000000
+// set and slot 52 (0x14, 0, 5000.0, 1, 0, 0, 0); false when that fails. AL
+// only.
+std::uint8_t __fastcall HandleCollision(char* self, void*, std::uint32_t hit, std::uint32_t)
+{
+    static bool logged;
+    FirstCall("HandleCollision", logged);
+    if (!hit)
+        return 1;
+    CallCdecl<void>(addr::SC4_PostMessage, 0x49E64802u, 0u, 0u, 0u, 0u, 0u);
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x14u)
+        return 1;
+    alignas(4) char random[0x18];
+    {
+        // The clock seed is counted under the original's call site (the
+        // return address after its cRZRandom call), not ours.
+        const fixed_seed::SiteOverride site(0x0055C907);
+        CallThis<void>(addr::SC4Random_Construct, random, static_cast<std::uint32_t>(0xFFFFFFFF));
+    }
+    float out[3];
+    const float* const v = CallCdecl<float*>(addr::SC4_RandomUnitVector, static_cast<float*>(out),
+                                             static_cast<void*>(random));
+    const double half = Global<float>(addr::SC4_FloatHalf);
+    float* const h = &At<float>(self, field::kHeading);
+    const double ax = v[0] * half;
+    const double ay = v[1] * half;
+    const float az = static_cast<float>(v[2] * half);
+    h[0] = static_cast<float>(ax + h[0]);
+    h[1] = static_cast<float>(ay + h[1]);
+    h[2] = static_cast<float>(static_cast<double>(az) + h[2]);
+    const double x = h[0], y = h[1], z = h[2];
+    const double inverse = Global<float>(addr::cSC4Vehicle_One) / std::sqrt((x * x + y * y) + z * z);
+    h[0] = static_cast<float>(inverse * h[0]);
+    h[1] = static_cast<float>(inverse * h[1]);
+    h[2] = static_cast<float>(inverse * h[2]);
+    Virtual<std::uint32_t>(self, slot::kSetFlag, 0x10000000u, 1u);
+    if (!Virtual<std::uint8_t>(self, slot::kPushState, 0x14u, 0u, 0x459C4000u, 1u, 0u, 0u, 0u))
+        return 0;
+    return 1;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -3695,6 +4429,20 @@ const Detour kStates[] = {
     OPENSC4_DETOUR(addr::cSC4AutomatonBase_EnterFrom, EnterFrom),
 };
 
+// Part vb5.
+const Detour kVehicleMove[] = {
+    OPENSC4_DETOUR(addr::cSC4Vehicle_Frame, VehicleFrame),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_MoveOnPath, VehicleMoveOnPath),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_PathTo, VehiclePathTo),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_EnterOccupant, VehicleEnterOccupant),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_ClearAhead, VehicleClearAhead),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_Steer, Steer),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_StateFrame, VehicleStateFrame),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_RemoveOrDrop, RemoveOrDrop),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_SpeedFactor, SpeedFactor),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_HandleCollision, HandleCollision),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -3702,7 +4450,8 @@ bool InstallObject(registry::Mode)
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kLife, sizeof kLife / sizeof kLife[0], "life") &&
            InstallList(kMove, sizeof kMove / sizeof kMove[0], "move") &&
-           InstallList(kStates, sizeof kStates / sizeof kStates[0], "states");
+           InstallList(kStates, sizeof kStates / sizeof kStates[0], "states") &&
+           InstallList(kVehicleMove, sizeof kVehicleMove / sizeof kVehicleMove[0], "vehicle move");
 }
 
 const bool g_registered[] = {
@@ -3719,8 +4468,10 @@ const bool g_registered[] = {
                         "entering an occupant, placing on the network, the next route cell, the room ahead and the "
                         "side weights (13 detours, part vb3); the states on frames: the base's frame, the state "
                         "frames, entering and leaving states, the records, the route, the same-type removal, the "
-                        "automaton ahead and the wait, the queue test and the steps ahead (22 detours, part vb4; "
-                        "src/core/automata_vehicle.cpp)",
+                        "automaton ahead and the wait, the queue test and the steps ahead (22 detours, part vb4); "
+                        "cSC4Vehicle's movement: its frame and state frame, the moves along a path, the path and "
+                        "occupant entry with the front point, the room ahead, the steering, the speed factor, the "
+                        "drop or removal and the collision (10 detours, part vb5; src/core/automata_vehicle.cpp)",
                         false, InstallObject}),
 };
 

@@ -9827,3 +9827,186 @@ address = 0x00B09964
 kind = "data"
 source = "Name ours. A float the game keeps; 0x00505AB0 answers it (with the automata flag 0x80, 1.0 when it is above 0, else 0). The test of src/core/automata_autotest.cpp (part vb4) sets it while it runs slot 163."
 
+
+# Part vb5: cSC4Vehicle's movement (src/core/automata_vehicle.cpp, docs/automata.md "Part vb").
+
+[[entry]]
+name = "cSC4Vehicle::Frame"
+address = 0x0055BA20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t word, float seconds)"
+expect = "53 56 57 8B F1 8B 06 68"
+source = "Name ours. Slot 72, ret 8: slot 191 (seconds) with the automata flag 0x80000; the base's frame (0x0054E050); the float +0x254 (when not within 1e-4 of 0) moved towards 0 by seconds x 0.001, at 0 or past it zero and slot 176 (0, 0) from below or (1, 0) from above; slot 128. AL the base frame's. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::MoveOnPath"
+address = 0x0055CAF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 44 53 56 8B F1 8B"
+source = "Name ours. Slot 129, ret 4: the step (slot 125 x the smoothed speed x seconds); with slot 88, an empty route and the flag 0x20 slot 79 and true. Else slot 161, the room ahead (slot 151; below 16 with +0xB0 SetSpeed to its speed at 0.5) caps the step; a step not above 0 sets the flag 0x20 and, past minus the radius without the flag 0x40, Remove(false) and false. Else the front point +0x264 (the position when unset) along the path (slot 133) into a new front point; failing, the flag 4 and slot 102 (4, 0); else the direction of the path's segment (or +0x270, or (0, 0, 1)) averaged with +0x270 when set, the destination the front point less half the radius along it, slot 16, +0x270 and +0x264 kept, the flag 0x20 cleared. +0x94 the distance moved over seconds. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::PathTo"
+address = 0x0055D210
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* occupant, uint32_t key, uint32_t exact)"
+expect = "83 EC 30 8B 44 24 3C 8B"
+source = "Name ours. Slot 131, ret 0xC: the base's (0x0054E920); with it true, a path and no flag 0x2000: with +0x260 above 0 it capped by the room ahead (slot 151), the path's first point advanced by it (slot 133 into +0x264, +0x1FC, the leftover +0x260), the segment's direction (or the path's last, or +0x270 at 1e-5 or less) averaged with +0x270 when set, the destination the front point less half the radius along it, slot 16, +0x270 kept, the flag 0x20 cleared; else the network part's index of +0x264 (slot 19, dropped). AL the base's. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::EnterOccupant"
+address = 0x0055D5A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, uint32_t groups, void* path, uint32_t keep)"
+expect = "83 EC 48 53 55 56 8B F1"
+source = "Name ours. Slot 132, ret 0x10: as the base's (0x00550760) with the front point: the occupant, its network part and path into +0x1EC..+0x1FC; with keep the flag 4 cleared, else the path's first two points offset sideways (slot 157), +0x264 the first, the point half the radius behind it along their unit vector given to slot 16 with that vector. The tunnel fade and sounds and the traffic network map's slots 31 and 30 as the base's, without slot 160. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::ClearAhead"
+address = 0x0055D9D0
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "83 EC 38 56 8B F1 8B 86"
+source = "Name ours. Slot 151, a float in ST0: 16 or, with a path and the flag 0x10, the distance from the front point +0x264 to the path's last point (0 below 1.0); 16 or, with +0xB0 and the flag 8, the distance to +0xB0's position less its heading (slot 15) times its radius (slot 17), or to its position when nearer, less 1 or 3, less half the radius. The smaller (ties and unordered the second). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::Steer"
+address = 0x0055C600
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* controls, float seconds)"
+expect = "83 EC 08 D9 44 24 10 55"
+source = "Name ours. Slot 121, ret 8: false without the template (slot 67, its +0x64 or 0x0046B4A0 on +0xC); the controls' +0x28 moved by the template's rate (+0x14, or +0x10 when braking against the speed) x seconds x 0.001 by the pedals +0x7C and +0x80; the turn (+0x2C, or with the flag 0x2000 +0x24 to +0x28 by +0x94 over +8 clamped to 0..1) applied to +0x5C by +0x88 and +0x84 (else eased to 0 by +0x30), clamped to +0x20 (flag 0x2000) or pi/2; then the core's 0x00509070. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::StateFrame"
+address = 0x0055CA90
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, float seconds)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours. Slot 109, ret 4: the base's (0x00550090); when it answers AL 0 with a state, the state 0xE slot 185 and 0x15 slot 186 (seconds). Answers the last call's EAX. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::RemoveOrDrop"
+address = 0x0055BE90
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 EC 08 56 8B F1 8B 06"
+source = "Name ours. Slot 135: without the flag 1, with the flag 2, inside the city (city slot 98) and more than 5 above or below the higher of the terrain's slots 13 and 30 at the position: slot 52 (0xE, 0, -1.0, 0, 0, 0, 0); else 0x0054D820. Answers that call's EAX. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::SpeedFactor"
+address = 0x0055DF50
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "83 EC 14 56 8B F1 E8 55"
+source = "Name ours. Slot 125, a float in ST0: the core's rate (0x00505AB0); with an occupant, scaled by the table at 0x00B21CA8 for the occupant's first group (slot 22, 0..12; 2 when off the ground by 5 or in group 0xC) unless the flag 0x1000 or the state 0x10; by 0x00B21C88 (x 0.6 on the same side, or with a path of more than 3 points not turning right); without the flag 0x40 by the slope (asin of the heading's y x 0x00B21CFC / 0x00B21CF8, at most 0x00B21CFC). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::HandleCollision"
+address = 0x0055C8C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t hit, uint32_t unused)"
+expect = "8B 44 24 04 83 EC 24 85"
+source = "Name ours (gzcom-dll's HandleCollision). Slot 65, ret 8: with hit the message 0x49E64802 (SC4::PostMessage) and, unless in the state 0x14, the heading turned by half a random unit vector (a clock-seeded SC4Random, 0x0080B730) and normalised, the flag 0x10000000 set and slot 52 (0x14, 0, 5000.0, 1, 0, 0, 0); false when that fails. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb5)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Steer"
+address = 0x00509070
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* controls, float seconds)"
+expect = "55 56 8B 74 24 0C 57 56"
+source = "Name ours. The core's slot 121, ret 8. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "SC4::RandomUnitVector"
+address = 0x0080B730
+kind = "function"
+convention = "cdecl"
+signature = "float* (float* out, void* random)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Three draws in -1..1 until inside the unit ball, normalised into out. Answers out. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::Near"
+address = 0x00A9D0BC
+kind = "data"
+expect = "17 B7 D1 38"
+source = "Name ours. The float 1e-4: slot 72's and the front points' zero test. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::One"
+address = 0x00B0A0E8
+kind = "data"
+expect = "00 00 80 3F"
+source = "Name ours. The float 1.0 of the vehicle's normalisations. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::Third"
+address = 0x00A92480
+kind = "data"
+expect = "AB AA AA 3E"
+source = "Name ours. The float 1/3 the directions are averaged by. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::AheadLeast"
+address = 0x00A9BCE0
+kind = "data"
+expect = "00 00 80 3F"
+source = "Name ours. The float 1.0: slot 151 answers 0 below it. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::DropHeight"
+address = 0x00A9D170
+kind = "data"
+expect = "00 00 A0 40"
+source = "Name ours. The float 5.0 above the ground slots 125 and 135 test. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::SameSide"
+address = 0x00A9D09C
+kind = "data"
+expect = "9A 99 19 3F"
+source = "Name ours. The float 0.6 of slot 125. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "cSC4Vehicle::HalfPi"
+address = 0x00B0A0F4
+kind = "data"
+expect = "DB 0F C9 3F"
+source = "Name ours. The float pi/2 slot 121 clamps the turn by. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "SC4AutomataTuning::GroupSpeeds21CA8"
+address = 0x00B21CA8
+kind = "data"
+source = "Name ours. A pointer filled at startup: 13 floats by occupant group (slot 125). Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "SC4AutomataTuning::Turn21C88"
+address = 0x00B21C88
+kind = "data"
+source = "Name ours. A float filled at startup; slot 125's factor. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "SC4AutomataTuning::Slope21CFC"
+address = 0x00B21CFC
+kind = "data"
+source = "Name ours. A float filled at startup; slot 125's slope factor and limit. Called by address from src/core/automata_vehicle.cpp (part vb5)."
+
+[[entry]]
+name = "SC4AutomataTuning::Slope21CF8"
+address = 0x00B21CF8
+kind = "data"
+source = "Name ours. A float filled at startup; slot 125's slope divisor. Called by address from src/core/automata_vehicle.cpp (part vb5)."
