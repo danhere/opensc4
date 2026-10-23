@@ -101,6 +101,19 @@
 //          the models slot 191 places, +0x2B4 the current one
 //   a state's +0x28.. (slots 185 and 186) and the controls' +0x28 to +0x5C
 //          and +0x78 (slot 187): see automata_vehicle.cpp
+//
+// Part vb7 adds (cSC4Vehicle's queues):
+//   cSC4Vehicle's +0x27C deque's elements as the occupants it has been on
+//          (slot 181): +0 an occupant (referenced), +4 the base's +0x1F4
+//          word at the time; slot 182's trail argument is a deque of that
+//          kind, walked from its back to its front
+//   the state 0x10's +0x28 pedal, +0x2C speed, +0x30, +0x34 top speed, +0x60
+//          damage, +0x68 crash record, +0x74 damage effect (slot 110,
+//          0x0055F3F0, 0x0055F7B0)
+//   0x00561A30's list: an SC4List (4 bytes, the sentinel; 0x00414270 and
+//          0x00413FE0), nodes +0 next, +4 previous, +8 the occupant
+//   0x00561A30's box: the 0x18-byte record of 0x00466E10 (low x y z, high
+//          x y z as slot 10 fills it)
 #pragma once
 
 #include <cstddef>
@@ -155,7 +168,17 @@ inline constexpr std::size_t kType = 0x04, kTimer = 0x10;
 inline constexpr std::size_t kRecord = 0x64, kRecord2 = 0x68, kEntries = 0x6C, kEntry = 0x70, kObject74 = 0x74;
 inline constexpr std::size_t kRef78 = 0x78, kFloat8C = 0x8C, kByte228 = 0x228;
 inline constexpr std::uint32_t kWait = 0xD, kParked = 0x10, kPlace = 0x15, kDrive = 0x1E;
+// Part vb7's (the state 0x10's controls: slot 110, 0x0055F3F0, 0x0055F7B0).
+inline constexpr std::size_t kPedal = 0x28, kSpeed = 0x2C, kFloat30 = 0x30, kSpeed34 = 0x34, kDamage = 0x60;
 } // namespace state
+
+// The template's entry (its +0x64, else SC4AutomatonTemplate::FindInherited64
+// on +0xC) (part vb7).
+namespace entryField {
+inline constexpr std::size_t kSpeed = 0x08;      // the top speed (slot 110 copies it to the state's +0x34)
+inline constexpr std::size_t kMass = 0x48;       // 0x0055F7B0 divides the push by it
+inline constexpr std::size_t kMostDamage = 0x5C; // 0x0055F3F0: injured from half of it, crashed at it
+} // namespace entryField
 
 namespace deque {
 inline constexpr std::size_t kStart = 0x00, kFinish = 0x10, kMap = 0x20, kMapSize = 0x24, kSize = 0x28;
@@ -256,7 +279,12 @@ inline constexpr std::size_t kMakeModel = 0x18C;      // 99: the core's 0x0050EB
 inline constexpr std::size_t kSlot177 = 0x2C4;        // 177: cSC4Vehicle 0x0055DD10, (shown), ret 4
 inline constexpr std::size_t kSlot187 = 0x2EC;        // 187: cSC4Vehicle 0x0055ED10, five words, ret 0x14
 inline constexpr std::size_t kSlot188 = 0x2F0;        // 188: cSC4Vehicle 0x0055C480, (from, to), ret 8
-inline constexpr std::size_t kSlot189 = 0x2F4;        // 189: cSC4Vehicle 0x00561D20 (part vb7), four words, ret 0x10
+inline constexpr std::size_t kSlot189 = 0x2F4;        // 189: cSC4Vehicle 0x00561D20 (part vb7), (from, to, hit, normal), ret 0x10
+// Part vb7's.
+inline constexpr std::size_t kGetSpeed = 0x98;          // 38: the core's 0x004FACF0, the float +0x94 in ST0
+inline constexpr std::size_t kHandleCollision = 0x104;  // 65: cSC4Vehicle 0x0055C8C0, (hit, a word), ret 8
+inline constexpr std::size_t kRememberOccupant = 0x2D4; // 181: cSC4Vehicle 0x00561910, (deque, count), ret 8
+inline constexpr std::size_t kSlot190 = 0x2F8;          // 190: cSC4Vehicle 0x005620E0, (push*, share*), ret 8
 // The occupant part's (+4).
 inline constexpr std::size_t kPartType = 0x1C;        // 7: 0x006BDD80, the occupant type (+0x28)
 inline constexpr std::size_t kPartFlags = 0x84;       // 33: 0x005E8BE0, the byte +0x33
@@ -273,11 +301,15 @@ inline constexpr std::size_t kInCity = 0x188;         // 98 (part vb5): (x, z), 
 inline constexpr std::size_t kSlot33 = 0x84;          // 33: an object whose slot 6 (cell x, cell z, 0) answers an occupant
 inline constexpr std::size_t kSlot84 = 0x150;         // 84: an object whose slot 13 (x, z) is a height in ST0
 inline constexpr std::size_t kCellCorner = 0x180;     // 96: (cell x, cell z, float* x, float* z), ret 0x10
+// Part vb7's.
+inline constexpr std::size_t kCellCountX = 0x174;     // 93: the city's size in cells in x
+inline constexpr std::size_t kCellCountZ = 0x178;     // 94: in z
 } // namespace city
 // Part vb5's: the terrain (0x00B43CF4).
 namespace terrain {
 inline constexpr std::size_t kHeight = 0x34;          // 13: (x, z), ret 8, a float in ST0
 inline constexpr std::size_t kSlot30 = 0x78;          // 30: (x, z), ret 8, a float in ST0
+inline constexpr std::size_t kUnderWater = 0x88;      // 34 (part vb7): (cell x, cell z), ret 8, a bool
 } // namespace terrain
 namespace map {
 inline constexpr std::size_t kChoose = 0x18;          // 6: (const float* weights, word), ret 8
@@ -316,6 +348,20 @@ inline constexpr std::size_t kServiceCount = 0x6C;    // 0x00B43D54's slot 27: (
 inline constexpr std::size_t kOccupantHeight = 0xE0;  // an occupant's slot 56: (x, z), ret 8, a float in ST0
 inline constexpr std::size_t kOccupantFlag = 0x20;    // an occupant's slot 8: (flag), ret 4, a bool
 inline constexpr std::uint32_t kTunnelIid = 0x8A4BD52B; // the interface slot 132 asks the occupants for
+// Part vb7's: slot 189's cell test (0x00561A30).
+inline constexpr std::size_t kManagerInCells = 0xA4;        // the occupant manager's (0x00B43D0C) slot 41: (list*, low cell*, high cell*, type, limit), ret 0x14, a bool
+inline constexpr std::size_t kManagerFirstInCell = 0x84;    // its slot 33: (occupant* out, cell x, cell z, type), ret 0x10, a bool
+inline constexpr std::uint32_t kPowerPoleType = 0x2890D4DE; // the occupant type slot 41 is asked for
+inline constexpr std::uint32_t kPowerPoleIid = 0xA8C86142;  // the power pole interface
+inline constexpr std::size_t kPoleCell = 0x20;              // the pole's slot 8: (int* x, int* z), ret 8: its cell
+inline constexpr std::uint32_t kLandfillType = 0x6A11BD2B;  // the occupant type slot 33 is asked for
+inline constexpr std::size_t kSupportPylon = 0x124;         // a network occupant's slot 73: IsSupportPylonPresent, a bool
+inline constexpr std::size_t kLotAt = 0x18;                 // city slot 33's object's slot 6: (cell x, cell z, 0), ret 0xC: the lot or null
+inline constexpr std::size_t kLotState = 0x84;              // the lot's slot 33: GetState, an int
+inline constexpr std::size_t kLotZoneType = 0x7C;           // the lot's slot 31: GetZoneType, an int (7 the farms)
+inline constexpr std::size_t kLotBuilding = 0xC0;           // the lot's slot 48: GetBuilding, or null
+inline constexpr std::size_t kBuildingOccupant = 0x0C;      // the building's slot 3: an object whose slot 10 is the box
+inline constexpr std::size_t kBoundingBox = 0x28;           // that object's slot 10: (float* low, float* high), ret 8
 
 // The stream slots (cIGZOStream / cIGZIStream), each one argument.
 namespace stream {
