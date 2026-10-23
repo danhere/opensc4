@@ -27,7 +27,8 @@
 // and 0x0093878E (outside the range); the shared getters 0x00949B2B (slot
 // 19) and 0x00949B32 (18), the shared stubs 0x00949ADE (7), 0x00949B47 (22
 // to 25) and 0x00949B73 (36); and the STLport map and list code the class
-// uses (0x009490C9 to 0x009498A7 but 0x00949348). Ours call each other
+// uses (0x009490C9, 0x00949188, 0x009491A5 to 0x009495CE but 0x00949222
+// and 0x00949348, 0x00949873 to 0x009498A7). Ours call each other
 // directly where the game does; a virtual call stays one.
 //
 // The game's methods answer a byte (AL) over whatever its last call or
@@ -771,8 +772,7 @@ uint32_t __fastcall MixerSetGridColumns(char* part, void*, uint32_t columns)
 }
 
 // The game's 0x00948ED1 (slot 32, `ret 0xC`): a cell of the byte grid. AL 0
-// over the row outside 3 by 3; else AL 1 (the cell's index + 0x5D in EAX,
-// below 0x100).
+// over the row outside 3 by 3; else AL 1 over the row + 0x1F.
 uint32_t __fastcall MixerSetGrid(char* part, void*, uint32_t row, uint32_t column, uint32_t value)
 {
     OPENSC4_FIRST("MixerSetGrid");

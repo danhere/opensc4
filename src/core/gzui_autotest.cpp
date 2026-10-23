@@ -5778,6 +5778,13 @@ void DriveMixAdd()
         Mix(At<uint32_t>(mixer, 0x108));
         Mix(At<uint32_t>(mixer, 0x110));
     }
+    // The tables slot 5 keeps (+0x24) are let go without a release: the
+    // destructor releases them before the scores, whose Shutdown deletes its
+    // table again (the game's own; an unmuted game, whose COM makes the
+    // score, died there on both sides).
+    char* const tables = At<char*>(mixer, 0x24);
+    for (char* node = At<char*>(tables, 8); node != tables; node = TreeNext(node))
+        At<void*>(node, 0x14) = nullptr;
     EndMixer(mixer);
     std::remove(path.c_str());
 }
