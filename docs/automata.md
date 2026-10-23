@@ -2316,7 +2316,7 @@ Reimplemented the same way: one writer, then an independent audit of all 22 agai
 
 `OPENSC4_TEST_AUTOMATA_VEHICLE=1`, with `OPENSC4_TEST_AUTOMATA=2` or more, drives the base and cSC4Vehicle on the test day at the game's addresses, so the same test runs on both sides (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). Vehicles run on frames, so everything in the fingerprint comes from objects the test makes and removes itself. The automata's generator (0x00B21D78) is saved and seeded first and put back after: the drawn times are the same on both sides, and the game's own draws do not change.
 
-Into the fingerprint as ` V<object>,<accessors>,<queries>,<nearest>,<flags>,<setters>,<save>,<texts>,<life>,<move>,<frame>,<enter>` (vb2's four after the flags, vb3's three at the end; the flags 4 when vb3's part ran):
+Into the fingerprint as ` V<object>,<accessors>,<queries>,<nearest>,<flags>,<setters>,<save>,<texts>,<life>,<move>,<frame>,<enter>,<states>,<ahead>,<steps>` (vb2's four after the flags, then vb3's three and vb4's three; the flags 4 when vb3's part ran, 8 when vb4's did):
 
 - Four vehicles from the factory, each held by one reference: their fields after construction; a base object built and deleted (0x005544D0, 0x005552F0); QueryInterface for six interfaces at both addresses and through the occupant part (each AddRef given back) and GetGZCLSID.
 - The accessors (addresses as offsets; the manager compared with city slot 43; the deque's back with its expected address).
