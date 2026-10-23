@@ -998,6 +998,63 @@ Both batches: all five legs the same (r1's `pm` was BA41AF31, before the test ha
 
 **What is left:** of part u11's range, 19 of the 29 it left (its adjustors and the other classes' small functions, which go with their classes); of u12's range, the 45 of slice 1 (the property handlers 0x0094CE28, 0x0094D17E, 0x0094E33B to 0x00951084 and the large 0x0094D641, STLport map and tree code 0x0094C92D to 0x0094CDB5, the shared AddRef 0x0094D34F and small wrappers 0x0094D147 to 0x0094D490). With the readers, makers, loaders and lookups ours, the handlers are the natural next slice: every helper they call is now ours.
 
+## Part u12, slice 3: the property handlers and the variable table's words
+
+The third slice makes ours the property handlers that run in a game, and the function that gives the UI script variable table its words. They are in `src/core/gzui_props.cpp` too, two groups, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.propwords` | 1 | 0x0094D641: the 64 words of a window's script properties given to the variable table |
+| `framework.uiscript.prophandle` | 8 | the handlers of eight controls' interfaces: 0x0094E33B (0xC2AFA76F), 0x0094E516 (0x212CDC1F, the text control), 0x0094E7C8 (0x231A1C57, the text edit), 0x0094EE39 (0x4132242B), 0x0094F757 (0x8810, the button), 0x0095002C (0xC12CEA13), 0x00950218 (0x21325207) and 0x00950AF6 (0x612CE0C3) |
+
+**The words.** 0x0094D641 (no arguments) is called once by the first LEGACY reader's constructor (0x0095B8C4) when it makes the variable table 0x00B63588 (part u11). It gives the table's slot 3 each word as a game string (SC4String::FromText, destroyed inline after) with its value: `clsid` -1, `iid` -2, `yes`, `true` and `on` 1, `no`, `false` and `off` 0, `GZWin` 0xE2BA00EE, `id` 0x100 to `transparent` 0x107, `font` 0xF000 to `outline` 0xF019 (`bkgcolor`, `forecolor`, `notify`, `gutters`, `style`, `left`, `right`, `center`, `flat`, `normal`, `sunken`, `raised`, `fill`, `nofill`, the six `colorfont...` colours, `align`, `image`, `imagetype`, `imagerect`), `comments` 0x108 to `commentskd` 0x10F, and the `winflag_...` words 0xF01A to 0xF026 (`winflag_visible` to `winflag_acceptfocus`). These are the keys the handlers look for.
+
+**The handlers** (cdecl: the window, its script's vector of pairs, and the pass, a byte: 0 first, 1 second) are kept as function pointers in a map (0x00B6358C) by the code that registers the controls (0x009512EB to 0x00953B2A). Each asks the window for its control's interface (the window's slot 0 with an out, released at the end) and, with one, reads the properties through the readers, makers, loaders and lookups of slices 1 and 2 (ours call our bodies directly) into the control's slots, the window's slots 53, 68 and 114, and back as script values:
+
+- 0x0094E33B (0xC2AFA76F), second pass only: a flags byte from every 0xF005 number pair (0xF006 1, 0x204 2, 0x205 8, 0x206 0xF, 0x207 0xD, 0x208 0xE, 0xF007 4, 0xF00B 0x20, 0xF00C 0x10, 0xF00E 0x40) to slot 12, the colours 0x200 to 0x203 as three bytes each to slot 10 with their index.
+- 0x0094E516, the text control: first pass, the alignment 0xF015 (0xF008 as 4) to slot 21; second, `notify` and the flags 0x300 and 0x301 to slot 7 (0x301 off also the window's slot 68 with 0x20000), the font number to slot 19 and back (0x0094C222; else the font's text back, 0x0094C255), the fore and background colours to slot 9, the gutters to slot 23 (0, 0 without), 0x305 to slot 25.
+- 0x0094E7C8, the text edit: second pass, its flags (slot 80 through 0x0094C719 with the table 0x00AD56C8: 0x400 1, 0x300 2, 0x401 4, 0x402 8, 0xF019 0x10, 0x301 0x20, 0x403 to 0x406 0x40 to 0x200, 0x415 0x400, 0x416 0x800, 0x417 0x8000, 0x418 0x1000, 0x419 0x2000) to slot 77, the font, the six font colours to slot 12, 0x407 and 0x408, 0x40B's colour with the outline to slot 37, 0x409, the gutters, 0x40C to 0x410, and two images by key ("{%x,%x}", 0x0094C4E0) with their rectangles to slots 88 and 87, written back under 0x8B4BFEFC and 0x8B4BFEFD.
+- 0x0094EE39 (0x4132242B): first pass, every 0x502 text to slot 7 (the text, -2, 0), 0x503, 0x501, 0x505, 0x506; second, 0x402 and 0x401 to slot 35, the font through 0x00913C72's slot 5 to slot 38, three colours, 0x408, the outline, 0x40B's "(%d,%d,%d)(%d,%d,%d)" as two colours to slot 55, 0xF00B, 0x504 and two pairs.
+- 0x0094F757, the button: first pass, 0xA02 to slot 5; second, ten flags to slot 5, the style 0xF005 as a kind (0xA00, 0xA0C, 0xA0D 3, 0xA09 1, 0xA0A, 0xA0B 2, 0xA0E, 0xA0F, 0xA1B 4), the font (else the default, the `main9` font through 0x00913C72's slots 38 and 5), six colours to slot 23, the gutters by the commas of their text ("(%d,%d)" to slot 30, "(%d,%d,%d,%d)" to slot 29), the image (its area, slot 12, copied) with the kind to slot 12, the alignment, the 0xA10 text and 0xA12's text by key (0x0094C58D) to slot 35, 0xA11, 0xA18 (else 0x1000000) and two keys as 8-byte values under 0x0A5BE39D and 0x4A5BE2F8 to slot 45.
+- 0x0095002C (0xC12CEA13): first pass, the 0xF018 rectangle to slot 8 and the flag 0x10 to slot 11; second, 0xB00 (at most 0xFF) times 1/255 as a float to slot 6, three flags to slot 11, the image to slot 4 and its width and height (slots 9 and 10) to the window's slot 53.
+- 0x00950218 (0x21325207): first pass, 0x40A through slot 75 to slot 5; second, the 0xC00 range (the larger to slot 8, the smaller to slot 6), 0xC01 (0xC03 as 2, else 1) to slot 10, the image with the 0xF018 rectangle to slot 12.
+- 0x00950AF6 (0x612CE0C3): first pass, 0x1004, 0x1005 and 0x40A; second, 0x1000, five flags to slot 6, the font (else the default), three colours, the image to slot 14, the alignment, the gutters, and five colours to slot 31.
+
+The first pass of the text control, the text edit and 0x4132242B ends with 0x304: whether the key is there, as a boolean value (0x00915E8E) under 0xDACF8F9C through the window's slot 114. Images and texts by key are written back as the resource key (0x856DDBAC or 0x2026960B and the two words) by 0x0094C1A4 and as the two words by 0x0094C1DA.
+
+**What ours keep.** The handlers write into their own argument slots (the window's is the out of several finds, of a scan and of 0x0094E33B's flags byte, kept in its top byte), so ours are given those slots by a thunk. Where the game pushes `SETcc DL` after a number finder, the bool sits over the EDX the finder left (its value's slots); ours push the same, and the text edit's outline over the colour (`SETNE AL`). Where the game pushes a dword of which it wrote only the low byte, or a local it never wrote (the text edit's outline when 0xF019 is not there, some colour bytes), the bytes above are its stack's leftovers; ours are 0. 0x0094EE39's pair of colours: the second triple's colour is made first and left on the stack under the first's.
+
+### Testing
+
+`OPENSC4_TEST_PROPHANDLE=<day>` is a test of its own (the fingerprint's `ph` part). Two stages, each logged as `autotest: prophandle: <stage> <hash>`:
+
+- **words:** 0x0094D641 by address twice with a variable table of our own in the global's place (its slot 3 hashes each word's text and value; the game's put back);
+- **handle:** every handler by address (EBX, ESI, EDI and EBP checked kept; the argument slots read back) with a window of our own (slot 0 gives a control of our own for the handler's interface, or none for the first call; slots 53, 68 and 114 hash what they get) on four vectors of pairs of our own (every read succeeding; the other branches; malformed texts and values that are not numbers; none), both passes, the UI script loader's held object ours (images of our own for odd instances, texts for odd instances; the game's put back). The controls hash every call: the slot and its arguments (words; a string's text; a rectangle's ints; which image; whether a pointer is there, for fonts; the low byte where the game leaves its stack's leftovers above). The number values' slots 73 and 75 leave a mark in EDX. Addresses never go into the hash (the window is 256-aligned, so the window argument's slot after 0x0094E33B is hashed by its top and low bytes).
+
+With the groups on, each of the 9 logs its first call in a test run. `ph` is BAAA5D6E (muted), the same on both sides; the stages words 3667D729 and handle BAAA5D6E. With the EDX bools broken on purpose, side B's `ph` differs from the text control on.
+
+The nine were checked against the disassembly (every path: calls, their objects, arguments and order, pushes left on the stack across another call, memory written and in which slots, byte against dword writes and tests, signed against unsigned compares, the switches, which scans are checked, thiscall argument counts, strings made and destroyed in the game's order, registers kept, the address entries) by the author and by an independent audit. The audit also found the call through the map (0x00957BFB: `call edi`, then nothing reads EAX, ECX or EDX) and checked that no jump or call lands inside the first five bytes of any of the nine. It found no difference in what they do; one difference in order, which nothing can see (0x0094EE39 asks for the colour singleton twice before its two colours, ours asked before each), and three comments to fix. All four were fixed.
+
+### Parity
+
+Batches `gzu12c-r1` (before the audit's fixes) and `gzu12c-r2` (the final build), 2026-10-23, muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.uiscript.*` (with `propwords` and `prophandle`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu12c`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | r1 12 same; r2 11 same, Making Money d0090 partly (see below) |
+| 12 saves, 7 days, `OPENSC4_TEST_PROPREAD=2 OPENSC4_TEST_PROPMAKE=2 OPENSC4_TEST_PROPHANDLE=2` | 12 | 12 same; `ph` BAAA5D6E in every run |
+| Making Money d0000, 4 days, the same three tests | 1 | same; `ph` BAAA5D6E |
+
+r2's Making Money d0090 was one odd first run: side B's first run differed from day 2 on, its second and third runs and all three of side A's agreed (A 1 outcome, B 2, shared 1). The same save was the same in r1, in r2's test leg and again alone on the r2 build (8 of 8 days on the first pair), as with the first-run flakes on d0090 of earlier batches.
+
+Batch `gzu12c-r3`, after merging main (with part u13), the same five legs with u13's `widgets` and `widgetgen` on side B too: all the same on the first pair (1, 1, 12, 12 with `ph` BAAA5D6E, 1).
+
+**Reached:** in every plain (muted) leg side B logs 22 first calls: all 9 of this slice (the words when the first LEGACY reader is made, every handler when a city's UI loads) and 13 of slices 1 and 2; the text maker 0x0094C255 is still reached only by the test.
+
+**What is left of u12:** 36 of the 49 functions. The six handlers that did not run in the coverage runs or the plain legs: 0x0094CE28, 0x0094D17E, 0x0094F36D, 0x009503AB, 0x009505B6 and 0x00951084 (the natural next slice, the same pattern). Then, staying the game's: the STLport map and tree code 0x0094C92D to 0x0094CDB5 (22 functions, but for the text finder 0x0094CCD9), the AddRef 0x0094D34F that 14 vtables share, and seven small functions that belong to other classes, not to the handlers: 0x0094D147 and 0x0094D163 (three strings made and destroyed), 0x0094D356 and 0x0094D3D4 (maps copied), 0x0094D452 and 0x0094D471 (deleting destructors), 0x0094D490 (a constructor). Their callers are in parts u13 to u16's ranges, and they go with those classes.
+
 ## Part u13: the stock widgets' registrations and GZWinGen's property handler
 
 0x00951269 to 0x00953FFF holds 17 functions, all of which ran in the coverage runs: 16 registrations, one for each stock widget class, and GZWinGen's property handler. The LEGACY reader's constructor 0x0095B8C4 calls the 16 (in the order FlatRect, Text, TextEdit, ListBox, Combo, Btn, BMP, Slider, Scrollbar, LineInput, Spinner, Outline, TextTicker, Folders, Custom, Gen, with other classes' among them) whenever it makes the shared variable table (part u11). Ours: all 17, in `src/core/gzui_widgets.cpp`, two groups, off by default, installed at Attach:
