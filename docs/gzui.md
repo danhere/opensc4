@@ -79,7 +79,7 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u8** | 0x00948E63 to 0x0094A078 | 36 of 71 | 7 | **Ours** (below): the framework's sound mixer 0xBDDA72DD (constructor 0x00949902); 5 adjustors, 5 shared getters and stubs, 20 STLport functions and 5 shared reference and list functions stay the game's |
 | **u9** | 0x0094AF19 to 0x0094BBFD | 31 of 54 | 26 | **Ours** (below): the UI script loader 0xFA3562FB (the framework's system service that makes the UI file parser and builds windows from UI scripts) and its director; 19 adjustors, the base service's two AddRef and Release adjustors, the director's ID getter and the shared list node stay the game's |
 | **u10** | 0x0094A079 to 0x0094AF18, 0x0094BBFE to 0x0094BF3B | 48 of 54 | 25 | **Ours** (below): the MP3 decoder director 0x1CEC20BE ("HitMP3Decoder"), its stream 0x3CEC2B47 and maker 0x9CEC2B58, the decoder's feed, decode, reset, frame header and ID3 size; the UI script root holder 0x5A354595's slots, its vector's insert and copies, the rectangle test; two jump thunks, a shared stub, the ID getter and the holder's two folded slots stay the game's |
-| u11 | 0x0094C000 to 0x0094C8FF | 50 | 35 | The framework window's small methods |
+| **u11** | 0x0094C000 to 0x0094C8FF | 21 of 50 | 35 | **Ours** (below): the rest of the UI script root holder 0x5A354595 (constructor, slot 4, destructors, the vector's constructor, push and erase) and the LEGACY reader 0xFA450242's own slots; 8 adjustors, helpers that take their arguments in registers and other classes' small functions stay the game's |
 | u12 | 0x0094C900 to 0x00951268 | 49 | 16 | The window's script properties (18.7 KB) |
 | u13 | 0x00951269 to 0x00953FFF | 17 | 17 | The widget readers that run (11.8 KB) |
 | u14, u15, u16 | 0x00954000 to 0x0095BBFF | 98 | 16 | The other widgets' readers and helpers (31 KB) |
@@ -816,7 +816,7 @@ The test's streams made by the factory get their frame header dwords set (2 chan
 
 With the groups on, each of the 48 logs its first call in a test run. `mp` is 2A108216 (muted), the same on both sides; the stages 9C99BDEC, B5590718, 2A9B6347 and 2A108216. The music's reads give 4608 of 4608 bytes at 44100 Hz, 2 channels.
 
-An independent audit compared all 48 with the disassembly: ret sizes against the thunks, arguments and their order, the vtable offsets and addresses called (and their conventions), call order, the reference counts, field offsets, signed and unsigned compares and divisions, loops, EAX on every path, the constructors' writes, the x87 sequence of Open and the address entries' expected bytes. It found one difference: Close's EAX when the decoder is null (the game loads each buffer into EAX before testing it, so it answers the right buffer's free's EAX, else 0, not the left one's or the file's); fixed. Also matched now: the upper bytes of the flag Open passes to slot 18 (the read's EAX with AL replaced; slot 18 reads only the byte). Its notes on the text (a negative limit is none, the path's buffer is +0x10D8, a first-call name) are fixed. It also found that `SC4UI::F43AB70` (0x0043AB70, in ui.toml) is cdecl, not thiscall as its entry says; ours calls it as cdecl, and the entry is left for a change of its own.
+An independent audit compared all 48 with the disassembly: ret sizes against the thunks, arguments and their order, the vtable offsets and addresses called (and their conventions), call order, the reference counts, field offsets, signed and unsigned compares and divisions, loops, EAX on every path, the constructors' writes, the x87 sequence of Open and the address entries' expected bytes. It found one difference: Close's EAX when the decoder is null (the game loads each buffer into EAX before testing it, so it answers the right buffer's free's EAX, else 0, not the left one's or the file's); fixed. Also matched now: the upper bytes of the flag Open passes to slot 18 (the read's EAX with AL replaced; slot 18 reads only the byte). Its notes on the text (a negative limit is none, the path's buffer is +0x10D8, a first-call name) are fixed. It also found that `SC4UI::F43AB70` (0x0043AB70, in ui.toml) is cdecl, not thiscall as its entry says; ours calls it as cdecl, and the entry was left for a change of its own (part u11 fixed it).
 
 ### Parity
 
@@ -837,3 +837,60 @@ In `gzu10-r2` itself the first Making Money leg was "partly": the first side-B r
 **Part u10 complete:** with part u9, 0x0094A079 to 0x0094BF3B is ours but for the adjustors, the two jump thunks, the shared stub 0x0094A5EA, the two ID getters, the shared list node and the root holder's two folded slots.
 
 **What is left for u11:** 0x0094C000 to 0x0094C8FF (50 functions, 35 of which ran), the framework window's small methods; it begins with the rest of the root holder: the vector's push 0x0094C037, constructor 0x0094C05E and free 0x0094C113, the holder's constructor 0x0094C0AF, its adjustors 0x0094C0DF and 0x0094C0E7, slot 4 0x0094C0EC, destructor 0x0094C144 and deleting destructor 0x0094C188.
+
+## Part u11: the root holder's life and the LEGACY reader
+
+0x0094C000 to 0x0094C8FF holds 50 functions: the rest of the root holder 0x5A354595 (part u10 has its slots), the LEGACY reader 0xFA450242 (the class the `LEGACY` tag of a UI script makes; part u9's director has its factory 0x0094AF90, its constructor 0x0095B8C4 is in part u16's range), and small functions of other classes. Ours: 21, in `src/core/gzui_legacy.cpp`, two groups, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.rootlife` | 7 | the root holder's constructor 0x0094C0AF, slot 4 0x0094C0EC, destructor 0x0094C144 and deleting destructor 0x0094C188; its vector's push 0x0094C037, constructor 0x0094C05E and erase 0x0094C113 |
+| `framework.uiscript.legacy` | 14 | the LEGACY reader's QueryInterface 0x0094C431, AddRef 0x0094C47C, Release 0x0094C483, destructor 0x0094C288, deleting destructor 0x0094C761, slots 4 to 7 and 9 (0x0094C30E, 0x0094C3CD, 0x0094C3E1, 0x0094C314, 0x0094C31E) and its two faces' slots (0x0094C3F5, 0x0094C413, 0x0094C3A1, 0x0094C375) |
+
+**The root holder's life.** The constructor puts interim vtables (0x00AD51F0 and 0x00AD5220, every slot the stub 0x005D4A10), makes the vector and puts the real ones. The vector (at +8: begin, end, capacity, +0xC unused, +0x10 its allocator, +0x14 unused) makes a counted allocator of 8 bytes (vtable 0x00AD1DC0, its count at +4) with SC4::operator_new, holds it and takes a block of 8 pointers from its slot 3. Slot 4 holds a window (its slot 1) and pushes it: with room it is put at the end, else the insert 0x0094BF3B grows the vector. The destructor releases every window, empties the vector (the erase moves the tail down with 0x00407A50, a memmove of pointers) and ends in SC4AttrVector::Destruct (0x009446E4: the block back to the allocator, the allocator released). Release (part u10) calls the deleting destructor at 1.
+
+**The LEGACY reader** (0x20 bytes): the vtable 0x00AD5360, the face 0x5A356159 at +4 (0x00AD5344), the face 0x9A4527CB at +8 (0x00AD5324), the count +0xC, the window it reads for +0x10, a value from its parent +0x14, another object +0x18 and a flag byte +0x1C. Every reader holds the variable table 0x00B63588 (0xBA2E7954, part u4) its constructor makes once and fills with the widget readers' words; the destructor releases it and forgets it when that answers 0.
+
+- QueryInterface gives the reader for 1 and 0x1A356083, its faces for 0x5A356159 and 0x9A4527CB (AddRef through the primary vtable); the faces' slots 0 to 2 are adjustors to the primary's.
+- Slot 4 answers the variable table, 7 (and the +8 face's 4) sets the flag, 9 takes a parent: the old value released, the parent's interface 0x9A4527CB's slot 3 the new value (held). The +8 face's slots 5 and 6 set the window and the object (held, the old released; nothing when the same).
+- Slots 5 and 6 pass on to the window's slots 63 and 64 (tail jumps), the +4 face's 4 and 5 to its 54 and 47 (answering 1); without a window 0.
+- The destructor: with the flag, the window's slot 11 gives an object that gets slot 15 with the window, then the window's slot 5; the window, the value, the variable table and the object released.
+
+**Still the game's in the range:** the adjustors 0x0094C0DC and 0x0094C0E4 (the root holder's +4 face) and 0x0094C4B8 to 0x0094C4D8 (the reader's faces), each a jump into one of ours; helpers that take their arguments in registers (property makers that give a window's slot 114 a new 0x14-byte property, and lookups in vectors of pairs: 0x0094C1A4, 0x0094C1DA, 0x0094C222, 0x0094C255, 0x0094C4E0, 0x0094C58D, 0x0094C64E, 0x0094C675, 0x0094C6C7, 0x0094C719); and other classes' small functions: AddRefs at +8 (0x0094C4B1) and through 0x0087B212 (0x0094C7CE, 0x0094C7E5), a rectangle's emptiness 0x0094C49A, a QueryInterface 0x0094C813, an interface test 0x0094C835, a destructor 0x0094C851, three tree erasers (0x0094C86E, 0x0094C89B, 0x0094C8C8), a map's lower bound 0x0094C8F5 and 0x0094C77D (an object at +0x18 handed to an interface 0x5386D516 and released; no vtable of the reader holds it). They go with the classes they belong to (parts u12 to u16).
+
+Quirks kept: the vector's constructor calls through a null allocator when the memory is not there; the reader's QueryInterface answers AL 0 over the asked interface's upper bytes; SetParent uses its argument's own stack slot as the out of the parent's QueryInterface; every reader's destructor releases the shared variable table, so the last one destroys it and the next constructor makes it again (and has every widget reader add its words again).
+
+The methods answer a byte. Ours give the game's EAX where it comes from a call or a value, and 0 above the byte (or 0) where the game leaves its caller's EAX (the root holder's slot 4 for no window, the flag setter, SetParent and the face setters with nothing to do, slot 6 and the +4 face's slots without a window).
+
+Also fixed: `SC4UI::F43AB70` (0x0043AB70, ui.toml) is cdecl (two game strings' bodies compared byte for byte, EAX 1 when the same, else 0), not thiscall; every caller already called it as cdecl.
+
+### Testing
+
+`OPENSC4_TEST_LEGACY=<day>` is a test of its own (the fingerprint's `lg` part). It drives the 21 through their slots and addresses with root holders and LEGACY readers made by the game's factories and constructors (and on memory of its own), and windows, parents, values and objects of its own (each hashes every call it gets). Two stages, each logged as `autotest: legacy: <stage> <hash>`:
+
+- **root:** a root holder by the UI script director's factory (the constructor's fields, the vector's 8 places, the allocator's count), 12 windows added by slot 4 and by address (the vector grows to 16) and none twice, 6 pushed by address (it grows to 32), erased in the middle, empty and at the end; released to nothing (the deleting destructor releases every window); the constructor on memory of its own with the destructor and with the deleting destructor (flag 0); a vector of its own: the constructor, 11 pushes, two erases, SC4AttrVector::Destruct; every window's count at the end.
+- **legacy:** a reader kept for the whole stage (so the shared table stays), then four readers by the factory, by slot and by address in turn: QueryInterface with six interfaces (by the primary and the +8 face), slot 4, the window's calls without a window, five parents (none, one without the face, a face without a value, two with values), the window and the object set five times each (the same again, another, none), the window's four calls, the flag set by the primary slot, the face's and the address; released to nothing with the flag on and the window's slot 11 giving an object, giving none, and with the flag off; the constructor on memory of its own with the destructor and the deleting destructor (flag 0); every object's count at the end.
+
+With the groups on, each of the 21 logs its first call in a test run. `lg` is 831BDB32 (muted), the same on both sides; the stages 93339387 and 831BDB32.
+
+An independent audit compared the 21 with the disassembly (memory written and its order, calls, their arguments and order, null and zero counts, EAX on every path, bytes popped, the address entries): no difference in what they do. It found three comments to fix (the flag setter's EAX, the held setters' "ours 0", the order the destructor releases in); fixed.
+
+### Parity
+
+Batches `gzu11-r1` (before the comment fixes) and `gzu11-r2` (the final build), 2026-10-23, muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.uiscript.*`, `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu11`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_LEGACY=2` | 12 | 12 same; `lg` 831BDB32 in every run |
+| Making Money d0000, 4 days, `OPENSC4_TEST_LEGACY=2` | 1 | same; `lg` 831BDB32 |
+
+Both batches: all five legs the same on the first pair.
+
+**Reached:** in every plain (muted) leg side B logs 18 first calls: all 7 of the root holder's (every UI script read makes, fills and destroys one) and 11 of the reader's (every `LEGACY` tag makes one, sets its parent, window, object and flag, and releases it); slot 6 and the +4 face's two slots are reached only by the test. The coverage runs saw 35 of the range's 50 run.
+
+**Part u11 complete:** the root holder 0x5A354595 is ours but for its adjustors and two folded slots, the LEGACY reader's own slots are ours but for its adjustors and its constructor (part u16's range).
+
+**What is left for u12:** 0x0094C900 to 0x00951268 (49 functions, 16 of which ran), the window's script properties; the small functions part u11 left in its range go with their classes.

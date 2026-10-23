@@ -264,9 +264,9 @@ uint32_t __fastcall LgRelease(char* self, void*)
 
 // The game's 0x0094C288: the vtables back; the window, when there is one:
 // with the flag its slot 11's object (when one) gets slot 15 with the
-// window, then the window's slot 5; the window released. The value and the
-// object released, the variable table released (and forgotten when that
-// answers 0). Each released field cleared. EAX the last call's (the
+// window, then the window's slot 5; the window released. Then the value,
+// the variable table (forgotten when that answers 0) and the object
+// released, in that order. Each released field cleared. EAX the last call's (the
 // caller's with none; ours 0).
 uint32_t __fastcall LgDestruct(char* self, void*)
 {
@@ -320,8 +320,7 @@ void* __fastcall LgTableSlot(char*, void*)
 }
 
 // The game's 0x0094C314 (slot 7, `ret 4`; also through 0x0094C4D8): the
-// flag the argument's byte; AL that byte over the argument (the game's
-// EAX is the caller's above it; ours 0).
+// flag the argument's byte; AL that byte over the caller's EAX (ours 0).
 uint32_t __fastcall LgSetFlag(char* self, void*, uint32_t flag)
 {
     OPENSC4_FIRST("LgSetFlag");
@@ -358,7 +357,8 @@ uint32_t __fastcall LgSetParent(char* self, void*, void* parent)
 }
 
 // A held pointer set: unless it is the same, the new one held, the old
-// released, the new kept. EAX the last call's (the caller's with none).
+// released, the new kept. EAX the last call's (the caller's with none;
+// ours 0).
 uint32_t SetHeld(void*& field, void* value)
 {
     uint32_t eax = 0;

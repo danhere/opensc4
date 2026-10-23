@@ -5307,7 +5307,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "53 56 8B F1 8B 4E 10 33"
-source = "Name ours. The vtables back; the window +0x10 when there is one: with the flag +0x1C its slot 11's object (when one) gets slot 15 with the window, then the window's slot 5; the window released. The value +0x14 and the object +0x18 released, the variable table 0x00B63588 released (and forgotten when that answers 0); each released field cleared. EAX the last call's (the caller's with none; ours 0). Called by 0x0094C761. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
+source = "Name ours. The vtables back; the window +0x10 when there is one: with the flag +0x1C its slot 11's object (when one) gets slot 15 with the window, then the window's slot 5; the window released. Then the value +0x14, the variable table 0x00B63588 (forgotten when that answers 0) and the object +0x18 released, in that order; each released field cleared. EAX the last call's (the caller's with none; ours 0). Called by 0x0094C761. Ours in framework.uiscript.legacy (docs/gzui.md, part u11)."
 
 [[entry]]
 name = "cGZUIScriptLegacy::TableSlot"
