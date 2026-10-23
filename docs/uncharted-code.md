@@ -32,7 +32,7 @@ Two signals did most of the grouping. Strings, imports and Function ID names say
 | 0x008D8000 to 0x008DA8BF | 19 | 3 | `GZBuffer` 2D blits (`TileBlit` 0x008D8BC0), flood fills and float helpers of the Software driver. All 19 ours ([pixels.md](pixels.md)) |
 | 0x008DA8C0 to 0x008F47FF | 359 | 5 | The stock **Software** graphics driver (vtable 0x00ACC4D8; `GDriverClass--Software`, `Maxis 3D GDriver Software 1.0`), its vertex pipeline (one 10.8 KB dispatcher at 0x008EFFF0 over ~100 variants) and its DirectDraw/DrawDib presentation. A few hash-table helpers folded in by the linker sit at 0x008EB800 to 0x008EC5FF (0x008EBA60 has 198 callers) |
 | 0x008F4800 to 0x008F67FF | 99 | 0 | Unidentified: no strings, no imports, never ran |
-| 0x008F6800 to 0x008FFFFF | 354 | 117 | Start of the HTML viewer: HTTP cache and cookies (`CookieData.ini`, `Maxis Network Cache\`), the `HTML Window`, then the parser. The viewer continues to about 0x0090BFFF (734 functions in all, 283 ran: the parser and layout run, the cache and cookies do not) |
+| 0x008F6800 to 0x008FFFFF | 354 | 117 | Start of the HTML viewer ([html.md](html.md)): HTTP cache and cookies (`CookieData.ini`, `Maxis Network Cache\`), the `HTML Window`, then the parser. The viewer runs from 0x008F673E to 0x0090AD25 (592 functions, 279 ran: the parser and layout run, the cache and cookies hardly do); the picture codecs follow |
 | **Block 3** 0x00940000 to 0x00941FFF | 96 | 23 | Framework helpers (text encoding 0x00940DA8, `TKDT` serialisation); 33 are thunks |
 | 0x00942000 to 0x00947FFF | 215 | 106 | The property set's XML reader and writer, a shuffle bag, an XML parser with its text tokenizer, the base `QueryInterface` at 0x009457C6. The property set itself and most of its values' code are below the block, from 0x00939040 ([gzui.md](gzui.md)) |
 | 0x00948000 to 0x0094BFFF | 205 | 71 | Containers and the UI script tree (`_children`, `_define`, `_null`; list node 0x0094B33A); 29 are thunks |
@@ -84,7 +84,7 @@ The survey's three blocks are not the only gaps. Ranges with few entries for the
 
 What is left out of the third-party line, so the 27,152 is if anything a little high: STLport templates instantiated inside game code (container helpers, which the project keeps as the game's), CRT functions linked outside the two CRT ranges. The font scaler was one of these until 2026-10-23.
 
-Judgment calls that are not in the table, with their sizes, in case the measure should leave out code that never runs in our setup: the Software driver (344 functions, 5 ran), the rasterizer's span variants (783, 10 ran), the network layer's FTP/HTTP/RAS (529, 99 ran) and the HTML viewer's cache and cookies. The stock DirectX and OpenGL drivers are already replaced wholesale by ours when it is on ([renderer.md](renderer.md)).
+Judgment calls that are not in the table, with their sizes, in case the measure should leave out code that never runs in our setup: the Software driver (344 functions, 5 ran), the rasterizer's span variants (783, 10 ran), the network layer's FTP/HTTP/RAS (529, 99 ran) and the HTML viewer's cache and cookies (169 functions, 16 ran; [html.md](html.md)). The stock DirectX and OpenGL drivers are already replaced wholesale by ours when it is on ([renderer.md](renderer.md)).
 
 ## What it does to the percentage
 
