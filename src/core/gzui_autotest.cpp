@@ -8987,6 +8987,745 @@ void FbFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kFbFingerprint{"filebrowser", 4, &FbFingerprint};
 const DayHook kFbDrive{"filebrowser", 4, &DriveFileBrowserDay};
+// ====================================================================================
+// Part u15: GZWinOptGrp's registration and property handler, the base
+// window's property handler and the LEGACY reader's dispatcher
+// (OPENSC4_TEST_OPTGRP). The four called by address (registers checked
+// kept after): the registration with part u13's variable table of our own;
+// the two handlers on windows and an interface of our own (every slot they
+// call hashes its number and what it gets), with part u13's values, a held
+// object giving images and texts, and the game's font and colour services;
+// the dispatcher on a reader of our own (a parent of our own at +0x14) with
+// real windows of the game's classes and a handler of our own put in the
+// handler map. Addresses never go into the hash.
+
+bool g_ogOn = false;
+uint32_t g_ogHash = 2166136261u;
+
+void OgStage(const char* name) { log::Write("autotest: optgrp: %s %08X", name, g_ogHash); }
+
+void DriveOgRegister()
+{
+    void** const tableAt = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *tableAt;
+    Mix(old ? 1u : 0u);
+    void* table[1] = {WrTableTable()};
+    *tableAt = table;
+    const uint32_t before = g_wrAdds;
+    // EAX is the game's free's: not hashed.
+    PmRegs regs = PmRegsOf(0x15151515u, kPmEsi, kPmEdi, 0xA0A0A0A0u, 0xA1A1A1A1u);
+    PmCall(addr::cGZUIScriptWidgets_RegisterOptGrp, regs);
+    Mix(g_wrAdds - before);
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Handlers, 0xA1336CC0));
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Interfaces, 0xA1336CC1));
+    *tableAt = old;
+    OgStage("reg");
+}
+
+// The argument slot the base handler's bools are pushed over (its third),
+// the list object it keeps there.
+uint32_t g_ogSlot = 0;
+
+// The window: slot 0 (part u13's QueryInterface) and the slots the two
+// handlers call, each hashing its number and what it gets: the bools' and
+// colour bytes' upper bytes only as which they are (clean, the argument
+// slot's address), slot 114 every value (the text list's texts).
+uint32_t __fastcall OgWinWord(WrWindow*, void*, uint32_t word)
+{
+    Mix(0x0C000040u);
+    Mix(word);
+    return 0x00C00040u;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall OgWinPair(WrWindow*, void*, uint32_t first, uint32_t second)
+{
+    Mix(0x0C000000u | Slot);
+    Mix(first);
+    Mix(second);
+    return 0x00C00000u | Slot;
+}
+
+uint32_t __fastcall OgWinArea(WrWindow*, void*, const int32_t* rect)
+{
+    Mix(0x0C000036u);
+    for (int i = 0; i < 4; ++i)
+        Mix(static_cast<uint32_t>(rect[i]));
+    return 0x00C00036u;
+}
+
+uint32_t OgUpper(uint32_t value)
+{
+    const uint32_t upper = value & ~0xFFu;
+    if (upper == 0)
+        return 0xC0u;
+    return upper == (g_ogSlot & ~0xFFu) ? 0xC1u : 0xC2u;
+}
+
+uint32_t __fastcall OgWinFlag(WrWindow*, void*, uint32_t mask, uint32_t set)
+{
+    Mix(0x0C000044u);
+    Mix(mask);
+    Mix(set & 0xFF);
+    Mix(OgUpper(set));
+    return 0x00C00044u;
+}
+
+uint32_t __fastcall OgWinCaption(WrWindow* self, void*, char* string)
+{
+    Mix(0x0C00004Au);
+    Mix(self->mode);
+    PrMixText(string);
+    return 0x00C0004Au;
+}
+
+uint32_t __fastcall OgWinColour(WrWindow*, void*, uint32_t red, uint32_t green, uint32_t blue)
+{
+    Mix(0x0C00006Bu);
+    Mix(red & 0xFF);
+    Mix(green & 0xFF);
+    Mix(blue & 0xFF);
+    return 0x00C0006Bu;
+}
+
+uint32_t __fastcall OgWinPut(WrWindow* self, void* edx, uint32_t key, char* value)
+{
+    if (key == 0xBACA6879u && value && g_ogSlot) {
+        // The text list (in the argument slot): its strings' texts, and
+        // which of the value's words holds it.
+        char* const list = *reinterpret_cast<char**>(static_cast<std::uintptr_t>(g_ogSlot));
+        Mix(0x11461u);
+        Mix(At<uint16_t>(value, 0xE));
+        uint32_t where = 0xFF;
+        for (uint32_t offset = 4; offset < 0x14; offset += 4) {
+            if (At<char*>(value, offset) == list)
+                where = offset;
+        }
+        Mix(where);
+        if (list) {
+            Mix(At<std::uintptr_t>(list, 0) == addr::cGZUIScriptWidgets_BaseListVtable ? 0x7AB1u : 0x7AB0u);
+            char* const begin = At<char*>(list, 4);
+            char* const end = At<char*>(list, 8);
+            Mix(static_cast<uint32_t>(end - begin));
+            for (char* string = begin; string < end; string += 0x14)
+                PrMixText(string);
+            Mix(At<uint32_t>(list, 0x10));
+        }
+        // The handler releases this one itself (an AddRef before).
+        Mix(self->mode);
+        Mix(key);
+        return 0x00C11461u;
+    }
+    Mix(self->mode);
+    return PmWindowPut(self, edx, key, value);
+}
+
+void** OgWindowTable()
+{
+    static void* table[115] = {};
+    table[0] = reinterpret_cast<void*>(&WrWindowQuery);
+    table[53] = reinterpret_cast<void*>(&OgWinPair<53>);
+    table[54] = reinterpret_cast<void*>(&OgWinArea);
+    table[56] = reinterpret_cast<void*>(&OgWinPair<56>);
+    table[64] = reinterpret_cast<void*>(&OgWinWord);
+    table[68] = reinterpret_cast<void*>(&OgWinFlag);
+    table[74] = reinterpret_cast<void*>(&OgWinCaption);
+    table[107] = reinterpret_cast<void*>(&OgWinColour);
+    table[114] = reinterpret_cast<void*>(&OgWinPut);
+    return table;
+}
+
+// The held object: part u13's images (slot 3) and part u12's texts (slot
+// 4, for odd instances).
+void** OgHeldTable()
+{
+    static void* table[5] = {};
+    table[1] = reinterpret_cast<void*>(&PmHeldAddRef);
+    table[2] = reinterpret_cast<void*>(&PmHeldRelease);
+    table[3] = reinterpret_cast<void*>(&WrHeldImage);
+    table[4] = reinterpret_cast<void*>(&PmHeldText);
+    return table;
+}
+
+// PmCallRaw, with the address of the third argument's slot (as pushed)
+// kept in g_ogSlot for the window's slots.
+__declspec(naked) void __cdecl OgCallRaw(PmRegs*)
+{
+    __asm push ebx
+    __asm push esi
+    __asm push edi
+    __asm push ebp
+    __asm mov ebp, [esp + 20]
+    __asm push ebp
+    __asm push dword ptr [ebp + 28]
+    __asm push dword ptr [ebp + 24]
+    __asm push dword ptr [ebp + 20]
+    __asm push dword ptr [ebp + 16]
+    __asm lea eax, [esp + 8]
+    __asm mov g_ogSlot, eax
+    __asm mov eax, [ebp + 0]
+    __asm mov ebx, [ebp + 4]
+    __asm mov esi, [ebp + 8]
+    __asm mov edi, [ebp + 12]
+    __asm call dword ptr [ebp + 52]
+    __asm push eax
+    __asm mov eax, [esp + 20]
+    __asm mov [eax + 36], ebx
+    __asm mov [eax + 40], esi
+    __asm mov [eax + 44], edi
+    __asm mov [eax + 48], ebp
+    __asm mov [eax + 56], edx
+    __asm pop dword ptr [eax + 32]
+    __asm mov ebx, [esp]
+    __asm mov [eax + 16], ebx
+    __asm mov ebx, [esp + 4]
+    __asm mov [eax + 20], ebx
+    __asm mov ebx, [esp + 8]
+    __asm mov [eax + 24], ebx
+    __asm mov ebx, [esp + 12]
+    __asm mov [eax + 28], ebx
+    __asm add esp, 20
+    __asm pop ebp
+    __asm pop edi
+    __asm pop esi
+    __asm pop ebx
+    __asm ret
+}
+
+// The base handler: one call (its EAX not hashed: a free's or a slot's of
+// ours; the argument slots after).
+void OgBase(WrWindow& window, WrPair* pairs, std::size_t count, uint32_t set)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    PmRegs regs = PmRegsOf(0x28282828u, kPmEsi, kPmEdi, PrArg(&window), PrArg(vector));
+    regs.args[2] = set;
+    regs.address = addr::cGZUIScriptWidgets_BaseRead;
+    OgCallRaw(&regs);
+    g_ogSlot = 0;
+    const bool kept = regs.outEbx == regs.ebx && regs.outEsi == regs.esi && regs.outEdi == regs.edi &&
+                      regs.outEbp == PrArg(&regs);
+    Mix(kept ? 0x4B1u : 0xBAD0u);
+    Mix(regs.args[0] == PrArg(&window) ? 0x77DDu : 0xBAD0u);
+    Mix(regs.args[1] == PrArg(vector) ? 0x77DEu : 0xBAD1u);
+    // The third: the byte, a found word, or the (released) list object.
+    Mix((set & 0xFF) ? 0x77DFu : regs.args[2]);
+}
+
+void DriveOgBase()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    if (!holder) {
+        OgStage("base");
+        return;
+    }
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {OgHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+
+    WrWindow window = {OgWindowTable(), 7, nullptr};
+    WrValue n0 = WrNumber(0), n1 = WrNumber(1), n5 = WrNumber(5), nBig = WrNumber(0xFFFFFFFFu),
+            user = WrNumber(0x12345678), other = {WrValueTable(), 9, 1, "(1,2)"};
+    WrValue flagText = WrText("1"), area = WrText("( 1, 2, 3, 4)"), areaTight = WrText("(-5,6,-7,8)"),
+            pairGood = WrText("(5,6)"), pairNeg = WrText("(-7,8)"), pairBad = WrText("(1)"), c1 = WrText("(1,2,3)"),
+            c2 = WrText("(300,-1,256)"), cShort = WrText("(4,5)"), caption = WrText("Hello"),
+            resOdd = WrText("{11,13}"), resEven = WrText("{1a2b,3c4c}"), resBad = WrText("{zz}"), t1 = WrText("one"),
+            t2 = WrText("two"), t3 = WrText("three"), t8 = WrText("eight"), empty = WrText("");
+    WrPair full[] = {
+        {0xF01A, &n1},  {0xF01C, &n0},       {0xF01D, &n5},     {0xF01E, &flagText}, {0xF025, &n1},
+        {0xF026, &n0},  {0xF023, &n1},       {0xF024, &nBig},   {0x100, &user},      {0x101, &area},
+        {0x102, &pairGood}, {0x104, &c1},    {0x105, &caption}, {0x106, &resOdd},    {0x107, &n0},
+        {0x108, &t1},   {0x10A, &t3},        {0x10F, &t8},      {0xF01B, &n1},       {0xF022, &n5},
+    };
+    WrPair second[] = {
+        {0x102, &pairGood}, {0x103, &pairNeg}, {0x104, &c2},  {0x106, &resEven}, {0x107, &n1},
+        {0x109, &t2},       {0xF01A, &n0},     {0x100, &other}, {0x105, &empty}, {0xF020, &n1},
+    };
+    WrPair third[] = {
+        {0x106, &resBad}, {0x108, &t1}, {0x109, &t2}, {0x10A, &t3}, {0x10B, &t1}, {0x10C, &t2},
+        {0x10D, &t3},     {0x10E, &t8}, {0x10F, &t1}, {0x103, &pairBad}, {0x104, &cShort}, {0x101, &areaTight},
+    };
+    WrPair clear[] = {
+        {0xF01B, &n1}, {0xF01F, &n0}, {0xF020, &n5}, {0xF021, &flagText}, {0xF022, &n1}, {0xF01A, &n1},
+    };
+    for (uint32_t set : {1u, 0xFFFFFF01u, 0u, 0x100u}) {
+        OgBase(window, full, std::size(full), set);
+        OgBase(window, second, std::size(second), set);
+        OgBase(window, third, std::size(third), set);
+        OgBase(window, clear, std::size(clear), set);
+        OgBase(window, full, 0, set);
+    }
+    Mix(held.count);
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    OgStage("base");
+}
+
+// The interface (IGZWinOptGrp): AddRef, Release and the slots the handler
+// calls, each hashing its number and what it gets. Slot 3 gives a window
+// of our own; slot 19 an item of our own for even ids (its slot 3 the same
+// window, its Release counted).
+struct OgFace {
+    void** vtable;
+    uint32_t count;
+    WrWindow* own;
+};
+
+struct OgItem {
+    void** vtable;
+    uint32_t count;
+    WrWindow* own;
+};
+
+uint32_t __fastcall OgFaceAddRef(OgFace* self, void*) { return ++self->count; }
+
+uint32_t __fastcall OgFaceRelease(OgFace* self, void*)
+{
+    Mix(0x0F2F2u);
+    return 0x00F00000u + --self->count;
+}
+
+WrWindow* __fastcall OgFaceWindow(OgFace* self, void*)
+{
+    Mix(0x0F003u);
+    return self->own;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall OgSet1(OgFace*, void*, uint32_t a)
+{
+    Mix(0x0F000000u | Slot);
+    Mix(a);
+    return 0x00F00000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall OgSet2(OgFace*, void*, uint32_t a, uint32_t b)
+{
+    Mix(0x0F000000u | Slot);
+    Mix(a);
+    Mix(b);
+    return 0x00F00000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall OgSet3(OgFace*, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    Mix(0x0F000000u | Slot);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    return 0x00F00000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall OgFont(OgFace*, void*, void* font)
+{
+    Mix(0x0F000000u | Slot);
+    uint32_t which = 0xFF;
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (font == g_fbFonts[i])
+            which = i;
+    }
+    Mix(which);
+    Mix(font ? 1u : 0u);
+    return 0x00F00000u | Slot;
+}
+
+uint32_t __fastcall OgFaceAdd(OgFace*, void*, uint32_t id, char* name, uint32_t number, WrImage* image,
+                              const int32_t* rect)
+{
+    Mix(0x0F00000Fu);
+    Mix(id);
+    PrMixText(name);
+    Mix(number);
+    Mix(image ? image->tag : 0xDEADu);
+    for (int i = 0; i < 4; ++i)
+        Mix(static_cast<uint32_t>(rect[i]));
+    return 0x00F0000Fu;
+}
+
+uint32_t __fastcall OgItemRelease(OgItem* self, void*)
+{
+    Mix(0x0F1F2u);
+    return --self->count;
+}
+
+WrWindow* __fastcall OgItemWindow(OgItem* self, void*)
+{
+    Mix(0x0F103u);
+    return self->own;
+}
+
+void** OgItemTable()
+{
+    static void* table[4] = {};
+    table[2] = reinterpret_cast<void*>(&OgItemRelease);
+    table[3] = reinterpret_cast<void*>(&OgItemWindow);
+    return table;
+}
+
+OgItem g_ogItem = {};
+
+uint32_t __fastcall OgFaceItem(OgFace*, void*, uint32_t id, OgItem** item)
+{
+    Mix(0x0F000013u);
+    Mix(id);
+    if (id & 1)
+        return 0x00F01300u;
+    *item = &g_ogItem;
+    ++g_ogItem.count;
+    return 0x00F01301u;
+}
+
+uint32_t __fastcall OgFaceImage(OgFace*, void*, WrImage* image)
+{
+    Mix(0x0F000014u);
+    Mix(image ? image->tag : 0xDEADu);
+    return 0x00F00014u;
+}
+
+uint32_t __fastcall OgFaceColours(OgFace*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+    Mix(0x0F000015u);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    Mix(d);
+    return 0x00F00015u;
+}
+
+uint32_t __fastcall OgFaceFill(OgFace*, void*)
+{
+    Mix(0x0F000018u);
+    return 0x00F00018u;
+}
+
+void** OgFaceTable()
+{
+    static void* table[29] = {};
+    table[1] = reinterpret_cast<void*>(&OgFaceAddRef);
+    table[2] = reinterpret_cast<void*>(&OgFaceRelease);
+    table[3] = reinterpret_cast<void*>(&OgFaceWindow);
+    table[5] = reinterpret_cast<void*>(&OgSet2<5>);
+    table[6] = reinterpret_cast<void*>(&OgSet2<6>);
+    table[8] = reinterpret_cast<void*>(&OgFont<8>);
+    table[9] = reinterpret_cast<void*>(&OgFont<9>);
+    table[10] = reinterpret_cast<void*>(&OgSet2<10>);
+    table[14] = reinterpret_cast<void*>(&OgSet1<14>);
+    table[15] = reinterpret_cast<void*>(&OgFaceAdd);
+    table[17] = reinterpret_cast<void*>(&OgSet3<17>);
+    table[18] = reinterpret_cast<void*>(&OgSet3<18>);
+    table[19] = reinterpret_cast<void*>(&OgFaceItem);
+    table[20] = reinterpret_cast<void*>(&OgFaceImage);
+    table[21] = reinterpret_cast<void*>(&OgFaceColours);
+    table[24] = reinterpret_cast<void*>(&OgFaceFill);
+    table[28] = reinterpret_cast<void*>(&OgSet2<28>);
+    return table;
+}
+
+// One call of the OptGrp handler: its EAX and argument slots after (the
+// first may hold the colour service or a word).
+void OgRead(WrWindow& window, WrPair* pairs, std::size_t count, uint32_t set, void* colours)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    PmRegs regs = PmRegsOf(0x29292929u, kPmEsi, kPmEdi, PrArg(&window), PrArg(vector));
+    regs.args[2] = set;
+    Mix(PmCall(addr::cGZUIScriptWidgets_OptGrpRead, regs));
+    if (regs.args[0] == PrArg(&window))
+        Mix(0x77DDu);
+    else if (regs.args[0] == PrArg(colours))
+        Mix(0x77DCu);
+    else
+        Mix(regs.args[0]);
+    Mix(regs.args[1] == PrArg(vector) ? 0x77DEu : 0xBAD1u);
+    Mix(regs.args[2]);
+}
+
+void DriveOgRead()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    void* const fonts = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C72)();
+    void* const colours = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C1A)();
+    Mix(fonts ? 1u : 0u);
+    Mix(colours ? 1u : 0u);
+    if (!holder || !fonts || !colours) {
+        OgStage("read");
+        return;
+    }
+    for (uint32_t i = 0; i < 3; ++i)
+        g_fbFonts[i] = Virtual<void*>(fonts, 0x14, kFbFontWords[i]);
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {OgHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    g_wrImages[0] = {WrImageTable(), 0xC0, 0};
+    g_wrImages[1] = {WrImageTable(), 0xC1, 0};
+
+    WrWindow own = {OgWindowTable(), 9, nullptr};
+    OgFace face = {OgFaceTable(), 1, &own};
+    g_ogItem = {OgItemTable(), 0, &own};
+    WrWindow windows[3] = {{OgWindowTable(), 0, &face}, {OgWindowTable(), 1, &face}, {OgWindowTable(), 2, &face}};
+
+    WrValue n0 = WrNumber(0), n1 = WrNumber(1), n2 = WrNumber(2), n7 = WrNumber(7), nAuto = WrNumber(0xF0E),
+            nManual = WrNumber(0xF0F), n40 = WrNumber(40), nBig = WrNumber(0xFFFFFFFFu),
+            nFont0 = WrNumber(kFbFontWords[0]), nFont1 = WrNumber(kFbFontWords[1]),
+            other = {WrValueTable(), 9, 1, "(1,2,3)"};
+    WrValue pairGood = WrText("(5,-6)"), pairBad = WrText("(5)"), fontText = WrText("font text"),
+            c1 = WrText("(1,2,3)"), c2 = WrText("(255,128,0)"), c3 = WrText("(300,-1,256)"), cShort = WrText("(4,5)"),
+            cWord = WrText("red"), resOdd = WrText("{11,13}"), resEven = WrText("{1a2b,3c4c}"),
+            image0 = WrText("{1a2b,3c4c}"), image1 = WrText("{11,13}"), imageBad = WrText("{zz}"),
+            four = WrText("(1,2,3)(4,5,6)(7,8,9)(10,11,12)"), fourBig = WrText("(255,0,0)(0,255,0)(0,0,255)(300,-1,7)"),
+            fourShort = WrText("(1,2,3)(4,5,6)(7,8,9)");
+    WrPair full[] = {
+        {0xF00, &n1},     {0xF01, &n0},      {0xF02, &n2},      {0xF019, &n1},     {0xF004, &pairGood},
+        {0xF03, &nFont0}, {0xF04, &fontText}, {0xF05, &c1},     {0xF06, &c2},      {0xF07, &c3},
+        {0xF08, &cShort}, {0xF09, &cWord},   {0xF0A, &resOdd},  {0xF0B, &image0},  {0x40B, &four},
+        {0xF0C, &nAuto},  {0xF10, &n40},     {0xF00, &other},
+    };
+    WrPair second[] = {
+        {0xF01, &n1},       {0xF004, &pairBad}, {0xF03, &fontText}, {0xF04, &nFont1}, {0xF09, &c2},
+        {0xF0A, &resEven},  {0xF0B, &imageBad}, {0x40B, &fourShort}, {0xF0C, &nManual}, {0xF019, &nBig},
+    };
+    WrPair third[] = {
+        {0xF0B, &image1}, {0x40B, &fourBig}, {0xF0C, &nAuto}, {0xF05, &cShort}, {0xF02, &n7},
+    };
+    WrPair fourth[] = {{0xF0C, &n0}, {0xF03, &other}, {0x40B, &cWord}};
+
+    // The raw pass's: options (the first of each vector with a good id
+    // and number: the game's start as its stack held them), moves, sizes.
+    WrValue o1 = WrText("2:First:7:{11,13}:(1,2,3,4)"), o2 = WrText("3:Second:-1:{1a2b,3c4c}:(5,6)"),
+            o3 = WrText("x:Third:y:{zz}:(-1,-2,-3,-4)"), o4 = WrText("4:Fourth:9"), o5 = WrText("6::0:{2,6}:()"),
+            o6 = WrText("8:Last:1:{11,13}:(9,9,9,9):extra"), m1 = WrText("2:(10,20)"), m2 = WrText("3:(-1,-2)"),
+            m3 = WrText("z:(5,5)"), m4 = WrText("4:(7)"), s1 = WrText("2:(30,40)"), s2 = WrText("6:(1,1)");
+    WrPair raw[] = {
+        {0xF0D, &o1}, {0xF11, &m1}, {0xF0D, &o2}, {0xF12, &s1}, {0xF0D, &o3}, {0xF0D, &n1}, {0xF0D, &o4},
+        {0xF11, &m2}, {0xF0D, &o5}, {0x55, &o1},  {0xF0D, &o6}, {0xF11, &m3}, {0xF12, &s2}, {0xF11, &m4},
+        {0x501, &n7}, {0x304, &n0},
+    };
+    WrPair rawSecond[] = {{0xF0D, &o6}, {0xF12, &s1}, {0x501, &other}, {0xF11, &n1}};
+    WrPair rawThird[] = {{0x501, &n40}, {0x304, &n1}, {0xF0D, &o2}};
+
+    for (WrWindow& window : windows) {
+        for (uint32_t set : {1u, 0xFFFFFF01u}) {
+            OgRead(window, full, std::size(full), set, colours);
+            OgRead(window, second, std::size(second), set, colours);
+            OgRead(window, third, std::size(third), set, colours);
+            OgRead(window, fourth, std::size(fourth), set, colours);
+            OgRead(window, full, 0, set, colours);
+        }
+        for (uint32_t set : {0u, 0x100u}) {
+            OgRead(window, raw, std::size(raw), set, colours);
+            OgRead(window, rawSecond, std::size(rawSecond), set, colours);
+            OgRead(window, rawThird, std::size(rawThird), set, colours);
+            OgRead(window, raw, 0, set, colours);
+        }
+    }
+    Mix(face.count);
+    Mix(g_ogItem.count);
+    Mix(g_wrImages[0].count);
+    Mix(g_wrImages[1].count);
+    Mix(held.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    OgStage("read");
+}
+
+// The dispatcher (thiscall, `ret 4`): ECX the reader, one stack argument;
+// EAX and the registers back.
+struct OgThis {
+    uint32_t ecx, arg, outEax, outEbx, outEsi, outEdi, outEbp;
+    std::uintptr_t address;
+    uint32_t ebx, esi, edi;
+};
+
+__declspec(naked) void __cdecl OgCallThisRaw(OgThis*)
+{
+    __asm push ebx
+    __asm push esi
+    __asm push edi
+    __asm push ebp
+    __asm mov ebp, [esp + 20]
+    __asm push ebp
+    __asm push dword ptr [ebp + 4]
+    __asm mov ecx, [ebp + 0]
+    __asm mov ebx, [ebp + 32]
+    __asm mov esi, [ebp + 36]
+    __asm mov edi, [ebp + 40]
+    __asm call dword ptr [ebp + 28]
+    __asm mov ecx, [esp]
+    __asm mov [ecx + 8], eax
+    __asm mov [ecx + 12], ebx
+    __asm mov [ecx + 16], esi
+    __asm mov [ecx + 20], edi
+    __asm mov [ecx + 24], ebp
+    __asm add esp, 4
+    __asm pop ebp
+    __asm pop edi
+    __asm pop esi
+    __asm pop ebx
+    __asm ret
+}
+
+// The parent we give the reader (+0x14): AddRef, Release (counted) and
+// slot 14 (a child: whether it is the reader's window).
+struct OgParent {
+    void** vtable;
+    uint32_t count;
+    char* reader;
+    uint32_t children;
+};
+
+uint32_t __fastcall OgParentAddRef(OgParent* self, void*) { return ++self->count; }
+
+uint32_t __fastcall OgParentRelease(OgParent* self, void*)
+{
+    Mix(0x9A2u);
+    return --self->count;
+}
+
+uint32_t __fastcall OgParentChild(OgParent* self, void*, void* child)
+{
+    Mix(0x9A14u);
+    Mix(child && child == At<void*>(self->reader, 0x10) ? 1u : 0u);
+    ++self->children;
+    return 0x9A140000u;
+}
+
+void** OgParentTable()
+{
+    static void* table[15] = {};
+    table[1] = reinterpret_cast<void*>(&OgParentAddRef);
+    table[2] = reinterpret_cast<void*>(&OgParentRelease);
+    table[14] = reinterpret_cast<void*>(&OgParentChild);
+    return table;
+}
+
+// The handler of our own (in the handler map under kOgFace): which pass,
+// whether it got the reader's window and vector.
+constexpr uint32_t kOgFace = 0x7E570001u;
+char* g_ogReader = nullptr;
+char* const* g_ogVector = nullptr;
+
+uint32_t __cdecl OgHandler(void* window, char* const* vector, uint32_t set)
+{
+    Mix(0x4A4D0000u | (set & 0xFFFF));
+    Mix(window && window == At<void*>(g_ogReader, 0x10) ? 1u : 0u);
+    Mix(vector == g_ogVector ? 1u : 0u);
+    Mix(At<uint8_t>(g_ogReader, 0x1C));
+    return 0x4A4Du;
+}
+
+// One call: a reader of our own (+0x10 a mark, +0x14 our parent, +0x18
+// none, +0x1C 0), the vector; AL, the reader's fields, the parent's
+// calls; the window made released.
+void OgDispatch(WrPair* pairs, std::size_t count)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    alignas(4) char reader[0x20] = {};
+    OgParent parent = {OgParentTable(), 1, reader, 0};
+    At<uint32_t>(reader, 0x10) = 0x5EEDu;
+    At<void*>(reader, 0x14) = &parent;
+    g_ogReader = reader;
+    g_ogVector = vector;
+    OgThis call = {PrArg(reader), PrArg(vector), 0, 0, 0, 0, 0, addr::cGZUIScriptLegacy_Dispatch,
+                   kPmEbx, kPmEsi, kPmEdi};
+    OgCallThisRaw(&call);
+    const bool kept =
+        call.outEbx == kPmEbx && call.outEsi == kPmEsi && call.outEdi == kPmEdi && call.outEbp == PrArg(&call);
+    Mix(kept ? 0x4B1u : 0xBAD0u);
+    Mix(call.outEax & 0xFF);
+    void* const window = At<void*>(reader, 0x10);
+    const bool made = window && At<uint32_t>(reader, 0x10) != 0x5EEDu;
+    Mix(made ? 1u : At<uint32_t>(reader, 0x10));
+    Mix(At<void*>(reader, 0x14) == &parent ? 1u : At<void*>(reader, 0x14) ? 2u : 0u);
+    Mix(At<uint32_t>(reader, 0x18));
+    Mix(At<uint8_t>(reader, 0x1C));
+    Mix(parent.count);
+    Mix(parent.children);
+    if (made)
+        Virtual<uint32_t>(window, 8);
+    g_ogReader = nullptr;
+}
+
+void DriveOgDispatch()
+{
+    // Our handler under a word of our own (the map's own insert; a second
+    // run finds it there).
+    const uint32_t pair[2] = {kOgFace, PrArg(reinterpret_cast<void*>(&OgHandler))};
+    uint32_t result[2];
+    CallThis<uint32_t>(addr::cGZUIScriptWidgets_HandlerInsert, reinterpret_cast<void*>(addr::cGZUIScriptWidgets_Handlers),
+                       static_cast<void*>(result), static_cast<const void*>(pair));
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Handlers, kOgFace) == pair[1] ? 1u : 0u);
+
+    // Classes: GZWinFlatRect 0xC2AFA76E (interface 0xC2AFA76F), GZWinCustom
+    // 0x478D1E6F, one no factory makes. (A GZWinGen window made and released
+    // here, never given a parent, leaves the game hanging when it quits.)
+    WrValue klassFlat = WrNumber(0xC2AFA76E), klassCustom = WrNumber(0x478D1E6F), klassNone = WrNumber(0x7E57BAD1),
+            klass0 = WrNumber(0), faceOurs = WrNumber(kOgFace), faceFlat = WrNumber(0xC2AFA76F),
+            faceNone = WrNumber(0x7E57BAD2), text = WrText("(1,2)"), n1 = WrNumber(1);
+    WrPair none[] = {{0xF01A, &n1}};
+    WrPair zero[] = {{0xFFFFFFFF, &klass0}, {0xFFFFFFFE, &faceOurs}};
+    WrPair notNumber[] = {{0xFFFFFFFF, &text}};
+    WrPair flatOurs[] = {{0xFFFFFFFF, &klassFlat}, {0xFFFFFFFE, &faceOurs}, {0xF01A, &n1}};
+    WrPair byFace[] = {{0xFFFFFFFE, &faceFlat}, {0xFFFFFFFF, &klassNone}};
+    WrPair byDefault[] = {{0xFFFFFFFF, &klassNone}};
+    WrPair byDefaultFace[] = {{0xFFFFFFFF, &klassNone}, {0xFFFFFFFE, &faceNone}};
+    WrPair flatMap[] = {{0xFFFFFFFF, &klassFlat}, {0xF01A, &n1}};
+    WrPair customOurs[] = {{0xFFFFFFFE, &faceOurs}, {0xFFFFFFFF, &klassCustom}};
+
+    OgDispatch(none, 0);
+    OgDispatch(none, std::size(none));
+    OgDispatch(zero, std::size(zero));
+    OgDispatch(notNumber, std::size(notNumber));
+    OgDispatch(flatOurs, std::size(flatOurs));
+    OgDispatch(byFace, std::size(byFace));
+    OgDispatch(byDefault, std::size(byDefault));
+    OgDispatch(byDefaultFace, std::size(byDefaultFace));
+    OgDispatch(flatMap, std::size(flatMap));
+    OgDispatch(customOurs, std::size(customOurs));
+    OgStage("disp");
+}
+
+// OPENSC4_TEST_OPTGRP=<day>: part u15 by address. Every result goes into
+// the fingerprint's `og` part.
+void DriveOptGrpDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_OPTGRP") || !game::IsBuild641())
+        return;
+    g_ogOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_ogHash;
+    DriveOgRegister();
+    DriveOgBase();
+    DriveOgRead();
+    DriveOgDispatch();
+    g_into = saved;
+    log::Write("autotest: optgrp driven (hash %08X)", g_ogHash);
+}
+
+void OgFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_ogOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | og %08X", g_ogHash);
+    line += text;
+}
+
+const FingerprintPart kOgFingerprint{"optgrp", 4, &OgFingerprint};
+const DayHook kOgDrive{"optgrp", 4, &DriveOptGrpDay};
 
 
 

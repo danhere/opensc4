@@ -6005,3 +6005,72 @@ address = 0x00AA0424
 kind = "data"
 expect = "3A 00"
 source = "Name ours. \":\", the separator GZWinFileBrowser's handler 0x00954212 cuts its filters' texts at (SplitOff 0x0090E98C)."
+
+# Part u15 (src/core/gzui_widgets2.cpp, docs/gzui.md): GZWinOptGrp's registration and property handler, the base
+# window's property handler and the LEGACY reader's dispatcher, with the formats and vtable they use.
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterOptGrp"
+address = 0x00957C88
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinOptGrp and IGZWinOptGrp into the table (its slot 3 with a string from SC4String::FromText), the class's handler 0x00956C46 under its interface 0xA1336CC0 (0x0094950A into 0x00B6358C) and its interface under the class 0xA1336CC1 (0x004FB6C0 into 0x00B63598), then its 19 property words (0xF00 maincaption to 0xF12 optionsetsize). Ours in framework.uiscript.optgrp (docs/gzui.md, part u15)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::OptGrpRead"
+address = 0x00956C46
+kind = "function"
+convention = "cdecl"
+signature = "void (cIGZWin* window, void* properties, bool set)"
+expect = "55 8D 6C 24 94 81 EC F4"
+source = "Name ours. GZWinOptGrp's property handler (0x00B6358C under 0xA1336CC0; the dispatcher 0x00957A9B calls it with the byte 1, then 0). The window's IGZWinOptGrp (QueryInterface 0xA1336CC0). With the byte set: four flags (0xF00, 0xF01, 0xF02, 0xF019 masks 1, 2, 4, 8, set by a word of 1, slot 5, the bool over the EDX 0x0094C675 leaves), the pair 0xF004 (slot 6), two fonts (0xF03 slot 8, 0xF04 slot 9: a number through the font service 0x00913C72's slot 5 and 0x0094C222, else a text through 0x0094C255; the window's 0 and 1), five colours 0xF05 to 0xF09 (slot 10 with 0 to 4; the colour bytes' first place is the found words'), the caption resource 0xF0A ({%x,%x}, unchecked: 0x0094C58D's text to slot 3's window's slot 74, the words under 0x4A4AF4AC), the back image 0xF0B (slot 20, 0x0094C1DA under 0), four colours 0x40B (12 numbers, slot 21; the window's argument slot then holds the colour service) and autofill 0xF0C (into the window's argument slot; automatic 0xF0E with the size 0xF10: slot 28 with 0 and it; else 1 and 0). With it clear: the options 0xF0D (id:name:number:{group,instance}:(x,y,w,h), slot 15; slot 19's item's window gets the key by 0x0094C1DA), their moves 0xF11 and sizes 0xF12 (id:(x,y), slots 17 and 18), 0x501 (slot 14) and 0x304 (a bool under 0xDACF8F9C; slot 24 when there). The interface released, its EAX answered. Ours in framework.uiscript.optgrpread (docs/gzui.md, part u15)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::BaseRead"
+address = 0x0095660D
+kind = "function"
+convention = "cdecl"
+signature = "void (cIGZWin* window, void* properties, bool set)"
+expect = "55 8B EC 83 EC 64 80 7D"
+source = "Name ours. The base window's property handler: the dispatcher 0x00957A9B calls it for every window after the class's handler, with the byte 1, then (after the window's slot 23) 0. With the byte set: the window's slot 68 (mask, bool) with seven defaults, then eight keys 0xF01A to 0xF026 (a bool over the byte's argument slot's address), the user word 0x100 (slot 64), the area 0x101 (\"( %d, %d, %d, %d)\", slot 54) or the pairs 0x102 (slot 56) and 0x103 (slot 53), the colour 0x104 (slot 107), the caption 0x105 (slot 74), the caption resource 0x106 ({%x,%x}, unchecked: 0x0094C58D's text, slot 74; the key under 0x0B31771A by 0x0094C1A4), the two words under 0x3ACA6906 (slot 114), 0x107 (flag 0x20000), the texts of 0x108 to 0x10F in a list object (vtable 0x00AD5420, held in the byte's slot) given to a new script value's slot 61, put under 0xBACA6879. With it clear: five more keys 0xF01B to 0xF022. Ours in framework.uiscript.baseread (docs/gzui.md, part u15)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::Dispatch"
+address = 0x00957A9B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* properties)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. The LEGACY reader's slot 3, `ret 4`: a script's window. The class (key -1 by 0x0094C675; none or 0: nothing) and the interface (-2, else the interface map 0x00B63598's for the class); the window (+0x10) made by the COM (0x0090DDF1, slot 3, IGZWin 0x22BA0121) for the class, else for the first class with that interface, else for GZWinCustom 0x478D1E6F; the class and the interface as numbers under 0xE85EEBDE and 0x08D6E462 (slot 114); +0x1C set; the class's handler (the handler map 0x00B6358C's for the interface) and the base handler 0x0095660D with 1; 0x0094C77D; the window's Init (slot 4); the window given to the parent +0x14 (slot 14; the parent released and cleared) or to the window manager's top window; the window's slot 23; both handlers with 0. AL 0. Ours in framework.uiscript.dispatch (docs/gzui.md, part u15)."
+
+[[entry]]
+name = "cGZUIScriptLegacy::GiveObject"
+address = 0x0094C77D
+kind = "function"
+convention = "thiscall"
+signature = "void (cIGZWin* window, bool give)"
+expect = "55 8B EC 80 7D 0C 00 56"
+source = "Name ours. `ret 8`. With the byte set: the reader's object at +0x18, when the window gives its IGZWinGen (0x5386D516), handed to the interface's slot 7, released and cleared; the interface released. The dispatcher 0x00957A9B calls it with 1. Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZUIScriptWidgets::BaseRectFormat"
+address = 0x00AD657C
+kind = "data"
+expect = "28 20 25 64 2C 20 25 64 2C 20 25 64 2C 20 25 64 29 00"
+source = "Name ours. \"( %d, %d, %d, %d)\", the format the base window's handler 0x0095660D scans its area (0x101) with."
+
+[[entry]]
+name = "cGZUIScriptWidgets::OptGrpColourFormat"
+address = 0x00AD6590
+kind = "data"
+expect = "28 25 64 2C 25 64 2C 25 64 29 28 25 64 2C 25 64 2C 25 64 29 28 25 64 2C 25 64 2C 25 64 29 28 25 64 2C 25 64 2C 25 64 29"
+source = "Name ours. \"(%d,%d,%d)(%d,%d,%d)(%d,%d,%d)(%d,%d,%d)\", the format GZWinOptGrp's handler 0x00956C46 scans its four colours (0x40B) with."
+
+[[entry]]
+name = "cGZUIScriptWidgets::BaseListVtable"
+address = 0x00AD5420
+kind = "data"
+expect = "C6 57 94 00 4F D3 94 00 7A 40 95 00"
+source = "Name ours. The vtable of the counted text list the base window's handler 0x0095660D makes (0x14 bytes: a vector of strings at +4): 0x009457C6, AddRef 0x0094D34F, Release 0x0095407A."
