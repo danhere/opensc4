@@ -1049,6 +1049,8 @@ Batches `gzu12c-r1` (before the audit's fixes) and `gzu12c-r2` (the final build)
 
 r2's Making Money d0090 was one odd first run: side B's first run differed from day 2 on, its second and third runs and all three of side A's agreed (A 1 outcome, B 2, shared 1). The same save was the same in r1, in r2's test leg and again alone on the r2 build (8 of 8 days on the first pair), as with the first-run flakes on d0090 of earlier batches.
 
+Batch `gzu12c-r3`, after merging main (with part u13), the same five legs with u13's `widgets` and `widgetgen` on side B too: all the same on the first pair (1, 1, 12, 12 with `ph` BAAA5D6E, 1).
+
 **Reached:** in every plain (muted) leg side B logs 22 first calls: all 9 of this slice (the words when the first LEGACY reader is made, every handler when a city's UI loads) and 13 of slices 1 and 2; the text maker 0x0094C255 is still reached only by the test.
 
 **What is left of u12:** 36 of the 49 functions. The six handlers that did not run in the coverage runs or the plain legs: 0x0094CE28, 0x0094D17E, 0x0094F36D, 0x009503AB, 0x009505B6 and 0x00951084 (the natural next slice, the same pattern). Then, staying the game's: the STLport map and tree code 0x0094C92D to 0x0094CDB5 (22 functions, but for the text finder 0x0094CCD9), the AddRef 0x0094D34F that 14 vtables share, and seven small functions that belong to other classes, not to the handlers: 0x0094D147 and 0x0094D163 (three strings made and destroyed), 0x0094D356 and 0x0094D3D4 (maps copied), 0x0094D452 and 0x0094D471 (deleting destructors), 0x0094D490 (a constructor). Their callers are in parts u13 to u16's ranges, and they go with those classes.
