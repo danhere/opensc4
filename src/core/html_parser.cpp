@@ -8,9 +8,20 @@
 //                           (0x008FFAC2), the next tag and its ID
 //                           (0x00905CF0), the tag's attributes split into
 //                           the document's map (0x009056DA, 0x00901149)
-//   ui.html.parser.tables   the tag table (0x00902D4F, with its inserts
+//   ui.html.parser.names    the tag table (0x00902D4F, with its inserts
 //                           0x0090116D and 0x00902D3B) and the named
 //                           entities (0x00901222, with 0x009010FD)
+//   ui.html.parser.document the document's constructor, Parse and the page,
+//                           head, title and body, plain text, images asked
+//                           for, the font stack
+//   ui.html.parser.blocks   P, CENTER, DIV, BLOCKQUOTE, FORM, headings, PRE,
+//                           DL, lists and their items, the skips
+//   ui.html.parser.table    TABLE, its rows, cells and parts
+//   ui.html.parser.inline   text, font and phrase tags, A, SPAN, BLINK, MAP,
+//                           the form tags
+//
+// The first two groups are here; the handlers of the other four are in
+// html_parser_tree.h.
 //
 // The game's strings and containers are STLport's, through the game's own
 // helpers: the string bodies' erase, find, assign and append, the hash maps'
