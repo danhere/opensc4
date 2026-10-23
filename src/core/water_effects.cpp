@@ -14688,6 +14688,457 @@ const bool g_registeredBlockB = registry::Register({
     InstallBlockB,
 });
 
+// --- The particle draws ----------------------------------------------------------------------
+//
+// The second class's draw, the draw into the dynamic vertex buffer and the
+// base class's draw without it (effects_particles_draw.h).
+//
+// None of them can run twice as a whole: they draw, and the second class's
+// also moves the model on, steps the part and calls the particles' own
+// effects. Their comparison is the notes' engine's (as the second class's
+// step out of view): the objects they call get copies of their tables of
+// functions whose slots note each call (the model instance, the model,
+// the dynamic vertex buffer and the particles' own effects), and detours
+// of compare mode note the game's functions they call (the context's
+// texture bind and colour reset, the batch's draw, the check whether a
+// particle is in view and the part's two). The game's runs with the calls
+// passed on; the effect (but for its batch, +0x28 to +0x68, whose storage
+// the game's run may have moved; the batch's own functions run in both
+// and leave it the same), the class's free list, the generator and the
+// particles are put back, and ours runs with every such call answered from
+// the notes. The calls and those bytes must be the same, and the vertices
+// handed over: the buffer's, read at the unlock (the game's, of the locked
+// memory; ours, of memory the replay lends it), and the batch's, read at
+// its draw. The block (0x005ACA30), 0x005AC070 and the batch's functions
+// run in both, from the same bytes.
+//
+// An effect's draw (renderer.effects.draw_effect) records the three while
+// it is compared (g_drawRecording), through the same detours.
+#include "core/effects_particles_draw.h"
+
+// The second class's table of functions.
+constexpr uint32_t kEffectTableB = 0x00AA0C58;
+
+StepMode g_dbMode = StepMode::Original, g_bfMode = StepMode::Original, g_plMode = StepMode::Original;
+Call1Fn g_DwSC4Effect_DrawParticlesTextured = nullptr, g_DwSC4Effect_DrawParticles = nullptr,
+        g_DwSC4EffectB_DrawParticles = nullptr;
+Call0Fn g_DwSC4RenderContext_ResetColour = nullptr;
+Call2Fn g_PdBindTexture = nullptr, g_PdPartStart = nullptr;
+Call1Fn g_PdBatchDraw = nullptr, g_PdPartStep = nullptr;
+Call5Fn g_PdInView = nullptr;
+
+// The context's colour reset: recorded for an effect's draw, noted for the
+// second class's draw.
+uint32_t __fastcall DDwSC4RenderContext_ResetColour(char* self, void*)
+{
+    if (g_drawRecording && g_effectRecord)
+        return EffectRecorded(addr::SC4RenderContext_ResetColour, g_DwSC4RenderContext_ResetColour, self);
+    if (!BNoting())
+        return g_DwSC4RenderContext_ResetColour(self, nullptr);
+    return BCallee(addr::SC4RenderContext_ResetColour, Word(self), 0, 0,
+                   [&] { return g_DwSC4RenderContext_ResetColour(self, nullptr); });
+}
+OPENSC4_THUNK(TDwSC4RenderContext_ResetColour, DDwSC4RenderContext_ResetColour, 0)
+
+uint32_t __fastcall PdBindTextureNoted(char* self, void*, uint32_t texture, uint32_t stage)
+{
+    if (!BNoting())
+        return g_PdBindTexture(self, nullptr, texture, stage);
+    return BCallee(addr::SC4RenderContext_BindTexture, Word(self), Word(&texture), 4,
+                   [&] { return g_PdBindTexture(self, nullptr, texture, stage); });
+}
+OPENSC4_THUNK(TPdBindTexture, PdBindTextureNoted, 8)
+
+uint32_t __fastcall PdBatchDrawNoted(char* self, void*, uint32_t context)
+{
+    if (!BNoting())
+        return g_PdBatchDraw(self, nullptr, context);
+    PlKeepVertices(self, g_bfGameVertices);
+    return BCallee(addr::SC4IndexBatch_Draw, Word(self), Word(&context), 4,
+                   [&] { return g_PdBatchDraw(self, nullptr, context); });
+}
+OPENSC4_THUNK(TPdBatchDraw, PdBatchDrawNoted, 4)
+
+uint32_t __fastcall PdInViewNoted(char* self, void*, uint32_t depth, uint32_t camera, uint32_t particle,
+                                  uint32_t place, uint32_t scale)
+{
+    if (!BNoting())
+        return g_PdInView(self, nullptr, depth, camera, particle, place, scale);
+    float* const where = reinterpret_cast<float*>(place);
+    const uint32_t noted[6] = {depth, camera, LfBits(where[0]), LfBits(where[1]), LfBits(where[2]), M<uint32_t>(scale)};
+    const uint32_t answer = BCallee(addr::SC4EffectB_ParticleInView, particle, Word(noted), sizeof noted, [&] {
+        return g_PdInView(self, nullptr, depth, camera, particle, place, scale);
+    });
+    DbLeft left{};
+    std::memcpy(left.place, where, 12);
+    left.scale = M<uint32_t>(scale);
+    g_dbInView.push_back(left);
+    return answer;
+}
+OPENSC4_THUNK(TPdInView, PdInViewNoted, 20)
+
+uint32_t __fastcall PdPartStartNoted(char* self, void*, uint32_t a, uint32_t b)
+{
+    if (!BNoting())
+        return g_PdPartStart(self, nullptr, a, b);
+    const uint32_t noted[2] = {a, b};
+    return BCallee(addr::SC4EffectPartB_Start, Word(self), Word(noted), sizeof noted,
+                   [&] { return g_PdPartStart(self, nullptr, a, b); });
+}
+OPENSC4_THUNK(TPdPartStart, PdPartStartNoted, 8)
+
+uint32_t __fastcall PdPartStepNoted(char* self, void*, uint32_t step)
+{
+    if (!BNoting())
+        return g_PdPartStep(self, nullptr, step);
+    return BCallee(addr::SC4EffectPartB_Step, Word(self), Word(&step), 4,
+                   [&] { return g_PdPartStep(self, nullptr, step); });
+}
+OPENSC4_THUNK(TPdPartStep, PdPartStepNoted, 4)
+
+// The noting slots of the model instance (0x28 the block, 0x30 the draw,
+// 0x3C the colour it answers, 0x40 the colour given), the model (0x28 the
+// frame) and the dynamic vertex buffer (0x18 the lock, 0x20 the unlock,
+// 0x28 the draw), noted as the calls of effects_particles_draw.h note them.
+uint32_t __fastcall DbInstanceBlockStub(char* object, void*, uint32_t block)
+{
+    const uint32_t real = BRealSlot(object, 0x28);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, block);
+    return BCallee(kDbInstance + 0x28, Word(object), block, kBBlock, [&] { return CallThis<uint32_t>(real, object, block); });
+}
+
+uint32_t __fastcall DbInstanceDrawStub(char* object, void*, uint32_t context, uint32_t flag)
+{
+    const uint32_t real = BRealSlot(object, 0x30);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, context, flag);
+    const uint32_t noted[2] = {context, flag};
+    return BCallee(kDbInstance + 0x30, Word(object), Word(noted), sizeof noted,
+                   [&] { return CallThis<uint32_t>(real, object, context, flag); });
+}
+
+uint32_t __fastcall DbInstanceColourStub(char* object, void*, uint32_t scratch)
+{
+    const uint32_t real = BRealSlot(object, 0x3C);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, scratch);
+    const uint32_t answer =
+        BCallee(kDbInstance + 0x3C, Word(object), 0, 0, [&] { return CallThis<uint32_t>(real, object, scratch); });
+    std::memcpy(g_dbColour, Ptr(answer), kDbColour);
+    return answer;
+}
+
+uint32_t __fastcall DbInstanceTintStub(char* object, void*, uint32_t colour)
+{
+    const uint32_t real = BRealSlot(object, 0x40);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, colour);
+    return BCallee(kDbInstance + 0x40, Word(object), colour, kDbColour,
+                   [&] { return CallThis<uint32_t>(real, object, colour); });
+}
+
+uint32_t __fastcall DbModelFrameStub(char* object, void*, uint32_t frame)
+{
+    const uint32_t real = BRealSlot(object, 0x28);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, frame);
+    return BCallee(kDbModel + 0x28, Word(object), Word(&frame), 4, [&] { return CallThis<uint32_t>(real, object, frame); });
+}
+
+char* g_bfLocked = nullptr;
+uint32_t g_bfLockedCount = 0;
+
+uint32_t __fastcall BfLockStub(char* object, void*, uint32_t from, uint32_t count)
+{
+    const uint32_t real = BRealSlot(object, 0x18);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, from, count);
+    const uint32_t noted[2] = {from, count};
+    const uint32_t answer = BCallee(kBfBuffer + 0x18, Word(object), Word(noted), sizeof noted,
+                                    [&] { return CallThis<uint32_t>(real, object, from, count); });
+    g_bfLocked = Ptr(answer);
+    g_bfLockedCount = count;
+    return answer;
+}
+
+uint32_t __fastcall BfUnlockStub(char* object, void*, uint32_t value)
+{
+    const uint32_t real = BRealSlot(object, 0x20);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, value);
+    if (g_bfLocked)
+        BfKeep(g_bfLocked, g_bfLockedCount, g_bfGameVertices);
+    g_bfLocked = nullptr;
+    return BCallee(kBfBuffer + 0x20, Word(object), Word(&value), 4, [&] { return CallThis<uint32_t>(real, object, value); });
+}
+
+uint32_t __fastcall BfDrawStub(char* object, void*, uint32_t a, uint32_t b, uint32_t count, uint32_t indices)
+{
+    const uint32_t real = BRealSlot(object, 0x28);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, a, b, count, indices);
+    const uint32_t noted[4] = {a, b, count, indices};
+    return BCallee(kBfBuffer + 0x28, Word(object), Word(noted), sizeof noted,
+                   [&] { return CallThis<uint32_t>(real, object, a, b, count, indices); });
+}
+
+// The comparison of the two base class draws: the notes' engine's with the
+// effect but for its batch, and the vertices handed over.
+template <typename Game, typename Ours>
+uint32_t BfCompared(const char* id, char* self, Game&& game, Ours&& ours)
+{
+    const std::size_t size = At<uint32_t>(self, 0) == kEffectTableB ? kEffectSizeB : kEffectSize;
+    g_bSelf = nullptr;
+    g_bRegions = {{self, 0x28}, {self + 0x68, size - 0x68}};
+    g_bThread = GetCurrentThreadId();
+    g_bfGameVertices.clear();
+    g_bfOurVertices.clear();
+    g_bfLocked = nullptr;
+    const std::vector<char> before = BSaveRegions();
+    g_bGameCalls.clear();
+    g_bRecord = true;
+    const uint32_t result = game();
+    g_bRecord = false;
+    const std::vector<char> after = BSaveRegions();
+    SdRestore(before);
+    g_bOurCalls.clear();
+    g_bReplay = true;
+    ours();
+    g_bReplay = false;
+    const std::vector<char> mine = BSaveRegions();
+    SdRestore(after);
+    BGiveBackOwn();
+    std::string theirs, text;
+    char line[96];
+    if (!(g_bGameCalls == g_bOurCalls)) {
+        std::size_t at = 0;
+        while (at < g_bGameCalls.size() && at < g_bOurCalls.size() && g_bGameCalls[at] == g_bOurCalls[at])
+            ++at;
+        const auto describe = [&](const std::vector<BCall>& calls) {
+            if (at < calls.size())
+                std::snprintf(line, sizeof line, "call %zu of %zu: %X on %08X ", at, calls.size(), calls[at].target,
+                              calls[at].a);
+            else
+                std::snprintf(line, sizeof line, "%zu calls", calls.size());
+            return at < calls.size() ? line + Hex(calls[at].data, 16) : std::string(line);
+        };
+        theirs = describe(g_bGameCalls);
+        text = describe(g_bOurCalls);
+    } else if (after != mine) {
+        std::size_t at = 0;
+        while (after[at] == mine[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(line, sizeof line, "effect+%zX ", at < 0x28 ? at : at + 0x40);
+        theirs = line + Hex(after.data() + at, std::min<std::size_t>(8, after.size() - at));
+        text = line + Hex(mine.data() + at, std::min<std::size_t>(8, mine.size() - at));
+    } else if (g_bfGameVertices != g_bfOurVertices) {
+        std::size_t at = 0;
+        while (at < g_bfGameVertices.size() && at < g_bfOurVertices.size() && g_bfGameVertices[at] == g_bfOurVertices[at])
+            ++at;
+        at &= ~std::size_t{3};
+        const auto describe = [&](const std::vector<char>& bytes) {
+            std::snprintf(line, sizeof line, "vertex bytes %zu of %zu: ", at, bytes.size());
+            return at < bytes.size() ? line + Hex(bytes.data() + at, std::min<std::size_t>(8, bytes.size() - at))
+                                     : std::string(line);
+        };
+        theirs = describe(g_bfGameVertices);
+        text = describe(g_bfOurVertices);
+    }
+    compare::Record(id, theirs.empty() && text.empty(), theirs, text);
+    SdCount(id);
+    return result;
+}
+
+uint32_t __fastcall BfBufferedByMode(char* self, void*, uint32_t context)
+{
+    const auto game = [&] { return g_DwSC4Effect_DrawParticlesTextured(self, nullptr, context); };
+    if (g_drawRecording && g_effectRecord)
+        return EffectRecorded(addr::SC4Effect_DrawParticlesTextured, g_DwSC4Effect_DrawParticlesTextured, self,
+                              context);
+    if (g_bfMode == StepMode::Original || g_effectRecord || g_effectReplay || BBusy())
+        return game();
+    if (g_bfMode == StepMode::Ours) {
+        DrawParticlesBuffered(self, Ptr(context));
+        return 0;
+    }
+    BSwapRole(At<char*>(self, 0x1EC), kBfBuffer,
+              {{0x18, reinterpret_cast<uint32_t>(&BfLockStub)},
+               {0x20, reinterpret_cast<uint32_t>(&BfUnlockStub)},
+               {0x28, reinterpret_cast<uint32_t>(&BfDrawStub)}});
+    return BfCompared("effects.draw_buffered", self, game, [&] { DrawParticlesBuffered(self, Ptr(context)); });
+}
+OPENSC4_THUNK(TDwSC4Effect_DrawParticlesTextured, BfBufferedByMode, 4)
+
+uint32_t __fastcall PlPlainByMode(char* self, void*, uint32_t context)
+{
+    const auto game = [&] { return g_DwSC4Effect_DrawParticles(self, nullptr, context); };
+    if (g_drawRecording && g_effectRecord)
+        return EffectRecorded(addr::SC4Effect_DrawParticles, g_DwSC4Effect_DrawParticles, self, context);
+    if (g_plMode == StepMode::Original || g_effectRecord || g_effectReplay || BBusy())
+        return game();
+    if (g_plMode == StepMode::Ours) {
+        DrawParticlesPlain(self, Ptr(context));
+        return 0;
+    }
+    if (EffectNodes(self).empty())
+        return game();
+    return BfCompared("effects.draw_plain", self, game, [&] { DrawParticlesPlain(self, Ptr(context)); });
+}
+OPENSC4_THUNK(TDwSC4Effect_DrawParticles, PlPlainByMode, 4)
+
+// An effect whose list is broken is not compared.
+uint32_t __fastcall DbDrawByMode(char* self, void*, uint32_t context)
+{
+    const auto game = [&] { return g_DwSC4EffectB_DrawParticles(self, nullptr, context); };
+    if (g_drawRecording && g_effectRecord)
+        return EffectRecorded(addr::SC4EffectB_DrawParticles, g_DwSC4EffectB_DrawParticles, self, context);
+    if (g_dbMode == StepMode::Original || g_effectRecord || g_effectReplay || BBusy())
+        return game();
+    if (g_dbMode == StepMode::Ours) {
+        DrawParticlesB(self, Ptr(context));
+        return 0;
+    }
+    const std::vector<char*> nodes = EffectNodes(self);
+    if (nodes.empty())
+        return game();
+    std::vector<char*> particles;
+    for (std::size_t i = 1; i < nodes.size(); ++i) {
+        particles.push_back(At<char*>(nodes[i], 8));
+        SdWatch(At<char*>(particles.back(), 0x44));
+    }
+    BSwapRole(At<char*>(self, 0x220), kDbInstance,
+              {{0x28, reinterpret_cast<uint32_t>(&DbInstanceBlockStub)},
+               {0x30, reinterpret_cast<uint32_t>(&DbInstanceDrawStub)},
+               {0x3C, reinterpret_cast<uint32_t>(&DbInstanceColourStub)},
+               {0x40, reinterpret_cast<uint32_t>(&DbInstanceTintStub)}});
+    BSwapRole(At<char*>(self, 0x224), kDbModel, {{0x28, reinterpret_cast<uint32_t>(&DbModelFrameStub)}});
+    g_dbInView.clear();
+    g_dbInViewAt = 0;
+    return SdCompared("effects.draw_b", SdRegions(self, particles), false, game, [&] {
+        DrawParticlesB(self, Ptr(context));
+        return 0u;
+    });
+}
+OPENSC4_THUNK(TDwSC4EffectB_DrawParticles, DbDrawByMode, 4)
+
+// The three draws have one detour each, which an effect's draw's
+// comparison and their own switches share; so has the colour reset.
+bool PdHookBuffered()
+{
+    return g_DwSC4Effect_DrawParticlesTextured ||
+           Detour(addr::SC4Effect_DrawParticlesTextured, &TDwSC4Effect_DrawParticlesTextured,
+                  &g_DwSC4Effect_DrawParticlesTextured);
+}
+
+bool PdHookPlain()
+{
+    return g_DwSC4Effect_DrawParticles ||
+           Detour(addr::SC4Effect_DrawParticles, &TDwSC4Effect_DrawParticles, &g_DwSC4Effect_DrawParticles);
+}
+
+bool PdHookB()
+{
+    return g_DwSC4EffectB_DrawParticles ||
+           Detour(addr::SC4EffectB_DrawParticles, &TDwSC4EffectB_DrawParticles, &g_DwSC4EffectB_DrawParticles);
+}
+
+bool PdHookResetColour()
+{
+    return g_DwSC4RenderContext_ResetColour ||
+           Detour(addr::SC4RenderContext_ResetColour, &TDwSC4RenderContext_ResetColour,
+                  &g_DwSC4RenderContext_ResetColour);
+}
+
+bool PdHookBindTexture()
+{
+    return g_PdBindTexture || Detour(addr::SC4RenderContext_BindTexture, &TPdBindTexture, &g_PdBindTexture);
+}
+
+bool InstallDrawBuffered(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !PdHookBuffered() || (mode == registry::Mode::Compare && !PdHookBindTexture()))
+        return false;
+    g_bfMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the particles' draw into the dynamic buffer %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallDrawPlain(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !PdHookPlain())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(PdHookBindTexture() &&
+          (g_PdBatchDraw || Detour(addr::SC4IndexBatch_Draw, &TPdBatchDraw, &g_PdBatchDraw))))
+        return false;
+    g_plMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the particles' draw without the dynamic buffer %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallDrawB(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !PdHookB())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(PdHookResetColour() &&
+          (g_PdInView || Detour(addr::SC4EffectB_ParticleInView, &TPdInView, &g_PdInView)) &&
+          (g_PdPartStart || Detour(addr::SC4EffectPartB_Start, &TPdPartStart, &g_PdPartStart)) &&
+          (g_PdPartStep || Detour(addr::SC4EffectPartB_Step, &TPdPartStep, &g_PdPartStep))))
+        return false;
+    g_dbMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the second class's particle draw %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDrawBuffered = registry::Register({
+    "renderer.effects.draw_buffered",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_DrawParticlesTextured,
+    "The particles' draw into the dynamic vertex buffer (0x005B4B90): a quad of four vertices for each particle, "
+    "in runs of the buffer's size, and the box around them; compare mode notes the game's calls (the texture, the "
+    "buffer's lock, unlock and draw, the vertices handed over) and answers ours from the notes (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallDrawBuffered,
+});
+
+const bool g_registeredDrawPlain = registry::Register({
+    "renderer.effects.draw_plain",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_DrawParticles,
+    "The base class's particle draw without the dynamic buffer (0x005B3DA0): a quad of the effect's batch for each "
+    "particle, the batch drawn, and the box around them; compare mode notes the game's calls (the texture, the "
+    "batch's draw with its vertices) and answers ours from the notes (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallDrawPlain,
+});
+
+const bool g_registeredDrawB = registry::Register({
+    "renderer.effects.draw_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_DrawParticles,
+    "The second class's particle draw (0x005ADD50): each particle drawn as the effect's model, its block, colour "
+    "and frame given to the model instance, its own effect placed, and the box around them; compare mode notes the "
+    "game's calls (the instance's, the model's, the own effects', the part's, the check whether a particle is in "
+    "view and the colour reset) and answers ours from the notes (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallDrawB,
+});
+
 // --- The draws without particles -------------------------------------------------------------
 //
 // The manager's draw, an effect's draw, a decal's step and its update
@@ -14759,13 +15210,9 @@ bool DwRecorded(uint32_t target)
 
 OPENSC4_DRAW_HOOK1(SC4Effect_StepFlag2000)
 OPENSC4_DRAW_HOOK0(SC4Effect_StepFlag80000000)
-OPENSC4_DRAW_HOOK1(SC4Effect_DrawParticlesTextured)
-OPENSC4_DRAW_HOOK1(SC4Effect_DrawParticles)
-OPENSC4_DRAW_HOOK1(SC4EffectB_DrawParticles)
 OPENSC4_DRAW_HOOK1(SC4RenderContext_SetColourAlt)
 OPENSC4_DRAW_HOOK0(SC4RenderContext_UpdateViewMatrix)
 OPENSC4_DRAW_HOOK1(SC4RenderContext_SetRenderState)
-OPENSC4_DRAW_HOOK0(SC4RenderContext_ResetColour)
 
 // The manager's notes: which call (DwKind), on what, with what.
 struct DwNote {
@@ -15272,10 +15719,7 @@ bool InstallDrawEffect(registry::Mode mode)
           Detour(addr::SC4Effect_StepFlag2000, &TDwSC4Effect_StepFlag2000, &g_DwSC4Effect_StepFlag2000) &&
           Detour(addr::SC4Effect_StepFlag80000000, &TDwSC4Effect_StepFlag80000000,
                  &g_DwSC4Effect_StepFlag80000000) &&
-          Detour(addr::SC4Effect_DrawParticlesTextured, &TDwSC4Effect_DrawParticlesTextured,
-                 &g_DwSC4Effect_DrawParticlesTextured) &&
-          Detour(addr::SC4Effect_DrawParticles, &TDwSC4Effect_DrawParticles, &g_DwSC4Effect_DrawParticles) &&
-          Detour(addr::SC4EffectB_DrawParticles, &TDwSC4EffectB_DrawParticles, &g_DwSC4EffectB_DrawParticles) &&
+          PdHookBuffered() && PdHookPlain() && PdHookB() &&
           (g_SC4EffectB_NotDrawn || Detour(addr::SC4EffectB_NotDrawn, &TSdNotDrawn, &g_SC4EffectB_NotDrawn)) &&
           Detour(addr::SC4RenderContext_SetColourAlt, &TDwSC4RenderContext_SetColourAlt,
                  &g_DwSC4RenderContext_SetColourAlt) &&
@@ -15283,8 +15727,7 @@ bool InstallDrawEffect(registry::Mode mode)
                  &g_DwSC4RenderContext_UpdateViewMatrix) &&
           Detour(addr::SC4RenderContext_SetRenderState, &TDwSC4RenderContext_SetRenderState,
                  &g_DwSC4RenderContext_SetRenderState) &&
-          Detour(addr::SC4RenderContext_ResetColour, &TDwSC4RenderContext_ResetColour,
-                 &g_DwSC4RenderContext_ResetColour)))
+          PdHookResetColour()))
         return false;
     g_dwEffectMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: an effect's draw %s", mode == registry::Mode::Compare ? "compared with the game's" : "ours");
