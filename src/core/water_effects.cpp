@@ -1453,12 +1453,16 @@ DWORD g_effectThread = 0;
 
 // Other threads free memory too while the draw runs; only the drawing
 // thread's frees are held back.
+// The rest go on to the other comparisons' notes, which share the detour.
+void __cdecl FreeNoted(uint32_t storage);
+void __cdecl DeleteNoted(uint32_t object);
+
 void __cdecl DFree(void* p)
 {
     if (g_effectRecord && GetCurrentThreadId() == g_effectThread)
         g_effectFreed.push_back({&g_free, p});
     else
-        g_free(p);
+        FreeNoted(reinterpret_cast<uint32_t>(p));
 }
 
 void __cdecl DDelete(void* p)
@@ -1466,7 +1470,7 @@ void __cdecl DDelete(void* p)
     if (g_effectRecord && GetCurrentThreadId() == g_effectThread)
         g_effectFreed.push_back({&g_delete, p});
     else
-        g_delete(p);
+        DeleteNoted(reinterpret_cast<uint32_t>(p));
 }
 
 void FreeNoted()
@@ -2392,17 +2396,10 @@ uint32_t __fastcall EffectBDeleteByMode(char* self, void*, uint32_t flags)
 }
 OPENSC4_THUNK(TSC4EffectB_Delete, EffectBDeleteByMode, 4)
 
-// What every record-and-replay comparison needs: the frees held back, and
-// the particle pool's functions recorded.
-bool HookFrees()
-{
-    if (g_free)
-        return true;
-    const addr::Entry* const release = addr_check::Find(addr::SC4_Free);
-    const addr::Entry* const destroy = addr_check::Find(addr::SC4_operator_delete);
-    return release && destroy && hook::Install(*release, &DFree, &g_free) &&
-           hook::Install(*destroy, &DDelete, &g_delete);
-}
+// What every record-and-replay comparison needs: the frees held back
+// (HookFrees, below the other comparisons' notes it shares the detour
+// with), and the particle pool's functions recorded.
+bool HookFrees();
 
 bool HookPool()
 {
@@ -7263,8 +7260,14 @@ uint32_t __fastcall DestroyByMode(char* vector, void*)
     std::vector<std::pair<uint32_t, char*>> extra;
     if (At<char*>(vector, 0))
         extra.push_back({kGrFree, At<char*>(vector, 0)});
+    // The end returns nothing: what the game's leaves in eax (an address on
+    // the stack) is not compared.
     GrHeldCompared(
-        "effects.records.destroy", watch, vector, 0xC, [&] { return g_SC4EffectRecords_Destroy(vector, nullptr); },
+        "effects.records.destroy", watch, vector, 0xC,
+        [&] {
+            g_SC4EffectRecords_Destroy(vector, nullptr);
+            return 0u;
+        },
         [&] {
             DestroyEffectRecords(vector);
             return 0u;
@@ -8611,10 +8614,10 @@ bool DetourCdecl(std::uintptr_t address, Fn replacement, Fn* original)
 }
 
 // The free has one detour, which the store's, the lists of held pointers'
-// and the vectors' comparisons share.
+// and the vectors' comparisons share with the effect's (HookFrees).
 bool HookFree()
 {
-    return g_SC4_Free || DetourCdecl(addr::SC4_Free, &FreeNoted, &g_SC4_Free);
+    return HookFrees();
 }
 
 bool InstallStore(registry::Mode mode)
@@ -10355,6 +10358,21 @@ void HsDelete(char* object)
         reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(object);
 }
 
+// The dword hash's clear (0x008EBA60), which renderer.effects.tail's
+// comparison detours to note: with that detour on, the game's end of a
+// hash is noted as the clear and the free, so ours' replay notes its
+// inlined clear as that one call (its frees inside it are not noted, as
+// the game's are not).
+extern Call0Fn g_SC4Uint32HashSet_Clear;
+
+bool HsClearNoted(char* table)
+{
+    if (!g_stReplay || !g_SC4Uint32HashSet_Clear)
+        return false;
+    StReplayed(StMake(addr::SC4Uint32HashSet_Clear, table), nullptr);
+    return true;
+}
+
 #include "core/effects_hashes.h"
 
 // A comparison whose game's run frees what is put back for ours: the
@@ -10683,11 +10701,27 @@ OPENSC4_THUNK(TDecalHoldNoted, DecalHoldNoted, 0)
 // renderer.effects.decal_parts (noted here whatever its mode).
 bool HookDecalRelease();
 
-// The delete has one detour, which this group's and renderer.effects.decal_parts'
-// comparisons share.
+// The free and the delete have one detour each, which every comparison
+// shares: the effect's record-and-replay holds back the drawing thread's
+// (DFree, DDelete), the others' note theirs (FreeNoted, DeleteNoted).
+// Two detours on one function would not install.
+bool HookFrees()
+{
+    if (g_free)
+        return true;
+    const addr::Entry* const release = addr_check::Find(addr::SC4_Free);
+    const addr::Entry* const destroy = addr_check::Find(addr::SC4_operator_delete);
+    if (!(release && destroy && hook::Install(*release, &DFree, &g_free) &&
+          hook::Install(*destroy, &DDelete, &g_delete)))
+        return false;
+    g_SC4_Free = reinterpret_cast<StFreeFn>(g_free);
+    g_SC4_operator_delete = reinterpret_cast<StFreeFn>(g_delete);
+    return true;
+}
+
 bool HookDelete()
 {
-    return g_SC4_operator_delete || DetourCdecl(addr::SC4_operator_delete, &DeleteNoted, &g_SC4_operator_delete);
+    return HookFrees();
 }
 
 bool HookPairHashInsert()

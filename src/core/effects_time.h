@@ -13,9 +13,9 @@
 // (the framework's object 0xA417445E/0x5A4, its slot 0x84) as a ray into
 // the world (the city view's 0x007F9080, its point and direction first
 // the word at 0x00B22C5C); then each compound effect in use that is
-// running (slot 0x14) gets the point (slot 0x2C with 9 and 2, with flag
-// 0x20 at +0x28) and its part at +4 the step in seconds (slot 0x10); the
-// cursor's holder let go (0x004177F0).
+// running (slot 0x14) gets the point and the direction (slot 0x2C with 9,
+// the point and 2 vectors, with flag 0x20 at +0x28) and its part at +4 the
+// step in seconds (slot 0x10); the cursor's holder let go (0x004177F0).
 void StepEffectsTime(char* manager, uint32_t ms)
 {
     uint32_t step = ms;
@@ -29,9 +29,12 @@ void StepEffectsTime(char* manager, uint32_t ms)
         VrCallSlot<uint32_t>(framework, 0x14, 0xA417445Eu, 0x5A4u, &holder);
     const uint32_t fill = M<uint32_t>(0x00B22C5C);
     uint32_t x = 0, z = 0;
-    uint32_t point[3] = {fill, fill, fill}, direction[3] = {fill, fill, fill};
+    // The point and the direction side by side, as on the game's stack: the
+    // effects' slot 0x2C is given two vectors (six floats) from the point.
+    uint32_t ray[6] = {fill, fill, fill, fill, fill, fill};
+    uint32_t* const point = ray;
     VrCallSlot<uint32_t>(holder, 0x84, &x, &z);
-    TmScreenRay(M<char*>(0x00B43DD8), x, z, point, direction);
+    TmScreenRay(M<char*>(0x00B43DD8), x, z, point, ray + 3);
     for (uint32_t i = 0; i < static_cast<uint32_t>(At<uint32_t*>(manager, 0xBB0) - At<uint32_t*>(manager, 0xBAC));
          ++i) {
         const uint32_t index = At<uint32_t*>(manager, 0xBAC)[i];

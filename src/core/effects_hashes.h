@@ -56,10 +56,12 @@ char* FindUint32(char* table, const uint32_t* key)
 // storage freed (0x0058F3A0). The buckets' list itself is left.
 void DestroyUint32Hash(char* table)
 {
+    const bool clearNoted = HsClearNoted(table);
     for (uint32_t i = 0; i < HsBuckets(table); ++i) {
         for (char* node = At<char**>(table, 4)[i]; node;) {
             char* const next = At<char*>(node, 0);
-            StFree(node);
+            if (!clearNoted)
+                StFree(node);
             node = next;
         }
         At<char**>(table, 4)[i] = nullptr;
