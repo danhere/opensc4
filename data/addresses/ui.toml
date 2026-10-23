@@ -22,7 +22,7 @@ address = 0x0041D490
 kind = "function"
 convention = "thiscall"
 expect = "8B 44 24 0C 48 78 26 53"
-source = "Placeholder name (docs/ui.md): a function of the interface code, 48 bytes with padding."
+source = "Placeholder name (docs/ui.md): a function of the interface code, 48 bytes with padding. cdecl: two game strings' bodies (begin, end) compared byte for byte, EAX 1 when the same, else 0."
 
 [[entry]]
 name = "SC4UI::F41D4C0"
@@ -628,7 +628,8 @@ source = "Placeholder name (docs/ui.md): a function of the interface code, 320 b
 name = "SC4UI::F43AB70"
 address = 0x0043AB70
 kind = "function"
-convention = "thiscall"
+convention = "cdecl"
+signature = "bool (const void* left, const void* right)"
 expect = "8B 44 24 04 8B 48 04 56"
 source = "Placeholder name (docs/ui.md): a function of the interface code, 48 bytes with padding."
 

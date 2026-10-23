@@ -5,8 +5,9 @@
 // the framework sound classes' test (OPENSC4_TEST_GZSOUND, part u5), the
 // sound service's test (OPENSC4_TEST_GZSOUNDSVC, part u6), the sound
 // mixer's (OPENSC4_TEST_GZSOUNDMIX, part u8), the UI script loader's
-// (OPENSC4_TEST_UISCRIPT, part u9) and the MP3 decoder's and the UI
-// script root holder's (OPENSC4_TEST_MP3, part u10).
+// (OPENSC4_TEST_UISCRIPT, part u9), the MP3 decoder's and the UI script
+// root holder's (OPENSC4_TEST_MP3, part u10) and the root holder's life and
+// the LEGACY reader's (OPENSC4_TEST_LEGACY, part u11).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -7233,6 +7234,401 @@ void MpFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kMpFingerprint{"mp3", 4, &MpFingerprint};
 const DayHook kMpDrive{"mp3", 4, &DriveMp3};
+
+
+// Part u11: the rest of the UI script's root holder 0x5A354595 and the
+// LEGACY reader 0xFA450242 (OPENSC4_TEST_LEGACY). Real root holders and
+// readers made by the game's factories and constructors (and on memory of
+// our own), windows, parents and values of our own where they take them
+// (each hashes every call it gets). Every result goes into the hash;
+// addresses never do.
+
+bool g_lgOn = false;
+uint32_t g_lgHash = 2166136261u;
+
+void LgStage(const char* name) { log::Write("autotest: legacy: %s %08X", name, g_lgHash); }
+
+// The root holder's life: made, windows added (the vector grows past its
+// first 8), pushed and erased by address, released to nothing; on memory
+// of our own through the constructor and both destructors; a vector of our
+// own through its constructor, push and erase.
+void DriveLgRoot()
+{
+    std::vector<MpObject*> objects;
+    auto make = [&](uint32_t id) {
+        MpObject* const object = new MpObject{MpTable(0), id, 0, nullptr, nullptr};
+        objects.push_back(object);
+        return object;
+    };
+    char* const root = MpCdecl<char*>(addr::cGZUIScriptDirector_CreateRoot);
+    Mix(root ? 1u : 0u);
+    if (!root)
+        return;
+    Mix(At<uint32_t>(root, 0) == addr::cGZUIScriptRoot_Vtable ? 1u : 0u);
+    Mix(At<uint32_t>(root, 4) == addr::cGZUIScriptRoot_PartVtable ? 1u : 0u);
+    Mix(static_cast<uint32_t>(At<char*>(root, 0x10) - At<char*>(root, 8)));
+    Mix(At<uint32_t>(root, 0x20));
+    Mix(At<uint32_t>(At<char*>(root, 0x18), 0) == addr::cGZUIScriptRoot_AllocatorVtable ? 1u : 0u);
+    Mix(At<uint32_t>(At<char*>(root, 0x18), 4));
+    Virtual<uint32_t>(root, 0x4);
+    for (uint32_t id = 1; id <= 12; ++id) {
+        MpObject* const window = make(id);
+        MixByte(id & 1 ? CallThis<uint32_t>(addr::cGZUIScriptRoot_Add, root, window)
+                       : Virtual<uint32_t>(root, 0x10, window));
+        Mix(static_cast<uint32_t>(At<char*>(root, 0x10) - At<char*>(root, 8)));
+    }
+    MixByte(CallThis<uint32_t>(addr::cGZUIScriptRoot_Add, root, static_cast<void*>(nullptr)));
+    MixByte(Virtual<uint32_t>(root, 0x10, static_cast<void*>(nullptr)));
+    MixPointers(At<void**>(root, 8), At<void**>(root, 0xC));
+    // Pushed by address (held by us), with room and without.
+    for (uint32_t id = 20; id < 26; ++id) {
+        MpObject* const window = make(id);
+        ++window->refs;
+        void* const value = window;
+        CallThis<void*>(addr::cGZUIScriptRoot_VectorPush, root + 8, &value);
+        Mix(static_cast<uint32_t>(At<char*>(root, 0x10) - At<char*>(root, 8)));
+    }
+    MixPointers(At<void**>(root, 8), At<void**>(root, 0xC));
+    // Erased: two in the middle, none, the last (each released by us).
+    void** const begin = At<void**>(root, 8);
+    MpObject* const gone[3] = {static_cast<MpObject*>(begin[2]), static_cast<MpObject*>(begin[3]), nullptr};
+    void** at = CallThis<void**>(addr::cGZUIScriptRoot_VectorErase, root + 8, begin + 2, begin + 4);
+    Mix(static_cast<uint32_t>(at - begin));
+    at = CallThis<void**>(addr::cGZUIScriptRoot_VectorErase, root + 8, begin + 5, begin + 5);
+    Mix(static_cast<uint32_t>(at - begin));
+    void** const last = At<void**>(root, 0xC) - 1;
+    MpObject* const lastOne = static_cast<MpObject*>(*last);
+    at = CallThis<void**>(addr::cGZUIScriptRoot_VectorErase, root + 8, last, last + 1);
+    Mix(static_cast<uint32_t>(at - begin));
+    MixPointers(At<void**>(root, 8), At<void**>(root, 0xC));
+    --gone[0]->refs;
+    --gone[1]->refs;
+    --lastOne->refs;
+    Mix(Virtual<uint32_t>(root, 0x28));
+    // Released to nothing: the deleting destructor releases every window.
+    while (At<uint32_t>(root, 0x20) > 1)
+        Mix(Virtual<uint32_t>(root, 0x8));
+    Mix(Virtual<uint32_t>(root, 0x8));
+    for (MpObject* object : objects)
+        Mix(static_cast<uint32_t>(object->refs));
+
+    // On memory of our own.
+    static char memory[2][0x24];
+    for (int way = 0; way < 2; ++way) {
+        std::memset(memory[way], 0x5A, sizeof memory[way]);
+        char* const own = CallThis<char*>(addr::cGZUIScriptRoot_Construct, memory[way]);
+        Mix(own == memory[way] ? 1u : 0u);
+        Mix(At<uint32_t>(own, 0) == addr::cGZUIScriptRoot_Vtable ? 1u : 0u);
+        Mix(At<uint32_t>(own, 0x14));
+        Mix(At<uint32_t>(own, 0x1C));
+        Mix(At<uint32_t>(own, 0x20));
+        for (uint32_t id = 30; id < 33; ++id)
+            MixByte(CallThis<uint32_t>(addr::cGZUIScriptRoot_Add, own, make(id + 10 * way)));
+        if (way == 0)
+            CallThis<void>(addr::cGZUIScriptRoot_Destruct, own);
+        else
+            Mix(CallThis<char*>(addr::cGZUIScriptRoot_DeletingDestructor, own, 0u) == own ? 1u : 0u);
+        Mix(At<uint32_t>(own, 0) == addr::cGZUIScriptRoot_Vtable ? 1u : 0u);
+    }
+
+    // A vector of our own.
+    static char vector[0x18];
+    std::memset(vector, 0x33, sizeof vector);
+    Mix(CallThis<char*>(addr::cGZUIScriptRoot_VectorConstruct, vector) == vector ? 1u : 0u);
+    Mix(At<uint32_t>(vector, 0xC));
+    Mix(At<uint32_t>(vector, 0x14));
+    Mix(static_cast<uint32_t>(At<char*>(vector, 8) - At<char*>(vector, 0)));
+    MpObject* const items[3] = {make(51), make(52), make(53)};
+    for (int i = 0; i < 11; ++i) {
+        void* const value = items[i % 3];
+        CallThis<void*>(addr::cGZUIScriptRoot_VectorPush, vector, &value);
+        Mix(static_cast<uint32_t>(At<char*>(vector, 8) - At<char*>(vector, 0)));
+    }
+    MixPointers(At<void**>(vector, 0), At<void**>(vector, 4));
+    void** const first = At<void**>(vector, 0);
+    Mix(static_cast<uint32_t>(CallThis<void**>(addr::cGZUIScriptRoot_VectorErase, vector, first, first + 3) - first));
+    MixPointers(At<void**>(vector, 0), At<void**>(vector, 4));
+    Mix(static_cast<uint32_t>(
+        CallThis<void**>(addr::cGZUIScriptRoot_VectorErase, vector, first, At<void**>(vector, 4)) - first));
+    MixPointers(At<void**>(vector, 0), At<void**>(vector, 4));
+    CallThis<void>(addr::SC4AttrVector_Destruct, vector);
+    for (MpObject* object : objects) {
+        Mix(static_cast<uint32_t>(object->refs));
+        delete object;
+    }
+}
+
+// Objects of our own for a LEGACY reader: a window (slot 0 its face
+// 0x9A4527CB, 5, 47, 54, 63 and 64 calls, 11 an object, 15 a window), the
+// face (slot 3 its value) and values; every call hashed.
+struct LgObject {
+    void* const* vtable;
+    uint32_t id;
+    int32_t refs;
+    LgObject* face;
+    LgObject* value;
+    LgObject* other;
+};
+
+uint32_t __fastcall LgObjQueryInterface(LgObject* self, void*, uint32_t iid, void** out)
+{
+    Mix(0xB100);
+    Mix(self->id);
+    Mix(iid);
+    if (iid != 0x9A4527CB || !self->face)
+        return 0;
+    ++self->face->refs;
+    *out = self->face;
+    return 1;
+}
+uint32_t __fastcall LgObjAddRef(LgObject* self, void*)
+{
+    Mix(0xB101);
+    Mix(self->id);
+    return static_cast<uint32_t>(++self->refs);
+}
+uint32_t __fastcall LgObjRelease(LgObject* self, void*)
+{
+    Mix(0xB102);
+    Mix(self->id);
+    return static_cast<uint32_t>(--self->refs);
+}
+void* __fastcall LgObjValue(LgObject* self, void*)
+{
+    Mix(0xB103);
+    Mix(self->id);
+    return self->value;
+}
+void* __fastcall LgObjOther(LgObject* self, void*)
+{
+    Mix(0xB10B);
+    Mix(self->id);
+    return self->other;
+}
+uint32_t __fastcall LgObjTakes(LgObject* self, void*, LgObject* window)
+{
+    Mix(0xB10F);
+    Mix(self->id);
+    Mix(window ? window->id : 0xFFu);
+    return 0x3C;
+}
+template <uint32_t Slot>
+uint32_t __fastcall LgObjCall0(LgObject* self, void*)
+{
+    Mix(0xB000 + Slot);
+    Mix(self->id);
+    return Slot * 0x100 + self->id;
+}
+template <uint32_t Slot>
+uint32_t __fastcall LgObjCall1(LgObject* self, void*, uint32_t argument)
+{
+    Mix(0xB000 + Slot);
+    Mix(self->id);
+    Mix(argument);
+    return Slot * 0x100 + self->id + (argument << 16);
+}
+
+void* const* LgObjTable()
+{
+    static void* table[65];
+    if (!table[0]) {
+        for (void*& slot : table)
+            slot = reinterpret_cast<void*>(&GsTrap);
+        table[0] = reinterpret_cast<void*>(&LgObjQueryInterface);
+        table[1] = reinterpret_cast<void*>(&LgObjAddRef);
+        table[2] = reinterpret_cast<void*>(&LgObjRelease);
+        table[3] = reinterpret_cast<void*>(&LgObjValue);
+        table[5] = reinterpret_cast<void*>(&LgObjCall0<5>);
+        table[11] = reinterpret_cast<void*>(&LgObjOther);
+        table[15] = reinterpret_cast<void*>(&LgObjTakes);
+        table[47] = reinterpret_cast<void*>(&LgObjCall1<47>);
+        table[54] = reinterpret_cast<void*>(&LgObjCall1<54>);
+        table[63] = reinterpret_cast<void*>(&LgObjCall0<63>);
+        table[64] = reinterpret_cast<void*>(&LgObjCall1<64>);
+    }
+    return table;
+}
+
+// A reader's fields (not its pointers).
+void MixLegacy(char* reader)
+{
+    Mix(At<uint32_t>(reader, 0) == addr::cGZUIScriptLegacy_Vtable ? 1u : 0u);
+    Mix(At<uint32_t>(reader, 4) == addr::cGZUIScriptLegacy_ChildVtable ? 1u : 0u);
+    Mix(At<uint32_t>(reader, 8) == addr::cGZUIScriptLegacy_WindowVtable ? 1u : 0u);
+    Mix(At<uint32_t>(reader, 0xC));
+    for (std::size_t at = 0x10; at <= 0x18; at += 4) {
+        LgObject* const held = At<LgObject*>(reader, at);
+        Mix(held ? held->id : 0u);
+    }
+    Mix(At<uint8_t>(reader, 0x1C));
+    Mix(At<void*>(reinterpret_cast<void*>(addr::cGZUIScriptLegacy_Table), 0) ? 1u : 0u);
+}
+
+void DriveLgLegacy()
+{
+    std::vector<LgObject*> objects;
+    auto make = [&](uint32_t id) {
+        LgObject* const object = new LgObject{LgObjTable(), id, 0, nullptr, nullptr, nullptr};
+        objects.push_back(object);
+        return object;
+    };
+    void*& table = *reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    auto run = [&](int round) {
+        const bool byAddress = round & 1;
+        char* const reader = MpCdecl<char*>(addr::cGZUIScriptDirector_CreateLegacy);
+        Mix(reader ? 1u : 0u);
+        if (!reader)
+            return;
+        MixLegacy(reader);
+        Mix(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_AddRef, reader) : Virtual<uint32_t>(reader, 0x4));
+        const uint32_t iids[] = {1, 0x1A356083, 0x5A356159, 0x9A4527CB, 0x5A354595, 0};
+        for (const uint32_t iid : iids) {
+            void* out = nullptr;
+            const uint32_t got = byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_QueryInterface, reader, iid, &out)
+                                           : Virtual<uint32_t>(reader + 8 * (iid & 1), 0x0, iid, &out);
+            Mix(got & 0xFF ? got & 0xFF : got);
+            Mix(out == reader ? 1u : out == reader + 4 ? 2u : out == reader + 8 ? 3u : out ? 4u : 0u);
+            if (out)
+                Mix(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_Release, reader)
+                              : Virtual<uint32_t>(static_cast<char*>(out), 0x8));
+        }
+        Mix((byAddress ? CallThis<void*>(addr::cGZUIScriptLegacy_TableSlot, reader) : Virtual<void*>(reader, 0x10)) ==
+                    table
+                ? 1u
+                : 0u);
+        // No window yet.
+        Mix(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_Window63, reader) : Virtual<uint32_t>(reader, 0x14));
+        if (byAddress) {
+            MixByte(CallThis<uint32_t>(addr::cGZUIScriptLegacy_Window54, reader + 4, 7u));
+            MixByte(CallThis<uint32_t>(addr::cGZUIScriptLegacy_Window47, reader + 4, 8u));
+        } else {
+            MixByte(Virtual<uint32_t>(reader + 4, 0x10, 7u));
+            MixByte(Virtual<uint32_t>(reader + 4, 0x14, 8u));
+        }
+        // Parents: none, one without the face, a face without a value, with
+        // values (the second replaces the first).
+        LgObject* const plain = make(0x10 + round);
+        LgObject* const bare = make(0x20 + round);
+        bare->face = make(0x30 + round);
+        LgObject* const full = make(0x40 + round);
+        full->face = make(0x50 + round);
+        full->face->value = make(0x60 + round);
+        LgObject* const again = make(0x70 + round);
+        again->face = make(0x80 + round);
+        again->face->value = make(0x90 + round);
+        for (LgObject* const parent : {static_cast<LgObject*>(nullptr), plain, bare, full, again}) {
+            MixByte(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_SetParent, reader, parent)
+                              : Virtual<uint32_t>(reader, 0x24, parent));
+            MixLegacy(reader);
+        }
+        // Windows and objects: set, the same again, another, none, set.
+        LgObject* const windows[] = {make(0xA0 + round), make(0xB0 + round)};
+        LgObject* const things[] = {make(0xC0 + round), make(0xD0 + round)};
+        for (LgObject* const window : {windows[0], windows[0], windows[1], static_cast<LgObject*>(nullptr), windows[0]}) {
+            // The same again leaves the caller's EAX: not mixed.
+            const bool same = At<LgObject*>(reader, 0x10) == window;
+            const uint32_t got = byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_SetWindow, reader + 8, window)
+                                           : Virtual<uint32_t>(reader + 8, 0x14, window);
+            Mix(same ? 0xFFFFu : got);
+            MixLegacy(reader);
+        }
+        for (LgObject* const thing : {things[0], things[1], things[1], static_cast<LgObject*>(nullptr), things[1]}) {
+            const bool same = At<LgObject*>(reader, 0x18) == thing;
+            const uint32_t got = byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_SetObject, reader + 8, thing)
+                                           : Virtual<uint32_t>(reader + 8, 0x18, thing);
+            Mix(same ? 0xFFFFu : got);
+            MixLegacy(reader);
+        }
+        // The window's calls.
+        Mix(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_Window63, reader) : Virtual<uint32_t>(reader, 0x14));
+        Mix(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_Window64, reader, 0x41u)
+                      : Virtual<uint32_t>(reader, 0x18, 0x42u));
+        MixByte(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_Window54, reader + 4, 0x43u)
+                          : Virtual<uint32_t>(reader + 4, 0x10, 0x44u));
+        MixByte(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_Window47, reader + 4, 0x45u)
+                          : Virtual<uint32_t>(reader + 4, 0x14, 0x46u));
+        // The flag: by the primary slot, the face's and the address.
+        const uint32_t flags[] = {0x101u, 0u, 0x2FEu, round < 2 ? 1u : 0u};
+        for (int i = 0; i < 4; ++i) {
+            uint32_t got;
+            if (i == 3 || byAddress)
+                got = CallThis<uint32_t>(addr::cGZUIScriptLegacy_SetFlag, reader, flags[i]);
+            else if (i == 1)
+                got = Virtual<uint32_t>(reader + 8, 0x10, flags[i]);
+            else
+                got = Virtual<uint32_t>(reader, 0x1C, flags[i]);
+            MixByte(got);
+            Mix(At<uint8_t>(reader, 0x1C));
+        }
+        // The window's object at the end (round 0 one, round 1 none).
+        windows[0]->other = round == 0 ? make(0xE0) : nullptr;
+        // Released to nothing (the deleting destructor).
+        while (At<uint32_t>(reader, 0xC) > 1)
+            Mix(Virtual<uint32_t>(reader, 0x8));
+        Mix(byAddress ? CallThis<uint32_t>(addr::cGZUIScriptLegacy_Release, reader) : Virtual<uint32_t>(reader, 0x8));
+        Mix(table ? 1u : 0u);
+    };
+    // A reader kept for the whole test, so the shared table stays.
+    char* const keep = MpCdecl<char*>(addr::cGZUIScriptDirector_CreateLegacy);
+    if (keep)
+        Virtual<uint32_t>(keep, 0x4);
+    for (int round = 0; round < 4; ++round)
+        run(round);
+
+    // On memory of our own: the destructor, then the deleting destructor.
+    static char memory[2][0x20];
+    for (int way = 0; way < 2; ++way) {
+        std::memset(memory[way], 0x6B, sizeof memory[way]);
+        char* const own = CallThis<char*>(addr::cGZUIScriptLegacy_Construct, memory[way]);
+        Mix(own == memory[way] ? 1u : 0u);
+        MixLegacy(own);
+        LgObject* const window = make(0xF0 + way);
+        window->other = make(0xF2 + way);
+        CallThis<uint32_t>(addr::cGZUIScriptLegacy_SetWindow, own + 8, window);
+        CallThis<uint32_t>(addr::cGZUIScriptLegacy_SetObject, own + 8, make(0xF4 + way));
+        CallThis<uint32_t>(addr::cGZUIScriptLegacy_SetFlag, own, 1u);
+        if (way == 0)
+            CallThis<uint32_t>(addr::cGZUIScriptLegacy_Destruct, own);
+        else
+            Mix(CallThis<char*>(addr::cGZUIScriptLegacy_DeletingDestructor, own, 0u) == own ? 1u : 0u);
+        MixLegacy(own);
+    }
+    if (keep)
+        Mix(Virtual<uint32_t>(keep, 0x8));
+    for (LgObject* object : objects) {
+        Mix(static_cast<uint32_t>(object->refs));
+        delete object;
+    }
+}
+
+// OPENSC4_TEST_LEGACY=<day>: part u11's functions through their slots and
+// addresses. Every result goes into the fingerprint's `lg` part.
+void DriveLegacy(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_LEGACY") || !game::IsBuild641())
+        return;
+    g_lgOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_lgHash;
+    DriveLgRoot();
+    LgStage("root");
+    DriveLgLegacy();
+    LgStage("legacy");
+    g_into = saved;
+    log::Write("autotest: legacy driven (hash %08X)", g_lgHash);
+}
+
+void LgFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_lgOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | lg %08X", g_lgHash);
+    line += text;
+}
+
+const FingerprintPart kLgFingerprint{"legacy", 4, &LgFingerprint};
+const DayHook kLgDrive{"legacy", 4, &DriveLegacy};
 
 } // namespace
 } // namespace opensc4::autotest
