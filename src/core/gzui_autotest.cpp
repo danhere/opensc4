@@ -9,13 +9,15 @@
 // root holder's (OPENSC4_TEST_MP3, part u10) and the root holder's life and
 // the LEGACY reader's (OPENSC4_TEST_LEGACY, part u11), the readers of a
 // window's script properties (OPENSC4_TEST_PROPREAD, part u12) and their
-// makers, loaders and lookups (OPENSC4_TEST_PROPMAKE, part u12, slice 2).
+// makers, loaders and lookups (OPENSC4_TEST_PROPMAKE, part u12, slice 2) and
+// their handlers (OPENSC4_TEST_PROPHANDLE, part u12, slice 3).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
 
 #include <opensc4/addresses.h>
 
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -23,6 +25,7 @@
 #include <iterator>
 #include <process.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 // For the game's folder (part u10 reads one of its radio MP3 files).
@@ -8231,6 +8234,537 @@ void PmFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kPmFingerprint{"propmake", 4, &PmFingerprint};
 const DayHook kPmDrive{"propmake", 4, &DrivePropMakeDay};
+
+
+// Part u12, slice 3: the property handlers and the variable table's words
+// (OPENSC4_TEST_PROPHANDLE). The words' filler called by address with a
+// variable table of our own in the global's place (its slot 3 hashes each
+// word's text and value). The eight handlers called by address with
+// windows of our own (slot 0 gives a control of our own for its interface,
+// or none; slots 53, 68 and 114 hash what they get), controls of our own
+// (every slot a handler calls hashes its arguments: words, a string's
+// text, a rectangle's four ints, which image, a pointer's being there, or
+// the low byte where the game pushes a dword it wrote only the low byte of
+// and leaves its stack's leftovers above), the UI script loader's held
+// object one of our own (images of our own for odd instances, texts for
+// odd instances), on vectors of pairs of our own (number values whose
+// slots 73 and 75 leave a mark in EDX, text values), both passes, EBX,
+// ESI, EDI and EBP checked kept and the argument slots read back. Every
+// result goes into the hash; addresses never do.
+
+bool g_phOn = false;
+uint32_t g_phHash = 2166136261u;
+
+void PhStage(const char* name) { log::Write("autotest: prophandle: %s %08X", name, g_phHash); }
+
+// The values: slot 3 the kind, slot 55 the text into a string, slots 73
+// and 75 point at two words of their own (EDX a mark).
+struct PhValue {
+    void** vtable;
+    uint32_t kind;
+    uint32_t word73;
+    uint32_t word75;
+    const char* text;
+};
+
+uint32_t __fastcall PhValueKind(PhValue* self, void*)
+{
+    Mix(0x3000u | self->kind);
+    return self->kind;
+}
+
+uint32_t __fastcall PhValueText(PhValue* self, void*, void* string)
+{
+    Mix(0x37000u);
+    const uint32_t length = static_cast<uint32_t>(std::strlen(self->text));
+    Virtual<uint32_t>(string, 0xC, self->text, length);
+    return 0x100u | (length & 0xFF);
+}
+
+__declspec(naked) void PhValue73()
+{
+    __asm lea eax, [ecx + 8]
+    __asm mov edx, 0x73737373
+    __asm ret
+}
+
+__declspec(naked) void PhValue75()
+{
+    __asm lea eax, [ecx + 12]
+    __asm mov edx, 0x75757575
+    __asm ret
+}
+
+void** PhValueTable()
+{
+    static void* table[76] = {};
+    table[3] = reinterpret_cast<void*>(&PhValueKind);
+    table[55] = reinterpret_cast<void*>(&PhValueText);
+    table[73] = reinterpret_cast<void*>(&PhValue73);
+    table[75] = reinterpret_cast<void*>(&PhValue75);
+    return table;
+}
+
+// A vector of pairs (key, value) and its values.
+struct PhVector {
+    std::vector<PhValue> values;
+    std::vector<std::pair<uint32_t, PhValue*>> pairs;
+    char* vector[3] = {};
+
+    struct Item {
+        uint32_t key;
+        char type;  // n a number, t a text, x not a number, 0 none
+        uint32_t word;
+        const char* text;
+    };
+    PhVector(std::initializer_list<Item> items)
+    {
+        values.reserve(items.size());
+        for (const Item& item : items) {
+            if (item.type == '0') {
+                pairs.push_back({item.key, nullptr});
+                continue;
+            }
+            const uint32_t kind = item.type == 'n' ? 6u : item.type == 't' ? 0x800Eu : 5u;
+            values.push_back({PhValueTable(), kind, item.word, item.word ^ 0x40000000u, item.text ? item.text : ""});
+            pairs.push_back({item.key, &values.back()});
+        }
+        vector[0] = reinterpret_cast<char*>(pairs.data());
+        vector[1] = reinterpret_cast<char*>(pairs.data() + pairs.size());
+    }
+};
+
+// Images of our own: AddRef, Release, width (slot 9), height (slot 10),
+// area (slot 12).
+struct PhImage {
+    void** vtable;
+    uint32_t id;
+    uint32_t count;
+    int32_t area[4];
+};
+
+uint32_t __fastcall PhImageAddRef(PhImage* self, void*) { return ++self->count; }
+uint32_t __fastcall PhImageRelease(PhImage* self, void*) { return --self->count; }
+uint32_t __fastcall PhImageWidth(PhImage* self, void*) { return 0x40 + self->id; }
+uint32_t __fastcall PhImageHeight(PhImage* self, void*) { return 0x20 + self->id; }
+int32_t* __fastcall PhImageArea(PhImage* self, void*) { return self->area; }
+
+void** PhImageTable()
+{
+    static void* table[13] = {};
+    table[1] = reinterpret_cast<void*>(&PhImageAddRef);
+    table[2] = reinterpret_cast<void*>(&PhImageRelease);
+    table[9] = reinterpret_cast<void*>(&PhImageWidth);
+    table[10] = reinterpret_cast<void*>(&PhImageHeight);
+    table[12] = reinterpret_cast<void*>(&PhImageArea);
+    return table;
+}
+
+PhImage g_phImages[4];
+
+// The held object of the UI script loader: an image for odd instances (one
+// of four, held), a text for odd instances.
+uint32_t __fastcall PhHeldImage(PmHeld*, void*, const uint32_t* key)
+{
+    Mix(0x3003u);
+    PmMixKey(key);
+    if (!(key[2] & 1))
+        return 0;
+    PhImage& image = g_phImages[(key[2] >> 1) & 3];
+    ++image.count;
+    return PrArg(&image);
+}
+
+void** PhHeldTable()
+{
+    static void* table[5] = {};
+    table[1] = reinterpret_cast<void*>(&PmHeldAddRef);
+    table[2] = reinterpret_cast<void*>(&PmHeldRelease);
+    table[3] = reinterpret_cast<void*>(&PhHeldImage);
+    table[4] = reinterpret_cast<void*>(&PmHeldText);
+    return table;
+}
+
+// The controls: per interface, the slots the handler calls and what each
+// argument is (w a word, b its low byte, s a string, r a rectangle or
+// none, i which image or none, p a pointer's being there).
+struct PhSlot {
+    uint32_t slot;
+    const char* args;
+};
+
+struct PhInterface {
+    uint32_t iid;
+    std::vector<PhSlot> slots;
+};
+
+const std::vector<PhInterface>& PhInterfaces()
+{
+    static const std::vector<PhInterface> interfaces = {
+        {0xC2AFA76F, {{12, "w"}, {10, "wbbb"}}},
+        {0x212CDC1F, {{7, "ww"}, {19, "w"}, {9, "ww"}, {23, "ww"}, {25, "ww"}, {21, "w"}, {5, "ww"}}},
+        {0x231A1C57,
+         {{43, ""}, {80, ""}, {77, "w"}, {10, "w"}, {12, "ww"}, {18, "w"}, {23, "w"}, {37, "ww"}, {33, "w"},
+          {40, "w"}, {42, "w"}, {64, "w"}, {66, "w"}, {68, "ww"}, {72, "w"}, {81, "w"}, {88, "ir"}, {87, "ir"}}},
+        {0x4132242B,
+         {{7, "sww"}, {14, ""}, {16, ""}, {10, "ww"}, {27, "w"}, {29, "w"}, {9, ""}, {47, ""}, {48, ""}, {35, "bb"},
+          {38, "p"}, {39, "ww"}, {42, "w"}, {51, "w"}, {55, "ww"}, {53, "w"}, {57, "ww"}, {59, "ww"}, {17, "w"}}},
+        {0x8810,
+         {{5, "ww"}, {20, "w"}, {19, "p"}, {23, "ww"}, {30, "ww"}, {29, "wwww"}, {12, "wir"}, {27, "w"}, {35, "s"},
+          {40, "ww"}, {38, "w"}, {45, "ww"}}},
+        {0xC12CEA13, {{8, "r"}, {11, "ww"}, {6, "ww"}, {4, "i"}}},
+        {0x21325207, {{5, "w"}, {8, "w"}, {6, "w"}, {10, "w"}, {12, "ir"}}},
+        {0x612CE0C3,
+         {{10, "ww"}, {12, "w"}, {9, "w"}, {4, "w"}, {6, "ww"}, {19, "p"}, {23, "ww"}, {14, "iw"}, {27, "w"},
+          {29, "ww"}, {31, "wwww"}}},
+    };
+    return interfaces;
+}
+
+struct PhControl {
+    void** vtable;
+    const PhInterface* face;
+    uint32_t count;
+    uint32_t calls;
+};
+
+void PhMixArg(char kind, uint32_t value)
+{
+    switch (kind) {
+    case 'b': Mix(value & 0xFF); break;
+    case 's': PrMixText(static_cast<char*>(reinterpret_cast<void*>(static_cast<std::uintptr_t>(value)))); break;
+    case 'r':
+        if (!value) {
+            Mix(0xDEADu);
+        } else {
+            const int32_t* const rect = reinterpret_cast<const int32_t*>(static_cast<std::uintptr_t>(value));
+            for (int i = 0; i < 4; ++i)
+                Mix(static_cast<uint32_t>(rect[i]));
+        }
+        break;
+    case 'i': Mix(value ? reinterpret_cast<const PhImage*>(static_cast<std::uintptr_t>(value))->id : 0xFFu); break;
+    case 'p': Mix(value ? 1u : 0u); break;
+    default: Mix(value); break;
+    }
+}
+
+uint32_t PhRecord(PhControl* self, uint32_t slot, const uint32_t* args)
+{
+    Mix(0xC0000u | slot);
+    const char* kinds = "";
+    for (const PhSlot& known : self->face->slots) {
+        if (known.slot == slot)
+            kinds = known.args;
+    }
+    for (uint32_t i = 0; kinds[i]; ++i)
+        PhMixArg(kinds[i], args[i]);
+    ++self->calls;
+    return (slot * 0x10001u) ^ (self->calls << 8);
+}
+
+uint32_t __fastcall PhControlAddRef(PhControl* self, void*) { return ++self->count; }
+uint32_t __fastcall PhControlRelease(PhControl* self, void*) { return --self->count; }
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot0(PhControl* self, void*)
+{
+    return PhRecord(self, Slot, nullptr);
+}
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot1(PhControl* self, void*, uint32_t a)
+{
+    const uint32_t args[] = {a};
+    return PhRecord(self, Slot, args);
+}
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot2(PhControl* self, void*, uint32_t a, uint32_t b)
+{
+    const uint32_t args[] = {a, b};
+    return PhRecord(self, Slot, args);
+}
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot3(PhControl* self, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    const uint32_t args[] = {a, b, c};
+    return PhRecord(self, Slot, args);
+}
+
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot4(PhControl* self, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+    const uint32_t args[] = {a, b, c, d};
+    return PhRecord(self, Slot, args);
+}
+
+constexpr std::size_t kPhSlots = 90;
+
+template <std::size_t... I>
+std::array<std::array<void*, kPhSlots>, 5> PhSlotTables(std::index_sequence<I...>)
+{
+    return {{{reinterpret_cast<void*>(&PhSlot0<I>)...},
+             {reinterpret_cast<void*>(&PhSlot1<I>)...},
+             {reinterpret_cast<void*>(&PhSlot2<I>)...},
+             {reinterpret_cast<void*>(&PhSlot3<I>)...},
+             {reinterpret_cast<void*>(&PhSlot4<I>)...}}};
+}
+
+void** PhControlTable(const PhInterface& face)
+{
+    static const auto slots = PhSlotTables(std::make_index_sequence<kPhSlots>{});
+    static std::vector<std::array<void*, kPhSlots>> tables(PhInterfaces().size());
+    std::array<void*, kPhSlots>& table = tables[&face - PhInterfaces().data()];
+    table[1] = reinterpret_cast<void*>(&PhControlAddRef);
+    table[2] = reinterpret_cast<void*>(&PhControlRelease);
+    for (const PhSlot& slot : face.slots)
+        table[slot.slot] = slots[std::strlen(slot.args)][slot.slot];
+    return table.data();
+}
+
+// The windows: slot 0 gives the control for its interface (held) or
+// nothing; slots 53, 68 and 114 hash what they get (114 destroys the
+// value by its slot 127 after).
+struct alignas(256) PhWindow {
+    void** vtable;
+    PhControl* control;
+    bool give;
+};
+
+uint32_t __fastcall PhWindowQuery(PhWindow* self, void*, uint32_t iid, void** out)
+{
+    Mix(0x10000u);
+    Mix(iid);
+    if (!self->give || iid != self->control->face->iid)
+        return 0x100u;
+    ++self->control->count;
+    *out = self->control;
+    return 0x101u;
+}
+
+uint32_t __fastcall PhWindow53(PhWindow*, void*, uint32_t width, uint32_t height)
+{
+    Mix(0x53000u);
+    Mix(width);
+    Mix(height);
+    return 0x53u;
+}
+
+uint32_t __fastcall PhWindow68(PhWindow*, void*, uint32_t flag, uint32_t on)
+{
+    Mix(0x68000u);
+    Mix(flag);
+    Mix(on);
+    return 0x68u;
+}
+
+uint32_t __fastcall PhWindowPut(PhWindow*, void*, uint32_t key, char* value)
+{
+    Mix(0x114000u);
+    Mix(key);
+    if (value) {
+        PmMixValue(value);
+        Virtual<void>(value, 0x1FC, 1u);
+    } else {
+        Mix(0xDEADu);
+    }
+    return 0x114u;
+}
+
+void** PhWindowTable()
+{
+    static void* table[115] = {};
+    table[0] = reinterpret_cast<void*>(&PhWindowQuery);
+    table[53] = reinterpret_cast<void*>(&PhWindow53);
+    table[68] = reinterpret_cast<void*>(&PhWindow68);
+    table[114] = reinterpret_cast<void*>(&PhWindowPut);
+    return table;
+}
+
+// The variable table of our own for the words: slot 3 hashes the word's
+// text and value.
+uint32_t g_phWords = 0;
+
+uint32_t __fastcall PhTableAdd(void*, void*, char* string, uint32_t value)
+{
+    PrMixText(string);
+    Mix(value);
+    ++g_phWords;
+    return value ^ 0x5A5Au;
+}
+
+void DrivePhWords()
+{
+    static void* table[4] = {};
+    table[3] = reinterpret_cast<void*>(&PhTableAdd);
+    void* object[2] = {table, nullptr};
+    void** const global = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *global;
+    Mix(old ? 1u : 0u);
+    *global = object;
+    reinterpret_cast<void(__cdecl*)()>(addr::cGZUIScriptProps_AddWords)();
+    reinterpret_cast<void(__cdecl*)()>(addr::cGZUIScriptProps_AddWords)();
+    *global = old;
+    Mix(g_phWords);
+    PhStage("words");
+}
+
+const std::uintptr_t kPhHandlers[] = {
+    addr::cGZUIScriptProps_HandleC2AFA76F, addr::cGZUIScriptProps_Handle212CDC1F,
+    addr::cGZUIScriptProps_Handle231A1C57, addr::cGZUIScriptProps_Handle4132242B,
+    addr::cGZUIScriptProps_Handle8810,     addr::cGZUIScriptProps_HandleC12CEA13,
+    addr::cGZUIScriptProps_Handle21325207, addr::cGZUIScriptProps_Handle612CE0C3,
+};
+
+// One handler on one vector and pass: EBX, ESI, EDI and EBP checked kept;
+// the argument slots after (the window's: whether it is still the window,
+// else its top and low bytes, the window being 256-aligned, or the word).
+void PhRun(std::size_t handler, PhWindow& window, PhVector& properties, uint32_t pass)
+{
+    const uint32_t window32 = PrArg(&window);
+    PmRegs regs = PmRegsOf(0x13572468u, kPmEsi, kPmEdi, window32, PrArg(properties.vector));
+    regs.args[2] = 0xABCDEF00u | pass;
+    PmCall(kPhHandlers[handler], regs);
+    const uint32_t slot = regs.args[0];
+    if (slot == window32)
+        Mix(0x5A5Au);
+    else if ((slot & 0x00FFFF00u) == (window32 & 0x00FFFF00u))
+        Mix(0xB0000000u ^ (slot & 0xFF0000FFu));
+    else
+        Mix(slot);
+    Mix(regs.args[1] == PrArg(properties.vector) ? 1u : 0u);
+    Mix(regs.args[2]);
+    Mix(regs.args[3]);
+    Mix(window.control->count);
+    Mix(window.control->calls);
+}
+
+void DrivePhHandlers()
+{
+    // The held object of the UI script loader: ours for the stage.
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    if (!holder) {
+        PhStage("handle");
+        return;
+    }
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {PhHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    for (uint32_t i = 0; i < 4; ++i)
+        g_phImages[i] = {PhImageTable(), i + 1, 0, {int32_t(i), int32_t(i) * 2, 100 + int32_t(i), 50 - int32_t(i)}};
+
+    // Every read succeeds; the second has the other branches; the third
+    // malformed texts and values that are not numbers; then none.
+    PhVector full = {
+        {0xF005, 'n', 0xF006, nullptr}, {0xF005, 't', 0, "text"}, {0xF005, '0', 0, nullptr},
+        {0xF005, 'n', 0x205, nullptr},  {0xF005, 'n', 0xF00B, nullptr}, {0xF005, 'n', 0x208, nullptr},
+        {0x200, 't', 0, "(1,2,3)"},     {0x201, 't', 0, "(255,0,128)"}, {0x202, 't', 0, "(4,5)"},
+        {0x203, 't', 0, "(300,-1,7)"},  {0xF003, 'n', 1, nullptr},      {0x300, 'n', 0, nullptr},
+        {0x301, 'n', 0, nullptr},       {0xF000, 'n', 7, nullptr},      {0xF002, 't', 0, "(10,20,30)"},
+        {0xF001, 't', 0, "(40,50,60)"}, {0xF004, 't', 0, "(3,4)"},      {0x305, 't', 0, "(7,8)"},
+        {0xF015, 'n', 0xF008, nullptr}, {0x304, 'n', 1, nullptr},       {0xF00F, 't', 0, "(1,1,1)"},
+        {0xF010, 't', 0, "(2,2,2)"},    {0xF011, 't', 0, "(3,3,3)"},    {0xF012, 't', 0, "(4,4,4)"},
+        {0xF013, 't', 0, "(5,5,5)"},    {0xF014, 't', 0, "(6,6,6)"},    {0x407, 't', 0, "(7,7,7)"},
+        {0x408, 't', 0, "(8,8,8)"},     {0x40B, 't', 0, "(9,9,9)"},     {0xF019, 'n', 1, nullptr},
+        {0x409, 'n', 0x99, nullptr},    {0x40C, 'n', 0, nullptr},       {0x40D, 'n', 0x0D, nullptr},
+        {0x40E, 't', 0, "(14,15)"},     {0x40F, 'n', 0x0F, nullptr},    {0x410, 'n', 0x10, nullptr},
+        {0x413, 't', 0, "{1234,3}"},    {0x414, 't', 0, "(1,2,3,4)"},   {0x411, 't', 0, "{5678,5}"},
+        {0x400, 'n', 1, nullptr},       {0x401, 'n', 0, nullptr},       {0x402, 'n', 1, nullptr},
+        {0x403, 'n', 1, nullptr},       {0x415, 'n', 1, nullptr},       {0x502, 't', 0, "item one"},
+        {0x502, 't', 0, "item two"},    {0x503, 'n', 1, nullptr},       {0x501, 'n', 3, nullptr},
+        {0x505, 'n', 5, nullptr},       {0x506, 'n', 6, nullptr},       {0xF00B, 'n', 1, nullptr},
+        {0x500, 't', 0, "(9,10)"},      {0x504, 'n', 1, nullptr},       {0xA00, 'n', 1, nullptr},
+        {0xA01, 'n', 0, nullptr},       {0xA02, 'n', 2, nullptr},       {0xF00D, 'n', 0, nullptr},
+        {0xA03, 'n', 1, nullptr},       {0xA04, 'n', 0, nullptr},       {0xA05, 'n', 1, nullptr},
+        {0xA06, 'n', 1, nullptr},       {0xA07, 'n', 0, nullptr},       {0xA08, 'n', 1, nullptr},
+        {0xF016, 't', 0, "{ab,7}"},     {0xA10, 't', 0, "a caption"},   {0xA12, 't', 0, "{2026,9}"},
+        {0xA11, 't', 0, "(11,12)"},     {0xA18, 'n', 0x20, nullptr},    {0xA19, 't', 0, "{1,2}"},
+        {0xA1A, 't', 0, "{3,4}"},       {0xB00, 'n', 300, nullptr},     {0xB01, 'n', 1, nullptr},
+        {0xB02, 'n', 0, nullptr},       {0xF018, 't', 0, "(5,6,7,8)"},  {0xC00, 't', 0, "(9,3)"},
+        {0xC01, 'n', 0xC03, nullptr},   {0x40A, 'n', 0x4A, nullptr},    {0x1000, 'n', 0, nullptr},
+        {0x1001, 'n', 1, nullptr},      {0x1002, 'n', 0, nullptr},      {0x1003, 'n', 1, nullptr},
+        {0x1004, 't', 0, "(13,14)"},    {0x1005, 'n', 0x15, nullptr},   {0x1006, 't', 0, "(16,16,16)"},
+        {0x1007, 't', 0, "(17,17,17)"}, {0x1008, 't', 0, "(18,18,18)"}, {0x1009, 't', 0, "(19,19,19)"},
+        {0x100A, 't', 0, "(20,20,20)"},
+    };
+    PhVector other = {
+        {0xF005, 'n', 0xA0D, nullptr},  {0xF005, 'n', 0xF00E, nullptr}, {0xF005, 'n', 0x206, nullptr},
+        {0xF005, 'n', 0xF007, nullptr}, {0xF005, 'n', 0x204, nullptr},  {0xF005, 'n', 0xF00C, nullptr},
+        {0x202, 't', 0, "(9,8,7)"},     {0xF003, 'n', 0, nullptr},      {0x301, 'n', 2, nullptr},
+        {0xF000, 't', 0, "a font"},     {0xF004, 't', 0, "(1,2,3,4)"},  {0xF015, 'n', 0xF007, nullptr},
+        {0xF011, 't', 0, "(30,31,32)"}, {0x40B, 't', 0, "(1,2,3)(4,5,6)"}, {0xF019, 'n', 0, nullptr},
+        {0x40C, 'n', 5, nullptr},       {0x413, 't', 0, "{1234,4}"},    {0x411, 't', 0, "{5678,1}"},
+        {0x412, 't', 0, "(9,9,9,9)"},   {0x503, 'n', 2, nullptr},       {0x402, 'n', 0, nullptr},
+        {0x401, 'n', 1, nullptr},       {0x502, 'x', 0, nullptr},       {0xA02, 'n', 0, nullptr},
+        {0xF00D, 'n', 1, nullptr},      {0xA07, 'n', 1, nullptr},       {0xF016, 't', 0, "{cd,4}"},
+        {0xA12, 't', 0, "{2026,8}"},    {0xA19, 't', 0, "{5,6}"},       {0xB00, 'n', 128, nullptr},
+        {0xC00, 't', 0, "(3,9)"},       {0xC01, 'n', 5, nullptr},       {0x1000, 'n', 0xF006, nullptr},
+        {0x1008, 't', 0, "(1,2,3)"},    {0xF018, 't', 0, "(1,2)"},
+    };
+    PhVector odd = {
+        {0xF005, 'n', 0xA1B, nullptr}, {0xF000, 'x', 0, nullptr},     {0xF015, 'n', 0xF006, nullptr},
+        {0x200, 't', 0, "(1,2"},       {0xF004, 't', 0, "(1,2,3)"},   {0x40B, 't', 0, "garbage"},
+        {0xF019, 'n', 2, nullptr},     {0x413, 't', 0, "{zz}"},       {0xF016, 't', 0, "{ef,9}"},
+        {0xA18, 'x', 0, nullptr},      {0x1000, 'n', 0xF007, nullptr}, {0xC00, 't', 0, "(5)"},
+        {0xC01, 'n', 0xC03, nullptr},  {0xF003, 'x', 0, nullptr},     {0x304, '0', 0, nullptr},
+        {0xF005, 'n', 0xA09, nullptr}, {0xB00, 'n', 0xFF, nullptr},   {0xF00D, 'x', 0, nullptr},
+    };
+    PhVector empty = {};
+
+    const auto& faces = PhInterfaces();
+    for (std::size_t h = 0; h < std::size(kPhHandlers); ++h) {
+        PhControl control = {PhControlTable(faces[h]), &faces[h], 0, 0};
+        PhWindow window = {PhWindowTable(), &control, false};
+        PhRun(h, window, full, 1);
+        window.give = true;
+        for (PhVector* properties : {&full, &other, &odd, &empty}) {
+            for (uint32_t pass : {0u, 1u})
+                PhRun(h, window, *properties, pass);
+        }
+        log::Write("autotest: prophandle: %08X %08X", faces[h].iid, g_phHash);
+    }
+    for (const PhImage& image : g_phImages)
+        Mix(image.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    Mix(held.count);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    PhStage("handle");
+}
+
+// OPENSC4_TEST_PROPHANDLE=<day>: part u12's third slice by address. Every
+// result goes into the fingerprint's `ph` part.
+void DrivePropHandleDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_PROPHANDLE") || !game::IsBuild641())
+        return;
+    g_phOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_phHash;
+    DrivePhWords();
+    DrivePhHandlers();
+    g_into = saved;
+    log::Write("autotest: prophandle driven (hash %08X)", g_phHash);
+}
+
+void PhFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_phOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | ph %08X", g_phHash);
+    line += text;
+}
+
+const FingerprintPart kPhFingerprint{"prophandle", 4, &PhFingerprint};
+const DayHook kPhDrive{"prophandle", 4, &DrivePropHandleDay};
 
 } // namespace
 } // namespace opensc4::autotest
