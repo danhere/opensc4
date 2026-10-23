@@ -13280,5 +13280,378 @@ const bool g_registeredDescription = registry::Register({
     InstallDescription,
 });
 
+// --- A particle's life -----------------------------------------------------------------------
+//
+// A particle's step, an effect's emit and the box of an effect not drawn
+// (effects_life.h). The step and the box write only the particle or the
+// effect, so they are compared as the set-up is (SuCompared). The emit's
+// only call is to one of the three emitters, which take and step
+// particles and cannot run twice: ours runs with that call only noted
+// (which emitter, the time and the effect as it was then), the effect is
+// put back, and the game's runs with detours on the three emitters noting
+// the same at their entry; the two notes (or, when neither emits, the
+// effects) must be the same.
+#include "core/effects_life.h"
+
+float LfFloat(uint32_t bits)
+{
+    float value = 0.0f;
+    std::memcpy(&value, &bits, 4);
+    return value;
+}
+
+StepMode g_stepMode = StepMode::Original, g_emitMode = StepMode::Original, g_boxMode = StepMode::Original;
+Call2Fn g_SC4Effect_StepParticle = nullptr;
+Call0Fn g_SC4Effect_Emit = nullptr, g_SC4Effect_NotDrawn = nullptr;
+
+uint32_t __fastcall LfStepByMode(char* self, void*, uint32_t particle, uint32_t step)
+{
+    const auto game = [&] { return g_SC4Effect_StepParticle(self, nullptr, particle, step); };
+    const auto ours = [&] { return StepParticle(self, Ptr(particle), LfFloat(step)); };
+    if (g_stepMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_stepMode == StepMode::Ours)
+        return ours();
+    // The other step has its own comparison.
+    if (At<uint32_t>(At<char*>(self, 0x24), 0) & M<uint32_t>(0x00B22E14))
+        return game();
+    return SuCompared("effects.step", self, Ptr(particle), ours, game);
+}
+OPENSC4_THUNK(TLfStep, LfStepByMode, 8)
+
+uint32_t __fastcall LfBoxByMode(char* self, void*)
+{
+    const auto game = [&] { return g_SC4Effect_NotDrawn(self, nullptr); };
+    const auto ours = [&] {
+        KeepEffectBox(self);
+        return 0u;
+    };
+    if (g_boxMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_boxMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.box", self, nullptr, ours, [&] {
+        game();
+        return 0u;
+    });
+}
+OPENSC4_THUNK(TLfBox, LfBoxByMode, 0)
+
+// One emitter's call as noted: which, the time's bits and the effect then.
+struct LfEmitNote {
+    uintptr_t emitter;
+    uint32_t time;
+    char effect[kEffectSize];
+};
+LfEmitNote g_emitOurs = {}, g_emitGame = {};
+bool g_emitWatch = false;
+Call1Fn g_SC4Effect_EmitToCount = nullptr, g_SC4Effect_EmitBurst = nullptr, g_SC4Effect_EmitStream = nullptr;
+
+void LfNoteEmitter(LfEmitNote& note, char* self, uintptr_t emitter, uint32_t time)
+{
+    note.emitter = emitter;
+    note.time = time;
+    std::memcpy(note.effect, self, kEffectSize);
+}
+
+uint32_t LfEmitterNoted(uintptr_t emitter, Call1Fn original, char* self, uint32_t time)
+{
+    if (g_emitWatch) {
+        g_emitWatch = false;
+        LfNoteEmitter(g_emitGame, self, emitter, time);
+    }
+    return original(self, nullptr, time);
+}
+
+uint32_t __fastcall LfEmitToCountNoted(char* self, void*, uint32_t time)
+{
+    return LfEmitterNoted(addr::SC4Effect_EmitToCount, g_SC4Effect_EmitToCount, self, time);
+}
+OPENSC4_THUNK(TLfEmitToCount, LfEmitToCountNoted, 4)
+
+uint32_t __fastcall LfEmitBurstNoted(char* self, void*, uint32_t time)
+{
+    return LfEmitterNoted(addr::SC4Effect_EmitBurst, g_SC4Effect_EmitBurst, self, time);
+}
+OPENSC4_THUNK(TLfEmitBurst, LfEmitBurstNoted, 4)
+
+uint32_t __fastcall LfEmitStreamNoted(char* self, void*, uint32_t time)
+{
+    return LfEmitterNoted(addr::SC4Effect_EmitStream, g_SC4Effect_EmitStream, self, time);
+}
+OPENSC4_THUNK(TLfEmitStream, LfEmitStreamNoted, 4)
+
+uint32_t __fastcall LfEmitByMode(char* self, void*)
+{
+    if (g_emitMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_Emit(self, nullptr);
+    if (g_emitMode == StepMode::Ours) {
+        EmitParticles(self, [](char* effect, uintptr_t emitter, float time) {
+            CallThis<uint32_t>(emitter, effect, time);
+        });
+        return 0;
+    }
+    std::vector<char> before(self, self + kEffectSize);
+    g_emitOurs.emitter = 0;
+    EmitParticles(self, [](char* effect, uintptr_t emitter, float time) {
+        uint32_t bits = 0;
+        std::memcpy(&bits, &time, 4);
+        LfNoteEmitter(g_emitOurs, effect, emitter, bits);
+    });
+    if (!g_emitOurs.emitter)
+        LfNoteEmitter(g_emitOurs, self, 0, 0);
+    std::memcpy(self, before.data(), kEffectSize);
+    g_emitGame.emitter = 0;
+    g_emitWatch = true;
+    const uint32_t result = g_SC4Effect_Emit(self, nullptr);
+    const bool emitted = !g_emitWatch;
+    g_emitWatch = false;
+    if (!emitted)
+        LfNoteEmitter(g_emitGame, self, 0, 0);
+    const bool same = g_emitGame.emitter == g_emitOurs.emitter && g_emitGame.time == g_emitOurs.time &&
+                      std::memcmp(g_emitGame.effect, g_emitOurs.effect, kEffectSize) == 0;
+    std::string gameText, ourText;
+    if (!same) {
+        std::size_t at = 0;
+        while (at < kEffectSize && g_emitGame.effect[at] == g_emitOurs.effect[at])
+            ++at;
+        at = at < kEffectSize ? at & ~std::size_t{3} : 0;
+        char text[64];
+        std::snprintf(text, sizeof text, "emitter %08X time %08X effect+%zX ",
+                      static_cast<uint32_t>(g_emitGame.emitter), g_emitGame.time, at);
+        gameText = text + Hex(g_emitGame.effect + at, 8);
+        std::snprintf(text, sizeof text, "emitter %08X time %08X effect+%zX ",
+                      static_cast<uint32_t>(g_emitOurs.emitter), g_emitOurs.time, at);
+        ourText = text + Hex(g_emitOurs.effect + at, 8);
+    }
+    compare::Record("effects.emit", same, gameText, ourText);
+    return result;
+}
+OPENSC4_THUNK(TLfEmit, LfEmitByMode, 0)
+
+bool InstallLifeStep(registry::Mode mode)
+{
+    return SuInstall(mode, g_stepMode, addr::SC4Effect_StepParticle, &TLfStep, &g_SC4Effect_StepParticle,
+                     "a particle's step");
+}
+
+bool InstallLifeBox(registry::Mode mode)
+{
+    return SuInstall(mode, g_boxMode, addr::SC4Effect_NotDrawn, &TLfBox, &g_SC4Effect_NotDrawn,
+                     "the box of an effect not drawn");
+}
+
+bool InstallLifeEmit(registry::Mode mode)
+{
+    if (mode == registry::Mode::Compare && game::IsBuild641() &&
+        !((g_SC4Effect_EmitToCount ||
+           Detour(addr::SC4Effect_EmitToCount, &TLfEmitToCount, &g_SC4Effect_EmitToCount)) &&
+          (g_SC4Effect_EmitBurst || Detour(addr::SC4Effect_EmitBurst, &TLfEmitBurst, &g_SC4Effect_EmitBurst)) &&
+          (g_SC4Effect_EmitStream || Detour(addr::SC4Effect_EmitStream, &TLfEmitStream, &g_SC4Effect_EmitStream))))
+        return false;
+    return SuInstall(mode, g_emitMode, addr::SC4Effect_Emit, &TLfEmit, &g_SC4Effect_Emit, "an effect's emit");
+}
+
+const bool g_registeredLifeStep = registry::Register({
+    "renderer.effects.step",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepParticle,
+    "A particle's step (0x005B9BA0): its age against its life, its velocity and position; the other step's "
+    "descriptions go on to 0x005B9790; compare mode runs ours and the game's on the same particle "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeStep,
+});
+
+const bool g_registeredLifeEmit = registry::Register({
+    "renderer.effects.emit",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Emit,
+    "An effect's emit (0x005B96E0): its countdown and the time handed to one of the three emitters; compare mode "
+    "notes the emitter's call in both runs (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeEmit,
+});
+
+const bool g_registeredLifeBox = registry::Register({
+    "renderer.effects.box",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_NotDrawn,
+    "The box around the particles of an effect not drawn (0x005B6390); compare mode runs ours and the game's on "
+    "the same effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeBox,
+});
+
+// The wandering and the pull write only the effect (and the generator);
+// the pull's service is asked twice. The other step writes the particle,
+// and the game's functions it calls are run in both: the move along a
+// path (0x005B6600) and the meeting with the ground (0x005B8DC0) write the
+// particle and the effect and draw random numbers, which are put back. A
+// step that could start another effect (an effect with +0x218 or +0x219
+// set, or a description with bit 0 of its +4 for 0x005B8020) is not
+// compared: such a start cannot run twice.
+StepMode g_wanderMode = StepMode::Original, g_pullMode = StepMode::Original, g_stepFullMode = StepMode::Original;
+Call1Fn g_SC4Effect_Wander = nullptr;
+Call0Fn g_SC4Effect_PathVelocity = nullptr;
+Call2Fn g_SC4Effect_StepParticleFull = nullptr;
+
+uint32_t __fastcall LfWanderByMode(char* self, void*, uint32_t step)
+{
+    const auto game = [&] { return g_SC4Effect_Wander(self, nullptr, step); };
+    const auto ours = [&] {
+        WanderEffect(self, LfFloat(step));
+        return 0u;
+    };
+    if (g_wanderMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_wanderMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.wander", self, nullptr, ours, [&] {
+        game();
+        return 0u;
+    });
+}
+OPENSC4_THUNK(TLfWander, LfWanderByMode, 4)
+
+uint32_t __fastcall LfPullByMode(char* self, void*)
+{
+    const auto game = [&] { return g_SC4Effect_PathVelocity(self, nullptr); };
+    const auto ours = [&] {
+        PullEffect(self);
+        return 0u;
+    };
+    if (g_pullMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_pullMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.pull", self, nullptr, ours, [&] {
+        game();
+        return 0u;
+    });
+}
+OPENSC4_THUNK(TLfPull, LfPullByMode, 0)
+
+uint32_t __fastcall LfStepFullByMode(char* self, void*, uint32_t particle, uint32_t step)
+{
+    const auto game = [&] { return g_SC4Effect_StepParticleFull(self, nullptr, particle, step); };
+    const auto ours = [&] { return StepParticleFull(self, Ptr(particle), LfFloat(step)); };
+    if (g_stepFullMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_stepFullMode == StepMode::Ours)
+        return ours();
+    if (At<uint8_t>(self, 0x218) || At<uint8_t>(self, 0x219) || (At<uint8_t>(At<char*>(self, 0x24), 4) & 1)) {
+        compare::Record("effects.step_full.not_compared", true, std::string(), std::string());
+        return game();
+    }
+    return SuCompared("effects.step_full", self, Ptr(particle), ours, game);
+}
+OPENSC4_THUNK(TLfStepFull, LfStepFullByMode, 8)
+
+bool InstallLifeWander(registry::Mode mode)
+{
+    return SuInstall(mode, g_wanderMode, addr::SC4Effect_StepFlag800000, &TLfWander, &g_SC4Effect_Wander,
+                     "an effect's wandering");
+}
+
+bool InstallLifePull(registry::Mode mode)
+{
+    return SuInstall(mode, g_pullMode, addr::SC4Effect_PathVelocity, &TLfPull, &g_SC4Effect_PathVelocity,
+                     "the pull on an effect's particles");
+}
+
+bool InstallLifeStepFull(registry::Mode mode)
+{
+    return SuInstall(mode, g_stepFullMode, addr::SC4Effect_StepParticleFull, &TLfStepFull,
+                     &g_SC4Effect_StepParticleFull, "a particle's other step");
+}
+
+const bool g_registeredLifeWander = registry::Register({
+    "renderer.effects.wander",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepFlag800000,
+    "An effect's wandering (0x005B2730): its timer and its own velocity turned by random amounts; compare mode runs "
+    "ours and the game's on the same effect and generator (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeWander,
+});
+
+const bool g_registeredLifePull = registry::Register({
+    "renderer.effects.pull",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_PathVelocity,
+    "The pull on an effect's particles from outside (0x005B6C40); compare mode runs ours and the game's on the same "
+    "effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifePull,
+});
+
+const bool g_registeredLifeStepFull = registry::Register({
+    "renderer.effects.step_full",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepParticleFull,
+    "A particle's other step (0x005B9790): in parts, with the pull towards the effect, the damping, the map's "
+    "edges and the meeting with the ground (still the game's); compare mode runs ours and the game's on the same "
+    "particle, effect and generator (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeStepFull,
+});
+
+// The meeting with the ground writes the particle and the effect, draws
+// random numbers and asks the terrain, all of which can be done twice; the
+// effects it may start ("_water", "_terrain", 0x005B8290) cannot, so an
+// effect with +0x218 or +0x219 set is not compared.
+StepMode g_hitMode = StepMode::Original;
+Call3Fn g_SC4Effect_MeetGround = nullptr;
+
+uint32_t __fastcall LfHitByMode(char* self, void*, uint32_t particle, uint32_t grid, uint32_t part)
+{
+    const auto game = [&] { return g_SC4Effect_MeetGround(self, nullptr, particle, grid, part); };
+    const auto ours = [&] {
+        return ParticleMeetsGround(self, Ptr(particle), reinterpret_cast<float*>(Ptr(grid)), LfFloat(part));
+    };
+    if (g_hitMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_hitMode == StepMode::Ours)
+        return ours();
+    if (At<uint8_t>(self, 0x218) || At<uint8_t>(self, 0x219)) {
+        compare::Record("effects.hit.not_compared", true, std::string(), std::string());
+        return game();
+    }
+    return SuCompared("effects.hit", self, Ptr(particle), ours, game);
+}
+OPENSC4_THUNK(TLfHit, LfHitByMode, 12)
+
+bool InstallLifeHit(registry::Mode mode)
+{
+    return SuInstall(mode, g_hitMode, addr::SC4Effect_StepFlag100, &TLfHit, &g_SC4Effect_MeetGround,
+                     "a particle meeting the water or the ground");
+}
+
+const bool g_registeredLifeHit = registry::Register({
+    "renderer.effects.hit",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepFlag100,
+    "A particle meeting the water or the ground (0x005B8DC0): ended by chance in the water, pushed, put on the "
+    "ground, sliding or bouncing; compare mode runs ours and the game's on the same particle, effect and generator "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeHit,
+});
+
 } // namespace
 } // namespace opensc4::water_effects
