@@ -82,7 +82,8 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u11** | 0x0094C000 to 0x0094C8FF | 21 of 50 | 35 | **Ours** (below): the rest of the UI script root holder 0x5A354595 (constructor, slot 4, destructors, the vector's constructor, push and erase) and the LEGACY reader 0xFA450242's own slots; 8 adjustors, helpers that take their arguments in registers and other classes' small functions stay the game's |
 | **u12** | 0x0094C900 to 0x00951268 | 4 of 49 | 16 | **Ours** (below), first slice: the readers of a window's script properties (the text finder and its three scanners); the property handlers, their map and tree code and the shared AddRef are still the game's |
 | **u13** | 0x00951269 to 0x00953FFF | 17 of 17 | 17 | **Ours** (below): the 16 stock widget classes' registrations (their names and property words into the LEGACY readers' variable table, their handlers and interfaces into two maps) and GZWinGen's property handler |
-| u14, u15, u16 | 0x00954000 to 0x0095BBFF | 98 | 16 | The other widgets' readers and helpers (31 KB) |
+| **u14** | 0x00954000 to 0x00956463 | 2 of 41 | 2 | **Ours** (below): GZWinFileBrowser's registration and property handler; the STLport tree, list and pair code and a counted object's Release stay the game's |
+| u15, u16 | 0x00956464 to 0x0095BBFF | 57 | 14 | GZWinOptGrp, GZWinTreeView and GZWinGrid, the base window's handler, the dispatcher, their helpers (22 KB) |
 | u17 | 0x0095BC00 to 0x0095FFFF | 29 | 0 | The writers (17.7 KB, never run) |
 
 Leave the game's: the base QueryInterface 0x009457C6, AddRef 0x00968B60, the shared one-instruction getters, the empty functions 0x00949ADE and 0x0091559A, and the STLport and counted-reference code these classes share with the rest of the framework.
@@ -1051,3 +1052,61 @@ r2: all five legs the same on the first pair. r1: the same but for Big City d000
 **Part u13 complete:** the whole range is ours.
 
 **What is left:** u14 to u16 (0x00954000 to 0x0095BBFF, the other widgets' registrations, readers and helpers) and u17 (the writers); u12's property handlers, which the other widgets' registrations put in the handler map.
+
+## Part u14: GZWinFileBrowser's registration and property handler
+
+0x00954000 to 0x0095BBFF holds the other widget classes' code (98 functions; parts u14 to u16): four more registrations of part u13's shape (GZWinFileBrowser 0x009552BE, GZWinOptGrp 0x00957C88, GZWinTreeView 0x009599D2, GZWinGrid 0x0095B021), each class's property handler (0x00954212, 0x00956C46, 0x009586B0, 0x0095A250), the base window's handler 0x0095660D and the dispatcher 0x00957A9B (the LEGACY reader's, which calls it and the class's handler), helpers and STLport code. Part u14 is the first class: 0x0095407A to 0x00956463, 41 functions (9.2 KB) ending where the next class's code starts (Grid's text helper 0x00956464, then the base handler). Ours: the class's two, in `src/core/gzui_widgets2.cpp`, two groups, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.filebrowser` | 1 | the registration 0x009552BE |
+| `framework.uiscript.filebrowserread` | 1 | the property handler 0x00954212 (3,761 bytes) |
+
+The other 39 stay the game's: STLport tree, list and node code (erases, node makers, the inserts 0x009562CC to 0x009563DC, the clears), pair and record copies (0x009550C3 a 0x66-byte record of three strings, 0x00955191 one of a string and six words) and a counted object's Release (0x0095407A), which the file browser window's own code (elsewhere) and the next classes use.
+
+**The registration** is part u13's shape (its table code is copied): GZWinFileBrowser (0x1AA52EA4) and IGZWinFileBrowser (0x3AA52E64) into the variable table, the handler 0x00954212 under the interface into the handler map, the interface under the class into the interface map, then 66 property words, 0x1301 `defaultpath` to 0x1342 `filter`, in the game's order (the names of the values too: `backdir`, `dir`, `file`, the sorts, `icon`, `name`, `extension`, `empty`, `unused`, `default`). The constructor 0x0095B8C4 calls it among the others.
+
+**The handler** (cdecl: the window, its properties' vector of 8-byte (key, value) pairs and a byte) asks the window for IGZWinFileBrowser (QueryInterface 0x3AA52E64). The dispatcher calls every class's handler twice: with the byte 1, then (after the base window's handler 0x0095660D and the window's slot 23) with 0; with 0 this one only asks and releases. With it and the byte set (the dispatcher's 1), in this order, each through the interface's slot named (word offsets):
+
+- the default path, the text of 0x1301 (0x0094CCD9), slot 15;
+- the default selection: the texts of 0x1306 and 0x1307 always read, then the kind of 0x1305 (`backdir` 0, `dir` 1, `file` 2) with both texts to slot 28;
+- the file sorts: slot 34 gives the two, 0x130C and 0x130D replace them (the four `byname`/`byextension` words, 0 to 3), slot 35; the directory sort 0x1312 (`top`/`bottom` words, 0 to 3), slot 37;
+- the three columns: slot 38 gives them, 0x1319 to 0x131B replace them (`icon` 0, `name` 1, `extension` 2, `empty` 5), slot 40;
+- for the file names, the extensions and the drive names (slots 45 to 47, 51 to 53, 57 to 59): the font, a number (the window manager 0x00913C72's slot 5 makes the font for the face's slot; the number put under the window's key 0, 1 or 2 by 0x0094C222) or else a text (put under it by 0x0094C255); six colours (0x0094D4CD, the graphics system 0x00913C1A's slot 34 makes the colour of the three bytes, given with 0 to 5); the alignment (`unused` 0, `default` 1, 0xF006 2, 0xF007 4, 0xF008 3);
+- the icon column's width 0x1334 (slot 61), the extension column's 0x1335 (63), the row height 0x1336 (65);
+- the line grid and the column grid: slots 66 and 68 give a flag and a colour, 0x1337 or 0x1339 sets the flag's low byte (word not 0), 0x1338 or 0x133A the colour, slots 67 and 69 take them; the two share their places, so a getter that writes nothing hands on the line grid's;
+- the highlight's two colours (slots 70 and 71, 0x133B and 0x133C);
+- the back text 0x133D (slot 77), the drive list's size 0x133E (81), the background colour 0x133F (83);
+- 0x1341 (`backgroundtransparent`, slot 87) and 0xF019 (slot 79), each a bool pushed over the EDX 0x0094C675 leaves (part u12, slice 2);
+- with a text of 0x1340 (`backgroundimage`): scanned as `{%x,%x}`, the image loaded (0x0094C4E0) and given to slot 85, the group and instance put under the window's 0 (0x0094C1DA), the image released; then the filters: every pair of 0x1342 whose value is a text (slot 3 answers 0x800E; a null value is called as the game's is), its text cut at `:` (0x00AA0424, SplitOff 0x0090E98C; each part copied by 0x00408BE0) into a name and a number (`%d`, 0 when it is not one), the rest scanned as `{%x,%x}` for an image (loaded, and put under the window's index + 1), slot 21 with the name, the image, the number and 0, the image released. Without the background image's text there are no filters.
+
+The texts go into four strings the handler makes (the path's also takes the back text, the background image's and each filter's; another every font text); they are destroyed inline at the end in the game's order. The interface is released and its EAX answered (without one the QueryInterface's). The colour reader writes only the low bytes of three places the game shares between all its calls; above them ours are 0 where the game has what its stack held (the graphics system's slot 34 hands them to the driver's slot 30). The helpers are called by address (ours when their groups are on) through part u13's naked helper, here with four stack arguments, which sets EAX, EBX, ESI and EDI to the game's values where the helper reads them and hands EDX back.
+
+### Testing
+
+`OPENSC4_TEST_FILEBROWSER=<day>` is a test of its own (the fingerprint's `fb` part). It calls the two by address (EBX, ESI, EDI and EBP checked kept after each call). Two stages, each logged as `autotest: filebrowser: <stage> <hash>`:
+
+- **reg:** part u13's variable table of our own in the shared table's place (its slot 3 hashes every name's text and word), the registration, the count of names and both maps' entries for the class; the game's table put back;
+- **read:** the UI script loader's held object set to part u13's (an image of our own for even instances, none for odd), part u13's windows (QueryInterface failing, answering the interface, and giving it with AL 0; slot 114 part u12's, which hashes what it gets), an interface of our own (every slot the handler calls hashes its number and what it gets; the getters give words of their own, the column grid's only when told to, so the shared places are seen), number and text values of our own (slot 73 leaves a mark in EDX): four vectors (every key, good and bad words, number and text fonts, colours good, short, out of a byte's range and not numbers, good and bad images, filters good, without a number, with a bad image, with a number value and under another key) and an empty one, with the byte 1, 0xFFFFFF01, 0 and 0x100 and both column grid getters; the handler's EAX and argument slots after each call; the counts of the interface, the images and the held object at the end. The fonts are the window manager's for three of the game's font words (the slot hashes which it got); the colours are the graphics system's.
+
+With the groups on, each of the 2 logs its first call in a test run. `fb` is 02DB227F (muted), the same on both sides; the stages reg 900193A7 and read 02DB227F. A check with two deliberate slips in ours (the last property word dropped, the transparency bool without EDX's upper bytes) changed both stages' hashes.
+
+The two were checked against the disassembly by the author and by an independent audit: every table row (literal and word) and both map inserts in order; in the handler every call, its arguments and order, the vtable slots, the registers each helper reads (EBX and EDI for 0x0094CCD9, EDI for 0x0094C675 and 0x0094D4CD, ESI for 0x0094C222 and 0x0094C255, EAX for 0x0094C4E0, EAX and ESI for 0x0094C1DA, checked in the helpers' own code), the places the game shares (the colour bytes, the grids' pair, the strings), the byte-only flag writes, the EDX under the bools, the filter loop, the strings' destruction order, EAX on every path; the callers (the constructor's one call of the registration, which reads no register after; the handler referenced only by its map entry, the dispatcher reading only kept registers after both its calls) and that nothing jumps into the first five bytes of either: no difference in what they do. Ours give the helpers 0 in registers they do not read, keep the colour bytes' upper bytes 0 and zero the getters' places before the getters write them. The audit found the database's descriptions incomplete (the dispatcher's second call with 0, the slots of the fonts and alignments, the row height); fixed. It also found that the dispatcher's second call is unconditional, so part u13's raw pass of GZWinGen's handler runs in game runs too, not only in the test as part u13 says.
+
+### Parity
+
+Batch `gzu14-r1` (the final build), 2026-10-23, muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.uiscript.*` (with `filebrowser` and `filebrowserread`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu14`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_FILEBROWSER=2` | 12 | 12 same: 11 on the first pair, Rush Hour d0090 partly (B's first run parted from A at token 200 on the first day, B's two retry runs both matched A); `fb` 02DB227F in every run |
+| Making Money d0000, 4 days, `OPENSC4_TEST_FILEBROWSER=2` | 1 | same; `fb` 02DB227F |
+
+The test leg again (`gzu14-r1b`, the same build): 12 same on the first pair. `fb` was 02DB227F in all 54 test runs of the two batches. B differing from itself on that save is the pattern of earlier batches (parts u3 and u10, the same save in part u3).
+
+**Reached:** in every plain (muted) leg side B logs 1 first call (14 of 14 runs): the registration, which every LEGACY reader's constructor that makes the table runs. No script the runs load makes a file browser, so the handler is reached only by the test (it did not run in the coverage runs either).
+
+**What is left:** u15 and u16 (0x00956464 to 0x0095BBFF: GZWinOptGrp, GZWinTreeView and GZWinGrid, the base window's handler, the dispatcher and their helpers) and u17 (the writers); u12's property handlers.
