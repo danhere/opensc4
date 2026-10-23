@@ -1,4 +1,4 @@
-// Our automaton base and cSC4Vehicle, parts vb1 to vb5 (build 641). vb1:
+// Our automaton base and cSC4Vehicle, parts vb1 to vb7 (build 641). vb1:
 // the object (the vehicle's factory and pool, the two constructors, the two
 // destructor bodies with their deques, the two deleting destructors,
 // QueryInterface of both and the vehicle's GetGZCLSID) and the queries that
@@ -22,7 +22,11 @@
 // or removal and the collision). vb6: cSC4Vehicle's lanes and turns (the
 // lights, the shown flag, keeping a point to the occupant's cells with the
 // segment and sphere test, the falling and placed states, driving off the
-// network with its speed, path and floor searches, and the models). The
+// network with its speed, path and floor searches, and the models). vb7:
+// cSC4Vehicle's queues (the occupants it has been on, with the +0x27C
+// deque's push_back and pops, the point behind with its crossing test,
+// entering the next occupant, the wall test with its cell test, the
+// collisions, entering a state, the damage and the impact). The
 // class map is in src/core/automata_vehicle.h and the survey in
 // docs/automata.md, "Part vb". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and
@@ -32,7 +36,8 @@
 // Group, off by default:
 //   simulators.automata.vehicle: the 36 detours in kObject (vb1), the 30
 //   in kLife (vb2), the 13 in kMove (vb3), the 22 in kStates (vb4) and
-//   the 10 in kVehicleMove (vb5) and the 12 in kVehicleLanes (vb6) below.
+//   the 10 in kVehicleMove (vb5), the 12 in kVehicleLanes (vb6) and the
+//   14 in kVehicleQueues (vb7) below.
 //
 // What it does. cSC4Vehicle's factory takes a 0x2B8-byte block from the
 // vehicle pool (0x00B0A0F8; other sizes go to SC4::operator_new) and runs
@@ -5214,6 +5219,1011 @@ void __fastcall UpdateModels(char* self, void*, std::uint32_t)
 }
 
 // ====================================================================================
+// Part vb7: cSC4Vehicle's queues
+
+// ---- vb7 group A: slot 182 (0x0055FE60) and its crossing test (0x0055CFD0) ----
+
+// Slot 182's tail: out = the point less (sx, sy, sz), x unrounded, y and z
+// floats; all three of the point read first, out written z, x, y.
+void BehindSet(const float* point, float* out, double sx, float sy, float sz)
+{
+    const double x = point[0] - sx;
+    const double y = static_cast<double>(point[1]) - sy;
+    const float z = static_cast<float>(static_cast<double>(point[2]) - sz);
+    out[2] = z;
+    out[0] = static_cast<float>(x);
+    out[1] = static_cast<float>(y);
+}
+
+// Slot 182's walk back over a +0x27C-kind deque (8-byte elements, blocks of
+// 0x80 bytes; the start iterator at +0, the finish at +0x10): at the start
+// it goes to the finish, else one back (onto the node before at its
+// block's first element).
+void BehindStepBack(DequeIterator& it, const DequeIterator* ends)
+{
+    if (it.current == ends[0].current) {
+        it = ends[1];
+        return;
+    }
+    if (it.current == it.first) {
+        --it.node;
+        it.first = *it.node;
+        it.last = it.first + 0x80;
+        it.current = it.last;
+    }
+    it.current -= 8;
+}
+
+// The element before the iterator (it[-1]) as the game reaches it: the
+// offset (current - first) / 8 less 1 (SAR), within the block when 0..15,
+// else through the node map (offset / 16 truncated, (offset + 1) / 16 - 1
+// below 1).
+char* BehindBefore(const DequeIterator& it)
+{
+    const std::int32_t offset = (static_cast<std::int32_t>(it.current - it.first) >> 3) - 1;
+    if (offset >= 0 && offset < 16)
+        return it.current - 8;
+    const std::int32_t node = offset > 0 ? offset / 16 : (offset + 1) / 16 - 1;
+    return it.node[node] + (offset - node * 16) * 8;
+}
+
+// A path's point count (a vector of 12-byte points: begin, end) as the
+// game's signed division by 12.
+std::int32_t BehindCount(char* const* path)
+{
+    return static_cast<std::int32_t>(path[1] - path[0]) / 12;
+}
+
+// 0x0055CFD0 (from, to, centre, radius, out, least), ret 0x18, this not
+// read: nothing (AL 0) when from and to are within 1e-4 on each axis (the
+// unordered go on). The unit vector u from from to to (the factor 1 /
+// length a float, z's difference rounded once; no zero test); where the
+// segment meets the sphere (0x0055BB10: the far crossing into out, the near
+// one into a local starting as 0x00B22978's word). With two crossings the
+// near one first: when more than 1e-5 from the centre and u . the unit
+// vector from it to the centre is at least least, out = it and AL 1. With
+// none AL 0. Else (one crossing, or the near one failed) the same test on
+// out: AL 1 when it holds, else 0 with out left as 0x0055BB10 wrote it.
+// AL only in the game.
+std::uint8_t __fastcall CrossBehind(char*, void*, const float* from, const float* to, const float* centre,
+                                    float radius, float* out, float least)
+{
+    static bool logged;
+    FirstCall("CrossBehind", logged);
+    const float within = Global<float>(addr::cSC4Vehicle_Near);
+    if (std::fabs(static_cast<double>(from[0]) - to[0]) < within &&
+        std::fabs(static_cast<double>(from[1]) - to[1]) < within &&
+        std::fabs(static_cast<double>(from[2]) - to[2]) < within)
+        return 0;
+    const double dx = static_cast<double>(to[0]) - from[0];
+    const double dy = static_cast<double>(to[1]) - from[1];
+    const double dz = static_cast<double>(to[2]) - from[2];
+    const float dzf = static_cast<float>(dz);
+    std::uint32_t nearer[3];
+    FillWords(nearer, Global<std::uint32_t>(addr::cSC4Vehicle_ReadPointInit));
+    // The game stores this factor into its own `from` argument's stack slot.
+    const float inverse = static_cast<float>(Global<float>(addr::cSC4Vehicle_One) /
+                                             std::sqrt((dz * dzf + dy * dy) + dx * dx));
+    float u[3];
+    u[0] = static_cast<float>(dx * inverse);
+    u[1] = static_cast<float>(dy * inverse);
+    u[2] = static_cast<float>(static_cast<double>(dzf) * inverse);
+    const std::uint8_t count = CallStdcall<std::uint8_t>(addr::SC4_SegmentSphere, from, to, centre, radius, out,
+                                                         reinterpret_cast<float*>(nearer));
+    // Whether the point is more than 1e-5 from the centre (unordered fails)
+    // and u . the unit vector from it to the centre is at least least
+    // (unordered fails): w as floats (z's square from its unrounded
+    // difference), the products unrounded, added z, y, x.
+    auto ahead = [&](const float* at) {
+        float w[3];
+        w[0] = static_cast<float>(static_cast<double>(centre[0]) - at[0]);
+        w[1] = static_cast<float>(static_cast<double>(centre[1]) - at[1]);
+        const double wz = static_cast<double>(centre[2]) - at[2];
+        w[2] = static_cast<float>(wz);
+        const double length = std::sqrt((wz * w[2] + static_cast<double>(w[1]) * w[1]) +
+                                        static_cast<double>(w[0]) * w[0]);
+        if (!(length > Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon)))
+            return false;
+        const double inv = Global<float>(addr::cSC4Vehicle_One) / length;
+        const double dot = (static_cast<double>(u[2]) * (w[2] * inv) + static_cast<double>(u[1]) * (w[1] * inv)) +
+                           static_cast<double>(u[0]) * (w[0] * inv);
+        return dot >= least;
+    };
+    if (count == 2) {
+        if (ahead(reinterpret_cast<const float*>(nearer))) {
+            CopyWords(out, nearer);
+            return 1;
+        }
+    } else if (count < 1) {
+        return 0;
+    }
+    return ahead(out) ? 1 : 0;
+}
+
+// 0x0055FE60, slot 182 (point, out, distance, trail), ret 0x10: the point
+// the distance behind the point along where the vehicle came from. The
+// city's traffic network (city slot 40) asked for and dropped. With a path
+// (+0x1F8): its segments from the last backwards, each (from its earlier
+// point to its later one, the first later point the path's last) against
+// the sphere of the distance around the point (0x0055CFD0, least 0.1, into
+// out); the first that answers gives AL. Then the trail (a deque of 8-byte
+// elements: an occupant, a key; e.g. +0x27C) from its back to its front:
+// each occupant's network part (slot 49) and its path (slot 3, key, 0) the
+// same way, the later point carried over from the path before (its first
+// point; a path's last point is not tried as a segment's earlier one); a
+// null occupant, part or path ends the walk. Else (AL 0) out = the point
+// less the distance along the unit vector of the path's segment at +0x1FC
+// (when the path is there, the index at least 0 and below the count less
+// 1, and the segment at least 1e-5 long, unordered not) or along the
+// heading. AL only in the game.
+std::uint8_t __fastcall PointBehind(char* self, void*, const float* point, float* out, float distance, char* trail)
+{
+    static bool logged;
+    FirstCall("PointBehind", logged);
+    Virtual<void*>(City(), city::kTrafficNetwork);
+    const std::uint32_t init = Global<std::uint32_t>(addr::cSC4Vehicle_ReadPointInit);
+    std::uint32_t earlier[3], later[3];
+    FillWords(earlier, init);
+    FillWords(later, init);
+    const DequeIterator* const ends = reinterpret_cast<const DequeIterator*>(trail);
+    DequeIterator it = ends[0];
+    char** path = At<char**>(self, field::kPath);
+    if (path) {
+        // The game reads the last point before the count (from before the
+        // begin when the path is empty).
+        CopyWords(later, path[1] - 12);
+        for (;;) {
+            const std::int32_t count = BehindCount(path);
+            std::uint32_t i = static_cast<std::uint32_t>(count - 2);
+            // With fewer than 2 points the game counts i down from 2^32 - 1
+            // or - 2 doing nothing until it is below the count: ours starts
+            // there (the count is the same each pass).
+            if (i >= static_cast<std::uint32_t>(count))
+                i = count > 0 ? static_cast<std::uint32_t>(count - 1) : 0u;
+            for (;;) {
+                if (i < static_cast<std::uint32_t>(BehindCount(path))) {
+                    CopyWords(earlier, path[0] + 12 * i);
+                    const std::uint8_t found = CallThis<std::uint8_t>(
+                        addr::cSC4Vehicle_CrossBehind, self, reinterpret_cast<const float*>(earlier),
+                        reinterpret_cast<const float*>(later), point, distance, out, 0.1f);
+                    if (found)
+                        return found;
+                    CopyWords(later, earlier);
+                }
+                if (i == 0)
+                    break;
+                --i;
+            }
+            BehindStepBack(it, ends);
+            if (it.current == ends[0].current)
+                break;
+            char* const element = BehindBefore(it);
+            void* const occupant = At<void*>(element, 0);
+            if (!occupant)
+                break;
+            void* const part = Virtual<void*>(occupant, kNetworkPartSlot);
+            if (!part)
+                break;
+            path = Virtual<char**>(part, part::kPath, At<std::uint32_t>(element, 4), 0u);
+            if (!path)
+                break;
+        }
+    }
+    path = At<char**>(self, field::kPath);
+    const std::int32_t index = At<std::int32_t>(self, field::kPathIndex);
+    // An empty path passes the test (the count less 1 is 2^32 - 1) and the
+    // game reads the points at the index past its end.
+    if (path && index >= 0 &&
+        static_cast<std::uint32_t>(index) < static_cast<std::uint32_t>(BehindCount(path) - 1)) {
+        const float* const s = reinterpret_cast<const float*>(path[0]) + 3 * index;
+        const float dx = static_cast<float>(static_cast<double>(s[3]) - s[0]);
+        const double dy = static_cast<double>(s[4]) - s[1];
+        const double dz = static_cast<double>(s[5]) - s[2];
+        const float dzf = static_cast<float>(dz);
+        const double length = std::sqrt((dz * dzf + dy * dy) + static_cast<double>(dx) * dx);
+        if (length >= Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon)) {
+            const double inverse = Global<float>(addr::cSC4Vehicle_One) / length;
+            const double nx = dx * inverse;
+            const float ny = static_cast<float>(dy * inverse);
+            const float nz = static_cast<float>(static_cast<double>(dzf) * inverse);
+            BehindSet(point, out, nx * distance, static_cast<float>(static_cast<double>(ny) * distance),
+                      static_cast<float>(static_cast<double>(nz) * distance));
+            return 0;
+        }
+    }
+    const float* const heading = &At<float>(self, field::kHeading);
+    BehindSet(point, out, static_cast<double>(distance) * heading[0],
+              static_cast<float>(static_cast<double>(distance) * heading[1]),
+              static_cast<float>(static_cast<double>(distance) * heading[2]));
+    return 0;
+}
+
+// ---- Part vb7, group B: the occupants a vehicle has been on (slot 181 and
+// the 8-byte deque's own code) and entering the next occupant
+
+// 0x0055FA90, on an 8-byte deque (the +0x27C kind): pop_back. Inside the
+// finish's block the current back by 8; at the block's start the block freed
+// (SC4::Free, when not null) and the finish on the node before, its current
+// that block's last element (first + 0x78). The element's object released
+// (a tail jump; the field not cleared). EAX the release's answer, or the
+// null object (0) without one.
+std::uint32_t __fastcall PopBack27C(char* d, void*)
+{
+    static bool logged;
+    FirstCall("PopBack27C", logged);
+    char*& current = At<char*>(d, deque::kFinish + deque::kCurrent);
+    char* const first = At<char*>(d, deque::kFinish + deque::kFirst);
+    if (current != first) {
+        current -= 8;
+    } else {
+        if (first)
+            CallCdecl<void>(addr::SC4_Free, first);
+        char** const node = --At<char**>(d, deque::kFinish + deque::kNode);
+        char* const block = *node;
+        At<char*>(d, deque::kFinish + deque::kFirst) = block;
+        At<char*>(d, deque::kFinish + deque::kLast) = block + 0x80;
+        current = block + 0x80 - 8;
+    }
+    void* const object = At<void*>(current, 0);
+    if (!object)
+        return 0;
+    return Virtual<std::uint32_t>(object, slot::kRelease);
+}
+
+// 0x0055FAF0, on an 8-byte deque: pop_front. The front element's object
+// released (the field not cleared); before the block's last element the
+// start's current on by 8, at it the block freed (SC4::Free, when not null)
+// and the start at the next node's block. EAX the new current.
+char* __fastcall PopFront27C(char* d, void*)
+{
+    static bool logged;
+    FirstCall("PopFront27C", logged);
+    char*& current = At<char*>(d, deque::kStart + deque::kCurrent);
+    char* const last = At<char*>(d, deque::kStart + deque::kLast) - 8;
+    void* const object = At<void*>(current, 0);
+    if (current != last) {
+        if (object)
+            Release(object);
+        current += 8;
+        return current;
+    }
+    if (object)
+        Release(object);
+    if (char* const first = At<char*>(d, deque::kStart + deque::kFirst))
+        CallCdecl<void>(addr::SC4_Free, first);
+    char** const node = ++At<char**>(d, deque::kStart + deque::kNode);
+    At<char*>(d, deque::kStart + deque::kFirst) = *node;
+    At<char*>(d, deque::kStart + deque::kLast) = *node + 0x80;
+    current = At<char*>(d, deque::kStart + deque::kFirst);
+    return current;
+}
+
+// 0x00560250, on an 8-byte deque (element), ret 4: the push at the end of a
+// full block: a copy of the element (its object referenced), room for a
+// node at the map's back (SC4CellDeque::ReserveMapAtBack with 1, 0, when
+// fewer than two map slots are left after the finish's node), a new
+// 0x80-byte block (SC4::stl_allocate) at the next node, the element built at
+// the finish (when its current is not null), the finish moved to the new
+// block, the copy's reference given back.
+void __fastcall PushBackSlow27C(char* d, void*, char* element)
+{
+    static bool logged;
+    FirstCall("PushBackSlow27C", logged);
+    void* const object = At<void*>(element, 0);
+    if (object)
+        AddRef(object);
+    const std::uint32_t used = static_cast<std::uint32_t>(
+        Difference(At<char**>(d, deque::kFinish + deque::kNode), At<char**>(d, deque::kMap)) >> 2);
+    const std::uint32_t word = At<std::uint32_t>(element, 4);
+    if (At<std::uint32_t>(d, deque::kMapSize) - used < 2)
+        CallThis<void>(addr::SC4CellDeque_ReserveMapAtBack, d, 1u, 0u);
+    char* const block = CallCdecl<char*>(addr::SC4_stl_allocate, static_cast<std::size_t>(0x80));
+    At<char**>(d, deque::kFinish + deque::kNode)[1] = block;
+    if (char* const current = At<char*>(d, deque::kFinish + deque::kCurrent)) {
+        At<void*>(current, 0) = object;
+        if (object)
+            AddRef(object);
+        At<std::uint32_t>(current, 4) = word;
+    }
+    char** const node = ++At<char**>(d, deque::kFinish + deque::kNode);
+    At<char*>(d, deque::kFinish + deque::kFirst) = *node;
+    At<char*>(d, deque::kFinish + deque::kLast) = *node + 0x80;
+    At<char*>(d, deque::kFinish + deque::kCurrent) = At<char*>(d, deque::kFinish + deque::kFirst);
+    if (object)
+        Release(object);
+}
+
+// 0x005614B0, on an 8-byte deque (element), ret 4: push_back of an element
+// (the object referenced, a word); 0x00560250 at the last place of a block.
+// The finish's current moves on by 8 even when it was null.
+void __fastcall PushBack27C(char* d, void*, char* element)
+{
+    static bool logged;
+    FirstCall("PushBack27C", logged);
+    char* const current = At<char*>(d, deque::kFinish + deque::kCurrent);
+    if (current == At<char*>(d, deque::kFinish + deque::kLast) - 8) {
+        CallThis<void>(addr::SC4VehicleDeque27C_PushBackSlow, d, element);
+        return;
+    }
+    if (current) {
+        void* const object = At<void*>(element, 0);
+        At<void*>(current, 0) = object;
+        if (object)
+            AddRef(object);
+        At<std::uint32_t>(current, 4) = At<std::uint32_t>(element, 4);
+    }
+    At<char*>(d, deque::kFinish + deque::kCurrent) += 8;
+}
+
+// 0x00561910, cSC4Vehicle's slot 181 (deque, count), ret 8: the occupants
+// the vehicle has been on. Nothing with the automata flag 0x2000 (slot 31),
+// without an occupant (+0x1EC) or at a count byte of 0. Else an element of
+// the occupant (SC4RefPtr::AssignFrom into a null local) and the word +0x1F4;
+// when the deque's last element (0x0055F900) holds the same occupant, its
+// object cleared and released and it popped (0x0055FA90); the element
+// pushed (0x005614B0); while the deque holds more than the count, the front
+// element's object cleared and released and it popped (0x0055FAF0). The
+// local's reference given back.
+void __fastcall RememberOccupant(char* self, void*, char* d, std::uint32_t count)
+{
+    static bool logged;
+    FirstCall("RememberOccupant", logged);
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 0x2000u))
+        return;
+    if (!At<void*>(self, field::kOccupant))
+        return;
+    const std::uint32_t most = static_cast<std::uint8_t>(count);
+    if (!most)
+        return;
+    struct {
+        void* object;
+        std::uint32_t word;
+    } element = {nullptr, At<std::uint32_t>(self, field::kBytes1F4)};
+    CallThis<void*>(addr::SC4RefPtr_AssignFrom, static_cast<void*>(&element.object),
+                    static_cast<void*>(self + field::kOccupant));
+    if (!DequeEmpty(d)) {
+        char* const back = CallThis<char*>(addr::cSC4Vehicle_DequeBack27C, d);
+        if (At<void*>(back, 0) == At<void*>(self, field::kOccupant)) {
+            ClearReference(back, 0);
+            CallThis<std::uint32_t>(addr::SC4VehicleDeque27C_PopBack, d);
+        }
+    }
+    CallThis<void>(addr::SC4VehicleDeque27C_PushBack, d, static_cast<void*>(&element));
+    while (QueueSize(d) > most) {
+        ClearReference(At<char*>(d, deque::kStart + deque::kCurrent), 0);
+        CallThis<char*>(addr::SC4VehicleDeque27C_PopFront, d);
+    }
+    if (element.object)
+        Release(element.object);
+}
+
+// 0x0055F930 (direction), ret 4: onto the next occupant. 0x00B43D54's
+// neighbour (slot 15: the occupant +0x1EC, the side byte +0x1F4, 0, kind 1);
+// none, false. Its occupant (not tested for null) and network part (slot 49,
+// not tested); slot 171 (that occupant, the direction, the side's local as
+// the out byte, 1). The part's keys (slot 6 with an out vector, 1, the front
+// point +0x264, the entry (side + 2) mod 4, the side slot 171 left, 4.0);
+// the first key's path (slot 3, key, 0). Without one, the keys again with
+// the side 0xFF and the first one's path, that vector freed (SC4::Free).
+// With a path, slot 132 (occupant, key, path, 1) and true. The first vector
+// freed last. AL only.
+std::uint8_t __fastcall EnterNextOccupant(char* self, void*, const float* direction)
+{
+    static bool logged;
+    FirstCall("EnterNextOccupant", logged);
+    // Both bytes with three bytes of the game's stack above them; ours 0.
+    std::uint32_t side = At<std::uint8_t>(self, field::kBytes1F4);
+    const std::uint32_t entry = (side + 2u) & 3u;
+    void** const next = Virtual<void**>(Global<void*>(addr::SC4_Service43D54), kServiceNeighbour,
+                                        At<void*>(self, field::kOccupant), side, 0u, 1u);
+    if (!next)
+        return 0;
+    void* const occupant = *next;
+    void* const network = Virtual<void*>(occupant, kNetworkPartSlot);
+    Virtual<std::uint32_t>(self, slot::kBestDirection, occupant, direction, reinterpret_cast<std::uint8_t*>(&side), 1u);
+    const float* const front = &At<float>(self, field::kFront);
+    std::uint32_t key = 0;
+    char** path = nullptr;
+    std::uint32_t* keys[3] = {};
+    Virtual<std::uint32_t>(network, part::kKeys, static_cast<void*>(keys), 1u, front, entry, side, 4.0f);
+    if (keys[0] != keys[1]) {
+        key = *keys[0];
+        path = Virtual<char**>(network, part::kPath, key, 0u);
+    }
+    if (!path) {
+        std::uint32_t* any[3] = {};
+        Virtual<std::uint32_t>(network, part::kKeys, static_cast<void*>(any), 1u, front, entry, 0xFFu, 4.0f);
+        if (any[0] != any[1]) {
+            key = *any[0];
+            path = Virtual<char**>(network, part::kPath, key, 0u);
+        }
+        if (any[0])
+            CallCdecl<void>(addr::SC4_Free, any[0]);
+    }
+    std::uint8_t entered = 0;
+    if (path) {
+        entered = 1;
+        Virtual<std::uint32_t>(self, slot::kSlot132, occupant, key, path, 1u);
+    }
+    if (keys[0])
+        CallCdecl<void>(addr::SC4_Free, keys[0]);
+    return entered;
+}
+
+// ------------------------------------------------------------------------------------
+// vb7 group C: slot 189, the wall test of slot 187, and its cell test.
+
+// A float's word, read as memory (slot 189 pushes the points' words).
+std::uint32_t WallWord(const float* p)
+{
+    std::uint32_t word;
+    std::memcpy(&word, p, 4);
+    return word;
+}
+
+// 0x00561A30, cdecl (cell x, cell z, lots, cells x, cells z, x, z), ret 0,
+// called by slot 189 only: whether a car may drive into the cell, the point
+// (x, z, as words) where it enters. 0 outside 0..cells (negative signed, the
+// rest unsigned) or under water (the terrain's slot 34). The power poles of
+// the cell (the occupant manager 0x00B43D0C's slot 41, the cell as both
+// corners, the type 0x2890D4DE, no limit, into a list of 0x00414270): each
+// asked for the pole interface 0xA8C86142, whose cell (slot 8) the cell's
+// makes it 0; each occupant and each pole released, the list destroyed
+// (0x00413FE0) on every way out. Then only the first of the cell's network
+// occupants (0x00B43D54's slot 14, node +0): with the flags 0x1F4F (slot 9)
+// it answers 1 without a support pylon (slot 73), else 0 when its altitude
+// at the point (slot 56, as a float) is above the terrain's height there
+// (slot 13) + 1 (1 when unordered). Else a landfill (the manager's slot 33,
+// the type 0x6A11BD2B) makes it 0; the lot at the cell (lots: city slot 33's
+// slot 6 (x, z, 0)) answers 1 when missing or its state (slot 33) is not 2
+// to 4; 0 when its zone type (slot 31) is not 7; else 1 without a building
+// (slot 48), and with one 0 only when its occupant's (slot 3) bounding box
+// (slot 10, into a record of 0x00466E10) is more than 10 across (its
+// diagonal). The landfill's reference is released after it was asked for.
+// AL only in the game.
+std::uint8_t __cdecl CellFree(std::int32_t x, std::int32_t z, void* lots, std::uint32_t cellsX, std::uint32_t cellsZ,
+                              std::uint32_t px, std::uint32_t pz)
+{
+    static bool logged;
+    FirstCall("CellFree", logged);
+    if (x < 0 || z < 0)
+        return 0;
+    if (static_cast<std::uint32_t>(x) >= cellsX || static_cast<std::uint32_t>(z) >= cellsZ)
+        return 0;
+    if (Virtual<std::uint8_t>(Global<void*>(addr::SC4_Terrain), terrain::kUnderWater, x, z))
+        return 0;
+    void* list = nullptr;
+    CallThis<void*>(addr::SC4List_Construct3, static_cast<void*>(&list));
+    auto destroy = [&]() { CallThis<void>(addr::SC4List_Destroy2, static_cast<void*>(&list)); };
+    std::int32_t cell[2] = {x, z};
+    if (Virtual<std::uint8_t>(Global<void*>(addr::SC4_NetworkService), kManagerInCells, static_cast<void*>(&list),
+                              static_cast<void*>(cell), static_cast<void*>(cell), kPowerPoleType, 0xFFFFFFFFu)) {
+        char* const head = static_cast<char*>(list);
+        std::uint8_t found = 0;
+        // The game's two outs are stack words kept from pass to pass (never
+        // set before the first); ours start at 0.
+        std::int32_t poleX = 0, poleZ = 0;
+        for (char* node = At<char*>(head, 0); node != head; node = At<char*>(node, 0)) {
+            void* const occupant = At<void*>(node, 8);
+            void* pole = nullptr;
+            if (Virtual<std::uint8_t>(occupant, slot::kQueryInterface, kPowerPoleIid, &pole)) {
+                Virtual<void>(pole, kPoleCell, &poleX, &poleZ);
+                if (poleX == x && poleZ == z)
+                    found = 1;
+            }
+            Release(occupant);
+            if (pole)
+                Release(pole);
+        }
+        if (found) {
+            destroy();
+            return 0;
+        }
+    }
+    if (char* const node = Virtual<char*>(Global<void*>(addr::SC4_Service43D54), map::kCellList, x, z)) {
+        void* const network = At<void*>(node, 0);
+        if (network && Virtual<std::uint8_t>(network, kOccupantFlag9, 0x1F4Fu)) {
+            if (!Virtual<std::uint8_t>(network, kSupportPylon)) {
+                destroy();
+                return 1;
+            }
+            const float altitude = static_cast<float>(Virtual<double>(network, kOccupantHeight, px, pz));
+            const double ground = Virtual<double>(Global<void*>(addr::SC4_Terrain), terrain::kHeight, px, pz);
+            const bool below = ground + Global<float>(addr::SC4_FloatOneA81228) < altitude;
+            destroy();
+            return below ? 0 : 1;
+        }
+    }
+    void* landfill = nullptr;
+    if (Virtual<std::uint8_t>(Global<void*>(addr::SC4_NetworkService), kManagerFirstInCell, &landfill, x, z,
+                              kLandfillType)) {
+        if (landfill)
+            Release(landfill);
+        destroy();
+        return 0;
+    }
+    auto leave = [&](std::uint8_t answer) {
+        if (landfill)
+            Release(landfill);
+        destroy();
+        return answer;
+    };
+    char* const lot = Virtual<char*>(lots, kLotAt, x, z, 0u);
+    if (!lot)
+        return leave(1);
+    if (Virtual<std::int32_t>(lot, kLotState) <= 1)
+        return leave(1);
+    if (Virtual<std::int32_t>(lot, kLotState) >= 5)
+        return leave(1);
+    if (Virtual<std::int32_t>(lot, kLotZoneType) != 7)
+        return leave(0);
+    char* const building = Virtual<char*>(lot, kLotBuilding);
+    if (!building)
+        return leave(1);
+    float box[6];
+    CallThis<void*>(addr::SC4Model_ConstructCorner, static_cast<void*>(box));
+    void* const occupant = Virtual<void*>(building, kBuildingOccupant);
+    Virtual<void>(occupant, kBoundingBox, static_cast<void*>(&box[0]), static_cast<void*>(&box[3]));
+    const double a = static_cast<double>(box[3]) - box[0];
+    const double b = static_cast<double>(box[4]) - box[1];
+    const double c = static_cast<double>(box[5]) - box[2];
+    const double across = std::sqrt((c * c + b * b) + a * a);
+    if (!(across > Global<float>(addr::cSC4AutomatonBase_QueueScale)))
+        return leave(1);
+    return leave(0);
+}
+
+// 0x00561D20, slot 189 (from, to, hit, normal), ret 0x10, this not read:
+// where the segment from from to to (x and z only) first enters a cell a car
+// may not drive into (0x00561A30, with city slot 33's object and the city's
+// size in cells, slots 93 and 94). The cells by x / 16 rounded as
+// 0x0055C030 does. 0 when both points are in one cell, when from's cell is
+// not free (from's x and z the point) or when to's is. Else a walk over the
+// cells: per pass FLT_MAX, then, while not at to's column, the crossing of
+// the next x edge (16 x (the cell + 1) going up, 16 x the cell going down):
+// its t along the segment and its z; while not at to's row the same for the
+// next z edge, whose x is taken as from's x + t x the z extent (the game's
+// slip: the z extent, not the x). The nearer t (strictly; the z edge when
+// equal or unordered) moves the cell on, and 0x00561A30 is asked with the
+// last crossing computed (the z edge's when both were). Free: the next
+// pass, 0 at to's cell. Not free: hit and normal (two floats each, x and z)
+// and AL 1: through an x edge the hit (that crossing's x, from's z + t x the
+// z extent from the float t) and the normal (minus the step, 0); through a
+// z edge the hit (from's x + t x the x extent, that crossing's z) and the
+// normal (0, minus the step); going up, the hit's moved coordinate less 0.1.
+// AL only in the game.
+std::uint8_t __fastcall HitWall(char* self, void*, const float* from, const float* to, float* hit, float* normal)
+{
+    static bool logged;
+    FirstCall("HitWall", logged);
+    (void)self;
+    void* const lots = Virtual<void*>(City(), city::kSlot33);
+    const std::uint32_t cellsX = Virtual<std::uint32_t>(City(), city::kCellCountX);
+    const std::uint32_t cellsZ = Virtual<std::uint32_t>(City(), city::kCellCountZ);
+    std::int32_t x = FloorCell(from[0]);
+    std::int32_t z = FloorCell(from[2]);
+    const std::int32_t toX = FloorCell(to[0]);
+    const std::int32_t toZ = FloorCell(to[2]);
+    if (x == toX && z == toZ)
+        return 0;
+    auto cellFree = [&](std::int32_t cx, std::int32_t cz, std::uint32_t px, std::uint32_t pz) {
+        return CallCdecl<std::uint8_t>(addr::cSC4Vehicle_CellFree, cx, cz, lots, cellsX, cellsZ, px, pz);
+    };
+    if (!cellFree(x, z, WallWord(&from[0]), WallWord(&from[2])))
+        return 0;
+    if (cellFree(toX, toZ, WallWord(&to[0]), WallWord(&to[2])))
+        return 0;
+    std::int32_t stepX = 1, aheadX = 0, stepZ = 1, aheadZ = 0;
+    if (x > toX) {
+        stepX = -1;
+        aheadX = 1;
+    }
+    if (z > toZ) {
+        stepZ = -1;
+        aheadZ = 1;
+    }
+    const float dx = static_cast<float>(static_cast<double>(to[0]) - from[0]);
+    const float dz = static_cast<float>(static_cast<double>(to[2]) - from[2]);
+    // Each pass sets both crossing words before they are read (the game's
+    // start with its to argument's slot and a stack word).
+    float crossX = 0.0f, crossZ = 0.0f;
+    const float most = 3.40282347e+38f; // 0x7F7FFFFF
+    for (;;) {
+        if (x == toX && z == toZ)
+            return 0;
+        float tx = most, tz = most;
+        if (x != toX) {
+            const double edge = static_cast<double>(
+                static_cast<std::int32_t>((static_cast<std::uint32_t>(x) + aheadX + stepX) << 4));
+            crossX = static_cast<float>(edge);
+            const double t = (edge - from[0]) / dx;
+            tx = static_cast<float>(t);
+            crossZ = static_cast<float>(t * dz + from[2]);
+        }
+        if (z != toZ) {
+            const double edge = static_cast<double>(
+                static_cast<std::int32_t>((static_cast<std::uint32_t>(z) + aheadZ + stepZ) << 4));
+            crossZ = static_cast<float>(edge);
+            const double t = (edge - from[2]) / dz;
+            tz = static_cast<float>(t);
+            crossX = static_cast<float>(t * dz + from[0]); // the game's dz
+        }
+        if (tx < tz) {
+            x += stepX;
+            if (cellFree(x, z, Bits(crossX), Bits(crossZ)))
+                continue;
+            hit[0] = crossX;
+            hit[1] = static_cast<float>(static_cast<double>(tx) * dz + from[2]);
+            At<std::uint32_t>(normal, 4) = 0;
+            normal[0] = static_cast<float>(-stepX);
+            if (stepX == 1)
+                hit[0] = static_cast<float>(static_cast<double>(hit[0]) -
+                                            Global<float>(addr::cSC4LotRetainingWallOccupant_HeightMargin));
+            return 1;
+        }
+        z += stepZ;
+        if (cellFree(x, z, Bits(crossX), Bits(crossZ)))
+            continue;
+        const double hx = static_cast<double>(tz) * dx + from[0];
+        CopyWord(&hit[1], &crossZ);
+        hit[0] = static_cast<float>(hx);
+        At<std::uint32_t>(normal, 0) = 0;
+        normal[1] = static_cast<float>(-stepZ);
+        if (stepZ == 1)
+            hit[1] = static_cast<float>(static_cast<double>(hit[1]) -
+                                        Global<float>(addr::cSC4LotRetainingWallOccupant_HeightMargin));
+        return 1;
+    }
+}
+
+// ---- vb7 group D: slot 190 ----
+
+// The list node allocator 0x00B207E4 as the game inlines its fetch: when the
+// cached pointer is null, the framework's slot 5 (0x3AE4BEA3, 0x3AE4BEAB)
+// into a local, the local cached and then let go (SC4::ReleaseRef on the
+// local; the cache keeps the pointer without a reference of its own).
+void* DNodeAllocator()
+{
+    void*& cached = *reinterpret_cast<void**>(addr::SC4List_NodeAllocator2);
+    if (!cached) {
+        void* object = nullptr;
+        if (void* const framework = CallCdecl<void*>(addr::RZGetFramework))
+            Virtual<std::uint8_t>(framework, 0x14, 0x3AE4BEA3u, 0x3AE4BEABu, static_cast<void*>(&object));
+        cached = object;
+        CallThis<void>(addr::SC4_ReleaseRef, static_cast<void*>(&object));
+    }
+    return cached;
+}
+
+// The automaton's rectangle (0x0050A310, 0x24 bytes): the byte +0 whether it
+// is set, +4 and +8 the centre (x, z), +0xC and +0x10 the half sizes, +0x1C
+// and +0x20 an axis. Built from (automaton, offset x, y, z, scale), ret
+// 0x14; the byte +0, +0x1C and +0x20 are only written when the automaton has
+// a model (its slot 82), +4..+0x18 always zeroed first.
+inline constexpr std::size_t kDRectSize = 0x24;
+
+// 0x005620E0, slot 190 (push out, share out), ret 8: the vehicles it runs
+// into. A list (a sentinel from the allocator 0x00B207E4) filled by the
+// occupant manager 0x00B43D0C's slot 37 with up to 5 occupants of the
+// vehicle type 0xC7CC75F1 in the occupant part's box (its slot 10) grown by
+// 24 each way. The velocity: the heading scaled to the smoothed speed
+// (0x004FA960) when its square is above 0. When the list has any: our
+// rectangle (0x0050A310 with no offset and scale 1) and its area (half
+// sizes x 4); for each occupant other than our own part: its box (slot 10)
+// crossing ours (SC4::BoxesIntersect, the overlap out) by more than 1 in x
+// or else in z, its automaton interface 0xA9B40F05 (slot 0; nothing more,
+// not even a release, when that fails), and unless that one has the
+// automata flag 1: its rectangle; when we may meet it (slot 73) and the
+// rectangles overlap (0x00506450) it counts. Its velocity (slot 15 into the
+// three words of 0x00B22978, scaled to its slot 38 speed when the square is
+// above 0) less ours; the length of that and the area share (theirs /
+// ours): above the best so far (from -FLT_MAX) or at a share of 2 or more,
+// the difference into push, the share into share and the best the length.
+// Below 2: its slot 65 (us, the middle of the overlap). In the state 0x10
+// (slot 57), the sound object (0x00602640) slot 6 then (fetched again) slot
+// 5 with 7. Each occupant that answered the interface released (slot 2 on
+// the occupant, balancing the interface's reference). The manager's slot 48
+// with the list when slot 37 answered true (even empty), then the list
+// emptied (SC4List::Clear2) and its sentinel freed (the allocator's slot 4,
+// the allocator fetched again). AL the count (AL only in the game; ours
+// zero-extends).
+std::uint8_t __fastcall CheckCollisions(char* self, void*, std::uint32_t* push, float* share)
+{
+    static bool logged;
+    FirstCall("CheckCollisions", logged);
+    std::uint8_t count = 0;
+    void* const manager = Global<void*>(addr::SC4_NetworkService);
+    char* list = Virtual<char*>(DNodeAllocator(), 0x0C, 0xCu);
+    At<char*>(list, 0) = list;
+    At<char*>(list, 4) = list;
+    const std::uint32_t init = Global<std::uint32_t>(addr::cSC4Vehicle_ReadPointInit);
+    std::uint32_t centreWords[3];
+    FillWords(centreWords, init);
+    float velocity[3];
+    CopyWords(velocity, self + field::kHeading);
+    void* other = nullptr;
+    std::uint32_t bestWord = 0xFF7FFFFFu;
+    float& best = *reinterpret_cast<float*>(&bestWord);
+    {
+        const double speed = CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, self + field::kSmoothed);
+        const double vx = velocity[0], vy = velocity[1], vz = velocity[2];
+        const double square = (vy * vy + vz * vz) + vx * vx;
+        if (square > Zero()) {
+            const double factor = speed / std::sqrt(square);
+            velocity[0] = static_cast<float>(vx * factor);
+            velocity[1] = static_cast<float>(vy * factor);
+            velocity[2] = static_cast<float>(vz * factor);
+        }
+    }
+    float low[3], high[3];
+    Virtual<std::uint32_t>(self + field::kVtable4, 0x28, static_cast<float*>(low), static_cast<float*>(high));
+    float boxLow[3], boxHigh[3];
+    const double margin = Global<float>(addr::cSC4Vehicle_BoxMargin);
+    for (int i = 0; i < 3; ++i) {
+        boxLow[i] = static_cast<float>(low[i] - margin);
+        boxHigh[i] = static_cast<float>(high[i] + margin);
+    }
+    if (Virtual<std::uint8_t>(manager, 0x94, static_cast<void*>(&list), static_cast<float*>(boxLow),
+                              static_cast<float*>(boxHigh), kVehicleType, 5u)) {
+        if (At<char*>(list, 0) != list) {
+            // The game's rectangles are stack: the byte +0 (and +0x1C, +0x20)
+            // left as it was when the automaton has no model; ours start 0
+            // and, like the game's, keep the last occupant's.
+            alignas(4) unsigned char mine[kDRectSize] = {};
+            alignas(4) unsigned char theirs[kDRectSize] = {};
+            CallThis<void*>(addr::SC4AutomatonRect_Construct, mine, static_cast<void*>(self), 0u, 0u, 0u,
+                            0x3F800000u);
+            const float mineArea = static_cast<float>(
+                (static_cast<double>(At<float>(mine, 0x10)) * At<float>(mine, 0xC)) * Global<float>(addr::SC4_FloatFour));
+            char* const end = list;
+            for (char* node = At<char*>(end, 0); node != end; node = At<char*>(node, 0)) {
+                char* const occupant = At<char*>(node, 8);
+                if (occupant == self + field::kVtable4)
+                    continue;
+                Virtual<std::uint32_t>(occupant, 0x28, static_cast<float*>(boxLow), static_cast<float*>(boxHigh));
+                float meetLow[3] = {}, meetHigh[3] = {};
+                if (!CallCdecl<std::uint8_t>(addr::SC4_BoxesIntersect, static_cast<float*>(low),
+                                             static_cast<float*>(high), static_cast<float*>(boxLow),
+                                             static_cast<float*>(boxHigh), static_cast<float*>(meetLow),
+                                             static_cast<float*>(meetHigh)))
+                    continue;
+                const double one = Global<float>(addr::SC4_FloatOneA81228);
+                // x first: more than 1 (ordered) goes on; else z must be.
+                if (!(std::fabs(static_cast<double>(meetHigh[0]) - meetLow[0]) > one) &&
+                    !(std::fabs(static_cast<double>(meetHigh[2]) - meetLow[2]) > one))
+                    continue;
+                if (!Virtual<std::uint8_t>(occupant, slot::kQueryInterface, kObjectB0Iid, &other))
+                    continue;
+                if (!Virtual<std::uint8_t>(other, slot::kCheckFlag, 1u)) {
+                    CallThis<void*>(addr::SC4AutomatonRect_Construct, theirs, other, 0u, 0u, 0u, 0x3F800000u);
+                    if (Virtual<std::uint8_t>(self, slot::kCanMeet, other) &&
+                        CallThis<std::uint8_t>(addr::SC4AutomatonRect_Overlaps, mine, static_cast<void*>(theirs))) {
+                        ++count;
+                        const float theirArea =
+                            static_cast<float>((static_cast<double>(At<float>(theirs, 0x10)) * At<float>(theirs, 0xC)) *
+                                               Global<float>(addr::SC4_FloatFour));
+                        std::uint32_t words[3];
+                        FillWords(words, init);
+                        Virtual<std::uint32_t>(other, slot::kHeadingOut, words);
+                        const float speed = static_cast<float>(Virtual<double>(other, slot::kGetSpeed));
+                        float* const v = reinterpret_cast<float*>(words);
+                        double x = v[0], y = v[1];
+                        const double z = v[2];
+                        const double square = (z * z + y * y) + x * x;
+                        if (square > Zero()) {
+                            const double factor = speed / std::sqrt(square);
+                            x = x * factor;
+                            y = y * factor;
+                            v[2] = static_cast<float>(v[2] * factor);
+                        }
+                        v[0] = static_cast<float>(x - velocity[0]);
+                        v[1] = static_cast<float>(y - velocity[1]);
+                        const double rz = static_cast<double>(v[2]) - velocity[2];
+                        v[2] = static_cast<float>(rz);
+                        // FST then FMUL by the stored float: the z square is
+                        // the unrounded difference times its float.
+                        const float relative = static_cast<float>(
+                            std::sqrt((rz * v[2] + static_cast<double>(v[1]) * v[1]) + static_cast<double>(v[0]) * v[0]));
+                        const double ratio = static_cast<double>(theirArea) / mineArea;
+                        const double two = Global<float>(addr::cSC4Vehicle_Two);
+                        if (relative > best || ratio >= two) {
+                            best = relative;
+                            CopyWords(push, words);
+                            *share = static_cast<float>(ratio);
+                        }
+                        if (ratio < two) {
+                            const double half = Global<float>(addr::SC4_FloatHalf);
+                            float* const centre = reinterpret_cast<float*>(centreWords);
+                            centre[0] = static_cast<float>((static_cast<double>(meetHigh[0]) - meetLow[0]) * half + meetLow[0]);
+                            centre[1] = static_cast<float>((static_cast<double>(meetHigh[1]) - meetLow[1]) * half + meetLow[1]);
+                            centre[2] = static_cast<float>((static_cast<double>(meetHigh[2]) - meetLow[2]) * half + meetLow[2]);
+                            Virtual<std::uint32_t>(other, slot::kHandleCollision, static_cast<void*>(self),
+                                                   static_cast<float*>(centre));
+                        }
+                        if (Virtual<std::uint32_t>(self, slot::kSlot57, 0x10u)) {
+                            Virtual<std::uint32_t>(CallCdecl<void*>(addr::SC4UDrive_GetService602640), 0x18, 7u);
+                            Virtual<std::uint32_t>(CallCdecl<void*>(addr::SC4UDrive_GetService602640), 0x14, 7u);
+                        }
+                    }
+                }
+                Release(occupant);
+            }
+        }
+        Virtual<std::uint32_t>(manager, 0xC0, static_cast<void*>(&list));
+    }
+    CallThis<void>(addr::SC4List_Clear2, static_cast<void*>(&list));
+    void* const allocator = DNodeAllocator();
+    Virtual<std::uint32_t>(allocator, 0x10, static_cast<void*>(list));
+    return count;
+}
+
+// ---- vb7 group E: slot 110 and the damage of a driven vehicle (shared with the trains) ----
+
+// __ftol2's low 32 bits: truncation toward zero; what does not fit the
+// 64-bit integer (and a NaN) is the x87's 0x8000000000000000, low half 0.
+std::uint32_t DamageFtol2(double value)
+{
+    if (!(std::fabs(value) < 9223372036854775808.0))
+        return 0;
+    return static_cast<std::uint32_t>(static_cast<std::int64_t>(value));
+}
+
+// 0x0055B6D0, slot 110 (state), ret 4: cSC4Vehicle's entering a state, over
+// the base's (vb4's 0x005546E0). The type 0x10: the state's +0x30 zero; with
+// a template (slot 67) its entry (+0x64, else 0x0046B4A0 on its parent
+// +0xC): the entry's +8 (the top speed) into the state's +0x34, without an
+// entry 1.0 (without a template +0x34 is left as it is). Then the base's
+// slot 110, its EAX. The state is read without a null test, as the game
+// does.
+std::uint32_t __fastcall VehicleEnterState(char* self, void*, char* entered)
+{
+    static bool logged;
+    FirstCall("VehicleEnterState", logged);
+    if (At<std::uint32_t>(entered, state::kType) == state::kParked) {
+        At<std::uint32_t>(entered, state::kFloat30) = 0;
+        if (char* const owner = Virtual<char*>(self, slot::kTemplate)) {
+            char* entry = At<char*>(owner, 0x64);
+            if (!entry) {
+                if (char* const parent = At<char*>(owner, 0xC))
+                    entry = CallThis<char*>(addr::SC4AutomatonTemplate_FindInherited64, parent);
+            }
+            if (entry) {
+                At<std::uint32_t>(entered, state::kSpeed34) = At<std::uint32_t>(entry, entryField::kSpeed);
+                return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_EnterState, self, entered);
+            }
+            At<std::uint32_t>(entered, state::kSpeed34) = 0x3F800000u;
+        }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_EnterState, self, entered);
+}
+
+// 0x0055F3F0 (controls, entry), ret 8, shared with the trains: the damage
+// the driven state's controls (the state 0x10, +0x60, an unsigned word)
+// have taken against the entry's +0x5C. Nothing below half of it. Below it
+// (injured): 0x00B43D1C's slot 7 (the name at 0x00B0A0DC, "udriveit_injured")
+// gives an effect. At or past it, or unordered (crashed): city slot 95 with
+// the position's x and y (not z) into two cells never read; ApplyTrafficEvent
+// on the vehicle manager (slot 174) with the occupant part (+4), 2 and 30000
+// into the controls' +0x68; SetAutomataFlag (0x8000000, 1); slot 102 (0xB,
+// 1); the effect local let go when there (it never is); 0x00B43D1C's slot 7
+// (the name at 0x00B0A0E0, "udriveit_crash"). With an effect: the controls'
+// old one (+0x74) stopped (its slot 4 with 0) and released, the new one held
+// there (AddRef), SC4Matrix::FromDirection of the heading into a matrix
+// never read, the effect placed (slot 8: a block of the bytes 1 and 1, the
+// identity, the position and 1.0) and started (slot 3 with 0), and the local
+// reference released.
+void __fastcall CheckDamage(char* self, void*, char* controls, char* entry)
+{
+    static bool logged;
+    FirstCall("CheckDamage", logged);
+    void* effect = nullptr;
+    const double damage = static_cast<double>(At<std::uint32_t>(controls, state::kDamage));
+    const float most = At<float>(entry, entryField::kMostDamage);
+    // FCOMPP / test ah,5 / JNP: out only when ordered and below.
+    if (damage < static_cast<double>(most) * Global<float>(addr::SC4_FloatHalf))
+        return;
+    // test ah,5 / JP: at or past the most, or unordered, is the crash.
+    if (damage < most) {
+        Virtual<std::uint32_t>(Global<void*>(addr::SC4_Service43D1C), 0x1C,
+                               Global<std::uint32_t>(addr::cSC4Vehicle_InjuredEffectName), &effect);
+    } else {
+        // The game hands its own two argument slots to city slot 95 as the
+        // cells (not read after); ours are two words of their own.
+        std::int32_t cellX = 0, cellZ = 0;
+        Virtual<std::uint32_t>(City(), city::kCellOf, At<float>(self, field::kPosition),
+                               At<float>(self, field::kPosition + 4), &cellX, &cellZ);
+        void* const vehicles = Virtual<void*>(self, slot::kManager);
+        At<std::uint32_t>(controls, state::kRecord2) =
+            CallThis<std::uint32_t>(addr::SC4_ApplyTrafficEvent, vehicles, static_cast<void*>(self + 4), 2u, 30000u);
+        Virtual<std::uint32_t>(self, slot::kSetFlag, 0x8000000u, 1u);
+        Virtual<std::uint32_t>(self, slot::kSlot102, 0xBu, 1u);
+        void* const effects = Global<void*>(addr::SC4_Service43D1C);
+        if (void* const old = effect) {
+            effect = nullptr;
+            Release(old);
+        }
+        Virtual<std::uint32_t>(effects, 0x1C, Global<std::uint32_t>(addr::cSC4Vehicle_CrashEffectName), &effect);
+    }
+    if (!effect)
+        return;
+    if (At<void*>(controls, state::kObject74)) {
+        Virtual<std::uint32_t>(At<void*>(controls, state::kObject74), 0x10, 0u);
+        Release(At<void*>(controls, state::kObject74));
+        At<void*>(controls, state::kObject74) = nullptr;
+    }
+    At<void*>(controls, state::kObject74) = effect;
+    AddRef(effect);
+    std::uint32_t m[9];
+    for (std::uint32_t& w : m)
+        w = Global<std::uint32_t>(addr::cSC4Vehicle_ReadPointInit);
+    // The game leaves bytes 2 and 3 as stack; ours are 0.
+    alignas(4) unsigned char place[0x38] = {};
+    CopyWords(place + 0x28, self + field::kPosition);
+    float* const identity = reinterpret_cast<float*>(place + 4);
+    identity[0] = identity[4] = identity[8] = 1.0f;
+    At<float>(place, 0x34) = 1.0f;
+    place[0] = 1;
+    place[1] = 1;
+    // The matrix is made and never read: the block keeps the identity.
+    CallCdecl<void>(addr::SC4Matrix_FromDirection, self + field::kHeading, static_cast<void*>(m));
+    Virtual<std::uint32_t>(At<void*>(controls, state::kObject74), 0x20, static_cast<void*>(place));
+    Virtual<std::uint32_t>(At<void*>(controls, state::kObject74), 0x0C, 0u);
+    if (effect)
+        Release(effect);
+}
+
+// 0x0055F7B0 (dx, dy, dz, push, controls, entry), ret 0x18, shared with the
+// trains: an impact. q = push / the entry's +0x48 (as a float). When the
+// vector's length is above 0.01 (0x00B0A0B4) or q above 2.0: the controls'
+// damage +0x60 (unsigned) plus (length - 0.01) x 2000.0 (0x00B0A0B8), times
+// q too unless q is below 5.0 (0x00A9D170), truncated (__ftol2; below 0.01
+// long the addition is negative). Then 0x0055F3F0 (controls, entry) always.
+// The new speed: the vector along the heading x q plus the smoothed speed
+// (0x004FA960), 0 when below 0, at most the smoothed speed; the smoothed
+// speed set at once to it when it differs (or is unordered); the controls'
+// +0x2C it and, at exactly 0, their +0x28 zero.
+void __fastcall ApplyImpact(char* self, void*, float dx, float dy, float dz, float push, char* controls, char* entry)
+{
+    static bool logged;
+    FirstCall("ApplyImpact", logged);
+    const float q = static_cast<float>(static_cast<double>(push) / At<float>(entry, entryField::kMass));
+    const double length = Length(dx, dy, dz);
+    const double least = Global<float>(addr::cSC4Vehicle_ImpactLeast);
+    // FCOM / test ah,0x41 / JZ: above (ordered); then the same on q and 2.0.
+    if (length > least || q > Global<float>(addr::cSC4Vehicle_Two)) {
+        // The FCOMP of q and 5.0 is taken before the FSUB and FMUL (the FPU
+        // keeps C0..C3); test ah,5 / JP: times q unless below (ordered).
+        double add = (length - least) * Global<float>(addr::cSC4Vehicle_ImpactDamage);
+        if (!(q < Global<float>(addr::cSC4Vehicle_DropHeight)))
+            add = add * q;
+        const double damage = static_cast<double>(At<std::uint32_t>(controls, state::kDamage));
+        At<std::uint32_t>(controls, state::kDamage) = DamageFtol2(add + damage);
+    }
+    CallThis<void>(addr::cSC4Vehicle_CheckDamage, self, controls, entry);
+    const double smoothed = CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, self + field::kSmoothed);
+    const float* const heading = &At<float>(self, field::kHeading);
+    const double along = ((static_cast<double>(dz) * heading[2] + static_cast<double>(dy) * heading[1]) +
+                          static_cast<double>(dx) * heading[0]) *
+                             q +
+                         smoothed;
+    float speed = static_cast<float>(along);
+    // FCOMP / test ah,5 / JP: zero only when ordered and below (the
+    // unrounded sum).
+    if (along < Zero())
+        speed = 0.0f;
+    // FCOMP / test ah,0x41 / JNZ: the smoothed speed only when above it.
+    if (speed > smoothed)
+        speed = static_cast<float>(smoothed);
+    // FUCOMPP / test ah,0x44 / JNP: kept only when equal.
+    if (!(speed == At<float>(self, field::kSmoothedTarget)))
+        SnapSmoothed(self, Bits(speed));
+    At<float>(controls, state::kSpeed) = speed;
+    // FUCOMPP / test ah,0x44 / JP: only when equal.
+    if (speed == Zero())
+        At<std::uint32_t>(controls, state::kPedal) = 0;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -5402,6 +6412,24 @@ const Detour kVehicleLanes[] = {
     OPENSC4_DETOUR(addr::cSC4Vehicle_UpdateModels, UpdateModels),
 };
 
+// Part vb7.
+const Detour kVehicleQueues[] = {
+    OPENSC4_DETOUR(addr::cSC4Vehicle_PointBehind, PointBehind),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_CrossBehind, CrossBehind),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_RememberOccupant, RememberOccupant),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_EnterNextOccupant, EnterNextOccupant),
+    OPENSC4_DETOUR(addr::SC4VehicleDeque27C_PopBack, PopBack27C),
+    OPENSC4_DETOUR(addr::SC4VehicleDeque27C_PopFront, PopFront27C),
+    OPENSC4_DETOUR(addr::SC4VehicleDeque27C_PushBack, PushBack27C),
+    OPENSC4_DETOUR(addr::SC4VehicleDeque27C_PushBackSlow, PushBackSlow27C),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_HitWall, HitWall),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_CellFree, CellFree),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_CheckCollisions, CheckCollisions),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_EnterState, VehicleEnterState),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_CheckDamage, CheckDamage),
+    OPENSC4_DETOUR(addr::cSC4Vehicle_ApplyImpact, ApplyImpact),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -5411,7 +6439,8 @@ bool InstallObject(registry::Mode)
            InstallList(kMove, sizeof kMove / sizeof kMove[0], "move") &&
            InstallList(kStates, sizeof kStates / sizeof kStates[0], "states") &&
            InstallList(kVehicleMove, sizeof kVehicleMove / sizeof kVehicleMove[0], "vehicle move") &&
-           InstallList(kVehicleLanes, sizeof kVehicleLanes / sizeof kVehicleLanes[0], "vehicle lanes");
+           InstallList(kVehicleLanes, sizeof kVehicleLanes / sizeof kVehicleLanes[0], "vehicle lanes") &&
+           InstallList(kVehicleQueues, sizeof kVehicleQueues / sizeof kVehicleQueues[0], "vehicle queues");
 }
 
 const bool g_registered[] = {
@@ -5434,7 +6463,10 @@ const bool g_registered[] = {
                         "drop or removal and the collision (10 detours, part vb5); cSC4Vehicle's lanes and turns: the "
                         "lights, the shown flag, keeping to the occupant's cells with the segment and sphere test, "
                         "the falling and placed states, driving off the network with its speed, path and floor "
-                        "searches, and the models (12 detours, part vb6; src/core/automata_vehicle.cpp)",
+                        "searches, and the models (12 detours, part vb6); cSC4Vehicle's queues: the occupants it has been "
+                        "on with the +0x27C deque's push and pops, the point behind and its crossing test, entering "
+                        "the next occupant, the wall and cell tests, the collisions, entering a state, the damage and "
+                        "the impact (14 detours, part vb7; src/core/automata_vehicle.cpp)",
                         false, InstallObject}),
 };
 
