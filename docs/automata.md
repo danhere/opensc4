@@ -35,7 +35,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
-| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
+| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15), ro3 (4) (part ro below counts 103) |
 | Trains | 79 | 18,124 | 2 |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
@@ -2856,3 +2856,130 @@ Per step it mixes the highlights' presence, draw properties and transform (slot 
 Every B run carried the ` V` token, equal to the A run's. In the Making Money and Rush Hour runs it reached all 10. The game itself reaches the core's slots 126 to 128 and the assignment before the test day (slot 128 in all but Making Money d0000); the tank's six only the test (the tutorials have no tanks). The Big City saves have no city vehicle with models and keys, so there the part did not run (flag 0x80000000) and only slot 127 was reached, by the game. An independent audit against the disassembly found one difference before parity, fixed: the tank's two frames lift by their own factors (1.15 at 0x00A9B7EC, 1.25 at 0x00A9B7F0), not the core's 1.5.
 
 Not covered: the make with no models (the game's read of a null first model), the tank's second highlight with exactly two keys or models (the reads past them), and the game's own query tool and U-Drive object (the test's stand in for them).
+
+## Part ro: the other road vehicles
+
+### Survey
+
+Six classes derive from cSC4Vehicle and keep its layout up to +0x2B8 ([automata_roadveh.h](../src/core/automata_roadveh.h) has theirs). The read-only survey (%LOCALAPPDATA%\opensc4\analysis\roadveh-survey) found them by their vtables against cSC4Vehicle's, the constructors that write those vtables, and the factories registered by 0x00514A00:
+
+| Class | ID | Factory | Constructor | Size | Main vtable |
+| --- | --- | --- | --- | --- | --- |
+| cSC4TrailerVehicle | 0x4A5B69ED | 0x00514970 | 0x00556DB0 | 0x2E4, SC4::operator_new | 0x00A9C490 (199 slots) |
+| cSC4Bus | 0xAA9F4A3D | 0x005146C0 | 0x00524360 | 0x2B8, vehicle pool | 0x00A974D8 |
+| cSC4GetawayVan | 0xEA863423 | 0x005146A0 | 0x00533BA0 | 0x2B8 | 0x00A98B60 |
+| cSC4CarjackedVehicle | 0xCBB32B0A | 0x005146E0 | 0x005244C0 | 0x2B8 | 0x00A97910 |
+| cSC4Tank | 0xEBE0DCAD | 0x00514700 | 0x0054CD90 | 0x37C | 0x00A9B9B8 (198 slots) |
+| cSC4MayorLimo | 0x4C0DD224 | 0x00514720 | 0x0053CEC0 | 0x2C4 | 0x00A999E0 |
+
+What each class overrides of cSC4Vehicle:
+
+- The trailer: slots 0, 3, 4, 66, 72, 73, 95 and 132, and it adds slots 192 to 198. It keeps a vector of words and a vector of the cars it pulls, a point, an occupant and a word.
+- The bus: 164 and 172.
+- The van and the carjacked vehicle: 101.
+- The limo: Init (it reads the property 0xEC15654A) and slot 121.
+- The tank: 3, 4, 72, 93, 110, 115, 121 and 127, and it adds slots 192 to 197 (part AD3's highlights). It also has turret and barrel models, a shot effect and effect attachments.
+- Each class has its own +8 Write, Read and GetGZCLSID. These are shared in places:
+  - The bus's Write and Read (version 2) with cSC4TrainCar.
+  - The carjacked vehicle's (version 1) with the limo.
+  - The van's are version 3, the tank's version 2 with the model indices.
+- Only the trailer overrides QueryInterface. The other five do not answer their own class IDs.
+
+103 functions, 18,141 bytes. Of them:
+
+- **Already ours (6):** the tank's slots 192 to 197 (AD3).
+- **Stay the game's (34):**
+  - 25 adjustor thunks.
+  - Seven plain jumps: 0x005240C0, 0x0053CD00, 0x0053CD10, 0x0053CD20, 0x0054A740, 0x0054A770, and 0x00555A50 (the trailer's slot 176, shared with the trains).
+  - Two folds: 0x006F7DC0 and 0x005050C0.
+- **ro1 (44, 3,707 bytes, done):** the objects, the save, the life cycle and the queries. Below.
+- **ro2 (15, 5,249 bytes):** the frame code of the trailer, the bus, the van, the carjacked vehicle and the limo.
+  - The trailer: 72 0x00555B50, 73 0x00556260, 95 0x00555B10, 132 0x00555A90, 192 0x00556380, 195 0x00556A30, 196 0x00556460, 197 0x00555C70, 198 0x005560D0.
+  - The bus: 164 0x00524180, 172 0x005240D0.
+  - The carjacked vehicle: 101 0x00524440. The van: 101 0x005339B0. The limo: 121 0x0053CD30.
+  - The tank: 127 0x0054A750 (both highlights off).
+- **ro3 (4, 6,322 bytes):** the tank on frames: 110 0x0054A780, 115 0x0054AAE0, 121 0x0054B030, 72 0x0054B7C0.
+
+No helper is called only by the group beyond the two destructor bodies. No NAM site and none of SC4UIScale's addresses is in it.
+
+### What is ours (ro1)
+
+44 functions in a new group, off by default: `simulators.automata.roadveh` ([automata_roadveh.cpp](../src/core/automata_roadveh.cpp)).
+
+- **The objects (25):**
+  - The six factories: 0x00514970, 0x005146C0, 0x005146A0, 0x005146E0, 0x00514700, 0x00514720.
+  - The six constructors: 0x00556DB0, 0x00524360, 0x00533BA0, 0x005244C0, 0x0054CD90, 0x0053CEC0.
+  - The trailer's and the tank's destructor bodies: 0x00556F40, 0x0054CEC0.
+  - The four deleting destructors: 0x00524410 (shared by the bus, the van and the carjacked vehicle), 0x0053CF60, 0x0054CE90, 0x00556F20.
+  - The trailer's QueryInterface 0x00555A60.
+  - The six GetGZCLSIDs: 0x00556E50, 0x005243B0, 0x00533BF0, 0x00524510, 0x0054CE30, 0x0053CF30.
+- **The save (10):** Write and Read of:
+  - the bus, 0x00524160 and 0x00557010;
+  - the carjacked vehicle and the limo, 0x0053CE00 (missing from Ghidra's function list) and 0x00524490;
+  - the van, 0x00533B00 and 0x00533B40;
+  - the tank, 0x0054AA30 and 0x0054A8E0;
+  - the trailer, 0x005562A0 and 0x00556C30.
+- **The life cycle (5):**
+  - Init of the limo 0x0053CE20, the tank 0x0054C880 and the trailer 0x00555A30.
+  - Shutdown of the tank 0x0054A850 and the trailer 0x005563C0.
+- **The queries (4):** the trailer's slot 66 0x00555AE0 (the rear point: the last car's, else the core's 0x00505A40), its slots 193 and 194 (the counts 0x00556ED0 and 0x00556EE0), and the tank's debug text 0x0054CAA0.
+
+Left the game's: cSC4Vehicle's code (part vb), the jumps, the thunks and the folds above. Also these, all called at their addresses:
+
+- the core's rear point 0x00505A40;
+- the stream helpers and SC4PtrVector::InsertN;
+- the effect parts (SC4EffectPartB);
+- the attachments container (cSC4NetworkBridgeOccupant's, vtable 0x00AA4060);
+- the model assignment 0x004201D0 and the string code.
+
+Oddities kept:
+
+- **The trailer's constructor** does not set +0x2E0.
+- **The limo's Init** reads its property even when already initialised, and drops cSC4Vehicle's answer.
+- **The tank's Read:**
+  - It answers by the stream's error alone (1 when there is none), not by cSC4Vehicle's Read.
+  - It takes versions 0 to 2, and reads the two indices only from version 2 on.
+- **The tank's Write** writes 0xFF for a model not found in the core's model vector, and the last match otherwise.
+- **The trailer's Read:**
+  - Both counts go into one local.
+  - Each word goes into the local the car loop zeroes before each reference. So a failed word read pushes the word before it again. A zero word is never pushed.
+- **The trailer's Shutdown and destructor:** Shutdown stops and releases the cars but leaves the words. The destructor frees both vectors without releasing the cars.
+- **The tank's debug text** does not test the shot for null.
+- **Version words in the argument's slot.** The bus's, the carjacked vehicle's, the limo's and the tank's Reads read their version word into the stream argument's own stack slot. A failed read then compares the low word of the stream's address; ours does the same.
+- **AL only in the game:** the van's, the tank's and the trailer's Writes, the van's and the trailer's Reads, the Inits of the limo and the tank, and the trailer's Shutdown. Ours zero-extends.
+- **Float truncation:** the limo's first float is truncated as __ftol2 does (the low 32 bits of the 64-bit result).
+
+Two unobservable orders were left as written; the audit noted them:
+
+- The tank's Init reads the barrel index once, where the game reads it again after the turret's assignment.
+- The tank's debug text calls the shot's slot 5 before reading its floats, where the game calls it after. Nothing in between writes them.
+
+### Test (ro1)
+
+The ` V` token gains `,<robject>,<rsave>,<rlife>,<rflags>` (29 fields). rflags: 1 objects made, 2 the save ran, 4 the limo's property was set, 8 the life cycle ran, 0x10 a factory failed. All on objects of the test's, with the generator seeded as for vb (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). The log lines are "ro1 tank shot" and "ro1 robject".
+
+- **robject:** one object of each class from its factory: its fields, GetGZCLSID, and QueryInterface for four IDs (the trailer's also at its address). Then the trailer's slot 66 without cars and with three cars of the test's, and its two counts.
+- **rsave, writing:** each class written by its Write and by cSC4Vehicle's. Mixed in are the version word, whether the rest begins with cSC4Vehicle's bytes, and the bytes after them. The tank is written twice: once with models of the test's in its model vector (indices 2 and 1), once with none found.
+- **rsave, reading:** each class read back into a new object, with its own version and one more. The tank's is read with 2, 1, 0 and 3, and one byte short. The trailer's is also cut after its first word. Reads cut inside cSC4Vehicle's part are left out: the game's own Reads there loop on counts left as stack garbage. The bus's, the carjacked vehicle's and the tank's Reads also run on an empty stream.
+- **rlife:**
+  - The trailer's Init and Shutdown, with cars and an occupant of the test's.
+  - The limo's Init five times. Its +0xC vtable is a copy whose GetProperty answers a property of the test's for 0xEC15654A: absent, then 1 to 4 floats.
+  - The tank's Init twice, its debug text with a shot of the test's, and Shutdown.
+  - Three more tanks with the byte +0x3C and indices that do not hold: equal, past the count, and 0.
+- **Not reached by the test:** the tank's Init taking saved indices that hold. That needs a real model vector.
+
+### Parity (ro1)
+
+2026-10-23. B = `simulators.automata.vehicle` and `simulators.automata.roadveh` against the original; the base list includes `determinism.dispatch_info=ours`. Two jobs, `OPENSC4_MUTE=1`, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. Env p4env-ro1, snapshot ro1-t2 (the 12-save leg rerun as ro1-t3 from a copy of it):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days, first pair |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days, first pair |
+| The 12-save batch | 7 | 12 of 12 saves, all on the first pair |
+
+Every B run carried the ` V` token, equal to the A run's, and reached all 44. The game itself reaches the trailer's factory, constructor, QueryInterface, Read and Init before the test day in Rush Hour t0000, which has trailers in its save. Everything else is reached by the test.
+
+- **ro1-t1 not counted:** its snapshot came from the first trial build. That build's test cut streams inside cSC4Vehicle's part, and both sides crashed there. The exception report has cSC4Vehicle's Read (0x0055BD28) and the bus's (0x0055703B) on the stack, and an allocation of a garbage size failing at 0x005B9FEB. No effects switch was on.
+- **ro1-t2's 12-save leg not counted:** the PC slept during it, so the leg was rerun as ro1-t3.
+- **The audit:** an independent check against the disassembly found no defect in the 44. It corrected one comment.

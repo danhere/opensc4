@@ -7732,10 +7732,10 @@ constexpr Highlight kCoreHighlightAt{models::kHighlight, models::kHighlightPart,
                                    models::kRemoveHighlight, addr::cSC4Demolition_TerrainBoxMargin, false};
 constexpr Highlight kTankHighlight1At{models::kTankHighlight1, models::kTankHighlight1 + 4, 1,
                                     models::kTankMakeHighlight1, models::kTankRemoveHighlight1,
-                                    addr::cSC4AutomatonTank_Lift1, true};
+                                    addr::cSC4Tank_Lift1, true};
 constexpr Highlight kTankHighlight2At{models::kTankHighlight2, models::kTankHighlight2 + 4, 2,
                                     models::kTankMakeHighlight2, models::kTankRemoveHighlight2,
-                                    addr::cSC4AutomatonTank_Lift2, true};
+                                    addr::cSC4Tank_Lift2, true};
 
 // The core's (and the tank's) highlight functions leave the automaton alone
 // when its occupant part's slot 7 answers 0x496E5783 and then, asked again,
@@ -8251,12 +8251,12 @@ const Detour kCoreHighlight[] = {
     OPENSC4_DETOUR(addr::cSC4AutomatonCore_MakeHighlight, MakeCoreHighlight),
     OPENSC4_DETOUR(addr::cSC4AutomatonCore_RemoveHighlight, RemoveCoreHighlight),
     OPENSC4_DETOUR(addr::cSC4AutomatonCore_UpdateHighlight, UpdateCoreHighlight),
-    OPENSC4_DETOUR(addr::cSC4AutomatonTank_MakeHighlight1, MakeTankHighlight1),
-    OPENSC4_DETOUR(addr::cSC4AutomatonTank_RemoveHighlight1, RemoveTankHighlight1),
-    OPENSC4_DETOUR(addr::cSC4AutomatonTank_UpdateHighlight1, UpdateTankHighlight1),
-    OPENSC4_DETOUR(addr::cSC4AutomatonTank_MakeHighlight2, MakeTankHighlight2),
-    OPENSC4_DETOUR(addr::cSC4AutomatonTank_RemoveHighlight2, RemoveTankHighlight2),
-    OPENSC4_DETOUR(addr::cSC4AutomatonTank_UpdateHighlight2, UpdateTankHighlight2),
+    OPENSC4_DETOUR(addr::cSC4Tank_MakeHighlight1, MakeTankHighlight1),
+    OPENSC4_DETOUR(addr::cSC4Tank_RemoveHighlight1, RemoveTankHighlight1),
+    OPENSC4_DETOUR(addr::cSC4Tank_UpdateHighlight1, UpdateTankHighlight1),
+    OPENSC4_DETOUR(addr::cSC4Tank_MakeHighlight2, MakeTankHighlight2),
+    OPENSC4_DETOUR(addr::cSC4Tank_RemoveHighlight2, RemoveTankHighlight2),
+    OPENSC4_DETOUR(addr::cSC4Tank_UpdateHighlight2, UpdateTankHighlight2),
 };
 
 #undef OPENSC4_DETOUR
