@@ -16261,6 +16261,610 @@ void VehicleQueuesDrive(Hash& vqueue, Hash& vhit, uint32_t& flags)
     flags |= 0x10000;
 }
 
+// ---- Part vb8: cSC4Vehicle's driven frame (slot 115).
+
+// A NaN's bits as one word (the x87's and ours may carry different payloads).
+uint32_t F8Bits(float value)
+{
+    return value != value ? 0x7FC00000u : Bits(value);
+}
+
+// The network parts of slot 115's floor occupant and of +0x1F0: the path by
+// key (slot 3), the path from a point (slot 5; for 0x0055C030, without a key
+// out, any path), the keys towards a point (slot 6, allocated as the game's
+// vectors are; it answers the out vector, which 0x00462C10 copies), the
+// point's index (slot 19, the point lifted), 0x0055C030's projection (slot
+// 20, -1) and the lane change (slot 39). Only the low bytes of the side and
+// lane words are mixed (the game pushes stack above them).
+struct F8Part {
+    void** vtable;
+    Path* paths[4];
+    uint32_t keys[2][2];
+    uint32_t sizes[2];
+    uint32_t call;
+    Path* found;      // slot 5's answer with a key out
+    uint32_t foundKey;
+    float lift;       // slot 19's
+    int32_t index;    // slot 19's
+    uint8_t lane;     // slot 39's answer
+    float laneLift;
+    uint32_t laneKey;
+    int32_t laneIndex;
+    Hash calls;
+};
+Path* __fastcall F8PartPath(F8Part* p, void*, uint32_t key, uint32_t word)
+{
+    p->calls.Mix(3);
+    p->calls.Mix(key);
+    p->calls.Mix(word);
+    return p->paths[key & 3];
+}
+Path* __fastcall F8PartFind(F8Part* p, void*, uint32_t a, uint32_t b, uint32_t c, const float* point, uint32_t* key,
+                            uint32_t f)
+{
+    p->calls.Mix(5);
+    p->calls.Mix(a);
+    p->calls.Mix(b & 0xFF);
+    p->calls.Mix(c & 0xFF);
+    p->calls.MixBytes(point, 12);
+    p->calls.Mix(f);
+    if (!key)
+        return p->paths[0];
+    *key = p->foundKey;
+    return p->found;
+}
+uint32_t** __fastcall F8PartKeys(F8Part* p, void*, uint32_t** out, uint32_t kind, const float* point, uint32_t entry,
+                                 uint32_t side, float radius)
+{
+    p->calls.Mix(6);
+    p->calls.Mix(kind);
+    p->calls.MixBytes(point, 12);
+    p->calls.Mix(entry & 0xFF);
+    p->calls.Mix(side & 0xFF);
+    p->calls.Mix(Bits(radius));
+    const uint32_t i = p->call < 2 ? p->call : 1;
+    ++p->call;
+    const uint32_t n = p->sizes[i];
+    out[0] = out[1] = out[2] = nullptr;
+    if (n) {
+        uint32_t* const block = static_cast<uint32_t*>(
+            reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(4 * n));
+        for (uint32_t k = 0; k < n; ++k)
+            block[k] = p->keys[i][k];
+        out[0] = block;
+        out[1] = out[2] = block + n;
+    }
+    return out;
+}
+int32_t __fastcall F8PartIndex(F8Part* p, void*, float* point, Path* path)
+{
+    p->calls.Mix(19);
+    p->calls.MixBytes(point, 12);
+    p->calls.Mix(g_probe->Id(path));
+    point[1] += p->lift;
+    return p->index;
+}
+int32_t __fastcall F8PartProject(F8Part* p, void*, float* q, uint32_t a, uint32_t b)
+{
+    p->calls.Mix(20);
+    p->calls.MixBytes(q, 12);
+    p->calls.Mix(a);
+    p->calls.Mix(b);
+    return -1;
+}
+uint32_t __fastcall F8PartLane(F8Part* p, void*, uint32_t word, const float* position, const float* to, float least,
+                               float* point, uint32_t* key, int32_t* index)
+{
+    p->calls.Mix(39);
+    p->calls.Mix(word);
+    p->calls.MixBytes(position, 12);
+    p->calls.MixBytes(to, 12);
+    p->calls.Mix(Bits(least));
+    p->calls.MixBytes(point, 12);
+    p->calls.Mix(*key);
+    if (!p->lane)
+        return 0;
+    point[0] = position[0] + 1.0f;
+    point[1] = position[1] + p->laneLift;
+    point[2] = position[2];
+    *key = p->laneKey;
+    *index = p->laneIndex;
+    return 1;
+}
+void** F8PartVtable()
+{
+    static void* t[48] = {};
+    t[av::part::kPath / 4] = reinterpret_cast<void*>(&F8PartPath);
+    t[av::part::kFindPath / 4] = reinterpret_cast<void*>(&F8PartFind);
+    t[av::part::kKeys / 4] = reinterpret_cast<void*>(&F8PartKeys);
+    t[av::part::kIndexOf / 4] = reinterpret_cast<void*>(&F8PartIndex);
+    t[20] = reinterpret_cast<void*>(&F8PartProject);
+    t[av::part::kLaneChange / 4] = reinterpret_cast<void*>(&F8PartLane);
+    return t;
+}
+
+// 0x00B43D54 while slot 115 runs: vb6's cell list (slot 14) and height
+// (slot 18), and no neighbour (slot 15, so 0x0055F930 answers false).
+struct F8Ground {
+    void** vtable;
+    FloorNode* list;
+    Hash calls;
+};
+FloorNode* __fastcall F8GroundList(F8Ground* g, void*, int32_t cx, int32_t cz)
+{
+    g->calls.Mix(14);
+    g->calls.Mix(static_cast<uint32_t>(cx));
+    g->calls.Mix(static_cast<uint32_t>(cz));
+    return g->list;
+}
+void** __fastcall F8GroundNeighbour(F8Ground* g, void*, void* occupant, uint32_t side, uint32_t a, uint32_t b)
+{
+    g->calls.Mix(15);
+    g->calls.Mix(g_probe->Id(occupant));
+    g->calls.Mix(side & 0xFF);
+    g->calls.Mix(a);
+    g->calls.Mix(b);
+    return nullptr;
+}
+void** F8GroundVtable()
+{
+    static void* t[32] = {};
+    t[14] = reinterpret_cast<void*>(&F8GroundList);
+    t[av::kServiceNeighbour / 4] = reinterpret_cast<void*>(&F8GroundNeighbour);
+    return t;
+}
+
+// The occupant manager 0x00B43D0C while slot 115 runs: the keys' frame's
+// slot 17 (x, z, the controls' +0x26C, +0x270).
+struct F8Occupants {
+    void** vtable;
+    char* controls;
+    Hash calls;
+};
+uint32_t __fastcall F8OccupantsAt(F8Occupants* m, void*, float x, float z, char* a, char* b)
+{
+    m->calls.Mix(17);
+    m->calls.Mix(Bits(x));
+    m->calls.Mix(Bits(z));
+    m->calls.Mix(static_cast<uint32_t>(a - m->controls));
+    m->calls.Mix(static_cast<uint32_t>(b - m->controls));
+    return 0;
+}
+void** F8OccupantsVtable()
+{
+    static void* t[64] = {};
+    t[17] = reinterpret_cast<void*>(&F8OccupantsAt);
+    return t;
+}
+
+// The disaster service 0x00B43D3C while slot 115 runs (slot 10 whether one
+// runs, slot 7 the disaster by id), the disaster (slot 0 as 0xA9B5AB9E, its
+// references) and that interface (slot 5, the level at a cell).
+struct F8Hazard {
+    void** vtable;
+    int32_t references;
+    float level;
+    Hash calls;
+};
+uint32_t __fastcall F8HazardRelease(F8Hazard* z, void*) { return static_cast<uint32_t>(--z->references); }
+double __fastcall F8HazardAt(F8Hazard* z, void*, int32_t cx, int32_t cz)
+{
+    z->calls.Mix(5);
+    z->calls.Mix(static_cast<uint32_t>(cx));
+    z->calls.Mix(static_cast<uint32_t>(cz));
+    return z->level;
+}
+void** F8HazardVtable()
+{
+    static void* t[16] = {};
+    t[2] = reinterpret_cast<void*>(&F8HazardRelease);
+    t[5] = reinterpret_cast<void*>(&F8HazardAt);
+    return t;
+}
+struct F8Disaster {
+    void** vtable;
+    int32_t references;
+    F8Hazard* hazard;
+    Hash calls;
+};
+uint32_t __fastcall F8DisasterQuery(F8Disaster* d, void*, uint32_t iid, void** out)
+{
+    d->calls.Mix(0);
+    d->calls.Mix(iid);
+    if (!d->hazard)
+        return 0;
+    ++d->hazard->references;
+    *out = d->hazard;
+    return 1;
+}
+uint32_t __fastcall F8DisasterAddRef(F8Disaster* d, void*) { return static_cast<uint32_t>(++d->references); }
+uint32_t __fastcall F8DisasterRelease(F8Disaster* d, void*) { return static_cast<uint32_t>(--d->references); }
+void** F8DisasterVtable()
+{
+    static void* t[16] = {};
+    t[0] = reinterpret_cast<void*>(&F8DisasterQuery);
+    t[1] = reinterpret_cast<void*>(&F8DisasterAddRef);
+    t[2] = reinterpret_cast<void*>(&F8DisasterRelease);
+    return t;
+}
+struct F8Disasters {
+    void** vtable;
+    uint8_t active;
+    F8Disaster* disaster;
+    Hash calls;
+};
+uint32_t __fastcall F8DisastersActive(F8Disasters* s, void*)
+{
+    s->calls.Mix(10);
+    return s->active;
+}
+F8Disaster* __fastcall F8DisastersById(F8Disasters* s, void*, uint32_t id)
+{
+    s->calls.Mix(7);
+    s->calls.Mix(id);
+    return s->disaster;
+}
+void** F8DisastersVtable()
+{
+    static void* t[32] = {};
+    t[av::kDisasterActive / 4] = reinterpret_cast<void*>(&F8DisastersActive);
+    t[av::kDisasterById / 4] = reinterpret_cast<void*>(&F8DisastersById);
+    return t;
+}
+
+// The vehicle's slots slot 115 calls that the test answers: the haze by
+// name (44, 45: the name's text mixed, not its stack address), driving off
+// the network (187) and the collisions (190: on the call `hit`, a push and
+// a share, AL 1).
+struct F8Script {
+    uint32_t collisions;
+    uint32_t hit;
+    uint8_t drive;
+};
+F8Script g_f8 = {};
+void F8MixName(const void* text)
+{
+    const char* const begin = At<const char*>(const_cast<void*>(text), 4);
+    const char* const end = At<const char*>(const_cast<void*>(text), 8);
+    for (const char* c = begin; c && c < end && c < begin + 16; ++c)
+        g_probe->calls.Mix(static_cast<uint8_t>(*c));
+}
+uint32_t __fastcall F8StartEffect(char*, void*, const void* text, uint32_t a, uint32_t b)
+{
+    g_probe->calls.Mix(44);
+    F8MixName(text);
+    g_probe->calls.Mix(a);
+    g_probe->calls.Mix(b);
+    return 1;
+}
+uint32_t __fastcall F8StopEffect(char*, void*, const void* text, uint32_t a)
+{
+    g_probe->calls.Mix(45);
+    F8MixName(text);
+    g_probe->calls.Mix(a);
+    return 1;
+}
+uint32_t __fastcall F8Drive(char*, void*, uint32_t seconds, char* controls, float step, char* entry, void* floor)
+{
+    g_probe->calls.Mix(187);
+    g_probe->calls.Mix(seconds);
+    g_probe->calls.Mix(g_probe->Id(controls));
+    g_probe->calls.Mix(F8Bits(step));
+    g_probe->calls.Mix(g_probe->Id(entry));
+    g_probe->calls.Mix(g_probe->Id(floor));
+    return g_f8.drive;
+}
+uint32_t __fastcall F8Collide(char*, void*, uint32_t* push, float* share)
+{
+    g_probe->calls.Mix(190);
+    g_probe->calls.MixBytes(push, 12);
+    g_probe->calls.Mix(Bits(*share));
+    if (++g_f8.collisions != g_f8.hit)
+        return 0;
+    const float p[3] = {0.5f, 0.0f, -0.25f};
+    std::memcpy(push, p, sizeof p);
+    *share = 1.5f;
+    return 1;
+}
+
+// Slot 171 for slot 115: vb7's without the side byte it is handed (the
+// game's second call leaves it as stack, which the real slot overwrites
+// first); the side 3.
+uint32_t __fastcall F8Best(char*, void*, void* network, const float* direction, uint8_t* side, uint32_t check)
+{
+    g_probe->calls.Mix(171);
+    g_probe->calls.Mix(g_probe->Id(network));
+    g_probe->calls.MixBytes(direction, 12);
+    g_probe->calls.Mix(check);
+    *side = 3;
+    return 1;
+}
+
+// The vb8 object's vtable: vb7's with slots 44, 45, 121, 171, 187 and 190
+// the test's (slot 121 the probe's, under the keys' frame 0x00508C50).
+void** VehicleFrameVtable()
+{
+    static void* t[192] = {};
+    static bool made = false;
+    if (made)
+        return t;
+    made = true;
+    std::memcpy(t, VehicleQueuesVtable(), sizeof t);
+    t[44] = reinterpret_cast<void*>(&F8StartEffect);
+    t[45] = reinterpret_cast<void*>(&F8StopEffect);
+    t[121] = reinterpret_cast<void*>(&Stub2<121>);
+    t[171] = reinterpret_cast<void*>(&F8Best);
+    t[187] = reinterpret_cast<void*>(&F8Drive);
+    t[190] = reinterpret_cast<void*>(&F8Collide);
+    return t;
+}
+
+// Part vb8 on a cSC4Vehicle of the factory's (its vtable vb8's copy, its
+// occupant part's slot 22 the probe's): slot 115 driven at its address over
+// fixed frame seconds, on and off a floor occupant of the test's, with the
+// city, 0x00B43D54, 0x00B43D1C, the occupant manager 0x00B43D0C and the
+// disaster service 0x00B43D3C pointing at the test's while it runs. The
+// sounds go to the game's event system (0x00602640), and every sound id
+// slot 115 starts is stopped after.
+void VehicleFrameDrive(Hash& vframe8, uint32_t& flags)
+{
+    void* const sounds = reinterpret_cast<void*(__cdecl*)()>(addr::SC4UDrive_GetService602640)();
+    if (!sounds) {
+        flags |= 0x400000;
+        log::Write("autotest: automata: vehicle: vb8 no sound service");
+        return;
+    }
+    using Create = char*(__cdecl*)();
+    char* const o = reinterpret_cast<Create>(addr::cSC4Vehicle_Create)();
+    if (!o) {
+        flags |= 0x100000;
+        return;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    void** const realTable = At<void**>(o, 0);
+    void** const realTable4 = At<void**>(o, 4);
+    At<void**>(o, 0) = VehicleFrameVtable();
+    At<void**>(o, 4) = OccupantPartVtable();
+    const uint8_t byte33 = At<uint8_t>(o, av::field::kFlags33);
+    uint32_t stack3[3];
+    std::memcpy(stack3, o + av::field::kStates, sizeof stack3);
+    uint8_t saved1EC[0x14];
+    std::memcpy(saved1EC, o + av::field::kOccupant, sizeof saved1EC);
+    At<uint8_t>(o, av::field::kFlags33) = static_cast<uint8_t>(byte33 & ~7u);
+
+    FakeMap fakeMap{FakeMapVtable(), nullptr, nullptr, 1, 0, {}};
+    FakeCity fakeCity{FakeCityVtable(), &fakeMap, 0, nullptr};
+    FakeTerrain fakeTerrain{TerrainVtable(), {}};
+    fakeCity.ground = &fakeTerrain;
+    F8Ground ground{F8GroundVtable(), nullptr, {}};
+    FakeEffect effect{QEffectVtable(), 1, {}};
+    FakeEffect held{QEffectVtable(), 1, {}};
+    FakeEffects effects{EffectsVtable(), &effect, 0, {}};
+    alignas(4) char controls[0x280] = {};
+    alignas(4) char entry[0x60] = {};
+    alignas(4) char owner[0x70] = {};
+    F8Occupants occupants{F8OccupantsVtable(), controls, {}};
+    F8Hazard hazard{F8HazardVtable(), 1, 0.0f, {}};
+    F8Disaster disaster{F8DisasterVtable(), 1, &hazard, {}};
+    F8Disasters disasters{F8DisastersVtable(), 0, &disaster, {}};
+    float pointsA[3][3] = {{12.0f, 0.5f, 0.0f}, {12.0f, 0.5f, 40.0f}, {12.5f, 0.75f, 80.0f}};
+    float pointsB[3][3] = {{14.0f, 0.5f, 0.0f}, {14.0f, 0.5f, 40.0f}, {14.0f, 0.5f, 80.0f}};
+    float pointsC[3][3] = {{12.0f, 0.5f, 0.0f}, {12.0f, 0.5f, 1.0e-6f}, {12.0f, 0.5f, 80.0f}};
+    Path pathA{&pointsA[0][0], &pointsA[0][0] + 9};
+    Path pathB{&pointsB[0][0], &pointsB[0][0] + 9};
+    Path pathC{&pointsC[0][0], &pointsC[0][0] + 9};
+    F8Part floorPart{F8PartVtable(), {&pathA, &pathB, &pathC, nullptr}, {{1, 0}, {0, 1}}, {1, 2}, 0, &pathB, 1,
+                     0.0f, 0, 1, 0.5f, 2, 1, {}};
+    F8Part network{F8PartVtable(), {&pathA, &pathB, nullptr, &pathC}, {{0, 1}, {1, 0}}, {2, 1}, 0, &pathB, 1,
+                   0.25f, 1, 1, 0.5f, 3, 0, {}};
+    Floor floor{FloorVtable(), 1, reinterpret_cast<FloorPart*>(&floorPart), 1, 0, 0, 0.5f, {}};
+    FloorNode node = {};
+    node.occupant = &floor;
+    float source[12] = {};
+    float* sourcePtr = source;
+    source[10] = 1.25f;
+    Probe probe;
+    probe.known = {o,       controls, entry,      owner,     &floor,    &floorPart, &network,
+                   &pathA,  &pathB,   &pathC,     &effect,   &held,     o + av::field::kFront,
+                   o + av::field::kPosition};
+    g_probe = &probe;
+    void** const cityGlobal = reinterpret_cast<void**>(addr::SC4_City);
+    void** const groundGlobal = reinterpret_cast<void**>(addr::SC4_Service43D54);
+    void** const effectsGlobal = reinterpret_cast<void**>(addr::SC4_Service43D1C);
+    void** const managerGlobal = reinterpret_cast<void**>(addr::SC4_NetworkService);
+    void** const disasterGlobal = reinterpret_cast<void**>(addr::SC4_Service43D3C);
+    void* const realCity = *cityGlobal;
+    void* const realGround = *groundGlobal;
+    void* const realEffects = *effectsGlobal;
+    void* const realManager = *managerGlobal;
+    void* const realDisasters = *disasterGlobal;
+    *cityGlobal = &fakeCity;
+    *groundGlobal = &ground;
+    *effectsGlobal = &effects;
+    *managerGlobal = &occupants;
+    *disasterGlobal = &disasters;
+    probe.answer[56] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(controls));
+    probe.answer[67] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(owner));
+    At<char*>(owner, 0x64) = entry;
+    At<float>(entry, av::entryField::kSpeed) = 30.0f;
+    At<float>(entry, 0xC) = -5.0f;
+    At<float>(entry, 0x18) = 1.0f;
+    At<float>(entry, 0x1C) = 2.0f;
+    At<float>(entry, av::entryField::kMostWheel) = 0.3f;
+    At<float>(entry, av::entryField::kMass) = 1.0f;
+    At<float>(entry, av::entryField::kMostDamage) = 100000.0f;
+    uint32_t nanWord = 0x7FC00000u;
+    float nan;
+    std::memcpy(&nan, &nanWord, 4);
+    using FrameFn = uint8_t(__thiscall*)(void*, float);
+    const auto frame = reinterpret_cast<FrameFn>(addr::cSC4Vehicle_DriveFrame);
+
+    // Each case: the frame seconds, the floor (0 none, 1 an occupant with
+    // +0x8C at -1, 2 one not found with +0x8C 0, 3 found with +0x8C NaN), the automata
+    // flags, the front set or not, the path (0 none, 1 A, 2 C), the wheel,
+    // the lane keys, the smoothed and the stored speed, the key +0x80, the
+    // own occupant, the byte +0x228, the collision call, slot 187's AL, the
+    // damage, the effect and source, the disaster's level (NaN: no hazard;
+    // below 0 the service off), the floor part's first key list size.
+    struct Case {
+        float seconds;
+        int floor;
+        uint32_t automata;
+        bool front;
+        int path;
+        float wheel;
+        uint8_t left, right;
+        float smoothed, speed94;
+        float key80;
+        bool own;
+        uint8_t byte228;
+        uint32_t hit;
+        uint8_t drive;
+        uint32_t damage;
+        bool effect;
+        float level;
+        uint32_t keys0;
+    };
+    const Case cases[] = {
+        {16.0f, 1, 0, true, 1, 0.0f, 0, 0, 2.0f, 0.0f, -1.0f, false, 0, 0, 0, 200000, false, -1.0f, 1},
+        {16.0f, 1, 1, true, 1, 0.0f, 0, 0, 2.0f, 0.0f, -1.0f, false, 0, 0, 0, 0, false, -1.0f, 1},
+        {16.0f, 1, 0x2000, false, 1, 0.1f, 0, 0, 2.0f, 0.0f, -1.0f, true, 0, 0, 0, 0, true, -1.0f, 1},
+        {50.0f, 1, 0x2000, true, 1, -0.2f, 0, 0, 0.5f, 1.0f, -1.0f, true, 0, 0, 0, 0, false, -1.0f, 0},
+        {50.0f, 1, 0, true, 1, 0.5f, 1, 0, 0.5f, 1.0f, 0.0f, true, 0, 0, 0, 0, true, 2.5f, 1},
+        {99.0f, 1, 0, true, 1, -0.5f, 0, 1, 0.25f, 2.0f, -1.0f, false, 1, 2, 0, 0, false, 0.0f, 1},
+        {99.0f, 0, 0, true, 2, 0.0f, 0, 1, -1.0f, 0.0f, -1.0f, true, 0, 0, 0, 0, false, nan, 1},
+        {33.0f, 1, 0, true, 1, 0.31f, 1, 1, 0.5f, 0.5f, -1.0f, true, 0, 1, 0, 49000, true, 3.0f, 1},
+        {16.0f, 0, 0, true, 1, 0.0f, 0, 0, 2.0f, 0.0f, 0.0f, false, 0, 0, 1, 0, true, -1.0f, 1},
+        {50.0f, 0, 0, true, 0, 0.0f, 0, 0, 0.0f, 0.0f, -1.0f, true, 1, 2, 0, 0, false, 1.0f, 1},
+        {16.0f, 2, 0, true, 1, 0.0f, 0, 0, 1.0f, 0.0f, 0.0f, true, 0, 0, 1, 0, false, -1.0f, 1},
+        {16.0f, 3, 0, true, 2, 0.0f, 0, 0, 0.0f, 0.0f, -1.0f, false, 1, 0, 1, 0, false, -1.0f, 1},
+        {0.0f, 1, 0, true, 1, 0.0f, 0, 0, 2.0f, 0.0f, -1.0f, false, 0, 0, 0, 0, false, -1.0f, 1},
+        {400.0f, 1, 0, true, 1, 0.0f, 0, 0, 2.0f, 0.0f, -1.0f, false, 0, 0, 0, 0, false, -1.0f, 1},
+    };
+    int number = 0;
+    for (const Case& c : cases) {
+        ++number;
+        std::memset(controls, 0, sizeof controls);
+        for (std::size_t at = 0x7C; at < 0xB0; at += 4)
+            At<float>(controls, at) = -1.0f;
+        At<float>(controls, av::state::kKey80) = c.key80;
+        At<float>(controls, av::state::kFloat8C) = c.floor == 1 ? -1.0f : c.floor == 3 ? nan : 0.0f;
+        At<float>(controls, av::state::kWheel) = c.wheel;
+        At<uint8_t>(controls, av::state::kLaneLeft) = c.left;
+        At<uint8_t>(controls, av::state::kLaneRight) = c.right;
+        At<uint8_t>(controls, av::state::kByte228) = c.byte228;
+        At<uint32_t>(controls, av::state::kDamage) = c.damage;
+        // The throttle (0x0055EA20) sets the smoothed speed from +0x2C.
+        At<float>(controls, av::state::kSpeed) = c.smoothed;
+        if (c.effect) {
+            ++held.references;
+            At<FakeEffect*>(controls, av::state::kObject74) = &held;
+            At<float**>(controls, av::state::kSource70) = &sourcePtr;
+        }
+        floor.bridge = c.floor == 3 ? 1u : 0u;
+        ground.list = c.floor ? &node : nullptr;
+        floorPart.call = 0;
+        floorPart.sizes[0] = c.keys0;
+        network.call = 0;
+        At<uint32_t>(o, av::field::kAutomataFlags) = c.automata | 0x100000u;
+        SetPoint(o, av::field::kPosition, 12.0f, 0.5f, 11.0f);
+        SetPoint(o, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+        if (c.front)
+            SetPoint(o, av::field::kFront, 12.0f, 0.5f, c.path == 2 ? 0.0f : 13.0f);
+        else
+            std::memcpy(o + av::field::kFront, reinterpret_cast<void*>(addr::cSC4AutomatonCore_DefaultPoint), 12);
+        if (number & 1)
+            std::memcpy(o + av::field::kDirection, reinterpret_cast<void*>(addr::cSC4AutomatonCore_DefaultPoint), 12);
+        else
+            SetPoint(o, av::field::kDirection, 0.6f, 0.0f, 0.8f);
+        At<Path*>(o, av::field::kPath) = c.path == 1 ? &pathA : c.path == 2 ? &pathC : nullptr;
+        At<int32_t>(o, av::field::kPathIndex) = 0;
+        At<float>(o, av::field::kFloat260) = 0.0f;
+        At<void*>(o, av::field::kOccupant) = c.own ? &floor : nullptr;
+        At<void*>(o, av::field::kNetwork) = &network;
+        At<uint32_t>(o, av::field::kBytes1F4) = 0x00A30201u;
+        At<float>(o, av::field::kRadius) = 4.0f;
+        At<float>(o, av::field::kSpeed94) = c.speed94;
+        SetSmoothed(o, c.smoothed);
+        disasters.active = c.level < 0.0f ? 0 : 1;
+        disaster.hazard = c.level != c.level ? nullptr : &hazard;
+        hazard.level = c.level;
+        g_f8 = {0, c.hit, c.drive};
+        effects.made = 0;
+        const uint8_t answer = frame(o, c.seconds);
+        vframe8.Mix(answer);
+        vframe8.MixBytes(o + av::field::kPosition, 12);
+        vframe8.MixBytes(o + av::field::kDestination, 12);
+        vframe8.MixBytes(o + av::field::kFront, 12);
+        vframe8.MixBytes(o + av::field::kDirection, 12);
+        vframe8.Mix(At<uint32_t>(o, av::field::kPathIndex));
+        vframe8.Mix(F8Bits(At<float>(o, av::field::kFloat260)));
+        vframe8.Mix(F8Bits(At<float>(o, av::field::kSpeed94)));
+        vframe8.Mix(At<uint32_t>(o, av::field::kAutomataFlags));
+        for (std::size_t at = 0x28; at < 0x60; at += 4)
+            vframe8.Mix(F8Bits(At<float>(controls, at)));
+        for (std::size_t at = 0x7C; at < 0xB0; at += 4)
+            vframe8.Mix(F8Bits(At<float>(controls, at)));
+        vframe8.Mix(At<uint32_t>(controls, av::state::kDamage));
+        vframe8.Mix(At<uint8_t>(controls, av::state::kByte228));
+        vframe8.Mix(probe.Id(At<void*>(controls, av::state::kObject74)));
+        vframe8.MixBytes(source, sizeof source);
+        for (std::size_t at = 0; at < 0x10; at += 4)
+            vframe8.Mix(F8Bits(At<float>(o, av::field::kSmoothed + at)));
+        vframe8.Mix(effects.made);
+        log::Write("autotest: automata: vehicle: vb8 frame case %d AL %u flags %X index %d speed %08X damage %u "
+                   "collisions %u, %08X probe %08X",
+                   number, answer, At<uint32_t>(o, av::field::kAutomataFlags), At<int32_t>(o, av::field::kPathIndex),
+                   F8Bits(At<float>(o, av::field::kSpeed94)), At<uint32_t>(controls, av::state::kDamage),
+                   g_f8.collisions, vframe8.h, probe.calls.h);
+        if (FakeEffect* const e = At<FakeEffect*>(controls, av::state::kObject74)) {
+            At<void*>(controls, av::state::kObject74) = nullptr;
+            --e->references;
+        }
+        At<void*>(controls, av::state::kSource70) = nullptr;
+    }
+    vframe8.Mix(probe.calls.h);
+    vframe8.Mix(floorPart.calls.h);
+    vframe8.Mix(network.calls.h);
+    vframe8.Mix(floor.calls.h);
+    vframe8.Mix(ground.calls.h);
+    vframe8.Mix(occupants.calls.h);
+    vframe8.Mix(fakeTerrain.calls.h);
+    vframe8.Mix(effect.calls.h);
+    vframe8.Mix(held.calls.h);
+    vframe8.Mix(effects.calls.h);
+    vframe8.Mix(disasters.calls.h);
+    vframe8.Mix(disaster.calls.h);
+    vframe8.Mix(hazard.calls.h);
+    for (const int32_t r : {floor.references, effect.references, held.references, disaster.references,
+                            hazard.references})
+        vframe8.Mix(static_cast<uint32_t>(r));
+
+    *cityGlobal = realCity;
+    *groundGlobal = realGround;
+    *effectsGlobal = realEffects;
+    *managerGlobal = realManager;
+    *disasterGlobal = realDisasters;
+    g_probe = nullptr;
+    // The sound events slot 115 starts (0x12, 5, 0x10) stopped.
+    for (const uint32_t id : {0x12u, 5u, 0x10u})
+        Virtual<uint32_t>(sounds, 0x18, id);
+    if (fakeCity.traps)
+        flags |= 0x200000;
+    log::Write("autotest: automata: vehicle: vb8 vframe8 %08X, traps %u, references floor %d effect %d held %d "
+               "disaster %d hazard %d",
+               vframe8.h, fakeCity.traps, floor.references, effect.references, held.references, disaster.references,
+               hazard.references);
+    std::memcpy(o + av::field::kStates, stack3, sizeof stack3);
+    std::memcpy(o + av::field::kOccupant, saved1EC, sizeof saved1EC);
+    At<uint8_t>(o, av::field::kFlags33) = byte33;
+    At<uint32_t>(o, av::field::kAutomataFlags) = 0;
+    At<void**>(o, 0) = realTable;
+    At<void**>(o, 4) = realTable4;
+    Virtual<uint32_t>(o, av::slot::kRelease);
+    flags |= 0x80000;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -16508,6 +17112,10 @@ void VehicleDrive(cISC4City* city)
     Hash vqueue, vhit;
     VehicleQueuesDrive(vqueue, vhit, flags);
 
+    // ---- Part vb8.
+    Hash vframe8;
+    VehicleFrameDrive(vframe8, flags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -16562,15 +17170,17 @@ void VehicleDrive(cISC4City* city)
     std::memcpy(generator, saved.data(), kGeneratorSize);
     char text[280];
     std::snprintf(text, sizeof text,
-                  " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X",
+                  " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
+                  "%08X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
-                  enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h);
+                  enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
+                  vframe8.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
-               "%08X vmove %08X vframe %08X vlanes %08X vdrive %08X vqueue %08X vhit %08X",
+               "%08X vmove %08X vframe %08X vlanes %08X vdrive %08X vqueue %08X vhit %08X vframe8 %08X",
                object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
-               enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h);
+               enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h, vframe8.h);
 }
 
 void Drive(const Day& day)
