@@ -346,6 +346,8 @@ add_library(opensc4_core SHARED
   s3d_camera.cpp
   pixels.cpp
   pixels_autotest.cpp
+  gzbuffer_blit.cpp
+  gzbuffer_blit_autotest.cpp
   camera_control.cpp
   photo_mode.cpp
   terrain_view.cpp
