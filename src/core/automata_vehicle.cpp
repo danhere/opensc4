@@ -29,7 +29,11 @@
 // collisions, entering a state, the damage and the impact). vb8:
 // cSC4Vehicle's driven frame (slot 115, U-Drive). ad1: the automata core's
 // models (core slots 70, 71, 74, 97 to 100 and 120, the model by key
-// 0x0050E4D0 and the removal 0x0050B400; docs/automata.md "AD1"). The class map is in src/core/automata_vehicle.h and the survey in
+// 0x0050E4D0 and the removal 0x0050B400; docs/automata.md "AD1"). ad2: the
+// core's model swaps (0x0050E620, slots 19 and 20), SetStart, LeaveState, the
+// animation (slot 103), the one-shot (slots 22 and 119), the fades (33, 83),
+// the position, heading, placement and transforms (8, 14, 16, 75;
+// docs/automata.md "AD2"). The class map is in src/core/automata_vehicle.h and the survey in
 // docs/automata.md, "Part vb". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and
 // OPENSC4_AUTOMATA_SKIP (function addresses, hex, eight digits) bisects
@@ -39,8 +43,8 @@
 //   simulators.automata.vehicle: the 36 detours in kObject (vb1), the 30
 //   in kLife (vb2), the 13 in kMove (vb3), the 22 in kStates (vb4) and
 //   the 10 in kVehicleMove (vb5), the 12 in kVehicleLanes (vb6), the 14
-//   in kVehicleQueues (vb7), the 1 in kVehicleFrame (vb8) and the 10 in
-//   kCoreModels (ad1) below.
+//   in kVehicleQueues (vb7), the 1 in kVehicleFrame (vb8), the 10 in
+//   kCoreModels (ad1) and the 14 in kCoreModels2 (ad2) below.
 //
 // What it does. cSC4Vehicle's factory takes a 0x2B8-byte block from the
 // vehicle pool (0x00B0A0F8; other sizes go to SC4::operator_new) and runs
@@ -7158,6 +7162,513 @@ std::uint8_t __fastcall MakeModelByIndex(char* self, void*, std::uint32_t index,
 }
 
 // ====================================================================================
+// Part ad2: the core's model swaps, start, animation, fades and transforms
+
+// A model's alpha (its slot 18): (1, alpha) below 1, else (0, 1).
+void SetModelAlpha(char* model, float alpha)
+{
+    if (alpha < Global<float>(addr::SC4_FloatOneA81228))
+        Virtual<std::uint32_t>(model, models::kAlpha, 1u, alpha);
+    else
+        Virtual<std::uint32_t>(model, models::kAlpha, 0u, 1.0f);
+}
+
+// 0x0050E620, on the core (model, const key*), ret 8: the model swapped for
+// one made from the key. Nothing when the key's third word is +0x128's; else
+// it becomes +0x128. The attachments +0x18C let go when bound to the first
+// model's drawable (and bound again at the end to the first model's, when
+// there are models); out of the view (slot 71 with 0) while in it; the
+// model's index among the models (their count when it is not there). The
+// new model by SC4::GetKeyedResource, a 0x29A5D1EC key the factory refuses
+// tried again as 0x5AD0E817. Made: its drawable's owner the occupant part,
+// render flags 1, the camera's zoom and rotation, its matrix (0x005094A0);
+// in the old model's place (the old one taken out, the effect part let go
+// when on its drawable, the old one released, SC4PtrVector::Insert) or
+// pushed at the end, and the key written over the keys' entry of that index
+// (past the keys' end too, as the game does). Back into the view when it
+// was; slot 106.
+void __fastcall SwapModel(char* self, void*, char* old, const std::uint32_t* key)
+{
+    static bool logged;
+    FirstCall("SwapModel", logged);
+    if (key[2] == At<std::uint32_t>(self, models::kStartAgain))
+        return;
+    At<std::uint32_t>(self, models::kStartAgain) = key[2];
+    bool rebind = false;
+    char* const attachments = self + models::kAttachments;
+    if (At<char**>(self, models::kBegin) != At<char**>(self, models::kEnd)) {
+        char* const first = *At<char**>(self, models::kBegin);
+        char* const drawable = first ? VirtualBaseOf(first) : nullptr;
+        if (Virtual<char*>(attachments, models::kAttachedTo) == drawable) {
+            Virtual<std::uint32_t>(attachments, models::kAttach, 0u);
+            rebind = true;
+        }
+    }
+    const std::uint8_t shown = (At<std::uint8_t>(self, field::kFlags33) >> 1) & 1;
+    if (shown)
+        Virtual<std::uint32_t>(self, models::kSetInView, 0u);
+    char** it = At<char**>(self, models::kBegin);
+    std::uint32_t index = 0;
+    while (it != At<char**>(self, models::kEnd) && *it != old) {
+        ++it;
+        ++index;
+    }
+    char* model = nullptr;
+    if (!CallCdecl<std::uint8_t>(addr::SC4_GetKeyedResource, key, &model) && key[0] == 0x29A5D1EC) {
+        const std::uint32_t s3d[3] = {0x5AD0E817, key[1], key[2]};
+        CallCdecl<std::uint8_t>(addr::SC4_GetKeyedResource, s3d, &model);
+    }
+    if (model) {
+        char* const drawable = Virtual<char*>(model, models::kDrawable);
+        Virtual<std::uint32_t>(drawable, models::kSetOwner, self + field::kVtable4);
+        Virtual<std::uint32_t>(drawable, models::kRenderFlags, 1u);
+        ZoomAndRotate(model);
+        CallThis<void>(addr::cSC4AutomatonCore_PlaceModel, self, VirtualBaseOf(model));
+        if (it != At<char**>(self, models::kEnd)) {
+            char** const next = it + 1;
+            char** const end = At<char**>(self, models::kEnd);
+            if (next != end)
+                std::memmove(it, next, static_cast<std::size_t>(reinterpret_cast<char*>(end) - reinterpret_cast<char*>(next)));
+            At<char**>(self, models::kEnd) = At<char**>(self, models::kEnd) - 1;
+            if (old) {
+                if (At<char*>(self, models::kEffectPart) == VirtualBaseOf(old))
+                    CallThis<void>(addr::SC4EffectPartB_Attach, self + models::kEffectPart, static_cast<void*>(nullptr));
+                ReleaseVirtual(old);
+            }
+            CallThis<char**>(addr::SC4PtrVector_Insert, self + models::kBegin, it, &model);
+        } else {
+            std::uint8_t allocator = 0;
+            PushModel(self, model, &allocator);
+        }
+        std::memcpy(At<char*>(self, field::kModelKeys) + index * 12, key, 12);
+    }
+    if (shown)
+        Virtual<std::uint32_t>(self, models::kSetInView, 1u);
+    if (rebind && At<char**>(self, models::kBegin) != At<char**>(self, models::kEnd)) {
+        char* const first = *At<char**>(self, models::kBegin);
+        Virtual<std::uint32_t>(attachments, models::kAttach, static_cast<void*>(first ? VirtualBaseOf(first) : nullptr));
+    }
+    Virtual<std::uint32_t>(self, models::kSlot106);
+}
+
+// 0x00510210, the core's slot 20, (const key*), ret 4: the first model
+// swapped (0x0050E620) for the key's when its third word is set and there
+// are models; AL 1.
+std::uint8_t __fastcall SwapFirstModel(char* self, void*, const std::uint32_t* key)
+{
+    static bool logged;
+    FirstCall("SwapFirstModel", logged);
+    if (key[2] && At<char**>(self, models::kBegin) != At<char**>(self, models::kEnd))
+        CallThis<void>(addr::cSC4AutomatonCore_SwapModel, self, *At<char**>(self, models::kBegin),
+                       static_cast<const std::uint32_t*>(key));
+    return 1;
+}
+
+// 0x00510240, the core's slot 19, (offset), ret 4: when the start key is set
+// and there are models, the first model swapped for the start key with the
+// offset added to its third word; AL 1.
+std::uint8_t __fastcall SwapStartModel(char* self, void*, std::uint32_t offset)
+{
+    static bool logged;
+    FirstCall("SwapStartModel", logged);
+    std::uint32_t key[3] = {At<std::uint32_t>(self, models::kStartKey), At<std::uint32_t>(self, models::kStartKey + 4),
+                            0};
+    const std::uint32_t third = At<std::uint32_t>(self, models::kStartSet);
+    if (third && At<char**>(self, models::kBegin) != At<char**>(self, models::kEnd)) {
+        key[2] = third + offset;
+        CallThis<void>(addr::cSC4AutomatonCore_SwapModel, self, *At<char**>(self, models::kBegin),
+                       static_cast<const std::uint32_t*>(key));
+    }
+    return 1;
+}
+
+// 0x00510360, SC4Automaton::SetStart, (const key*), ret 4: the key kept as
+// the start +0x11C (and +0x128) when its third word is set and no start is;
+// pushed onto the keys (SC4Float3Vector::Insert when full); AL 1 while the
+// occupant part's slot 5 answers 0, else whether 0x0050E4D0 made a model.
+std::uint8_t __fastcall SetStart(char* self, void*, const std::uint32_t* start)
+{
+    static bool logged;
+    FirstCall("SetStart", logged);
+    if (start[2] && !At<std::uint32_t>(self, models::kStartSet)) {
+        At<std::uint32_t>(self, models::kStartKey) = start[0];
+        At<std::uint32_t>(self, models::kStartKey + 4) = start[1];
+        At<std::uint32_t>(self, models::kStartSet) = start[2];
+        At<std::uint32_t>(self, models::kStartAgain) = start[2];
+    }
+    char*& end = At<char*>(self, models::kKeysEnd);
+    if (end != At<char*>(self, models::kKeysCapacity)) {
+        if (end)
+            std::memcpy(end, start, 12);
+        end += 12;
+    } else {
+        std::uint8_t allocator = 0;
+        CallThis<void>(addr::SC4Float3Vector_Insert, self + field::kModelKeys, end, start, &allocator, 1u, 1u);
+    }
+    if (!Virtual<std::uint8_t>(self + field::kVtable4, slot::kIsInitialised))
+        return 1;
+    return CallThis<char*>(addr::cSC4AutomatonCore_MakeModel, self, start) ? 1 : 0;
+}
+
+// 0x0050E3F0, the core's slot 111, (state record), ret 4: leaving a state.
+// AL 0 for none. 0x10: the record's +0x205..+0x211 zeroed, 0x0050D870, the
+// record's slot 0 (core); 0x13 (the one-shot): its model +0x28 removed
+// (0x0050B400), then cleared and released; 0x14: the record's slot 0. Then
+// slot 62 with +0x18 when set, the automata flags +0x84 (but 0x0600C001)
+// the record's +0x20, slot 102 (0xD, the type); the answer the record's
+// object +8's slot 30 (core, type) when there is one, else 1.
+std::uint32_t __fastcall CoreLeaveState(char* self, void*, char* state)
+{
+    static bool logged;
+    FirstCall("CoreLeaveState", logged);
+    if (!state)
+        return 0;
+    switch (At<std::uint32_t>(state, state::kType)) {
+    case 0x10:
+        std::memset(state + models::kState205, 0, 13);
+        CallThis<void>(addr::cSC4AutomatonCore_ResetStateAttachments, self);
+        Virtual<std::uint32_t>(state, models::kStateLeave, self);
+        break;
+    case models::kOneShotState:
+        if (char* const model = At<char*>(state, models::kStateModel)) {
+            CallThis<std::uint8_t>(addr::cSC4AutomatonCore_RemoveModel, self, model);
+            if (char* const held = At<char*>(state, models::kStateModel)) {
+                At<char*>(state, models::kStateModel) = nullptr;
+                ReleaseVirtual(held);
+            }
+        }
+        break;
+    case 0x14:
+        Virtual<std::uint32_t>(state, models::kStateLeave, self);
+        break;
+    default:
+        break;
+    }
+    if (const std::uint32_t word = At<std::uint32_t>(state, models::kStateWord))
+        Virtual<std::uint32_t>(self, models::kSlot62, word);
+    At<std::uint32_t>(self, field::kAutomataFlags) =
+        (At<std::uint32_t>(self, field::kAutomataFlags) & models::kKeepFlags) | At<std::uint32_t>(state, models::kStateFlags);
+    Virtual<std::uint32_t>(self, slot::kSlot102, 0xDu, At<std::uint32_t>(state, state::kType));
+    if (char* const object = At<char*>(state, models::kStateObject))
+        return Virtual<std::uint32_t>(object, models::kObjectLeave, self, At<std::uint32_t>(state, state::kType));
+    return 1;
+}
+
+// 0x005089F0, the core's slot 103, (seconds), ret 4: the animation. Held
+// (AL 1 at once) while the simulator 0x00B43D5C's slot 17 answers 0 and its
+// slot 15 1. Each model advanced (slot 15, seconds); with the list +0x188
+// not empty and models, the first model at its last frame (slot 11 against
+// slot 12 less 1, signed) gives slot 102 (1, 0); the timer +0x1C0 gains the
+// seconds; AL 1.
+std::uint8_t __fastcall AdvanceAnimation(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("AdvanceAnimation", logged);
+    if (!Virtual<std::uint8_t>(Global<void*>(addr::SC4_SimulatorService), models::kSimulator44) &&
+        Virtual<std::uint8_t>(Global<void*>(addr::SC4_SimulatorService), models::kSimulator3C))
+        return 1;
+    for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+        if (char* const model = *it)
+            Virtual<std::uint32_t>(model, models::kAdvance, seconds);
+    char* const list = At<char*>(self, models::kList188);
+    if (At<char*>(list, 0) != list && At<char**>(self, models::kBegin) != At<char**>(self, models::kEnd)) {
+        char* const first = *At<char**>(self, models::kBegin);
+        const std::int32_t last = Virtual<std::int32_t>(first, models::kFrames) - 1;
+        if (Virtual<std::int32_t>(first, models::kFrame) >= last)
+            Virtual<std::uint32_t>(self, slot::kSlot102, 1u, 0u);
+    }
+    At<float>(self, models::kTimer) =
+        static_cast<float>(static_cast<double>(seconds) + static_cast<double>(At<float>(self, models::kTimer)));
+    return 1;
+}
+
+// 0x005102A0, the core's slot 22, (const key*, play mode, answer, word), ret
+// 0x10: a one-shot. Slot 52 (0x13, 0, word, 0, 0, 0, 0) pushes the state
+// (its AL 0 answers 0); the current record (slot 56) takes the answer byte
+// (+0x2C) and the mode (+0x30); the model from the key (0x0050E4D0) held in
+// +0x28 (one more reference, the one held before let go); with a model: its
+// play mode (slot 16), its alpha (slot 18 (1, 0)), AL 1; else AL 0.
+std::uint8_t __fastcall PlayOneShot(char* self, void*, const std::uint32_t* key, std::uint32_t mode,
+                                    std::uint8_t answer, std::uint32_t word)
+{
+    static bool logged;
+    FirstCall("PlayOneShot", logged);
+    if (!Virtual<std::uint8_t>(self, slot::kPushState, models::kOneShotState, 0u, word, 0u, 0u, 0u, 0u))
+        return 0;
+    char* const state = Virtual<char*>(self, slot::kSlot56);
+    At<std::uint8_t>(state, models::kStateAnswer) = answer;
+    At<std::uint32_t>(state, models::kStateMode) = mode;
+    char* const model = CallThis<char*>(addr::cSC4AutomatonCore_MakeModel, self, key);
+    char* const was = At<char*>(state, models::kStateModel);
+    if (model != was) {
+        if (model)
+            AddRef(VirtualBaseOf(model));
+        At<char*>(state, models::kStateModel) = model;
+        if (was)
+            Release(VirtualBaseOf(was));
+    }
+    if (!At<char*>(state, models::kStateModel))
+        return 0;
+    Virtual<std::uint32_t>(At<char*>(state, models::kStateModel), models::kPlayMode, mode);
+    Virtual<std::uint32_t>(At<char*>(state, models::kStateModel), models::kAlpha, 1u, 0.0f);
+    return 1;
+}
+
+// 0x00508F80, the core's slot 119, (seconds), ret 4: the one-shot's frame.
+// AL 0 with the automata flag 1. The current record's model (+0x28), when
+// below an alpha of 1 (its drawable's slot 15), faded in by seconds over
+// 0x00B21C84 x 0.5, at most 1 (slot 18 with 1). Unless the play mode is 2
+// or 3, the model at its last frame pops the state (slot 53), AL 1; else
+// AL the record's +0x2C.
+std::uint8_t __fastcall OneShotFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("OneShotFrame", logged);
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 1u))
+        return 0;
+    char* const state = Virtual<char*>(self, slot::kSlot56);
+    if (char* const model = At<char*>(state, models::kStateModel)) {
+        // Five words out (uninitialised in the game; the drawable fills them).
+        std::uint32_t properties[5] = {};
+        Virtual<std::uint32_t>(VirtualBaseOf(model), models::kDrawProperties, static_cast<void*>(properties));
+        float alpha;
+        std::memcpy(&alpha, &properties[4], sizeof alpha);
+        if (alpha < Global<float>(addr::SC4_FloatOneA81228)) {
+            const double time = static_cast<double>(Global<float>(addr::SC4AutomataTuning_Fade21C84)) *
+                                static_cast<double>(Global<float>(addr::SC4_FloatHalf));
+            float value = static_cast<float>(static_cast<double>(seconds) / time + static_cast<double>(alpha));
+            if (Global<float>(addr::SC4_FloatOneA81228) < value)
+                value = 1.0f;
+            Virtual<std::uint32_t>(At<char*>(state, models::kStateModel), models::kAlpha, 1u, value);
+        }
+    }
+    const std::int32_t mode = At<std::int32_t>(state, models::kStateMode);
+    if ((mode < 2 || mode > 3) && At<char*>(state, models::kStateModel)) {
+        const std::int32_t last = Virtual<std::int32_t>(At<char*>(state, models::kStateModel), models::kFrames) - 1;
+        if (Virtual<std::int32_t>(At<char*>(state, models::kStateModel), models::kFrame) >= last) {
+            Virtual<std::uint32_t>(self, slot::kPopState);
+            return 1;
+        }
+    }
+    return At<std::uint8_t>(state, models::kStateAnswer);
+}
+
+// 0x0050B360, the core's slot 33, (target, duration), ret 8: a fade. A new
+// target (unordered counts as new): the fade's value the smoothed value
+// now, then the target, the duration and 0 elapsed. A duration below 0.001:
+// each model's alpha the target at once.
+void __fastcall StartFade(char* self, void*, float target, float duration)
+{
+    static bool logged;
+    FirstCall("StartFade", logged);
+    char* const fade = self + field::kFade1B0;
+    if (!(target == At<float>(self, models::kFadeTarget))) {
+        At<float>(fade, 0) = static_cast<float>(CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, fade));
+        std::memcpy(self + models::kFadeTarget, &target, 4);
+        std::memcpy(self + models::kFadeDuration, &duration, 4);
+        At<std::uint32_t>(self, models::kFadeElapsed) = 0;
+    }
+    if (duration < Global<float>(addr::cSC4AutomatonBase_Milli))
+        for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+            if (char* const model = *it)
+                SetModelAlpha(model, target);
+}
+
+// 0x005091C0, the core's slot 83, (seconds), ret 4: the fade's frame. While
+// elapsed is below the duration it gains seconds x 0.001 (stored as a float,
+// compared unrounded); at the duration the value becomes the target and
+// both clear. When the smoothed value changed, each model's alpha it.
+void __fastcall FadeFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("FadeFrame", logged);
+    char* const fade = self + field::kFade1B0;
+    const float before = static_cast<float>(CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, fade));
+    if (At<float>(self, models::kFadeElapsed) < At<float>(self, models::kFadeDuration)) {
+        const double elapsed = static_cast<double>(seconds) * Global<float>(addr::cSC4AutomatonBase_Milli) +
+                               static_cast<double>(At<float>(self, models::kFadeElapsed));
+        At<float>(self, models::kFadeElapsed) = static_cast<float>(elapsed);
+        if (elapsed >= static_cast<double>(At<float>(self, models::kFadeDuration))) {
+            const std::uint32_t target = At<std::uint32_t>(self, models::kFadeTarget);
+            At<std::uint32_t>(self, models::kFadeElapsed) = 0;
+            At<std::uint32_t>(self, models::kFadeDuration) = 0;
+            At<std::uint32_t>(fade, 0) = target;
+        }
+    }
+    const float after = static_cast<float>(CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, fade));
+    if (!(before == after))
+        for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+            if (char* const model = *it)
+                SetModelAlpha(model, after);
+}
+
+// 0x00507D90, the core's slot 8, (const float[3]), ret 4: the position. In
+// both the occupant manager and the view: slot 16 (point, 0). Else the
+// position +0x40 and each model's slot 1 with it (no null test, as the game).
+void __fastcall SetCorePosition(char* self, void*, const float* point)
+{
+    static bool logged;
+    FirstCall("SetCorePosition", logged);
+    const std::uint8_t flags = At<std::uint8_t>(self, field::kFlags33);
+    if ((flags & 1) && (flags & 2)) {
+        Virtual<std::uint32_t>(self, slot::kSlot16, point, static_cast<const float*>(nullptr));
+        return;
+    }
+    std::memcpy(self + field::kPosition, point, 12);
+    for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+        Virtual<std::uint32_t>(*it, models::kSetPosition, self + field::kPosition);
+}
+
+// The heading kept at +0x58 and normalised: 0x00B09978 (1) over the length
+// ((x x + y y) + z z), each part multiplied by it.
+void KeepHeading(char* self, const float* heading)
+{
+    float* const h = &At<float>(self, field::kHeading);
+    std::memcpy(h, heading, 12);
+    const double x = h[0], y = h[1], z = h[2];
+    const double inverse =
+        static_cast<double>(Global<float>(addr::cSC4AutomatonCore_FloatOne)) / std::sqrt(x * x + y * y + z * z);
+    h[0] = static_cast<float>(inverse * x);
+    h[1] = static_cast<float>(inverse * y);
+    h[2] = static_cast<float>(inverse * z);
+}
+
+// 0x0050AF10, the core's slot 14, (const float[3]), ret 4: the heading. In
+// both the occupant manager and the view: slot 16 (0, heading). Else the
+// heading +0x58 normalised (1 over the length, (x x + y y) + z z) and each
+// model's matrix (0x005094A0; a null model gives it null, as the game).
+void __fastcall SetCoreHeading(char* self, void*, const float* heading)
+{
+    static bool logged;
+    FirstCall("SetCoreHeading", logged);
+    const std::uint8_t flags = At<std::uint8_t>(self, field::kFlags33);
+    if ((flags & 1) && (flags & 2)) {
+        Virtual<std::uint32_t>(self, slot::kSlot16, static_cast<const float*>(nullptr), heading);
+        return;
+    }
+    KeepHeading(self, heading);
+    for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+        CallThis<void>(addr::cSC4AutomatonCore_PlaceModel, self, *it ? VirtualBaseOf(*it) : nullptr);
+}
+
+// The transform a drawable gives (its slot 9, filled over what is passed)
+// and takes (slot 10): a change count, the change flags (1 the position, 4
+// the rotation), a 3x3 matrix, the position and the scale.
+struct Transform {
+    std::uint8_t count;
+    std::uint8_t changes;
+    std::uint8_t unused[2]; // stack bytes the game leaves as they are
+    float matrix[9];
+    float position[3];
+    float scale;
+};
+static_assert(sizeof(Transform) == 0x38, "slot 16's transform");
+
+// A model's transform from its drawable (an identity, at 0, scale 1, passed
+// in), changed by `change` and given back.
+template <typename Change>
+void ChangeTransform(char* model, Change change)
+{
+    Transform t{};
+    t.matrix[0] = t.matrix[4] = t.matrix[8] = 1.0f;
+    t.scale = 1.0f;
+    Virtual<std::uint32_t>(VirtualBaseOf(model), models::kGetTransform, static_cast<void*>(&t));
+    change(t);
+    ++t.count;
+    Virtual<std::uint32_t>(VirtualBaseOf(model), models::kSetTransform, static_cast<void*>(&t));
+}
+
+// 0x005080C0, the core's slot 16, (const float[3] point, const float[3]
+// heading), ret 8: the placement. A heading (not a NaN y, not all three
+// below 0.00001 in size): kept and normalised as slot 14, the rotation
+// matrix from it (SC4Matrix::FromDirection over nine words of
+// 0x00B21BA4) into each model's transform (flag 4). A point: below 0 in x
+// or z, or not inside the city's size (unordered counts as inside),
+// slot 13 (0) and nothing else; else kept at +0x40 and into each model's
+// transform (flag 1); unless the automata flag 1, with the flag 0x400000
+// or 0x800000 its cell (x and z x 0.0625 by the float magic) asked of the
+// lot manager's slot 6 (flag 0x400000), else of the traffic network map's
+// slot 14 (flag 0x800000), either answering slot 13 (0). Then slots 107
+// and 104 when either was placed, and slot 100 (moved, turned).
+void __fastcall SetPlacement(char* self, void*, const float* point, const float* heading)
+{
+    static bool logged;
+    FirstCall("SetPlacement", logged);
+    std::uint8_t turned = 0, moved = 0;
+    if (heading) {
+        const std::uint32_t y = Bits(heading[1]);
+        const bool nan = (y & 0x7F800000u) == 0x7F800000u && (y & 0x7FFFFFu);
+        const double epsilon = Global<float>(addr::cSC4AutomatonCore_HeadingEpsilon);
+        const bool tiny = std::fabs(static_cast<double>(heading[0])) < epsilon &&
+                          std::fabs(static_cast<double>(heading[1])) < epsilon &&
+                          std::fabs(static_cast<double>(heading[2])) < epsilon;
+        if (!nan && !tiny) {
+            std::uint32_t matrix[9];
+            const std::uint32_t init = Global<std::uint32_t>(addr::cSC4AutomataManager_PointInit);
+            for (std::uint32_t& m : matrix)
+                m = init;
+            KeepHeading(self, heading);
+            CallCdecl<void>(addr::SC4Matrix_FromDirection, self + field::kHeading, static_cast<void*>(matrix));
+            for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+                if (char* const model = *it)
+                    ChangeTransform(model, [&](Transform& t) {
+                        std::memcpy(t.matrix, matrix, sizeof matrix);
+                        t.changes |= 4;
+                    });
+            turned = 1;
+        }
+    }
+    if (point) {
+        if (point[0] < Global<float>(addr::SC4_FloatZero) || point[2] < Global<float>(addr::SC4_FloatZero) ||
+            Virtual<double>(Global<void*>(addr::SC4_City), city::kWidth) <= point[0] ||
+            Virtual<double>(Global<void*>(addr::SC4_City), city::kDepth) <= point[2]) {
+            Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+            return;
+        }
+        std::memcpy(self + field::kPosition, point, 12);
+        for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+            if (char* const model = *it)
+                ChangeTransform(model, [&](Transform& t) {
+                    std::memcpy(t.position, point, 12);
+                    t.changes |= 1;
+                });
+        if (!Virtual<std::uint8_t>(self, slot::kCheckFlag, 1u) &&
+            (Virtual<std::uint8_t>(self, slot::kCheckFlag, models::kCheckLots) ||
+             Virtual<std::uint8_t>(self, slot::kCheckFlag, models::kCheckNetwork))) {
+            void* const lots = Global<void*>(addr::SC4_LotManager);
+            void* const network = Virtual<void*>(Global<void*>(addr::SC4_City), city::kTrafficNetwork);
+            const double scale = Global<float>(addr::cSC4AutomatonCore_CellScale);
+            const std::int32_t x = FrameRound(static_cast<double>(At<float>(self, field::kPosition)) * scale);
+            const std::int32_t z = FrameRound(static_cast<double>(At<float>(self, field::kPosition + 8)) * scale);
+            if (Virtual<std::uint8_t>(self, slot::kCheckFlag, models::kCheckLots) &&
+                Virtual<std::uint32_t>(lots, models::kLotsAt, x, z, 0u))
+                Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+            else if (Virtual<std::uint8_t>(self, slot::kCheckFlag, models::kCheckNetwork) &&
+                     Virtual<std::uint32_t>(network, models::kNetworkCell, x, z))
+                Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+        }
+        moved = 1;
+    }
+    if (turned || moved) {
+        Virtual<std::uint32_t>(self, models::kSlot107);
+        Virtual<std::uint32_t>(self, models::kSlot104);
+    }
+    Virtual<std::uint32_t>(self, models::kSlot100, moved, turned);
+}
+
+// 0x00509440, the core's slot 75, (transform*), ret 4: each model's
+// drawable given the transform (slot 10); AL whether there are models.
+std::uint8_t __fastcall SetModelTransforms(char* self, void*, const void* transform)
+{
+    static bool logged;
+    FirstCall("SetModelTransforms", logged);
+    for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+        if (char* const model = *it)
+            Virtual<std::uint32_t>(VirtualBaseOf(model), models::kSetTransform, transform);
+    return At<char**>(self, models::kBegin) != At<char**>(self, models::kEnd) ? 1 : 0;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -7383,6 +7894,24 @@ const Detour kCoreModels[] = {
     OPENSC4_DETOUR(addr::cSC4AutomatonCore_MakeModelByIndex, MakeModelByIndex),
 };
 
+// Part ad2.
+const Detour kCoreModels2[] = {
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SwapModel, SwapModel),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SwapFirstModel, SwapFirstModel),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SwapStartModel, SwapStartModel),
+    OPENSC4_DETOUR(addr::SC4Automaton_SetStart, SetStart),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_LeaveState, CoreLeaveState),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_AdvanceAnimation, AdvanceAnimation),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_PlayOneShot, PlayOneShot),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_OneShotFrame, OneShotFrame),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_StartFade, StartFade),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_FadeFrame, FadeFrame),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SetPosition, SetCorePosition),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SetHeading, SetCoreHeading),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SetModelTransforms, SetModelTransforms),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SetPlacement, SetPlacement),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -7395,7 +7924,8 @@ bool InstallObject(registry::Mode)
            InstallList(kVehicleLanes, sizeof kVehicleLanes / sizeof kVehicleLanes[0], "vehicle lanes") &&
            InstallList(kVehicleQueues, sizeof kVehicleQueues / sizeof kVehicleQueues[0], "vehicle queues") &&
            InstallList(kVehicleFrame, sizeof kVehicleFrame / sizeof kVehicleFrame[0], "vehicle frame") &&
-           InstallList(kCoreModels, sizeof kCoreModels / sizeof kCoreModels[0], "core models");
+           InstallList(kCoreModels, sizeof kCoreModels / sizeof kCoreModels[0], "core models") &&
+           InstallList(kCoreModels2, sizeof kCoreModels2 / sizeof kCoreModels2[0], "core models 2");
 }
 
 const bool g_registered[] = {
@@ -7424,7 +7954,9 @@ const bool g_registered[] = {
                         "the impact (14 detours, part vb7); cSC4Vehicle's driven frame (1 detour, part vb8); the "
                         "automata core's models: making them by key and by index, releasing and removing them, the "
                         "occupant manager and the view in and out, the view after a move, the light frame and the "
-                        "level of detail (10 detours, part ad1; src/core/automata_vehicle.cpp)",
+                        "level of detail (10 detours, part ad1); the core's model swaps, its start, leaving a "
+                        "state, the animation, the one-shot, the fades, the position, the heading and the "
+                        "transforms with the placement (14 detours, part ad2; src/core/automata_vehicle.cpp)",
                         false, InstallObject}),
 };
 

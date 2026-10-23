@@ -444,6 +444,46 @@ inline constexpr std::size_t kManagerMove = 0x60;    // (occupant, word), ret 8
 inline constexpr std::size_t kAttachedTo = 0x0C;     // 3: the drawable they are bound to
 inline constexpr std::size_t kAttach = 0x08;         // 2: (drawable), ret 4
 inline constexpr std::uint32_t kAttachmentModels = 0xCC21420D; // the property of the models made by index
+
+// Part ad2 adds (swaps, the start, animation, fades, transforms):
+//   the core's +0xC8 the keys' capacity, +0x188 a list head (empty when
+//          it points at itself), +0x1B0..+0x1BC the fade (value, target,
+//          duration, elapsed)
+//   a state record's +0x08 an object (its slot 30 on leaving), +0x18 a
+//          word (the core's slot 62 on leaving), +0x20 the automata flags it
+//          puts back, +0x28 the one-shot model, +0x2C the one-shot's frame
+//          answer, +0x30 its play mode, +0x205..+0x211 zeroed on leaving 0x10
+inline constexpr std::size_t kKeysCapacity = 0xC8, kList188 = 0x188;
+inline constexpr std::size_t kFadeTarget = 0x1B4, kFadeDuration = 0x1B8, kFadeElapsed = 0x1BC;
+inline constexpr std::size_t kStateObject = 0x08, kStateWord = 0x18, kStateFlags = 0x20;
+inline constexpr std::size_t kStateModel = 0x28, kStateAnswer = 0x2C, kStateMode = 0x30, kState205 = 0x205;
+inline constexpr std::uint32_t kKeepFlags = 0x0600C001;   // the automata flags a state leaves alone
+inline constexpr std::uint32_t kOneShotState = 0x13;
+// The core's.
+inline constexpr std::size_t kSlot62 = 0xF8;         // 62: (word), ret 4
+// A model instance's.
+inline constexpr std::size_t kSetPosition = 0x04;    // 1: (float[3]), ret 4
+inline constexpr std::size_t kFrame = 0x2C;          // 11: the current frame
+inline constexpr std::size_t kFrames = 0x30;         // 12: the frame count
+inline constexpr std::size_t kAdvance = 0x3C;        // 15: (seconds), ret 4
+inline constexpr std::size_t kPlayMode = 0x40;       // 16: (mode), ret 4
+// The drawable's.
+inline constexpr std::size_t kSetTransform = 0x28;   // 10: (transform*), ret 4
+inline constexpr std::size_t kDrawProperties = 0x3C; // 15: (five words out: +0x10 the alpha), ret 4
+// A state record's (its vtable).
+inline constexpr std::size_t kStateLeave = 0x00;     // 0: (core), ret 4
+inline constexpr std::size_t kObjectLeave = 0x78;    // the object's 30: (core, state type), ret 8
+// The simulator's (0x00B43D5C).
+inline constexpr std::size_t kSimulator44 = 0x44, kSimulator3C = 0x3C; // no arguments, bools
+// Slot 16's: the drawable's slot 9, the core's slots 100, 104 and 107, the
+// lot manager's (0x00B43D08) slot 6 and the traffic network map's slot 14.
+inline constexpr std::size_t kGetTransform = 0x24;   // 9: (transform* in out), ret 4
+inline constexpr std::size_t kSlot100 = 0x190;       // 100: 0x00508610, (moved, changed), ret 8
+inline constexpr std::size_t kSlot104 = 0x1A0;       // 104: 0x00505940, no arguments
+inline constexpr std::size_t kSlot107 = 0x1AC;       // 107: no arguments
+inline constexpr std::size_t kLotsAt = 0x18;         // (cell x, cell z, 0), ret 0xC
+inline constexpr std::size_t kNetworkCell = 0x38;    // (cell x, cell z), ret 8
+inline constexpr std::uint32_t kCheckLots = 0x400000, kCheckNetwork = 0x800000; // the automata flags asking for them
 } // namespace models
 
 } // namespace opensc4::automata_vehicle
