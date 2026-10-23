@@ -107,7 +107,8 @@ struct Text {
 // the first pair with the key whose property is set and answers 0x800E
 // (slot 3) puts its text in the string (slot 55; its EAX answered). The
 // count is taken once, the vector's start each time. AL 0 when none; the
-// game leaves the rest of EAX as it was (ours 0).
+// game leaves leftovers of its own above it (a pointer, slot 3's answer;
+// ours 0). Every caller tests AL or ignores it.
 uint32_t __cdecl FindTextBody(char* text, char* const* vector, uint32_t key)
 {
     OPENSC4_FIRST("FindText");

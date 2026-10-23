@@ -80,7 +80,7 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u9** | 0x0094AF19 to 0x0094BBFD | 31 of 54 | 26 | **Ours** (below): the UI script loader 0xFA3562FB (the framework's system service that makes the UI file parser and builds windows from UI scripts) and its director; 19 adjustors, the base service's two AddRef and Release adjustors, the director's ID getter and the shared list node stay the game's |
 | **u10** | 0x0094A079 to 0x0094AF18, 0x0094BBFE to 0x0094BF3B | 48 of 54 | 25 | **Ours** (below): the MP3 decoder director 0x1CEC20BE ("HitMP3Decoder"), its stream 0x3CEC2B47 and maker 0x9CEC2B58, the decoder's feed, decode, reset, frame header and ID3 size; the UI script root holder 0x5A354595's slots, its vector's insert and copies, the rectangle test; two jump thunks, a shared stub, the ID getter and the holder's two folded slots stay the game's |
 | **u11** | 0x0094C000 to 0x0094C8FF | 21 of 50 | 35 | **Ours** (below): the rest of the UI script root holder 0x5A354595 (constructor, slot 4, destructors, the vector's constructor, push and erase) and the LEGACY reader 0xFA450242's own slots; 8 adjustors, helpers that take their arguments in registers and other classes' small functions stay the game's |
-| u12 | 0x0094C900 to 0x00951268 | 49 | 16 | The window's script properties (18.7 KB) |
+| **u12** | 0x0094C900 to 0x00951268 | 4 of 49 | 16 | **Ours** (below), first slice: the readers of a window's script properties (the text finder and its three scanners); the property handlers, their map and tree code and the shared AddRef are still the game's |
 | u13 | 0x00951269 to 0x00953FFF | 17 | 17 | The widget readers that run (11.8 KB) |
 | u14, u15, u16 | 0x00954000 to 0x0095BBFF | 98 | 16 | The other widgets' readers and helpers (31 KB) |
 | u17 | 0x0095BC00 to 0x0095FFFF | 29 | 0 | The writers (17.7 KB, never run) |
@@ -894,3 +894,47 @@ Both batches: all five legs the same on the first pair.
 **Part u11 complete:** the root holder 0x5A354595 is ours but for its adjustors and two folded slots, the LEGACY reader's own slots are ours but for its adjustors and its constructor (part u16's range).
 
 **What is left for u12:** 0x0094C900 to 0x00951268 (49 functions, 16 of which ran), the window's script properties; the small functions part u11 left in its range go with their classes.
+
+## Part u12: the readers of a window's script properties (first slice)
+
+0x0094C900 to 0x00951268 holds 49 functions: the window's script properties. A window's UI script gives it properties as an STLport vector of 8-byte pairs (a key, a property object); a property whose slot 3 answers 0x800E is text, and its slot 55 puts that text into a string. The large handlers 0x0094CE28 to 0x00951084 (each in a vtable of its own, 0x009512F3 to 0x00953B27) read a window's properties through four small readers. This slice makes those four ours, in `src/core/gzui_props.cpp`, one group, off by default, installed at Attach with the UI script loader's:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.propread` | 4 | the text finder 0x0094CCD9 and the scanners of three bytes 0x0094D4CD, a pair 0x0094D55A and a rectangle 0x0094D5CA |
+
+**The readers** take arguments in registers as well as on the stack (cdecl): the vector of pairs in EDI, the finder's string in EBX, the rectangle's four ints in ESI. Each is entered through a naked thunk that hands the registers' values and the stack arguments to a cdecl body, which keeps EBX, ESI, EDI and EBP as the game's do.
+
+- The finder empties the string (when not already empty), then takes the first pair with the key whose property is set and answers 0x800E (slot 3), and answers that property's slot 55 with the string (its EAX); AL 0 when none. The count is taken once, the vector's start again each time.
+- The scanners make a string of their own (SC4String's constructor 0x00578390), find the key's text and scan it with sscanf: "(%d,%d,%d)" (0x00AD5404) into three ints whose low bytes go to the three pointers only when all three were read; "(%d,%d)" (0x00AD542C) straight into the two pointers; "(%d,%d,%d,%d)" (0x00AD5434) straight into the rectangle. AL 1 when all were read. The string is destroyed inline (the vtable 0x00A80810 back, the characters freed with 0x0090CF63).
+
+Ours answer 0 above the byte where the game leaves what it had in EAX (the finder with no match, the scanners' false paths); every caller tests AL.
+
+### Testing
+
+`OPENSC4_TEST_PROPREAD=<day>` is a test of its own (the fingerprint's `pr` part). It calls the four by address with their registers set, on a vector of 12 pairs of its own (keys 0 to 11, a pair without a property, a property that is not text ahead of one that is, the same key twice) with text properties of its own (each hashes every call it gets) and strings made by the game's constructor. The texts: three, two, four and five numbers, a cut-off pair, words, an empty text, numbers above a byte and below zero, spaces. Two stages, each logged as `autotest: propread: <stage> <hash>`:
+
+- **find:** the finder for every key (and on an empty vector), the string's text after each;
+- **scan:** every scanner for every key, the values after each (pre-set, so what sscanf leaves on a failed read counts too).
+
+With the group on, each of the 4 logs its first call in a test run. `pr` is 71C32265 (muted), the same on both sides; the stages 9CAA1DFD and 71C32265.
+
+The four were checked against the disassembly (memory written and its order, calls and their arguments, registers kept, EAX on every path, the address entries) by the author and by an independent audit (about 170 call sites checked too: each tests AL, ignores the answer or sets EAX, ECX and EDX before reading them; some keep ESI or EBX across the call, which ours keep): no difference in what they do. It found one comment to fix (the finder's EAX on a miss holds leftovers of its own, not the caller's).
+
+### Parity
+
+Batch `gzu12-r1`, 2026-10-23, muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.uiscript.*` (with `propread`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu12`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_PROPREAD=2` | 12 | 12 same; `pr` 71C32265 in every run |
+| Making Money d0000, 4 days, `OPENSC4_TEST_PROPREAD=2` | 1 | same; `pr` 71C32265 |
+
+All five legs the same on the first pair.
+
+**Reached:** in every plain (muted) leg side B logs all 4 first calls (the property handlers read every window's properties through them when a city's UI loads).
+
+**What is left of u12:** 45 functions, 12 of which ran: the property handlers 0x0094CE28, 0x0094D17E, 0x0094E33B to 0x00951084 and the large 0x0094D641 (all of which call these readers and the register-argument property makers part u11 left), STLport map and tree code 0x0094C92D to 0x0094CDB5, the shared AddRef 0x0094D34F (count +0x10, 14 vtables) and small wrappers 0x0094D147 to 0x0094D490.
