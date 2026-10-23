@@ -16865,6 +16865,571 @@ void VehicleFrameDrive(Hash& vframe8, uint32_t& flags)
     flags |= 0x80000;
 }
 
+// ---- Part ad1: the automata core's models.
+
+namespace ad1 {
+
+// What the test's objects record and answer.
+struct Context {
+    Hash calls;
+    uint8_t viewInsert = 1;     // the view's InsertModel answer
+    uint32_t refuseAt = 0;      // a later InsertModel answers 0 (its count from 1; 0 never)
+    uint32_t inserts = 0;
+    uint8_t managerInsert = 1;  // the occupant manager's insert answer
+    uint8_t flag4 = 1;          // the occupant part's flag 4 test
+    char* self = nullptr;
+    char* realBases[8] = {};    // drawables of the game's models seen, by order
+    uint32_t realCount = 0;
+    uint32_t steps = 0;
+};
+Context* g_ad1 = nullptr;
+
+// A model of the test's held through a virtual base: +4 its vbtable, whose
+// second word puts the base (the drawable) at +8.
+struct Model {
+    void** vtable;
+    const int32_t* vbtable;
+    void** baseVtable;
+    int32_t references;
+    uint32_t id;
+};
+const int32_t kVbtable[2] = {0, 4};
+Model* g_models[4] = {};
+
+// A drawable's id: the test's models' ids, the game's models by the order
+// first seen (0x100 up), 0xFF for null.
+uint32_t DrawableId(void* drawable)
+{
+    if (!drawable)
+        return 0xFF;
+    for (Model* m : g_models)
+        if (m && reinterpret_cast<char*>(m) + 8 == drawable)
+            return m->id;
+    Context* const c = g_ad1;
+    for (uint32_t i = 0; i < c->realCount; ++i)
+        if (c->realBases[i] == drawable)
+            return 0x100 + i;
+    if (c->realCount < 8)
+        c->realBases[c->realCount++] = static_cast<char*>(drawable);
+    return 0x100 + c->realCount - 1;
+}
+Model* ModelOf(void* base) { return reinterpret_cast<Model*>(static_cast<char*>(base) - 8); }
+
+void* __fastcall ModelDrawable(Model* m, void*)
+{
+    g_ad1->calls.Mix(0xD0);
+    g_ad1->calls.Mix(m->id);
+    return reinterpret_cast<char*>(m) + 8;
+}
+uint32_t __fastcall ModelZoom(Model* m, void*, uint32_t zoom, uint32_t rotation)
+{
+    g_ad1->calls.Mix(0xD8);
+    g_ad1->calls.Mix(m->id);
+    g_ad1->calls.Mix(zoom);
+    g_ad1->calls.Mix(rotation);
+    return 1;
+}
+uint32_t __fastcall ModelAlpha(Model* m, void*, uint32_t word, float alpha)
+{
+    g_ad1->calls.Mix(0xD18);
+    g_ad1->calls.Mix(m->id);
+    g_ad1->calls.Mix(word);
+    g_ad1->calls.Mix(Bits(alpha));
+    return 1;
+}
+uint32_t __fastcall BaseAddRef(void* base, void*) { return static_cast<uint32_t>(++ModelOf(base)->references); }
+uint32_t __fastcall BaseRelease(void* base, void*)
+{
+    g_ad1->calls.Mix(0xB2);
+    g_ad1->calls.Mix(ModelOf(base)->id);
+    return static_cast<uint32_t>(--ModelOf(base)->references);
+}
+uint32_t __fastcall BaseBox(void* base, void*, float* box)
+{
+    const uint32_t id = ModelOf(base)->id;
+    g_ad1->calls.Mix(0xB8);
+    g_ad1->calls.Mix(id);
+    for (int i = 0; i < 6; ++i)
+        box[i] = static_cast<float>(id) * 0.5f + static_cast<float>(i);
+    return 1;
+}
+void** ModelVtable()
+{
+    static void* t[32] = {};
+    t[0] = reinterpret_cast<void*>(&ModelDrawable);
+    t[8] = reinterpret_cast<void*>(&ModelZoom);
+    t[18] = reinterpret_cast<void*>(&ModelAlpha);
+    return t;
+}
+void** BaseVtable()
+{
+    static void* t[16] = {};
+    t[1] = reinterpret_cast<void*>(&BaseAddRef);
+    t[2] = reinterpret_cast<void*>(&BaseRelease);
+    t[8] = reinterpret_cast<void*>(&BaseBox);
+    return t;
+}
+void MakeModel(Model& m, uint32_t id)
+{
+    m.vtable = ModelVtable();
+    m.vbtable = kVbtable;
+    m.baseVtable = BaseVtable();
+    m.references = 1;
+    m.id = id;
+}
+
+// The view 0x00B43DD0: slots 28 to 31 (insert, remove, move, change).
+struct View {
+    void** vtable;
+};
+template <std::size_t S>
+uint32_t __fastcall ViewOne(View*, void*, void* drawable)
+{
+    Context* const c = g_ad1;
+    c->calls.Mix(0x700 + S);
+    c->calls.Mix(DrawableId(drawable));
+    if (S != 28)
+        return 1;
+    ++c->inserts;
+    if (c->refuseAt && c->inserts == c->refuseAt)
+        return 0;
+    return c->viewInsert;
+}
+uint32_t __fastcall ViewChange(View*, void*, void* drawable, uint32_t word)
+{
+    g_ad1->calls.Mix(0x731);
+    g_ad1->calls.Mix(DrawableId(drawable));
+    g_ad1->calls.Mix(word);
+    return 1;
+}
+void** ViewVtable()
+{
+    static void* t[40] = {};
+    t[28] = reinterpret_cast<void*>(&ViewOne<28>);
+    t[29] = reinterpret_cast<void*>(&ViewOne<29>);
+    t[30] = reinterpret_cast<void*>(&ViewOne<30>);
+    t[31] = reinterpret_cast<void*>(&ViewChange);
+    return t;
+}
+
+// The occupant manager 0x00B43D0C: slots 20 (insert), 21 (remove), 24
+// (move).
+struct Manager {
+    void** vtable;
+};
+uint8_t __fastcall ManagerInsert(Manager*, void*, char* part, uint32_t word)
+{
+    g_ad1->calls.Mix(0x850);
+    g_ad1->calls.Mix(part == g_ad1->self + 4 ? 1u : 0u);
+    g_ad1->calls.Mix(word);
+    return g_ad1->managerInsert;
+}
+uint32_t __fastcall ManagerRemove(Manager*, void*, char* part, uint32_t a, uint32_t b)
+{
+    g_ad1->calls.Mix(0x854);
+    g_ad1->calls.Mix(part == g_ad1->self + 4 ? 1u : 0u);
+    g_ad1->calls.Mix(a);
+    g_ad1->calls.Mix(b);
+    return 1;
+}
+uint32_t __fastcall ManagerMove(Manager*, void*, char* part, uint32_t word)
+{
+    g_ad1->calls.Mix(0x860);
+    g_ad1->calls.Mix(part == g_ad1->self + 4 ? 1u : 0u);
+    g_ad1->calls.Mix(word);
+    return 1;
+}
+void** ManagerVtable()
+{
+    static void* t[48] = {};
+    t[20] = reinterpret_cast<void*>(&ManagerInsert);
+    t[21] = reinterpret_cast<void*>(&ManagerRemove);
+    t[24] = reinterpret_cast<void*>(&ManagerMove);
+    return t;
+}
+
+// The property holder (slot 9, GetProperty) with its properties and their
+// values (slot 5; the value's slots 4, the count, and 103, the data).
+struct Value {
+    void** vtable;
+    const uint32_t* data;
+    uint32_t count;
+};
+uint32_t __fastcall ValueCount(Value* v, void*) { return v->count; }
+const uint32_t* __fastcall ValueData(Value* v, void*) { return v->data; }
+void** ValueVtable()
+{
+    static void* t[104] = {};
+    t[4] = reinterpret_cast<void*>(&ValueCount);
+    t[103] = reinterpret_cast<void*>(&ValueData);
+    return t;
+}
+struct Property {
+    void** vtable;
+    uint32_t id;
+    Value value;
+};
+Value* __fastcall PropertyValue(Property* p, void*) { return &p->value; }
+void** PropertyVtable()
+{
+    static void* t[8] = {};
+    t[5] = reinterpret_cast<void*>(&PropertyValue);
+    return t;
+}
+struct Holder {
+    void** vtable;
+    Property* properties;
+    uint32_t count;
+};
+Property* __fastcall HolderGet(Holder* h, void*, uint32_t id)
+{
+    g_ad1->calls.Mix(0x924);
+    g_ad1->calls.Mix(id);
+    for (uint32_t i = 0; i < h->count; ++i)
+        if (h->properties[i].id == id)
+            return &h->properties[i];
+    return nullptr;
+}
+void** HolderVtable()
+{
+    static void* t[16] = {};
+    t[9] = reinterpret_cast<void*>(&HolderGet);
+    return t;
+}
+Holder* g_holder = nullptr;
+
+// The occupant part's (+4) slots 6 (the holder), 29 and 31 (the flags of
+// +0x33 set and cleared) and 32 (the flag 4 test); the core's slots 9, 83,
+// 102 and 106.
+Holder* __fastcall PartHolder(char*, void*) { return g_holder; }
+uint32_t __fastcall PartSet(char* part, void*, uint32_t flag)
+{
+    g_ad1->calls.Mix(0x974);
+    g_ad1->calls.Mix(flag);
+    At<uint8_t>(part - 4, av::field::kFlags33) |= static_cast<uint8_t>(flag);
+    return 1;
+}
+uint32_t __fastcall PartClear(char* part, void*, uint32_t flag)
+{
+    g_ad1->calls.Mix(0x97C);
+    g_ad1->calls.Mix(flag);
+    At<uint8_t>(part - 4, av::field::kFlags33) &= static_cast<uint8_t>(~flag);
+    return 1;
+}
+uint8_t __fastcall PartTest(char*, void*, uint32_t flag)
+{
+    g_ad1->calls.Mix(0x980);
+    g_ad1->calls.Mix(flag);
+    return g_ad1->flag4;
+}
+uint32_t __fastcall CoreSlot9(char*, void*, uint32_t word)
+{
+    g_ad1->calls.Mix(0xC09);
+    g_ad1->calls.Mix(word);
+    return 1;
+}
+uint32_t __fastcall CoreSlot83(char*, void*, float seconds)
+{
+    g_ad1->calls.Mix(0xC83);
+    g_ad1->calls.Mix(Bits(seconds));
+    return 1;
+}
+uint32_t __fastcall CoreSlot102(char*, void*, uint32_t a, uint32_t b)
+{
+    g_ad1->calls.Mix(0xC102);
+    g_ad1->calls.Mix(a);
+    g_ad1->calls.Mix(b);
+    return 1;
+}
+uint32_t __fastcall CoreSlot106(char*, void*)
+{
+    g_ad1->calls.Mix(0xC106);
+    return 1;
+}
+
+} // namespace ad1
+
+// Part ad1 on a cSC4Vehicle of the factory's (its vtable a copy with the
+// core's slots 70, 71, 74, 97 to 100 and 120 at the core's addresses and
+// slots 9, 83, 102 and 106 the test's; its occupant part's slots 6, 29, 31
+// and 32 the test's), with the view 0x00B43DD0 and the occupant manager
+// 0x00B43D0C pointing at the test's while it runs: the test's models put
+// in and out of the manager and the view, moved, changed, given the level of
+// detail, removed and released; then the game's models made from the first
+// city vehicle's first model key (SC4::GetKeyedResource, the camera's zoom)
+// by CreateModels, by key and by index, shown, moved and released.
+void CoreModelsDrive(cISC4City* city, Hash& cmodels, uint32_t& flags)
+{
+    using namespace ad1;
+    using Create = char*(__cdecl*)();
+    char* const o = reinterpret_cast<Create>(addr::cSC4Vehicle_Create)();
+    if (!o) {
+        flags |= 0x4000000;
+        return;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    // A real model key: the first city vehicle's first.
+    uint32_t realKey[3] = {};
+    if (char* const manager = city ? Virtual<char*>(city, av::kCityVehicleManager) : nullptr) {
+        char* const list = At<char*>(manager, av::kManagerAutomata);
+        for (char* n = list ? At<char*>(list, 0) : nullptr; n && n != list; n = At<char*>(n, 0)) {
+            char* const v = At<char*>(n, 8);
+            if (v && At<char*>(v, av::field::kModelKeys) != At<char*>(v, av::models::kKeysEnd)) {
+                std::memcpy(realKey, At<char*>(v, av::field::kModelKeys), sizeof realKey);
+                break;
+            }
+        }
+    }
+    if (!realKey[2])
+        flags |= 0x8000000;
+
+    void** const realTable = At<void**>(o, 0);
+    void** const realTable4 = At<void**>(o, 4);
+    static void* table[192];
+    static void* table4[34];
+    std::memcpy(table, realTable, sizeof table);
+    std::memcpy(table4, realTable4, sizeof table4);
+    table[9] = reinterpret_cast<void*>(&CoreSlot9);
+    table[70] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SetInOccupantManager);
+    table[71] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SetModelsInView);
+    table[74] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SetZoomAndRotation);
+    table[83] = reinterpret_cast<void*>(&CoreSlot83);
+    table[97] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_CreateModels);
+    table[98] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_ReleaseModels);
+    table[99] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_MakeModelByIndex);
+    table[100] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_UpdateView);
+    table[102] = reinterpret_cast<void*>(&CoreSlot102);
+    table[106] = reinterpret_cast<void*>(&CoreSlot106);
+    table[120] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_LightFrame);
+    table4[6] = reinterpret_cast<void*>(&PartHolder);
+    table4[29] = reinterpret_cast<void*>(&PartSet);
+    table4[31] = reinterpret_cast<void*>(&PartClear);
+    table4[32] = reinterpret_cast<void*>(&PartTest);
+    At<void**>(o, 0) = table;
+    At<void**>(o, 4) = table4;
+    const uint8_t byte33 = At<uint8_t>(o, av::field::kFlags33);
+    uint8_t saved110[12];
+    std::memcpy(saved110, o + av::models::kBegin, sizeof saved110);
+    uint8_t saved11C[0x10];
+    std::memcpy(saved11C, o + av::models::kStartKey, sizeof saved11C);
+    uint8_t saved1B0[0x10];
+    std::memcpy(saved1B0, o + av::field::kFade1B0, sizeof saved1B0);
+    const float radius = At<float>(o, av::field::kRadius);
+
+    Context context;
+    context.self = o;
+    g_ad1 = &context;
+    ad1::Model models[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        ad1::MakeModel(models[i], 0x20 + i);
+        g_models[i] = &models[i];
+    }
+    const uint32_t keyOne[3] = {realKey[0], realKey[1], realKey[2]};
+    const uint32_t keyBad[3] = {0x12345678u, 1u, 2u};
+    const uint32_t listed[4] = {0u, 1u, 5u, 3u};
+    ad1::Property properties[3] = {
+        {ad1::PropertyVtable(), av::models::kAttachmentModels, {ad1::ValueVtable(), listed, 4}},
+        {ad1::PropertyVtable(), 0x09C80417u, {ad1::ValueVtable(), keyOne, 3}},
+        {ad1::PropertyVtable(), 0xEC214180u, {ad1::ValueVtable(), keyBad, 3}},
+    };
+    ad1::Holder holder{ad1::HolderVtable(), properties, 3};
+    g_holder = &holder;
+    ad1::View view{ad1::ViewVtable()};
+    ad1::Manager fakeManager{ad1::ManagerVtable()};
+    void** const viewGlobal = reinterpret_cast<void**>(addr::SC4_View43DD0);
+    void** const managerGlobal = reinterpret_cast<void**>(addr::SC4_NetworkService);
+    void* const realView = *viewGlobal;
+    void* const realManager = *managerGlobal;
+    *viewGlobal = &view;
+    *managerGlobal = &fakeManager;
+
+    auto state = [&](uint32_t answer) {
+        cmodels.Mix(answer);
+        cmodels.Mix(At<uint8_t>(o, av::field::kFlags33) & 7u);
+        cmodels.Mix(static_cast<uint32_t>((At<char*>(o, av::models::kEnd) - At<char*>(o, av::models::kBegin)) / 4));
+        cmodels.Mix(static_cast<uint32_t>((At<char*>(o, av::models::kKeysEnd) - At<char*>(o, av::field::kModelKeys)) / 12));
+        cmodels.MixBytes(o + av::models::kBox, 24);
+        cmodels.Mix(Bits(At<float>(o, av::models::kTimer)));
+        cmodels.Mix(Bits(At<float>(o, av::field::kRadius)));
+        cmodels.Mix(context.calls.h);
+        log::Write("autotest: automata: vehicle: ad1 step %u: %X flags %X models %u keys %u radius %08X timer %08X "
+                   "calls %08X",
+                   ++context.steps, answer, At<uint8_t>(o, av::field::kFlags33) & 7u,
+                   static_cast<unsigned>((At<char*>(o, av::models::kEnd) - At<char*>(o, av::models::kBegin)) / 4),
+                   static_cast<unsigned>((At<char*>(o, av::models::kKeysEnd) - At<char*>(o, av::field::kModelKeys)) / 12),
+                   Bits(At<float>(o, av::field::kRadius)), Bits(At<float>(o, av::models::kTimer)), context.calls.h);
+    };
+    auto al = [](uint32_t eax) { return eax & 0xFFu; };
+    auto setFlags = [&](uint8_t bits) {
+        At<uint8_t>(o, av::field::kFlags33) = static_cast<uint8_t>((byte33 & ~7u) | bits);
+    };
+    auto setFade = [&](float value) {
+        At<float>(o, av::field::kFade1B0) = value;
+        At<float>(o, av::field::kFade1B0 + 4) = value;
+        At<float>(o, av::field::kFade1B0 + 8) = 0.0f;
+        At<float>(o, av::field::kFade1B0 + 0xC) = 0.0f;
+    };
+    using One = uint32_t(__thiscall*)(void*, uint32_t);
+    using Two = uint32_t(__thiscall*)(void*, uint32_t, uint32_t);
+    using None = uint32_t(__thiscall*)(void*);
+    using Seconds = uint32_t(__thiscall*)(void*, float);
+    using ByKey = char*(__thiscall*)(void*, const uint32_t*);
+    using ByIndex = uint32_t(__thiscall*)(void*, uint32_t, char**);
+    using Remove = uint32_t(__thiscall*)(void*, void*);
+    const auto inManager = reinterpret_cast<One>(addr::cSC4AutomatonCore_SetInOccupantManager);
+    const auto inView = reinterpret_cast<One>(addr::cSC4AutomatonCore_SetModelsInView);
+    const auto update = reinterpret_cast<Two>(addr::cSC4AutomatonCore_UpdateView);
+    const auto light = reinterpret_cast<Seconds>(addr::cSC4AutomatonCore_LightFrame);
+    const auto zoom = reinterpret_cast<Two>(addr::cSC4AutomatonCore_SetZoomAndRotation);
+    const auto release = reinterpret_cast<None>(addr::cSC4AutomatonCore_ReleaseModels);
+    const auto remove = reinterpret_cast<Remove>(addr::cSC4AutomatonCore_RemoveModel);
+    const auto byKey = reinterpret_cast<ByKey>(addr::cSC4AutomatonCore_MakeModel);
+    const auto create = reinterpret_cast<None>(addr::cSC4AutomatonCore_CreateModels);
+    const auto byIndex = reinterpret_cast<ByIndex>(addr::cSC4AutomatonCore_MakeModelByIndex);
+
+    // The test's models: m0, null, m1, m2 (m3 kept out).
+    char* slots[8] = {reinterpret_cast<char*>(&models[0]), nullptr, reinterpret_cast<char*>(&models[1]),
+                      reinterpret_cast<char*>(&models[2])};
+    auto setModels = [&](uint32_t count) {
+        At<char**>(o, av::models::kBegin) = slots;
+        At<char**>(o, av::models::kEnd) = slots + count;
+        At<char**>(o, av::models::kCapacity) = slots + 8;
+    };
+    setModels(4);
+    setFlags(0);
+    setFade(0.5f);
+    At<float>(o, av::models::kTimer) = 150.0f;
+    // In and out of the manager, the view.
+    state(al(inManager(o, 1)));
+    state(al(inManager(o, 1)));
+    state(al(inView(o, 1)));
+    state(al(inView(o, 1)));
+    update(o, 1, 0);
+    state(0);
+    update(o, 0, 1);
+    state(0);
+    At<float>(o, av::models::kTimer) = 100.0f;
+    update(o, 0, 0);
+    state(0);
+    context.flag4 = 0;
+    At<float>(o, av::models::kTimer) = 101.0f;
+    update(o, 1, 1);
+    state(0);
+    context.flag4 = 1;
+    state(al(light(o, 0.25f)));
+    At<uint32_t>(o, av::field::kAutomataFlags) = 1;
+    state(al(light(o, 0.25f)));
+    At<uint32_t>(o, av::field::kAutomataFlags) = 0;
+    zoom(o, 2, 3);
+    state(0);
+    state(al(inView(o, 0)));
+    state(al(light(o, 0.5f)));
+    // Not in the view, in the manager: slot 24, then 71 with 1 (alpha 1).
+    setFade(1.0f);
+    update(o, 1, 0);
+    state(0);
+    state(al(inManager(o, 0)));
+    // Not in either: slot 70 then 71; the second insert refused.
+    setFade(0.25f);
+    context.refuseAt = context.inserts + 2;
+    update(o, 0, 0);
+    state(0);
+    context.refuseAt = 0;
+    state(al(inManager(o, 0)));
+    // The manager refuses.
+    context.managerInsert = 0;
+    state(al(inManager(o, 1)));
+    state(al(inView(o, 1)));
+    context.managerInsert = 1;
+    // No manager, no view.
+    *managerGlobal = nullptr;
+    state(al(inManager(o, 1)));
+    *managerGlobal = &fakeManager;
+    *viewGlobal = nullptr;
+    state(al(inView(o, 1)));
+    setFlags(1);
+    state(al(inManager(o, 0)));
+    *viewGlobal = &view;
+    // Removal: in both, m1 removed (out of the view around it), then m3
+    // (not there), then release.
+    setFlags(0);
+    state(al(inView(o, 1)));
+    state(al(remove(o, &models[1])));
+    state(al(remove(o, &models[3])));
+    state(al(byKey(o, keyBad) ? 1u : 0u));
+    state(al(release(o)));
+    for (const Model& m : models)
+        cmodels.Mix(static_cast<uint32_t>(m.references));
+
+    // The game's models: none (no keys, no start), then by the start key.
+    At<char*>(o, av::models::kBegin) = nullptr;
+    At<char*>(o, av::models::kEnd) = nullptr;
+    At<char*>(o, av::models::kCapacity) = nullptr;
+    for (Model*& m : g_models)
+        m = nullptr;
+    setFlags(0);
+    setFade(0.75f);
+    holder.count = 0;
+    At<uint32_t>(o, av::models::kStartSet) = 0;
+    state(al(create(o)));
+    // A start key the factory refuses: AL 0 at once, the key kept.
+    std::memcpy(o + av::models::kStartKey, keyBad, sizeof keyBad);
+    state(al(create(o)));
+    holder.count = 3;
+    if (realKey[2]) {
+        std::memcpy(o + av::models::kStartKey, realKey, sizeof realKey);
+        At<uint32_t>(o, av::models::kStartAgain) = realKey[2];
+        At<char*>(o, av::models::kKeysEnd) = At<char*>(o, av::field::kModelKeys);
+        state(al(create(o)));
+        state(al(create(o)));
+        state(al(inView(o, 1)));
+        update(o, 1, 0);
+    state(0);
+        zoom(o, 1, 2);
+    state(0);
+        char* extra = nullptr;
+        state(al(byIndex(o, 2, &extra)));
+        cmodels.Mix(extra ? 1u : 0u);
+        state(al(byIndex(o, 3, &extra)));
+        cmodels.Mix(extra ? 1u : 0u);
+        state(al(byIndex(o, 1, &extra)));
+        cmodels.Mix(extra ? 1u : 0u);
+        if (extra) {
+            state(al(remove(o, extra)));
+            Virtual<uint32_t>(extra + 4 + At<int32_t>(At<char*>(extra, 4), 4), av::slot::kRelease);
+        }
+        char* const second = byKey(o, realKey);
+        state(second ? 1u : 0u);
+        state(al(inManager(o, 0)));
+        state(al(release(o)));
+        flags |= 0x2000000;
+    }
+    log::Write("autotest: automata: vehicle: ad1 cmodels %08X, calls %08X, real key %08X %08X %08X, %u game models "
+               "seen, references %d %d %d %d",
+               cmodels.h, context.calls.h, realKey[0], realKey[1], realKey[2], context.realCount, models[0].references,
+               models[1].references, models[2].references, models[3].references);
+    cmodels.Mix(context.realCount);
+
+    *viewGlobal = realView;
+    *managerGlobal = realManager;
+    g_ad1 = nullptr;
+    g_holder = nullptr;
+    // The game's storage (made by the real path) is the vehicle's to free;
+    // the test's slots are put back.
+    if (At<char**>(o, av::models::kBegin) == slots)
+        std::memcpy(o + av::models::kBegin, saved110, sizeof saved110);
+    std::memcpy(o + av::models::kStartKey, saved11C, sizeof saved11C);
+    std::memcpy(o + av::field::kFade1B0, saved1B0, sizeof saved1B0);
+    At<float>(o, av::field::kRadius) = radius;
+    At<float>(o, av::models::kTimer) = 0.0f;
+    At<uint8_t>(o, av::field::kFlags33) = byte33;
+    At<uint32_t>(o, av::field::kAutomataFlags) = 0;
+    At<void**>(o, 0) = realTable;
+    At<void**>(o, 4) = realTable4;
+    Virtual<uint32_t>(o, av::slot::kRelease);
+    flags |= 0x1000000;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -17115,6 +17680,8 @@ void VehicleDrive(cISC4City* city)
     // ---- Part vb8.
     Hash vframe8;
     VehicleFrameDrive(vframe8, flags);
+    Hash cmodels;
+    CoreModelsDrive(city, cmodels, flags);
 
     // ---- The city's vehicles: the log only.
     {
@@ -17171,16 +17738,17 @@ void VehicleDrive(cISC4City* city)
     char text[280];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X",
+                  "%08X,%08X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
-                  vframe8.h);
+                  vframe8.h, cmodels.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
-               "%08X vmove %08X vframe %08X vlanes %08X vdrive %08X vqueue %08X vhit %08X vframe8 %08X",
+               "%08X vmove %08X vframe %08X vlanes %08X vdrive %08X vqueue %08X vhit %08X vframe8 %08X cmodels %08X",
                object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
-               enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h, vframe8.h);
+               enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h, vframe8.h,
+               cmodels.h);
 }
 
 void Drive(const Day& day)

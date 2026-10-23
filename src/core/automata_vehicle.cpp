@@ -27,7 +27,9 @@
 // deque's push_back and pops, the point behind with its crossing test,
 // entering the next occupant, the wall test with its cell test, the
 // collisions, entering a state, the damage and the impact). vb8:
-// cSC4Vehicle's driven frame (slot 115, U-Drive). The class map is in src/core/automata_vehicle.h and the survey in
+// cSC4Vehicle's driven frame (slot 115, U-Drive). ad1: the automata core's
+// models (core slots 70, 71, 74, 97 to 100 and 120, the model by key
+// 0x0050E4D0 and the removal 0x0050B400; docs/automata.md "AD1"). The class map is in src/core/automata_vehicle.h and the survey in
 // docs/automata.md, "Part vb". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and
 // OPENSC4_AUTOMATA_SKIP (function addresses, hex, eight digits) bisects
@@ -37,7 +39,8 @@
 //   simulators.automata.vehicle: the 36 detours in kObject (vb1), the 30
 //   in kLife (vb2), the 13 in kMove (vb3), the 22 in kStates (vb4) and
 //   the 10 in kVehicleMove (vb5), the 12 in kVehicleLanes (vb6), the 14
-//   in kVehicleQueues (vb7) and the 1 in kVehicleFrame (vb8) below.
+//   in kVehicleQueues (vb7), the 1 in kVehicleFrame (vb8) and the 10 in
+//   kCoreModels (ad1) below.
 //
 // What it does. cSC4Vehicle's factory takes a 0x2B8-byte block from the
 // vehicle pool (0x00B0A0F8; other sizes go to SC4::operator_new) and runs
@@ -6724,6 +6727,437 @@ std::uint8_t __fastcall VehicleDriveFrame(char* self, void*, float seconds)
 }
 
 // ====================================================================================
+// Part ad1: the core's models (the automata core's, vtable 0x00A95AC0)
+
+// A model instance's virtual base (the drawable): +4 its vbtable, whose
+// second word is the base's offset from there.
+char* VirtualBaseOf(char* model) { return model + 4 + At<std::int32_t>(At<char*>(model, 4), 4); }
+
+// The camera's zoom and rotation (0x007F66A0 on 0x00B43DD8) onto a model
+// (its slot 8).
+void ZoomAndRotate(char* model)
+{
+    std::uint32_t zoom = 0, rotation = 0;
+    CallThis<void>(addr::SC4CameraView_ZoomAndRotation, Global<void*>(addr::SC4_CameraView), &zoom, &rotation);
+    Virtual<std::uint32_t>(model, models::kZoomRotation, zoom, rotation);
+}
+
+// push_back on the models (+0x110), through SC4PtrVector::InsertN when full.
+void PushModel(char* self, char* model, std::uint8_t* allocator)
+{
+    char**& end = At<char**>(self, models::kEnd);
+    if (end != At<char**>(self, models::kCapacity)) {
+        if (end)
+            *end = model;
+        ++end;
+        return;
+    }
+    CallThis<void>(addr::SC4PtrVector_InsertN, self + models::kBegin, end, &model, allocator, 1u, 1u);
+}
+
+// The first model's bounding box into +0x170 (its drawable's slot 8), when
+// there is a model. A null first model: the game calls through a null
+// pointer here (0x00508610, 0x00508D70).
+void FirstModelBox(char* self)
+{
+    char** const begin = At<char**>(self, models::kBegin);
+    if (begin == At<char**>(self, models::kEnd))
+        return;
+    char* const drawable = *begin ? VirtualBaseOf(*begin) : nullptr;
+    Virtual<std::uint32_t>(drawable, models::kGetBox, self + models::kBox);
+}
+
+// The timer +0x1C0 above 100 (0x00A952D8): event 9 (slot 102 with 9, 0) and
+// the timer zeroed.
+void TimerEvent(char* self)
+{
+    if (At<float>(self, models::kTimer) > Global<float>(addr::cSC4AutomatonCore_Float100)) {
+        Virtual<std::uint32_t>(self, slot::kSlot102, 9u, 0u);
+        At<float>(self, models::kTimer) = 0.0f;
+    }
+}
+
+// 0x00507E60, the core's slot 70, (bool in), ret 4: in or out of the
+// occupant manager (0x00B43D0C), as the flag 1 of +0x33 says it is. AL 1
+// when already so; AL 0 without the manager. Out: when in the view (flag
+// 2), each model taken off the view 0x00B43DD0 (when there is one) and the
+// flag 2 cleared (the occupant part's slot 31); the manager's slot 21
+// (part, 0, 0), the flag 1 cleared, AL 1. In: the first model's box into
+// +0x170; the manager's slot 20 (part, 0): its AL 0 answers 0, else the
+// flag 1 set (slot 29), AL 1.
+std::uint8_t __fastcall SetInOccupantManager(char* self, void*, std::uint8_t in)
+{
+    static bool logged;
+    FirstCall("SetInOccupantManager", logged);
+    const std::uint8_t flags = At<std::uint8_t>(self, field::kFlags33);
+    const std::uint8_t was = flags & 1;
+    if (was == in)
+        return 1;
+    void* manager = Global<void*>(addr::SC4_NetworkService);
+    if (!manager)
+        return 0;
+    char* const part = self + field::kVtable4;
+    if (was) {
+        if (flags & 2) {
+            if (Global<void*>(addr::SC4_View43DD0))
+                for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+                    if (char* const model = *it) {
+                        void* const view = Global<void*>(addr::SC4_View43DD0);
+                        Virtual<std::uint32_t>(view, models::kRemove, Virtual<void*>(model, models::kDrawable));
+                    }
+            Virtual<std::uint32_t>(part, models::kClearFlag, 2u);
+            manager = Global<void*>(addr::SC4_NetworkService);
+        }
+        Virtual<std::uint32_t>(manager, models::kManagerRemove, part, 0u, 0u);
+        Virtual<std::uint32_t>(part, models::kClearFlag, 1u);
+        return 1;
+    }
+    char** const begin = At<char**>(self, models::kBegin);
+    if (begin != At<char**>(self, models::kEnd) && *begin) {
+        if (char* const drawable = VirtualBaseOf(*begin)) {
+            Virtual<std::uint32_t>(drawable, models::kGetBox, self + models::kBox);
+            manager = Global<void*>(addr::SC4_NetworkService);
+        }
+    }
+    if (!Virtual<std::uint8_t>(manager, models::kManagerInsert, part, 0u))
+        return 0;
+    Virtual<std::uint32_t>(part, models::kSetFlag, 1u);
+    return 1;
+}
+
+// 0x00507F70, the core's slot 71, (bool shown), ret 4: the models into or
+// out of the view 0x00B43DD0, as the flag 2 of +0x33 says they are. AL 1
+// when already so; AL 0 without the view. Out: each model off the view
+// (slot 29), the flag 2 cleared, AL 1. In: into the occupant manager first
+// (slot 70 with 1) when not in it; still not in it: AL 0. Each model gets
+// the fade +0x1B0 (the smoothed value, rounded to a float) as its alpha
+// (slot 18 (1, alpha) below 1, else (0, 1)) and goes into the view (slot
+// 28); the first refusal ends it with AL 0 and the flag left clear. All in
+// (or no models): the flag 2 set, and AL 0 all the same.
+std::uint8_t __fastcall SetModelsInView(char* self, void*, std::uint8_t shown)
+{
+    static bool logged;
+    FirstCall("SetModelsInView", logged);
+    const std::uint8_t flags = At<std::uint8_t>(self, field::kFlags33);
+    const std::uint8_t was = (flags >> 1) & 1;
+    if (was == shown)
+        return 1;
+    if (!Global<void*>(addr::SC4_View43DD0))
+        return 0;
+    char* const part = self + field::kVtable4;
+    if (was) {
+        for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+            if (char* const model = *it) {
+                void* const view = Global<void*>(addr::SC4_View43DD0);
+                Virtual<std::uint32_t>(view, models::kRemove, Virtual<void*>(model, models::kDrawable));
+            }
+        Virtual<std::uint32_t>(part, models::kClearFlag, 2u);
+        return 1;
+    }
+    if (!(flags & 1))
+        Virtual<std::uint32_t>(self, models::kSetInManager, 1u);
+    if (!(At<std::uint8_t>(self, field::kFlags33) & 1))
+        return 0;
+    const float alpha =
+        static_cast<float>(CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, self + field::kFade1B0));
+    bool ok = true;
+    for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it) {
+        if (!ok)
+            return 0;
+        char* const model = *it;
+        if (!model)
+            continue;
+        if (alpha < Global<float>(addr::SC4_FloatOneA81228))
+            Virtual<std::uint32_t>(model, models::kAlpha, 1u, alpha);
+        else
+            Virtual<std::uint32_t>(model, models::kAlpha, 0u, 1.0f);
+        void* const view = Global<void*>(addr::SC4_View43DD0);
+        ok = Virtual<std::uint8_t>(view, models::kInsert, Virtual<void*>(model, models::kDrawable)) != 0;
+    }
+    if (ok)
+        Virtual<std::uint32_t>(part, models::kSetFlag, 2u);
+    return 0;
+}
+
+// 0x00508610, the core's slot 100, (bool moved, bool changed), ret 8: the
+// view after a move. The first model's box into +0x170; when the occupant
+// part's flag 4 test (slot 32) answers: in the view, each model moved
+// (the view's slot 30) or else, changed, changed (slot 31 with 3), and
+// when in the manager its slot 24 (part, 0); not in the view: the manager's
+// slot 24 when in it, else slot 70 with 1, then slot 71 with 1 when in it.
+// Then the timer +0x1C0. EAX is the status word's in the game (no answer).
+void __fastcall UpdateView(char* self, void*, std::uint8_t moved, std::uint8_t changed)
+{
+    static bool logged;
+    FirstCall("UpdateView", logged);
+    FirstModelBox(self);
+    char* const part = self + field::kVtable4;
+    if (Virtual<std::uint8_t>(part, models::kTestFlag, 4u)) {
+        const std::uint8_t flags = At<std::uint8_t>(self, field::kFlags33);
+        if (flags & 2) {
+            for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it) {
+                char* const model = *it;
+                if (!model)
+                    continue;
+                if (moved) {
+                    void* const view = Global<void*>(addr::SC4_View43DD0);
+                    Virtual<std::uint32_t>(view, models::kMove, Virtual<void*>(model, models::kDrawable));
+                } else if (changed) {
+                    void* const view = Global<void*>(addr::SC4_View43DD0);
+                    Virtual<std::uint32_t>(view, models::kChange, Virtual<void*>(model, models::kDrawable), 3u);
+                }
+            }
+            if (At<std::uint8_t>(self, field::kFlags33) & 1)
+                Virtual<std::uint32_t>(Global<void*>(addr::SC4_NetworkService), models::kManagerMove, part, 0u);
+        } else {
+            if (flags & 1)
+                Virtual<std::uint32_t>(Global<void*>(addr::SC4_NetworkService), models::kManagerMove, part, 0u);
+            else
+                Virtual<std::uint32_t>(self, models::kSetInManager, 1u);
+            if (At<std::uint8_t>(self, field::kFlags33) & 1)
+                Virtual<std::uint32_t>(self, models::kSetInView, 1u);
+        }
+    }
+    TimerEvent(self);
+}
+
+// 0x00508D70, the core's slot 120, (seconds), ret 4: AL 0 with the automata
+// flag 1 (slot 31); else slot 9 with 0 when in the view, the first model's
+// box into +0x170, the manager's slot 24 (part, 0) when in it, the timer
+// +0x1C0; AL 1.
+std::uint8_t __fastcall LightFrame(char* self, void*, float)
+{
+    static bool logged;
+    FirstCall("LightFrame", logged);
+    if (Virtual<std::uint8_t>(self, slot::kCheckFlag, 1u))
+        return 0;
+    if (At<std::uint8_t>(self, field::kFlags33) & 2)
+        Virtual<std::uint32_t>(self, models::kSlot9, 0u);
+    FirstModelBox(self);
+    if (At<std::uint8_t>(self, field::kFlags33) & 1)
+        Virtual<std::uint32_t>(Global<void*>(addr::SC4_NetworkService), models::kManagerMove,
+                               self + field::kVtable4, 0u);
+    TimerEvent(self);
+    return 1;
+}
+
+// 0x00509660, the core's slot 74, (zoom, rotation), ret 8: each model's
+// slot 8 (zoom, rotation), the level of detail.
+void __fastcall SetZoomAndRotation(char* self, void*, std::uint32_t zoom, std::uint32_t rotation)
+{
+    static bool logged;
+    FirstCall("SetZoomAndRotation", logged);
+    for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+        if (char* const model = *it)
+            Virtual<std::uint32_t>(model, models::kZoomRotation, zoom, rotation);
+}
+
+// 0x0050D3C0, the core's slot 98: out of the view (slot 71 with 0) when in
+// it, the effect part +0x12C let go (SC4EffectPartB::Attach with 0), each
+// model released through its virtual base, the models and their keys
+// emptied, slot 106; AL 1.
+std::uint8_t __fastcall ReleaseCoreModels(char* self, void*)
+{
+    static bool logged;
+    FirstCall("ReleaseCoreModels", logged);
+    if (At<std::uint8_t>(self, field::kFlags33) & 2)
+        Virtual<std::uint32_t>(self, models::kSetInView, 0u);
+    CallThis<void>(addr::SC4EffectPartB_Attach, self + models::kEffectPart, static_cast<void*>(nullptr));
+    for (char** it = At<char**>(self, models::kBegin); it != At<char**>(self, models::kEnd); ++it)
+        if (char* const model = *it)
+            ReleaseVirtual(model);
+    At<char*>(self, models::kEnd) = At<char*>(self, models::kBegin);
+    At<char*>(self, models::kKeysEnd) = At<char*>(self, field::kModelKeys);
+    Virtual<std::uint32_t>(self, models::kSlot106);
+    return 1;
+}
+
+// 0x0050B400, on the core (model), ret 4: the model taken off the models.
+// The attachments +0x18C let go (their slot 2 with 0) when bound to the
+// first model's drawable; out of the view (slot 71 with 0) while there are
+// models and it is in it; every entry equal to the model erased, the effect
+// part let go when on its drawable, the model released through its virtual
+// base (no null test: a null model in the models is the game's crash too);
+// back into the view (slot 71 with 1) when it was and models are left; slot
+// 106; AL 0.
+std::uint8_t __fastcall RemoveCoreModel(char* self, void*, char* model)
+{
+    static bool logged;
+    FirstCall("RemoveCoreModel", logged);
+    char** const begin = At<char**>(self, models::kBegin);
+    if (begin != At<char**>(self, models::kEnd)) {
+        char* const first = *begin ? VirtualBaseOf(*begin) : nullptr;
+        char* const attachments = self + models::kAttachments;
+        if (Virtual<char*>(attachments, models::kAttachedTo) == first)
+            Virtual<std::uint32_t>(attachments, models::kAttach, 0u);
+    }
+    const std::uint8_t shown = (At<std::uint8_t>(self, field::kFlags33) >> 1) & 1;
+    if (shown && At<char**>(self, models::kBegin) != At<char**>(self, models::kEnd))
+        Virtual<std::uint32_t>(self, models::kSetInView, 0u);
+    char** it = At<char**>(self, models::kBegin);
+    while (it != At<char**>(self, models::kEnd)) {
+        char* const entry = *it;
+        if (entry != model) {
+            ++it;
+            continue;
+        }
+        char** const next = it + 1;
+        char** const end = At<char**>(self, models::kEnd);
+        if (next != end)
+            std::memmove(it, next, static_cast<std::size_t>(reinterpret_cast<char*>(end) - reinterpret_cast<char*>(next)));
+        At<char**>(self, models::kEnd) = At<char**>(self, models::kEnd) - 1;
+        char* const drawable = entry ? VirtualBaseOf(entry) : nullptr;
+        if (At<char*>(self, models::kEffectPart) == drawable)
+            CallThis<void>(addr::SC4EffectPartB_Attach, self + models::kEffectPart, static_cast<void*>(nullptr));
+        ReleaseVirtual(entry);
+    }
+    if (shown && At<char**>(self, models::kBegin) != At<char**>(self, models::kEnd))
+        Virtual<std::uint32_t>(self, models::kSetInView, 1u);
+    Virtual<std::uint32_t>(self, models::kSlot106);
+    return 0;
+}
+
+// 0x0050E4D0, on the core (const key*), ret 4: a model from a key, or null.
+// Null for a key whose third word is 0; the key kept as the start +0x11C
+// when none is; out of the view while it is in it (slot 71 with 0); the
+// model by SC4::GetKeyedResource: its drawable's owner (slot 4) the
+// occupant part, its render flags (slot 14) 1, the camera's zoom and
+// rotation (its slot 8), its matrix (0x005094A0), into the models and the
+// key into the keys (SC4KeyVector::PushBack); back into the view when it
+// was; slot 106. The model is the factory's (held once, by the models).
+char* __fastcall MakeCoreModel(char* self, void*, const std::uint32_t* key)
+{
+    static bool logged;
+    FirstCall("MakeCoreModel", logged);
+    char* model = nullptr;
+    if (!key[2])
+        return nullptr;
+    if (!At<std::uint32_t>(self, models::kStartSet)) {
+        At<std::uint32_t>(self, models::kStartKey) = key[0];
+        At<std::uint32_t>(self, models::kStartKey + 4) = key[1];
+        At<std::uint32_t>(self, models::kStartSet) = key[2];
+        At<std::uint32_t>(self, models::kStartAgain) = key[2];
+    }
+    const std::uint8_t shown = (At<std::uint8_t>(self, field::kFlags33) >> 1) & 1;
+    if (shown)
+        Virtual<std::uint32_t>(self, models::kSetInView, 0u);
+    if (CallCdecl<std::uint8_t>(addr::SC4_GetKeyedResource, key, &model)) {
+        char* const drawable = Virtual<char*>(model, models::kDrawable);
+        Virtual<std::uint32_t>(drawable, models::kSetOwner, self + field::kVtable4);
+        Virtual<std::uint32_t>(drawable, models::kRenderFlags, 1u);
+        ZoomAndRotate(model);
+        CallThis<void>(addr::cSC4AutomatonCore_PlaceModel, self, model ? VirtualBaseOf(model) : nullptr);
+        std::uint8_t allocator = 0;
+        PushModel(self, model, &allocator);
+        CallThis<void>(addr::SC4KeyVector_PushBack, self + field::kModelKeys, key);
+    }
+    if (shown)
+        Virtual<std::uint32_t>(self, models::kSetInView, 1u);
+    Virtual<std::uint32_t>(self, models::kSlot106);
+    return model;
+}
+
+// 0x0050E8B0, the core's slot 97: the models made, once. With models
+// already: only slot 83 (0) and slot 106, AL 0. Else the start key pushed
+// onto the keys when there are none and it is set; a model per key
+// (SC4::GetKeyedResource; the first failure answers AL 0 at once, the
+// models made so far kept) pushed onto the models; for the first key the
+// radius +0x7C half the box's z extent (the box starting as (1, 1, 1),
+// (0, 0, 0)), 32 when above 32; each model's alpha (slot 18 (1, 0)), its
+// matrix (0x005094A0), owner, render flags 3, zoom and rotation. Then the
+// models by index (slot 99) of the property 0xCC21420D, the ones from 1 to
+// 3, each let go of at once (slot 99 holds one more). Slot 83 (0), slot
+// 106; AL whether a model was made.
+std::uint8_t __fastcall CreateModels(char* self, void*)
+{
+    static bool logged;
+    FirstCall("CreateModels", logged);
+    std::uint8_t made = 0;
+    char* model = nullptr;
+    if (At<char**>(self, models::kBegin) == At<char**>(self, models::kEnd)) {
+        if (At<char*>(self, field::kModelKeys) == At<char*>(self, models::kKeysEnd) &&
+            At<std::uint32_t>(self, models::kStartSet))
+            CallThis<void>(addr::SC4KeyVector_PushBack, self + field::kModelKeys, self + models::kStartKey);
+        for (char* key = At<char*>(self, field::kModelKeys); key != At<char*>(self, models::kKeysEnd); key += 12) {
+            std::uint32_t copy[3];
+            std::memcpy(copy, key, sizeof copy);
+            if (!CallCdecl<std::uint8_t>(addr::SC4_GetKeyedResource, copy, &model))
+                return 0;
+            PushModel(self, model, &made);
+            char* const drawable = Virtual<char*>(model, models::kDrawable);
+            if (key == At<char*>(self, field::kModelKeys)) {
+                float box[6] = {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f};
+                Virtual<std::uint32_t>(drawable, models::kGetBox, box);
+                const double radius = (static_cast<double>(box[5]) - static_cast<double>(box[2])) *
+                                      static_cast<double>(Global<float>(addr::SC4_FloatHalf));
+                At<float>(self, field::kRadius) = static_cast<float>(radius);
+                if (radius > static_cast<double>(Global<float>(addr::cSC4CitySituationManager_EdgeReach)))
+                    At<float>(self, field::kRadius) = 32.0f;
+            }
+            Virtual<std::uint32_t>(model, models::kAlpha, 1u, 0.0f);
+            CallThis<void>(addr::cSC4AutomatonCore_PlaceModel, self, drawable);
+            Virtual<std::uint32_t>(drawable, models::kSetOwner, self + field::kVtable4);
+            Virtual<std::uint32_t>(drawable, models::kRenderFlags, 3u);
+            ZoomAndRotate(model);
+            made = 1;
+        }
+        struct {
+            std::uint32_t* begin;
+            std::uint32_t* end;
+            std::uint32_t* capacity;
+        } list = {};
+        void* const holder = Virtual<void*>(self + field::kVtable4, models::kProperties);
+        if (CallCdecl<std::uint8_t>(addr::SC4_GetPropertyUint32Vector, holder, models::kAttachmentModels, &list)) {
+            std::uint32_t* const end = list.end;
+            for (std::uint32_t* it = list.begin; it != end; ++it) {
+                const std::uint32_t index = *it;
+                if (index == 0 || index >= 4)
+                    continue;
+                char* extra = nullptr;
+                Virtual<std::uint8_t>(self, slot::kMakeModel, index, &extra);
+                if (extra)
+                    ReleaseVirtual(extra);
+            }
+        }
+        if (list.begin)
+            CallCdecl<void>(addr::SC4_Free, static_cast<void*>(list.begin));
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot83, 0.0f);
+    Virtual<std::uint32_t>(self, models::kSlot106);
+    return made;
+}
+
+// 0x0050EB20, the core's slot 99, (index, model* out), ret 8: a model by
+// index: the resource key of the property 0x09C80417, 0xC9E69AF6 or
+// 0xEC214180 for 1 to 3 (any other index is the property itself;
+// SC4::GetPropertyResourceKey on the occupant part's holder): none, AL 0
+// with the out left alone. Else the model (0x0050E4D0) into the out (null
+// too): null AL 0; else one more reference to it (its virtual base's slot
+// 1), AL 1.
+std::uint8_t __fastcall MakeModelByIndex(char* self, void*, std::uint32_t index, char** out)
+{
+    static bool logged;
+    FirstCall("MakeModelByIndex", logged);
+    std::uint32_t key[3] = {};
+    std::uint32_t property = index;
+    if (index == 1)
+        property = 0x09C80417;
+    else if (index == 2)
+        property = 0xC9E69AF6;
+    else if (index == 3)
+        property = 0xEC214180;
+    void* const holder = Virtual<void*>(self + field::kVtable4, models::kProperties);
+    if (!CallCdecl<std::uint8_t>(addr::SC4_GetPropertyResourceKey, holder, property, static_cast<void*>(key)))
+        return 0;
+    char* const model = CallThis<char*>(addr::cSC4AutomatonCore_MakeModel, self, static_cast<const std::uint32_t*>(key));
+    *out = model;
+    if (!model)
+        return 0;
+    AddRef(VirtualBaseOf(model));
+    return 1;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -6935,6 +7369,20 @@ const Detour kVehicleFrame[] = {
     OPENSC4_DETOUR(addr::cSC4Vehicle_DriveFrame, VehicleDriveFrame),
 };
 
+// Part ad1.
+const Detour kCoreModels[] = {
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SetInOccupantManager, SetInOccupantManager),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SetModelsInView, SetModelsInView),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_UpdateView, UpdateView),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_LightFrame, LightFrame),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_SetZoomAndRotation, SetZoomAndRotation),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_ReleaseModels, ReleaseCoreModels),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_RemoveModel, RemoveCoreModel),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_MakeModel, MakeCoreModel),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_CreateModels, CreateModels),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_MakeModelByIndex, MakeModelByIndex),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -6946,7 +7394,8 @@ bool InstallObject(registry::Mode)
            InstallList(kVehicleMove, sizeof kVehicleMove / sizeof kVehicleMove[0], "vehicle move") &&
            InstallList(kVehicleLanes, sizeof kVehicleLanes / sizeof kVehicleLanes[0], "vehicle lanes") &&
            InstallList(kVehicleQueues, sizeof kVehicleQueues / sizeof kVehicleQueues[0], "vehicle queues") &&
-           InstallList(kVehicleFrame, sizeof kVehicleFrame / sizeof kVehicleFrame[0], "vehicle frame");
+           InstallList(kVehicleFrame, sizeof kVehicleFrame / sizeof kVehicleFrame[0], "vehicle frame") &&
+           InstallList(kCoreModels, sizeof kCoreModels / sizeof kCoreModels[0], "core models");
 }
 
 const bool g_registered[] = {
@@ -6972,8 +7421,10 @@ const bool g_registered[] = {
                         "searches, and the models (12 detours, part vb6); cSC4Vehicle's queues: the occupants it has been "
                         "on with the +0x27C deque's push and pops, the point behind and its crossing test, entering "
                         "the next occupant, the wall and cell tests, the collisions, entering a state, the damage and "
-                        "the impact (14 detours, part vb7); cSC4Vehicle's driven frame (1 detour, part vb8; "
-                        "src/core/automata_vehicle.cpp)",
+                        "the impact (14 detours, part vb7); cSC4Vehicle's driven frame (1 detour, part vb8); the "
+                        "automata core's models: making them by key and by index, releasing and removing them, the "
+                        "occupant manager and the view in and out, the view after a move, the light frame and the "
+                        "level of detail (10 detours, part ad1; src/core/automata_vehicle.cpp)",
                         false, InstallObject}),
 };
 

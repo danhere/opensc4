@@ -10128,7 +10128,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* model)"
 expect = "51 53 55 56 8B F1 8B 86"
-source = "Name ours. Ret 4: the model taken off the core's models (+0x110..+0x114) and released when there. Called by address from src/core/automata_vehicle.cpp (part vb6)."
+source = "Name ours. Ret 4, AL 0: the model taken off the core's models (+0x110..+0x114) and released when there: the attachments +0x18C let go (their slot 2 with 0) when bound to the first model; out of the view (slot 71 with 0) around the erase when in it and there are models; the effect part +0x12C let go when on the model's drawable; slot 106. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1); called by address from part vb6."
 
 [[entry]]
 name = "cSC4Vehicle::LightsLeast"
@@ -10443,3 +10443,101 @@ name = "cSC4Vehicle::HazeName"
 address = 0x00B0A0D8
 kind = "data"
 source = "Name ours. A pointer to the name haze (0x00A9D0F4) slot 115 starts (slot 44) and stops (slot 45) the effect by. Called by address from src/core/automata_vehicle.cpp (part vb8)."
+
+# Part ad1: the automata core's models (src/core/automata_vehicle.cpp, docs/automata.md "AD1").
+
+[[entry]]
+name = "cSC4AutomatonCore::SetInOccupantManager"
+address = 0x00507E60
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, bool in)"
+expect = "53 56 8B F1 8A 56 33 8A"
+source = "Name ours. Core slot 70, ret 4: in or out of the occupant manager 0x00B43D0C by the flag 1 of +0x33; AL 1 when already so, AL 0 without the manager. Out: in the view (flag 2) each model off the view 0x00B43DD0 (slot 0x74) and the flag 2 cleared (the occupant part's slot 0x7C), the manager's slot 0x54 (part, 0, 0), the flag 1 cleared, AL 1. In: the first model's bounding box (its drawable's slot 0x20) into +0x170, the manager's slot 0x50 (part, 0); AL its answer, the flag 1 set (slot 0x74) when in. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SetModelsInView"
+address = 0x00507F70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, bool shown)"
+expect = "51 8A 54 24 08 53 57 8B"
+source = "Name ours. Core slot 71, ret 4: the models into or out of the view 0x00B43DD0 by the flag 2 of +0x33; AL 1 when already so, AL 0 without the view. Out: each model off (slot 0x74), the flag 2 cleared, AL 1. In: slot 70 with 1 when not in the manager (AL 0 when still not), each model's alpha from the fade +0x1B0 (model slot 0x48: (1, alpha) below 1, else (0, 1)) and InsertModel (slot 0x70) until one refuses; the flag 2 set when all went in; AL 0 on this path. AL only. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::UpdateView"
+address = 0x00508610
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, bool moved, bool changed)"
+expect = "56 8B F1 8B 86 10 01 00"
+source = "Name ours. Core slot 100, ret 8: the first model's bounding box into +0x170; when the occupant part's flag 4 test (slot 0x80) answers: in the view each model MoveModel (0x78) when moved, else ChangeModel (0x7C, with 3) when changed, and the occupant manager's slot 0x60 (part, 0) when in it; not in the view: slot 0x60 when in the manager, else slot 70 with 1, then slot 71 with 1 when in it. The timer +0x1C0 above 100: slot 102 (9, 0) and zeroed. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::LightFrame"
+address = 0x00508D70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "56 8B F1 8B 06 6A 01 FF"
+source = "Name ours. Core slot 120, ret 4: AL 0 with the automata flag 1 (slot 31); else slot 9 with 0 when in the view, the first model's bounding box into +0x170, the occupant manager's slot 0x60 when in it, the timer +0x1C0 (as slot 100); AL 1. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SetZoomAndRotation"
+address = 0x00509660
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int zoom, int rotation)"
+expect = "56 57 8B F9 8B B7 10 01"
+source = "Name ours. Core slot 74, ret 8: each model's slot 8 (+0x20) with the zoom and rotation (the level of detail). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::PlaceModel"
+address = 0x005094A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* drawable)"
+expect = "83 EC 5C 56 8B F1 32 C0"
+source = "Name ours. Ret 4: one model's matrix: the rotation from the heading (0x0080B830) and the position (the drawable's slots 9 and 10). Left the game's (part AD2's transforms). Called by address from src/core/automata_vehicle.cpp (part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::ReleaseModels"
+address = 0x0050D3C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 F6 46 33 02 57"
+source = "Name ours. Core slot 98: slot 71 with 0 when in the view, the effect part +0x12C let go (SC4EffectPartB::Attach with 0), each model released through its virtual base, the models and the keys +0xC0 emptied, slot 106; AL 1. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::MakeModel"
+address = 0x0050E4D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint32_t* key)"
+expect = "83 EC 08 55 8B 6C 24 10"
+source = "Name ours. Ret 4: a model from a key or null (null when the key's third word is 0). The key kept at +0x11C (and its third word at +0x128) when +0x124 is 0; slot 71 with 0 while in the view; SC4::GetKeyedResource: the drawable's owner (slot 4) the occupant part, render flags (slot 14) 1, the camera's zoom and rotation (0x007F66A0) to model slot 8, the matrix (0x005094A0), pushed onto the models +0x110 and the key onto +0xC0; slot 71 with 1 when it was in the view; slot 106. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::CreateModels"
+address = 0x0050E8B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 40 53 55 56 57 8B"
+source = "Name ours. Core slot 97: with no models, the start key +0x11C pushed onto the keys when they are empty and it is set; a model per key (SC4::GetKeyedResource; a failure answers AL 0 at once) pushed onto +0x110; the first one's bounding box gives the radius +0x7C (half the z extent, 32 above 32); each model's alpha (1, 0), matrix (0x005094A0), owner, render flags 3, zoom and rotation; the models by index (slot 99) listed in the property 0xCC21420D (1 to 3), each released at once. Then slot 83 (0) and slot 106; AL whether a model was made. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::MakeModelByIndex"
+address = 0x0050EB20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t index, void** out)"
+expect = "83 EC 0C 8B 44 24 10 53"
+source = "Name ours. Core slot 99, ret 8: the resource key of the property 0x09C80417, 0xC9E69AF6 or 0xEC214180 for the index 1 to 3 (else the index is the property) from the occupant part's holder (SC4::GetPropertyResourceKey); none: AL 0, the out left alone. Else the model (0x0050E4D0) into the out; AL 1 and one more reference (the virtual base's slot 1) when not null. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Float100"
+address = 0x00A952D8
+kind = "data"
+source = "Name ours. float 100.0: the timer +0x1C0 above it sends the automaton event 9 (core slots 100 and 120)."
