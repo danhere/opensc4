@@ -17,7 +17,7 @@ The framework is not one block. The linker kept each library's object files toge
 | 0x0087B0DC-0x0087B212 | The app base class and the exe's root director |
 | 0x0087B23D-0x0087C114 | The COM object and the library record (60 functions) |
 | 0x00893D2C-0x008AE76D | Fonts: the font system, the font, the glyph blitter, and under them T2K, a third-party font scaler ([fonts.md](fonts.md)) |
-| 0x008FF000-0x0090AD00 | An HTML parser (not framework) |
+| 0x008F673E-0x0090AD25 | The HTML viewer: its window, Internet service, cookies and file cache, then the parser and layout (not framework; [html.md](html.md)) |
 | 0x0090AD00-0x0090CC00 | Picture codecs' director and factories (not framework) |
 | 0x0090CE94-0x0090D0A0 | The STL allocator (0x0090CF54 allocate, 0x0090CF63 free) |
 | 0x0090D96B-0x0090DDD5 | Reference-count base, a list of interface pointers (vtable 0x00ACE650) |
