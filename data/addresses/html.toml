@@ -1,0 +1,289 @@
+# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). Nothing here is hooked yet.
+
+[[entry]]
+name = "HTMLDirector::Construct"
+address = 0x008F673E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 47 7A 01 00"
+source = "Name ours, not hooked. The HTML viewer's COM director (vtables 0x00ACCC58 and 0x00ACCC28, ID 0x649B0FBE from 0x008F6776), made once by its getter 0x008F677C. Adds the second, empty director (getter 0x008FC398) to its list and registers class 0xAA12E5F5, the HTML window (factory 0x008FBDBD). Below the survey's 0x008F6800 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLDirector::Get"
+address = 0x008F677C
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "F6 05 3C 24 B6 00 01 75"
+source = "Name ours, not hooked. Static getter of the HTML director at 0x00B623F0 (guard bit at 0x00B6243C), constructing it on first use (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::Create"
+address = 0x008FBDBD
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "68 68 04 00 00 E8 19 98"
+source = "Name ours, not hooked. Factory of class 0xAA12E5F5: allocates 0x468 bytes, runs the constructor 0x008FBC38 and returns the window's interface 0x4A11FD4A at +0xD8 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::Construct"
+address = 0x008FBC38
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 55 56 57 8B F1 E8 F5"
+source = "Name ours, not hooked. Class 0xAA12E5F5, 0x468 bytes: the framework window's constructor (0x0099D938), then vtables 0x00ACD0D8 (151 slots), 0x00ACD050 at +0xD8 (34) and 0x00ACD040 at +0xDC (4); background 0xC0C0C0 (0x008FA62A). Plain ret (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::QueryInterface"
+address = 0x008FA40C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "55 8B EC 8B 45 08 48 74"
+source = "Name ours, not hooked. Slot 0 of 0x00ACD0D8; `ret 8`. 0x22BA0121 is the window itself, 1 and 0x4A11FD4A the part at +0xD8, 0x452294AA the part at +0xDC; anything else goes to the framework window's (0x0099B774) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::OnCreate"
+address = 0x008FC0F6
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 1C 53 8B"
+source = "Name ours, not hooked. Slot 4 of 0x00ACD0D8; plain ret. Takes three fonts from the window manager, loads `Missing.jpg`, makes a picture reader (class 0xA2FFB5D3, interface 0x02FFBB60), titles the window `HTML Window` and gets the Internet service (or makes class 0x849B190A, interface 0x449B1912) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::ShowHTML"
+address = 0x008FBDE4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* text, void* base_url)"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Name ours, not hooked. `ret 8`. Makes a document (0x1C4 bytes, 0x00905AC5), parses the text with it (document slot 8) and on success replaces the shown document, sets the scroll area and lays it out (0x008FA6F3); starts a 500 ms timer (0x008FA31D) when the document's slot 20 asks for one. Called by slot 22 of the +0xD8 interface and by the service's reply (0x008FBFE5) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::SetFontSizes"
+address = 0x008FB66F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const uint32_t* sizes)"
+expect = "8B 44 24 04 81 C1 2C 01"
+source = "Name ours, not hooked. Slot 33 (+0x84) of the interface at +0xD8 (vtable 0x00ACD050), so this is the window +0xD8; `ret 4`. Copies the seven HTML font steps to +0x12C; the text page dialog passes SC4UI::TextPageFontSizes (0x00AB4AD0) (docs/html.md, h1)."
+
+[[entry]]
+name = "InternetService::Construct"
+address = 0x008F9BED
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "55 8B EC 51 53 56 8B F1"
+source = "Name ours, not hooked. 0x60 bytes, built by the app (0x0045101C) when COM has no class 0x849B190A: a system service 0x449B1939 with vtables 0x00ACCEC8, 0x00ACCE48 at +4, 0x00ACCE10 at +8, 0x00ACCDF8 at +0xC. Makes the file cache (0x008FD389) at +0x4C, the cookie store (0x008F9BAD) at +0x58 and two objects of the network layer (0x00818210, 0x00813D70). Plain ret (docs/html.md, h6)."
+
+[[entry]]
+name = "InternetService::Request"
+address = 0x008F833D
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* url, void* target, uint32_t mode, uint32_t id, uint32_t flags)"
+expect = "55 8B EC 83 EC 54 53 8B"
+source = "Name ours, not hooked. Slot 16 of the vtable at +4 (0x00ACCE48), so this is the service +4; `ret 0x14`. Offers the URL to each registered scheme handler (the game's sc4 link handler among them) and answers the target through it; otherwise passes it on by scheme (2, 4, 5, 7) to the main part's slots 5, 4, 6 and 7. Returns the request number, 0 when nothing took it (docs/html.md, h6)."
+
+[[entry]]
+name = "CookieStore::Construct"
+address = 0x008F9BAD
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 33 DB 8D 4E"
+source = "Name ours, not hooked. 0x3C bytes, vtable 0x00ACCF68 (20 slots); file name `CookieData.ini`, buffer size 0x4000. Plain ret. Never ran in the coverage runs (docs/html.md, h6)."
+
+[[entry]]
+name = "CookieStore::ParseSetCookie"
+address = 0x008F94F9
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* cookie, void* url)"
+expect = "55 8D 6C 24 90 81 EC A8"
+source = "Name ours, not hooked. Slot 14 of 0x00ACCF68; `ret 8`. Splits a cookie at `;` and reads the attributes Comment, CommentURL, Domain, Path, Secure, Version, Discard, Expires, Max-Age and Port, defaulting domain and path from the URL (docs/html.md, h6)."
+
+[[entry]]
+name = "FileCache::Construct"
+address = 0x008FD389
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 83 66 08 00 8D"
+source = "Name ours, not hooked. 0x5C bytes, vtable 0x00ACD418 (28 slots): `FileCache.ini` in `Maxis Network Cache\\`, limits 3,000,000, 500,000 and 432,000 at +0x48 to +0x50. Plain ret (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLDocument::Construct"
+address = 0x00905AC5
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours, not hooked. 0x1C4 bytes, vtables 0x00ACD938 (24 slots) and 0x00ACD928 at +4. The first one builds the tag table (0x00902D4F), the tag sets (0x008FF1B9) and four colours; each sets the default font steps (0x00ACD4A0: 8, 10, 12, 14, 18, 24, 36) and the faces arial and courier new. Plain ret (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::Parse"
+address = 0x00908122
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* text)"
+expect = "56 FF 74 24 08 8B F1 8D"
+source = "Name ours, not hooked. Slot 8 of 0x00ACD938; `ret 4`. Takes the page text, reads the first text and tag, then by the tag: `<!DOCTYPE` checks the DTD (slot 9), `<HTML` parses the page (0x009080A2); anything else shows the whole text as one plain text run (slot 11, 0x00905985) (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ReadText"
+address = 0x008FFAC2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 51 56 57 8B F9"
+source = "Name ours, not hooked. Plain ret. The tokenizer's text step: collects the text from the position at +0x194 up to the next `<`, skipping `<!-- -->` comments; true when it found any (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::NextTag"
+address = 0x00905CF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, bool stop_at_text)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours, not hooked. `ret 4`. The tokenizer's tag step: text first (0x008FFAC2; ID 3 when stop_at_text and there was some), then the tag up to `>`, its name looked up in the tag table (ID at +0xE8; 1 at the end of the text) and its attributes split (0x009056DA) (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseAttributes"
+address = 0x009056DA
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "55 8B EC 83 EC 74 56 8B"
+source = "Name ours, not hooked. Plain ret. Splits the current tag's text into name and value pairs (values quoted with \" or ', or bare) and keeps them in the document's attribute map (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLTags::Init"
+address = 0x00902D4F
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 3C 53 56"
+source = "Name ours, not hooked. Builds the static tag table (10.6 KB of code): about 160 names, each start and end tag with its own ID (!DOCTYPE 2, HTML 4, BODY 8, FONT 0x20, A 0x36, IMG 0x38, BR 0x3B, P 0x65, TABLE 0x78, TD 0x8F, TR 0x93). Called once from the document's constructor (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLEntities::Lookup"
+address = 0x00901222
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* out, const void* name)"
+expect = "55 8B EC 83 EC 48 53 8B"
+source = "Name ours, not hooked. `ret 8`. The text of a named entity (`&name;`); on first use builds the entity map at +0xC (quot, amp, nbsp and the Latin-1 names; 6.9 KB, nearly all of it the map). The text node's constructor 0x00908CA6 calls it for each `&...;` that is not numeric (`&#n;` and `&#xn;` it converts itself) (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseBlock"
+address = 0x00907135
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 56 8B F1 57 8B"
+source = "Name ours, not hooked. `ret 4`. The block tags by the current ID: HR, P, PRE, DL, DIV, BLOCKQUOTE, FORM, TABLE, CENTER, headings, lists; NOSCRIPT, FIELDSET, ADDRESS, DIR and MENU skipped to their end tag. False when the tag is not a block tag (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseInline"
+address = 0x00907CCA
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 56 8B F1 57 8B"
+source = "Name ours, not hooked. `ret 4`. Text (ID 3) becomes a text node (0x008FE6E2); font tags go to 0x0090727D, phrase tags to 0x00906985, A, IMG, BR, SCRIPT, MAP, SPAN and BLINK to 0x00907C3E, form tags to 0x00906E59 (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseBody"
+address = 0x00907E42
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "55 8D 6C 24 88 81 EC F4"
+source = "Name ours, not hooked. Plain ret. The BODY tag's attributes (BACKGROUND, BGCOLOR, LINK, ALINK, VLINK, TEXT, BGPROPERTIES), then block and inline content to `</BODY>` (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseHTML"
+address = 0x009080A2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 6A 44 8B F1 E8 34 D5"
+source = "Name ours, not hooked. Plain ret. Makes the body node (0x44 bytes, 0x00908811) and reads HEAD and BODY (0x00907E42) (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLDocument::ParseTable"
+address = 0x00906F3C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* parent)"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Name ours, not hooked. `ret 4`. The TABLE tag (BORDER, WIDTH, BGCOLOR, CELLPADDING, CELLSPACING) and its rows (0x009064B0); makes the table node (vtable 0x00ACE238) (docs/html.md, h3)."
+
+[[entry]]
+name = "HTMLNode::Construct"
+address = 0x0090847A
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t kind)"
+expect = "8B C1 8B 4C 24 04 89 48"
+source = "Name ours, not hooked. The base of every node in the document's tree: vtable 0x00ACD504 (11 slots: 3 Layout, 4 second layout pass, 5 Draw, 7 hit test), the kind at +4, the box at +0xC. `ret 4` (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLContainerNode::Construct"
+address = 0x008FECBD
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t kind)"
+expect = "56 FF 74 24 08 8B F1 E8"
+source = "Name ours, not hooked. The base of the nodes with children (vtable 0x00ACD5E8, children vector at +0x1C); the per-tag classes' constructors (0x008FECE0 to 0x008FEE36, 0x00908704 to 0x00908811) call it. `ret 4` (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLTextNode::Construct"
+address = 0x00908CA6
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* unknown, void* text, const void* style, uint32_t flags)"
+expect = "55 8B EC 83 EC 64 53 56"
+source = "Name ours, not hooked. A run of text in one font and colour (font at +0x34, colour at +0x38, both from the style): vtables 0x00ACE300 and 0x00ACE2EC at +0x1C. Decodes the entities as it copies the text: named ones through 0x00901222, `&#n;` and `&#xn;` itself. `ret 0x10` (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextNode::Draw"
+address = 0x00909757
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "55 8B EC 83 EC 10 56 57"
+source = "Name ours, not hooked. Slot 5 of 0x00ACE300; `ret 4`. Lays the run out first if needed, then draws each of its laid-out lines (0x18 bytes each) with GZFont DrawString (slot 51, 0x0089A099; docs/fonts.md): the font at +0x34, the colour at +0x38, the clip from the context (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTableNode::Layout"
+address = 0x0090A448
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "55 8B EC 83 EC 3C 53 56"
+source = "Name ours, not hooked. Slot 3 of 0x00ACE238; `ret 4`. Lays out the rows and their cells with the table's padding and spacing (953 bytes, the largest layout function) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLImageNode::DrawImage"
+address = 0x00908FD5
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* rect, void* context)"
+expect = "56 8B 74 24 0C 57 8B F9"
+source = "Name ours, not hooked. `ret 8`. Draws the image node's picture through the window's drawing interface (slot 20 blit), or the stretch blit (renderer.blits) when the box differs from the picture's size. Called by the IMG node's Draw 0x009095E1 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLColor::Parse"
+address = 0x0090AA54
+kind = "function"
+convention = "cdecl"
+signature = "void (void* text, uint32_t* colour)"
+expect = "55 8B EC 83 EC 2C 56 6A"
+source = "Name ours, not hooked. A colour attribute: one of the 16 HTML colour names (BLACK, SILVER, GRAY, WHITE, MAROON, RED, PURPLE, FUCHSIA, GREEN, LIME, OLIVE, YELLOW, NAVY, BLUE, TEAL, AQUA) turned into its `#rrggbb`, then the hex digits (docs/html.md, h5)."

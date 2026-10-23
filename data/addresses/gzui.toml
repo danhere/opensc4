@@ -5668,6 +5668,211 @@ signature = "void* (void* this)"
 expect = "56 8B F1 C7 06 00 00 00"
 source = "Name ours. A reference holder made with the UI script loader (the framework's service 0x5A356E15, interface 0xFA3562FA); destroyed by 0x004495C0. Stays the game's; called by ours."
 
+# Part u13 (src/core/gzui_widgets.cpp, docs/gzui.md): the stock widgets' registrations and GZWinGen's property handler,
+# with the maps, the insert, the formats and the vtable they use.
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterTextTicker"
+address = 0x00951269
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinTextTicker and IGZWinTextTicker into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (speed, frequency, message). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterFolders"
+address = 0x009518A8
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinFolders and IGZWinFolders into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterCustom"
+address = 0x0095195E
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinCustom and IGZWinCustom into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterFlatRect"
+address = 0x00951A14
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinFlatRect and IGZWinFlatRect into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (9: colorleft, colortop, colorright, colorbottom, top, bottom, all, lrb, trb). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterText"
+address = 0x00951C9F
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinText and IGZWinText into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (the alignments, wrapped, autofit and the rest). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterTextEdit"
+address = 0x00952046
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinTextEdit and IGZWinTextEdit into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (26 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterListBox"
+address = 0x00952645
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinListBox and IGZWinListBox into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (7 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterCombo"
+address = 0x00952868
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinCombo and IGZWinCombo into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (4 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterBtn"
+address = 0x009529EF
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinBtn and IGZWinBtn into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (28 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterBMP"
+address = 0x00953056
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinBMP and IGZWinBMP into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (alpha, transparentbkg, edgeimage). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterSlider"
+address = 0x009531A9
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinSlider and IGZWinSlider into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (4 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterScrollbar"
+address = 0x00953330
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinScrollbar and IGZWinScrollbar into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (3 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterLineInput"
+address = 0x00953483
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinLineInput and IGZWinLineInput into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (12 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterSpinner"
+address = 0x009537AA
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinSpinner and IGZWinSpinner into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (11 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterOutline"
+address = 0x00953A9D
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinOutline and IGZWinOutline into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (colordark, colorlight, node). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterGen"
+address = 0x00953BF0
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: SC3WinGen, GZWinGen and IGZWinGen into the table (its slot 3 with a string from SC4String::FromText), the class's handler under its interface (0x0094950A into 0x00B6358C) and its interface under the class (0x004FB6C0 into 0x00B63598), then its property words (18 words). Ours in framework.uiscript.widgets (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GenRead"
+address = 0x009513BC
+kind = "function"
+convention = "cdecl"
+signature = "void (cIGZWin* window, void* properties, bool set)"
+expect = "55 8B EC 83 EC 58 8B 4D"
+source = "Name ours. GZWinGen's property handler (0x00B6358C under 0x5386D516; the dispatcher 0x00957A9B calls it with the byte 1). The window's IGZWinGen (QueryInterface 0x5386D516); with the byte set its 14 flags (0x0094C675, slot 6), the user word (0x10000, slot 19), the background image (the text of 0xF016 as {%x,%x}: 0x0094C4E0, slot 13 with the mode of 0x10001, 0x0094C1A4 and 0x0094C1DA), the pair of 0xF004 (0x0094D55A, slot 26) and a new 8-byte object (slot 7); with it clear every pair, the index in the window's argument slot: the texts of 0x10002 (slot 30) and 0x10003 (slot 29). The interface released, its EAX answered. Ours in framework.uiscript.widgetgen (docs/gzui.md, part u13)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::HandlerInsert"
+address = 0x0094950A
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* map, void* result, const void* pair)"
+expect = "55 8B EC 53 8B D9 8B 0B"
+source = "Name ours. `ret 8`. STLport map<uint32_t, handler>::insert (result: node, inserted), the handler map's. Stays the game's; called by ours."
+
+[[entry]]
+name = "cGZUIScriptWidgets::Handlers"
+address = 0x00B6358C
+kind = "data"
+source = "Name ours. The handler map (STLport map, interface to property handler) the widget registrations fill and the dispatcher 0x00957A9B reads."
+
+[[entry]]
+name = "cGZUIScriptWidgets::Interfaces"
+address = 0x00B63598
+kind = "data"
+source = "Name ours. The interface map (STLport map, class to interface) the widget registrations fill and the dispatcher 0x00957A9B reads."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GenImageFormat"
+address = 0x00AD5418
+kind = "data"
+expect = "7B 25 78 2C 25 78 7D 00"
+source = "Name ours. \"{%x,%x}\", the format GZWinGen's handler 0x009513BC scans its background image's group and instance with."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GenRectFormat"
+address = 0x00AD578C
+kind = "data"
+expect = "28 25 75 2C 25 64 2C 25"
+source = "Name ours. \"(%u,%d,%d,%d,%d)\", the format GZWinGen's handler scans 0x10003 with."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GenPointFormat"
+address = 0x00AD5784
+kind = "data"
+expect = "28 25 75 2C 25 64 29 00"
+source = "Name ours. \"(%u,%d)\", the format GZWinGen's handler scans 0x10002 with."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GenObjectVtable"
+address = 0x00AD53EC
+kind = "data"
+expect = "13 C8 94 00 CE C7 94 00"
+source = "Name ours. The vtable of the 8-byte object GZWinGen's handler gives the window's slot 7 (+4 zeroed)."
+
 # Part u12, slice 3 (src/core/gzui_props.cpp, docs/gzui.md): the property handlers of eight controls, the filler of
 # the variable table's words, and the data they read.
 
