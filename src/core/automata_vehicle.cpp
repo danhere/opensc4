@@ -33,7 +33,9 @@
 // core's model swaps (0x0050E620, slots 19 and 20), SetStart, LeaveState, the
 // animation (slot 103), the one-shot (slots 22 and 119), the fades (33, 83),
 // the position, heading, placement and transforms (8, 14, 16, 75;
-// docs/automata.md "AD2"). The class map is in src/core/automata_vehicle.h and the survey in
+// docs/automata.md "AD2"). ad3: the query tool's highlight model (core
+// slots 126 to 128, the tank's 192 to 197, the effect part's assignment
+// 0x00513FF0; docs/automata.md "AD3"). The class map is in src/core/automata_vehicle.h and the survey in
 // docs/automata.md, "Part vb". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and
 // OPENSC4_AUTOMATA_SKIP (function addresses, hex, eight digits) bisects
@@ -44,7 +46,8 @@
 //   in kLife (vb2), the 13 in kMove (vb3), the 22 in kStates (vb4) and
 //   the 10 in kVehicleMove (vb5), the 12 in kVehicleLanes (vb6), the 14
 //   in kVehicleQueues (vb7), the 1 in kVehicleFrame (vb8), the 10 in
-//   kCoreModels (ad1) and the 14 in kCoreModels2 (ad2) below.
+//   kCoreModels (ad1), the 14 in kCoreModels2 (ad2) and the 10 in
+//   kCoreHighlight (ad3) below.
 //
 // What it does. cSC4Vehicle's factory takes a 0x2B8-byte block from the
 // vehicle pool (0x00B0A0F8; other sizes go to SC4::operator_new) and runs
@@ -7669,6 +7672,336 @@ std::uint8_t __fastcall SetModelTransforms(char* self, void*, const void* transf
 }
 
 // ====================================================================================
+// Part ad3: the query tool's highlight model (the core's slots 126 to 128,
+// the tank's copies of them, slots 192 to 197)
+
+// 0x00513FF0, on an effect part (const part*), ret 4: the part assigned. Its
+// two counted pointers (+0, +4) held anew (slot 1) and the old ones let go
+// (slot 2) when they differ; +8 copied; the vectors +0xC (0x00513810), +0x18
+// (SC4Vector12::Assign), +0x24 (0x00511F00) and +0x30 (SC4IntVector::Assign)
+// assigned; the byte +0x3C copied. A part assigned to itself still assigns
+// its vectors, as the game. EAX the part.
+char* __fastcall AssignEffectPart(char* self, void*, char* other)
+{
+    static bool logged;
+    FirstCall("AssignEffectPart", logged);
+    if (other != self) {
+        char* const now = At<char*>(other, 0);
+        char* const was = At<char*>(self, 0);
+        if (now != was) {
+            if (now)
+                AddRef(now);
+            At<char*>(self, 0) = now;
+            if (was)
+                Release(was);
+        }
+    }
+    if (other + 4 != self + 4) {
+        char* const now = At<char*>(other, 4);
+        char* const was = At<char*>(self, 4);
+        if (now != was) {
+            if (now)
+                AddRef(now);
+            At<char*>(self, 4) = now;
+            if (was)
+                Release(was);
+        }
+    }
+    At<std::uint32_t>(self, 8) = At<std::uint32_t>(other, 8);
+    CallThis<void*>(addr::SC4EffectPart_AssignVector0C, self + 0xC, other + 0xC);
+    CallThis<void*>(addr::SC4Vector12_Assign, self + 0x18, other + 0x18);
+    CallThis<void*>(addr::SC4EffectPart_AssignVector24, self + 0x24, other + 0x24);
+    CallThis<void*>(addr::SC4IntVector_Assign, self + 0x30, other + 0x30);
+    At<std::uint8_t>(self, 0x3C) = At<std::uint8_t>(other, 0x3C);
+    return self;
+}
+
+// What tells the core's highlight functions from the tank's two copies of
+// each: where the model and its effect part are kept, which key and model it
+// is made from and placed by, and the slots that make and remove it.
+struct Highlight {
+    std::size_t model;  // the highlight model
+    std::size_t part;   // its effect part (SC4EffectPartB, 0x40 bytes)
+    std::size_t index;  // the key and the model it follows
+    std::size_t make;   // the slot that makes it
+    std::size_t remove; // the slot that removes it
+    std::uintptr_t lift; // the float the height is lifted by
+    bool tank;
+};
+constexpr Highlight kCoreHighlightAt{models::kHighlight, models::kHighlightPart, 0, models::kMakeHighlight,
+                                   models::kRemoveHighlight, addr::cSC4Demolition_TerrainBoxMargin, false};
+constexpr Highlight kTankHighlight1At{models::kTankHighlight1, models::kTankHighlight1 + 4, 1,
+                                    models::kTankMakeHighlight1, models::kTankRemoveHighlight1,
+                                    addr::cSC4AutomatonTank_Lift1, true};
+constexpr Highlight kTankHighlight2At{models::kTankHighlight2, models::kTankHighlight2 + 4, 2,
+                                    models::kTankMakeHighlight2, models::kTankRemoveHighlight2,
+                                    addr::cSC4AutomatonTank_Lift2, true};
+
+// The core's (and the tank's) highlight functions leave the automaton alone
+// when its occupant part's slot 7 answers 0x496E5783 and then, asked again,
+// 0x897F7EC2.
+bool NoHighlight(char* self)
+{
+    char* const part = self + field::kVtable4;
+    return Virtual<std::uint32_t>(part, models::kPartType) == models::kNoHighlightType1 &&
+           Virtual<std::uint32_t>(part, models::kPartType) == models::kNoHighlightType2;
+}
+
+// The highlight model's removal: off the view (0x00B43DD0, no null test,
+// as the game) when it is in it (its slot 0x6C), then cleared and released
+// through its virtual base.
+void RemoveHighlight(char* self, const Highlight& h)
+{
+    char* const model = At<char*>(self, h.model);
+    if (!model)
+        return;
+    void* view = Global<void*>(addr::SC4_View43DD0);
+    if (Virtual<std::uint8_t>(view, models::kInserted, Virtual<void*>(model, models::kDrawable))) {
+        view = Global<void*>(addr::SC4_View43DD0);
+        Virtual<std::uint32_t>(view, models::kRemove, Virtual<void*>(At<char*>(self, h.model), models::kDrawable));
+    }
+    if (char* const was = At<char*>(self, h.model)) {
+        At<char*>(self, h.model) = nullptr;
+        ReleaseVirtual(was);
+    }
+}
+
+// The highlight model's making. The core: nothing for the type above or with
+// no keys. The tank: nothing when its slot 5's object answers its slot 22
+// (0x4001), or with fewer than two keys (the second model, key 2, is made
+// with only two keys: the game reads past them). The old one released
+// (twice over in the game, the second time always null); the model from the
+// key (SC4::GetKeyedResource); its draw properties (slot 15) given back
+// (slot 16) with the flag 0x20, the colour 0.6, 1, 0.6 and the alpha 0.5;
+// the model's transform (an identity at 0, scale 1, then its slot 9) from
+// the first model (the core; the tank's from the model of the key's index,
+// with no test that there is one, as the game) given to it unchanged (slot
+// 10); into the view (no null test); the effect part assigned a new one
+// (0x00803060, 0x00513FF0, then destructed) and attached to the model.
+void MakeHighlight(char* self, const Highlight& h)
+{
+    if (h.tank) {
+        char* const object = Virtual<char*>(self, models::kSlot5);
+        if (Virtual<std::uint8_t>(object, models::kObjectTest, models::kTankNoHighlight))
+            return;
+        const std::ptrdiff_t bytes = At<char*>(self, models::kKeysEnd) - At<char*>(self, field::kModelKeys);
+        if (static_cast<std::uint32_t>(bytes / 12) <= 1)
+            return;
+    } else {
+        if (NoHighlight(self))
+            return;
+        if (At<char*>(self, field::kModelKeys) == At<char*>(self, models::kKeysEnd))
+            return;
+    }
+    char** const slot = reinterpret_cast<char**>(self + h.model);
+    for (int i = 0; i < 2; ++i)
+        if (char* const was = *slot) {
+            *slot = nullptr;
+            ReleaseVirtual(was);
+        }
+    if (!CallCdecl<std::uint8_t>(addr::SC4_GetKeyedResource, At<char*>(self, field::kModelKeys) + 12 * h.index, slot))
+        return;
+    struct Properties {
+        std::uint8_t flags;
+        std::uint8_t rest[3]; // as the drawable gives them
+        float colour[3];
+        float alpha;
+    } properties;
+    static_assert(sizeof(Properties) == 0x14, "the draw properties");
+    std::memset(&properties, 0, sizeof properties); // filled by the drawable
+    Virtual<std::uint32_t>(VirtualBaseOf(*slot), models::kDrawProperties, static_cast<void*>(&properties));
+    properties.flags |= 0x20;
+    properties.alpha = 0.5f;
+    properties.colour[0] = 0.6f;
+    properties.colour[1] = 1.0f;
+    properties.colour[2] = 0.6f;
+    Virtual<std::uint32_t>(VirtualBaseOf(*slot), models::kSetDrawProperties, static_cast<void*>(&properties));
+    Transform t{};
+    t.matrix[0] = t.matrix[4] = t.matrix[8] = 1.0f;
+    t.scale = 1.0f;
+    char* const first = At<char**>(self, models::kBegin)[h.index];
+    Virtual<std::uint32_t>(VirtualBaseOf(first), models::kGetTransform, static_cast<void*>(&t));
+    Virtual<std::uint32_t>(VirtualBaseOf(*slot), models::kSetTransform, static_cast<void*>(&t));
+    void* const view = Global<void*>(addr::SC4_View43DD0);
+    Virtual<std::uint8_t>(view, models::kInsert, Virtual<void*>(*slot, models::kDrawable));
+    alignas(4) char fresh[0x40];
+    char* const part = self + h.part;
+    CallThis<void>(addr::SC4EffectPartB_Assign, part, CallThis<char*>(addr::SC4EffectPartB_Construct, fresh));
+    CallThis<void>(addr::SC4EffectPartB_Destruct, fresh);
+    CallThis<std::uint8_t>(addr::SC4EffectPartB_Attach, part, Virtual<void*>(*slot, models::kDrawable));
+}
+
+// The highlight on a frame. Nothing for the type above. With the byte
+// 0x00B09968 clear: removed (the remove slot). Unless the service
+// 0x00B43D44's slot 13 answers: removed when there is one. Else, with no
+// highlight and models, the query tool (that service's interface
+// 0x098F9BF4) asked whether it points at this automaton: with the U-Drive
+// object 0x00B21D74 set, the tool's slot 13 answering and the U-Drive's
+// +0x30 object, that object's slot 57 (the core: with 0x10) or 56 (the
+// tank) gives the occupant under the tool; its cell +0x26C, +0x270 the
+// automaton's (+0x40, +0x48 by the occupant manager's slot 17): the
+// highlight made (the make slot) and nothing else. With a highlight and
+// models (the tank: more than one): the followed model's transform (slot
+// 9) lifted toward the camera, by its height (its drawable's
+// slot 7 into a box, 0x00466E10) x 1.5 (the tank's 1.15 and 1.25) along the camera 0x00B43DD8's
+// +0x54..+0x5C (x and y rounded to floats, z not, as the game), flag 1, its
+// count up; given to the highlight (slot 10) and moved in the view (slot
+// 0x78); its effect part started (SC4EffectPartB::Start, 0x00B43DDC's
+// pointer, 0) when it is on a model.
+void UpdateHighlight(char* self, const Highlight& h)
+{
+    if (NoHighlight(self))
+        return;
+    if (!Global<std::uint8_t>(addr::cSC4AutomatonCore_HighlightOn)) {
+        Virtual<std::uint32_t>(self, h.remove);
+        return;
+    }
+    bool hovered = false;
+    void* const service = Global<void*>(addr::SC4_Service43D44);
+    const bool active = Virtual<std::uint8_t>(service, models::kServiceActive) != 0;
+    if (!active) {
+        if (!At<char*>(self, h.model))
+            return;
+        Virtual<std::uint32_t>(self, h.remove);
+        return;
+    }
+    if (!At<char*>(self, h.model) && At<char*>(self, models::kBegin) != At<char*>(self, models::kEnd)) {
+        void* tool = nullptr;
+        Virtual<std::uint32_t>(Global<void*>(addr::SC4_Service43D44), slot::kQueryInterface, models::kQueryToolIid,
+                               static_cast<void*>(&tool));
+        if (tool) {
+            if (Global<char*>(addr::SC4_UDriveMode)) {
+                if (Virtual<std::uint8_t>(tool, models::kToolActive)) {
+                    if (char* const object = At<char*>(Global<char*>(addr::SC4_UDriveMode), models::kUDriveObject)) {
+                        char* const under = h.tank ? Virtual<char*>(object, models::kUnderTank)
+                                                   : Virtual<char*>(object, models::kUnderCore, 0x10u);
+                        if (under) {
+                            std::int32_t x = 0, z = 0; // left as they are by the game when not answered
+                            Virtual<std::uint32_t>(Global<void*>(addr::SC4_NetworkService), models::kCellOf,
+                                                   At<std::uint32_t>(self, field::kPosition),
+                                                   At<std::uint32_t>(self, field::kPosition + 8),
+                                                   static_cast<void*>(&x), static_cast<void*>(&z));
+                            if (At<std::int32_t>(under, models::kUnderCellX) == x &&
+                                At<std::int32_t>(under, models::kUnderCellZ) == z)
+                                hovered = true;
+                        }
+                    }
+                }
+            }
+            Release(tool);
+        }
+        if (hovered) {
+            if (!At<char*>(self, h.model)) {
+                Virtual<std::uint32_t>(self, h.make);
+                return;
+            }
+        } else if (!At<char*>(self, h.model)) {
+            return;
+        }
+    } else if (!At<char*>(self, h.model)) {
+        return;
+    }
+    char** const begin = At<char**>(self, models::kBegin);
+    const std::uint32_t count = static_cast<std::uint32_t>(At<char**>(self, models::kEnd) - begin);
+    if (h.tank ? count <= 1 : count == 0)
+        return;
+    char* const followed = begin[h.index];
+    Transform t{};
+    t.matrix[0] = t.matrix[4] = t.matrix[8] = 1.0f;
+    t.scale = 1.0f;
+    Virtual<std::uint32_t>(VirtualBaseOf(followed), models::kGetTransform, static_cast<void*>(&t));
+    float box[6];
+    CallThis<void*>(addr::SC4Model_ConstructCorner, box);
+    Virtual<std::uint32_t>(Virtual<void*>(followed, models::kDrawable), models::kBoundingBox, static_cast<void*>(box));
+    const double height = (static_cast<double>(box[4]) - static_cast<double>(box[1])) *
+                          static_cast<double>(Global<float>(h.lift));
+    char* const camera = Global<char*>(addr::SC4_CameraView);
+    const float dx = static_cast<float>(height * static_cast<double>(At<float>(camera, models::kCameraForward)));
+    const float dy = static_cast<float>(height * static_cast<double>(At<float>(camera, models::kCameraForward + 4)));
+    const double dz = height * static_cast<double>(At<float>(camera, models::kCameraForward + 8));
+    t.changes |= 1;
+    ++t.count;
+    t.position[0] = static_cast<float>(static_cast<double>(t.position[0]) - static_cast<double>(dx));
+    t.position[1] = static_cast<float>(static_cast<double>(t.position[1]) - static_cast<double>(dy));
+    t.position[2] = static_cast<float>(static_cast<double>(t.position[2]) - dz);
+    Virtual<std::uint32_t>(VirtualBaseOf(At<char*>(self, h.model)), models::kSetTransform, static_cast<void*>(&t));
+    void* const view = Global<void*>(addr::SC4_View43DD0);
+    Virtual<std::uint32_t>(view, models::kMove, Virtual<void*>(At<char*>(self, h.model), models::kDrawable));
+    if (At<char*>(self, h.part))
+        CallThis<void>(addr::SC4EffectPartB_Start, self + h.part, Global<void*>(addr::SC4_Transform43DDC), 0);
+}
+
+// 0x00514340, the core's slot 126: the highlight model made (above).
+void __fastcall MakeCoreHighlight(char* self, void*)
+{
+    static bool logged;
+    FirstCall("MakeCoreHighlight", logged);
+    MakeHighlight(self, kCoreHighlightAt);
+}
+
+// 0x00508D00, the core's slot 127: the highlight model removed (above).
+void __fastcall RemoveCoreHighlight(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RemoveCoreHighlight", logged);
+    RemoveHighlight(self, kCoreHighlightAt);
+}
+
+// 0x0050AFD0, the core's slot 128: the highlight on a frame (above).
+void __fastcall UpdateCoreHighlight(char* self, void*)
+{
+    static bool logged;
+    FirstCall("UpdateCoreHighlight", logged);
+    UpdateHighlight(self, kCoreHighlightAt);
+}
+
+// 0x0054CF60, 0x0054A950, 0x0054C2E0, the tank's slots 192 to 194: the
+// highlight of its second model (key and model 1) at +0x2B8, part +0x2BC.
+void __fastcall MakeTankHighlight1(char* self, void*)
+{
+    static bool logged;
+    FirstCall("MakeTankHighlight1", logged);
+    MakeHighlight(self, kTankHighlight1At);
+}
+
+void __fastcall RemoveTankHighlight1(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RemoveTankHighlight1", logged);
+    RemoveHighlight(self, kTankHighlight1At);
+}
+
+void __fastcall UpdateTankHighlight1(char* self, void*)
+{
+    static bool logged;
+    FirstCall("UpdateTankHighlight1", logged);
+    UpdateHighlight(self, kTankHighlight1At);
+}
+
+// 0x0054CBA0, 0x0054A9C0, 0x0054C5B0, the tank's slots 195 to 197: the
+// highlight of its third model (key and model 2) at +0x2FC, part +0x300.
+void __fastcall MakeTankHighlight2(char* self, void*)
+{
+    static bool logged;
+    FirstCall("MakeTankHighlight2", logged);
+    MakeHighlight(self, kTankHighlight2At);
+}
+
+void __fastcall RemoveTankHighlight2(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RemoveTankHighlight2", logged);
+    RemoveHighlight(self, kTankHighlight2At);
+}
+
+void __fastcall UpdateTankHighlight2(char* self, void*)
+{
+    static bool logged;
+    FirstCall("UpdateTankHighlight2", logged);
+    UpdateHighlight(self, kTankHighlight2At);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -7912,6 +8245,20 @@ const Detour kCoreModels2[] = {
     OPENSC4_DETOUR(addr::cSC4AutomatonCore_SetPlacement, SetPlacement),
 };
 
+// Part ad3.
+const Detour kCoreHighlight[] = {
+    OPENSC4_DETOUR(addr::SC4EffectPartB_Assign, AssignEffectPart),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_MakeHighlight, MakeCoreHighlight),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_RemoveHighlight, RemoveCoreHighlight),
+    OPENSC4_DETOUR(addr::cSC4AutomatonCore_UpdateHighlight, UpdateCoreHighlight),
+    OPENSC4_DETOUR(addr::cSC4AutomatonTank_MakeHighlight1, MakeTankHighlight1),
+    OPENSC4_DETOUR(addr::cSC4AutomatonTank_RemoveHighlight1, RemoveTankHighlight1),
+    OPENSC4_DETOUR(addr::cSC4AutomatonTank_UpdateHighlight1, UpdateTankHighlight1),
+    OPENSC4_DETOUR(addr::cSC4AutomatonTank_MakeHighlight2, MakeTankHighlight2),
+    OPENSC4_DETOUR(addr::cSC4AutomatonTank_RemoveHighlight2, RemoveTankHighlight2),
+    OPENSC4_DETOUR(addr::cSC4AutomatonTank_UpdateHighlight2, UpdateTankHighlight2),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -7925,7 +8272,8 @@ bool InstallObject(registry::Mode)
            InstallList(kVehicleQueues, sizeof kVehicleQueues / sizeof kVehicleQueues[0], "vehicle queues") &&
            InstallList(kVehicleFrame, sizeof kVehicleFrame / sizeof kVehicleFrame[0], "vehicle frame") &&
            InstallList(kCoreModels, sizeof kCoreModels / sizeof kCoreModels[0], "core models") &&
-           InstallList(kCoreModels2, sizeof kCoreModels2 / sizeof kCoreModels2[0], "core models 2");
+           InstallList(kCoreModels2, sizeof kCoreModels2 / sizeof kCoreModels2[0], "core models 2") &&
+           InstallList(kCoreHighlight, sizeof kCoreHighlight / sizeof kCoreHighlight[0], "core highlight");
 }
 
 const bool g_registered[] = {
@@ -7956,7 +8304,9 @@ const bool g_registered[] = {
                         "occupant manager and the view in and out, the view after a move, the light frame and the "
                         "level of detail (10 detours, part ad1); the core's model swaps, its start, leaving a "
                         "state, the animation, the one-shot, the fades, the position, the heading and the "
-                        "transforms with the placement (14 detours, part ad2; src/core/automata_vehicle.cpp)",
+                        "transforms with the placement (14 detours, part ad2); the query tool's highlight model of the "
+                        "core and the tank's two, made, removed and moved on frames, with the effect part's "
+                        "assignment (10 detours, part ad3; src/core/automata_vehicle.cpp)",
                         false, InstallObject}),
 };
 
