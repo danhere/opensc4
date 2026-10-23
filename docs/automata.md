@@ -34,7 +34,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | City situation manager | 167 | 44,037 | c1 (41, done), c2 to c5 (part c below counts 164) |
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
-| Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 and vb7 (part vb below counts 163) |
+| Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (part vb below counts 163) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | 2 |
 | Trains | 79 | 18,124 | 2 |
 | Emergency vehicles | 101 | 19,149 | 3 |
@@ -97,6 +97,38 @@ Kept as the game does it: GridAdd, GridMove and the cell lookup index a cell (z 
 Floats: 53-bit doubles, every compare with the asm's handling of unordered values, a1's cell rounding. Values the game answers in ST0 (the attraction strength, the curve, the distance, the generator's random float) are taken as doubles, unrounded. The composite effect adds its x and y increments unrounded and rounds z to a float first, as the asm does.
 
 Reimplemented like a1: one writer, every call's argument count checked against the callee's `ret N`, then an independent audit of all 24 against the disassembly (one defect, the unit vector above, fixed before any batch).
+
+#### vb6
+
+cSC4Vehicle's lanes and turns: the lights and the shown flag, keeping a point to the occupant's cells, the falling and placed states, driving off the network with its throttle, its path and floor searches, and the models. Names are ours.
+
+- **The lights (slot 176) 0x0055DBE0 (on, later):** nothing when +0x258 is already set as asked. Later: a time from cRZRandom::Range (0.2, 15) on the automata's generator 0x00B21D78 into +0x254, negative for off; slot 72 counts it down and calls slot 176 (0 or 1, 0) at 0. Else on: +0x258 and +0x25C (held through a virtual base) each released and made again by the core's slot 99 (1, the field); off: both taken off the core's models (0x0050B400, the vector +0x110..+0x114) and released.
+- **Shown (slot 177) 0x0055DD10 (shown):** when its byte differs from the automata flag 0x80000's test, the flag set to the whole word; turned off, the models released (vb2's 0x0055BE00). AL 1.
+- **Keeping to the occupant (slot 188) 0x0055C480 (from, to), shared with the trains:** when to is more than 1e-5 from from, the occupant at to's cell (city slot 95 for the cell, city slot 33's slot 6 for the occupant) gives its cells (slot 14, four ints), city slot 96 their corners, and 0x0055C350 runs on the four edges in turn with the circle around from through to; to ends at the crossing nearest the circle (the best starts at FLT_MAX).
+- **An edge (0x0055C350, eight words):** the edge from (x0, the centre's y, z0) to (x1, the centre's y, z1) against the sphere (0x0055BB10); of the points found (the second root first when there are two) each one whose distance from the centre is below the best becomes it and is copied out.
+- **The segment and the sphere (0x0055BB10, stdcall, six words):** the roots t of from + t (to - from) on the sphere, a, b and c as the x87 forms them (a and b stored as floats, b x b with b unrounded once); a negative or unordered discriminant answers 0. The larger t, in 0..1, into the first point, the smaller into the second (and into the first when it is the only one). AL the count.
+- **Falling (slot 185, the state 0xE) 0x0055E1F0 (frame seconds):** the gravity 0x00B22980 (-0.000833) set once under the guard 0x00B22984; nothing with the automata flag 1. While the state's +0x34 is above 0: it less the seconds, the heading's y tilted by seconds x 0.01 x +0x2C within +0x30 +- 0.05 (+0x2C turned at the edge), normalised, slot 16 (no point, the heading). Else the position's y moved by seconds x +0x28; a timer +0x38 above 0 counted down, at 0 the effect +0x3C let go (its slot 4, released) and Remove(false); then +0x28 gains the gravity x seconds; outside the city (slot 98) Remove(false); at or below the higher of the terrain's slots 13 and 30 with the timer run out: +0x28 0.000278 and, above the ground (on water), a splash (0x00B43D1C's slot 7 with the key at 0x00B0A0D4 into +0x3C, its slots 8 with a placement block and 3), a fade (slot 33, 0 and a draw of SC4Random::Unit) and the timer the draw x 1000; on the ground the timer 0 and Remove(false). Slot 16 with the point. AL 1.
+- **Placed (slot 186, the state 0x15) 0x0055E550 (frame seconds):** nothing with the flag 1. At the state's +0x28 exactly 0: SetSpeed (0.0042, 1), the heading normalised into +0x2C and +0x38, +0x38 turned by -pi/2 about y (FCOS and FSIN of the double 0x00A8EDD8) and turned back when it points away from +8's target (slot 6, its point slot 8). Below 1000: the speed x the seconds, when above 0, as a step along +0x38 (scaled to radius x 1.5 x seconds / 1000) plus the kept heading scaled to it, the y 0x00B43D54's slot 18 there; the position set and slot 16 with it and the unit vector towards it (the heading only when that is not a NaN); +0x94 0. From 1000: the heading back from +0x2C, slot 16 (no point), PopState when 0x00B43DA8's slot 25 (1, the cell) is above 3 or +8's slot 23 (the position, 0) answers false. +0x28 gains the seconds. AL 1.
+- **Driving off the network (slot 187) 0x0055ED10 (a word, controls, frame seconds, other, a word):** nothing at 0 seconds. The heading turned about y by the controls' wheel +0x5C; the front point (+0x264; the position plus half the radius along the heading when unset) moved along it by the seconds and the controls' rear point +0x44 by their velocity +0x50; the unit vector from the rear to the front (the heading at 1e-5 or less), the rear moved along it and put on the floor (0x0055C030). Slot 189 (vb7's) with the front and the point the radius ahead of the rear: on a hit the front at the hit point (y the rear's) on the floor and the direction slid along the wall (less 1.1 x its share of the wall's normal, flat): below 0.9 long the speed 0, else the smoothed speed x its length; the controls' +0x28 0, the smoothed speed set at once to it when it differs, +0x2C it, +0x50 the direction, the rear the radius behind the front. Else the front the radius ahead of the rear (y the rear's) on the floor, the direction from the rear to it, the rear behind it and +0x50 eased towards the direction by other's +0x38. Slot 16 with the middle of the two and the direction. AL 1.
+- **The throttle (0x0055EA20, controls, entry, reverse, limited, frame seconds), a float in ST0:** the controls' speed +0x2C plus +0x28 x the seconds, clamped to the entry's +0xC..+8 when backing (below 0 with the byte +0x228) or starting from 0 with reverse, else to 0..+8 (both scaled by +0x18 unless limited); with both pedals +0x7C and +0x80 at -1 eased towards 0 by seconds x 0.001 x +0x1C without crossing it; stored into +0x2C. Steeper than 0.2 (the heading's y) and moving the slope's way: x (4 - |y|) / 4 when limited, else 0 past 0.8 or x (2 - |y|) / 2; then plus |y| y x -0.0003 x seconds. 0 when the occupant part's slot 22 (0x4202) answers and the sign changed from +0x2C, or below 0 without +0x228. The smoothed speed set at once to it when it differs. Answers it.
+- **The path by keys (0x0055BF70, stdcall: part, keys, point, key, index):** for each key of the vector, the part's path (slot 3, key, 0) and the point's index on it (slot 19, which may move the point): the first that leaves the point within 4 in y answers; else the point is put back. Null when none.
+- **The floor (0x0055C030, controls, found, point, out):** found 0; null outside the city. The cell by x / 16 rounded with the float 1.5 x 2^23 (one more when x / 16 is exactly that); the ground from city slot 84's slot 13. Over the cell's occupants (0x00B43D54's slot 14; nodes +0 the occupant, +0x54 the next) with the flag 0x1F4F (slot 9), a network part (slot 49) with a path from the position (its slot 5 with 1, 0xFF, 0xFF): their height (slot 56) when the part's slot 20 (point, 1, 0) answers -1, or, without the flag 0x40341004, when nearer the point's y than what slot 20 left; the lowest below the point's y + 4 wins. A winner with the flag 0x80000 is held in the controls' +0x78 (SC4RefPtr::Assign), found 1; with 0x40341004 found 1; else the ground. With none, +0x228 clear, the ground more than 2 above the point and an occupant held in +0x78: its height there, found 1, and it answers. out: the point with that y. Answers the occupant.
+- **The models (slot 191) 0x0055DD50 (a word):** the current one of +0x2A4..+0x2B0 (the byte +0x2B4; from the resource key +0x11C, SC4::GetKeyedResource, when missing) given a placement block (the bytes 2 and 5, the heading's matrix from SC4Matrix::FromDirection, the position, 1.0) through its virtual base's slot 10, and the view 0x00B43DD0 told (slot 28 when just made, else 30, with the model's slot 0); then each from the current one backwards given (slot 18) 1 and a fade from +0x1B0's smoothed value (at most 1) less a third each (not below 0). The byte moves on by one of 4.
+
+Kept as the game's for vb6: the core's slots they call (13, 16, 30, 31, 33, 34, 36, 53, 56, 99) and functions (0x0050B400, the smoothed value 0x004FA960), vb2's 0x0055BE00, vb7's slot 189, cRZRandom::Range, SC4Random::Unit, SC4RefPtr::Assign, SC4::GetKeyedResource, SC4Matrix::FromDirection; the models, the view, the effects 0x00B43D1C, 0x00B43D54, 0x00B43DA8, the city, the terrain, the occupants and their network parts; all called at their addresses.
+
+vb6's oddities kept:
+
+- Slot 186's last branch reads the state's +8 and adds the seconds to its +0x28 after a PopState that may have freed it.
+- The placement blocks of slots 185 and 191 leave their bytes 2 and 3 as the game's stack (ours 0).
+- Slot 187 hands its own seconds argument's stack slot to 0x0055C030 as the found byte (ours a word of its own; the seconds are not read after), and does not read its first and last arguments; slot 191 does not read its argument.
+- The throttle's easing branches on an FCOM taken before an FLD and two FMULs (the FPU keeps C0..C3), as slot 72 does.
+- 0x0055C030 reads the held occupant's height at the point slot 20 left in the last loop pass, and answers a winner without either flag with the ground's y.
+- Slot 186's turn keeps its last element unrounded, slot 187's rounds it; both build their zeros as 0 x sin and 0 x cos.
+
+Return values: the game sets only AL in slots 177, 185, 186, 187 and 0x0055BB10; ours zero-extends. 0x0055EA20 answers in ST0. Slots 176, 188, 191 and 0x0055C350 answer nothing.
+
+Reimplemented the same way: one writer, then an independent audit of all 12 against the disassembly, every call's argument count checked against the callee's `ret`. The audit found no defect; its notes are the oddities above. The first trial found one of ours the audit missed: four single-word copies (the front point's words in slot 187, the position's in slot 186) written as three-word copies; fixed before parity.
 
 ### Test
 
@@ -2158,7 +2190,7 @@ The group is found by the two classes' vtables less the core's slots, plus the f
 - **vb3 (13, about 6,800 bytes, done): the base's movement on frames.** SetDestination (10) 0x0054E5B0; slots 129 to 134 (0x0054FDC0, 0x00550190, 0x0054E920, 0x00550760, 0x005504E0, 0x00550B60), 142 0x00554AB0, 151 0x00551300, 157 0x005510D0, 170 0x0054E790; helpers 0x0054E6F0 and 0x00551F70.
 - **vb4 (22, about 6,500 bytes, done): the base's states on frames.** Slots 72 0x0054E050, 109 0x00550090, 110 0x005546E0 (with 0x0054E380), 111 0x005535D0 (with 0x00552B80, 0x0054ECC0), 145 0x005559D0, 147 0x00551480, 148 0x00551C20, 161 to 169 (0x0054E1A0, 0x0054E410, 0x005500D0, 0x0054E3D0, 0x00553AA0 with 0x00553720 and the deque step 0x00504C40, 0x00554870, 0x00550F40, 0x005527E0, 0x00552520), 173 0x0054D860.
 - **vb5 (10, about 5,900 bytes, done): cSC4Vehicle's movement.** Slots 72 0x0055BA20, 129 0x0055CAF0, 131 0x0055D210, 132 0x0055D5A0, 151 0x0055D9D0, 121 0x0055C600, 109 0x0055CA90, 135 0x0055BE90, 125 0x0055DF50, 65 0x0055C8C0 (HandleCollision: a sound, a message).
-- **vb6 (12, about 7,500 bytes): cSC4Vehicle's lanes and turns.** Slots 176 0x0055DBE0, 177 0x0055DD10, 188 0x0055C480 with 0x0055C350 and 0x0055BB10 (shared with the trains), 185 0x0055E1F0, 186 0x0055E550, 187 0x0055ED10 (1,760 bytes) with 0x0055EA20, 0x0055BF70, 0x0055C030, 191 0x0055DD50 (a model matrix: SC4Matrix::FromDirection, the renderer).
+- **vb6 (12, about 7,500 bytes, done): cSC4Vehicle's lanes and turns.** Slots 176 0x0055DBE0, 177 0x0055DD10, 188 0x0055C480 with 0x0055C350 and 0x0055BB10 (shared with the trains), 185 0x0055E1F0, 186 0x0055E550, 187 0x0055ED10 (1,760 bytes) with 0x0055EA20, 0x0055BF70, 0x0055C030, 191 0x0055DD50 (a model matrix: SC4Matrix::FromDirection, the renderer).
 - **vb7 (15, about 10,800 bytes): cSC4Vehicle's frame and its queues.** Slot 115 0x005603F0 (4,279 bytes, the vehicle's frame), 182 0x0055FE60 with 0x0055CFD0, 181 0x00561910 with 0x0055F930, 0x0055FA90, 0x0055FAF0, 0x005614B0, 0x00560250, 189 0x00561D20 with 0x00561A30, 190 0x005620E0, 110 0x0055B6D0, and the trains' shared 0x0055F3F0 and 0x0055F7B0. 0x005603F0 may need a piece of its own.
 
 vb3 to vb7 run on frames, so the family's frame caveat applies (top of this page): the comparison of those parts is inside one run, or values from automata the test makes itself.
@@ -2169,7 +2201,7 @@ Mods: no NAM site and none of SC4UIScale's addresses is in the group. SC4UIScale
 
 ### What is ours
 
-111 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)): vb1's 36 (kObject), vb2's 30 (kLife), vb3's 13 (kMove), vb4's 22 (kStates) and vb5's 10 (kVehicleMove).
+123 functions in one group, off by default: `simulators.automata.vehicle` ([automata_vehicle.cpp](../src/core/automata_vehicle.cpp)): vb1's 36 (kObject), vb2's 30 (kLife), vb3's 13 (kMove), vb4's 22 (kStates), vb5's 10 (kVehicleMove) and vb6's 12 (kVehicleLanes).
 
 #### vb1
 
@@ -2404,6 +2436,17 @@ vb5 reached: all 10 in every B run of vb5-r1 (the test drives each at its addres
 
 Not covered by the fingerprint: the heading HandleCollision turns (the log only); slot 132's tunnel sound (slot 57 answers 0); slot 72's callees at their real addresses (the probe answers them); slot 125 with the city's own tuning table (the game's, read on both sides); the core's slot 121 on controls that would play its sounds.
 
+vb6 adds `,<vlanes>,<vdrive>` to the token (the flags 0x2000 when its part ran; 0x4000 when the factory gave no vehicle, 0x8000 when the fake city trapped). Its calls run on a cSC4Vehicle from the factory held as vb5's is (also its +0x2A4..+0x2B4, +0x11C and +0x1B0 put back), its vtable vb5's copy with the vehicle's slots under test (176, 177, 185 to 188, 191) its own again and slots 56 (the current state), 99 (a model) and 189 (the wall test: it writes the test's hit point and normal) the probe's; its occupant part's vtable (+4) a copy with slot 22 the probe's. The city global points at vb3's city of the test's (now also answering slots 33, 84 and 96), the terrain at vb5's, 0x00B43D54 at a ground of the test's (slots 14 and 18), 0x00B43D1C at effects of the test's, 0x00B43DA8 at a counter of the test's and the view 0x00B43DD0 at a view of the test's while the calls run. The models and lights are objects of the test's held through a virtual base; the floors are occupants of the test's with network parts.
+
+- vlanes: 0x0055BB10 over six points as both ends, three centres and five radii (one a NaN); 0x0055C350 over four edges, four radii and three starting bests; slot 188 from two points to six (one inside 1e-5, one on a cell without an occupant); slot 176 with the lights there or not, on 0, 1 and 0x100, later 0, 1 and 0x200; slot 191 over seven model masks and three fades (the current one missing twice, its key not a model's); slot 177 with the flag on and off and 0, 1 and 0x100 (the models let go); 0x0055EA20 over four speeds, three accelerations, +0x228, reverse, limited 0, 0x100 and 1, three slopes, the pedals and slot 22 (432 calls); 0x0055BF70 over five key sets and two heights.
+- vdrive: slot 185 tilting (24 cases) and falling at two x, three heights and three timers, two frames each (the splash on water, the removal on the ground, the timer counting the effect out); slot 186's first frame with a target or none on either side and two slopes, its moves at three speeds with and without +0x38 and the kept heading (the NaN way among them), and its end with the counter at 2 and 5 and slot 23 0 and 1; 0x0055C030 over six floor lists, four heights and +0x228 (in and out of the city, out given or not); slot 187 with slot 189 answering 0 and 1, the front set or not, floors or none, over six wheel, heading and speed cases (one at 0 seconds).
+
+To the log only: the fake city's traps, whether the core's model vector was empty, the references left and each section's hash.
+
+vb6 reached: all 12 in every B run of vb6-r1 (the test drives each at its address). Before the test day the game itself reaches only slot 176 (Making Money and Rush Hour, not Big City); the rest only by the test. In the trial (Making Money d0000, 4 days) the token was the same on both sides.
+
+Not covered by the fingerprint: slot 176's models as the core's slot 99 makes them (the probe answers it); the real view, effects and resources (the test's answer them; slot 191's resource lookup fails on the key's type); slot 185's second test of the flag 1 (Remove is the probe's, so it never sets it); slot 187's slot 189 at its real address (vb7's).
+
 Not covered by the fingerprint (vb1): slot 152's branch through the next occupant (with no occupant 0x00B43D54's slot 0x3C answers null at once), 0x0054FC30 and slot 123 (the log only), a tie in 0x0050AAF0.
 
 ### Parity
@@ -2457,3 +2500,13 @@ vb5, 2026-10-23, the same lists and setup, env p4env-vb5, snapshot vb5-r1 (111 d
 | The 12-save batch | 7 | 12 of 12 saves |
 
 All on the first pair but Rush Hour d0365 in the batch: there B's first run had an outcome of its own from the first day (A's two runs and B's second shared the other); rerun alone it was the same on the first pair. That save has more than one outcome run to run on the original too ([citylot.md](citylot.md), the vacate reason). Every B run carried the ` V` token with vb5's two hashes, equal to the A run's, and the first-call lines of all 10 vb5 functions.
+
+vb6, 2026-10-23, the same lists and setup, env p4env-vb6, snapshot vb6-r1 (123 detours), with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` V` token with vb6's two hashes, equal to the A run's, and the first-call lines of all 12 vb6 functions.

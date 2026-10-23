@@ -11130,6 +11130,8 @@ struct FakeCity {
     FakeMap* map;
     uint32_t traps;
     void* lights = nullptr; // part vb4: slot 47
+    void* cells = nullptr;  // part vb6: slot 33
+    void* ground = nullptr; // part vb6: slot 84
 };
 
 template <std::size_t I>
@@ -11144,6 +11146,14 @@ void* __fastcall CityLights(FakeCity* c, void*) { return c->lights; }
 double __fastcall CityWidth(FakeCity*, void*) { return 2048.0; }
 double __fastcall CityDepth(FakeCity*, void*) { return 1024.0; }
 uint32_t __fastcall CityInCity(FakeCity*, void*, float x, float z) { return x < 1500.0f && z < 900.0f ? 1u : 0u; }
+void* __fastcall CityCells(FakeCity* c, void*) { return c->cells; }
+void* __fastcall CityGround(FakeCity* c, void*) { return c->ground; }
+uint32_t __fastcall CityCorner(FakeCity*, void*, int32_t cx, int32_t cz, float* x, float* z)
+{
+    *x = static_cast<float>(cx) * 16.0f;
+    *z = static_cast<float>(cz) * 16.0f;
+    return 1;
+}
 uint32_t __fastcall CityCellOf(FakeCity*, void*, float x, float z, int32_t* cx, int32_t* cz)
 {
     *cx = static_cast<int32_t>(x / 16.0f);
@@ -11170,6 +11180,9 @@ void** FakeCityVtable()
         t[av::city::kCellOf / 4] = reinterpret_cast<void*>(&CityCellOf);
         t[av::kCityLights / 4] = reinterpret_cast<void*>(&CityLights);
         t[av::city::kInCity / 4] = reinterpret_cast<void*>(&CityInCity);
+        t[av::city::kSlot33 / 4] = reinterpret_cast<void*>(&CityCells);
+        t[av::city::kSlot84 / 4] = reinterpret_cast<void*>(&CityGround);
+        t[av::city::kCellCorner / 4] = reinterpret_cast<void*>(&CityCorner);
     }
     return t;
 }
@@ -13488,6 +13501,992 @@ void VehicleMoveDrive(Hash& vmove, Hash& vframe, uint32_t& flags)
     flags |= 0x80;
 }
 
+// ---- Part vb6's objects.
+
+// A model of the test's held through a virtual base: +4 its vbtable, whose
+// second word puts the base at +8 (slots 1 and 2 the references, 10 the
+// placement block); its own slot 0 (the renderable: itself) and 18 (word,
+// fade).
+struct FakeModel {
+    void** vtable;
+    const int32_t* vbtable;
+    void** baseVtable;
+    int32_t references;
+    uint32_t id;
+    Hash calls;
+};
+const int32_t kModelVbtable[2] = {0, 4};
+FakeModel* ModelOf(void* base) { return reinterpret_cast<FakeModel*>(static_cast<char*>(base) - 8); }
+uint32_t __fastcall ModelAddRef(void* base, void*) { return static_cast<uint32_t>(++ModelOf(base)->references); }
+uint32_t __fastcall ModelRelease(void* base, void*) { return static_cast<uint32_t>(--ModelOf(base)->references); }
+uint32_t __fastcall ModelPlace(void* base, void*, const uint8_t* block)
+{
+    FakeModel* const m = ModelOf(base);
+    m->calls.Mix(10);
+    m->calls.Mix(block[0]);
+    m->calls.Mix(block[1]);
+    m->calls.MixBytes(block + 4, 0x34);
+    return 1;
+}
+FakeModel* __fastcall ModelRenderable(FakeModel* m, void*)
+{
+    m->calls.Mix(0);
+    return m;
+}
+uint32_t __fastcall ModelFade(FakeModel* m, void*, uint32_t word, float fade)
+{
+    m->calls.Mix(18);
+    m->calls.Mix(word);
+    m->calls.Mix(Bits(fade));
+    return 1;
+}
+void** ModelVtable()
+{
+    static void* t[32] = {};
+    t[0] = reinterpret_cast<void*>(&ModelRenderable);
+    t[18] = reinterpret_cast<void*>(&ModelFade);
+    return t;
+}
+void** ModelBaseVtable()
+{
+    static void* t[16] = {};
+    t[1] = reinterpret_cast<void*>(&ModelAddRef);
+    t[2] = reinterpret_cast<void*>(&ModelRelease);
+    t[10] = reinterpret_cast<void*>(&ModelPlace);
+    return t;
+}
+void MakeModel(FakeModel& m, uint32_t id)
+{
+    m.vtable = ModelVtable();
+    m.vbtable = kModelVbtable;
+    m.baseVtable = ModelBaseVtable();
+    m.references = 1;
+    m.id = id;
+}
+
+// The view (0x00B43DD0) while the vb6 calls run: slots 28 to 30 by the
+// model's id.
+struct FakeView {
+    void** vtable;
+    Hash calls;
+};
+template <std::size_t S>
+uint32_t __fastcall ViewSlot(FakeView* v, void*, FakeModel* m)
+{
+    v->calls.Mix(S);
+    v->calls.Mix(m ? m->id : 0xFFu);
+    return 1;
+}
+void** ViewVtable()
+{
+    static void* t[40] = {};
+    t[28] = reinterpret_cast<void*>(&ViewSlot<28>);
+    t[29] = reinterpret_cast<void*>(&ViewSlot<29>);
+    t[30] = reinterpret_cast<void*>(&ViewSlot<30>);
+    return t;
+}
+
+// The effects (0x00B43D1C) slot 185 makes its splash with (slot 7), and the
+// effect (slots 3, 4, 8 and its references).
+struct FakeEffect {
+    void** vtable;
+    int32_t references;
+    Hash calls;
+};
+uint32_t __fastcall EffectRelease(FakeEffect* e, void*) { return static_cast<uint32_t>(--e->references); }
+template <std::size_t S>
+uint32_t __fastcall EffectWord(FakeEffect* e, void*, uint32_t word)
+{
+    e->calls.Mix(S);
+    e->calls.Mix(word);
+    return 1;
+}
+uint32_t __fastcall EffectPlace(FakeEffect* e, void*, const uint8_t* block)
+{
+    e->calls.Mix(8);
+    e->calls.Mix(block[0]);
+    e->calls.Mix(block[1]);
+    e->calls.MixBytes(block + 4, 0x34);
+    return 1;
+}
+void** EffectVtable()
+{
+    static void* t[16] = {};
+    t[2] = reinterpret_cast<void*>(&EffectRelease);
+    t[3] = reinterpret_cast<void*>(&EffectWord<3>);
+    t[4] = reinterpret_cast<void*>(&EffectWord<4>);
+    t[8] = reinterpret_cast<void*>(&EffectPlace);
+    return t;
+}
+struct FakeEffects {
+    void** vtable;
+    FakeEffect* effect;
+    uint32_t made;
+    Hash calls;
+};
+uint32_t __fastcall EffectsMake(FakeEffects* s, void*, uint32_t key, FakeEffect** out)
+{
+    s->calls.Mix(7);
+    s->calls.Mix(key);
+    ++s->made;
+    ++s->effect->references;
+    *out = s->effect;
+    return 1;
+}
+void** EffectsVtable()
+{
+    static void* t[16] = {};
+    t[7] = reinterpret_cast<void*>(&EffectsMake);
+    return t;
+}
+
+// A floor of the test's on a cell (0x0055C030): its network part (slot 49)
+// with a path or not (slot 5) and the point's projection (slot 20: an index,
+// a lift of the point's y), the flags it has (slot 9: 0x1F4F, else
+// 0x40341004; slot 8: 0x80000), a height (slot 56) and its references.
+struct FloorPart {
+    void** vtable;
+    uint32_t path;
+    int32_t index;
+    float lift;
+    Hash calls;
+};
+uint32_t __fastcall FloorFind(FloorPart* p, void*, uint32_t a, uint32_t b, uint32_t c, const float* point, uint32_t e,
+                              uint32_t f)
+{
+    p->calls.Mix(5);
+    for (const uint32_t v : {a, b, c, e, f})
+        p->calls.Mix(v);
+    p->calls.MixBytes(point, 12);
+    return p->path;
+}
+int32_t __fastcall FloorProject(FloorPart* p, void*, float* q, uint32_t a, uint32_t b)
+{
+    p->calls.Mix(20);
+    p->calls.MixBytes(q, 12);
+    p->calls.Mix(a);
+    p->calls.Mix(b);
+    q[1] += p->lift;
+    return p->index;
+}
+void** FloorPartVtable()
+{
+    static void* t[32] = {};
+    t[5] = reinterpret_cast<void*>(&FloorFind);
+    t[20] = reinterpret_cast<void*>(&FloorProject);
+    return t;
+}
+struct Floor {
+    void** vtable;
+    int32_t references;
+    FloorPart* part;
+    uint32_t has;
+    uint32_t bridge;
+    uint32_t held;
+    float height;
+    Hash calls;
+};
+uint32_t __fastcall FloorAddRef(Floor* f, void*) { return static_cast<uint32_t>(++f->references); }
+uint32_t __fastcall FloorRelease(Floor* f, void*) { return static_cast<uint32_t>(--f->references); }
+uint32_t __fastcall FloorFlag8(Floor* f, void*, uint32_t flag)
+{
+    f->calls.Mix(8);
+    f->calls.Mix(flag);
+    return f->held;
+}
+uint32_t __fastcall FloorFlag9(Floor* f, void*, uint32_t flag)
+{
+    f->calls.Mix(9);
+    f->calls.Mix(flag);
+    return flag == 0x1F4Fu ? f->has : f->bridge;
+}
+FloorPart* __fastcall FloorPartOf(Floor* f, void*) { return f->part; }
+double __fastcall FloorHeight(Floor* f, void*, float x, float z)
+{
+    f->calls.Mix(56);
+    f->calls.Mix(Bits(x));
+    f->calls.Mix(Bits(z));
+    return static_cast<double>(f->height + x * 0.0078125f);
+}
+void** FloorVtable()
+{
+    static void* t[64] = {};
+    t[1] = reinterpret_cast<void*>(&FloorAddRef);
+    t[2] = reinterpret_cast<void*>(&FloorRelease);
+    t[av::kOccupantFlag / 4] = reinterpret_cast<void*>(&FloorFlag8);
+    t[av::kOccupantFlag9 / 4] = reinterpret_cast<void*>(&FloorFlag9);
+    t[av::kNetworkPartSlot / 4] = reinterpret_cast<void*>(&FloorPartOf);
+    t[av::kOccupantHeight / 4] = reinterpret_cast<void*>(&FloorHeight);
+    return t;
+}
+// A cell list node of 0x00B43D54's slot 14: +0 the occupant, +0x54 the next.
+struct FloorNode {
+    void* occupant;
+    uint8_t pad[0x50];
+    FloorNode* next;
+};
+static_assert(offsetof(FloorNode, next) == 0x54);
+
+// 0x00B43D54 while the vb6 calls run: the cell list (slot 14) and a height
+// (slot 18).
+struct FakeGround {
+    void** vtable;
+    FloorNode* list;
+    Hash calls;
+};
+FloorNode* __fastcall GroundList(FakeGround* g, void*, int32_t cx, int32_t cz)
+{
+    g->calls.Mix(14);
+    g->calls.Mix(static_cast<uint32_t>(cx));
+    g->calls.Mix(static_cast<uint32_t>(cz));
+    return g->list;
+}
+double __fastcall GroundHeight(FakeGround* g, void*, float x, float z)
+{
+    g->calls.Mix(18);
+    g->calls.Mix(Bits(x));
+    g->calls.Mix(Bits(z));
+    return static_cast<double>(0.125f * x + 0.25f * z + 0.5f);
+}
+void** GroundVtable()
+{
+    static void* t[32] = {};
+    t[14] = reinterpret_cast<void*>(&GroundList);
+    t[18] = reinterpret_cast<void*>(&GroundHeight);
+    return t;
+}
+
+// 0x00B43DA8 while slot 186 runs: slot 25 (word, cell x, cell z).
+struct FakeCount {
+    void** vtable;
+    int32_t answer;
+    Hash calls;
+};
+int32_t __fastcall CountAt(FakeCount* c, void*, uint32_t word, int32_t cx, int32_t cz)
+{
+    c->calls.Mix(25);
+    c->calls.Mix(word);
+    c->calls.Mix(static_cast<uint32_t>(cx));
+    c->calls.Mix(static_cast<uint32_t>(cz));
+    return c->answer;
+}
+void** CountVtable()
+{
+    static void* t[32] = {};
+    t[25] = reinterpret_cast<void*>(&CountAt);
+    return t;
+}
+
+// The city's slot 33 object for slot 188 (slot 6: the occupant at a cell,
+// the block for x below 4) and the block (slot 14: its cells).
+struct Block {
+    void** vtable;
+    int32_t rect[4];
+    Hash calls;
+};
+uint32_t __fastcall BlockCells(Block* b, void*, int32_t* rect)
+{
+    b->calls.Mix(14);
+    std::memcpy(rect, b->rect, sizeof b->rect);
+    return 1;
+}
+void** BlockVtable()
+{
+    static void* t[16] = {};
+    t[14] = reinterpret_cast<void*>(&BlockCells);
+    return t;
+}
+struct Cells {
+    void** vtable;
+    Block* block;
+    Hash calls;
+};
+Block* __fastcall CellsAt(Cells* c, void*, int32_t cx, int32_t cz, uint32_t word)
+{
+    c->calls.Mix(6);
+    c->calls.Mix(static_cast<uint32_t>(cx));
+    c->calls.Mix(static_cast<uint32_t>(cz));
+    c->calls.Mix(word);
+    return cx < 4 ? c->block : nullptr;
+}
+void** CellsVtable()
+{
+    static void* t[16] = {};
+    t[6] = reinterpret_cast<void*>(&CellsAt);
+    return t;
+}
+
+// The placed state's +8 (slot 186): its target (slot 6) whose point is
+// slot 8, and slot 23 (point, word).
+struct Target {
+    void** vtable;
+    float point[3];
+};
+uint32_t __fastcall TargetPoint(Target* t, void*, float* out)
+{
+    g_probe->calls.Mix(0x608);
+    std::memcpy(out, t->point, 12);
+    return 1;
+}
+void** TargetVtable()
+{
+    static void* t[16] = {};
+    t[8] = reinterpret_cast<void*>(&TargetPoint);
+    return t;
+}
+struct Holder {
+    void** vtable;
+    Target* target;
+    uint32_t answer23;
+};
+Target* __fastcall HolderTarget(Holder* h, void*)
+{
+    g_probe->calls.Mix(0x606);
+    return h->target;
+}
+uint32_t __fastcall HolderSlot23(Holder* h, void*, const float* point, uint32_t word)
+{
+    g_probe->calls.Mix(0x623);
+    g_probe->calls.MixBytes(point, 12);
+    g_probe->calls.Mix(word);
+    return h->answer23;
+}
+void** HolderVtable()
+{
+    static void* t[32] = {};
+    t[6] = reinterpret_cast<void*>(&HolderTarget);
+    t[23] = reinterpret_cast<void*>(&HolderSlot23);
+    return t;
+}
+
+// A network part for 0x0055BF70: the path by key (slot 3: keys 1 and 3) and
+// slot 19 lifting the point by the key's lift.
+struct KeyPart {
+    void** vtable;
+    Path* paths[4];
+    float lifts[4];
+    Hash calls;
+};
+Path* __fastcall KeyPartPath(KeyPart* p, void*, uint32_t key, uint32_t word)
+{
+    p->calls.Mix(3);
+    p->calls.Mix(key);
+    p->calls.Mix(word);
+    return p->paths[key & 3];
+}
+int32_t __fastcall KeyPartIndex(KeyPart* p, void*, float* point, Path* path)
+{
+    p->calls.Mix(19);
+    p->calls.MixBytes(point, 12);
+    for (uint32_t k = 0; k < 4; ++k)
+        if (path == p->paths[k]) {
+            point[1] += p->lifts[k];
+            return static_cast<int32_t>(7 * k);
+        }
+    return -1;
+}
+void** KeyPartVtable()
+{
+    static void* t[32] = {};
+    t[av::part::kPath / 4] = reinterpret_cast<void*>(&KeyPartPath);
+    t[av::part::kIndexOf / 4] = reinterpret_cast<void*>(&KeyPartIndex);
+    return t;
+}
+
+// Slot 189 (front, ahead, hit, normal) as the test answers it for slot 187:
+// the arguments mixed; when it answers, the hit point (x, z) and the wall's
+// normal written.
+struct HitAnswer {
+    uint32_t answer;
+    float hit[2];
+    float normal[2];
+};
+HitAnswer g_hit{};
+uint32_t __fastcall HitStub(char*, void*, const float* front, const float* ahead, float* hit, float* normal)
+{
+    g_probe->calls.Mix(189);
+    g_probe->calls.MixBytes(front, 12);
+    g_probe->calls.MixBytes(ahead, 12);
+    g_probe->calls.MixBytes(hit, 8);
+    g_probe->calls.MixBytes(normal, 8);
+    if (g_hit.answer) {
+        std::memcpy(hit, g_hit.hit, 8);
+        std::memcpy(normal, g_hit.normal, 8);
+    }
+    return g_hit.answer;
+}
+
+// The occupant part's (+4) slot 22 (0x0055EA20 asks it with 0x4202): the
+// probe's answer[0].
+uint32_t __fastcall OccupantGroup(char*, void*, uint32_t word)
+{
+    g_probe->calls.Mix(0x422);
+    g_probe->calls.Mix(word);
+    return g_probe->answer[0];
+}
+void** OccupantPartVtable()
+{
+    static void* t[34] = {};
+    static bool made = false;
+    if (!made) {
+        made = true;
+        std::memcpy(t, reinterpret_cast<void*>(addr::cSC4Vehicle_Vtable4), sizeof t);
+        t[22] = reinterpret_cast<void*>(&OccupantGroup);
+    }
+    return t;
+}
+
+// The vb6 object's vtable: vb5's with the vehicle's own slots under test
+// (176, 177, 185 to 188, 191) the vehicle's again, and slots 56 (the
+// current state), 99 (a model) and 189 (the wall test) the probe's.
+void** VehicleLanesVtable()
+{
+    static void* t[192] = {};
+    static bool made = false;
+    if (made)
+        return t;
+    made = true;
+    std::memcpy(t, VehicleMoveVtable(), sizeof t);
+    void* const* const real = reinterpret_cast<void* const*>(addr::cSC4Vehicle_Vtable);
+    for (const std::size_t s : {176u, 177u, 185u, 186u, 187u, 188u, 191u})
+        t[s] = real[s];
+    t[56] = reinterpret_cast<void*>(&Stub0<56>);
+    t[99] = reinterpret_cast<void*>(&Stub2<99>);
+    t[189] = reinterpret_cast<void*>(&HitStub);
+    return t;
+}
+
+// Part vb6 on a cSC4Vehicle of the factory's (its vtable vb6's copy, its
+// occupant part's slot 22 the probe's), with the city, the terrain,
+// 0x00B43D54, 0x00B43D1C, 0x00B43DA8 and the view pointing at the test's
+// while the calls run: the segment and sphere test, the edges, keeping to
+// the occupant's cells, the lights, the models, the shown flag, the throttle
+// and the path by keys (vlanes); the falling and placed states, the floor
+// and driving off the network (vdrive). Each one is driven at its address.
+void VehicleLanesDrive(Hash& vlanes, Hash& vdrive, uint32_t& flags)
+{
+    using Create = char*(__cdecl*)();
+    char* const o = reinterpret_cast<Create>(addr::cSC4Vehicle_Create)();
+    if (!o) {
+        flags |= 0x4000;
+        return;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    void** const realTable = At<void**>(o, 0);
+    void** const realTable4 = At<void**>(o, 4);
+    At<void**>(o, 0) = VehicleLanesVtable();
+    At<void**>(o, 4) = OccupantPartVtable();
+    const uint32_t word98 = At<uint32_t>(o, av::field::k98);
+    const uint8_t byte33 = At<uint8_t>(o, av::field::kFlags33);
+    uint32_t stack3[3];
+    std::memcpy(stack3, o + av::field::kStates, sizeof stack3);
+    uint8_t saved254[0x28];
+    std::memcpy(saved254, o + av::field::kTimer254, sizeof saved254);
+    uint8_t saved2A4[0x14];
+    std::memcpy(saved2A4, o + av::field::kModels, sizeof saved2A4);
+    uint8_t saved11C[12];
+    std::memcpy(saved11C, o + av::field::kModelKey, sizeof saved11C);
+    uint8_t saved1B0[0x10];
+    std::memcpy(saved1B0, o + av::field::kFade1B0, sizeof saved1B0);
+    const bool emptyModels = At<uint32_t>(o, 0x110) == At<uint32_t>(o, 0x114);
+    At<uint8_t>(o, av::field::kFlags33) = static_cast<uint8_t>(byte33 & ~7u);
+    At<float>(o, av::field::kFloat200) = 0.0f;
+
+    FakeMap fakeMap{FakeMapVtable(), nullptr, nullptr, 1, 0, {}};
+    FakeCity fakeCity{FakeCityVtable(), &fakeMap, 0, nullptr};
+    FakeTerrain fakeTerrain{TerrainVtable(), {}};
+    FakeGround ground{GroundVtable(), nullptr, {}};
+    FakeEffect effect{EffectVtable(), 1, {}};
+    FakeEffects effects{EffectsVtable(), &effect, 0, {}};
+    FakeCount count{CountVtable(), 0, {}};
+    FakeView view{ViewVtable(), {}};
+    Block block{BlockVtable(), {2, 1, 3, 2}, {}};
+    Cells cells{CellsVtable(), &block, {}};
+    fakeCity.cells = &cells;
+    fakeCity.ground = &fakeTerrain;
+    FakeModel lights[2], models[4];
+    for (uint32_t i = 0; i < 2; ++i)
+        MakeModel(lights[i], 0x10 + i);
+    for (uint32_t i = 0; i < 4; ++i)
+        MakeModel(models[i], 0x20 + i);
+    FloorPart partWith{FloorPartVtable(), 1, 0, 0.0f, {}};
+    FloorPart partLift{FloorPartVtable(), 1, 2, 1.5f, {}};
+    FloorPart partNone{FloorPartVtable(), 0, 0, 0.0f, {}};
+    FloorPart partOff{FloorPartVtable(), 1, -1, 0.0f, {}};
+    Floor floors[5] = {
+        {FloorVtable(), 1, &partWith, 1, 0, 1, 3.0f, {}},  {FloorVtable(), 1, &partLift, 1, 1, 0, 6.5f, {}},
+        {FloorVtable(), 1, &partWith, 0, 0, 0, 2.0f, {}},  {FloorVtable(), 1, &partNone, 1, 0, 0, 2.5f, {}},
+        {FloorVtable(), 1, &partOff, 1, 0, 0, 1.0f, {}},
+    };
+    FloorNode nodes[6] = {};
+    float pointsA[2][3] = {{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}};
+    float pointsB[2][3] = {{2.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f}};
+    Path pathA{&pointsA[0][0], &pointsA[0][0] + 6};
+    Path pathB{&pointsB[0][0], &pointsB[0][0] + 6};
+    KeyPart keyPart{KeyPartVtable(), {nullptr, &pathA, nullptr, &pathB}, {0.0f, 5.0f, 0.0f, 0.5f}, {}};
+    Target target{TargetVtable(), {30.0f, 0.0f, 30.0f}};
+    Holder holder{HolderVtable(), &target, 1};
+    alignas(4) char controls[0x240];
+    alignas(4) char entry[0x40] = {};
+    alignas(4) char other[0x40] = {};
+    alignas(4) char state[kStateSize];
+    Probe probe;
+    probe.known = {o,          &lights[0], &lights[1], &models[0], &models[1], &models[2], &models[3], &floors[0],
+                   &floors[1], &floors[2], &floors[3], &floors[4], &pathA,     &pathB,     &target,    &holder,
+                   state,      controls,   entry,      other,      &effect,    o + 0x258,  o + 0x25C,  o + 0x40,
+                   o + 0x58,   o + 0x264,  controls + 0x44};
+    g_probe = &probe;
+    void** const cityGlobal = reinterpret_cast<void**>(addr::SC4_City);
+    void** const groundGlobal = reinterpret_cast<void**>(addr::SC4_Service43D54);
+    void** const terrainGlobal = reinterpret_cast<void**>(addr::SC4_Terrain);
+    void** const effectsGlobal = reinterpret_cast<void**>(addr::SC4_Service43D1C);
+    void** const countGlobal = reinterpret_cast<void**>(addr::SC4_Service43DA8);
+    void** const viewGlobal = reinterpret_cast<void**>(addr::SC4_View43DD0);
+    void* const realCity = *cityGlobal;
+    void* const realGround = *groundGlobal;
+    void* const realTerrain = *terrainGlobal;
+    void* const realEffects = *effectsGlobal;
+    void* const realCount = *countGlobal;
+    void* const realView = *viewGlobal;
+    *cityGlobal = &fakeCity;
+    *groundGlobal = &ground;
+    *terrainGlobal = &fakeTerrain;
+    *effectsGlobal = &effects;
+    *countGlobal = &count;
+    *viewGlobal = &view;
+    auto setFlags = [&](uint32_t value) { At<uint32_t>(o, av::field::kAutomataFlags) = value | 0x100000u; };
+    auto setList = [&](std::initializer_list<int> which) {
+        FloorNode* head = nullptr;
+        int n = static_cast<int>(which.size());
+        const int* const w = which.begin();
+        for (int i = n - 1; i >= 0; --i) {
+            nodes[i].occupant = w[i] < 0 ? nullptr : &floors[w[i]];
+            nodes[i].next = head;
+            head = &nodes[i];
+        }
+        ground.list = head;
+    };
+    auto resetControls = [&](int i) {
+        std::memset(controls, 0, sizeof controls);
+        At<float>(controls, 0x28) = (i % 3 - 1) * 6.0f;
+        At<float>(controls, 0x2C) = (i % 4) * 3.5f - 2.0f;
+        SetPoint(controls, 0x44, 39.0f, 4.0f + 0.25f * (i % 3), 29.0f);
+        SetPoint(controls, 0x50, i & 1 ? 0.0f : 0.5f, 0.0f, i & 1 ? 2.0f : 0.0f);
+        At<float>(controls, 0x5C) = (i % 3) * 0.3f - 0.4f;
+        At<float>(controls, 0x7C) = i & 2 ? -1.0f : 1.0f;
+        At<float>(controls, 0x80) = -1.0f;
+    };
+    At<float>(o, av::field::kRadius) = 1.5f;
+    At<uint32_t>(o, av::field::kState) = 7;
+    SetPoint(o, av::field::kPosition, 12.0f, 0.5f, 11.0f);
+    SetPoint(o, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+    setFlags(0);
+    At<char**>(o, av::field::kStates) = nullptr;
+    At<char**>(o, av::field::kStatesEnd) = nullptr;
+    At<char**>(o, av::field::kStates + 8) = nullptr;
+    uint32_t nanWord = 0x7FC00000u;
+    float nan;
+    std::memcpy(&nan, &nanWord, 4);
+
+    // ---- vlanes: 0x0055BB10, the segment against the sphere.
+    {
+        using Sphere = uint8_t(__stdcall*)(const float*, const float*, const float*, float, float*, float*);
+        const auto sphere = reinterpret_cast<Sphere>(addr::SC4_SegmentSphere);
+        const float points[][3] = {{0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 10.0f},
+                                   {3.0f, 1.0f, 4.0f}, {-5.0f, 0.5f, 2.0f}, {20.0f, 0.0f, 20.0f}};
+        const float centres[][3] = {{3.0f, 1.0f, 4.0f}, {10.0f, 0.0f, 0.0f}, {5.0f, 0.0f, 0.0f}};
+        for (const auto& from : points)
+            for (const auto& to : points)
+                for (const auto& centre : centres)
+                    for (const float radius : {2.0f, 5.0f, 0.0f, 12.5f, nan}) {
+                        float first[3], second[3];
+                        std::memset(first, 0x7F, sizeof first);
+                        std::memset(second, 0x7F, sizeof second);
+                        vlanes.Mix(sphere(from, to, centre, radius, first, second));
+                        vlanes.MixBytes(first, sizeof first);
+                        vlanes.MixBytes(second, sizeof second);
+                    }
+    }
+
+    // ---- vlanes: 0x0055C350, an edge against the sphere.
+    {
+        using Edge = void(__thiscall*)(void*, uint32_t, uint32_t, uint32_t, uint32_t, const float*, float, float*,
+                                       float*);
+        const auto edge = reinterpret_cast<Edge>(addr::cSC4Vehicle_CrossEdge);
+        const float edges[][4] = {{32.0f, 16.0f, 64.0f, 16.0f}, {64.0f, 16.0f, 64.0f, 48.0f},
+                                  {40.0f, 0.0f, 40.0f, 60.0f}, {0.0f, 30.0f, 100.0f, 30.0f}};
+        const float centre[3] = {40.0f, 1.0f, 30.0f};
+        for (const auto& e : edges)
+            for (const float radius : {5.0f, 14.0f, 30.0f, 0.5f})
+                for (const float least : {3.4e38f, 14.0f, 0.0f}) {
+                    float out[3] = {-1.0f, -1.0f, -1.0f};
+                    float best = least;
+                    edge(o, Bits(e[0]), Bits(e[1]), Bits(e[2]), Bits(e[3]), centre, radius, out, &best);
+                    vlanes.MixBytes(out, sizeof out);
+                    vlanes.Mix(Bits(best));
+                }
+    }
+
+    // ---- vlanes: slot 188, keeping a point to the occupant's cells.
+    {
+        using Clamp = void(__thiscall*)(void*, const float*, float*);
+        const auto clamp = reinterpret_cast<Clamp>(addr::cSC4Vehicle_ClampToOccupant);
+        const float from[][3] = {{40.0f, 1.0f, 30.0f}, {50.0f, 0.0f, 20.0f}};
+        const float to[][3] = {{40.0f, 1.0f, 30.0f}, {60.0f, 1.0f, 40.0f}, {70.0f, 2.0f, 30.0f},
+                               {45.0f, 0.0f, 60.0f}, {40.000004f, 1.0f, 30.0f}, {10.0f, 1.0f, 30.0f}};
+        for (const auto& f : from)
+            for (const auto& t : to) {
+                float p[3] = {t[0], t[1], t[2]};
+                clamp(o, f, p);
+                vlanes.MixBytes(p, sizeof p);
+            }
+        vlanes.Mix(cells.calls.h);
+        vlanes.Mix(block.calls.h);
+    }
+
+    // ---- vlanes: slot 176, the lights.
+    {
+        using SetLightsFn = void(__thiscall*)(void*, uint32_t, uint32_t);
+        const auto setLights = reinterpret_cast<SetLightsFn>(addr::cSC4Vehicle_SetLights);
+        for (const int present : {0, 1})
+            for (const uint32_t on : {0u, 1u, 0x100u})
+                for (const uint32_t later : {0u, 1u, 0x200u}) {
+                    lights[0].references = lights[1].references = 1;
+                    At<void*>(o, av::field::kVirtual258) = present ? &lights[0] : nullptr;
+                    At<void*>(o, av::field::kVirtual25C) = present ? &lights[1] : nullptr;
+                    At<float>(o, av::field::kTimer254) = 0.0f;
+                    if (emptyModels || present == 0 || (on & 0xFF))
+                        setLights(o, on, later);
+                    vlanes.Mix(At<uint32_t>(o, av::field::kTimer254));
+                    vlanes.Mix(probe.Id(At<void*>(o, av::field::kVirtual258)));
+                    vlanes.Mix(probe.Id(At<void*>(o, av::field::kVirtual25C)));
+                    vlanes.Mix(static_cast<uint32_t>(lights[0].references));
+                    vlanes.Mix(static_cast<uint32_t>(lights[1].references));
+                }
+        At<void*>(o, av::field::kVirtual258) = nullptr;
+        At<void*>(o, av::field::kVirtual25C) = nullptr;
+        At<float>(o, av::field::kTimer254) = 0.0f;
+    }
+
+    // ---- vlanes: slot 191, the models (the current one's key not a model's).
+    {
+        using UpdateFn = void(__thiscall*)(void*, uint32_t);
+        const auto update = reinterpret_cast<UpdateFn>(addr::cSC4Vehicle_UpdateModels);
+        for (std::size_t i = 0; i < 12; i += 4)
+            At<uint32_t>(o, av::field::kModelKey + i / 4 * 4) = 0xDEADBEEFu;
+        const uint32_t masks[] = {0xF, 0xE, 0x7, 0x5, 0xF, 0x0, 0xB};
+        int i = 0;
+        for (const uint32_t mask : masks)
+            for (const float fade : {0.15f, 0.9f, 1.7f}) {
+                ++i;
+                for (uint32_t k = 0; k < 4; ++k)
+                    At<void*>(o, av::field::kModels + 4 * k) = (mask >> k) & 1 ? &models[k] : nullptr;
+                At<uint8_t>(o, av::field::kByte2B4) = static_cast<uint8_t>(i % 4);
+                float* const f = &At<float>(o, av::field::kFade1B0);
+                f[0] = f[1] = fade;
+                f[2] = f[3] = 0.0f;
+                SetPoint(o, av::field::kHeading, 0.6f, 0.1f * (i % 3), 0.8f);
+                SetPoint(o, av::field::kPosition, 12.0f + i, 0.5f, 11.0f);
+                update(o, 0x55u);
+                vlanes.Mix(At<uint8_t>(o, av::field::kByte2B4));
+                for (uint32_t k = 0; k < 4; ++k)
+                    vlanes.Mix(probe.Id(At<void*>(o, av::field::kModels + 4 * k)));
+            }
+        for (const FakeModel& m : models)
+            vlanes.Mix(m.calls.h);
+        vlanes.Mix(view.calls.h);
+        std::memcpy(o + av::field::kModelKey, saved11C, sizeof saved11C);
+    }
+
+    // ---- vlanes: slot 177, the shown flag (turned off, the models let go).
+    {
+        using ShownFn = uint8_t(__thiscall*)(void*, uint32_t);
+        const auto shown = reinterpret_cast<ShownFn>(addr::cSC4Vehicle_SetShown);
+        for (const uint32_t fl : {0x0u, 0x80000u})
+            for (const uint32_t arg : {0u, 1u, 0x100u}) {
+                for (uint32_t k = 0; k < 4; ++k) {
+                    models[k].references = 1;
+                    At<void*>(o, av::field::kModels + 4 * k) = k == 2 ? nullptr : &models[k];
+                }
+                setFlags(fl);
+                vlanes.Mix(shown(o, arg) & 0xFF);
+                vlanes.Mix(At<uint32_t>(o, av::field::kAutomataFlags));
+                for (uint32_t k = 0; k < 4; ++k) {
+                    vlanes.Mix(probe.Id(At<void*>(o, av::field::kModels + 4 * k)));
+                    vlanes.Mix(static_cast<uint32_t>(models[k].references));
+                }
+            }
+        for (uint32_t k = 0; k < 4; ++k)
+            At<void*>(o, av::field::kModels + 4 * k) = nullptr;
+        vlanes.Mix(view.calls.h);
+        setFlags(0);
+    }
+
+    // ---- vlanes: 0x0055EA20, the throttle.
+    {
+        using ThrottleFn = float(__thiscall*)(void*, void*, void*, uint32_t, uint32_t, float);
+        const auto throttle = reinterpret_cast<ThrottleFn>(addr::cSC4Vehicle_Throttle);
+        At<float>(entry, 0x08) = 12.0f;
+        At<float>(entry, 0x0C) = -3.0f;
+        At<float>(entry, 0x18) = 0.5f;
+        At<float>(entry, 0x1C) = 4.0f;
+        int i = 0;
+        for (const float speed : {-2.0f, 0.0f, 3.0f, 11.9f})
+            for (const float accel : {6.0f, -6.0f, 0.0f})
+                for (const uint32_t back : {0u, 1u})
+                    for (const uint32_t reverse : {0u, 1u})
+                        for (const uint32_t limited : {0u, 0x100u, 1u})
+                            for (const float y : {0.0f, 0.5f, -0.9f}) {
+                                ++i;
+                                std::memset(controls, 0, sizeof controls);
+                                At<float>(controls, 0x2C) = speed;
+                                At<float>(controls, 0x28) = accel;
+                                At<uint8_t>(controls, 0x228) = static_cast<uint8_t>(back);
+                                At<float>(controls, 0x7C) = i % 3 ? -1.0f : 1.0f;
+                                At<float>(controls, 0x80) = -1.0f;
+                                probe.answer[0] = static_cast<uint32_t>(i & 1);
+                                SetPoint(o, av::field::kHeading, 0.0f, y, 1.0f);
+                                SetSmoothed(o, i % 5 ? 1.0f : speed);
+                                vlanes.Mix(Bits(throttle(o, controls, entry, reverse, limited, 0.5f)));
+                                vlanes.Mix(At<uint32_t>(controls, 0x2C));
+                                vlanes.MixBytes(o + av::field::kSmoothed, 0x10);
+                            }
+        probe.answer[0] = 0;
+        SetSmoothed(o, 0.0f);
+        SetPoint(o, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+    }
+
+    // ---- vlanes: 0x0055BF70, the path by keys.
+    {
+        using Near = Path*(__stdcall*)(void*, uint32_t* const*, float*, uint32_t*, int32_t*);
+        const auto pathNear = reinterpret_cast<Near>(addr::SC4_PathNear);
+        const uint32_t sets[][3] = {{2, 3, 1}, {3, 1, 0}, {1, 0, 0}, {2, 0, 0}};
+        const uint32_t sizes[] = {3, 2, 1, 1, 0};
+        for (std::size_t s = 0; s < 5; ++s)
+            for (const float y : {0.0f, -3.0f}) {
+                uint32_t keys[3] = {};
+                if (s < 4)
+                    std::memcpy(keys, sets[s], sizeof keys);
+                uint32_t* const range[2] = {keys, keys + sizes[s]};
+                float point[3] = {5.0f, y, 7.0f};
+                uint32_t key = 0xEEEEEEEEu;
+                int32_t index = -9;
+                vlanes.Mix(probe.Id(pathNear(&keyPart, range, point, &key, &index)));
+                vlanes.Mix(key);
+                vlanes.Mix(static_cast<uint32_t>(index));
+                vlanes.MixBytes(point, sizeof point);
+            }
+        vlanes.Mix(keyPart.calls.h);
+    }
+    vlanes.Mix(probe.calls.h);
+    probe.calls = {};
+
+    // ---- vdrive: slot 185, falling.
+    {
+        using FrameFn = uint8_t(__thiscall*)(void*, float);
+        const auto fall = reinterpret_cast<FrameFn>(addr::cSC4Vehicle_FallFrame);
+        probe.answer[56] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(state));
+        MakeState(state, 0xEu, 0.0f);
+        int i = 0;
+        for (const float tilt : {0.5f, 0.01f})
+            for (const float swing : {3.0f, -2.0f})
+                for (const float centre : {0.0f, 0.3f})
+                    for (const float y : {0.1f, -0.2f, 0.6f}) {
+                        ++i;
+                        At<float>(state, 0x34) = tilt;
+                        At<float>(state, 0x2C) = swing;
+                        At<float>(state, 0x30) = centre;
+                        SetPoint(o, av::field::kHeading, 0.6f, y, 0.8f);
+                        setFlags(i % 7 == 0 ? 1u : 0u);
+                        vdrive.Mix(fall(o, 0.25f));
+                        vdrive.MixBytes(state + 0x28, 0x18);
+                    }
+        for (const float x : {12.0f, 1600.0f})
+            for (const float y : {20.0f, 5.0f, 1.0f})
+                for (const float timer : {0.0f, 0.3f, 2.0f}) {
+                    MakeState(state, 0xEu, 0.0f);
+                    At<float>(state, 0x28) = -0.5f;
+                    At<float>(state, 0x38) = timer;
+                    At<FakeEffect*>(state, 0x3C) = timer > 0.0f ? &effect : nullptr;
+                    if (timer > 0.0f)
+                        ++effect.references;
+                    SetPoint(o, av::field::kPosition, x, y, 11.0f);
+                    setFlags(0);
+                    for (int step = 0; step < 2; ++step) {
+                        vdrive.Mix(fall(o, 0.5f));
+                        vdrive.MixBytes(state + 0x28, 0x18);
+                        vdrive.Mix(probe.Id(At<void*>(state, 0x3C)));
+                    }
+                }
+        vdrive.Mix(effect.calls.h);
+        vdrive.Mix(effects.calls.h);
+        vdrive.Mix(effects.made);
+        vdrive.Mix(static_cast<uint32_t>(effect.references));
+        vdrive.Mix(fakeTerrain.calls.h);
+        SetPoint(o, av::field::kPosition, 12.0f, 0.5f, 11.0f);
+        SetPoint(o, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+        setFlags(0);
+    }
+
+    log::Write("autotest: automata: vehicle: vb6 vdrive after %s %08X probe %08X", "fall", vdrive.h, probe.calls.h);
+    // ---- vdrive: slot 186, placed.
+    {
+        using FrameFn = uint8_t(__thiscall*)(void*, float);
+        const auto place = reinterpret_cast<FrameFn>(addr::cSC4Vehicle_PlaceFrame);
+        probe.answer[56] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(state));
+        for (Target* t : {&target, static_cast<Target*>(nullptr)})
+            for (const float tz : {30.0f, -30.0f})
+                for (const float hy : {0.1f, -0.3f}) {
+                    MakeState(state, 0x15u, 0.0f);
+                    At<Holder*>(state, 8) = &holder;
+                    holder.target = t;
+                    target.point[2] = tz;
+                    target.point[0] = 30.0f - tz;
+                    SetPoint(o, av::field::kHeading, 0.6f, hy, 0.8f);
+                    SetPoint(o, av::field::kPosition, 12.0f, 0.5f, 11.0f);
+                    vdrive.Mix(place(o, 0.25f));
+                    vdrive.MixBytes(state + 0x28, 0x1C);
+                    vdrive.MixBytes(o + av::field::kSmoothed, 0x10);
+                }
+        holder.target = &target;
+        for (const float speed : {0.0f, 2.5f, -1.0f})
+            for (const int dir : {0, 1})
+                for (const int kept : {0, 1}) {
+                    MakeState(state, 0x15u, 0.5f);
+                    At<Holder*>(state, 8) = &holder;
+                    At<float>(state, 0x28) = 0.5f;
+                    if (dir)
+                        SetPoint(state, 0x38, 0.0f, 0.0f, -1.0f);
+                    if (kept)
+                        SetPoint(state, 0x2C, 0.6f, 0.0f, 0.8f);
+                    SetSmoothed(o, speed);
+                    SetPoint(o, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+                    SetPoint(o, av::field::kPosition, 4.0f, 1.0f, 0.0f); // the NaN way with neither
+                    At<float>(o, av::field::kSpeed94) = 3.0f;
+                    vdrive.Mix(place(o, 0.5f));
+                    vdrive.MixBytes(o + av::field::kPosition, 12);
+                    vdrive.MixBytes(o + av::field::kHeading, 12);
+                    vdrive.Mix(At<uint32_t>(o, av::field::kSpeed94));
+                    vdrive.MixBytes(state + 0x28, 0x1C);
+                }
+        for (const int32_t answer : {2, 5})
+            for (const uint32_t ok : {0u, 1u}) {
+                MakeState(state, 0x15u, 0.0f);
+                At<Holder*>(state, 8) = &holder;
+                At<float>(state, 0x28) = 1500.0f;
+                SetPoint(state, 0x2C, 0.0f, 1.0f, 0.0f);
+                count.answer = answer;
+                holder.answer23 = ok;
+                vdrive.Mix(place(o, 0.5f));
+                vdrive.MixBytes(o + av::field::kHeading, 12);
+                vdrive.Mix(At<uint32_t>(state, 0x28));
+            }
+        vdrive.Mix(count.calls.h);
+        vdrive.Mix(ground.calls.h);
+        probe.answer[56] = 0;
+        SetSmoothed(o, 0.0f);
+        SetPoint(o, av::field::kPosition, 12.0f, 0.5f, 11.0f);
+        SetPoint(o, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+        At<float>(o, av::field::kSpeed94) = 0.0f;
+    }
+
+    log::Write("autotest: automata: vehicle: vb6 vdrive after %s %08X probe %08X", "place", vdrive.h, probe.calls.h);
+    // ---- vdrive: 0x0055C030, the floor.
+    {
+        using FloorFn = void*(__thiscall*)(void*, void*, uint8_t*, const float*, float*);
+        const auto floorAt = reinterpret_cast<FloorFn>(addr::cSC4Vehicle_FloorAt);
+        std::memset(controls, 0, sizeof controls);
+        int i = 0;
+        const std::initializer_list<int> lists[] = {{}, {0}, {1, 0}, {2, 3, 4}, {4, 1, 0}, {-1, 1}};
+        for (const auto& list : lists)
+            for (const float y : {2.5f, 5.0f, 8.0f, -3.0f})
+                for (const uint8_t byte228 : {0, 1}) {
+                    ++i;
+                    setList(list);
+                    At<uint8_t>(controls, 0x228) = byte228;
+                    const float point[3] = {i % 9 == 0 ? 1600.0f : 40.0f, y, 30.0f};
+                    float out[3] = {-7.0f, -7.0f, -7.0f};
+                    uint8_t found = 0xEE;
+                    vdrive.Mix(probe.Id(floorAt(o, controls, &found, point, i % 4 == 3 ? nullptr : out)));
+                    vdrive.Mix(found);
+                    vdrive.MixBytes(out, sizeof out);
+                    vdrive.Mix(probe.Id(At<void*>(controls, 0x78)));
+                }
+        for (const Floor& f : floors) {
+            vdrive.Mix(f.calls.h);
+            vdrive.Mix(static_cast<uint32_t>(f.references));
+        }
+        for (const FloorPart* p : {&partWith, &partLift, &partNone, &partOff})
+            vdrive.Mix(p->calls.h);
+    }
+
+    log::Write("autotest: automata: vehicle: vb6 vdrive after %s %08X probe %08X", "floor", vdrive.h, probe.calls.h);
+    // ---- vdrive: slot 187, driving off the network.
+    {
+        using DriveFn = uint8_t(__thiscall*)(void*, uint32_t, void*, float, void*, uint32_t);
+        const auto drive = reinterpret_cast<DriveFn>(addr::cSC4Vehicle_DriveFree);
+        const float* const unset = reinterpret_cast<const float*>(addr::cSC4AutomatonCore_DefaultPoint);
+        At<float>(other, 0x38) = 0.25f;
+        int i = 0;
+        for (const uint32_t answer : {0u, 1u})
+            for (const int frontSet : {0, 1})
+                for (const int floorsOn : {0, 1})
+                    for (int k = 0; k < 6; ++k) {
+                        ++i;
+                        resetControls(i);
+                        g_hit = {answer, {41.0f, 33.0f}, {k & 1 ? 0.6f : 1.0f, k & 1 ? 0.8f : 0.0f}};
+                        setList(floorsOn ? std::initializer_list<int>{1, 0} : std::initializer_list<int>{});
+                        SetPoint(o, av::field::kPosition, 40.0f, 4.0f, 30.0f);
+                        SetPoint(o, av::field::kHeading, k & 2 ? 0.0f : 0.6f, 0.0f, k & 2 ? 1.0f : 0.8f);
+                        if (frontSet)
+                            SetPoint(o, av::field::kFront, 40.5f, 4.0f, 31.0f);
+                        else
+                            std::memcpy(o + av::field::kFront, unset, 12);
+                        SetSmoothed(o, 2.0f + k);
+                        vdrive.Mix(drive(o, 0x11u, controls, k == 5 ? 0.0f : 0.5f, other, 0x22u));
+                        vdrive.MixBytes(o + av::field::kFront, 12);
+                        vdrive.MixBytes(controls + 0x28, 0x34);
+                        vdrive.MixBytes(o + av::field::kSmoothed, 0x10);
+                        vdrive.Mix(probe.Id(At<void*>(controls, 0x78)));
+                    }
+        g_hit = {};
+        SetSmoothed(o, 0.0f);
+    }
+    log::Write("autotest: automata: vehicle: vb6 vdrive after %s %08X probe %08X", "drive", vdrive.h, probe.calls.h);
+    vdrive.Mix(probe.calls.h);
+
+    // Released: the floors held in the controls, the test's fields put back.
+    if (void* const held = At<void*>(controls, 0x78))
+        Virtual<uint32_t>(held, av::slot::kRelease);
+    At<void*>(controls, 0x78) = nullptr;
+    *cityGlobal = realCity;
+    *groundGlobal = realGround;
+    *terrainGlobal = realTerrain;
+    *effectsGlobal = realEffects;
+    *countGlobal = realCount;
+    *viewGlobal = realView;
+    g_probe = nullptr;
+    if (fakeCity.traps)
+        flags |= 0x8000;
+    log::Write("autotest: automata: vehicle: vb6 traps %u, models empty %d, effect references %d, floor references %d "
+               "%d %d %d %d, object references %u",
+               fakeCity.traps, emptyModels ? 1 : 0, effect.references, floors[0].references, floors[1].references,
+               floors[2].references, floors[3].references, floors[4].references, At<uint32_t>(o, 0x10));
+    std::memcpy(o + av::field::kStates, stack3, sizeof stack3);
+    std::memcpy(o + av::field::kTimer254, saved254, sizeof saved254);
+    std::memcpy(o + av::field::kModels, saved2A4, sizeof saved2A4);
+    std::memcpy(o + av::field::kFade1B0, saved1B0, sizeof saved1B0);
+    At<void*>(o, av::field::kObjectB0) = nullptr;
+    At<void*>(o, av::field::kPath) = nullptr;
+    At<uint32_t>(o, av::field::k98) = word98;
+    At<uint8_t>(o, av::field::kFlags33) = byte33;
+    At<uint32_t>(o, av::field::kAutomataFlags) = 0;
+    At<void**>(o, 0) = realTable;
+    At<void**>(o, 4) = realTable4;
+    Virtual<uint32_t>(o, av::slot::kRelease);
+    flags |= 0x2000;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -13727,6 +14726,10 @@ void VehicleDrive(cISC4City* city)
     Hash vmove, vframe;
     VehicleMoveDrive(vmove, vframe, flags);
 
+    // ---- Part vb6.
+    Hash vlanes, vdrive;
+    VehicleLanesDrive(vlanes, vdrive, flags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -13779,17 +14782,17 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[224];
+    char text[240];
     std::snprintf(text, sizeof text,
-                  " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X",
+                  " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
-                  enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h);
+                  enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
-               "%08X vmove %08X vframe %08X",
+               "%08X vmove %08X vframe %08X vlanes %08X vdrive %08X",
                object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
-               enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h);
+               enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h);
 }
 
 void Drive(const Day& day)

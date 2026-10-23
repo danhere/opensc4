@@ -93,6 +93,14 @@
 //          +0x270 the direction it averages (both the core's default point
 //          while unset)
 // The terrain (0x00B43CF4) and the city's slot 98 are called by their slots.
+//
+// Part vb6 adds (cSC4Vehicle's lanes and turns):
+//   the core's +0x11C a resource key (slot 191's models), +0x1B0 a second
+//          smoothed value (a fade)
+//   cSC4Vehicle's +0x258 and +0x25C the lights (slot 176), +0x2A4..+0x2B0
+//          the models slot 191 places, +0x2B4 the current one
+//   a state's +0x28.. (slots 185 and 186) and the controls' +0x28 to +0x5C
+//          and +0x78 (slot 187): see automata_vehicle.cpp
 #pragma once
 
 #include <cstddef>
@@ -137,6 +145,8 @@ inline constexpr std::size_t kSmoothedTarget = 0x1A4, kSmoothedDuration = 0x1A8,
 // Part vb5's.
 inline constexpr std::size_t kSpeed94 = 0x94;
 inline constexpr std::size_t kTimer254 = 0x254, kFront = 0x264, kDirection = 0x270;
+// Part vb6's.
+inline constexpr std::size_t kModelKey = 0x11C, kFade1B0 = 0x1B0;
 } // namespace field
 
 // A state on the core's stack (part vb4).
@@ -241,6 +251,12 @@ inline constexpr std::size_t kSlot128 = 0x200;        // 128: the core's 0x0050A
 inline constexpr std::size_t kSlot185 = 0x2E4;        // 185: cSC4Vehicle 0x0055E1F0, (seconds), ret 4
 inline constexpr std::size_t kSlot186 = 0x2E8;        // 186: cSC4Vehicle 0x0055E550, (seconds), ret 4
 inline constexpr std::size_t kSlot191 = 0x2FC;        // 191: cSC4Vehicle 0x0055DD50, (seconds), ret 4
+// Part vb6's.
+inline constexpr std::size_t kMakeModel = 0x18C;      // 99: the core's 0x0050EB20, (kind, model* out), ret 8
+inline constexpr std::size_t kSlot177 = 0x2C4;        // 177: cSC4Vehicle 0x0055DD10, (shown), ret 4
+inline constexpr std::size_t kSlot187 = 0x2EC;        // 187: cSC4Vehicle 0x0055ED10, five words, ret 0x14
+inline constexpr std::size_t kSlot188 = 0x2F0;        // 188: cSC4Vehicle 0x0055C480, (from, to), ret 8
+inline constexpr std::size_t kSlot189 = 0x2F4;        // 189: cSC4Vehicle 0x00561D20 (part vb7), four words, ret 0x10
 // The occupant part's (+4).
 inline constexpr std::size_t kPartType = 0x1C;        // 7: 0x006BDD80, the occupant type (+0x28)
 inline constexpr std::size_t kPartFlags = 0x84;       // 33: 0x005E8BE0, the byte +0x33
@@ -253,6 +269,10 @@ inline constexpr std::size_t kWidth = 0x164;          // 89: the city's size in 
 inline constexpr std::size_t kDepth = 0x168;          // 90: in z
 inline constexpr std::size_t kCellOf = 0x17C;         // 95: (x, z, int* cell x, int* cell z), ret 0x10
 inline constexpr std::size_t kInCity = 0x188;         // 98 (part vb5): (x, z), ret 8, a bool
+// Part vb6's.
+inline constexpr std::size_t kSlot33 = 0x84;          // 33: an object whose slot 6 (cell x, cell z, 0) answers an occupant
+inline constexpr std::size_t kSlot84 = 0x150;         // 84: an object whose slot 13 (x, z) is a height in ST0
+inline constexpr std::size_t kCellCorner = 0x180;     // 96: (cell x, cell z, float* x, float* z), ret 0x10
 } // namespace city
 // Part vb5's: the terrain (0x00B43CF4).
 namespace terrain {
