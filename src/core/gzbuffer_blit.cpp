@@ -325,8 +325,9 @@ bool TileBlit(void* target, void* source, const Rect* sourceArea, const Rect* ta
             return false;
         if (Virtual<uint8_t>(source, buffer::kIsTransparent, x, y))
             return true;
-        // The bytes land in the game's own slots, whose low bytes they replace.
-        uint8_t red = static_cast<uint8_t>(left), green = static_cast<uint8_t>(h);
+        // The bytes land in the game's own slots (w, h and the source area's
+        // argument), whose low bytes they replace.
+        uint8_t red = static_cast<uint8_t>(w), green = static_cast<uint8_t>(h);
         uint8_t blue = static_cast<uint8_t>(At(sourceArea));
         const uint32_t pixel = Virtual<uint32_t>(source, buffer::kGetPixel, x, y);
         Virtual<uint32_t>(source, buffer::kNativeToRGB, pixel, &red, &green, &blue);
@@ -1154,13 +1155,14 @@ void FloodOf(int kind, int32_t x, int32_t y, int32_t width, int32_t height, uint
     }
 }
 
-// What a fill may write: rows 0 to `height` (the row past the buffer too,
-// see FloodFill), when the start is inside.
+// What a fill may write when the start is inside: rows 0 to height - 1,
+// and the row past the buffer when the start is on the last row (see
+// FloodFill).
 Region FloodRegion(int kind, int32_t x, int32_t y, int32_t width, int32_t height, uint8_t* bits, int32_t stride)
 {
     if ((x | y) < 0 || x >= width || y >= height)
         return {};
-    return Rows(bits, static_cast<uint32_t>(height) + 1, static_cast<uint32_t>(stride),
+    return Rows(bits, static_cast<uint32_t>(height) + (y == height - 1 ? 1 : 0), static_cast<uint32_t>(stride),
                 static_cast<uint32_t>(width) * kFloodBytes[kind]);
 }
 

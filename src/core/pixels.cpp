@@ -765,9 +765,10 @@ void DecodeDXT3To16(void* target, int32_t targetPitch, const void* blocks, uint3
             const uint32_t indices = Load<uint32_t>(s + 0xC);
             uint16_t palette[4];
             Palette16(c0, c1, to16(c0), to16(c1), thirds, averageMask, palette);
-            const uint64_t alphas = Load<uint64_t>(s);
             for (int i = 0; i < 16; ++i) {
-                const uint32_t a = static_cast<uint32_t>(alphas >> (4 * i)) & 0xF;
+                // The alpha read again before each store, as the game does
+                // (it matters only when the target is the blocks).
+                const uint32_t a = static_cast<uint32_t>(Load<uint64_t>(s) >> (4 * i)) & 0xF;
                 const uint16_t pixel = static_cast<uint16_t>(alpha(a) + palette[(indices >> (2 * i)) & 3]);
                 Store(d + (i >> 2) * pitch + (i & 3) * 2, pixel);
             }
