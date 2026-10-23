@@ -1,4 +1,4 @@
-// Our other road vehicles, part ro1 (build 641): the trailer, the bus, the
+// Our other road vehicles, parts ro1 and ro2 (build 641): the trailer, the bus, the
 // getaway van, the carjacked vehicle, the tank and the mayor's limo, all
 // derived from cSC4Vehicle (src/core/automata_vehicle.cpp). ro1: the
 // objects (the six factories and constructors, the tank's and the trailer's
@@ -6,14 +6,18 @@
 // QueryInterface and the six GetGZCLSIDs), the save (the five Writes and
 // five Reads), the life cycle (the limo's, the tank's and the trailer's
 // Init, the tank's and the trailer's Shutdown) and the queries (the
-// trailer's rear point and its two counts, the tank's debug text). The
-// layout is in src/core/automata_roadveh.h and the survey in
+// trailer's rear point and its two counts, the tank's debug text). ro2: the
+// frames (the trailer's slots 72, 73, 95, 132 and 192 to 198: its cars made
+// from its words and walked along the path or behind each other; the bus's
+// 164 and 172, the carjacked vehicle's and the van's 101, the limo's 121 and
+// the tank's 127). The layout is in src/core/automata_roadveh.h and the survey in
 // docs/automata.md, "Part ro". Calls between functions of the part go to the
 // game's addresses, so each detour stands alone and OPENSC4_AUTOMATA_SKIP
 // (function addresses, hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.roadveh: the 44 detours in kObject (ro1) below.
+//   simulators.automata.roadveh: the 44 detours in kObject (ro1) and the 15 in
+//   kFrame (ro2) below.
 //
 // What it does. The trailer is 0x2E4 bytes from SC4::operator_new; the other
 // five come from the vehicle pool's allocator (which hands sizes other than
@@ -48,7 +52,23 @@
 //
 // Floats: the limo's first float is truncated as __ftol2 does (the low 32
 // bits of the 64-bit result); the tank's debug text passes doubles of its
-// floats, the velocity times 0.01 (0x00A9B7C8) as the x87 multiplies.
+// floats, the velocity times 0.01 (0x00A9B7C8) as the x87 multiplies. The
+// frames (ro2) keep the x87's 53-bit doubles and store floats where the
+// game stores them (each function's comment says which values stay
+// unrounded); the van's cell is __ftol2's.
+//
+// ro2's oddities kept: slot 198 sets the crossing's y by the share of the
+// squared distances (0x005D6FC0), not the distances; slot 197 keeps the
+// car's new front y on the x87 only; slot 196 ends the whole frame (not the
+// car) when the deque walk fails, keeps a null path it failed to get, and a
+// one-point path makes its index -1 (about 2^32 steps back); slot 195 reads
+// the word at the car count without a bounds test and rejects a position
+// with any coordinate below 0; slot 132 adds one to the word count's low
+// byte only; the limo's slot 121 uses the literals 50, 48 and 10, not the
+// fields Init sets; the bus's slot 164 releases each answer of its query
+// through the list's element and keeps its list in the argument's slot. AL
+// only in the game (ours zero-extends): the trailer's slots 72, 73, 195 and 198,
+// the bus's 164 and 172, both slots 101, the limo's 121.
 //
 // Still the game's, at their addresses: cSC4Vehicle's code (part vb), the
 // jumps the classes' vtables hold into it (0x005240C0, 0x0053CD00,
@@ -56,7 +76,11 @@
 // trailer's 0x00555A50 shared with the trains), the adjustor thunks of the
 // six parts, the fold 0x006F7DC0, the core's rear point 0x00505A40, the
 // stream helpers, SC4PtrVector::InsertN, the effect parts, the attachments
-// container and the string code.
+// container and the string code. ro2 calls also the core's slots 73
+// (0x005059C0), 95 (0x0050F140), 101 (0x0050CE60) and 127 (0x00508D00), the
+// base's slots 164 and 172, cSC4Vehicle's 72, 121 and 132, the core's
+// 0x0050D870, SC4::FindUint32, SC4PtrVector::PushBack,
+// SC4::SegmentsIntersect2D, 0x005D6FC0 and the list helpers.
 
 #include "core/automata_roadveh.h"
 
@@ -70,6 +94,7 @@
 
 #include <windows.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -977,6 +1002,750 @@ void* __fastcall TankDebugText(char* self, void*)
 }
 
 // ====================================================================================
+// The frames (ro2)
+
+float Zero() { return Global<float>(addr::SC4_FloatZero); }
+float Half() { return Global<float>(addr::SC4_FloatHalf); }
+float Epsilon() { return Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon); }
+float TrailerOne() { return Global<float>(addr::cSC4TrailerVehicle_One); }
+std::uint8_t Bool(std::uint32_t eax) { return static_cast<std::uint8_t>(eax); }
+
+void AddRef(void* object) { Virtual<std::uint32_t>(object, kAddRef); }
+
+// A point the trailer's code fills with the float 0x00B22954 before a slot
+// writes it.
+void FillPoint(float* point)
+{
+    const std::uint32_t fill = Global<std::uint32_t>(addr::cSC4TrailerVehicle_FillValue);
+    std::memcpy(point + 0, &fill, 4);
+    std::memcpy(point + 1, &fill, 4);
+    std::memcpy(point + 2, &fill, 4);
+}
+
+// The rear point of `automaton` as slots 196 and 197 take it: its position
+// (slot 7) less its direction (slot 15) times its radius (slot 17), the x
+// and y products rounded to floats, the z product not.
+void RearOf(char* automaton, float* point)
+{
+    float direction[3];
+    FillPoint(point);
+    FillPoint(direction);
+    Virtual<std::uint32_t>(automaton, slot::kGetPosition, point);
+    Virtual<std::uint32_t>(automaton, slot::kDirection, static_cast<float*>(direction));
+    const double radius = Virtual<double>(automaton, slot::kGetRadius);
+    const float x = static_cast<float>(direction[0] * radius);
+    const float y = static_cast<float>(direction[1] * radius);
+    const double z = direction[2] * radius;
+    point[0] = static_cast<float>(static_cast<double>(point[0]) - x);
+    point[1] = static_cast<float>(static_cast<double>(point[1]) - y);
+    point[2] = static_cast<float>(point[2] - z);
+}
+
+// The fade both follow loops give each car while +0x80 (slot 32) is below 1
+// and the automaton has the flag 1: the car's slot 33 (that, 0.01) and its
+// slot 83 (seconds).
+void FadeCar(char* self, char* car, float fade, float seconds)
+{
+    if (!(fade < Global<float>(addr::SC4_FloatOneA81228)) || !Bool(Virtual<std::uint32_t>(self, slot::kCheckFlag, 1u)))
+        return;
+    Virtual<std::uint32_t>(car, slot::kFade, fade, 0.01f);
+    Virtual<std::uint32_t>(car, slot::kSlot83, seconds);
+}
+
+char* LastCarOrSelf(char* self)
+{
+    char** const begin = At<char**>(self, trailer::kCars);
+    char** const end = At<char**>(self, trailer::kCars + 4);
+    return begin == end ? self : end[-1];
+}
+
+// 0x00555B50, the trailer's slot 72 (word, seconds), ret 8: cSC4Vehicle's
+// frame (0x0055BA20); while the point +0x2D0 is unset (x or z below 0) it
+// takes the last car's (or its own) position (slot 7), occupant (slot 137,
+// referenced) and groups (slot 136); a car more (slot 195) while there are
+// more words than cars; then slot 197 with the flag 0x2000, else slot 196
+// (seconds). AL the frame's.
+std::uint32_t __fastcall TrailerFrame(char* self, void*, std::uint32_t word, float seconds)
+{
+    static bool logged;
+    FirstCall("TrailerFrame", logged);
+    const std::uint8_t moved = Bool(CallThis<std::uint32_t>(addr::cSC4Vehicle_Frame, self, word, seconds));
+    float* const point = &At<float>(self, trailer::kPoint);
+    if (point[0] < Zero() || point[2] < Zero()) {
+        char* const last = LastCarOrSelf(self);
+        Virtual<std::uint32_t>(last, slot::kGetPosition, point);
+        void* const occupant = Virtual<void*>(last, slot::kOccupantOf);
+        void* const before = At<void*>(self, trailer::kOccupant);
+        if (occupant != before) {
+            if (occupant)
+                AddRef(occupant);
+            At<void*>(self, trailer::kOccupant) = occupant;
+            if (before)
+                Release(before);
+        }
+        At<std::uint32_t>(self, trailer::kWord) = Virtual<std::uint32_t>(last, slot::kGroups);
+    }
+    const std::uint32_t cars = static_cast<std::uint32_t>(
+        static_cast<std::int32_t>(At<char*>(self, trailer::kCars + 4) - At<char*>(self, trailer::kCars)) >> 2);
+    const std::uint32_t words = static_cast<std::uint32_t>(
+        static_cast<std::int32_t>(At<char*>(self, trailer::kWords + 4) - At<char*>(self, trailer::kWords)) >> 2);
+    if (words > cars)
+        Virtual<std::uint32_t>(self, slot::kAddCar);
+    if (Bool(Virtual<std::uint32_t>(self, slot::kCheckFlag, 0x2000u)))
+        Virtual<std::uint32_t>(self, slot::kFollowLeader, seconds);
+    else
+        Virtual<std::uint32_t>(self, slot::kFollowPath, seconds);
+    return moved;
+}
+
+// 0x00556260, the trailer's slot 73 (automaton), ret 4: false for one of
+// its cars (SC4::FindUint32, its argument's own slot passed as the value
+// and the tag), else the core's slot 73 (0x005059C0). AL only for false.
+std::uint32_t __fastcall TrailerCanMeet(char* self, void*, void* other)
+{
+    static bool logged;
+    FirstCall("TrailerCanMeet", logged);
+    std::uint32_t value = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(other));
+    std::uint32_t* const end = At<std::uint32_t*>(self, trailer::kCars + 4);
+    std::uint32_t* const found = CallCdecl<std::uint32_t*>(addr::SC4_FindUint32, At<std::uint32_t*>(self, trailer::kCars),
+                                                           end, static_cast<const std::uint32_t*>(&value),
+                                                           static_cast<const void*>(&value));
+    if (found != end)
+        return 0;
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_CanMeet, self, other);
+}
+
+// 0x00555B10, the trailer's slot 95 (template), ret 4: the core's slot 95
+// (0x0050F140), then each word of the template's list (+0x50, a circular
+// list, the word at +8 of each node) given to slot 192.
+void __fastcall TrailerSetTemplate(char* self, void*, char* from)
+{
+    static bool logged;
+    FirstCall("TrailerSetTemplate", logged);
+    CallThis<void>(addr::cSC4AutomatonCore_SetTemplate, self, from);
+    if (!from)
+        return;
+    char* const head = At<char*>(from, 0x50);
+    if (At<char*>(head, 0) == head)
+        return;
+    char* node = At<char*>(head, 0);
+    if (node == head)
+        return;
+    do {
+        Virtual<std::uint32_t>(self, slot::kPushWord, At<std::uint32_t>(node, 8));
+        node = At<char*>(node, 0);
+    } while (node != At<char*>(from, 0x50));
+}
+
+// 0x00555A90, the trailer's slot 132 (occupant, groups, path, keep), ret
+// 0x10: slot 181 with the deque +0x27C and the number of words plus one (the
+// increment on the low byte only, as the game's INC CL), then cSC4Vehicle's
+// slot 132 (0x0055D5A0).
+void __fastcall TrailerEnterOccupant(char* self, void*, void* occupant, std::uint32_t groups, void* path,
+                                     std::uint32_t keep)
+{
+    static bool logged;
+    FirstCall("TrailerEnterOccupant", logged);
+    std::uint32_t count = static_cast<std::uint32_t>(
+        static_cast<std::int32_t>(At<char*>(self, trailer::kWords + 4) - At<char*>(self, trailer::kWords)) >> 2);
+    count = (count & 0xFFFFFF00u) | ((count + 1) & 0xFFu);
+    Virtual<std::uint32_t>(self, slot::kRemember, self + field::kDeque, count);
+    CallThis<void>(addr::cSC4Vehicle_EnterOccupant, self, occupant, groups, path, keep);
+}
+
+// 0x00556380, the trailer's slot 192 (word), ret 4: the word pushed on +0x2B8
+// (SC4PtrVector::InsertN when full, the argument's own slot as the value and
+// the allocator; a null end is not written through).
+void __fastcall TrailerPushWord(char* self, void*, std::uint32_t word)
+{
+    static bool logged;
+    FirstCall("TrailerPushWord", logged);
+    char* const words = self + trailer::kWords;
+    std::uint32_t* const end = At<std::uint32_t*>(words, 4);
+    if (end != At<std::uint32_t*>(words, 8)) {
+        if (end)
+            *end = word;
+        At<std::uint32_t*>(words, 4) += 1;
+        return;
+    }
+    CallThis<void>(addr::SC4PtrVector_InsertN, words, end, &word, static_cast<void*>(&word), 1u, 1u);
+}
+
+// 0x00556A30, the trailer's slot 195: a car more. False when the last car's
+// (or its own) position (slot 140) has a coordinate below 0, when it is
+// nearer the point +0x2D0 than twice its radius (slot 17, as a float),
+// without the vehicle manager (slot 174) or without words. Else the manager's
+// slot 15 makes the car of the word at the number of cars (no bounds test):
+// (word, the point, +0x84, three zeros, 0, the byte +0x90, 0). It is given
+// the flag 2 off (slot 30), the last car as its leader (slot 49), the
+// point with the last car's direction (slots 15 and 16) and the occupant
+// +0x2DC with the groups +0x2E0 (slot 132, no path, keep); pushed on the car
+// vector and referenced. True then. AL only for the early falses.
+std::uint32_t __fastcall TrailerAddCar(char* self, void*)
+{
+    static bool logged;
+    FirstCall("TrailerAddCar", logged);
+    void* car = nullptr;
+    char* const last = LastCarOrSelf(self);
+    const float radius = static_cast<float>(Virtual<double>(last, slot::kGetRadius));
+    const float* const at = Virtual<float*>(last, slot::kPosition);
+    const float position[3] = {at[0], at[1], at[2]};
+    if (position[0] < Zero() || position[1] < Zero() || position[2] < Zero())
+        return 0;
+    const float* const point = &At<float>(self, trailer::kPoint);
+    const double dx = static_cast<double>(position[0]) - point[0];
+    const double dy = static_cast<double>(position[1]) - point[1];
+    const double dz = static_cast<double>(position[2]) - point[2];
+    const double distance = std::sqrt((dz * dz + dy * dy) + dx * dx);
+    if (!(static_cast<double>(radius) + radius <= distance))
+        return 0;
+    void* const manager = Virtual<void*>(self, slot::kManager);
+    if (!manager)
+        return 0;
+    std::uint32_t* const words = At<std::uint32_t*>(self, trailer::kWords);
+    if (words == At<std::uint32_t*>(self, trailer::kWords + 4))
+        return 0;
+    const std::int32_t index =
+        static_cast<std::int32_t>(At<char*>(self, trailer::kCars + 4) - At<char*>(self, trailer::kCars)) >> 2;
+    float zeros[3] = {0.0f, 0.0f, 0.0f};
+    car = Virtual<void*>(manager, slot::kMakeVehicle, words[index], self + trailer::kPoint,
+                         At<std::uint32_t>(self, field::kAutomataFlags), static_cast<float*>(zeros), 0u,
+                         static_cast<std::uint32_t>(At<std::uint8_t>(self, field::kByte90)), 0u);
+    if (!car)
+        return 0;
+    Virtual<std::uint32_t>(car, slot::kSetFlag, 2u, 0u);
+    Virtual<std::uint32_t>(car, slot::kSetLeader, last);
+    float heading[3];
+    FillPoint(heading);
+    Virtual<std::uint32_t>(last, slot::kDirection, static_cast<float*>(heading));
+    Virtual<std::uint32_t>(car, slot::kPlace, self + trailer::kPoint, static_cast<float*>(heading));
+    Virtual<std::uint32_t>(car, slot::kEnter, At<void*>(self, trailer::kOccupant),
+                           At<std::uint32_t>(self, trailer::kWord), 0u, 1u);
+    CallThis<void>(addr::SC4PtrVector_PushBack, self + trailer::kCars, &car);
+    AddRef(car);
+    return 1;
+}
+
+// 0x005560D0, the trailer's slot 198 (centre, a, b, out), ret 0x10: where the
+// segment a-b, in x and z, crosses the segment through the centre square to
+// it (half-length 100 (0x00A9C360) over a-b's length). False when a-b is
+// shorter than 1e-4 (0x00A9C35C) in each coordinate or nothing crosses
+// (SC4::SegmentsIntersect2D). The crossing's x and z into out, its y
+// between a's and b's by the share of the squared distances (0x005D6FC0, a
+// to the crossing over a to b, the latter stored as a float; 0 when that is
+// at most 1e-5).
+std::uint32_t __fastcall TrailerCrossPath(char*, void*, const float* centre, const float* a, const float* b,
+                                          float* out)
+{
+    static bool logged;
+    FirstCall("TrailerCrossPath", logged);
+    const float ex = static_cast<float>(static_cast<double>(b[0]) - a[0]);
+    const double ey = static_cast<double>(b[1]) - a[1];
+    const float ez = static_cast<float>(static_cast<double>(b[2]) - a[2]);
+    const double tiny = Global<float>(addr::cSC4TrailerVehicle_CrossEpsilon);
+    if (std::fabs(static_cast<double>(b[0]) - a[0]) < tiny && std::fabs(static_cast<double>(b[1]) - a[1]) < tiny &&
+        std::fabs(static_cast<double>(b[2]) - a[2]) < tiny)
+        return 0;
+    const double length =
+        std::sqrt((static_cast<double>(ez) * ez + ey * ey) + static_cast<double>(ex) * ex);
+    const double k = static_cast<double>(TrailerOne()) / length;
+    const double scale = Global<float>(addr::cSC4TrailerVehicle_CrossScale);
+    const double oz = (static_cast<double>(ez) * k) * scale;
+    const double ox = (static_cast<double>(ex) * k) * scale;
+    const float ozf = static_cast<float>(oz);
+    const float farEnd[2] = {static_cast<float>(oz + centre[0]), static_cast<float>(static_cast<double>(centre[2]) - ox)};
+    const float nearEnd[2] = {static_cast<float>(static_cast<double>(centre[0]) - ozf),
+                           static_cast<float>(ox + centre[2])};
+    const float from[2] = {a[0], a[2]};
+    const float to[2] = {b[0], b[2]};
+    float cross[2];
+    if (!CallCdecl<std::uint8_t>(addr::SC4_SegmentsIntersect2D, static_cast<const float*>(farEnd),
+                                 static_cast<const float*>(nearEnd), static_cast<const float*>(from),
+                                 static_cast<const float*>(to), static_cast<float*>(cross)))
+        return 0;
+    out[0] = cross[0];
+    out[2] = cross[1];
+    const float whole = static_cast<float>(
+        CallCdecl<double>(addr::SC4_DistanceSquared2D, static_cast<const float*>(from), static_cast<const float*>(to)));
+    const double part =
+        CallCdecl<double>(addr::SC4_DistanceSquared2D, static_cast<const float*>(from), static_cast<const float*>(cross));
+    const double share = whole > Epsilon() ? part / whole : static_cast<double>(Zero());
+    out[1] = static_cast<float>((static_cast<double>(b[1]) - a[1]) * share + a[1]);
+    return 1;
+}
+
+// 0x00555C70, the trailer's slot 197 (seconds), ret 4: each car behind the
+// one before it (the trailer for the first). Each car is faded as the
+// trailer is; then its front T is its position less its direction times its
+// radius (slots 7, 15, 17). With the record of the state 0x10 (slot 57) and
+// that record's +0x2C below 0, T's x and z are the rear point of the one
+// before (RearOf) less twice the car's radius along the trailer's heading,
+// and its y is the terrain's (0x00B43D54, slot 18 (x, z)). Else T moves by
+// slot 38 times the half-sum of the car's direction and the unit vector
+// from T to the rear point (the car's direction when that is within 1e-5).
+// The car is placed (slot 16) its radius from the rear point towards T
+// along the unit vector between them (again the direction within 1e-5),
+// with that vector as its heading; slots 178 (the rear point) and 180 (the
+// heading). T's new y is never stored; it stays unrounded on the x87.
+void __fastcall TrailerFollowLeader(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("TrailerFollowLeader", logged);
+    const float fade = static_cast<float>(Virtual<double>(self, slot::kFadeNow));
+    void* const terrain = Global<void*>(addr::SC4_Service43D54);
+    char* const record = Virtual<char*>(self, slot::kRecord, 0x10u);
+    char* before = self;
+    for (char** it = At<char**>(self, trailer::kCars); it != At<char**>(self, trailer::kCars + 4); ++it) {
+        char* const car = *it;
+        FadeCar(self, car, fade, seconds);
+        float rear[3];
+        RearOf(before, rear);
+        float position[3], direction[3];
+        FillPoint(position);
+        FillPoint(direction);
+        Virtual<std::uint32_t>(car, slot::kGetPosition, static_cast<float*>(position));
+        Virtual<std::uint32_t>(car, slot::kDirection, static_cast<float*>(direction));
+        const float radius = static_cast<float>(Virtual<double>(car, slot::kGetRadius));
+        float front[3];
+        {
+            const double x = direction[0] * static_cast<double>(radius);
+            const double y = direction[1] * static_cast<double>(radius);
+            const float z = static_cast<float>(direction[2] * static_cast<double>(radius));
+            front[0] = static_cast<float>(position[0] - x);
+            front[1] = static_cast<float>(position[1] - y);
+            front[2] = static_cast<float>(static_cast<double>(position[2]) - z);
+        }
+        double y;
+        if (record && At<float>(record, 0x2C) < Zero()) {
+            const float x2 = static_cast<float>((static_cast<double>(radius) * At<float>(self, field::kHeading)) * 2.0);
+            const double z2 = (static_cast<double>(radius) * At<float>(self, field::kHeading + 8)) * 2.0;
+            front[0] = static_cast<float>(static_cast<double>(rear[0]) - x2);
+            front[2] = static_cast<float>(static_cast<double>(rear[2]) - z2);
+            y = Virtual<double>(terrain, 0x48, front[0], front[2]);
+        } else {
+            const double dx = static_cast<double>(rear[0]) - front[0];
+            const float dyf = static_cast<float>(static_cast<double>(rear[1]) - front[1]);
+            const double dz = static_cast<double>(rear[2]) - front[2];
+            const float dzf = static_cast<float>(dz);
+            const double length = std::sqrt((dz * dzf + static_cast<double>(dyf) * dyf) + dx * dx);
+            double ux, uy;
+            float uz;
+            if (length > Epsilon()) {
+                const float inverse = static_cast<float>(static_cast<double>(TrailerOne()) / length);
+                ux = dx * inverse;
+                uy = static_cast<double>(dyf) * inverse;
+                uz = static_cast<float>(static_cast<double>(dzf) * inverse);
+            } else {
+                ux = direction[0];
+                uy = direction[1];
+                uz = direction[2];
+            }
+            const double half = Half();
+            const float hx = static_cast<float>(static_cast<double>(static_cast<float>(ux + direction[0])) * half);
+            const float hy = static_cast<float>((uy + direction[1]) * half);
+            const float hz = static_cast<float>((static_cast<double>(uz) + direction[2]) * half);
+            const double step = Virtual<double>(self, slot::kStep);
+            const float gy = static_cast<float>(hy * step);
+            const float gz = static_cast<float>(hz * step);
+            front[0] = static_cast<float>(hx * step + front[0]);
+            y = static_cast<double>(gy) + front[1];
+            front[2] = static_cast<float>(static_cast<double>(gz) + front[2]);
+        }
+        float heading[3];
+        {
+            const float dxf = static_cast<float>(static_cast<double>(rear[0]) - front[0]);
+            const double dy = rear[1] - y;
+            const double dz = static_cast<double>(rear[2]) - front[2];
+            const double length = std::sqrt((dz * dz + dy * dy) + static_cast<double>(dxf) * dxf);
+            if (length > Epsilon()) {
+                const double inverse = static_cast<double>(TrailerOne()) / length;
+                heading[0] = static_cast<float>(static_cast<double>(dxf) * inverse);
+                heading[1] = static_cast<float>(dy * inverse);
+                heading[2] = static_cast<float>(dz * inverse);
+            } else {
+                std::memcpy(heading, direction, sizeof heading);
+            }
+        }
+        const double px = heading[0] * static_cast<double>(radius);
+        const double py = heading[1] * static_cast<double>(radius);
+        const float pz = static_cast<float>(heading[2] * static_cast<double>(radius));
+        float place[3] = {static_cast<float>(rear[0] - px), static_cast<float>(rear[1] - py),
+                          static_cast<float>(static_cast<double>(rear[2]) - pz)};
+        Virtual<std::uint32_t>(car, slot::kPlace, static_cast<float*>(place), static_cast<float*>(heading));
+        Virtual<std::uint32_t>(car, slot::kSlot178, static_cast<float*>(rear));
+        Virtual<std::uint32_t>(car, slot::kSlot180, static_cast<float*>(heading));
+        before = car;
+    }
+}
+
+// A deque iterator (cur, first, last, node) over +0x27C's blocks of 16
+// elements of 8 bytes (0x80).
+struct DequeIt {
+    char* cur;
+    char* first;
+    char* last;
+    char** node;
+};
+
+// The element before `it`, as the game's reverse iterator finds it: the
+// offset of the one before from the block's start, its block by division
+// towards zero (offsets below 0 or of 16 and more).
+char* ElementBefore(const DequeIt& it)
+{
+    const std::int32_t offset = (static_cast<std::int32_t>(it.cur - it.first) >> 3) - 1;
+    if (offset >= 0 && offset < 16)
+        return it.cur - 8;
+    const std::int32_t block = offset > 0 ? offset / 16 : (offset + 1) / 16 - 1;
+    return it.node[block] + (offset - block * 16) * 8;
+}
+
+// The number of 12-byte points of a path (a vector: begin, end), divided
+// towards zero.
+std::int32_t PathCount(char** path) { return static_cast<std::int32_t>(path[1] - path[0]) / 12; }
+
+// 0x00556460, the trailer's slot 196 (seconds), ret 4: the cars along the
+// path, back from the front point. City slot 40 first (its answer dropped).
+// From the path +0x1F8 at the index +0x1FC (segment a-b, b the front point
+// +0x264 first), each car is faded as the trailer is and placed where a
+// segment crosses the square through the rear point of the one before
+// (RearOf; slot 198 on the trailer). Without a crossing a steps back along
+// the path (b the old a); at index 0 the deque +0x27C is walked back one
+// element, the element's occupant (its slot 49, the network part; that
+// part's slot 3 (word, 0) the path) giving the next path from its last
+// point but one. The walk ends the whole frame when the deque is used up or
+// an element gives no path, and with no path at the start (the first car
+// faded only). A placed car gets slot 178 (the crossing), slot 132 (the
+// occupant and groups of the path, the path, keep), the unit vector from a
+// to b halved with the car's slot 179 vector as its heading, and its
+// position the crossing less the heading times half the trailer's radius
+// (+0x7C) (slot 16), then slot 180 (the heading). Quirks kept: a path of one
+// point makes the index -1, and the steps back then run for about 2^32
+// steps; the path the walk fails to get (null) is kept.
+void __fastcall TrailerFollowPath(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("TrailerFollowPath", logged);
+    Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), 0xA0);
+    char** path = At<char**>(self, field::kPath);
+    float a[3], b[3], cross[3];
+    FillPoint(a);
+    FillPoint(b);
+    FillPoint(cross);
+    DequeIt it;
+    std::memcpy(&it, self + field::kDeque, sizeof it);
+    bool more = false;
+    const float fade = static_cast<float>(Virtual<double>(self, slot::kFadeNow));
+    void* occupant = At<void*>(self, field::kOccupant);
+    std::uint32_t groups = At<std::uint32_t>(self, field::kGroups);
+    std::uint32_t index = 0;
+    if (path) {
+        std::memcpy(b, self + field::kFront, sizeof b);
+        index = At<std::uint32_t>(self, field::kPathIndex);
+        more = true;
+    }
+    char** car = At<char**>(self, trailer::kCars);
+    if (car == At<char**>(self, trailer::kCars + 4))
+        return;
+    char* before = self;
+    for (;;) {
+        FadeCar(self, *car, fade, seconds);
+        float rear[3];
+        RearOf(before, rear);
+        for (;;) {
+            if (!more)
+                return;
+            if (path && index < static_cast<std::uint32_t>(PathCount(path))) {
+                std::memcpy(a, path[0] + index * 12, sizeof a);
+                if (Bool(Virtual<std::uint32_t>(self, slot::kCrossPath, static_cast<float*>(rear), static_cast<float*>(a),
+                                                static_cast<float*>(b), static_cast<float*>(cross))))
+                    break;
+            }
+            if (index > 0) {
+                --index;
+                std::memcpy(b, a, sizeof b);
+                continue;
+            }
+            more = false;
+            if (it.cur == At<char*>(self, field::kDeque)) {
+                std::memcpy(&it, self + field::kDeque + 0x10, sizeof it);
+            } else {
+                if (it.cur == it.first) {
+                    --it.node;
+                    it.first = *it.node;
+                    it.last = it.first + 0x80;
+                    it.cur = it.last;
+                }
+                it.cur -= 8;
+            }
+            if (it.cur == At<char*>(self, field::kDeque))
+                continue;
+            char* const element = ElementBefore(it);
+            void* const object = At<void*>(element, 0);
+            if (!object)
+                continue;
+            void* const part = Virtual<void*>(object, slot::kSetLeader);
+            if (!part)
+                continue;
+            path = Virtual<char**>(part, 0x0C, At<std::uint32_t>(element, 4), 0u);
+            if (!path)
+                continue;
+            index = static_cast<std::uint32_t>(PathCount(path) - 2);
+            more = true;
+            occupant = object;
+            groups = At<std::uint32_t>(element, 4);
+            std::memcpy(b, a, sizeof b);
+        }
+        char* const placed = *car;
+        Virtual<std::uint32_t>(placed, slot::kSlot178, static_cast<float*>(cross));
+        Virtual<std::uint32_t>(placed, slot::kEnter, occupant, groups, path, 1u);
+        float heading[3];
+        double hy, hz;
+        {
+            const double dx = static_cast<double>(b[0]) - a[0];
+            const double dy = static_cast<double>(b[1]) - a[1];
+            const double dz = static_cast<double>(b[2]) - a[2];
+            const float dzf = static_cast<float>(dz);
+            const float inverse =
+                static_cast<float>(static_cast<double>(TrailerOne()) / std::sqrt((dz * dzf + dy * dy) + dx * dx));
+            const float ux = static_cast<float>(dx * inverse);
+            const float uy = static_cast<float>(dy * inverse);
+            const float uz = static_cast<float>(static_cast<double>(dzf) * inverse);
+            const float* const other = Virtual<float*>(placed, slot::kSlot179);
+            const double sx = static_cast<double>(ux) + other[0];
+            const double sy = static_cast<double>(uy) + other[1];
+            const float sz = static_cast<float>(static_cast<double>(uz) + other[2]);
+            const double half = Half();
+            heading[0] = static_cast<float>(sx * half);
+            hy = sy * half;
+            hz = static_cast<double>(sz) * half;
+            heading[1] = static_cast<float>(hy);
+            heading[2] = static_cast<float>(hz);
+        }
+        const double back = static_cast<double>(At<float>(self, field::kRadius)) * Half();
+        const float bx = static_cast<float>(heading[0] * back);
+        const float by = static_cast<float>(hy * back);
+        const double bz = hz * back;
+        float place[3] = {static_cast<float>(static_cast<double>(cross[0]) - bx),
+                          static_cast<float>(static_cast<double>(cross[1]) - by),
+                          static_cast<float>(cross[2] - bz)};
+        Virtual<std::uint32_t>(placed, slot::kPlace, static_cast<float*>(place), static_cast<float*>(heading));
+        Virtual<std::uint32_t>(placed, slot::kSlot180, static_cast<float*>(heading));
+        before = placed;
+        if (++car == At<char**>(self, trailer::kCars + 4))
+            return;
+    }
+}
+
+// 0x00524180, the bus's slot 164 (seconds), ret 4: without the flags 0x20
+// and 4 the base's (0x0054E3D0, AL 1). Else, while the current state's timer
+// (+0x10) is above the seconds, the timer runs down and on half the draws of
+// the core's generator (below 0x7FFFFFFF) the occupants of the 16-metre
+// square about the position (the network service's slot 0x94, its list in
+// the argument's slot, kind 0x496E5783) are asked for 0xA9B40F05 until one
+// in the state 4 is removed (slot 13, false), each answer released through
+// the element. Without one (or without an answer from the service) slot 53.
+// At the end of the timer the base's (its EAX). AL 1 otherwise.
+std::uint32_t __fastcall BusDriveFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("BusDriveFrame", logged);
+    if (!Bool(Virtual<std::uint32_t>(self, slot::kCheckFlag, 0x20u)) &&
+        !Bool(Virtual<std::uint32_t>(self, slot::kCheckFlag, 4u))) {
+        CallThis<std::uint32_t>(addr::cSC4AutomatonBase_DriveFrame, self, seconds);
+        return 1;
+    }
+    char* const state = At<char**>(self, field::kStatesEnd)[-1];
+    float& timer = At<float>(state, 0x10);
+    if (!(timer > seconds))
+        return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_DriveFrame, self, seconds);
+    timer = static_cast<float>(static_cast<double>(timer) - seconds);
+    if (CallThis<std::uint32_t>(addr::cRZRandomSuper_Next, reinterpret_cast<void*>(addr::cSC4AutomatonCore_Random)) >=
+        0x7FFFFFFFu)
+        return 1;
+    if (!Global<void*>(addr::SC4List_NodeAllocator2)) {
+        void* allocator = nullptr;
+        if (void* const framework = CallCdecl<void*>(addr::RZGetFramework))
+            Virtual<std::uint8_t>(framework, 0x14, std::uint32_t{0x3AE4BEA3}, std::uint32_t{0x3AE4BEAB},
+                                  static_cast<void*>(&allocator));
+        *reinterpret_cast<void**>(addr::SC4List_NodeAllocator2) = allocator;
+        CallThis<void>(addr::SC4_ReleaseRef, static_cast<void*>(&allocator));
+    }
+    char* const head = Virtual<char*>(Global<void*>(addr::SC4List_NodeAllocator2), 0x0C, std::uint32_t{0xC});
+    At<char*>(head, 0) = head;
+    At<char*>(head, 4) = head;
+    char* list = head;
+    const double reach = Global<float>(addr::cSC4Bus_Reach);
+    void* const network = Global<void*>(addr::SC4_NetworkService);
+    std::uint32_t low[3], high[3];
+    const float lowX = static_cast<float>(At<float>(self, field::kPosition) - reach);
+    const float lowZ = static_cast<float>(At<float>(self, field::kPosition + 8) - reach);
+    const float highX = static_cast<float>(reach + At<float>(self, field::kPosition));
+    const float highZ = static_cast<float>(reach + At<float>(self, field::kPosition + 8));
+    std::memcpy(&low[0], &lowX, 4);
+    low[1] = 0xFF7FFFFFu;
+    std::memcpy(&low[2], &lowZ, 4);
+    std::memcpy(&high[0], &highX, 4);
+    high[1] = 0x7F7FFFFFu;
+    std::memcpy(&high[2], &highZ, 4);
+    if (Bool(Virtual<std::uint32_t>(network, 0x94, static_cast<void*>(&list), static_cast<void*>(low),
+                                    static_cast<void*>(high), 0x496E5783u, 0xFFFFFFFFu))) {
+        bool removed = false;
+        void* answer = nullptr;
+        for (char* node = At<char*>(list, 0); node != list && !removed; node = At<char*>(node, 0)) {
+            void* const object = At<void*>(node, 8);
+            if (!Bool(Virtual<std::uint32_t>(object, 0x00, 0xA9B40F05u, &answer)))
+                continue;
+            if (Virtual<std::uint32_t>(answer, slot::kStateType) == 4u) {
+                Virtual<std::uint32_t>(answer, slot::kRemove, 0u);
+                removed = true;
+            }
+            Release(At<void*>(node, 8));
+        }
+        Virtual<std::uint32_t>(network, 0xC0, static_cast<void*>(&list));
+        if (!removed)
+            Virtual<std::uint32_t>(self, slot::kPopState);
+    } else {
+        Virtual<std::uint32_t>(self, slot::kPopState);
+    }
+    CallThis<void>(addr::SC4List_Destroy2, static_cast<void*>(&list));
+    return 1;
+}
+
+// 0x005240D0, the bus's slot 172 (a, b, c, d), ret 0x10: with c, c's slot 48,
+// that one's slot 3, and its slot 22 (0x1301) true and slot 173 (a, b) true,
+// the state 0x1E pushed (slot 52: 0x1E, 0, 5000.0, four zeros) and AL 1.
+// Else the base's slot 172 (0x0054D830, its EAX).
+std::uint32_t __fastcall BusSlot172(char* self, void*, std::uint32_t a, std::uint32_t b, void* c, std::uint32_t d)
+{
+    static bool logged;
+    FirstCall("BusSlot172", logged);
+    if (c) {
+        if (void* const next = Virtual<void*>(c, slot::kNextAutomaton)) {
+            void* const part = Virtual<void*>(next, 0x0C);
+            if (Bool(Virtual<std::uint32_t>(part, 0x58, 0x1301u)) && Bool(Virtual<std::uint32_t>(self, slot::kSlot173, a, b))) {
+                Virtual<std::uint32_t>(self, slot::kPushState, 0x1Eu, 0u, 0x459C4000u, 0u, 0u, 0u, 0u);
+                return 1;
+            }
+        }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_Slot172, self, a, b, c, d);
+}
+
+// 0x00524440, the carjacked vehicle's slot 101: false when the core's slot
+// 101 (0x0050CE60) is; else slot 184, the sound 0x00B09AB0 (slot 22: the
+// key, 1, 1, 5.0) and slot 61 (0xCBC17DDF). AL only.
+std::uint32_t __fastcall CarjackedSlot101(char* self, void*)
+{
+    static bool logged;
+    FirstCall("CarjackedSlot101", logged);
+    if (!Bool(CallThis<std::uint32_t>(addr::cSC4AutomatonCore_Slot101, self)))
+        return 0;
+    Virtual<std::uint32_t>(self, slot::kSlot184);
+    Virtual<std::uint32_t>(self, slot::kSound, reinterpret_cast<const void*>(addr::cSC4CarjackedVehicle_SoundKey), 1u,
+                           1u, 5.0f);
+    Virtual<std::uint32_t>(self, slot::kSlot61, 0xCBC17DDFu);
+    return 1;
+}
+
+// 0x005339B0, the getaway van's slot 101: false when the core's slot 101
+// (0x0050CE60) is. Else the siren (0x5AD0E817, 0xBADB57F1, and 0x117C0000
+// loud, 0x117B0000 not) after slot 184 (slot 22: the key, 1, 1, 5.0). Loud
+// when it is the automaton city slot 49's slot 9 names (its slot 5); else,
+// with the police simulator and 0x00B43D70 and their slot 5 maps, at the
+// position's cell (x 0.0625, __ftol2) in the city (city slot 99) unless the
+// police map's byte there is above 0 and above the other's; else on half
+// the draws of the core's generator. AL only.
+std::uint32_t __fastcall VanSlot101(char* self, void*)
+{
+    static bool logged;
+    FirstCall("VanSlot101", logged);
+    if (!Bool(CallThis<std::uint32_t>(addr::cSC4AutomatonCore_Slot101, self)))
+        return 0;
+    bool loud = false;
+    bool decided = false;
+    void* const driven = Virtual<void*>(Global<void*>(addr::SC4_City), 0xC4);
+    if (driven) {
+        const std::uint32_t id = Virtual<std::uint32_t>(driven, 0x24);
+        if (id == Virtual<std::uint32_t>(self, slot::kId)) {
+            loud = true;
+            decided = true;
+        }
+    }
+    if (!decided) {
+        void* const police = Global<void*>(addr::SC4_PoliceSimulator);
+        void* const other = Global<void*>(addr::SC4_Service43D70);
+        if (police && other) {
+            void* const policeMap = Virtual<void*>(police, 0x14);
+            void* const otherMap = Virtual<void*>(other, 0x14);
+            const double scale = Global<float>(addr::cSC4GetawayVan_CellScale);
+            const std::int32_t x = Ftol(At<float>(self, field::kPosition) * scale);
+            const std::int32_t z = Ftol(At<float>(self, field::kPosition + 8) * scale);
+            if (policeMap && otherMap && Bool(Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), 0x18C, x, z))) {
+                const std::uint8_t p = Virtual<std::uint8_t>(policeMap, 0x1C, x, z);
+                const std::uint8_t q = Virtual<std::uint8_t>(otherMap, 0x1C, x, z);
+                loud = !(p > 0 && p > q);
+                decided = true;
+            }
+        }
+    }
+    if (!decided)
+        loud = CallThis<std::uint32_t>(addr::cRZRandomSuper_Next, reinterpret_cast<void*>(addr::cSC4AutomatonCore_Random)) <
+               0x7FFFFFFFu;
+    const std::uint32_t key[3] = {0x5AD0E817u, 0xBADB57F1u, loud ? 0x117C0000u : 0x117B0000u};
+    Virtual<std::uint32_t>(self, slot::kSlot184);
+    Virtual<std::uint32_t>(self, slot::kSound, static_cast<const void*>(key), 1u, 1u, 5.0f);
+    return 1;
+}
+
+// 0x0053CD30, the limo's slot 121 (controls, seconds), ret 8: cSC4Vehicle's
+// (0x0055C600, its answer dropped); with the controls' +0x98 above 1000, 50
+// paid from a budget above 50 (slots 6 and 8) and 0x00B43DC4's slots 43
+// (50), 50 (the position) and 44 (1), else the core's 0x0050D870 and the
+// controls' byte +0x20C cleared; then 0x00B43D60's slot 7 (x, z, 48.0,
+// 10.0) and +0x98 zeroed. Its own +0x2B8 to +0x2C0 (Init's) are not read.
+// AL 1.
+std::uint32_t __fastcall LimoSteer(char* self, void*, char* controls, float seconds)
+{
+    static bool logged;
+    FirstCall("LimoSteer", logged);
+    CallThis<std::uint32_t>(addr::cSC4Vehicle_Steer, self, controls, seconds);
+    if (!(At<float>(controls, 0x98) > Global<float>(addr::cSC4AutomatonBase_Thousand)))
+        return 1;
+    bool paid = false;
+    if (void* const budget = Global<void*>(addr::SC4_BudgetSimulator)) {
+        if (Virtual<std::int64_t>(budget, 0x18) > 50) {
+            Virtual<std::uint32_t>(budget, 0x20, 50u, 0u);
+            if (void* const service = Global<void*>(addr::SC4_Service43DC4)) {
+                Virtual<std::uint32_t>(service, 0xAC, 50u);
+                Virtual<std::uint32_t>(service, 0xC8, self + field::kPosition);
+                Virtual<std::uint32_t>(service, 0xB0, 1u);
+            }
+            paid = true;
+        }
+    }
+    if (!paid) {
+        CallThis<void>(addr::cSC4AutomatonCore_ResetStateAttachments, self);
+        At<std::uint8_t>(controls, 0x20C) = 0;
+    }
+    if (void* const sounds = Global<void*>(addr::SC4_Service43D60))
+        Virtual<std::uint32_t>(sounds, 0x1C, At<float>(self, field::kPosition), At<float>(self, field::kPosition + 8),
+                               48.0f, 10.0f);
+    At<std::uint32_t>(controls, 0x98) = 0;
+    return 1;
+}
+
+// 0x0054A750, the tank's slot 127: the core's (0x00508D00), then both tank
+// highlights off (slots 193 and 196, the latter a tail jump: its EAX).
+std::uint32_t __fastcall TankRemoveHighlights(char* self, void*)
+{
+    static bool logged;
+    FirstCall("TankRemoveHighlights", logged);
+    CallThis<void>(addr::cSC4AutomatonCore_RemoveHighlight, self);
+    Virtual<std::uint32_t>(self, slot::kRemoveHighlight1);
+    return Virtual<std::uint32_t>(self, slot::kRemoveHighlight2);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1067,11 +1836,31 @@ const Detour kObject[] = {
     OPENSC4_DETOUR(addr::cSC4Tank_DebugText, TankDebugText),
 };
 
+// Part ro2.
+const Detour kFrame[] = {
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_Frame, TrailerFrame),
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_CanMeet, TrailerCanMeet),
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_SetTemplate, TrailerSetTemplate),
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_EnterOccupant, TrailerEnterOccupant),
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_PushWord, TrailerPushWord),
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_AddCar, TrailerAddCar),
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_FollowPath, TrailerFollowPath),
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_FollowLeader, TrailerFollowLeader),
+    OPENSC4_DETOUR(addr::cSC4TrailerVehicle_CrossPath, TrailerCrossPath),
+    OPENSC4_DETOUR(addr::cSC4Bus_DriveFrame, BusDriveFrame),
+    OPENSC4_DETOUR(addr::cSC4Bus_Slot172, BusSlot172),
+    OPENSC4_DETOUR(addr::cSC4CarjackedVehicle_Slot101, CarjackedSlot101),
+    OPENSC4_DETOUR(addr::cSC4GetawayVan_Slot101, VanSlot101),
+    OPENSC4_DETOUR(addr::cSC4MayorLimo_Steer, LimoSteer),
+    OPENSC4_DETOUR(addr::cSC4Tank_RemoveHighlights, TankRemoveHighlights),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
-    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object");
+    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
+           InstallList(kFrame, sizeof kFrame / sizeof kFrame[0], "frame");
 }
 
 const bool g_registered[] = {
@@ -1082,7 +1871,9 @@ const bool g_registered[] = {
                         "the trailer's destructor bodies, the four deleting destructors, the trailer's "
                         "QueryInterface and the six GetGZCLSIDs; the five Writes and Reads; the Inits of the limo, the "
                         "tank and the trailer and the Shutdowns of the tank and the trailer; the trailer's rear point "
-                        "and counts and the tank's debug text (44 detours, part ro1; "
+                        "and counts and the tank's debug text (44 detours, part ro1); the frames: the trailer's "
+                        "slots 72, 73, 95, 132 and 192 to 198, the bus's 164 and 172, the carjacked vehicle's and the "
+                        "van's 101, the limo's 121 and the tank's 127 (15 detours, part ro2; "
                         "src/core/automata_roadveh.cpp)",
                         false, InstallObject}),
 };

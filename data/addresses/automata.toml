@@ -11535,3 +11535,224 @@ address = 0x00A998B4
 kind = "data"
 expect = "F0 50 50 00 30 AF 4F 00"
 source = "cSC4MayorLimo's +0x38 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+# Part ro2: the other road vehicles' frames (src/core/automata_roadveh.cpp, docs/automata.md "Part ro").
+
+[[entry]]
+name = "cSC4TrailerVehicle::Frame"
+address = 0x00555B50
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t word, float seconds)"
+expect = "8B 44 24 04 53 56 57 8B"
+source = "Name ours. The trailer's slot 72, ret 8: cSC4Vehicle's frame (0x0055BA20); while the point +0x2D0 is unset (x or z below 0) the last car's (or its own) position (slot 7), occupant (slot 137, referenced, into +0x2DC) and groups (slot 136, into +0x2E0); slot 195 while there are more words than cars; then slot 197 with the flag 0x2000, else slot 196 (seconds). AL the frame's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CanMeet"
+address = 0x00556260
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* automaton)"
+expect = "56 57 8B F1 8B BE C8 02"
+source = "Name ours. The trailer's slot 73, ret 4: false for one of its cars (SC4::FindUint32), else the core's slot 73 (0x005059C0). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::SetTemplate"
+address = 0x00555B10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* from)"
+expect = "53 57 8B 7C 24 0C 57 8B"
+source = "Name ours. The trailer's slot 95, ret 4: the core's slot 95 (0x0050F140), then slot 192 with each word of the template's list (+0x50). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::EnterOccupant"
+address = 0x00555A90
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, uint32_t groups, void* path, uint32_t keep)"
+expect = "56 8B F1 8B 96 B8 02 00"
+source = "Name ours. The trailer's slot 132, ret 0x10: slot 181 (the deque +0x27C, the word count plus one on its low byte), then cSC4Vehicle's slot 132 (0x0055D5A0). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::PushWord"
+address = 0x00556380
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t word)"
+expect = "8B 81 BC 02 00 00 8B 91"
+source = "Name ours. The trailer's slot 192, ret 4: the word pushed on +0x2B8 (SC4PtrVector::InsertN when full). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::AddCar"
+address = 0x00556A30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 14 53 55 57 8B F9"
+source = "Name ours. The trailer's slot 195: a car of the word at the car count made by the vehicle manager's slot 15 once the last car (or the trailer) is twice its radius from the point +0x2D0; led by the last car (slot 49), placed at the point (slot 16), given the occupant +0x2DC (slot 132), pushed and referenced. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::FollowPath"
+address = 0x00556460
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float seconds)"
+expect = "81 EC D4 00 00 00 55 56"
+source = "Name ours. The trailer's slot 196, ret 4: the cars placed where the path (walked back from +0x1F8/+0x1FC and then the deque +0x27C) crosses the segment through the rear point of the one before (slot 198). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::FollowLeader"
+address = 0x00555C70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float seconds)"
+expect = "81 EC E0 00 00 00 53 55"
+source = "Name ours. The trailer's slot 197, ret 4: each car placed its radius behind the rear point of the one before, its front moved by slot 38 or set from the terrain (0x00B43D54 slot 18) by the state 0x10's record. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CrossPath"
+address = 0x005560D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const float* centre, const float* a, const float* b, float* out)"
+expect = "83 EC 2C 56 8B 74 24 38"
+source = "Name ours. The trailer's slot 198, ret 0x10: where a-b crosses (x, z) the 200-metre segment through the centre square to it; y by the share of the squared distances (0x005D6FC0). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4Bus::DriveFrame"
+address = 0x00524180
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 1C 57 8B F9 8B 07"
+source = "Name ours. The bus's slot 164, ret 4: the base's without the flags 0x20 and 4 or at the end of the state's timer; else the timer down and, on half the draws, a waiting occupant (0xA9B40F05 in the state 4) in the 16-metre square removed, else slot 53. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4Bus::Slot172"
+address = 0x005240D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, uint32_t b, void* c, uint32_t d)"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "Name ours. The bus's slot 172, ret 0x10: the state 0x1E (slot 52) when c's stop answers 0x1301 (slots 48, 3, 22) and slot 173 (a, b) does; else the base's (0x0054D830). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Slot101"
+address = 0x00524440
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 E8 18 8A FE FF"
+source = "Name ours. The carjacked vehicle's slot 101: the core's (0x0050CE60), then slot 184, the sound 0x00B09AB0 (slot 22) and slot 61 (0xCBC17DDF). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4GetawayVan::Slot101"
+address = 0x005339B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 14 55 8B E9 89 6C"
+source = "Name ours. The getaway van's slot 101: the core's (0x0050CE60), then slot 184 and the siren (slot 22), loud for the driven automaton (city slot 49), by the police and 0x00B43D70 maps at its cell, else on half the draws. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4MayorLimo::Steer"
+address = 0x0053CD30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* controls, float seconds)"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Name ours. The limo's slot 121, ret 8: cSC4Vehicle's (0x0055C600); with the controls' +0x98 above 1000, 50 paid (budget slots 6 and 8, 0x00B43DC4 slots 43, 50, 44) or the core's 0x0050D870; 0x00B43D60 slot 7 (x, z, 48, 10); +0x98 zeroed. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4Tank::RemoveHighlights"
+address = 0x0054A750
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 A8 E5 FB FF"
+source = "Name ours. The tank's slot 127: the core's (0x00508D00), then slots 193 and 196 (both tank highlights off). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::CanMeet"
+address = 0x005059C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* automaton)"
+expect = "53 56 8B 74 24 0C 32 DB"
+source = "Name ours. Core slot 73, ret 4: false for null or itself; else by the other's flag 8 and slot 85, and with the flag 0x200000 on this one by the other's flag 0x200000 and its +4 part's slot 33 bit 4. Left the game's. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Slot101"
+address = 0x0050CE60
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 10 57 8B F9 8A 47"
+source = "Name ours. Core slot 101: with the byte +0x3C and no +0x1C4, +0x1C4 from the groups the +4 part's slot 24 lists. AL 1. Left the game's. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SetTemplate"
+address = 0x0050F140
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* from)"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Name ours. Core slot 95, ret 4: +0x1C4 from the template's +0x10; with +0x58 above 0 a speed drawn from the core's generator into +0x80 and slot 36; then 0x0050D870 and 0x0050D580. Left the game's. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "SC4::DistanceSquared2D"
+address = 0x005D6FC0
+kind = "function"
+convention = "cdecl"
+signature = "double (const float* a, const float* b)"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. cdecl: (b - a) squared in two floats, (dy * dy + dx * dx) unrounded in ST0. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::FillValue"
+address = 0x00B22954
+kind = "data"
+source = "Name ours. A float (bss) the trailer's frames fill their points with before slots write them. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::One"
+address = 0x00B0A088
+kind = "data"
+expect = "00 00 80 3F 83 F9 22 3E"
+source = "Name ours. 1.0 as a float, the trailer's frames' unit length. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CrossEpsilon"
+address = 0x00A9C35C
+kind = "data"
+expect = "17 B7 D1 38 00 00 C8 42"
+source = "Name ours. 1e-4 as a float: the least segment of slot 198. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CrossScale"
+address = 0x00A9C360
+kind = "data"
+expect = "00 00 C8 42 C0 6E 55 00"
+source = "Name ours. 100.0 as a float: half the length of the crossing segment of slot 198. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4Bus::Reach"
+address = 0x00B09AA4
+kind = "data"
+expect = "00 00 80 41 E8 06 A8 00"
+source = "Name ours. 16.0 as a float: half the square the bus's slot 164 searches. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4GetawayVan::CellScale"
+address = 0x00A98A28
+kind = "data"
+expect = "00 00 80 3D 17 B7 D1 38"
+source = "Name ours. 0.0625 as a float: metres to cells for the van's siren. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::SoundKey"
+address = 0x00B09AB0
+kind = "data"
+expect = "17 E8 D0 5A F1 57 DB BA"
+source = "Name ours. The carjacked vehicle's sound key (0x5AD0E817, 0xBADB57F1, a word). Called by address from src/core/automata_roadveh.cpp (part ro2)."
