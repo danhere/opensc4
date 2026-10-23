@@ -2787,3 +2787,72 @@ The ` V` token gains `,<cmodels2>` (24 fields). Its flags: 0x10000000 when the p
 Every B run carried the ` V` token with ad2's hash, equal to the A run's, and reached all 14. The game itself reaches LeaveState, slots 33, 83, 8 and 16 before the test day in every run (slot 103 in most, the swap, slot 19 and SetStart in some); the rest only the test. An earlier snapshot without slot 16 (ad2-t1, 161 detours) gave the same results. Two audits against the disassembly (the 13 first, then slot 16) found no behavioural difference.
 
 Not covered: SetStart's growing insert (the keys full) and the swap's InsertN growth (the test's storage never fills), a swap's key written past the keys' capacity, slot 22 with a record whose former model is the new one.
+
+## AD3: the query tool's highlight model
+
+The third piece of the automata drawing plan. While the query tool points at an automaton, it gets a highlight model: a second instance of its first model (made from its first key), tinted green and translucent, lifted toward the camera by the model's height and moved with it on frames. The core keeps it at +0xCC with its effect part (SC4EffectPartB, 0x40 bytes) at +0xD0. The tank has two more, for its models 1 and 2 (the turret and barrel, made from keys 1 and 2): at +0x2B8 with part +0x2BC, and at +0x2FC with part +0x300.
+
+### What is ours
+
+10 functions, in the same group `simulators.automata.vehicle` (list kCoreHighlight in [automata_vehicle.cpp](../src/core/automata_vehicle.cpp); the group now has 172):
+
+- The core's slots 126 (make, 0x00514340), 127 (remove, 0x00508D00) and 128 (the frame, 0x0050AFD0).
+- The tank's copies: slots 192 to 194 (0x0054CF60, 0x0054A950, 0x0054C2E0) for +0x2B8, and slots 195 to 197 (0x0054CBA0, 0x0054A9C0, 0x0054C5B0) for +0x2FC.
+- The effect part's assignment 0x00513FF0.
+
+The three variants share one body each (MakeHighlight, RemoveHighlight, UpdateHighlight), with a Highlight record holding the offsets, the key and model index, the make and remove slots, and the lift factor.
+
+Left the game's:
+
+- The factory (SC4::GetKeyedResource) and the model instances' and drawables' own code.
+- The effect part's constructor 0x00803060, destructor, Attach and Start, and its vector assignments 0x00513810, SC4Vector12::Assign, 0x00511F00 and SC4IntVector::Assign.
+- The box constructor 0x00466E10, and the view's, the camera's and the occupant manager's slots.
+- The query tool and the U-Drive object, and every automaton slot called through the vtable.
+
+Oddities kept:
+
+- Every function but the tank's make leaves the automaton alone when its occupant part's slot 7 answers 0x496E5783 and then, asked a second time, 0x897F7EC2.
+- The make releases the old highlight twice over; the second release is always of a null.
+- The make takes the transform of the core's first model with no test that there is one.
+- The tank's make goes ahead with only two keys. The second highlight then reads key 2 past the keys' end, and takes model 2's transform with no count test. Its frame follows model 2 with more than one model, which is past the models when there are two.
+- The make gives the drawable its own transform unchanged: no change flag, count 0.
+- The frame removes the highlight only when the byte 0x00B09968 is clear or the service 0x00B43D44's slot 13 answers false. When the tool moves away the highlight stays and keeps being moved. It is made only while there is none, when the tool's U-Drive object (+0x30 of 0x00B21D74) answers an occupant whose cell (+0x26C, +0x270) is the automaton's own (the occupant manager's slot 17 from +0x40, +0x48). The core asks that object's slot 57 with 0x10; the tank asks slot 56 with no argument.
+- The lift is the followed model's height (box y extent) times 1.5 (0x00A880D4) for the core, 1.15 (0x00A9B7EC) for the tank's first and 1.25 (0x00A9B7F0) for its second, along the camera's +0x54..+0x5C. The x and y offsets are rounded to floats; z is not.
+- The effect part assignment still assigns its vectors when given itself. Make never detaches the part from the old highlight before releasing it; the reassignment drops it.
+
+### Test
+
+The ` V` token gains `,<chighlight>` (25 fields). Its flags: 0x40000000 when the part ran, 0x80000000 when it found no city vehicle with models and keys, view or camera.
+
+The test runs on a 0x340-byte copy of the first city vehicle that has models and keys (three or more keys preferred). The real vehicle is not touched. The copy's setup:
+
+- Its vtable is a copy: the core's slots 126 to 128 and the tank's 192 to 197 point at their addresses, and slot 5 is the test's.
+- Its models vector holds three entries, all the real first model.
+- Fresh effect parts sit at +0xD0, +0x2BC and +0x300.
+
+While it runs, the service 0x00B43D44, the U-Drive object 0x00B21D74 and the byte 0x00B09968 are the test's. The view, camera and occupant manager stay the game's.
+
+It first assigns an effect part to another and to itself. Then, for each of the three variants:
+
+1. Made, moved, and made again (refused once for the tank).
+2. Removed by the service, then by the byte.
+3. Under the query tool: away, no tool, tool inactive, over it (made), then moved.
+4. With the U-Drive object unset.
+5. For the tank, with one key and with one model.
+6. Removed.
+
+Per step it mixes the highlights' presence, draw properties and transform (slot 9), whether each part is on its highlight, and the test objects' call hash. The log lines are "ad3 step N" and "ad3 chighlight".
+
+### Parity
+
+2026-10-23, the same lists and setup as AD2 (B = `simulators.automata.vehicle`, two jobs, `OPENSC4_MUTE=1`, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`), env p4env-ad3, snapshot ad3-t1 (172 detours). All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` V` token, equal to the A run's. In the Making Money and Rush Hour runs it reached all 10. The game itself reaches the core's slots 126 to 128 and the assignment before the test day (slot 128 in all but Making Money d0000); the tank's six only the test (the tutorials have no tanks). The Big City saves have no city vehicle with models and keys, so there the part did not run (flag 0x80000000) and only slot 127 was reached, by the game. An independent audit against the disassembly found one difference before parity, fixed: the tank's two frames lift by their own factors (1.15 at 0x00A9B7EC, 1.25 at 0x00A9B7F0), not the core's 1.5.
+
+Not covered: the make with no models (the game's read of a null first model), the tank's second highlight with exactly two keys or models (the reads past them), and the game's own query tool and U-Drive object (the test's stand in for them).

@@ -484,6 +484,44 @@ inline constexpr std::size_t kSlot107 = 0x1AC;       // 107: no arguments
 inline constexpr std::size_t kLotsAt = 0x18;         // (cell x, cell z, 0), ret 0xC
 inline constexpr std::size_t kNetworkCell = 0x38;    // (cell x, cell z), ret 8
 inline constexpr std::uint32_t kCheckLots = 0x400000, kCheckNetwork = 0x800000; // the automata flags asking for them
+
+// Part ad3 adds (the query tool's highlight model):
+//   the core's +0xCC the highlight model, +0xD0 its effect part
+//          (SC4EffectPartB, 0x40 bytes, up to the models +0x110)
+//   the tank's +0x2B8 and +0x2FC the highlights of its models 1 and 2,
+//          each followed by its effect part (+0x2BC, +0x300)
+inline constexpr std::size_t kHighlight = 0xCC, kHighlightPart = 0xD0;
+inline constexpr std::size_t kTankHighlight1 = 0x2B8, kTankHighlight2 = 0x2FC;
+// The core's (and the tank's).
+inline constexpr std::size_t kSlot5 = 0x14;                 // 5: an object (its slot 22, (word), a bool)
+inline constexpr std::size_t kMakeHighlight = 0x1F8;        // 126: 0x00514340, no arguments
+inline constexpr std::size_t kRemoveHighlight = 0x1FC;      // 127: 0x00508D00, no arguments
+inline constexpr std::size_t kTankMakeHighlight1 = 0x300;   // the tank's 192
+inline constexpr std::size_t kTankRemoveHighlight1 = 0x304; // 193
+inline constexpr std::size_t kTankMakeHighlight2 = 0x30C;   // 195
+inline constexpr std::size_t kTankRemoveHighlight2 = 0x310; // 196
+inline constexpr std::size_t kObjectTest = 0x58;            // slot 5's object's 22: (word), ret 4
+inline constexpr std::uint32_t kTankNoHighlight = 0x4001;   // what the tank asks it
+// The occupant part's (+4).
+inline constexpr std::size_t kPartType = 0x1C;              // 7: no arguments
+inline constexpr std::uint32_t kNoHighlightType1 = 0x496E5783, kNoHighlightType2 = 0x897F7EC2;
+// A model instance's drawable.
+inline constexpr std::size_t kBoundingBox = 0x1C;           // 7: (float[6] in out), ret 4
+inline constexpr std::size_t kSetDrawProperties = 0x40;     // 16: (five words), ret 4
+// The view's (0x00B43DD0).
+inline constexpr std::size_t kInserted = 0x6C;              // (model), ret 4, a bool
+// The service 0x00B43D44's, the query tool's, the U-Drive object's.
+inline constexpr std::size_t kServiceActive = 0x34;         // 13: no arguments, a bool
+inline constexpr std::uint32_t kQueryToolIid = 0x098F9BF4;  // the query tool, by its slot 0
+inline constexpr std::size_t kToolActive = 0x34;            // the tool's 13: no arguments, a bool
+inline constexpr std::size_t kUDriveObject = 0x30;          // the U-Drive object's +0x30
+inline constexpr std::size_t kUnderCore = 0xE4;             // its 57: (0x10), ret 4: the occupant under the tool
+inline constexpr std::size_t kUnderTank = 0xE0;             // its 56: no arguments, the same for the tank
+inline constexpr std::size_t kUnderCellX = 0x26C, kUnderCellZ = 0x270; // that occupant's cell
+// The occupant manager's (0x00B43D0C).
+inline constexpr std::size_t kCellOf = 0x44;                // 17: (x, z, int* out, int* out), ret 0x10
+// The camera 0x00B43DD8's.
+inline constexpr std::size_t kCameraForward = 0x54;         // three floats
 } // namespace models
 
 } // namespace opensc4::automata_vehicle

@@ -10690,3 +10690,140 @@ address = 0x00A952F0
 kind = "data"
 expect = "00 00 80 3D"
 source = "Name ours. The float 0.0625: slot 16's position to cells. Called by address from src/core/automata_vehicle.cpp (part ad2)."
+
+# Part ad3: the query tool's highlight model, the core's slots 126 to 128 and the tank's copies (src/core/automata_vehicle.cpp, docs/automata.md "AD3").
+
+[[entry]]
+name = "cSC4AutomatonCore::MakeHighlight"
+address = 0x00514340
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "81 EC 8C 00 00 00 55 8B"
+source = "Name ours. Core slot 126: nothing when the occupant part's slot 7 answers 0x496E5783 and then 0x897F7EC2, or with no keys; the highlight +0xCC released, made from the first key (SC4::GetKeyedResource), its draw properties given back with the flag 0x20, colour 0.6, 1, 0.6 and alpha 0.5, the first model's transform, into the view (InsertModel); its effect part +0xD0 assigned a new one (0x00803060, 0x00513FF0) and attached to it. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonCore::RemoveHighlight"
+address = 0x00508D00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 8E CC 00 00"
+source = "Name ours. Core slot 127: the highlight +0xCC off the view when in it (slots 0x6C, 0x74), cleared and released. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonCore::UpdateHighlight"
+address = 0x0050AFD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 6C 56 8B F1 8B 46"
+source = "Name ours. Core slot 128: the highlight on a frame. Removed (slot 127) with the byte 0x00B09968 clear or the service 0x00B43D44's slot 13 false; with none and models, made (slot 126) when the query tool (0x098F9BF4) points at the automaton's cell (the U-Drive object's +0x30's slot 57 (0x10), cells by the occupant manager's slot 17); with one, the first model's transform lifted toward the camera by its height x 1.5 (0x00A880D4), MoveModel, the effect part +0xD0 started. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonCore::HighlightOn"
+address = 0x00B09968
+kind = "data"
+source = "Name ours. A byte: the automata's highlight models are kept (core slot 128 and the tank's 194 and 197 remove them while it is 0)."
+
+[[entry]]
+name = "SC4EffectPartB::Assign"
+address = 0x00513FF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "53 55 8B 6C 24 0C 56 8B"
+source = "Name ours. Ret 4: an effect part (0x40 bytes) assigned: the counted pointers +0 and +4 (slots 1 and 2), +8, the vectors +0xC (0x00513810), +0x18 (SC4Vector12::Assign), +0x24 (0x00511F00), +0x30 (SC4IntVector::Assign) and the byte +0x3C; EAX the part. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "SC4EffectPartB::Construct"
+address = 0x00803060
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 33 C9 89 08 89 48"
+source = "Name ours. The effect part's constructor (0x40 bytes); EAX the part. The game's; called by address from src/core/automata_vehicle.cpp (part ad3)."
+
+[[entry]]
+name = "SC4EffectPart::AssignVector0C"
+address = 0x00513810
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours, not analysed. Ret 4: the effect part's vector +0xC assigned. The game's; called by address from src/core/automata_vehicle.cpp (part ad3)."
+
+[[entry]]
+name = "SC4EffectPart::AssignVector24"
+address = 0x00511F00
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours, not analysed. Ret 4: the effect part's vector +0x24 assigned. The game's; called by address from src/core/automata_vehicle.cpp (part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonTank::MakeHighlight1"
+address = 0x0054CF60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "81 EC 8C 00 00 00 55 8B"
+source = "Name ours. Tank slot 192, as core slot 126 for the highlight +0x2B8 (part +0x2BC) from key 1 and model 1's transform; nothing when slot 5's object answers its slot 22 (0x4001) or with fewer than two keys. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonTank::RemoveHighlight1"
+address = 0x0054A950
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 8E B8 02 00"
+source = "Name ours. Tank slot 193, as core slot 127 for +0x2B8. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonTank::UpdateHighlight1"
+address = 0x0054C2E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 6C 56 8B F1 8B 46"
+source = "Name ours. Tank slot 194, as core slot 128 for +0x2B8 (slots 193 and 192, the U-Drive object's slot 56 without an argument, model 1 followed, more than one model, lifted by 1.15 at 0x00A9B7EC). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonTank::MakeHighlight2"
+address = 0x0054CBA0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "81 EC 8C 00 00 00 55 8B"
+source = "Name ours. Tank slot 195, as 192 for the highlight +0x2FC (part +0x300) from key 2 and model 2's transform (with only two keys, past them, as the game). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonTank::RemoveHighlight2"
+address = 0x0054A9C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 8E FC 02 00"
+source = "Name ours. Tank slot 196, as core slot 127 for +0x2FC. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonTank::UpdateHighlight2"
+address = 0x0054C5B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 6C 56 8B F1 8B 46"
+source = "Name ours. Tank slot 197, as 194 for +0x2FC (slots 196 and 195, model 2 followed with more than one model: past them with two, as the game; lifted by 1.25 at 0x00A9B7F0). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
+
+[[entry]]
+name = "cSC4AutomatonTank::Lift1"
+address = 0x00A9B7EC
+kind = "data"
+source = "Name ours. float 1.15: tank slot 194 lifts the highlight +0x2B8 toward the camera by model 1's height times it (the core's slot 128 by 1.5, 0x00A880D4)."
+
+[[entry]]
+name = "cSC4AutomatonTank::Lift2"
+address = 0x00A9B7F0
+kind = "data"
+source = "Name ours. float 1.25: tank slot 197 lifts the highlight +0x2FC toward the camera by model 2's height times it."

@@ -18116,6 +18116,305 @@ void CoreModels2Drive(cISC4City* city, Hash& cmodels2, uint32_t& flags)
     flags |= 0x10000000;
 }
 
+namespace ad3 {
+
+// The test's objects for part ad3: the tank's slot 5 object (its slot 22),
+// the service 0x00B43D44 (slots 0 and 13), the query tool (slots 2 and 13),
+// the U-Drive's +0x30 object (slots 56 and 57) and the occupant they give.
+struct Context {
+    Hash calls;
+    uint8_t objectAnswer = 0;
+    uint8_t active = 1;
+    uint8_t toolActive = 1;
+    bool giveTool = true;
+    char* under = nullptr;
+};
+Context* g_ad3;
+
+struct Object {
+    void** vtable;
+};
+Object g_object, g_service, g_tool, g_udriveObject;
+
+uint8_t __fastcall ObjectTest(Object*, void*, uint32_t word)
+{
+    g_ad3->calls.Mix(0xB22);
+    g_ad3->calls.Mix(word);
+    return g_ad3->objectAnswer;
+}
+Object* __fastcall TankSlot5(char*, void*)
+{
+    g_ad3->calls.Mix(0xB05);
+    return &g_object;
+}
+uint32_t __fastcall ServiceQuery(Object*, void*, uint32_t iid, void** out)
+{
+    g_ad3->calls.Mix(0x5000);
+    g_ad3->calls.Mix(iid);
+    *out = g_ad3->giveTool ? &g_tool : nullptr;
+    return g_ad3->giveTool ? 1u : 0u;
+}
+uint8_t __fastcall ServiceActive(Object*, void*)
+{
+    g_ad3->calls.Mix(0x5013);
+    return g_ad3->active;
+}
+uint32_t __fastcall ToolRelease(Object*, void*)
+{
+    g_ad3->calls.Mix(0x7002);
+    return 0;
+}
+uint8_t __fastcall ToolActive(Object*, void*)
+{
+    g_ad3->calls.Mix(0x7013);
+    return g_ad3->toolActive;
+}
+char* __fastcall UnderTank(Object*, void*)
+{
+    g_ad3->calls.Mix(0x6056);
+    return g_ad3->under;
+}
+char* __fastcall UnderCore(Object*, void*, uint32_t word)
+{
+    g_ad3->calls.Mix(0x6057);
+    g_ad3->calls.Mix(word);
+    return g_ad3->under;
+}
+void** Table(std::initializer_list<std::pair<int, void*>> slots)
+{
+    void** const t = new void*[64]();
+    for (const auto& s : slots)
+        t[s.first] = s.second;
+    return t;
+}
+
+} // namespace ad3
+
+// Part ad3 on a copy of the first city vehicle with models and keys (0x340
+// bytes: its 0x2B8, the tank's highlights past them; its vtable a copy with
+// the core's slots 126 to 128 and the tank's 192 to 197 at their addresses
+// and slot 5 the test's), fresh effect parts (0x00803060) at +0xD0, +0x2BC
+// and +0x300, with the service 0x00B43D44, the U-Drive object 0x00B21D74
+// and the byte 0x00B09968 the test's while it runs, the game's view, camera
+// and occupant manager: an effect part assigned (0x00513FF0); the core's
+// highlight made, kept and moved, made again by the query tool, removed by
+// the byte and the service; the tank's two the same. The highlights'
+// presence, draw properties and transforms into the hash; each removed, the
+// parts let go and destructed at the end. Nothing of the vehicle is changed.
+void CoreHighlightDrive(cISC4City* city, Hash& chighlight, uint32_t& flags)
+{
+    char* real = nullptr;
+    if (char* const manager = city ? Virtual<char*>(city, av::kCityVehicleManager) : nullptr) {
+        char* const list = At<char*>(manager, av::kManagerAutomata);
+        for (char* n = list ? At<char*>(list, 0) : nullptr; n && n != list; n = At<char*>(n, 0)) {
+            char* const v = At<char*>(n, 8);
+            if (v && At<char*>(v, av::field::kModelKeys) + 24 < At<char*>(v, av::models::kKeysEnd) &&
+                At<char*>(v, av::models::kBegin) != At<char*>(v, av::models::kEnd)) {
+                real = v;
+                break;
+            }
+        }
+        if (!real)
+            for (char* n = list ? At<char*>(list, 0) : nullptr; n && n != list; n = At<char*>(n, 0)) {
+                char* const v = At<char*>(n, 8);
+                if (v && At<char*>(v, av::field::kModelKeys) != At<char*>(v, av::models::kKeysEnd) &&
+                    At<char*>(v, av::models::kBegin) != At<char*>(v, av::models::kEnd)) {
+                    real = v;
+                    break;
+                }
+            }
+    }
+    if (!real || !*reinterpret_cast<void**>(addr::SC4_View43DD0) || !*reinterpret_cast<void**>(addr::SC4_CameraView)) {
+        flags |= 0x80000000u;
+        return;
+    }
+    ad3::Context context;
+    ad3::g_ad3 = &context;
+    ad3::g_object.vtable = ad3::Table({{22, reinterpret_cast<void*>(&ad3::ObjectTest)}});
+    ad3::g_service.vtable = ad3::Table({{0, reinterpret_cast<void*>(&ad3::ServiceQuery)},
+                                        {13, reinterpret_cast<void*>(&ad3::ServiceActive)}});
+    ad3::g_tool.vtable = ad3::Table(
+        {{2, reinterpret_cast<void*>(&ad3::ToolRelease)}, {13, reinterpret_cast<void*>(&ad3::ToolActive)}});
+    ad3::g_udriveObject.vtable = ad3::Table(
+        {{56, reinterpret_cast<void*>(&ad3::UnderTank)}, {57, reinterpret_cast<void*>(&ad3::UnderCore)}});
+    alignas(8) static char udrive[0x40];
+    std::memset(udrive, 0, sizeof udrive);
+    At<void*>(udrive, av::models::kUDriveObject) = &ad3::g_udriveObject;
+    alignas(8) static char under[0x280];
+    std::memset(under, 0, sizeof under);
+
+    // The copy, its own models vector of three (the real first model each
+    // time; the tank's follow models 1 and 2) and its keys (the real ones).
+    alignas(8) static char o[0x340];
+    std::memset(o, 0, sizeof o);
+    std::memcpy(o, real, av::kVehicleSize);
+    static void* table[200];
+    std::memcpy(table, At<void**>(real, 0), 192 * sizeof(void*));
+    table[5] = reinterpret_cast<void*>(&ad3::TankSlot5);
+    table[126] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_MakeHighlight);
+    table[127] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_RemoveHighlight);
+    table[128] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_UpdateHighlight);
+    table[192] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_MakeHighlight1);
+    table[193] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_RemoveHighlight1);
+    table[194] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_UpdateHighlight1);
+    table[195] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_MakeHighlight2);
+    table[196] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_RemoveHighlight2);
+    table[197] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_UpdateHighlight2);
+    At<void**>(o, 0) = table;
+    char* modelList[3];
+    for (char*& m : modelList)
+        m = At<char**>(real, av::models::kBegin)[0];
+    At<char**>(o, av::models::kBegin) = modelList;
+    At<char**>(o, av::models::kEnd) = modelList + 3;
+    At<char**>(o, av::models::kCapacity) = modelList + 3;
+    At<char*>(o, av::models::kHighlight) = nullptr;
+    const std::size_t parts[3] = {av::models::kHighlightPart, av::models::kTankHighlight1 + 4,
+                                  av::models::kTankHighlight2 + 4};
+    for (const std::size_t p : parts)
+        This<void*>(addr::SC4EffectPartB_Construct, o + p);
+
+    const uintptr_t serviceAt = addr::SC4_Service43D44, udriveAt = addr::SC4_UDriveMode;
+    const uintptr_t onAt = addr::cSC4AutomatonCore_HighlightOn;
+    void* const realService = *reinterpret_cast<void**>(serviceAt);
+    void* const realUDrive = *reinterpret_cast<void**>(udriveAt);
+    const uint8_t realOn = *reinterpret_cast<uint8_t*>(onAt);
+    *reinterpret_cast<void**>(serviceAt) = &ad3::g_service;
+    *reinterpret_cast<void**>(udriveAt) = udrive;
+    *reinterpret_cast<uint8_t*>(onAt) = 1;
+
+    // The cell the occupant manager gives the copy's position.
+    int32_t cell[2] = {};
+    Virtual<uint32_t>(*reinterpret_cast<void**>(addr::SC4_NetworkService), av::models::kCellOf,
+                      At<uint32_t>(o, av::field::kPosition), At<uint32_t>(o, av::field::kPosition + 8),
+                      static_cast<void*>(&cell[0]), static_cast<void*>(&cell[1]));
+
+    const std::size_t highlights[3] = {av::models::kHighlight, av::models::kTankHighlight1,
+                                       av::models::kTankHighlight2};
+    uint32_t step = 0;
+    auto state = [&]() {
+        ++step;
+        for (std::size_t i = 0; i < 3; ++i) {
+            char* const h = At<char*>(o, highlights[i]);
+            chighlight.Mix(h ? 1u : 0u);
+            if (!h)
+                continue;
+            char* const drawable = Virtual<char*>(h, 0);
+            uint32_t properties[5] = {};
+            Virtual<uint32_t>(drawable, av::models::kDrawProperties, static_cast<void*>(properties));
+            chighlight.Mix(properties[0] & 0xFFu);
+            chighlight.MixBytes(properties + 1, 16);
+            uint8_t t[0x38] = {};
+            Virtual<uint32_t>(drawable, av::models::kGetTransform, static_cast<void*>(t));
+            chighlight.MixBytes(t + 4, 0x34);
+            chighlight.Mix(At<char*>(o, parts[i]) == drawable ? 1u : 0u);
+        }
+        chighlight.Mix(context.calls.h);
+        log::Write("autotest: automata: vehicle: ad3 step %u: highlights %d %d %d calls %08X", step,
+                   At<char*>(o, highlights[0]) ? 1 : 0, At<char*>(o, highlights[1]) ? 1 : 0,
+                   At<char*>(o, highlights[2]) ? 1 : 0, context.calls.h);
+    };
+
+    // An effect part assigned: to another and to itself.
+    alignas(8) char partA[0x40], partB[0x40];
+    This<void*>(addr::SC4EffectPartB_Construct, partA);
+    This<void*>(addr::SC4EffectPartB_Construct, partB);
+    At<uint32_t>(partA, 8) = 0x1234;
+    At<uint8_t>(partA, 0x3C) = 7;
+    chighlight.Mix(This<char*>(addr::SC4EffectPartB_Assign, partB, partA) == partB ? 1u : 0u);
+    chighlight.Mix(This<char*>(addr::SC4EffectPartB_Assign, partB, partB) == partB ? 1u : 0u);
+    chighlight.Mix(At<uint32_t>(partB, 8));
+    chighlight.Mix(At<uint8_t>(partB, 0x3C));
+    This<void>(addr::SC4EffectPartB_Destruct, partA);
+    This<void>(addr::SC4EffectPartB_Destruct, partB);
+
+    for (uint32_t variant = 0; variant < 3; ++variant) {
+        const uint32_t make = variant == 0 ? 126 : variant == 1 ? 192 : 195;
+        const uint32_t remove = make + 1, update = make + 2;
+        auto call = [&](uint32_t slot) { Virtual<uint32_t>(o, slot * 4); };
+        // Made, moved on frames (the service active and not hovered), made
+        // again over itself.
+        context.active = 1;
+        context.giveTool = true;
+        context.under = nullptr;
+        call(make);
+        state();
+        call(update);
+        state();
+        context.objectAnswer = 1; // the tank's refusal
+        call(make);
+        state();
+        context.objectAnswer = 0;
+        // Removed by the service, then by the byte; the remove with none.
+        context.active = 0;
+        call(update);
+        state();
+        call(update);
+        state();
+        context.active = 1;
+        call(make);
+        *reinterpret_cast<uint8_t*>(onAt) = 0;
+        call(update);
+        state();
+        *reinterpret_cast<uint8_t*>(onAt) = 1;
+        call(remove);
+        state();
+        // The query tool: not over it, no tool, its slot 13 false, over it
+        // (made), then moved.
+        At<int32_t>(under, av::models::kUnderCellX) = cell[0] + 1;
+        At<int32_t>(under, av::models::kUnderCellZ) = cell[1];
+        context.under = under;
+        call(update);
+        state();
+        context.giveTool = false;
+        call(update);
+        state();
+        context.giveTool = true;
+        context.toolActive = 0;
+        call(update);
+        state();
+        context.toolActive = 1;
+        At<int32_t>(under, av::models::kUnderCellX) = cell[0];
+        At<int32_t>(under, av::models::kUnderCellZ) = cell[1];
+        call(update);
+        state();
+        call(update);
+        state();
+        // The U-Drive object unset.
+        *reinterpret_cast<void**>(udriveAt) = nullptr;
+        call(remove);
+        call(update);
+        state();
+        *reinterpret_cast<void**>(udriveAt) = udrive;
+        // The tank with too few keys or models.
+        if (variant) {
+            char* const keysEnd = At<char*>(o, av::models::kKeysEnd);
+            At<char*>(o, av::models::kKeysEnd) = At<char*>(o, av::field::kModelKeys) + 12;
+            call(make);
+            state();
+            At<char*>(o, av::models::kKeysEnd) = keysEnd;
+            call(make);
+            At<char**>(o, av::models::kEnd) = modelList + 1;
+            call(update);
+            state();
+            At<char**>(o, av::models::kEnd) = modelList + 3;
+        }
+        call(remove);
+        state();
+    }
+
+    *reinterpret_cast<void**>(serviceAt) = realService;
+    *reinterpret_cast<void**>(udriveAt) = realUDrive;
+    *reinterpret_cast<uint8_t*>(onAt) = realOn;
+    for (const std::size_t p : parts) {
+        This<uint8_t>(addr::SC4EffectPartB_Attach, o + p, static_cast<void*>(nullptr));
+        This<void>(addr::SC4EffectPartB_Destruct, o + p);
+    }
+    ad3::g_ad3 = nullptr;
+    log::Write("autotest: automata: vehicle: ad3 chighlight %08X, calls %08X, cell %d %d", chighlight.h,
+               context.calls.h, cell[0], cell[1]);
+    flags |= 0x40000000u;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -18370,6 +18669,8 @@ void VehicleDrive(cISC4City* city)
     CoreModelsDrive(city, cmodels, flags);
     Hash cmodels2;
     CoreModels2Drive(city, cmodels2, flags);
+    Hash chighlight;
+    CoreHighlightDrive(city, chighlight, flags);
 
     // ---- The city's vehicles: the log only.
     {
@@ -18426,18 +18727,18 @@ void VehicleDrive(cISC4City* city)
     char text[280];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X",
+                  "%08X,%08X,%08X,%08X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
-                  vframe8.h, cmodels.h, cmodels2.h);
+                  vframe8.h, cmodels.h, cmodels2.h, chighlight.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
                "%08X vmove %08X vframe %08X vlanes %08X vdrive %08X vqueue %08X vhit %08X vframe8 %08X cmodels %08X "
-               "cmodels2 %08X",
+               "cmodels2 %08X chighlight %08X",
                object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h, vframe8.h,
-               cmodels.h, cmodels2.h);
+               cmodels.h, cmodels2.h, chighlight.h);
 }
 
 void Drive(const Day& day)
