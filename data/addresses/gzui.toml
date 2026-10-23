@@ -5556,3 +5556,114 @@ address = 0x00AD5434
 kind = "data"
 expect = "28 25 64 2C 25 64 2C 25"
 source = "Name ours. \"(%d,%d,%d,%d)\", the format 0x0094D5CA scans with."
+
+# Part u12, slice 2 (src/core/gzui_props.cpp, docs/gzui.md): the makers of a window's script values, the loaders of
+# an image and a text by key, the lookups in vectors of pairs, and two functions they call.
+
+[[entry]]
+name = "cGZUIScriptProps::MakeKey"
+address = 0x0094C1A4
+kind = "function"
+convention = "custom"
+signature = "uint32_t (uint32_t key, const uint32_t* data)"
+expect = "85 F6 74 31 6A 14 E8 31"
+source = "Name ours. cdecl with the window in ESI. Without a window nothing (the caller's EAX back); else the 12 bytes (a resource key's three words) as a script value (0x14 bytes from SC4::operator_new, 0x00915E53 with kind 0x8000) put under the key by the window's slot 114, whose EAX it answers. Ours in framework.uiscript.propmake (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::MakePair"
+address = 0x0094C1DA
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t second, uint32_t key)"
+expect = "55 8B EC 51 51 89 45 F8"
+source = "Name ours. cdecl with the first word in EAX and the window in ESI (unchecked). The two words as an 8-byte script value (0x00915E53, kind 0x8000) put under the key + 0xDAA3B860 by the window's slot 114; AL 1 over its EAX. Ours in framework.uiscript.propmake (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::MakeNumber"
+address = 0x0094C222
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t number, uint32_t key)"
+expect = "6A 14 E8 B7 93 C9 FF 85"
+source = "Name ours. cdecl with the window in ESI (unchecked). A number value (0x00915D6D) put under the key + 0xFAA3BE85 by the window's slot 114; AL 1 over its EAX. Ours in framework.uiscript.propmake (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::MakeText"
+address = 0x0094C255
+kind = "function"
+convention = "custom"
+signature = "bool (cIGZString* text, uint32_t key)"
+expect = "6A 14 E8 84 93 C9 FF 85"
+source = "Name ours. cdecl with the window in ESI (unchecked). A text value (0x00915CDE) put under the key + 0xFAA3BE85 by the window's slot 114; AL 1 over its EAX. Ours in framework.uiscript.propmake (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::LoadImage"
+address = 0x0094C4E0
+kind = "function"
+convention = "custom"
+signature = "void* (uint32_t instance)"
+expect = "55 8B EC 83 EC 14 89 45"
+source = "Name ours. cdecl with the group in EAX. The key (0x856DDBAC, group, instance) asked of the UI script loader's held object (0x00449750, its slot 9; the object's slot 3, whose EAX it answers), else of the resource manager (0x004496C0; slot 3 with the interface 0x06F1568E into the instance's own argument slot, zeroed first): the resource's slot 3 when it answers, else 0; the resource released. Ours in framework.uiscript.propload (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::LoadText"
+address = 0x0094C58D
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t instance)"
+expect = "55 8B EC 83 EC 14 89 45"
+source = "Name ours. cdecl with the group in EAX and the string in EDI. The key (0x2026960B, group, instance) asked of the UI script loader's held object (slot 4 with the string; its AL answered), else of the resource manager (slot 4 with the interface 0x089B7DC8 into the instance's own argument slot, zeroed first; when it answers the string's slot 13 takes the text, AL 1); the text released. AL over the loader holder's destruction's EAX (0x004495C0). Ours in framework.uiscript.propload (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::HasKey"
+address = 0x0094C64E
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t key)"
+expect = "8B 08 8B 40 04 2B C1 33"
+source = "Name ours. cdecl with the vector of 8-byte pairs (key, value) in EAX. Whether a pair has the key; AL over the pair count. Ours in framework.uiscript.proplook (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::FindWord73"
+address = 0x0094C675
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t key, uint32_t* out)"
+expect = "53 56 8B 77 04 2B 37 33"
+source = "Name ours. cdecl with the vector of pairs in EDI. The first pair with the key whose value is set and a number (slot 3 answers 6): the word its slot 73 points at goes to the out, AL 1 over it. AL 0 over what EAX last held otherwise (the caller's for an empty vector). EDX as the value's calls leave it (callers push SETcc DL over it as a bool). Ours in framework.uiscript.proplook (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::FindWord75"
+address = 0x0094C6C7
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t key, uint32_t* out)"
+expect = "53 56 8B 77 04 2B 37 33"
+source = "Name ours. 0x0094C675 with the value's slot 75. Ours in framework.uiscript.proplook (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "cGZUIScriptProps::ReadFlags"
+address = 0x0094C719
+kind = "function"
+convention = "custom"
+signature = "uint32_t (void* vector, uint32_t flags)"
+expect = "55 8B EC 51 56 8B F0 8B"
+source = "Name ours. cdecl with a table of (key, mask) pairs ending with key 0 in EAX. Each key found as a number (0x0094C675) clears its mask from the flags and sets it again when the word is 1; the flags kept in their own argument slot and answered. Ours in framework.uiscript.proplook (docs/gzui.md, part u12)."
+
+[[entry]]
+name = "SC4ScriptNumber::FromBytes"
+address = 0x00915E53
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* data, uint32_t size, uint32_t kind)"
+expect = "56 FF 74 24 0C 8B F1 FF"
+source = "Name ours. `ret 0xC`. A 0x14-byte script value (vtable 0x00ACECD0) holding a copy of the bytes (0x00915531: +4 the copy, +0x10 its size), the kind word +0xE or'ed with 0x8000; returns this. Stays the game's; called by ours."
+
+[[entry]]
+name = "SC4RefPtr::UIScriptLoader"
+address = 0x00449750
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 C7 06 00 00 00"
+source = "Name ours. A reference holder made with the UI script loader (the framework's service 0x5A356E15, interface 0xFA3562FA); destroyed by 0x004495C0. Stays the game's; called by ours."

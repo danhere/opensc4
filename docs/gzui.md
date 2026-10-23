@@ -938,3 +938,62 @@ All five legs the same on the first pair.
 **Reached:** in every plain (muted) leg side B logs all 4 first calls (the property handlers read every window's properties through them when a city's UI loads).
 
 **What is left of u12:** 45 functions, 12 of which ran: the property handlers 0x0094CE28, 0x0094D17E, 0x0094E33B to 0x00951084 and the large 0x0094D641 (all of which call these readers and the register-argument property makers part u11 left), STLport map and tree code 0x0094C92D to 0x0094CDB5, the shared AddRef 0x0094D34F (count +0x10, 14 vtables) and small wrappers 0x0094D147 to 0x0094D490.
+
+## Part u12, slice 2: the makers, loaders and lookups of a window's script properties
+
+The second slice makes ours the ten helpers part u11 left in its range (0x0094C1A4 to 0x0094C719), which the property handlers of this part call with arguments in registers as well as on the stack (cdecl). They are in `src/core/gzui_props.cpp` too, three groups, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.propmake` | 4 | the makers that give a window a new 0x14-byte script value through its slot 114: 12 bytes 0x0094C1A4, 8 bytes 0x0094C1DA, a number 0x0094C222 and a text 0x0094C255 |
+| `framework.uiscript.propload` | 2 | the loaders by key: an image 0x0094C4E0 and a text 0x0094C58D |
+| `framework.uiscript.proplook` | 4 | the lookups in vectors of pairs: a key 0x0094C64E, a number's word through slot 73 0x0094C675 or slot 75 0x0094C6C7, and flags from a table of masks 0x0094C719 |
+
+Each is entered through a naked thunk that hands the registers' values and the stack arguments to a cdecl body, which keeps EBX, ESI, EDI and EBP as the game's do. Where the game writes into its own argument slots (the loaders' out, the flags reader's flags), the body is given those slots, so the caller's stack is written the same.
+
+**The script values** (SC4ScriptNumber, 0x14 bytes, vtable 0x00ACECD0): +4 the value or a pointer to its bytes, +0xC a word, +0xE the kind (slot 3 answers it: 6 a number, 0x800E a text, 0x8000 bytes), +0x10 the size. The makers take 0x14 bytes from SC4::operator_new (none when there is no memory) and build the value with 0x00915E53 (a copy of the bytes, kind 0x8000; new in the address database as `SC4ScriptNumber::FromBytes`), 0x00915D6D (a number) or 0x00915CDE (a game string's text), then put it under a key with the window's slot 114 (the window in ESI):
+
+- 0x0094C1A4 puts 12 bytes (a resource key's three words, the handlers' images and texts) under the key itself, slot 114's EAX answered; without a window it does nothing and leaves the caller's EAX.
+- 0x0094C1DA puts two words (the first in EAX) under the key + 0xDAA3B860; 0x0094C222 a number and 0x0094C255 a text under the key + 0xFAA3BE85. AL 1 over slot 114's EAX; the window is not checked.
+
+**The loaders** make the key (0x856DDBAC an image, 0x2026960B a text; the group in EAX, the instance on the stack) and ask the UI script loader's held object for it (the loader 0x5A356E15 by a reference holder, 0x00449750, new in the database as `SC4RefPtr::UIScriptLoader`; the object its slot 10 set, read by its slot 9): the image by the object's slot 3 (its EAX answered), the text by its slot 4 with the string in EDI (its AL answered). Without a held object they ask the resource manager (slot 3 or 4 with the interface 0x06F1568E or 0x089B7DC8, the out being the instance's own argument slot, zeroed first): the image's slot 3 is answered, else 0; the text goes into the string by its slot 13, AL 1. The resource is released and the holders destroyed (0x004495C0) in the game's order; the text loader's AL sits over the last destruction's EAX. In a game run the loader has a held object, so the resource manager's path is reached only by the test.
+
+**The lookups.** The vectors are the STLport vectors of 8-byte pairs (key, value) of slice 1.
+
+- 0x0094C64E (the vector in EAX): whether a pair has the key; AL over the pair count.
+- 0x0094C675 and 0x0094C6C7 (the vector in EDI, a key and an out): the first pair with the key whose value is set and a number (slot 3 answers 6); the word its slot 73 (or 75) points at goes to the out, AL 1 over that word. On a miss AL 0 over what EAX last held: the caller's EAX for an empty vector, else the last pair's place, its null value or its slot 3's answer. The count is taken once, the vector's start each time.
+- 0x0094C719 (a table of (key, mask) pairs ending with key 0 in EAX, the vector and the flags on the stack): each key found as a number (0x0094C675, the out zeroed first) clears its mask from the flags and sets it again when the word is 1; the flags are kept in their own argument slot and answered. Ours calls our 0x0094C675.
+
+Ours give the game's EAX on every path, its upper bytes and leftovers too. The number finders also leave EDX as the game's do (after slot 3, with the value's vtable in EDX, and after slot 73 or 75): 54 of 0x0094C675's call sites push `SETcc DL` as a bool argument to a window's slot, over EDX's upper bytes. Ours call the value's two slots through two small naked helpers that hand EDX back, and the thunk pops it into EDX.
+
+### Testing
+
+`OPENSC4_TEST_PROPMAKE=<day>` is a test of its own (the fingerprint's `pm` part). It calls the ten by address with their registers set (EBX, ESI, EDI and EBP checked kept after each call) and their argument slots read back after. Three stages, each logged as `autotest: propmake: <stage> <hash>`:
+
+- **make:** the makers on a window of our own (its slot 114 hashes the key and the value's fields and bytes, then destroys the value by its slot 127), 0x0094C1A4 without a window and with three keys, 0x0094C1DA with three pairs of words, 0x0094C222 with four numbers, 0x0094C255 with four game strings (one empty);
+- **load:** the UI script loader's held object (the game's, which is set) taken and kept, ours set by slot 10 (slot 3 answers a word of the key's, slot 4 writes a text for odd instances), both loaders for four instances, then no held object: the resource manager with a picture the game ships (the region screen's first edge picture) and a missing key, the text of the audio layer's first freshness score (0x0A5BCDA5, 0x7EC82BF0) and a missing key; the game's held object put back;
+- **look:** on a vector of ten pairs of our own (number values answering 6, a value that is not a number, null values, keys twice) and an empty one: 0x0094C64E for nine keys, 0x0094C675 and 0x0094C6C7 for the nine with the out pre-set and EAX a mark, 0x0094C719 with a table of eight masks and an empty table for four flag values.
+
+The number values' slots 73 and 75 leave a mark in EDX, which the hash takes after every find. Addresses never go into the hash: where EAX holds a place on a miss, the hash takes whether it is the last pair's; the loaders' resources only whether there is one.
+
+With the groups on, each of the 10 logs its first call in a test run. `pm` is B940D88F (muted), the same on both sides; the stages make 19EB3E7D, load 6F79C575 and look B940D88F.
+
+The ten were checked against the disassembly (memory written and its order, calls and their arguments, vtable slots, registers kept, EAX on every path, the thunks' stack offsets, the address entries) by the author and by an independent audit, which also scanned the 260 direct call sites (none reads ECX or the flags after the call; none reads EDX after nine of them; no jump or call lands inside the first five bytes of any of the ten): no difference in what they do. It found one thing to fix: the EDX the number finders leave, which their callers push as a bool's upper bytes (above); fixed.
+
+### Parity
+
+Batches `gzu12b-r1` (before the EDX fix) and `gzu12b-r2` (the final build), 2026-10-23, muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.uiscript.*` (with `propread`, `propmake`, `propload` and `proplook`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu12b`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_PROPREAD=2 OPENSC4_TEST_PROPMAKE=2` | 12 | 12 same; `pm` B940D88F and `pr` 71C32265 in every run |
+| Making Money d0000, 4 days, the same two tests | 1 | same; `pm` B940D88F |
+
+Both batches: all five legs the same (r1's `pm` was BA41AF31, before the test hashed EDX).
+
+**Reached:** in every plain (muted) leg side B logs 13 first calls: slice 1's 4 and 9 of these 10 (the property handlers make, load and look up through them when a city's UI loads); the text maker 0x0094C255 is reached only by the test (it did not run in the coverage runs either). In a game run the loader has a held object, so the loaders' resource manager path is the test's alone.
+
+**What is left:** of part u11's range, 19 of the 29 it left (its adjustors and the other classes' small functions, which go with their classes); of u12's range, the 45 of slice 1 (the property handlers 0x0094CE28, 0x0094D17E, 0x0094E33B to 0x00951084 and the large 0x0094D641, STLport map and tree code 0x0094C92D to 0x0094CDB5, the shared AddRef 0x0094D34F and small wrappers 0x0094D147 to 0x0094D490). With the readers, makers, loaders and lookups ours, the handlers are the natural next slice: every helper they call is now ours.
