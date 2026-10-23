@@ -3125,6 +3125,6 @@ The tank comes from its factory. Its main vtable is ro2's copy, with slots 18, 1
 | Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
 | The 12-save batch | 7 | 12 of 12 saves |
 
-Every B run reached all 3, and its ro3a field equalled the A run's (0xD2870417). The whole ` V` token was equal too, ad3's `chighlight` included. The game itself reaches none of the 3 in these saves, which have no tanks: everything is reached by the test.
+Every B run reached all 3, and its ro3a field equalled the A run's (0xD2870417). The whole ` V` token was equal too, ad3's `chighlight` included. The game itself reaches none of the 3 before the test day in these saves: everything is reached by the test.
 
 - **The audit:** an independent check against the disassembly found no defect in the 3. On its one doubt, the local holding __CIacos's address was renamed so it no longer shares a name with the C runtime's acos.
