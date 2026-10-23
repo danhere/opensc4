@@ -5862,7 +5862,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, const void* start)"
 expect = "56 57 8B 7C 24 0C 8B 47"
-source = "Name ours. Of an automaton, ret 4: the start (three words, +8 nonzero) kept at +0x11C once (+0x124), appended to the +0xC0 vector of points, then 0x0050E4D0 when its +4 part's slot 5 answers. Left the game's. Called by address from src/core/automata_awmgr_auto.cpp (part aw3)."
+source = "Name ours. Of an automaton, ret 4: the start (three words, +8 nonzero) kept at +0x11C once (+0x124), appended to the +0xC0 vector of points, then 0x0050E4D0 when its +4 part's slot 5 answers (AL whether it made a model; AL 1 when the slot answers 0). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2); called by address from src/core/automata_awmgr_auto.cpp (part aw3)."
 
 [[entry]]
 name = "SC4CameraView::InView"
@@ -9704,7 +9704,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint32_t (void* this, void* state)"
 expect = "56 8B 74 24 08 85 F6 57"
-source = "Name ours. The core's slot 111, ret 4. Called by address from src/core/automata_vehicle.cpp (part vb4)."
+source = "Name ours. The core's slot 111, ret 4: leaving a state (AL 0 for none). 0x10: the record's +0x205..+0x211 zeroed, 0x0050D870, the record's slot 0; 0x13 (the one-shot): its model +0x28 removed (0x0050B400), cleared and released; 0x14: the record's slot 0. Then slot 62 with +0x18 when set, the automata flags +0x84 (but 0x0600C001) the record's +0x20, slot 102 (0xD, type); the answer the record's object +8's slot 30 (core, type), else 1. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2); called by address from part vb4."
 
 [[entry]]
 name = "cSC4AutomatonCore::StateRate"
@@ -10541,3 +10541,152 @@ name = "cSC4AutomatonCore::Float100"
 address = 0x00A952D8
 kind = "data"
 source = "Name ours. float 100.0: the timer +0x1C0 above it sends the automaton event 9 (core slots 100 and 120)."
+
+# Part ad2: the core's model swaps, start, animation, fades and transforms (src/core/automata_vehicle.cpp, docs/automata.md "AD2").
+
+[[entry]]
+name = "cSC4AutomatonCore::SwapModel"
+address = 0x0050E620
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* model, const void* key)"
+expect = "83 EC 20 56 57 8B 7C 24"
+source = "Name ours. Ret 8: the model swapped for one made from the key; nothing when the key's third word is +0x128's, else it becomes +0x128. The attachments +0x18C let go (slot 2 with 0) when bound to the first model's drawable, bound again to the first model's at the end; out of the view (slot 71 with 0) while in it; the new model by SC4::GetKeyedResource (a refused 0x29A5D1EC key again as 0x5AD0E817): owner, render flags 1, zoom and rotation, PlaceModel; in the old model's place (the old one removed, the effect part +0x12C let go when on it, released, SC4PtrVector::Insert) or pushed at the end; the key over the keys' entry of the old model's index (its count when absent); back into the view; slot 106. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SwapStartModel"
+address = 0x00510240
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t offset)"
+expect = "83 EC 0C 8B 81 1C 01 00"
+source = "Name ours. Core slot 19, ret 4: with the start key set (+0x124) and models, the first model swapped (0x0050E620) for the start key with the offset added to its third word; AL 1. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SwapFirstModel"
+address = 0x00510210
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* key)"
+expect = "8B 44 24 04 8B 50 08 85"
+source = "Name ours. Core slot 20, ret 4: the first model swapped (0x0050E620) for the key's when its third word is set and there are models; AL 1. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::AdvanceAnimation"
+address = 0x005089F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "56 8B F1 8B 0D 5C 3D B4"
+source = "Name ours. Core slot 103, ret 4: held (AL 1) while the simulator 0x00B43D5C's slot 0x44 answers 0 and its slot 0x3C 1; each model's slot 15 (seconds); with the list +0x188 not empty, the first model at its last frame (slot 11 against slot 12 less 1) gives slot 102 (1, 0); the timer +0x1C0 gains the seconds; AL 1. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::PlayOneShot"
+address = 0x005102A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* key, int mode, bool answer, uint32_t word)"
+expect = "53 57 6A 00 6A 00 6A 00"
+source = "Name ours. Core slot 22, ret 0x10: a one-shot: slot 52 (0x13, 0, word, 0, 0, 0, 0) (AL 0 answers 0); the current record (slot 56) takes the answer byte (+0x2C) and the mode (+0x30); the model from the key (0x0050E4D0) held at +0x28; with one its play mode (slot 16) and alpha (slot 18 (1, 0)), AL 1; else AL 0. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::OneShotFrame"
+address = 0x00508F80
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 14 57 8B F9 8B 07"
+source = "Name ours. Core slot 119, ret 4: AL 0 with the automata flag 1; the record's model +0x28 below an alpha of 1 (its drawable's slot 15) faded in by seconds / (0x00B21C84 x 0.5), at most 1; unless the play mode is 2 or 3 the model at its last frame pops the state (slot 53), AL 1; else AL the record's +0x2C. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::StartFade"
+address = 0x0050B360
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float target, float duration)"
+expect = "56 57 8B F9 D9 87 B4 01"
+source = "Name ours. Core slot 33, ret 8: a new target (unordered counts as new) restarts the fade +0x1B0 from the smoothed value now (target, duration, 0 elapsed); a duration below 0.001 sets each model's alpha (slot 18: (1, target) below 1, else (0, 1)) at once. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::FadeFrame"
+address = 0x005091C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float seconds)"
+expect = "51 56 57 8B F9 8D B7 B0"
+source = "Name ours. Core slot 83, ret 4: the fade's elapsed +0x1BC gains seconds x 0.001 while below the duration +0x1B8, reaching it the value becomes the target and both clear; when the smoothed value changed, each model's alpha it (slot 18). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SetPosition"
+address = 0x00507D90
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* point)"
+expect = "57 8B F9 8A 47 33 A8 01"
+source = "Name ours. Core slot 8, ret 4: in the occupant manager and the view, slot 16 (point, 0); else the position +0x40 and each model's slot 1 with it. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SetHeading"
+address = 0x0050AF10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* heading)"
+expect = "56 8B F1 8A 46 33 A8 01"
+source = "Name ours. Core slot 14, ret 4: in the occupant manager and the view, slot 16 (0, heading); else the heading +0x58 normalised (0x00B09978 over the length) and each model's PlaceModel. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SetModelTransforms"
+address = 0x00509440
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* transform)"
+expect = "56 57 8B F9 8B B7 10 01"
+source = "Name ours. Core slot 75, ret 4: each model's drawable given the transform (its slot 10); AL whether there are models. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::ResetStateAttachments"
+address = 0x0050D870
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 10 53 57 8B F9 8B"
+source = "Name ours. No arguments: on leaving the state 0x10, the attachments +0x18C (slot 0x34) by the state 0x10's record (slot 57) and the template (slot 67). Left the game's. Called by address from src/core/automata_vehicle.cpp (part ad2)."
+
+[[entry]]
+name = "SC4PtrVector::Insert"
+address = 0x00645CA0
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** where, void* const* value)"
+expect = "53 55 56 8B F1 8B 2E 8B"
+source = "Name ours. Ret 8: a pointer inserted at where (SC4PtrVector::InsertN when full); the inserted entry's address. Called by address from src/core/automata_vehicle.cpp (part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::FloatOne"
+address = 0x00B09978
+kind = "data"
+expect = "00 00 80 3F"
+source = "Name ours. The float 1: slot 14's heading normalised as it over the length. Called by address from src/core/automata_vehicle.cpp (part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SetPlacement"
+address = 0x005080C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* point, const float* heading)"
+expect = "83 EC 64 53 55 8B E9 8B"
+source = "Name ours. Core slot 16, ret 8: a heading (not a NaN y, not all three below 0.00001 in size) kept and normalised as slot 14, SC4Matrix::FromDirection over nine words of 0x00B21BA4 into each model's transform (drawable slots 9 and 10, flag 4); a point below 0 in x or z or not inside the city's size: slot 13 (0) and nothing else; else kept at +0x40, into each model's transform (flag 1), and unless the automata flag 1, with the flags 0x400000 / 0x800000 its cell (x 0.0625, the float magic) asked of the lot manager's slot 6, else the traffic network map's slot 14, either answering slot 13 (0). Slots 107 and 104 when placed, slot 100 (moved, turned). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::HeadingEpsilon"
+address = 0x00A952DC
+kind = "data"
+expect = "AC C5 27 37"
+source = "Name ours. The float 0.00001: slot 16 ignores a heading with all three parts below it in size. Called by address from src/core/automata_vehicle.cpp (part ad2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::CellScale"
+address = 0x00A952F0
+kind = "data"
+expect = "00 00 80 3D"
+source = "Name ours. The float 0.0625: slot 16's position to cells. Called by address from src/core/automata_vehicle.cpp (part ad2)."

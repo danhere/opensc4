@@ -17430,6 +17430,692 @@ void CoreModelsDrive(cISC4City* city, Hash& cmodels, uint32_t& flags)
     flags |= 0x1000000;
 }
 
+// ---- Part ad2: the core's model swaps, start, animation, fades and transforms.
+
+namespace ad2 {
+
+// What the test's objects record and answer, beyond part ad1's (whose
+// context holds the calls' hash).
+struct Context {
+    uint8_t pushState = 1;      // slot 52's answer
+    uint8_t initialised = 1;    // the occupant part's slot 5
+    uint8_t simulator44 = 1;    // the simulator's slot 17
+    uint8_t simulator3C = 0;    // and slot 15
+    int32_t frame[4] = {};      // the test models' current frames (slot 11), by id less 0x20
+    int32_t frames[4] = {};     // their frame counts (slot 12)
+    float alpha[4] = {};        // their drawables' alphas (the draw properties' +0x10)
+    char* record = nullptr;     // slot 56's answer
+};
+Context* g_ad2 = nullptr;
+Hash& Calls() { return ad1::g_ad1->calls; }
+uint32_t Slot(const ad1::Model* m) { return (m->id - 0x20) & 3u; }
+
+uint32_t __fastcall ModelPosition(ad1::Model* m, void*, const float* point)
+{
+    Calls().Mix(0xD04);
+    Calls().Mix(m->id);
+    Calls().MixBytes(point, 12);
+    return 1;
+}
+int32_t __fastcall ModelFrame(ad1::Model* m, void*)
+{
+    Calls().Mix(0xD2C);
+    Calls().Mix(m->id);
+    return g_ad2->frame[Slot(m)];
+}
+int32_t __fastcall ModelFrames(ad1::Model* m, void*)
+{
+    Calls().Mix(0xD30);
+    Calls().Mix(m->id);
+    return g_ad2->frames[Slot(m)];
+}
+uint32_t __fastcall ModelAdvance(ad1::Model* m, void*, float seconds)
+{
+    Calls().Mix(0xD3C);
+    Calls().Mix(m->id);
+    Calls().Mix(Bits(seconds));
+    ++g_ad2->frame[Slot(m)];
+    return 1;
+}
+uint32_t __fastcall ModelPlayMode(ad1::Model* m, void*, uint32_t mode)
+{
+    Calls().Mix(0xD40);
+    Calls().Mix(m->id);
+    Calls().Mix(mode);
+    return 1;
+}
+uint32_t __fastcall BaseTransform(void* base, void*, const uint32_t* transform)
+{
+    Calls().Mix(0xB28);
+    Calls().Mix(ad1::ModelOf(base)->id);
+    Calls().MixBytes(transform, 0x38);
+    return 1;
+}
+// The transform out (slot 9): every byte written, from the model's id.
+uint32_t __fastcall BaseGetTransform(void* base, void*, uint8_t* transform)
+{
+    const uint32_t id = ad1::ModelOf(base)->id;
+    Calls().Mix(0xB24);
+    Calls().Mix(id);
+    for (uint32_t i = 0; i < 0x38 / 4; ++i) {
+        const float value = static_cast<float>(id) * 0.25f + static_cast<float>(i);
+        std::memcpy(transform + 4 * i, &value, 4);
+    }
+    transform[0] = static_cast<uint8_t>(id);
+    transform[1] = 0x10;
+    transform[2] = transform[3] = 0;
+    return 1;
+}
+uint32_t __fastcall BaseProperties(void* base, void*, uint32_t* out)
+{
+    const ad1::Model* const m = ad1::ModelOf(base);
+    Calls().Mix(0xB3C);
+    Calls().Mix(m->id);
+    out[0] = m->id;
+    out[1] = out[2] = out[3] = 0;
+    std::memcpy(&out[4], &g_ad2->alpha[Slot(m)], 4);
+    return 1;
+}
+void** ModelVtable()
+{
+    static void* t[32] = {};
+    std::memcpy(t, ad1::ModelVtable(), sizeof t);
+    t[1] = reinterpret_cast<void*>(&ModelPosition);
+    t[11] = reinterpret_cast<void*>(&ModelFrame);
+    t[12] = reinterpret_cast<void*>(&ModelFrames);
+    t[15] = reinterpret_cast<void*>(&ModelAdvance);
+    t[16] = reinterpret_cast<void*>(&ModelPlayMode);
+    return t;
+}
+void** BaseVtable()
+{
+    static void* t[16] = {};
+    std::memcpy(t, ad1::BaseVtable(), sizeof t);
+    t[9] = reinterpret_cast<void*>(&BaseGetTransform);
+    t[10] = reinterpret_cast<void*>(&BaseTransform);
+    t[15] = reinterpret_cast<void*>(&BaseProperties);
+    return t;
+}
+
+// The core's slots 16, 52, 53, 56, 57, 62 and 67; the occupant part's slot 5.
+uint32_t __fastcall CoreSlot16(char*, void*, const float* point, const float* heading)
+{
+    Calls().Mix(0xC16);
+    Calls().Mix(point ? 1u : 0u);
+    Calls().Mix(heading ? 1u : 0u);
+    if (point)
+        Calls().MixBytes(point, 12);
+    if (heading)
+        Calls().MixBytes(heading, 12);
+    return 1;
+}
+uint8_t __fastcall CoreSlot52(char*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f,
+                              uint32_t g)
+{
+    const uint32_t words[7] = {a, b, c, d, e, f, g};
+    Calls().Mix(0xC52);
+    Calls().MixBytes(words, sizeof words);
+    return g_ad2->pushState;
+}
+uint32_t __fastcall CoreSlot53(char*, void*)
+{
+    Calls().Mix(0xC53);
+    return 1;
+}
+char* __fastcall CoreSlot56(char*, void*)
+{
+    Calls().Mix(0xC56);
+    return g_ad2->record;
+}
+uint32_t __fastcall CoreSlot57(char*, void*, uint32_t word)
+{
+    Calls().Mix(0xC57);
+    Calls().Mix(word);
+    return 0;
+}
+uint32_t __fastcall CoreSlot62(char*, void*, uint32_t word)
+{
+    Calls().Mix(0xC62);
+    Calls().Mix(word);
+    return 1;
+}
+void* __fastcall CoreSlot67(char*, void*)
+{
+    Calls().Mix(0xC67);
+    return nullptr;
+}
+// Slots 13, 100, 104 and 107 (slot 16's).
+uint32_t __fastcall CoreSlot13(char*, void*, uint32_t word)
+{
+    Calls().Mix(0xC13);
+    Calls().Mix(word);
+    return 1;
+}
+uint32_t __fastcall CoreSlot100(char*, void*, uint32_t moved, uint32_t turned)
+{
+    Calls().Mix(0xC100);
+    Calls().Mix(moved & 0xFFu);
+    Calls().Mix(turned & 0xFFu);
+    return 1;
+}
+uint32_t __fastcall CoreSlot104(char*, void*)
+{
+    Calls().Mix(0xC104);
+    return 1;
+}
+uint32_t __fastcall CoreSlot107(char*, void*)
+{
+    Calls().Mix(0xC107);
+    return 1;
+}
+uint8_t __fastcall PartInitialised(char*, void*)
+{
+    Calls().Mix(0x914);
+    return g_ad2->initialised;
+}
+
+// The simulator 0x00B43D5C: slots 15 and 17.
+struct Simulator {
+    void** vtable;
+};
+uint8_t __fastcall Simulator3C(Simulator*, void*)
+{
+    Calls().Mix(0x53C);
+    return g_ad2->simulator3C;
+}
+uint8_t __fastcall Simulator44(Simulator*, void*)
+{
+    Calls().Mix(0x544);
+    return g_ad2->simulator44;
+}
+void** SimulatorVtable()
+{
+    static void* t[20] = {};
+    t[15] = reinterpret_cast<void*>(&Simulator3C);
+    t[17] = reinterpret_cast<void*>(&Simulator44);
+    return t;
+}
+
+// A state record's slot 0 and its object's slot 30 (on leaving).
+uint32_t __fastcall RecordLeave(char*, void*, char* core)
+{
+    Calls().Mix(0xE00);
+    Calls().Mix(core == ad1::g_ad1->self ? 1u : 0u);
+    return 1;
+}
+void** RecordVtable()
+{
+    static void* t[4] = {};
+    t[0] = reinterpret_cast<void*>(&RecordLeave);
+    return t;
+}
+uint32_t __fastcall ObjectLeave(char*, void*, char* core, uint32_t type)
+{
+    Calls().Mix(0xE78);
+    Calls().Mix(core == ad1::g_ad1->self ? 1u : 0u);
+    Calls().Mix(type);
+    return 0x1234;
+}
+void** ObjectVtable()
+{
+    static void* t[32] = {};
+    t[30] = reinterpret_cast<void*>(&ObjectLeave);
+    return t;
+}
+
+} // namespace ad2
+
+// Part ad2 on a cSC4Vehicle of the factory's (its vtable a copy with the
+// core's slots 8, 14, 19, 20, 22, 33, 70, 71, 75, 83, 103, 111 and 119 at the
+// core's addresses and slots 13, 16, 52, 53, 56, 57, 62, 67, 100, 102, 104,
+// 106 and 107 the test's; its occupant part's slots 5, 6, 29, 31 and 32 the test's; the whole
+// vehicle put back byte for byte at the end), with the view 0x00B43DD0, the
+// occupant manager 0x00B43D0C and the simulator 0x00B43D5C the test's while
+// it runs: the position, heading and transforms, the placement (slot 16,
+// called by address), the fades, the animation,
+// the one-shot and its frames, leaving states, SetStart and the swaps on the
+// test's models; then the game's models from the first city vehicle's first
+// model key: SetStart, the swaps (a billboard key made as S3D, one pushed at
+// the end), the animation, fades, position, heading and placement, a one-shot and
+// leaving it, released.
+void CoreModels2Drive(cISC4City* city, Hash& cmodels2, uint32_t& flags)
+{
+    using Create = char*(__cdecl*)();
+    char* const o = reinterpret_cast<Create>(addr::cSC4Vehicle_Create)();
+    if (!o) {
+        flags |= 0x4000000;
+        return;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    uint32_t realKey[3] = {};
+    if (char* const manager = city ? Virtual<char*>(city, av::kCityVehicleManager) : nullptr) {
+        char* const list = At<char*>(manager, av::kManagerAutomata);
+        for (char* n = list ? At<char*>(list, 0) : nullptr; n && n != list; n = At<char*>(n, 0)) {
+            char* const v = At<char*>(n, 8);
+            if (v && At<char*>(v, av::field::kModelKeys) != At<char*>(v, av::models::kKeysEnd)) {
+                std::memcpy(realKey, At<char*>(v, av::field::kModelKeys), sizeof realKey);
+                break;
+            }
+        }
+    }
+    static uint8_t saved[av::kVehicleSize];
+    std::memcpy(saved, o, sizeof saved);
+
+    static void* table[192];
+    static void* table4[34];
+    std::memcpy(table, At<void**>(o, 0), sizeof table);
+    std::memcpy(table4, At<void**>(o, 4), sizeof table4);
+    table[8] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SetPosition);
+    table[14] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SetHeading);
+    table[13] = reinterpret_cast<void*>(&ad2::CoreSlot13);
+    table[16] = reinterpret_cast<void*>(&ad2::CoreSlot16);
+    table[19] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SwapStartModel);
+    table[20] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SwapFirstModel);
+    table[22] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_PlayOneShot);
+    table[33] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_StartFade);
+    table[52] = reinterpret_cast<void*>(&ad2::CoreSlot52);
+    table[53] = reinterpret_cast<void*>(&ad2::CoreSlot53);
+    table[56] = reinterpret_cast<void*>(&ad2::CoreSlot56);
+    table[57] = reinterpret_cast<void*>(&ad2::CoreSlot57);
+    table[62] = reinterpret_cast<void*>(&ad2::CoreSlot62);
+    table[67] = reinterpret_cast<void*>(&ad2::CoreSlot67);
+    table[70] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SetInOccupantManager);
+    table[71] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SetModelsInView);
+    table[75] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_SetModelTransforms);
+    table[83] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_FadeFrame);
+    table[102] = reinterpret_cast<void*>(&ad1::CoreSlot102);
+    table[100] = reinterpret_cast<void*>(&ad2::CoreSlot100);
+    table[103] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_AdvanceAnimation);
+    table[104] = reinterpret_cast<void*>(&ad2::CoreSlot104);
+    table[106] = reinterpret_cast<void*>(&ad1::CoreSlot106);
+    table[107] = reinterpret_cast<void*>(&ad2::CoreSlot107);
+    table[111] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_LeaveState);
+    table[119] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_OneShotFrame);
+    table4[5] = reinterpret_cast<void*>(&ad2::PartInitialised);
+    table4[6] = reinterpret_cast<void*>(&ad1::PartHolder);
+    table4[29] = reinterpret_cast<void*>(&ad1::PartSet);
+    table4[31] = reinterpret_cast<void*>(&ad1::PartClear);
+    table4[32] = reinterpret_cast<void*>(&ad1::PartTest);
+    At<void**>(o, 0) = table;
+    At<void**>(o, 4) = table4;
+    const uint8_t byte33 = At<uint8_t>(o, av::field::kFlags33);
+
+    ad1::Context context;
+    context.self = o;
+    ad1::g_ad1 = &context;
+    ad2::Context c2;
+    ad2::g_ad2 = &c2;
+    ad1::Model models[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        ad1::MakeModel(models[i], 0x20 + i);
+        models[i].vtable = ad2::ModelVtable();
+        models[i].baseVtable = ad2::BaseVtable();
+        ad1::g_models[i] = &models[i];
+    }
+    char* const m0 = reinterpret_cast<char*>(&models[0]);
+    char* const m1 = reinterpret_cast<char*>(&models[1]);
+    char* const m2 = reinterpret_cast<char*>(&models[2]);
+    char* const m3 = reinterpret_cast<char*>(&models[3]);
+    const int32_t frames[4] = {3, 1, 5, 2};
+    const float alphas[4] = {0.5f, 1.0f, 0.25f, 0.75f};
+    std::memcpy(c2.frames, frames, sizeof frames);
+    std::memcpy(c2.alpha, alphas, sizeof alphas);
+    ad1::Holder holder{ad1::HolderVtable(), nullptr, 0};
+    ad1::g_holder = &holder;
+    ad1::View view{ad1::ViewVtable()};
+    ad1::Manager fakeManager{ad1::ManagerVtable()};
+    ad2::Simulator simulator{ad2::SimulatorVtable()};
+    void** const viewGlobal = reinterpret_cast<void**>(addr::SC4_View43DD0);
+    void** const managerGlobal = reinterpret_cast<void**>(addr::SC4_NetworkService);
+    void** const simulatorGlobal = reinterpret_cast<void**>(addr::SC4_SimulatorService);
+    void* const realView = *viewGlobal;
+    void* const realManager = *managerGlobal;
+    void* const realSimulator = *simulatorGlobal;
+    *viewGlobal = &view;
+    *managerGlobal = &fakeManager;
+    *simulatorGlobal = &simulator;
+
+    // The models and keys: the test's storage (capacity 8 each).
+    char* slots[8] = {};
+    auto setModels = [&](std::initializer_list<char*> list) {
+        uint32_t n = 0;
+        for (char* m : list)
+            slots[n++] = m;
+        At<char**>(o, av::models::kBegin) = slots;
+        At<char**>(o, av::models::kEnd) = slots + n;
+        At<char**>(o, av::models::kCapacity) = slots + 8;
+    };
+    static uint32_t keys[8 * 3];
+    auto setKeys = [&](uint32_t count) {
+        for (uint32_t i = 0; i < 8 * 3; ++i)
+            keys[i] = 0x100u + i;
+        At<uint32_t*>(o, av::field::kModelKeys) = keys;
+        At<uint32_t*>(o, av::models::kKeysEnd) = keys + 3 * count;
+        At<uint32_t*>(o, av::models::kKeysCapacity) = keys + 8 * 3;
+    };
+    // The list +0x188: empty when its head points at itself.
+    void* listHead[2] = {};
+    void* listNode[2] = {};
+    auto setList = [&](bool full) {
+        listHead[0] = full ? static_cast<void*>(listNode) : static_cast<void*>(listHead);
+        At<void**>(o, av::models::kList188) = listHead;
+    };
+    alignas(8) static char record[0x220];
+    std::memset(record, 0, sizeof record);
+    At<void**>(record, 0) = ad2::RecordVtable();
+    struct {
+        void** vtable;
+    } object{ad2::ObjectVtable()};
+    c2.record = record;
+
+    auto idOf = [&](char* model) {
+        return model ? ad1::DrawableId(model + 4 + At<int32_t>(At<char*>(model, 4), 4)) : 0xFFu;
+    };
+    auto state = [&](uint32_t answer) {
+        const uint32_t count = static_cast<uint32_t>((At<char*>(o, av::models::kEnd) - At<char*>(o, av::models::kBegin)) / 4);
+        const uint32_t keyCount =
+            static_cast<uint32_t>((At<char*>(o, av::models::kKeysEnd) - At<char*>(o, av::field::kModelKeys)) / 12);
+        cmodels2.Mix(answer);
+        cmodels2.Mix(At<uint8_t>(o, av::field::kFlags33) & 7u);
+        cmodels2.Mix(count);
+        cmodels2.Mix(keyCount);
+        cmodels2.MixBytes(o + av::field::kFade1B0, 16);
+        cmodels2.Mix(Bits(At<float>(o, av::models::kTimer)));
+        cmodels2.MixBytes(o + av::field::kPosition, 12);
+        cmodels2.MixBytes(o + av::field::kHeading, 12);
+        cmodels2.Mix(At<uint32_t>(o, av::field::kAutomataFlags));
+        cmodels2.MixBytes(o + av::models::kStartKey, 16);
+        cmodels2.Mix(idOf(At<char*>(record, av::models::kStateModel)));
+        cmodels2.Mix(context.calls.h);
+        log::Write("autotest: automata: vehicle: ad2 step %u: %X flags %X models %u keys %u fade %08X %08X timer %08X "
+                   "calls %08X",
+                   ++context.steps, answer, At<uint8_t>(o, av::field::kFlags33) & 7u, count, keyCount,
+                   Bits(At<float>(o, av::field::kFade1B0)), Bits(At<float>(o, av::models::kFadeTarget)),
+                   Bits(At<float>(o, av::models::kTimer)), context.calls.h);
+    };
+    auto al = [](uint32_t eax) { return eax & 0xFFu; };
+    auto setFlags = [&](uint8_t bits) {
+        At<uint8_t>(o, av::field::kFlags33) = static_cast<uint8_t>((byte33 & ~7u) | bits);
+    };
+    auto setFade = [&](float value) {
+        At<float>(o, av::field::kFade1B0) = value;
+        At<float>(o, av::models::kFadeTarget) = value;
+        At<float>(o, av::models::kFadeDuration) = 0.0f;
+        At<float>(o, av::models::kFadeElapsed) = 0.0f;
+    };
+    using One = uint32_t(__thiscall*)(void*, uint32_t);
+    using None = uint32_t(__thiscall*)(void*);
+    using Pointer = uint32_t(__thiscall*)(void*, const void*);
+    using Seconds = uint32_t(__thiscall*)(void*, float);
+    using Fade = uint32_t(__thiscall*)(void*, float, float);
+    using Swap = uint32_t(__thiscall*)(void*, void*, const void*);
+    using OneShot = uint32_t(__thiscall*)(void*, const void*, uint32_t, uint32_t, uint32_t);
+    using Place = uint32_t(__thiscall*)(void*, const void*, const void*);
+    const auto place = reinterpret_cast<Place>(addr::cSC4AutomatonCore_SetPlacement);
+    const auto position = reinterpret_cast<Pointer>(addr::cSC4AutomatonCore_SetPosition);
+    const auto heading = reinterpret_cast<Pointer>(addr::cSC4AutomatonCore_SetHeading);
+    const auto transforms = reinterpret_cast<Pointer>(addr::cSC4AutomatonCore_SetModelTransforms);
+    const auto startFade = reinterpret_cast<Fade>(addr::cSC4AutomatonCore_StartFade);
+    const auto fadeFrame = reinterpret_cast<Seconds>(addr::cSC4AutomatonCore_FadeFrame);
+    const auto animate = reinterpret_cast<Seconds>(addr::cSC4AutomatonCore_AdvanceAnimation);
+    const auto oneShot = reinterpret_cast<OneShot>(addr::cSC4AutomatonCore_PlayOneShot);
+    const auto oneShotFrame = reinterpret_cast<Seconds>(addr::cSC4AutomatonCore_OneShotFrame);
+    const auto leave = reinterpret_cast<Pointer>(addr::cSC4AutomatonCore_LeaveState);
+    const auto setStart = reinterpret_cast<Pointer>(addr::SC4Automaton_SetStart);
+    const auto swap = reinterpret_cast<Swap>(addr::cSC4AutomatonCore_SwapModel);
+    const auto swapFirst = reinterpret_cast<Pointer>(addr::cSC4AutomatonCore_SwapFirstModel);
+    const auto swapStart = reinterpret_cast<One>(addr::cSC4AutomatonCore_SwapStartModel);
+    const auto inManager = reinterpret_cast<One>(addr::cSC4AutomatonCore_SetInOccupantManager);
+    const auto inView = reinterpret_cast<One>(addr::cSC4AutomatonCore_SetModelsInView);
+    const auto release = reinterpret_cast<None>(addr::cSC4AutomatonCore_ReleaseModels);
+    const uint32_t keyBad[3] = {0x12345678u, 1u, 2u};
+    const uint32_t keyA[3] = {0x12345678u, 3u, 4u};
+    const uint32_t keyNone[3] = {1u, 2u, 0u};
+
+    setFlags(0);
+    setFade(0.5f);
+    setKeys(3);
+    setList(false);
+    At<float>(o, av::models::kTimer) = 0.0f;
+    At<uint32_t>(o, av::field::kAutomataFlags) = 0;
+    At<uint32_t>(o, av::models::kStartSet) = 9;
+    // The position and heading: through slot 16 when in both, else kept.
+    setModels({m0, m1, m2});
+    const float point[3] = {1.5f, -2.0f, 3.25f};
+    position(o, point);
+    state(0);
+    setFlags(3);
+    position(o, point);
+    state(0);
+    const float straight[3] = {3.0f, 0.0f, 4.0f};
+    heading(o, straight);
+    state(0);
+    setFlags(0);
+    setModels({});
+    heading(o, straight);
+    state(0);
+    const float tilted[3] = {0.1f, 0.7f, -0.3f};
+    heading(o, tilted);
+    state(0);
+    const float zero[3] = {};
+    heading(o, zero);
+    state(0);
+    // The transforms.
+    const uint32_t transform[16] = {0xABCu, 1u, 2u, 3u};
+    setModels({m0, nullptr, m2});
+    state(al(transforms(o, transform)));
+    setModels({});
+    state(al(transforms(o, transform)));
+    // The placement (slot 16): both, neither, a tiny and a NaN heading, a
+    // point outside, the cell tests.
+    setModels({m0, nullptr, m1});
+    place(o, point, tilted);
+    state(0);
+    place(o, nullptr, nullptr);
+    state(0);
+    const float tiny[3] = {0.000001f, -0.000002f, 0.0f};
+    place(o, nullptr, tiny);
+    state(0);
+    float nanY[3] = {1.0f, 0.0f, 1.0f};
+    {
+        const uint32_t nan = 0x7FC00000u;
+        std::memcpy(&nanY[1], &nan, 4);
+    }
+    place(o, nullptr, nanY);
+    state(0);
+    const float infinite[3] = {0.0f, std::numeric_limits<float>::infinity(), 0.0f};
+    place(o, nullptr, infinite);
+    state(0);
+    const float negative[3] = {-1.0f, 0.0f, 5.0f};
+    place(o, negative, straight);
+    state(0);
+    const float far[3] = {1.0e9f, 0.0f, 5.0f};
+    place(o, far, nullptr);
+    state(0);
+    const float deep[3] = {5.0f, 0.0f, 1.0e9f};
+    place(o, deep, nullptr);
+    state(0);
+    const float cell[3] = {40.0f, 1.0f, 72.0f};
+    At<uint32_t>(o, av::field::kAutomataFlags) = av::models::kCheckLots;
+    place(o, cell, nullptr);
+    state(0);
+    At<uint32_t>(o, av::field::kAutomataFlags) = av::models::kCheckNetwork;
+    place(o, point, nullptr);
+    state(0);
+    At<uint32_t>(o, av::field::kAutomataFlags) = av::models::kCheckLots | av::models::kCheckNetwork | 1u;
+    place(o, cell, nullptr);
+    state(0);
+    At<uint32_t>(o, av::field::kAutomataFlags) = 0;
+    // The fades.
+    setModels({m0, nullptr, m1});
+    startFade(o, 0.25f, 0.0f);
+    state(0);
+    startFade(o, 1.0f, 2.0f);
+    state(0);
+    startFade(o, 1.0f, 0.0005f);
+    state(0);
+    for (int i = 0; i < 5; ++i) {
+        fadeFrame(o, 500.0f);
+        state(0);
+    }
+    fadeFrame(o, 0.0f);
+    state(0);
+    // The animation: the first model's last frame, held, the list empty.
+    setModels({m0, nullptr, m2});
+    setList(true);
+    for (int i = 0; i < 3; ++i)
+        state(al(animate(o, 0.25f)));
+    c2.simulator44 = 0;
+    c2.simulator3C = 1;
+    state(al(animate(o, 0.5f)));
+    c2.simulator3C = 0;
+    state(al(animate(o, 0.5f)));
+    setList(false);
+    state(al(animate(o, 0.125f)));
+    c2.simulator44 = 1;
+    // The one-shot: refused, then a key the factory refuses (the model held
+    // before let go).
+    At<uint32_t>(record, 4) = av::models::kOneShotState;
+    At<char*>(record, av::models::kStateModel) = m3;
+    ++models[3].references;
+    c2.pushState = 0;
+    state(al(oneShot(o, keyBad, 1, 1, 7)));
+    c2.pushState = 1;
+    state(al(oneShot(o, keyBad, 1, 1, 7)));
+    // Its frames.
+    At<char*>(record, av::models::kStateModel) = m3;
+    ++models[3].references;
+    At<uint32_t>(record, av::models::kStateMode) = 0;
+    At<uint8_t>(record, av::models::kStateAnswer) = 0x5A;
+    state(al(oneShotFrame(o, 0.1f)));
+    c2.frame[3] = 1;
+    state(al(oneShotFrame(o, 100.0f)));
+    At<uint32_t>(record, av::models::kStateMode) = 2;
+    state(al(oneShotFrame(o, 0.1f)));
+    c2.alpha[3] = 1.0f;
+    At<uint32_t>(record, av::models::kStateMode) = 5;
+    state(al(oneShotFrame(o, 0.1f)));
+    At<uint32_t>(o, av::field::kAutomataFlags) = 1;
+    state(al(oneShotFrame(o, 0.1f)));
+    // Leaving states: the one-shot (its model in the models), 0x10, 0x14,
+    // another, none.
+    setModels({m0, m3});
+    At<uint32_t>(record, av::models::kStateWord) = 0x77;
+    At<uint32_t>(record, av::models::kStateFlags) = 0x30;
+    At<void*>(record, av::models::kStateObject) = &object;
+    At<uint32_t>(o, av::field::kAutomataFlags) = 0xFFFFFFFFu;
+    state(al(leave(o, record)));
+    At<uint32_t>(record, 4) = 0x10;
+    std::memset(record + av::models::kState205, 0xEE, 13);
+    At<void*>(record, av::models::kStateObject) = nullptr;
+    At<uint32_t>(record, av::models::kStateWord) = 0;
+    state(al(leave(o, record)));
+    cmodels2.MixBytes(record + av::models::kState205, 16);
+    At<uint32_t>(record, 4) = 0x14;
+    state(al(leave(o, record)));
+    At<uint32_t>(record, 4) = 0x99;
+    state(al(leave(o, record)));
+    state(al(leave(o, nullptr)));
+    At<uint32_t>(o, av::field::kAutomataFlags) = 0;
+    // SetStart.
+    setModels({});
+    setKeys(1);
+    At<uint32_t>(o, av::models::kStartSet) = 0;
+    c2.initialised = 0;
+    state(al(setStart(o, keyA)));
+    c2.initialised = 1;
+    state(al(setStart(o, keyBad)));
+    state(al(setStart(o, keyNone)));
+    cmodels2.MixBytes(keys, 5 * 12);
+    // The swaps of the test's models (the factory refuses the keys).
+    setModels({m0, m1});
+    setFlags(3);
+    At<uint32_t>(o, av::models::kStartAgain) = 0;
+    swap(o, m1, keyBad);
+    state(0);
+    swap(o, m1, keyBad);
+    state(0);
+    state(al(swapFirst(o, keyNone)));
+    state(al(swapFirst(o, keyA)));
+    At<uint32_t>(o, av::models::kStartSet) = 0;
+    state(al(swapStart(o, 1)));
+    At<uint32_t>(o, av::models::kStartSet) = keyA[2];
+    state(al(swapStart(o, 1)));
+    for (const ad1::Model& m : models)
+        cmodels2.Mix(static_cast<uint32_t>(m.references));
+
+    // The game's models.
+    if (realKey[2]) {
+        for (ad1::Model*& m : ad1::g_models)
+            m = nullptr;
+        ad1::g_models[3] = &models[3];
+        setModels({});
+        setKeys(0);
+        setFlags(0);
+        setFade(0.75f);
+        At<uint32_t>(o, av::models::kStartSet) = 0;
+        At<uint32_t>(o, av::models::kStartAgain) = 0;
+        state(al(setStart(o, realKey)));
+        state(al(inManager(o, 1)));
+        state(al(inView(o, 1)));
+        state(al(swapStart(o, 0)));
+        const uint32_t billboard[3] = {0x29A5D1ECu, realKey[1], realKey[2]};
+        At<uint32_t>(o, av::models::kStartAgain) = 0;
+        state(al(swapFirst(o, billboard)));
+        At<uint32_t>(o, av::models::kStartAgain) = 0;
+        swap(o, m3, realKey);
+        state(0);
+        setList(true);
+        state(al(animate(o, 0.25f)));
+        setList(false);
+        startFade(o, 0.5f, 0.0f);
+        state(0);
+        startFade(o, 1.0f, 1.0f);
+        state(0);
+        fadeFrame(o, 250.0f);
+        state(0);
+        fadeFrame(o, 1000.0f);
+        state(0);
+        setFlags(0);
+        position(o, point);
+        state(0);
+        heading(o, tilted);
+        state(0);
+        place(o, point, straight);
+        state(0);
+        setFlags(3);
+        At<uint32_t>(record, 4) = av::models::kOneShotState;
+        At<char*>(record, av::models::kStateModel) = nullptr;
+        At<uint32_t>(record, av::models::kStateWord) = 0;
+        At<uint32_t>(record, av::models::kStateFlags) = 0;
+        state(al(oneShot(o, realKey, 1, 0, 9)));
+        state(al(oneShotFrame(o, 0.1f)));
+        state(al(leave(o, record)));
+        state(al(inManager(o, 0)));
+        state(al(release(o)));
+        flags |= 0x20000000;
+    }
+    log::Write("autotest: automata: vehicle: ad2 cmodels2 %08X, calls %08X, real key %08X %08X %08X, %u game models "
+               "seen, references %d %d %d %d",
+               cmodels2.h, context.calls.h, realKey[0], realKey[1], realKey[2], context.realCount, models[0].references,
+               models[1].references, models[2].references, models[3].references);
+    cmodels2.Mix(context.realCount);
+
+    *viewGlobal = realView;
+    *managerGlobal = realManager;
+    *simulatorGlobal = realSimulator;
+    ad1::g_ad1 = nullptr;
+    ad2::g_ad2 = nullptr;
+    ad1::g_holder = nullptr;
+    for (ad1::Model*& m : ad1::g_models)
+        m = nullptr;
+    // The vehicle put back as the factory made it (the game's models are
+    // released above; the test's storage is not the vehicle's to free).
+    std::memcpy(o, saved, sizeof saved);
+    Virtual<uint32_t>(o, av::slot::kRelease);
+    flags |= 0x10000000;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -17682,6 +18368,8 @@ void VehicleDrive(cISC4City* city)
     VehicleFrameDrive(vframe8, flags);
     Hash cmodels;
     CoreModelsDrive(city, cmodels, flags);
+    Hash cmodels2;
+    CoreModels2Drive(city, cmodels2, flags);
 
     // ---- The city's vehicles: the log only.
     {
@@ -17738,17 +18426,18 @@ void VehicleDrive(cISC4City* city)
     char text[280];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X",
+                  "%08X,%08X,%08X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
-                  vframe8.h, cmodels.h);
+                  vframe8.h, cmodels.h, cmodels2.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
-               "%08X vmove %08X vframe %08X vlanes %08X vdrive %08X vqueue %08X vhit %08X vframe8 %08X cmodels %08X",
+               "%08X vmove %08X vframe %08X vlanes %08X vdrive %08X vqueue %08X vhit %08X vframe8 %08X cmodels %08X "
+               "cmodels2 %08X",
                object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h, vframe8.h,
-               cmodels.h);
+               cmodels.h, cmodels2.h);
 }
 
 void Drive(const Day& day)

@@ -2746,3 +2746,44 @@ The ` V` token gains `,<cmodels>` (23 fields). Its flags: 0x1000000 when the par
 Every B run carried the ` V` token with ad1's hash, equal to the A run's. The game itself reaches slots 70, 98 and 100, 0x0050B400 and CreateModels before the test day in every run (slots 71 and 74 and 0x0050E4D0 in some, slot 120 in two); the test reaches all 10 but slot 99 in the four Big City saves, where no city vehicle has a model key (flag 0x8000000: the game-model half is skipped). The first trials (ad1-r1, r2) hashed the EAX of slots 100 and 74, which return nothing (A and B differed there only), and missed the game-model half (the vehicle's own start key, which the factory refuses, made CreateModels fail at once); the audit against the disassembly found no difference.
 
 Not covered: the game's InsertN growth while the view is refused part way, slot 99's property with a key list of other sizes, NaN fades.
+
+## AD2: the core's swaps, start, animation, fades and placement
+
+The second piece of the automata drawing plan, after AD1 (the core's models). A model swap replaces one of the core's models (+0x110) by one made from another key, writing that key over the keys' entry (+0xC0) of the same index; the start key (+0x11C, +0x124 set, +0x128 the third word last used) is what slot 19 swaps from. A one-shot (slot 22) is the state 0x13 holding an extra model in its record (+0x28, with the frame answer +0x2C and the play mode +0x30), faded in by slot 119 and removed on leaving the state (slot 111). The fade +0x1B0 is (value, target, duration, elapsed), its value read through the smoothed value 0x004FA960.
+
+### What is ours
+
+14 functions, in the same group `simulators.automata.vehicle` (list kCoreModels2 in [automata_vehicle.cpp](../src/core/automata_vehicle.cpp); the group now has 162): the swap 0x0050E620 and the core's slots 19 (the first model swapped for the start key plus an offset, 0x00510240) and 20 (for a key, 0x00510210); SC4Automaton::SetStart 0x00510360; the core's slot 111, LeaveState 0x0050E3F0 (all its states, the one-shot's included); slots 103 (the animation, 0x005089F0), 22 (the one-shot, 0x005102A0) and 119 (its frame, 0x00508F80); slots 33 (a fade, 0x0050B360) and 83 (the fade's frame, 0x005091C0); slots 8 (the position, 0x00507D90), 14 (the heading, 0x0050AF10), 16 (the placement: position and heading into the models' transforms with the city and cell tests, 0x005080C0) and 75 (a transform onto every model, 0x00509440).
+
+Left the game's: the matrix of one model 0x005094A0 (PlaceModel) and SC4Matrix::FromDirection 0x0080B830; the factory, the model instances' and drawables' own code; SC4PtrVector::Insert / InsertN, SC4Float3Vector::Insert, the smoothed value 0x004FA960; the state 0x10's attachments 0x0050D870 (called on leaving it); the city's, the lot manager's and the traffic network map's queries; every core slot called through the vtable.
+
+Oddities kept:
+
+- The swap does nothing when the key's third word equals +0x128 (the last third word used), whatever the model; it writes the key over the keys' entry of the old model's index, and when the old model is not among the models that index is their count (the entry past the last model, past the keys' end when there are as many keys as models). A 0x29A5D1EC (billboard) key the factory refuses is tried again as 0x5AD0E817 (S3D). The attachments are bound again only when they were bound to the first model, and then to the new first model.
+- Slot 19 adds its offset to +0x124's third word (not +0x128's) and swaps only with the start key set; slot 20 only for a key whose third word is set. Both answer AL 1 whatever happened.
+- SetStart pushes the key onto the keys even when it is not kept as the start (a start already set, or the key's third word 0), and answers AL 1 without a model while the occupant part's slot 5 answers 0.
+- LeaveState zeroes 13 bytes of the state 0x10's record (+0x205..+0x211), puts the record's +0x20 into the automata flags but 0x0600C001, and answers the record's object's slot 30 (full EAX) when there is one, else 1; AL 0 for no record.
+- Slot 103 is held only when the simulator's slot 17 answers 0 and its slot 15 1; the last-frame event (slot 102 (1, 0)) needs the list +0x188 not empty and calls the first model without a null test.
+- Slot 22 pushes the state before making the model: a key the factory refuses answers AL 0 with the state pushed and the record's former model let go.
+- Slot 119 asks the drawable for five words into an uninitialised local (ours zeroed); it clamps against 0x00A81228 but writes the literal 1; only play modes other than 2 and 3 pop the state at the last frame.
+- Slot 33 takes an unordered target as new and copies the arguments' bits; the alphas are set at once only for a duration below 0.001. Slot 83 compares the elapsed time unrounded and stores it rounded.
+- Slot 8 calls each model without a null test; slot 14 hands a null model's null to PlaceModel (both the game's crash too). Slot 75 answers whether there are models.
+- Slot 16 takes the heading only without a NaN y and with any part at least 0.00001 in size (infinities pass); a point outside the city answers slot 13 (0) and returns before slots 107, 104 and 100, even after the heading was taken. The cells use the float magic (0x00A952F4, the same 1.5 x 2^23 as cSC4Vehicle::RoundMagic, which ours reads); a cell refusal answers slot 13 (0) but still counts as moved. Slot 100 gets the two bytes (moved, turned) from dwords whose upper bytes are stack junk in the game (slot 100 reads bytes).
+
+### Test
+
+The ` V` token gains `,<cmodels2>` (24 fields). Its flags: 0x10000000 when the part ran, 0x20000000 when its game-model half ran (0x4000000 again for no vehicle). On a cSC4Vehicle from the factory, put back byte for byte at the end (its vtable a copy with the core's slots 8, 14, 19, 20, 22, 33, 70, 71, 75, 83, 103, 111 and 119 at the core's addresses and slots 13, 16, 52, 53, 56, 57, 62, 67, 100, 102, 104, 106 and 107 the test's; its occupant part's slots 5, 6, 29, 31 and 32 the test's), with a test view, occupant manager and simulator in the three globals, the test's model and key storage and a test state record: on four test models the position and heading (in both and not, a zero heading), the transforms, the placement (slot 16 by address: both, neither, a tiny, a NaN-y and an infinite heading, points below 0 and past the city, the lot and network cell tests and the automata flag 1), the fades to their end, the animation (the last frame, held, the list empty), the one-shot (refused, a refused key, its frames by mode and alpha, the flag 1), leaving the states 0x13, 0x10, 0x14, another and none, SetStart and the swaps with keys the factory refuses; then the game's models from the first city vehicle's first model key: SetStart, into the manager and the view, the swaps (the same third word, a billboard key made as S3D in the first model's place, one pushed at the end), the animation, fades, position, heading and placement, a one-shot and leaving it, out and released. Per step it mixes the answer's AL, the flags, the counts, the fade, the timer, the position and heading, the automata flags, the start key, the record's model and the test objects' call hash; log lines "ad2 step N" and "ad2 cmodels2".
+
+### Parity
+
+2026-10-23, the same lists and setup as AD1 (B = `simulators.automata.vehicle`, two jobs, `OPENSC4_MUTE=1`, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`), env p4env-ad2, snapshot ad2-t2 (162 detours). All the same, on the first pair:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run carried the ` V` token with ad2's hash, equal to the A run's, and reached all 14. The game itself reaches LeaveState, slots 33, 83, 8 and 16 before the test day in every run (slot 103 in most, the swap, slot 19 and SetStart in some); the rest only the test. An earlier snapshot without slot 16 (ad2-t1, 161 detours) gave the same results. Two audits against the disassembly (the 13 first, then slot 16) found no behavioural difference.
+
+Not covered: SetStart's growing insert (the keys full) and the swap's InsertN growth (the test's storage never fills), a swap's key written past the keys' capacity, slot 22 with a record whose former model is the new one.
