@@ -254,6 +254,46 @@
 //   165 over nine cases (no manager, no occupant, the flag 0x2000, a last
 //   step, two to four steps, slot 88). To the log only: the tuning floats
 //   0x00B21C84, 0x00B21C74 and 0x00B21D2C, slot 175's byte.
+//   Part ro1 (the other road vehicles, src/core/automata_roadveh.cpp) adds
+//   `,<robject>,<rsave>,<rlife>,<rflags>` after vb8's and ad1 to ad3's: one
+//   object of each of the six classes from its factory (the trailer, the
+//   bus, the getaway van, the carjacked vehicle, the tank, the limo; rflags
+//   1, 0x10 when a factory failed): their fields, GetGZCLSID, QueryInterface
+//   through slot 0 for four IDs (the trailer's also at its address); the
+//   trailer's slot 66 without and with cars of the test's, slots 193 and 194.
+//   rsave (rflags 2): each class written by its Write and by cSC4Vehicle's
+//   (the bytes after cSC4Vehicle's part, the version word, whether the rest
+//   is cSC4Vehicle's), read into a new object with its version and one more
+//   (the tank's 2, 1, 0, 3 and one byte short; the trailer also cut after
+//   its first word), the bus's, the carjacked vehicle's and the tank's Read
+//   on an empty stream; the tank written with models of the test's in its
+//   model vector (indices found, then none). rlife (rflags 8): the
+//   trailer's Init and Shutdown (its cars and occupant of the test's); the
+//   limo's Init five times with its +0xC vtable a copy whose GetProperty
+//   answers a property of the test's for 0xEC15654A (absent, 1 to 4 floats;
+//   rflags 4); the tank's Init twice, its debug text with a shot of the
+//   test's, Shutdown, and three more tanks with the byte +0x3C and indices
+//   that do not hold. Then each object released (the deleting destructors).
+//   To the log only: whether the tank's Init made a shot effect.
+//   Part ro2 (the frames, src/core/automata_roadveh.cpp) adds `,<rframe>`
+//   after rflags (30 fields): one object of each class from its factory, its
+//   main vtable a copy whose slots the test answers (vb's probe; cars,
+//   managers, services and the network service of the test's swapped into
+//   the globals for the calls, nothing of the real city read or changed but
+//   the traffic map pointer and the core's generator, seeded as for vb).
+//   The trailer's slot 198 on nine segments; slot 192 with a null end and a
+//   growing vector; slot 73 with null, itself, its car and another's car
+//   under six flag sets; slot 95 with no template and lists of 0 to 3 words;
+//   slot 132 with no occupant; slot 195 over seven cases and a second car;
+//   slot 197 over six runs of three cars and one car on the trailer's rear
+//   point; slot 196 over nine runs of the path and a deque of three
+//   elements in two blocks (used up, blocked, empty, no path, no cars); slot
+//   72 over five runs. The bus's slot 164 over ten runs (the riders'
+//   answers and the generator's draws) and 172 over six; the carjacked
+//   vehicle's slot 101 twice; the van's 101 over thirteen cases; the limo's
+//   121 over eight; the tank's 127. The calls' hash and a bit for each of the
+//   15 reached are mixed in; rflags 0x20 when all 15 ran, 0x40 when a
+//   factory failed. Log line: "ro2 rframe".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -622,6 +662,7 @@
 // add makes new controllers through the COM; the city would not be the
 // same afterwards.
 #include "core/automata_awmgr.h"
+#include "core/automata_roadveh.h"
 #include "core/automata_ctlmgr.h"
 #include "core/automata_scripts.h"
 #include "core/automata_situations.h"
@@ -18254,12 +18295,12 @@ void CoreHighlightDrive(cISC4City* city, Hash& chighlight, uint32_t& flags)
     table[126] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_MakeHighlight);
     table[127] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_RemoveHighlight);
     table[128] = reinterpret_cast<void*>(addr::cSC4AutomatonCore_UpdateHighlight);
-    table[192] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_MakeHighlight1);
-    table[193] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_RemoveHighlight1);
-    table[194] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_UpdateHighlight1);
-    table[195] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_MakeHighlight2);
-    table[196] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_RemoveHighlight2);
-    table[197] = reinterpret_cast<void*>(addr::cSC4AutomatonTank_UpdateHighlight2);
+    table[192] = reinterpret_cast<void*>(addr::cSC4Tank_MakeHighlight1);
+    table[193] = reinterpret_cast<void*>(addr::cSC4Tank_RemoveHighlight1);
+    table[194] = reinterpret_cast<void*>(addr::cSC4Tank_UpdateHighlight1);
+    table[195] = reinterpret_cast<void*>(addr::cSC4Tank_MakeHighlight2);
+    table[196] = reinterpret_cast<void*>(addr::cSC4Tank_RemoveHighlight2);
+    table[197] = reinterpret_cast<void*>(addr::cSC4Tank_UpdateHighlight2);
     At<void**>(o, 0) = table;
     char* modelList[3];
     for (char*& m : modelList)
@@ -18413,6 +18454,1930 @@ void CoreHighlightDrive(cISC4City* city, Hash& chighlight, uint32_t& flags)
     log::Write("autotest: automata: vehicle: ad3 chighlight %08X, calls %08X, cell %d %d", chighlight.h,
                context.calls.h, cell[0], cell[1]);
     flags |= 0x40000000u;
+}
+
+// ---- Part ro1: the other road vehicles (src/core/automata_roadveh.cpp).
+
+namespace rv = automata_roadveh;
+
+// A car of the test's in a trailer's car vector: AddRef and Release count,
+// slot 13 (0x34) counts its calls and argument, slot 66 (0x108) writes a
+// point of its own and answers the out pointer.
+struct RoadCar {
+    void** vtable;
+    int32_t references;
+    uint32_t stops;
+    float rear[3];
+};
+
+uint32_t __fastcall RoadCarAddRef(RoadCar* c, void*) { return static_cast<uint32_t>(++c->references); }
+uint32_t __fastcall RoadCarRelease(RoadCar* c, void*) { return static_cast<uint32_t>(--c->references); }
+void __fastcall RoadCarStop(RoadCar* c, void*, uint32_t value) { c->stops += 1 + value * 16; }
+float* __fastcall RoadCarRear(RoadCar* c, void*, float* out)
+{
+    for (int i = 0; i < 3; ++i)
+        out[i] = c->rear[i];
+    return out;
+}
+
+void** RoadCarVtable()
+{
+    static void* t[80] = {};
+    t[1] = reinterpret_cast<void*>(&RoadCarAddRef);
+    t[2] = reinterpret_cast<void*>(&RoadCarRelease);
+    t[rv::slot::kCarStop / 4] = reinterpret_cast<void*>(&RoadCarStop);
+    t[rv::slot::kRearPoint / 4] = reinterpret_cast<void*>(&RoadCarRear);
+    return t;
+}
+
+// A vector (begin, end, capacity at `at`) given the words, in a buffer of the
+// game's STL allocator (the trailer's destructor frees it with SC4::Free).
+void SetGameVector(char* o, std::size_t at, const uint32_t* words, uint32_t count, uint32_t capacity)
+{
+    auto* const buffer = static_cast<uint32_t*>(
+        reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(capacity * 4));
+    for (uint32_t i = 0; i < count; ++i)
+        buffer[i] = words[i];
+    At<uint32_t*>(o, at) = buffer;
+    At<uint32_t*>(o, at + 4) = buffer + count;
+    At<uint32_t*>(o, at + 8) = buffer + capacity;
+}
+
+void MixGameVector(Hash& h, char* o, std::size_t at)
+{
+    const uint32_t* const begin = At<uint32_t*>(o, at);
+    const uint32_t* const end = At<uint32_t*>(o, at + 4);
+    const uint32_t count = begin && end >= begin && end - begin < 64 ? static_cast<uint32_t>(end - begin) : 0xFFu;
+    h.Mix(count);
+    if (count != 0xFFu)
+        h.MixBytes(begin, count * 4);
+    h.Mix(At<uint32_t*>(o, at + 8) >= end ? 1u : 0u);
+}
+
+// The limo's property 0xEC15654A as the test sets it: its +0xC part's vtable
+// is a copy of the limo's with slot 9 (GetProperty by ID) answering a
+// property of the test's for that ID and the game's for any other. The
+// property's slot 5 answers a variant whose slot 4 is the count and slot 111
+// the floats.
+struct LimoProperty {
+    void** vtable;
+    void** variantVtable; // the variant: this struct's second word
+    uint32_t count;
+    float floats[4];
+    void** realTable;
+    uint32_t asked;
+};
+LimoProperty g_limoProperty;
+
+void* __fastcall LimoGetProperty(char* part, void*, uint32_t id)
+{
+    if (id != rv::limo::kProperty || g_limoProperty.count == 0xFFFFFFFFu)
+        return reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(g_limoProperty.realTable[9])(part, id);
+    ++g_limoProperty.asked;
+    return &g_limoProperty;
+}
+void* __fastcall LimoPropertyVariant(LimoProperty* p, void*) { return &p->variantVtable; }
+uint32_t __fastcall LimoVariantCount(void** v, void*)
+{
+    return reinterpret_cast<LimoProperty*>(reinterpret_cast<char*>(v) - 4)->count;
+}
+float* __fastcall LimoVariantFloats(void** v, void*)
+{
+    return reinterpret_cast<LimoProperty*>(reinterpret_cast<char*>(v) - 4)->floats;
+}
+
+// A shot effect of the test's for the tank's debug text: slot 5 answers a
+// bool, AddRef and Release count.
+struct TankShot {
+    void** vtable;
+    int32_t references;
+    uint32_t running;
+};
+uint32_t __fastcall TankShotAddRef(TankShot* s, void*) { return static_cast<uint32_t>(++s->references); }
+uint32_t __fastcall TankShotRelease(TankShot* s, void*) { return static_cast<uint32_t>(--s->references); }
+uint8_t __fastcall TankShotRunning(TankShot* s, void*) { return static_cast<uint8_t>(s->running); }
+
+// The classes, in the order of the token.
+struct RoadClass {
+    const char* name;
+    std::uintptr_t create;
+    std::uintptr_t tables[6];
+    uint32_t clsid;
+    std::uintptr_t write;
+    std::uintptr_t read;
+    uint16_t version;
+};
+
+const RoadClass kRoadClasses[6] = {
+    {"trailer",
+     addr::cSC4TrailerVehicle_Create,
+     {addr::cSC4TrailerVehicle_Vtable, addr::cSC4TrailerVehicle_Vtable4, addr::cSC4TrailerVehicle_Vtable8,
+      addr::cSC4TrailerVehicle_VtableC, addr::cSC4TrailerVehicle_Vtable20, addr::cSC4TrailerVehicle_Vtable38},
+     rv::kTrailerClassId,
+     addr::cSC4TrailerVehicle_Write,
+     addr::cSC4TrailerVehicle_Read,
+     2},
+    {"bus",
+     addr::cSC4Bus_Create,
+     {addr::cSC4Bus_Vtable, addr::cSC4Bus_Vtable4, addr::cSC4Bus_Vtable8, addr::cSC4Bus_VtableC,
+      addr::cSC4Bus_Vtable20, addr::cSC4Bus_Vtable38},
+     rv::kBusClassId,
+     addr::cSC4Bus_Write,
+     addr::cSC4Bus_Read,
+     2},
+    {"van",
+     addr::cSC4GetawayVan_Create,
+     {addr::cSC4GetawayVan_Vtable, addr::cSC4GetawayVan_Vtable4, addr::cSC4GetawayVan_Vtable8,
+      addr::cSC4GetawayVan_VtableC, addr::cSC4GetawayVan_Vtable20, addr::cSC4GetawayVan_Vtable38},
+     rv::kVanClassId,
+     addr::cSC4GetawayVan_Write,
+     addr::cSC4GetawayVan_Read,
+     3},
+    {"carjacked",
+     addr::cSC4CarjackedVehicle_Create,
+     {addr::cSC4CarjackedVehicle_Vtable, addr::cSC4CarjackedVehicle_Vtable4, addr::cSC4CarjackedVehicle_Vtable8,
+      addr::cSC4CarjackedVehicle_VtableC, addr::cSC4CarjackedVehicle_Vtable20, addr::cSC4CarjackedVehicle_Vtable38},
+     rv::kCarjackedClassId,
+     addr::cSC4CarjackedVehicle_Write,
+     addr::cSC4CarjackedVehicle_Read,
+     1},
+    {"tank",
+     addr::cSC4Tank_Create,
+     {addr::cSC4Tank_Vtable, addr::cSC4Tank_Vtable4, addr::cSC4Tank_Vtable8, addr::cSC4Tank_VtableC,
+      addr::cSC4Tank_Vtable20, addr::cSC4Tank_Vtable38},
+     rv::kTankClassId,
+     addr::cSC4Tank_Write,
+     addr::cSC4Tank_Read,
+     2},
+    {"limo",
+     addr::cSC4MayorLimo_Create,
+     {addr::cSC4MayorLimo_Vtable, addr::cSC4MayorLimo_Vtable4, addr::cSC4MayorLimo_Vtable8,
+      addr::cSC4MayorLimo_VtableC, addr::cSC4MayorLimo_Vtable20, addr::cSC4MayorLimo_Vtable38},
+     rv::kLimoClassId,
+     addr::cSC4CarjackedVehicle_Write,
+     addr::cSC4CarjackedVehicle_Read,
+     1},
+};
+
+constexpr std::uintptr_t kAttachmentsVtable = 0x00AA4060;
+
+char* MakeRoad(int which, uint32_t& rflags)
+{
+    char* const o = reinterpret_cast<char* (*)()>(kRoadClasses[which].create)();
+    if (!o) {
+        rflags |= 0x10;
+        return nullptr;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    return o;
+}
+
+void ReleaseRoad(char* o)
+{
+    if (o)
+        Virtual<uint32_t>(o, av::slot::kRelease);
+}
+
+// The class's own fields after construction (no pointers but compared ones;
+// the trailer's +0x2E0 is not set by its constructor).
+void MixRoadFields(Hash& h, int which, char* o)
+{
+    if (which == 0)
+        h.MixBytes(o + rv::trailer::kWords, rv::trailer::kWord - rv::trailer::kWords);
+    if (which == 5)
+        h.MixBytes(o + rv::limo::kCount, 12);
+    if (which == 4) {
+        h.Mix(At<uint32_t>(o, rv::tank::kHighlight1));
+        h.Mix(At<uint32_t>(o, rv::tank::kHighlight2));
+        for (const std::size_t part : {rv::tank::kPart1, rv::tank::kPart2}) {
+            h.Mix(At<uint32_t>(o, part + 8));
+            h.Mix(At<uint8_t>(o, part + 0x3C));
+        }
+        h.Mix(At<uint8_t>(o, rv::tank::kIndex1));
+        h.Mix(At<uint8_t>(o, rv::tank::kIndex2));
+        h.MixBytes(o + rv::tank::kTurretModel, 12);
+        char* const attachments = o + rv::tank::kAttachments;
+        h.Mix(At<std::uintptr_t>(attachments, 0) == kAttachmentsVtable ? 1u : 0u);
+        h.Mix(At<uint32_t>(attachments, 4));
+        h.Mix(At<uint32_t>(attachments, 0xC));
+    }
+}
+
+// Write `o` (its class's Write, the version first) and the same object by
+// cSC4Vehicle's Write; the bytes after cSC4Vehicle's part into the hash.
+// Answers the class's bytes.
+std::vector<uint8_t> WriteRoad(Hash& h, int which, char* o)
+{
+    using Serialize = uint32_t(__thiscall*)(void*, void*);
+    ByteOStream out;
+    const uint32_t wrote =
+        reinterpret_cast<Serialize>(kRoadClasses[which].write)(o + av::field::kSerializable,
+                                                               static_cast<cIGZOStream*>(&out));
+    ByteOStream vehicle;
+    reinterpret_cast<Serialize>(addr::cSC4Vehicle_Write)(o + av::field::kSerializable,
+                                                         static_cast<cIGZOStream*>(&vehicle));
+    h.Mix(wrote & 0xFF);
+    const std::vector<uint8_t>& w = out.bytes;
+    const std::vector<uint8_t>& v = vehicle.bytes;
+    const bool fits = w.size() >= 2 + v.size();
+    h.Mix(static_cast<uint32_t>(fits ? w.size() - 2 - v.size() : 0xFFFFu));
+    if (fits) {
+        h.MixBytes(w.data(), 2);
+        h.Mix(std::equal(v.begin(), v.end(), w.begin() + 2) ? 1u : 0u);
+        h.MixBytes(w.data() + 2 + v.size(), w.size() - 2 - v.size());
+    }
+    return w;
+}
+
+// Read `bytes` into a new object of the class; its answer, the stream's
+// position and error into the hash. Answers the object (referenced).
+char* ReadRoad(Hash& h, int which, const std::vector<uint8_t>& bytes, uint32_t& rflags)
+{
+    char* const o = MakeRoad(which, rflags);
+    if (!o)
+        return nullptr;
+    ByteIStream in(bytes);
+    using Serialize = uint32_t(__thiscall*)(void*, void*);
+    const uint32_t answer =
+        reinterpret_cast<Serialize>(kRoadClasses[which].read)(o + av::field::kSerializable,
+                                                              static_cast<cIGZIStream*>(&in));
+    h.Mix(which == 1 || which == 4 ? answer : answer & 0xFF);
+    h.Mix(static_cast<uint32_t>(in.at));
+    h.Mix(static_cast<uint32_t>(in.error));
+    return o;
+}
+
+std::vector<uint8_t> WithVersion(std::vector<uint8_t> bytes, uint16_t version)
+{
+    if (bytes.size() >= 2)
+        std::memcpy(bytes.data(), &version, 2);
+    return bytes;
+}
+
+void RoadVehicleDrive(Hash& robject, Hash& rsave, Hash& rlife, uint32_t& rflags)
+{
+    char* made[6] = {};
+    for (int i = 0; i < 6; ++i)
+        made[i] = MakeRoad(i, rflags);
+    for (char* o : made)
+        if (!o) {
+            for (char* m : made)
+                ReleaseRoad(m);
+            log::Write("autotest: automata: vehicle: ro1: a factory failed");
+            return;
+        }
+    rflags |= 1;
+
+    // ---- The objects: the fields, GetGZCLSID through +8 and at its
+    // address, QueryInterface through slot 0 for the class's own ID and
+    // others (the trailer's at its address too).
+    for (int i = 0; i < 6; ++i) {
+        char* const o = made[i];
+        MixFields(robject, o, kRoadClasses[i].tables, true);
+        MixRoadFields(robject, i, o);
+        robject.Mix(Virtual<uint32_t>(o + av::field::kSerializable, 0x14));
+        const uint32_t iids[] = {kRoadClasses[i].clsid, av::kVehicleClassId, av::kBaseInterfaceId, 0x12345678u};
+        for (const uint32_t iid : iids) {
+            void* out = reinterpret_cast<void*>(0x1);
+            const uint8_t answer = Virtual<uint8_t>(o, av::slot::kQueryInterface, iid, &out);
+            robject.Mix(answer);
+            robject.Mix(out == reinterpret_cast<void*>(0x1) ? 0xFFFFFFFEu
+                        : out ? static_cast<uint32_t>(static_cast<char*>(out) - o)
+                              : 0xFFFFFFFFu);
+            if (answer && out && out != reinterpret_cast<void*>(0x1))
+                Virtual<uint32_t>(out, av::slot::kRelease);
+        }
+    }
+    {
+        using Query = uint8_t(__thiscall*)(void*, uint32_t, void**);
+        for (const uint32_t iid : {rv::kTrailerClassId, av::kVehicleClassId, 7u}) {
+            void* out = nullptr;
+            const uint8_t answer =
+                reinterpret_cast<Query>(addr::cSC4TrailerVehicle_QueryInterface)(made[0], iid, &out);
+            robject.Mix(answer);
+            robject.Mix(out == made[0] ? 1u : out ? 2u : 0u);
+            if (answer && out)
+                Virtual<uint32_t>(out, av::slot::kRelease);
+        }
+        for (const std::uintptr_t id :
+             {addr::cSC4TrailerVehicle_GetGZCLSID, addr::cSC4Bus_GetGZCLSID, addr::cSC4GetawayVan_GetGZCLSID,
+              addr::cSC4CarjackedVehicle_GetGZCLSID, addr::cSC4Tank_GetGZCLSID, addr::cSC4MayorLimo_GetGZCLSID})
+            robject.Mix(This<uint32_t>(id, made[0] + av::field::kSerializable));
+    }
+
+    // ---- The trailer's queries: the counts, the rear point without and
+    // with cars.
+    char* const trailer = made[0];
+    RoadCar cars[3];
+    for (int i = 0; i < 3; ++i)
+        cars[i] = {RoadCarVtable(), 1, 0, {10.0f * i + 1.5f, -2.0f * i, 0.25f + i}};
+    {
+        SetPoint(trailer, av::field::kPosition, 10.0f, 20.0f, 30.0f);
+        SetPoint(trailer, av::field::kHeading, 0.6f, 0.0f, -0.8f);
+        At<float>(trailer, av::field::kRadius) = 4.5f;
+        float out[3] = {7.0f, 7.0f, 7.0f};
+        float* answer = This<float*>(addr::cSC4TrailerVehicle_RearPoint, trailer, static_cast<float*>(out));
+        robject.Mix(answer == out ? 1u : 0u);
+        robject.MixBytes(out, sizeof out);
+        const uint32_t words[3] = {5u, 0u, 7u};
+        SetGameVector(trailer, rv::trailer::kWords, words, 3, 4);
+        const uint32_t carWords[3] = {static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&cars[0])),
+                                      static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&cars[1])),
+                                      static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&cars[2]))};
+        SetGameVector(trailer, rv::trailer::kCars, carWords, 3, 3);
+        answer = This<float*>(addr::cSC4TrailerVehicle_RearPoint, trailer, static_cast<float*>(out));
+        robject.Mix(answer == out ? 1u : 0u);
+        robject.MixBytes(out, sizeof out);
+        robject.Mix(This<uint32_t>(addr::cSC4TrailerVehicle_CarCount, trailer));
+        robject.Mix(This<uint32_t>(addr::cSC4TrailerVehicle_WordCount, trailer));
+        SetPoint(trailer, rv::trailer::kPoint, 1.5f, -2.0f, 3.25f);
+        At<uint32_t>(trailer, rv::trailer::kWord) = 0x1234u;
+    }
+
+    // ---- The save: each class written, read back into a new object, with
+    // a wrong version and cut short.
+    {
+        // The tank's indices: models of the test's in its model vector (never
+        // called; put back after), the turret the third, the barrel the
+        // second; then neither found.
+        char* const tank = made[4];
+        void* models[3] = {&cars[0], &cars[1], &cars[2]};
+        char* const savedBegin = At<char*>(tank, av::models::kBegin);
+        char* const savedEnd = At<char*>(tank, av::models::kEnd);
+        At<void**>(tank, av::models::kBegin) = models;
+        At<void**>(tank, av::models::kEnd) = models + 3;
+        At<void*>(tank, rv::tank::kTurretModel) = models[2];
+        At<void*>(tank, rv::tank::kBarrelModel) = models[1];
+        std::vector<uint8_t> tankBytes = WriteRoad(rsave, 4, tank);
+        At<void*>(tank, rv::tank::kTurretModel) = &cars[0].stops;
+        At<void*>(tank, rv::tank::kBarrelModel) = nullptr;
+        WriteRoad(rsave, 4, tank);
+        At<void*>(tank, rv::tank::kTurretModel) = nullptr;
+        At<char*>(tank, av::models::kBegin) = savedBegin;
+        At<char*>(tank, av::models::kEnd) = savedEnd;
+        for (const uint16_t version : {2, 1, 0, 3}) {
+            char* const read = ReadRoad(rsave, 4, WithVersion(tankBytes, version), rflags);
+            if (read) {
+                rsave.Mix(At<uint8_t>(read, rv::tank::kIndex1));
+                rsave.Mix(At<uint8_t>(read, rv::tank::kIndex2));
+            }
+            ReleaseRoad(read);
+        }
+        {
+            std::vector<uint8_t> cut(tankBytes.begin(), tankBytes.end() - 1);
+            char* const read = ReadRoad(rsave, 4, cut, rflags);
+            if (read)
+                rsave.Mix(At<uint8_t>(read, rv::tank::kIndex2));
+            ReleaseRoad(read);
+        }
+
+        // The other five.
+        for (int i : {0, 1, 2, 3, 5}) {
+            const std::vector<uint8_t> bytes = WriteRoad(rsave, i, made[i]);
+            for (const uint16_t version : {kRoadClasses[i].version, static_cast<uint16_t>(kRoadClasses[i].version + 1)}) {
+                char* const read = ReadRoad(rsave, i, WithVersion(bytes, version), rflags);
+                if (read && i == 0 && version == 2) {
+                    MixGameVector(rsave, read, rv::trailer::kWords);
+                    MixGameVector(rsave, read, rv::trailer::kCars);
+                    rsave.MixBytes(read + rv::trailer::kPoint, 12);
+                    rsave.Mix(At<uint32_t>(read, rv::trailer::kOccupant));
+                    rsave.Mix(At<uint32_t>(read, rv::trailer::kWord));
+                }
+                ReleaseRoad(read);
+            }
+            // The trailer cut short after its first word: the next two reads
+            // fail and push it again (+0x2E0, never set, not mixed). Not
+            // inside cSC4Vehicle's part: the game's Reads there loop on
+            // counts left as stack garbage when a read fails.
+            if (i != 0 || bytes.size() < 24)
+                continue;
+            std::vector<uint8_t> cut(bytes.begin(), bytes.end() - 24);
+            char* const read = ReadRoad(rsave, i, cut, rflags);
+            if (read) {
+                MixGameVector(rsave, read, rv::trailer::kWords);
+                rsave.MixBytes(read + rv::trailer::kPoint, 12);
+            }
+            ReleaseRoad(read);
+        }
+        // The version read into the stream argument's slot: an empty stream.
+        for (int i : {1, 3, 4}) {
+            char* const read = ReadRoad(rsave, i, std::vector<uint8_t>(), rflags);
+            ReleaseRoad(read);
+        }
+        rflags |= 2;
+    }
+
+    // ---- The life cycle.
+    {
+        // The trailer: Init (the flag), then Shutdown (the cars stopped and
+        // released, the vector emptied, the occupant released and cleared).
+        Counted occupant{CountedVtable(), 1, 9, 0};
+        At<Counted*>(trailer, rv::trailer::kOccupant) = &occupant;
+        const uint32_t flagsBefore = At<uint32_t>(trailer, av::field::kAutomataFlags);
+        rlife.Mix(This<uint32_t>(addr::cSC4TrailerVehicle_Init, trailer) & 0xFF);
+        rlife.Mix((At<uint32_t>(trailer, av::field::kAutomataFlags) ^ flagsBefore) & 0x10000000u);
+        rlife.Mix(This<uint32_t>(addr::cSC4TrailerVehicle_Shutdown, trailer) & 0xFF);
+        for (const RoadCar& c : cars) {
+            rlife.Mix(static_cast<uint32_t>(c.references));
+            rlife.Mix(c.stops);
+        }
+        rlife.Mix(static_cast<uint32_t>(occupant.references));
+        rlife.Mix(At<Counted*>(trailer, rv::trailer::kOccupant) ? 1u : 0u);
+        MixGameVector(rlife, trailer, rv::trailer::kCars);
+        MixGameVector(rlife, trailer, rv::trailer::kWords);
+        rlife.Mix(This<uint32_t>(addr::cSC4TrailerVehicle_CarCount, trailer));
+
+        // The limo: Init with the property absent, then with 1 to 4 floats.
+        char* const limoObject = made[5];
+        void** const realTable = At<void**>(limoObject, av::field::kVtableC);
+        static void* table[25];
+        for (int i = 0; i < 25; ++i)
+            table[i] = realTable[i];
+        table[9] = reinterpret_cast<void*>(&LimoGetProperty);
+        static void* propertyTable[8] = {};
+        propertyTable[5] = reinterpret_cast<void*>(&LimoPropertyVariant);
+        static void* variantTable[120] = {};
+        variantTable[4] = reinterpret_cast<void*>(&LimoVariantCount);
+        variantTable[111] = reinterpret_cast<void*>(&LimoVariantFloats);
+        g_limoProperty = {propertyTable, variantTable, 0xFFFFFFFFu, {}, realTable, 0};
+        At<void**>(limoObject, av::field::kVtableC) = table;
+        rflags |= 4;
+        const float sets[][4] = {{0.0f, 0.0f, 0.0f, 0.0f},
+                                 {7.9f, 0.0f, 0.0f, 0.0f},
+                                 {-2.5f, 3.5f, 0.0f, 0.0f},
+                                 {3.0e9f, 1.25f, -0.0f, 0.0f},
+                                 {-7.25e9f, 99.0f, 1.0e-3f, 4.0f}};
+        for (uint32_t n = 0; n < 5; ++n) {
+            g_limoProperty.count = n == 0 ? 0xFFFFFFFFu : n;
+            for (int i = 0; i < 4; ++i)
+                g_limoProperty.floats[i] = sets[n][i];
+            rlife.Mix(This<uint32_t>(addr::cSC4MayorLimo_Init, limoObject) & 0xFF);
+            rlife.MixBytes(limoObject + rv::limo::kCount, 12);
+        }
+        rlife.Mix(g_limoProperty.asked);
+        At<void**>(limoObject, av::field::kVtableC) = realTable;
+
+        // The tank: Init on a new tank (the models by index: none on the
+        // test's object), twice; its debug text with a shot of the test's
+        // (the made one put back after); Shutdown. Then Init with the
+        // byte +0x3C and indices that do not hold (equal; past the count).
+        char* const tank = made[4];
+        rlife.Mix(This<uint32_t>(addr::cSC4Tank_Init, tank) & 0xFF);
+        rlife.Mix(This<uint32_t>(addr::cSC4Tank_Init, tank) & 0xFF);
+        rlife.MixBytes(tank + rv::tank::kFiring, 1);
+        rlife.MixBytes(tank + rv::tank::kTurret, 12);
+        rlife.Mix(At<uint8_t>(tank, rv::tank::kIndex1));
+        rlife.Mix(At<uint8_t>(tank, rv::tank::kIndex2));
+        rlife.Mix(At<void*>(tank, rv::tank::kTurretModel) ? 1u : 0u);
+        rlife.Mix(At<void*>(tank, rv::tank::kBarrelModel) ? 1u : 0u);
+        void* const madeShot = At<void*>(tank, rv::tank::kShot);
+        static void* shotTable[8] = {};
+        shotTable[1] = reinterpret_cast<void*>(&TankShotAddRef);
+        shotTable[2] = reinterpret_cast<void*>(&TankShotRelease);
+        shotTable[5] = reinterpret_cast<void*>(&TankShotRunning);
+        TankShot shot{shotTable, 1, 0};
+        At<TankShot*>(tank, rv::tank::kShot) = &shot;
+        SetPoint(tank, rv::tank::kMouse, 12.0f, 345.5f, 0.0f);
+        SetPoint(tank, av::field::kHeading, 0.28f, 0.0f, -0.96f);
+        for (const uint32_t running : {0u, 1u}) {
+            shot.running = running;
+            void* const text = This<void*>(addr::cSC4Tank_DebugText, tank);
+            rlife.Mix(text == reinterpret_cast<void*>(addr::cSC4Tank_DebugTextString) ? 1u : 0u);
+            MixText(rlife, text);
+            At<float>(tank, rv::tank::kVelocity) = 1234.5f;
+        }
+        At<void*>(tank, rv::tank::kShot) = madeShot;
+        rlife.Mix(This<uint32_t>(addr::cSC4Tank_Shutdown, tank) & 0xFF);
+        rlife.Mix(At<void*>(tank, rv::tank::kShot) ? 1u : 0u);
+        rlife.Mix(static_cast<uint32_t>(shot.references));
+        log::Write("autotest: automata: vehicle: ro1 tank shot %s", madeShot ? "made" : "none");
+        const uint8_t pairs[][2] = {{1, 1}, {1, 2}, {0, 2}};
+        for (const auto& pair : pairs) {
+            char* const t = MakeRoad(4, rflags);
+            if (!t)
+                continue;
+            At<uint8_t>(t, av::field::kByte3C) = 1;
+            At<uint8_t>(t, rv::tank::kIndex1) = pair[0];
+            At<uint8_t>(t, rv::tank::kIndex2) = pair[1];
+            rlife.Mix(This<uint32_t>(addr::cSC4Tank_Init, t) & 0xFF);
+            rlife.Mix(At<void*>(t, rv::tank::kTurretModel) ? 1u : 0u);
+            rlife.Mix(At<void*>(t, rv::tank::kBarrelModel) ? 1u : 0u);
+            rlife.MixBytes(t + rv::tank::kTurret, 12);
+            rlife.Mix(This<uint32_t>(addr::cSC4Tank_Shutdown, t) & 0xFF);
+            ReleaseRoad(t);
+        }
+        rflags |= 8;
+    }
+
+    // ---- The release (the deleting destructors).
+    for (char* o : made) {
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        At<void*>(o, av::field::kNetwork) = nullptr;
+        ReleaseRoad(o);
+    }
+    log::Write("autotest: automata: vehicle: ro1 robject %08X rsave %08X rlife %08X rflags %X", robject.h, rsave.h,
+               rlife.h, rflags);
+}
+
+// ---- Part ro2: the other road vehicles' frames (src/core/automata_roadveh.cpp).
+
+// The road objects' slots the ro2 test answers itself (their main vtables
+// copies with these in, the rest the game's) mix into vb's probe: pointers
+// of the test's as indices into its known list, points by their contents.
+struct RfAnswers {
+    double fade = 1.0;  // slot 32
+    double step = 0.5;  // slot 38
+    char* record = nullptr; // slot 57
+    void* manager = nullptr; // slot 174
+    float vec179[3] = {0.25f, 0.0f, -0.5f};
+};
+RfAnswers g_rf;
+
+uint32_t __fastcall RfPosition(char* self, void*, float* out)
+{
+    g_probe->calls.Mix(7);
+    std::memcpy(out, self + av::field::kPosition, 12);
+    return 1;
+}
+uint32_t __fastcall RfDirection(char* self, void*, float* out)
+{
+    g_probe->calls.Mix(15);
+    std::memcpy(out, self + av::field::kHeading, 12);
+    return 1;
+}
+uint32_t __fastcall RfCheckFlag(char* self, void*, uint32_t flag)
+{
+    g_probe->calls.Mix(31);
+    g_probe->calls.Mix(flag);
+    return (At<uint32_t>(self, av::field::kAutomataFlags) & flag) ? 1u : 0u;
+}
+double __fastcall RfFadeNow(char*, void*)
+{
+    g_probe->calls.Mix(32);
+    return g_rf.fade;
+}
+double __fastcall RfStep(char*, void*)
+{
+    g_probe->calls.Mix(38);
+    return g_rf.step;
+}
+char* __fastcall RfRecord(char*, void*, uint32_t word)
+{
+    g_probe->calls.Mix(57);
+    g_probe->calls.Mix(word);
+    return g_rf.record;
+}
+void* __fastcall RfManager(char*, void*)
+{
+    g_probe->calls.Mix(174);
+    return g_rf.manager;
+}
+float* __fastcall RfPositionAt(char* self, void*)
+{
+    g_probe->calls.Mix(140);
+    return &At<float>(self, av::field::kPosition);
+}
+uint32_t __fastcall RfSound(char*, void*, const uint32_t* key, uint32_t a, uint32_t b, float f)
+{
+    g_probe->calls.Mix(22);
+    g_probe->calls.MixBytes(key, 12);
+    g_probe->calls.Mix(a);
+    g_probe->calls.Mix(b);
+    g_probe->calls.Mix(Bits(f));
+    return 1;
+}
+// The trailer's slots 195 to 197 and the tank's 193 and 196 (past the
+// probe's 192 answers): mixed, 0.
+template <std::size_t S>
+uint32_t __fastcall RfHigh0(char*, void*)
+{
+    g_probe->calls.Mix(S);
+    return 0;
+}
+template <std::size_t S>
+uint32_t __fastcall RfHigh1(char*, void*, uint32_t a)
+{
+    g_probe->calls.Mix(S);
+    g_probe->calls.Mix(a);
+    return 0;
+}
+template <std::size_t S>
+uint32_t __fastcall RfPoint(char*, void*, const float* p)
+{
+    g_probe->calls.Mix(S);
+    g_probe->calls.MixBytes(p, 12);
+    return 1;
+}
+float* __fastcall RfVec179(char*, void*)
+{
+    g_probe->calls.Mix(179);
+    return g_rf.vec179;
+}
+
+// The copy of a road class's main vtable (`count` slots) with the test's
+// slots; the trailer's own 195 to 197 and the tank's 193 and 196 answered
+// by the probe, the trailer's 192 to 194 and 198 the game's (ours in B).
+void** RfTable(void** t, std::uintptr_t real, std::size_t count, int which)
+{
+    std::memcpy(t, reinterpret_cast<void*>(real), count * sizeof(void*));
+    auto use = [&](std::size_t slot, auto fn) { t[slot] = reinterpret_cast<void*>(fn); };
+    use(5, &Stub0<5>);
+    use(7, &RfPosition);
+    use(13, &Stub1<13>);
+    use(15, &RfDirection);
+    use(16, &PlaceStub);
+    use(17, &RadiusStub);
+    use(22, &RfSound);
+    use(31, &RfCheckFlag);
+    use(32, &RfFadeNow);
+    use(33, &Stub2<33>);
+    use(38, &RfStep);
+    use(52, &Stub7<52>);
+    use(53, &Stub0<53>);
+    use(57, &RfRecord);
+    use(61, &Stub1<61>);
+    use(67, &Stub0<67>);
+    use(79, &Stub0<79>);
+    use(83, &Stub1<83>);
+    use(85, &Stub0<85>);
+    use(86, &Stub0<86>);
+    use(87, &Stub0<87>);
+    use(88, &Stub0<88>);
+    use(102, &Stub2<102>);
+    use(103, &Stub1<103>);
+    use(105, &Stub0<105>);
+    use(109, &Stub1<109>);
+    for (std::size_t s = 112; s <= 120; ++s)
+        t[s] = nullptr;
+    use(112, &Stub1<112>);
+    use(113, &Stub1<113>);
+    use(114, &Stub1<114>);
+    use(115, &Stub1<115>);
+    use(116, &Stub1<116>);
+    use(117, &Stub1<117>);
+    use(118, &Stub1<118>);
+    use(119, &Stub1<119>);
+    use(120, &Stub1<120>);
+    use(128, &Stub0<128>);
+    use(129, &Stub1<129>);
+    use(130, &Stub1<130>);
+    use(136, &Stub0<136>);
+    use(137, &Stub0<137>);
+    use(140, &RfPositionAt);
+    use(148, &Stub0<148>);
+    use(160, &Stub0<160>);
+    use(161, &Stub0<161>);
+    use(163, &Stub1<163>);
+    use(164, &Stub1<164>);
+    use(165, &Stub0<165>);
+    use(173, &Stub2<173>);
+    use(174, &RfManager);
+    use(176, &Stub2<176>);
+    use(178, &RfPoint<178>);
+    use(179, &RfVec179);
+    use(180, &RfPoint<180>);
+    use(181, &Stub2<181>);
+    use(184, &Stub0<184>);
+    use(185, &Stub1<185>);
+    use(186, &Stub1<186>);
+    use(191, &Stub1<191>);
+    if (which == 0) {
+        use(195, &RfHigh0<195>);
+        use(196, &RfHigh1<196>);
+        use(197, &RfHigh1<197>);
+    }
+    if (which == 4) {
+        use(193, &RfHigh0<193>);
+        use(196, &RfHigh0<196>);
+    }
+    return t;
+}
+
+// A car of the test's: its position, direction and radius answered (slots
+// 7, 15, 17, 140), placed by slot 16, flags by slot 31, its +4 part's slot
+// 33 a word; the other calls mixed.
+struct RfCar {
+    void** vtable;
+    void** part;
+    int32_t references;
+    uint32_t flags;
+    uint32_t gone;
+    uint32_t partFlags;
+    float position[3];
+    float direction[3];
+    float radius;
+    float vec179[3];
+    uint32_t groups;
+    void* occupant;
+};
+
+RfCar* CarOf(void** part) { return reinterpret_cast<RfCar*>(reinterpret_cast<char*>(part) - 4); }
+uint32_t __fastcall RfCarAddRef(RfCar* c, void*) { return static_cast<uint32_t>(++c->references); }
+uint32_t __fastcall RfCarRelease(RfCar* c, void*) { return static_cast<uint32_t>(--c->references); }
+uint32_t __fastcall RfCarPosition(RfCar* c, void*, float* out)
+{
+    g_probe->calls.Mix(0x1007);
+    g_probe->calls.Mix(g_probe->Id(c));
+    std::memcpy(out, c->position, 12);
+    return 1;
+}
+uint32_t __fastcall RfCarDirection(RfCar* c, void*, float* out)
+{
+    g_probe->calls.Mix(0x100F);
+    std::memcpy(out, c->direction, 12);
+    return 1;
+}
+uint32_t __fastcall RfCarPlace(RfCar* c, void*, const float* point, const float* heading)
+{
+    g_probe->calls.Mix(0x1010);
+    g_probe->calls.Mix(g_probe->Id(c));
+    g_probe->calls.MixBytes(point, 12);
+    g_probe->calls.MixBytes(heading, 12);
+    std::memcpy(c->position, point, 12);
+    std::memcpy(c->direction, heading, 12);
+    return 1;
+}
+double __fastcall RfCarRadius(RfCar* c, void*)
+{
+    g_probe->calls.Mix(0x1011);
+    return c->radius;
+}
+uint32_t __fastcall RfCarSetFlag(RfCar* c, void*, uint32_t flag, uint32_t on)
+{
+    g_probe->calls.Mix(0x101E);
+    g_probe->calls.Mix(flag);
+    g_probe->calls.Mix(on);
+    c->flags = on & 0xFF ? c->flags | flag : c->flags & ~flag;
+    return 1;
+}
+uint32_t __fastcall RfCarCheckFlag(RfCar* c, void*, uint32_t flag)
+{
+    g_probe->calls.Mix(0x101F);
+    g_probe->calls.Mix(flag);
+    return (c->flags & flag) ? 1u : 0u;
+}
+uint32_t __fastcall RfCarFade(RfCar* c, void*, float a, float b)
+{
+    g_probe->calls.Mix(0x1021);
+    g_probe->calls.Mix(g_probe->Id(c));
+    g_probe->calls.Mix(Bits(a));
+    g_probe->calls.Mix(Bits(b));
+    return 1;
+}
+uint32_t __fastcall RfCarLeader(RfCar* c, void*, void* leader)
+{
+    g_probe->calls.Mix(0x1031);
+    g_probe->calls.Mix(g_probe->Id(c));
+    g_probe->calls.Mix(g_probe->Id(leader));
+    return 1;
+}
+uint32_t __fastcall RfCarSlot83(RfCar* c, void*, float seconds)
+{
+    g_probe->calls.Mix(0x1053);
+    g_probe->calls.Mix(g_probe->Id(c));
+    g_probe->calls.Mix(Bits(seconds));
+    return 1;
+}
+uint32_t __fastcall RfCarGone(RfCar* c, void*)
+{
+    g_probe->calls.Mix(0x1055);
+    return c->gone;
+}
+uint32_t __fastcall RfCarEnter(RfCar* c, void*, void* occupant, uint32_t groups, void* path, uint32_t keep)
+{
+    g_probe->calls.Mix(0x1084);
+    g_probe->calls.Mix(g_probe->Id(c));
+    g_probe->calls.Mix(g_probe->Id(occupant));
+    g_probe->calls.Mix(groups);
+    g_probe->calls.Mix(g_probe->Id(path));
+    g_probe->calls.Mix(keep);
+    return 1;
+}
+uint32_t __fastcall RfCarGroups(RfCar* c, void*)
+{
+    g_probe->calls.Mix(0x1088);
+    return c->groups;
+}
+void* __fastcall RfCarOccupant(RfCar* c, void*)
+{
+    g_probe->calls.Mix(0x1089);
+    return c->occupant;
+}
+float* __fastcall RfCarPositionAt(RfCar* c, void*)
+{
+    g_probe->calls.Mix(0x108C);
+    return c->position;
+}
+template <std::size_t S>
+uint32_t __fastcall RfCarPoint(RfCar* c, void*, const float* p)
+{
+    g_probe->calls.Mix(0x1000 + S);
+    g_probe->calls.Mix(g_probe->Id(c));
+    g_probe->calls.MixBytes(p, 12);
+    return 1;
+}
+float* __fastcall RfCarVec179(RfCar* c, void*)
+{
+    g_probe->calls.Mix(0x10B3);
+    return c->vec179;
+}
+uint32_t __fastcall RfCarPartFlags(void** part, void*)
+{
+    g_probe->calls.Mix(0x2021);
+    return CarOf(part)->partFlags;
+}
+
+void** RfCarVtable()
+{
+    static void* t[192] = {};
+    auto use = [&](std::size_t slot, auto fn) { t[slot] = reinterpret_cast<void*>(fn); };
+    use(1, &RfCarAddRef);
+    use(2, &RfCarRelease);
+    use(7, &RfCarPosition);
+    use(15, &RfCarDirection);
+    use(16, &RfCarPlace);
+    use(17, &RfCarRadius);
+    use(30, &RfCarSetFlag);
+    use(31, &RfCarCheckFlag);
+    use(33, &RfCarFade);
+    use(49, &RfCarLeader);
+    use(83, &RfCarSlot83);
+    use(85, &RfCarGone);
+    use(132, &RfCarEnter);
+    use(136, &RfCarGroups);
+    use(137, &RfCarOccupant);
+    use(140, &RfCarPositionAt);
+    use(178, &RfCarPoint<178>);
+    use(179, &RfCarVec179);
+    use(180, &RfCarPoint<180>);
+    return t;
+}
+
+void** RfCarPartVtable()
+{
+    static void* t[40] = {};
+    t[33] = reinterpret_cast<void*>(&RfCarPartFlags);
+    return t;
+}
+
+void MakeRfCar(RfCar& c, float x, float y, float z, float radius)
+{
+    c = {};
+    c.vtable = RfCarVtable();
+    c.part = RfCarPartVtable();
+    c.references = 1;
+    c.position[0] = x;
+    c.position[1] = y;
+    c.position[2] = z;
+    c.direction[0] = 1.0f;
+    c.radius = radius;
+    c.vec179[0] = 0.8f;
+    c.vec179[2] = 0.6f;
+}
+
+// The trailer's car vector: its count and the cars as the probe's indices.
+void MixRfCars(Hash& h, char* o)
+{
+    void** const begin = At<void**>(o, rv::trailer::kCars);
+    void** const end = At<void**>(o, rv::trailer::kCars + 4);
+    const uint32_t count = begin && end >= begin && end - begin < 16 ? static_cast<uint32_t>(end - begin) : 0xFFu;
+    h.Mix(count);
+    for (uint32_t i = 0; i < count && count != 0xFFu; ++i)
+        h.Mix(g_probe->Id(begin[i]));
+}
+
+void MixRfCar(Hash& h, const RfCar& c)
+{
+    h.Mix(static_cast<uint32_t>(c.references));
+    h.Mix(c.flags);
+    h.MixBytes(c.position, 12);
+    h.MixBytes(c.direction, 12);
+}
+
+// The vehicle manager's slot 15 (seven words): its arguments mixed, the car
+// of the test's answered.
+struct RfMaker {
+    void** vtable;
+    RfCar* make;
+};
+void* __fastcall RfMake(RfMaker* m, void*, uint32_t word, const float* point, uint32_t flags, const float* zeros,
+                        uint32_t a, uint32_t b, uint32_t c)
+{
+    g_probe->calls.Mix(0x30F);
+    g_probe->calls.Mix(word);
+    g_probe->calls.MixBytes(point, 12);
+    g_probe->calls.Mix(flags);
+    g_probe->calls.MixBytes(zeros, 12);
+    g_probe->calls.Mix(a);
+    g_probe->calls.Mix(b);
+    g_probe->calls.Mix(c);
+    return m->make;
+}
+void** RfMakerVtable()
+{
+    static void* t[32] = {};
+    t[15] = reinterpret_cast<void*>(&RfMake);
+    return t;
+}
+
+// The terrain (0x00B43D54): slot 18 (x, z) answers a height of the test's.
+double __fastcall RfHeight(void*, void*, float x, float z)
+{
+    g_probe->calls.Mix(0x412);
+    g_probe->calls.Mix(Bits(x));
+    g_probe->calls.Mix(Bits(z));
+    return static_cast<double>(x) * 0.25 + static_cast<double>(z) * 0.125 + 3.0;
+}
+void** RfTerrainVtable()
+{
+    static void* t[32] = {};
+    t[18] = reinterpret_cast<void*>(&RfHeight);
+    return t;
+}
+
+// The city for the van and slot 196: slot 40 mixed, slot 49 the driven
+// automaton (its slot 9 the ID), slot 99 (x, z) whether the cell is in.
+struct RfCity {
+    void** vtable;
+    void* driven;
+    uint32_t inside;
+};
+struct RfDriven {
+    void** vtable;
+    uint32_t id;
+};
+uint32_t __fastcall RfCity40(RfCity*, void*)
+{
+    g_probe->calls.Mix(0x528);
+    return 0;
+}
+void* __fastcall RfCityDriven(RfCity* c, void*)
+{
+    g_probe->calls.Mix(0x531);
+    return c->driven;
+}
+uint32_t __fastcall RfCityInside(RfCity* c, void*, int32_t x, int32_t z)
+{
+    g_probe->calls.Mix(0x563);
+    g_probe->calls.Mix(static_cast<uint32_t>(x));
+    g_probe->calls.Mix(static_cast<uint32_t>(z));
+    return c->inside;
+}
+uint32_t __fastcall RfDrivenId(RfDriven* d, void*)
+{
+    g_probe->calls.Mix(0x609);
+    return d->id;
+}
+void** RfCityVtable()
+{
+    static void* t[128] = {};
+    t[40] = reinterpret_cast<void*>(&RfCity40);
+    t[49] = reinterpret_cast<void*>(&RfCityDriven);
+    t[99] = reinterpret_cast<void*>(&RfCityInside);
+    return t;
+}
+void** RfDrivenVtable()
+{
+    static void* t[16] = {};
+    t[9] = reinterpret_cast<void*>(&RfDrivenId);
+    return t;
+}
+
+// The police simulator and 0x00B43D70: slot 5 a map whose slot 7 (x, z) is
+// a byte.
+struct RfMap {
+    void** vtable;
+    uint32_t value;
+};
+struct RfMapHolder {
+    void** vtable;
+    RfMap* map;
+};
+uint32_t __fastcall RfMapAt(RfMap* m, void*, int32_t x, int32_t z)
+{
+    g_probe->calls.Mix(0x707);
+    g_probe->calls.Mix(static_cast<uint32_t>(x));
+    g_probe->calls.Mix(static_cast<uint32_t>(z));
+    return m->value;
+}
+RfMap* __fastcall RfHolderMap(RfMapHolder* h, void*)
+{
+    g_probe->calls.Mix(0x705);
+    return h->map;
+}
+void** RfMapVtable()
+{
+    static void* t[16] = {};
+    t[7] = reinterpret_cast<void*>(&RfMapAt);
+    return t;
+}
+void** RfHolderVtable()
+{
+    static void* t[16] = {};
+    t[5] = reinterpret_cast<void*>(&RfHolderMap);
+    return t;
+}
+
+// The budget (slots 6 and 8), 0x00B43DC4 (slots 43, 50, 44) and 0x00B43D60
+// (slot 7) for the limo.
+struct RfBudget {
+    void** vtable;
+    int64_t money;
+};
+int64_t __fastcall RfBudgetMoney(RfBudget* b, void*)
+{
+    g_probe->calls.Mix(0x806);
+    return b->money;
+}
+uint32_t __fastcall RfBudgetSpend(RfBudget* b, void*, uint32_t low, uint32_t high)
+{
+    g_probe->calls.Mix(0x808);
+    g_probe->calls.Mix(low);
+    g_probe->calls.Mix(high);
+    b->money -= static_cast<int64_t>((static_cast<uint64_t>(high) << 32) | low);
+    return 1;
+}
+void** RfBudgetVtable()
+{
+    static void* t[16] = {};
+    t[6] = reinterpret_cast<void*>(&RfBudgetMoney);
+    t[8] = reinterpret_cast<void*>(&RfBudgetSpend);
+    return t;
+}
+uint32_t __fastcall RfServiceWord43(void*, void*, uint32_t w)
+{
+    g_probe->calls.Mix(0x92B);
+    g_probe->calls.Mix(w);
+    return 1;
+}
+uint32_t __fastcall RfServiceWord44(void*, void*, uint32_t w)
+{
+    g_probe->calls.Mix(0x92C);
+    g_probe->calls.Mix(w);
+    return 1;
+}
+uint32_t __fastcall RfServicePoint(void*, void*, const float* p)
+{
+    g_probe->calls.Mix(0x932);
+    g_probe->calls.MixBytes(p, 12);
+    return 1;
+}
+uint32_t __fastcall RfSoundAt(void*, void*, float x, float z, float a, float b)
+{
+    g_probe->calls.Mix(0xA07);
+    for (const float f : {x, z, a, b})
+        g_probe->calls.Mix(Bits(f));
+    return 1;
+}
+void** RfServiceVtable()
+{
+    static void* t[64] = {};
+    t[7] = reinterpret_cast<void*>(&RfSoundAt);
+    t[43] = reinterpret_cast<void*>(&RfServiceWord43);
+    t[44] = reinterpret_cast<void*>(&RfServiceWord44);
+    t[50] = reinterpret_cast<void*>(&RfServicePoint);
+    return t;
+}
+
+// The network service for the bus: slot 0x94 (list, low, high, kind, -1)
+// mixes the box and appends the riders of the test's (nodes of its own);
+// slot 0xC0 unlinks them. Riders answer 0xA9B40F05 (slot 0) by `answers`,
+// their state by slot 59, slot 13 counted.
+struct RfRider {
+    void** vtable;
+    int32_t references;
+    uint32_t answers;
+    uint32_t type;
+    uint32_t removed;
+};
+uint32_t __fastcall RfRiderQuery(RfRider* r, void*, uint32_t iid, void** out)
+{
+    g_probe->calls.Mix(0xB00);
+    g_probe->calls.Mix(iid);
+    if (!r->answers || iid != 0xA9B40F05u)
+        return 0;
+    *out = r;
+    ++r->references;
+    return 1;
+}
+uint32_t __fastcall RfRiderAddRef(RfRider* r, void*) { return static_cast<uint32_t>(++r->references); }
+uint32_t __fastcall RfRiderRelease(RfRider* r, void*) { return static_cast<uint32_t>(--r->references); }
+uint32_t __fastcall RfRiderRemove(RfRider* r, void*, uint32_t now)
+{
+    g_probe->calls.Mix(0xB0D);
+    g_probe->calls.Mix(now);
+    ++r->removed;
+    return 1;
+}
+uint32_t __fastcall RfRiderType(RfRider* r, void*)
+{
+    g_probe->calls.Mix(0xB3B);
+    return r->type;
+}
+void** RfRiderVtable()
+{
+    static void* t[64] = {};
+    t[0] = reinterpret_cast<void*>(&RfRiderQuery);
+    t[1] = reinterpret_cast<void*>(&RfRiderAddRef);
+    t[2] = reinterpret_cast<void*>(&RfRiderRelease);
+    t[13] = reinterpret_cast<void*>(&RfRiderRemove);
+    t[59] = reinterpret_cast<void*>(&RfRiderType);
+    return t;
+}
+struct RfNode {
+    RfNode* next;
+    RfNode* prev;
+    void* object;
+};
+struct RfNetwork {
+    void** vtable;
+    uint32_t answer;
+    uint32_t riders;
+    RfRider* rider[3];
+    RfNode nodes[3];
+};
+uint32_t __fastcall RfNetworkQuery(RfNetwork* n, void*, RfNode** list, const float* low, const float* high,
+                                   uint32_t kind, uint32_t count)
+{
+    g_probe->calls.Mix(0xC94);
+    g_probe->calls.MixBytes(low, 12);
+    g_probe->calls.MixBytes(high, 12);
+    g_probe->calls.Mix(kind);
+    g_probe->calls.Mix(count);
+    if (!n->answer)
+        return 0;
+    RfNode* const head = *list;
+    for (uint32_t i = 0; i < n->riders; ++i) {
+        RfNode* const node = &n->nodes[i];
+        node->object = n->rider[i];
+        node->next = head;
+        node->prev = head->prev;
+        head->prev->next = node;
+        head->prev = node;
+    }
+    return 1;
+}
+uint32_t __fastcall RfNetworkClear(RfNetwork*, void*, RfNode** list)
+{
+    g_probe->calls.Mix(0xCC0);
+    RfNode* const head = *list;
+    uint32_t n = 0;
+    for (RfNode* node = head->next; node != head && n < 8; node = node->next)
+        ++n;
+    g_probe->calls.Mix(n);
+    head->next = head;
+    head->prev = head;
+    return 1;
+}
+void** RfNetworkVtable()
+{
+    static void* t[64] = {};
+    t[0x94 / 4] = reinterpret_cast<void*>(&RfNetworkQuery);
+    t[0xC0 / 4] = reinterpret_cast<void*>(&RfNetworkClear);
+    return t;
+}
+
+// The bus stop's chain for slot 172: slot 48 the next, slot 3 the part,
+// slot 22 (0x1301) the answer.
+struct RfStop {
+    void** vtable;
+    RfStop* next;
+    RfStop* part;
+    uint32_t answer;
+};
+RfStop* __fastcall RfStopNext(RfStop* s, void*)
+{
+    g_probe->calls.Mix(0xD30);
+    return s->next;
+}
+RfStop* __fastcall RfStopPart(RfStop* s, void*)
+{
+    g_probe->calls.Mix(0xD03);
+    return s->part;
+}
+uint32_t __fastcall RfStopAnswer(RfStop* s, void*, uint32_t what)
+{
+    g_probe->calls.Mix(0xD16);
+    g_probe->calls.Mix(what);
+    return s->answer;
+}
+void** RfStopVtable()
+{
+    static void* t[64] = {};
+    t[3] = reinterpret_cast<void*>(&RfStopPart);
+    t[22] = reinterpret_cast<void*>(&RfStopAnswer);
+    t[48] = reinterpret_cast<void*>(&RfStopNext);
+    return t;
+}
+
+// Slot 196's path (a vector of 12-byte points) and the deque's occupants:
+// slot 49 the network part, its slot 3 (word, 0) the path.
+struct RfPath {
+    float* begin;
+    float* end;
+    float* capacity;
+    float points[8][3];
+};
+struct RfPoint3 {
+    float v[3];
+};
+void MakeRfPath(RfPath& p, std::initializer_list<RfPoint3> points)
+{
+    std::size_t n = 0;
+    for (const RfPoint3& q : points) {
+        p.points[n][0] = q.v[0];
+        p.points[n][1] = q.v[1];
+        p.points[n][2] = q.v[2];
+        ++n;
+    }
+    p.begin = &p.points[0][0];
+    p.end = &p.points[n][0];
+    p.capacity = p.end;
+}
+struct RfLane {
+    void** vtable;
+    RfLane* part;
+    RfPath* path;
+};
+RfLane* __fastcall RfLanePart(RfLane* l, void*)
+{
+    g_probe->calls.Mix(0xE31);
+    return l->part;
+}
+RfPath* __fastcall RfLanePath(RfLane* l, void*, uint32_t word, uint32_t zero)
+{
+    g_probe->calls.Mix(0xE03);
+    g_probe->calls.Mix(word);
+    g_probe->calls.Mix(zero);
+    return l->path;
+}
+void** RfLaneVtable()
+{
+    static void* t[64] = {};
+    t[3] = reinterpret_cast<void*>(&RfLanePath);
+    t[49] = reinterpret_cast<void*>(&RfLanePart);
+    return t;
+}
+
+// A global swapped for the test's object and put back.
+struct RfSwap {
+    void** at;
+    void* saved;
+    RfSwap(std::uintptr_t address, void* value) : at(reinterpret_cast<void**>(address)), saved(*at) { *at = value; }
+    ~RfSwap() { *at = saved; }
+};
+
+void RoadFrameDrive(Hash& rframe, uint32_t& rflags)
+{
+    Probe probe;
+    Probe* const savedProbe = g_probe;
+    g_probe = &probe;
+    g_rf = RfAnswers{};
+    uint32_t madeFlags = 0;
+    char* made[6] = {};
+    for (int i = 0; i < 6; ++i)
+        made[i] = MakeRoad(i, madeFlags);
+    bool ok = madeFlags == 0;
+    static void* tables[6][200];
+    if (ok)
+        for (int i = 0; i < 6; ++i) {
+            const std::size_t count = i == 0 ? 199 : i == 4 ? 198 : 192;
+            At<void**>(made[i], 0) = RfTable(tables[i], kRoadClasses[i].tables[0], count, i);
+            At<uint8_t>(made[i], av::field::kByte3C) = 0;
+            std::memset(made[i] + av::field::kSmoothed, 0, 0x10);
+        }
+    char* const tr = made[0];
+    static RfCar cars[6];
+    static Counted occupants[3];
+    static RfMaker maker;
+    static RfLane lanes[4];
+    static RfPath paths[4];
+    static RfRider riders[3];
+    static RfStop stops[3];
+    char saveDeque[0x28];
+    if (ok) {
+        std::memcpy(saveDeque, tr + rv::field::kDeque, sizeof saveDeque);
+        for (int i = 0; i < 3; ++i)
+            occupants[i] = {CountedVtable(), 1, 40 + i, 0};
+        for (char* o : made)
+            probe.known.push_back(o);
+        for (RfCar& c : cars)
+            probe.known.push_back(&c);
+        for (Counted& c : occupants)
+            probe.known.push_back(&c);
+        for (RfLane& l : lanes)
+            probe.known.push_back(&l);
+        for (RfPath& p : paths)
+            probe.known.push_back(&p);
+        probe.known.push_back(tr + rv::field::kDeque);
+        probe.known.push_back(&maker);
+    }
+    auto setCars = [&](std::initializer_list<RfCar*> list) {
+        uint32_t words[6] = {};
+        uint32_t n = 0;
+        for (RfCar* c : list)
+            words[n++] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(c));
+        if (char* const old = At<char*>(tr, rv::trailer::kCars))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(old);
+        SetGameVector(tr, rv::trailer::kCars, words, n, n ? n : 1);
+    };
+    auto setWords = [&](std::initializer_list<uint32_t> list, uint32_t capacity) {
+        uint32_t words[8] = {};
+        uint32_t n = 0;
+        for (uint32_t w : list)
+            words[n++] = w;
+        if (char* const old = At<char*>(tr, rv::trailer::kWords))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(old);
+        SetGameVector(tr, rv::trailer::kWords, words, n, capacity);
+    };
+    uint32_t reached = 0;
+
+    // ---- The trailer's slot 198: crossings, misses, degenerate segments.
+    if (ok) {
+        using Cross = uint32_t(__thiscall*)(void*, const float*, const float*, const float*, float*);
+        const auto cross = reinterpret_cast<Cross>(addr::cSC4TrailerVehicle_CrossPath);
+        const float cases[][9] = {
+            {96.0f, 5.0f, 50.0f, 80.0f, 4.0f, 50.0f, 100.0f, 6.0f, 50.0f},
+            {96.0f, 5.0f, 50.0f, 100.0f, 6.0f, 50.0f, 104.0f, 6.5f, 50.0f},
+            {10.0f, 0.0f, 10.0f, 0.0f, 1.0f, 0.0f, 20.0f, 3.0f, 20.0f},
+            {10.0f, 0.0f, 10.0f, 5.0f, 0.0f, 5.0f, 5.00005f, 0.00002f, 5.00001f},
+            {10.0f, 0.0f, 10.0f, 5.0f, 0.0f, 5.0f, 5.00005f, 9.0f, 5.00001f},
+            {-3.5f, 2.0f, 7.25f, 1.0f, 2.0f, 3.0f, -12.0f, -1.0f, 11.0f},
+            {50.0f, 1.0f, 50.0f, 50.0f, 0.0f, 0.0f, 50.0f, 2.0f, 300.0f},
+            {50.0f, 1.0f, 50.0f, 0.0f, 0.0f, 0.0f, 0.001f, 7.0f, 0.001f},
+            {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+        };
+        for (const auto& c : cases) {
+            float out[3] = {7.0f, 7.0f, 7.0f};
+            rframe.Mix(cross(tr, c, c + 3, c + 6, out) & 0xFF);
+            rframe.MixBytes(out, sizeof out);
+        }
+        reached |= 1u << 0;
+    }
+
+    // ---- Slot 192: a null end, then the vector grown.
+    if (ok) {
+        using Push = void(__thiscall*)(void*, uint32_t);
+        const auto push = reinterpret_cast<Push>(addr::cSC4TrailerVehicle_PushWord);
+        setWords({}, 1);
+        At<uint32_t*>(tr, rv::trailer::kWords) = nullptr;
+        At<uint32_t*>(tr, rv::trailer::kWords + 4) = nullptr;
+        char* const keep = At<char*>(tr, rv::trailer::kWords + 8);
+        At<std::uintptr_t>(tr, rv::trailer::kWords + 8) = 8;
+        push(tr, 0x77u);
+        rframe.Mix(static_cast<uint32_t>(At<std::uintptr_t>(tr, rv::trailer::kWords + 4)));
+        At<char*>(tr, rv::trailer::kWords) = keep - 4;
+        At<char*>(tr, rv::trailer::kWords + 4) = keep - 4;
+        At<char*>(tr, rv::trailer::kWords + 8) = keep;
+        setWords({5u, 6u}, 3);
+        for (const uint32_t w : {7u, 8u, 9u})
+            push(tr, w);
+        MixGameVector(rframe, tr, rv::trailer::kWords);
+        reached |= 1u << 1;
+    }
+
+    // ---- Slot 73: null, itself, a car of its own, cars of others.
+    if (ok) {
+        using Meet = uint32_t(__thiscall*)(void*, void*);
+        const auto meet = reinterpret_cast<Meet>(addr::cSC4TrailerVehicle_CanMeet);
+        MakeRfCar(cars[0], 0.0f, 0.0f, 0.0f, 2.0f);
+        MakeRfCar(cars[1], 0.0f, 0.0f, 0.0f, 2.0f);
+        setCars({&cars[0]});
+        rframe.Mix(meet(tr, nullptr) & 0xFF);
+        rframe.Mix(meet(tr, tr) & 0xFF);
+        rframe.Mix(meet(tr, &cars[0]) & 0xFF);
+        const uint32_t flagSets[][3] = {{8, 0, 0}, {0, 0, 0}, {8, 1, 0}, {0x200008, 0, 0}, {8, 0, 4}, {8, 0, 0}};
+        for (const uint32_t own : {0u, 0x200000u})
+            for (const auto& f : flagSets) {
+                At<uint32_t>(tr, av::field::kAutomataFlags) = own;
+                cars[1].flags = f[0];
+                cars[1].gone = f[1];
+                cars[1].partFlags = f[2];
+                rframe.Mix(meet(tr, &cars[1]) & 0xFF);
+            }
+        At<uint32_t>(tr, av::field::kAutomataFlags) = 0;
+        reached |= 1u << 2;
+    }
+
+    // ---- Slot 95: no template, then templates of the test's with lists of
+    // none to three words (pushed by slot 192, the game's or ours).
+    if (ok) {
+        using SetTemplate = void(__thiscall*)(void*, void*);
+        const auto set = reinterpret_cast<SetTemplate>(addr::cSC4TrailerVehicle_SetTemplate);
+        set(tr, nullptr);
+        alignas(4) static char from[0x60];
+        static RfNode list[4];
+        for (uint32_t n = 0; n <= 3; ++n) {
+            std::memset(from, 0, sizeof from);
+            At<uint32_t>(from, 0x10) = 0x5000u + n;
+            At<RfNode*>(from, 0x50) = &list[0];
+            list[0].next = &list[0];
+            list[0].prev = &list[0];
+            for (uint32_t i = 1; i <= n; ++i) {
+                list[i].object = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0x60u + i * n));
+                list[i].next = &list[0];
+                list[i].prev = list[0].prev;
+                list[0].prev->next = &list[i];
+                list[0].prev = &list[i];
+            }
+            setWords({}, 1);
+            set(tr, from);
+            MixGameVector(rframe, tr, rv::trailer::kWords);
+            rframe.Mix(At<uint32_t>(tr, 0x1C4));
+        }
+        reached |= 1u << 3;
+    }
+
+    // ---- Slot 132: no occupant (the traffic map left alone), keep and not,
+    // with zero to three words (the low byte of the count plus one).
+    if (ok) {
+        using Enter = void(__thiscall*)(void*, void*, uint32_t, void*, uint32_t);
+        const auto enter = reinterpret_cast<Enter>(addr::cSC4TrailerVehicle_EnterOccupant);
+        At<void*>(tr, av::field::kOccupant) = nullptr;
+        setWords({}, 1);
+        enter(tr, nullptr, 0x00030201u, nullptr, 1u);
+        setWords({1u, 2u, 3u}, 3);
+        enter(tr, nullptr, 0u, nullptr, 0u);
+        rframe.Mix(At<uint32_t>(tr, av::field::kPathIndex));
+        rframe.Mix(At<void*>(tr, av::field::kPath) ? 1u : 0u);
+        reached |= 1u << 4;
+    }
+
+    // ---- Slot 195: a car more, by the position, the distance, the manager,
+    // the words and the manager's answer.
+    if (ok) {
+        using AddCar = uint32_t(__thiscall*)(void*);
+        const auto addCar = reinterpret_cast<AddCar>(addr::cSC4TrailerVehicle_AddCar);
+        At<float>(tr, av::field::kRadius) = 3.0f;
+        SetPoint(tr, av::field::kHeading, 0.6f, 0.0f, 0.8f);
+        SetPoint(tr, rv::trailer::kPoint, 20.0f, 1.0f, 20.0f);
+        At<Counted*>(tr, rv::trailer::kOccupant) = &occupants[0];
+        At<uint32_t>(tr, rv::trailer::kWord) = 0x0102u;
+        At<uint32_t>(tr, av::field::kAutomataFlags) = 0x40u;
+        At<uint8_t>(tr, rv::field::kByte90) = 3;
+        maker = {RfMakerVtable(), nullptr};
+        setCars({});
+        setWords({0x11u, 0x22u, 0x33u}, 3);
+        MakeRfCar(cars[2], 0.0f, 0.0f, 0.0f, 2.5f);
+        MakeRfCar(cars[3], 0.0f, 0.0f, 0.0f, 1.5f);
+        cars[2].direction[0] = 0.0f;
+        cars[2].direction[2] = 1.0f;
+        cars[2].flags = 2;
+        struct Case {
+            float x, y, z;
+            bool manager;
+            RfCar* make;
+        };
+        const Case cases[] = {
+            {-1.0f, 1.0f, 30.0f, true, &cars[2]},  {30.0f, -0.5f, 30.0f, true, &cars[2]},
+            {30.0f, 1.0f, -2.0f, true, &cars[2]},  {22.0f, 1.0f, 22.0f, true, &cars[2]},
+            {26.0f, 1.0f, 20.0f, false, &cars[2]}, {26.0f, 1.0f, 20.0f, true, nullptr},
+            {26.0f, 1.0f, 20.0f, true, &cars[2]},
+        };
+        for (const Case& c : cases) {
+            SetPoint(tr, av::field::kPosition, c.x, c.y, c.z);
+            g_rf.manager = c.manager ? &maker : nullptr;
+            maker.make = c.make;
+            rframe.Mix(addCar(tr) & 0xFF);
+        }
+        // The second car: led by the first; then no words.
+        cars[2].position[0] = 40.0f;
+        cars[2].position[1] = 1.0f;
+        cars[2].position[2] = 40.0f;
+        maker.make = &cars[3];
+        rframe.Mix(addCar(tr) & 0xFF);
+        MixRfCars(rframe, tr);
+        MixRfCar(rframe, cars[2]);
+        MixRfCar(rframe, cars[3]);
+        rframe.Mix(static_cast<uint32_t>(occupants[0].references));
+        setWords({}, 1);
+        cars[3].position[0] = 60.0f;
+        rframe.Mix(addCar(tr) & 0xFF);
+        g_rf.manager = nullptr;
+        reached |= 1u << 5;
+    }
+
+    // ---- Slot 197: the cars behind each other; the record's +0x2C (the
+    // terrain's height) or the step; a car on its leader's rear point.
+    if (ok) {
+        using Follow = void(__thiscall*)(void*, float);
+        const auto follow = reinterpret_cast<Follow>(addr::cSC4TrailerVehicle_FollowLeader);
+        struct {
+            void** vtable;
+        } terrain = {RfTerrainVtable()};
+        RfSwap swapTerrain(addr::SC4_Service43D54, &terrain);
+        alignas(4) static char record[0x40];
+        At<float>(record, 0x2C) = -1.0f;
+        SetPoint(tr, av::field::kPosition, 100.0f, 5.0f, 50.0f);
+        SetPoint(tr, av::field::kHeading, 1.0f, 0.0f, 0.0f);
+        At<float>(tr, av::field::kRadius) = 4.0f;
+        MakeRfCar(cars[0], 90.0f, 5.5f, 51.0f, 3.0f);
+        MakeRfCar(cars[1], 83.0f, 6.0f, 49.0f, 2.5f);
+        MakeRfCar(cars[2], 0.0f, 0.0f, 0.0f, 2.0f);
+        cars[1].direction[0] = 0.96f;
+        cars[1].direction[2] = 0.28f;
+        setCars({&cars[0], &cars[1], &cars[2]});
+        const struct {
+            char* record;
+            float fade;
+            uint32_t flags;
+            float step;
+        } runs[] = {{nullptr, 1.0f, 0x0u, 0.5f},     {nullptr, 0.5f, 0x1u, 1.25f},  {record, 0.25f, 0x1u, 0.5f},
+                    {record, 0.75f, 0x0u, 0.5f},     {nullptr, 2.0f, 0x1u, -0.75f}, {nullptr, 1.0f, 0x0u, 0.0f}};
+        for (const auto& r : runs) {
+            g_rf.record = r.record;
+            g_rf.fade = r.fade;
+            g_rf.step = r.step;
+            At<uint32_t>(tr, av::field::kAutomataFlags) = r.flags;
+            follow(tr, 0.375f);
+            for (int i = 0; i < 3; ++i)
+                MixRfCar(rframe, cars[i]);
+        }
+        // One car whose front is the trailer's rear point (96, 5, 50) and a
+        // step of 0: both unit vectors fall back on its direction.
+        MakeRfCar(cars[0], 98.0f, 5.0f, 50.0f, 2.0f);
+        setCars({&cars[0]});
+        At<float>(record, 0x2C) = 1.0f;
+        g_rf.record = record;
+        g_rf.step = 0.0;
+        follow(tr, 0.5f);
+        MixRfCar(rframe, cars[0]);
+        g_rf.record = nullptr;
+        g_rf.fade = 1.0f;
+        g_rf.step = 0.5f;
+        At<uint32_t>(tr, av::field::kAutomataFlags) = 0;
+        reached |= 1u << 6;
+    }
+
+    // ---- Slot 196: the cars along the path and back along the deque (three
+    // elements over two blocks of the test's), the deque used up, an element
+    // without a path, no path at all, no cars.
+    if (ok) {
+        using Follow = void(__thiscall*)(void*, float);
+        const auto follow = reinterpret_cast<Follow>(addr::cSC4TrailerVehicle_FollowPath);
+        RfCity city{RfCityVtable(), nullptr, 0};
+        RfSwap swapCity(addr::SC4_City, &city);
+        MakeRfPath(paths[0], {{40.0f, 5.0f, 50.0f}, {60.0f, 5.5f, 50.0f}, {80.0f, 6.0f, 51.0f}, {100.0f, 5.0f, 50.0f}});
+        MakeRfPath(paths[1], {{10.0f, 4.0f, 30.0f}, {25.0f, 4.5f, 40.0f}, {40.0f, 5.0f, 50.0f}});
+        MakeRfPath(paths[2], {{-20.0f, 3.0f, 30.0f}, {-5.0f, 3.5f, 30.0f}, {10.0f, 4.0f, 30.0f}});
+        MakeRfPath(paths[3], {{-60.0f, 2.0f, 30.0f}, {-40.0f, 2.5f, 30.0f}, {-20.0f, 3.0f, 30.0f}});
+        for (int i = 0; i < 4; ++i)
+            lanes[i] = {RfLaneVtable(), &lanes[i], i == 0 ? nullptr : &paths[i]};
+        lanes[0].part = nullptr;
+        alignas(8) static char blocks[2][0x80];
+        static char* nodes[4];
+        nodes[1] = blocks[0];
+        nodes[2] = blocks[1];
+        auto element = [&](int block, int index, void* object, uint32_t word) {
+            At<void*>(blocks[block], index * 8) = object;
+            At<uint32_t>(blocks[block], index * 8 + 4) = word;
+        };
+        auto setDeque = [&](int count) {
+            char* const d = tr + rv::field::kDeque;
+            At<char*>(d, 0x00) = blocks[0] + 14 * 8;
+            At<char*>(d, 0x04) = blocks[0];
+            At<char*>(d, 0x08) = blocks[0] + 0x80;
+            At<char**>(d, 0x0C) = &nodes[1];
+            char* const end = blocks[0] + (14 + count) * 8;
+            const bool second = end >= blocks[0] + 0x80;
+            At<char*>(d, 0x10) = second ? blocks[1] + (end - blocks[0] - 0x80) : end;
+            At<char*>(d, 0x14) = second ? blocks[1] : blocks[0];
+            At<char*>(d, 0x18) = (second ? blocks[1] : blocks[0]) + 0x80;
+            At<char**>(d, 0x1C) = second ? &nodes[2] : &nodes[1];
+        };
+        At<float>(tr, av::field::kRadius) = 4.0f;
+        SetPoint(tr, av::field::kPosition, 100.0f, 5.0f, 50.0f);
+        SetPoint(tr, av::field::kHeading, 1.0f, 0.0f, 0.0f);
+        SetPoint(tr, av::field::kFront, 104.0f, 5.0f, 50.0f);
+        At<Counted*>(tr, av::field::kOccupant) = &occupants[1];
+        At<uint32_t>(tr, av::field::kGroups1F4) = 0x0201u;
+        struct Run {
+            RfPath* path;
+            uint32_t index;
+            int deque;
+            int cars;
+            float fade;
+            uint32_t flags;
+            void* blocked; // the deque's first element's object
+        };
+        const Run runs[] = {
+            {&paths[0], 3, 3, 6, 1.0f, 0x0u, &lanes[3]}, {&paths[0], 3, 3, 4, 0.5f, 0x1u, &lanes[3]},
+            {&paths[0], 2, 2, 3, 1.0f, 0x0u, &lanes[3]}, {&paths[0], 9, 3, 2, 1.0f, 0x0u, &lanes[3]},
+            {&paths[0], 3, 3, 6, 1.0f, 0x0u, &lanes[0]}, {&paths[0], 3, 3, 6, 1.0f, 0x0u, nullptr},
+            {&paths[0], 3, 0, 6, 1.0f, 0x0u, nullptr},   {nullptr, 0, 3, 2, 0.5f, 0x1u, &lanes[3]},
+            {&paths[0], 3, 3, 0, 1.0f, 0x0u, &lanes[3]},
+        };
+        for (const Run& r : runs) {
+            element(0, 14, r.blocked, 0x0E);
+            element(0, 15, &lanes[2], 0x0F);
+            element(1, 0, &lanes[1], 0x10);
+            setDeque(r.deque);
+            At<RfPath*>(tr, av::field::kPath) = r.path;
+            At<uint32_t>(tr, av::field::kPathIndex) = r.index;
+            g_rf.fade = r.fade;
+            At<uint32_t>(tr, av::field::kAutomataFlags) = r.flags;
+            for (int i = 0; i < 6; ++i) {
+                MakeRfCar(cars[i], 96.0f - 7.0f * i, 5.0f, 50.0f + 0.5f * i, 5.0f + 1.5f * i);
+                cars[i].vec179[0] = 0.9f;
+                cars[i].vec179[1] = 0.1f * i;
+                cars[i].vec179[2] = 0.2f;
+            }
+            switch (r.cars) {
+            case 0: setCars({}); break;
+            case 2: setCars({&cars[0], &cars[1]}); break;
+            case 3: setCars({&cars[0], &cars[1], &cars[2]}); break;
+            case 4: setCars({&cars[0], &cars[1], &cars[2], &cars[3]}); break;
+            default: setCars({&cars[0], &cars[1], &cars[2], &cars[3], &cars[4], &cars[5]}); break;
+            }
+            follow(tr, 0.25f);
+            for (const RfCar& c : cars)
+                MixRfCar(rframe, c);
+        }
+        std::memcpy(tr + rv::field::kDeque, saveDeque, sizeof saveDeque);
+        At<void*>(tr, av::field::kPath) = nullptr;
+        At<void*>(tr, av::field::kOccupant) = nullptr;
+        g_rf.fade = 1.0f;
+        At<uint32_t>(tr, av::field::kAutomataFlags) = 0;
+        reached |= 1u << 7;
+    }
+
+    // ---- Slot 72: cSC4Vehicle's frame (its slots the probe's), the point
+    // taken while unset, a car more while words outnumber cars, slot 196 or
+    // 197 by the flag 0x2000.
+    if (ok) {
+        using FrameFn = uint32_t(__thiscall*)(void*, uint32_t, float);
+        const auto frame = reinterpret_cast<FrameFn>(addr::cSC4TrailerVehicle_Frame);
+        At<float>(tr, av::field::kTimer254) = 0.0f;
+        At<Counted*>(tr, rv::trailer::kOccupant) = nullptr;
+        probe.answer[137] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&occupants[2]));
+        probe.answer[136] = 0x00050403u;
+        MakeRfCar(cars[0], 70.0f, 2.0f, 30.0f, 2.0f);
+        cars[0].occupant = &occupants[1];
+        cars[0].groups = 0x0A0B0Cu;
+        SetPoint(tr, av::field::kPosition, 12.0f, 0.5f, 11.0f);
+        const struct {
+            float point[3];
+            int cars;
+            int words;
+            uint32_t flags;
+        } runs[] = {{{-1.0f, -1.0f, -1.0f}, 0, 2, 0x0u},  {{-1.0f, -1.0f, -1.0f}, 1, 1, 0x2000u},
+                    {{5.0f, 0.0f, -0.5f}, 1, 3, 0x2000u}, {{5.0f, -1.0f, 6.0f}, 0, 0, 0x0u},
+                    {{-0.0f, 0.0f, 0.0f}, 1, 1, 0x2000u}};
+        for (const auto& r : runs) {
+            SetPoint(tr, rv::trailer::kPoint, r.point[0], r.point[1], r.point[2]);
+            if (r.cars)
+                setCars({&cars[0]});
+            else
+                setCars({});
+            if (r.words == 0)
+                setWords({}, 1);
+            else if (r.words == 1)
+                setWords({1u}, 1);
+            else if (r.words == 2)
+                setWords({1u, 2u}, 2);
+            else
+                setWords({1u, 2u, 3u}, 3);
+            At<uint32_t>(tr, av::field::kAutomataFlags) = r.flags;
+            probe.answer[86] = 0;
+            rframe.Mix(frame(tr, 0xBEEFu, 0.5f) & 0xFF);
+            rframe.MixBytes(tr + rv::trailer::kPoint, 12);
+            rframe.Mix(probe.Id(At<void*>(tr, rv::trailer::kOccupant)));
+            rframe.Mix(At<uint32_t>(tr, rv::trailer::kWord));
+        }
+        for (const Counted& c : occupants)
+            rframe.Mix(static_cast<uint32_t>(c.references));
+        At<void*>(tr, rv::trailer::kOccupant) = nullptr;
+        At<uint32_t>(tr, av::field::kAutomataFlags) = 0;
+        probe.answer[136] = probe.answer[137] = 0;
+        reached |= 1u << 8;
+    }
+
+    // ---- The bus's slot 164: without the flags, at the end of the timer,
+    // the timer running down with the riders' answers (the draws of the
+    // core's generator), the service answering nothing.
+    if (ok) {
+        char* const bus = made[1];
+        using DriveFn = uint32_t(__thiscall*)(void*, float);
+        const auto drive = reinterpret_cast<DriveFn>(addr::cSC4Bus_DriveFrame);
+        alignas(4) static char state[kStateSize];
+        char* stack[2] = {state, nullptr};
+        char** const savedStates[3] = {At<char**>(bus, av::field::kStates), At<char**>(bus, av::field::kStatesEnd),
+                                       At<char**>(bus, av::field::kStates + 8)};
+        At<char**>(bus, av::field::kStates) = stack;
+        At<char**>(bus, av::field::kStatesEnd) = stack + 1;
+        At<char**>(bus, av::field::kStates + 8) = stack + 1;
+        static RfNetwork network;
+        network = {};
+        network.vtable = RfNetworkVtable();
+        RfSwap swapNetwork(addr::SC4_NetworkService, &network);
+        for (int i = 0; i < 3; ++i) {
+            riders[i] = {RfRiderVtable(), 1, 1, 3, 0};
+            network.rider[i] = &riders[i];
+        }
+        SetPoint(bus, av::field::kPosition, 300.0f, 12.0f, 250.5f);
+        const struct {
+            uint32_t flags;
+            float timer;
+            uint32_t answer;
+            uint32_t riders;
+            uint32_t answers[3];
+            uint32_t types[3];
+        } runs[] = {
+            {0x0u, 5.0f, 1, 3, {1, 1, 1}, {4, 4, 4}},   {0x20u, 0.25f, 1, 3, {1, 1, 1}, {4, 4, 4}},
+            {0x4u, 5.0f, 1, 3, {0, 1, 1}, {4, 3, 4}},   {0x20u, 5.0f, 1, 2, {1, 1, 1}, {3, 3, 3}},
+            {0x24u, 5.0f, 0, 3, {1, 1, 1}, {4, 4, 4}},  {0x20u, 5.0f, 1, 0, {1, 1, 1}, {4, 4, 4}},
+            {0x20u, 5.0f, 1, 3, {1, 0, 1}, {3, 4, 4}},  {0x4u, 5.0f, 1, 3, {1, 1, 1}, {4, 4, 4}},
+            {0x20u, 5.0f, 1, 3, {1, 1, 1}, {4, 4, 4}},  {0x20u, 5.0f, 1, 3, {1, 1, 1}, {3, 4, 4}},
+        };
+        for (const auto& r : runs) {
+            MakeState(state, av::state::kDrive, r.timer);
+            At<uint32_t>(bus, av::field::kAutomataFlags) = r.flags;
+            network.answer = r.answer;
+            network.riders = r.riders;
+            for (int i = 0; i < 3; ++i) {
+                riders[i].answers = r.answers[i];
+                riders[i].type = r.types[i];
+            }
+            rframe.Mix(drive(bus, 0.5f) & 0xFF);
+            rframe.Mix(At<uint32_t>(state, av::state::kTimer));
+            for (const RfRider& rd : riders) {
+                rframe.Mix(static_cast<uint32_t>(rd.references));
+                rframe.Mix(rd.removed);
+            }
+        }
+        At<char**>(bus, av::field::kStates) = savedStates[0];
+        At<char**>(bus, av::field::kStatesEnd) = savedStates[1];
+        At<char**>(bus, av::field::kStates + 8) = savedStates[2];
+        At<uint32_t>(bus, av::field::kAutomataFlags) = 0;
+        reached |= 1u << 9;
+    }
+
+    // ---- The bus's slot 172: the stop's chain and slot 173 (the base's
+    // after).
+    if (ok) {
+        char* const bus = made[1];
+        using Slot172 = uint32_t(__thiscall*)(void*, uint32_t, uint32_t, void*, uint32_t);
+        const auto at = reinterpret_cast<Slot172>(addr::cSC4Bus_Slot172);
+        stops[0] = {RfStopVtable(), &stops[1], nullptr, 0};
+        stops[1] = {RfStopVtable(), nullptr, &stops[2], 0};
+        stops[2] = {RfStopVtable(), nullptr, nullptr, 1};
+        rframe.Mix(at(bus, 1u, 2u, nullptr, 4u) & 0xFF);
+        stops[0].next = nullptr;
+        rframe.Mix(at(bus, 1u, 2u, &stops[0], 4u) & 0xFF);
+        stops[0].next = &stops[1];
+        for (const uint32_t answer : {0u, 1u})
+            for (const uint32_t a173 : {0u, 1u}) {
+                stops[2].answer = answer;
+                probe.answer[173] = a173;
+                rframe.Mix(at(bus, 0x10u + answer, 0x20u + a173, &stops[0], 9u) & 0xFF);
+            }
+        probe.answer[173] = 0;
+        reached |= 1u << 10;
+    }
+
+    // ---- The carjacked vehicle's slot 101 (the core's answers at once).
+    if (ok) {
+        char* const car = made[3];
+        using Slot101 = uint32_t(__thiscall*)(void*);
+        const auto at = reinterpret_cast<Slot101>(addr::cSC4CarjackedVehicle_Slot101);
+        rframe.Mix(at(car) & 0xFF);
+        At<uint8_t>(car, av::field::kByte3C) = 1;
+        const uint32_t saved = At<uint32_t>(car, 0x1C4);
+        At<uint32_t>(car, 0x1C4) = 7;
+        rframe.Mix(at(car) & 0xFF);
+        At<uint32_t>(car, 0x1C4) = saved;
+        At<uint8_t>(car, av::field::kByte3C) = 0;
+        reached |= 1u << 11;
+    }
+
+    // ---- The van's slot 101: the driven automaton, the police maps at its
+    // cell, in the city or not, and the generator's draws.
+    if (ok) {
+        char* const van = made[2];
+        using Slot101 = uint32_t(__thiscall*)(void*);
+        const auto at = reinterpret_cast<Slot101>(addr::cSC4GetawayVan_Slot101);
+        RfDriven driven{RfDrivenVtable(), 77};
+        RfCity city{RfCityVtable(), nullptr, 1};
+        RfMap policeMap{RfMapVtable(), 0};
+        RfMap otherMap{RfMapVtable(), 0};
+        RfMapHolder police{RfHolderVtable(), &policeMap};
+        RfMapHolder other{RfHolderVtable(), &otherMap};
+        RfSwap swapCity(addr::SC4_City, &city);
+        RfSwap swapPolice(addr::SC4_PoliceSimulator, &police);
+        RfSwap swapOther(addr::SC4_Service43D70, &other);
+        SetPoint(van, av::field::kPosition, 523.9f, 3.0f, 129.2f);
+        probe.answer[5] = 77;
+        struct Case {
+            bool driven;
+            uint32_t id;
+            bool police;
+            bool other;
+            bool maps;
+            uint32_t inside;
+            uint32_t p, q;
+        };
+        const Case cases[] = {
+            {true, 77, true, true, true, 1, 9, 1},   {true, 78, true, true, true, 1, 9, 1},
+            {true, 78, true, true, true, 1, 0, 1},   {false, 0, true, true, true, 1, 5, 5},
+            {false, 0, true, true, true, 1, 5, 6},   {false, 0, true, true, true, 0, 9, 1},
+            {false, 0, false, true, true, 1, 9, 1},  {false, 0, true, false, true, 1, 9, 1},
+            {false, 0, true, true, false, 1, 9, 1},  {false, 0, true, true, true, 1, 200, 100},
+            {false, 0, false, false, true, 1, 0, 0}, {false, 0, false, false, true, 1, 0, 0},
+        };
+        for (const Case& c : cases) {
+            city.driven = c.driven ? &driven : nullptr;
+            driven.id = c.id;
+            *reinterpret_cast<void**>(addr::SC4_PoliceSimulator) = c.police ? &police : nullptr;
+            *reinterpret_cast<void**>(addr::SC4_Service43D70) = c.other ? &other : nullptr;
+            police.map = c.maps ? &policeMap : nullptr;
+            city.inside = c.inside;
+            policeMap.value = c.p;
+            otherMap.value = c.q;
+            rframe.Mix(at(van) & 0xFF);
+        }
+        SetPoint(van, av::field::kPosition, -40.0f, 0.0f, 8191.97f);
+        rframe.Mix(at(van) & 0xFF);
+        probe.answer[5] = 0;
+        reached |= 1u << 12;
+    }
+
+    // ---- The limo's slot 121: below 1000, paid, too poor, no budget, no
+    // services.
+    if (ok) {
+        char* const limo = made[5];
+        using Steer = uint32_t(__thiscall*)(void*, void*, float);
+        const auto at = reinterpret_cast<Steer>(addr::cSC4MayorLimo_Steer);
+        RfBudget budget{RfBudgetVtable(), 1000};
+        struct {
+            void** vtable;
+        } service{RfServiceVtable()}, sounds{RfServiceVtable()};
+        RfSwap swapBudget(addr::SC4_BudgetSimulator, &budget);
+        RfSwap swapService(addr::SC4_Service43DC4, &service);
+        RfSwap swapSounds(addr::SC4_Service43D60, &sounds);
+        alignas(4) static char controls[0x240];
+        SetPoint(limo, av::field::kPosition, 64.5f, 2.0f, 96.25f);
+        struct Case {
+            float speed;
+            int64_t money;
+            bool budget, service, sounds;
+        };
+        const Case cases[] = {
+            {500.0f, 1000, true, true, true},   {1000.0f, 1000, true, true, true}, {1500.0f, 1000, true, true, true},
+            {1500.0f, 50, true, true, true},    {1500.0f, 51, true, false, true},  {1500.0f, -5, true, true, false},
+            {1500.0f, 0x100000000LL, true, true, true}, {1500.0f, 1000, false, true, true},
+        };
+        for (const Case& c : cases) {
+            std::memset(controls, 0, sizeof controls);
+            At<float>(controls, 0x98) = c.speed;
+            At<uint8_t>(controls, 0x20C) = 9;
+            budget.money = c.money;
+            *reinterpret_cast<void**>(addr::SC4_BudgetSimulator) = c.budget ? &budget : nullptr;
+            *reinterpret_cast<void**>(addr::SC4_Service43DC4) = c.service ? &service : nullptr;
+            *reinterpret_cast<void**>(addr::SC4_Service43D60) = c.sounds ? &sounds : nullptr;
+            rframe.Mix(at(limo, controls, 0.25f) & 0xFF);
+            rframe.Mix(At<uint32_t>(controls, 0x98));
+            rframe.Mix(At<uint8_t>(controls, 0x20C));
+            rframe.Mix(static_cast<uint32_t>(budget.money));
+        }
+        reached |= 1u << 13;
+    }
+
+    // ---- The tank's slot 127 (no core highlight).
+    if (ok) {
+        char* const tank = made[4];
+        using Off = uint32_t(__thiscall*)(void*);
+        void* const saved = At<void*>(tank, 0xCC);
+        At<void*>(tank, 0xCC) = nullptr;
+        reinterpret_cast<Off>(addr::cSC4Tank_RemoveHighlights)(tank);
+        At<void*>(tank, 0xCC) = saved;
+        reached |= 1u << 14;
+    }
+
+    // ---- The release: the trailer's references cleared and its vectors
+    // emptied (its destructor frees them), the real vtables back.
+    if (ok) {
+        At<void*>(tr, rv::trailer::kOccupant) = nullptr;
+        setCars({});
+        setWords({}, 1);
+        for (int i = 0; i < 6; ++i)
+            At<std::uintptr_t>(made[i], 0) = kRoadClasses[i].tables[0];
+    }
+    for (char* o : made)
+        if (o) {
+            At<void*>(o, av::field::kOccupant) = nullptr;
+            At<void*>(o, av::field::kNetwork) = nullptr;
+            At<void*>(o, av::field::kPath) = nullptr;
+            ReleaseRoad(o);
+        }
+    rframe.Mix(probe.calls.h);
+    rframe.Mix(reached);
+    g_probe = savedProbe;
+    if (ok && reached == 0x7FFFu)
+        rflags |= 0x20;
+    if (!ok)
+        rflags |= 0x40;
+    log::Write("autotest: automata: vehicle: ro2 rframe %08X calls %08X reached %X of 7FFF", rframe.h, probe.calls.h,
+               reached);
 }
 
 } // namespace vb
@@ -18672,6 +20637,15 @@ void VehicleDrive(cISC4City* city)
     Hash chighlight;
     CoreHighlightDrive(city, chighlight, flags);
 
+    // ---- Part ro1.
+    Hash robject, rsave, rlife;
+    uint32_t rflags = 0;
+    RoadVehicleDrive(robject, rsave, rlife, rflags);
+
+    // ---- Part ro2.
+    Hash rframe;
+    RoadFrameDrive(rframe, rflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -18724,13 +20698,13 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[280];
+    char text[320];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X,%08X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
-                  vframe8.h, cmodels.h, cmodels2.h, chighlight.h);
+                  vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

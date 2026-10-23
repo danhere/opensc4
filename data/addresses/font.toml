@@ -1,0 +1,190 @@
+# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Nothing here is hooked yet.
+
+[[entry]]
+name = "GZFontDirector::Construct"
+address = 0x00895F7B
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 0A 82 07 00"
+source = "Name ours, not hooked. The fonts' COM director (vtables 0x00AC5548 and 0x00AC5518), made once by its static getter 0x00896012 (called from 0x004600EE). Registers class 0x20673960 (font system, factory 0x00895F36), 0x1AA404AC (font, 0x00895F4C) and 0x08CDA30B (glyph blitter, 0x00895F65). Its slot 4 (0x00895FCD) makes the font system with interface 0x287FB697 and gives it to the framework as a system service (docs/fonts.md, f1)."
+
+[[entry]]
+name = "GZFontSystem::Construct"
+address = 0x00895268
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "55 8B EC 83 EC 14 53 33"
+source = "Name ours, not hooked. Class 0x20673960, 0x70 bytes, vtables 0x00AC5488 (main) and 0x00AC5454 (+4). Sets up the face and alias maps and the file patterns `*.tt?`, `*.pfb`, `*.mxf`, `*.otf` that its scans use (the game's Fonts folder and the Windows one; slot 15 lists the folders, slot 14 opens each file). No arguments, plain ret (docs/fonts.md, f2)."
+
+[[entry]]
+name = "GZFontSystem::GetFont"
+address = 0x00894ADF
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* face_name, uint32_t unknown, uint32_t size, uint32_t style, bool reuse)"
+expect = "55 8B EC 81 EC E0 02 00"
+source = "Name ours, not hooked. Slot 11 (+0x2C) of 0x00AC5488; `ret 0x14`. Splits the face list at commas, scores every face by name and style bits, and either returns a matching font already made (reuse, AddRef'd) or makes one with its own slot 10 (0x00895A1C). ui.toml's SC4::Singleton913D22 is the usual way in (docs/fonts.md, f2)."
+
+[[entry]]
+name = "GZFont::Construct"
+address = 0x00899AAB
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "51 53 56 8B F1 33 DB 8D"
+source = "Name ours, not hooked. Class 0x1AA404AC, 0x15C bytes, vtable 0x00AC55D8 (64 slots, QueryInterface answers 0x10673960). Size 16, scales 1.0, encoding +0x7C, fallback character 0x20 at +0xE4; makes its T2K holder (0x34 bytes, 0x00897FED) at +0xEC. Plain ret (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFont::Load"
+address = 0x0089955C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 51 56 8B F1 80"
+source = "Name ours, not hooked. Slot 3 (+0x0C); plain ret. Opens the face's file with T2K (0x00898CD9), applies the size (slot 11), the style flags and the fallback glyph, and makes the glyph blitter (0x00897722) at +0x8C. Sets the loaded byte at +4 and returns it (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFont::SetSize"
+address = 0x00897AB1
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t pixels)"
+expect = "55 8B EC 83 EC 14 8B 45"
+source = "Name ours, not hooked. Slot 11 (+0x2C); `ret 4`. Pixel height (at most 0x800) into +0x38; sets T2K's transform at 72 dpi (0x0089DC9A) and stores the ascent (+0x88), descent (+0x84) and line height (+0x3C, one more for type 1 and 0x16 faces). The size is where a crisp-text hook would scale (docs/fonts.md)."
+
+[[entry]]
+name = "GZFont::SetScale"
+address = 0x0089854E
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float x, float y)"
+expect = "55 8B EC 83 EC 10 D9 05"
+source = "Name ours, not hooked. Slot 30 (+0x78); `ret 8`. Clamps both scales, stores them at +0x68/+0x6C, empties the glyph cache and resets T2K's transform (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFont::FitString"
+address = 0x00899D81
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* text, uint32_t length, uint32_t max_width, uint32_t* width, uint32_t mode)"
+expect = "55 8B EC 83 EC 18 56 57"
+source = "Name ours, not hooked. Slot 41 (+0xA4); `ret 0x14`. How many characters of the text fit in max_width, stopping at a line break; mode 1 backs up to a word end, mode 2 to a character. The line breaker of DrawStringInRect (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFont::MeasureString"
+address = 0x00899F71
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const void* text, uint32_t length)"
+expect = "55 8B EC 51 51 33 C0 39"
+source = "Name ours, not hooked. Slot 48 (+0xC0); `ret 8`. Width in pixels: the text converted to UTF-16, then each character's advance (slot 40) summed (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFont::MeasureTrimmed"
+address = 0x00899FF4
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const void* text, uint32_t length, uint32_t* out_length)"
+expect = "55 8B EC 51 51 8B 45 10"
+source = "Name ours, not hooked. Slot 49 (+0xC4); `ret 0xC`. MeasureString without trailing spaces; the length used comes back in out_length (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFont::DrawString"
+address = 0x0089A099
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* picture, int32_t x, int32_t y, const void* text, uint32_t length, uint32_t colour, uint32_t colour2, const int32_t* clip, int32_t* pen)"
+expect = "55 8B EC 83 EC 2C 53 56"
+source = "Name ours, not hooked. Slot 51 (+0xCC); `ret 0x24`. One line of text into a picture: the text converted to UTF-16 (0x00899BCA, with Thai composition 0x00899665), each glyph fetched from the cache (slot 60), placed from the pen (x, y, or *pen) and clipped to clip (left, top, right, bottom) if given, then the list handed to the blitter at +0x8C (its slot 7) between its begin and end (slots 5 and 6, the picture's lock 0x8080). Colour 0x08000000 means the font's own (+0x44). *pen gets the end position. Every text draw passes here; ran in all 17 coverage runs (docs/fonts.md, \"Crisp text hook points\")."
+
+[[entry]]
+name = "GZFont::DrawStringInRect"
+address = 0x0089A35B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* picture, const int32_t* rect, const void* text, uint32_t length, uint32_t align, uint32_t colour, uint32_t colour2, const int32_t* clip, int32_t* pen)"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours, not hooked. Slot 52 (+0xD0); `ret 0x24`. Wraps the text into rect (left, top, right, bottom) line by line with FitString, aligns each line (0 left, 1 centre, 2 right, by MeasureString), drops trailing line breaks and draws each with DrawString, line height apart (slot 35). Ran in all 17 coverage runs (docs/fonts.md)."
+
+[[entry]]
+name = "GZFont::GetGlyph"
+address = 0x0089834C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t character)"
+expect = "56 8B F1 8B 06 57 FF 90"
+source = "Name ours, not hooked. Slot 60 (+0xF0); `ret 4`. The cached glyph of a UTF-16 character (map lookup 0x00968CD9; the entry's data at +8), rendering it with slot 61 on a miss. Null without a glyph sheet (slot 59) (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFont::RenderGlyph"
+address = 0x00898FDC
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t character, void* sheet)"
+expect = "55 8B EC 83 EC 4C 53 8B"
+source = "Name ours, not hooked. Slot 61 (+0xF4); `ret 8`. Maps the character to a glyph (cmap 0x0089F4B2, or the `uniXXXX` name 0x00898EB2 for type 1 and 0x16 faces, else the fallback), renders it with T2K (0x0089F23B, monochrome or 8-bit grey by the mode at +0x4C), stores the bitmap and metrics in the glyph sheet (slot 62) and caches the entry. Characters without a glyph get a box (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFont::StoreGlyph"
+address = 0x00897748
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* sheet, int32_t* box, int32_t x, uint32_t y, const void* bits, uint32_t width, uint32_t height, uint32_t pitch, uint32_t format)"
+expect = "55 8B EC 83 EC 10 8B 45"
+source = "Name ours, not hooked. Slot 62 (+0xF8); `ret 0x24`. Copies a rendered glyph into the font's glyph sheet (grown by slot 63, 0x0089632D), expanding 1-bit rows when format is 2 and remapping grey levels through the table at +0x5C; underline and strike-through rows are filled here (docs/fonts.md, f3)."
+
+[[entry]]
+name = "GZFontBlitter::Construct"
+address = 0x00897722
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 83 66 04 00 C7"
+source = "Name ours, not hooked. Class 0x08CDA30B, 8 bytes, vtable 0x00AC55B4 (QueryInterface answers 0xA8BC2A75). The first one builds the blend tables at 0x00B54418 (0x0089618D). Plain ret (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::Begin"
+address = 0x00896232
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* font, void* picture, uint32_t mode)"
+expect = "8B 4C 24 08 8B 01 68 80"
+source = "Name ours, not hooked. Slot 5 (+0x14); `ret 0xC`. The picture's slot 6 (+0x18) with 0x8080: locks it for drawing. this and font unused (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::End"
+address = 0x00896243
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* font, void* picture, uint32_t mode)"
+expect = "8B 4C 24 08 8B 01 68 80"
+source = "Name ours, not hooked. Slot 6 (+0x18); `ret 0xC`. The picture's slot 7 (+0x1C) with 0x8080: unlocks it (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontBlitter::DrawGlyphs"
+address = 0x00897246
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* font, void* picture, const void* glyphs, uint32_t count, uint32_t mode, const uint32_t* colours, const int32_t* clip)"
+expect = "55 8B EC 83 EC 10 53 8B"
+source = "Name ours, not hooked. Slot 7 (+0x1C); `ret 0x1C`. Walks DrawString's list of placed glyphs (0x24 bytes each: left, top, right, bottom, sheet pixels, pitch, width, height, character) and composites each one of a printable character (0x20 or more) with 0x00896E63. The last step before the text is pixels in the picture (docs/fonts.md, \"Crisp text hook points\")."
+
+[[entry]]
+name = "GZFontBlitter::DrawGlyph"
+address = 0x00896E63
+kind = "function"
+convention = "stdcall"
+signature = "void (void* font, void* picture, const void* glyph, uint32_t character, const void* pixels, int32_t* origin, uint32_t pitch, uint32_t mode, const uint32_t* colours, const int32_t* clip)"
+expect = "55 8B EC 83 EC 3C 53 8B"
+source = "Name ours, not hooked. `ret 0x28`, 995 bytes, no calls. Blends one glyph's coverage into the picture's pixels with the colour (or the 16-step colour ramp of 0x0089838C for anti-aliased text) (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontFile::Open"
+address = 0x00898CD9
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* file)"
+expect = "55 8B EC 51 56 57 33 FF"
+source = "Name ours, not hooked. `ret 4`, this the font's 0x34-byte T2K holder. tsi_NewMemhandler (0x0089A594), an input stream over the file (0x00896D2F, read callback 0x00896E4A), the font type (0x008A1C10: 1 Type 1, whose .pfb is unwrapped by 0x0089F7C6 and reopened; 2 likely TrueType; 7 and 0x16 not identified), then the sfnt and scaler objects (0x0089D662, 0x0089D8DC) (docs/fonts.md, f5)."

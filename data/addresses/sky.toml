@@ -448,7 +448,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, SC4EffectDescription* description)"
 expect = "83 EC 14 56 57 8B 7C 24"
-source = "Name ours (0x005AEC90 to 0x005AEF1D). Slot 0x28 of the second effect class (vtable 0x00AA0C58), for descriptions with bit 0 of their third word of flags: SC4Effect::SetDescription, then the model instance (+0x220) and model (+0x224) released, the object at +0x278 ended (slot 0x20), the part at +0x228 cleared, a model loaded (slot 0x54) by the description's +0xD0 or one of its list at +0x1E0 picked at random, the instance and the part set up, and the effects manager asked for two more named effects (+0x26D, +0x26E)."
+source = "Name ours (0x005AEC90 to 0x005AEF1D). Slot 0x28 of the second effect class (vtable 0x00AA0C58), for descriptions with bit 0 of their third word of flags: SC4Effect::SetDescription, then the model instance (+0x220) and model (+0x224) released, the object at +0x278 ended (slot 0x20), the part at +0x228 cleared, a model loaded (slot 0x54) by the description's +0xD0 or one of its list at +0x1E0 picked at random, the instance and the part set up, and the effects manager asked for two more named effects (+0x26D, +0x26E). Ours in renderer.effects.description_b (src/core/effects_model.h)."
 
 [[entry]]
 name = "SC4EffectB::LoadModel"
@@ -457,7 +457,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, uint32_t which)"
 expect = "8B 44 24 04 83 EC 34 85"
-source = "Name ours (0x005AC610 to 0x005AC86A). Slot 0x54 of the second effect class, with the model's instance ID (nothing for 0): the resource of type 0x5AD0E817, group 0xBADB57F1 asked of the resource manager (0x00B43CA8 slot 0xC), the old model (+0x224) released and a new one made (the resource's slot 0x10), its holder-counting part kept at +0x220, its slot 0x40 called with 3, the largest side of its box at +0x274, and each material's flags (interface 0x26A68448) set by the description's kind (+0xD4, jump table 0x005AC870) and flag 0x400 of its third word. SC4EffectB::SetDescription calls it (0x005AED73)."
+source = "Name ours (0x005AC610 to 0x005AC86A). Slot 0x54 of the second effect class, with the model's instance ID (nothing for 0): the resource of type 0x5AD0E817, group 0xBADB57F1 asked of the resource manager (0x00B43CA8 slot 0xC), the old model (+0x224) released and a new one made (the resource's slot 0x10), its holder-counting part kept at +0x220, its slot 0x40 called with 3, the largest side of its box at +0x274, and each material's flags (interface 0x26A68448) set by the description's kind (+0xD4, jump table 0x005AC870) and flag 0x400 of its third word. SC4EffectB::SetDescription calls it (0x005AED73). Ours in renderer.effects.model_b (src/core/effects_model.h)."
 
 [[entry]]
 name = "SC4EffectPartB::Attach"
@@ -467,6 +467,35 @@ convention = "thiscall"
 signature = "bool (void* this, void* instance)"
 expect = "83 EC 0C 53 55 8B E9 8B"
 source = "Class and name ours, not analysed. SC4EffectB::SetDescription calls it on the part of the effect at +0x228, with 0 (0x005AED0B) and with the model instance (0x005AEDE4, the answer kept at +0x26C). Not in the effects' code: other classes may use it."
+
+[[entry]]
+name = "SC4EffectPartB::SetWord8"
+address = 0x00989A60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t value)"
+expect = "8B 44 24 04 89 41 08 C2"
+source = "Name ours. Stores its one word at the object's +8 (ret 4). SC4EffectB::SetDescription calls it on the part at +0x228 with 10 (0x005AEDD6); not in the effects' code otherwise, so likely a small setter of a class the part is or holds."
+
+[[entry]]
+name = "SC4Effect::Random"
+address = 0x00B22DF8
+kind = "data"
+source = "Name ours. The effects' random generator (its first word a table): particles' starts, an effect's start and the second class's pick among a description's models (SC4EffectB::SetDescription, 0x005AED5B) draw from it, through 0x009136B1 and 0x00913761. Its 0x10 bytes are put back between the game's and ours' runs in the effects' comparisons."
+
+[[entry]]
+name = "SC4EffectB::SlaveNameFormat"
+address = 0x00AA0CD0
+kind = "data"
+expect = "25 73 5F 73 6C 61 76 65 00"
+source = "Name ours. The format \"%s_slave\": SC4EffectB::SetDescription asks the effects manager whether an effect so named after this one exists (+0x26D)."
+
+[[entry]]
+name = "SC4EffectB::DeathNameFormat"
+address = 0x00AA0CC4
+kind = "data"
+expect = "25 73 5F 64 65 61 74 68 00"
+source = "Name ours. The format \"%s_death\": SC4EffectB::SetDescription asks the effects manager whether an effect so named after this one exists (+0x26E)."
 
 [[entry]]
 name = "SC4EffectPartB::Place"

@@ -60,11 +60,14 @@ Each entry records what was decided and why. When a decision changes, replace th
 - Use other projects' libraries as published, under their licenses; never push AI-assisted changes into their repos uninvited.
 - No AI-generated art in anything posted to Simtropolis/STEX until its rules have been read directly.
 
+## How replacement code is written
+
+**Decided (2026-10-22).** Written by hand from understanding, with the disassembly and decompiler output only as reference. No pasted decompiler output and no machine-made translations: the last of them (the `.inc` files from `tools/re/x86cpp.py`) were removed on 2026-10-22. The rules for contributors are in [CONTRIBUTING.md](../CONTRIBUTING.md).
+
 ## Open decisions
 
 | Decision | Options | Recommendation |
 |---|---|---|
-| How to write replacement code | Transcribe decompiler output (OpenRCT2-style, faster) vs write from understanding (slower, legally cleaner) | Write from understanding, with decompiler output as reference |
 | Renderer backend | D3D11 vs Vulkan vs both | D3D11 first |
 | When to contact other modders | At P0 vs after P1 | At P0. The patch census needs them, and their trust gates P7. |
 | Save compatibility | Read/write original saves forever vs read-only after some phase | Read/write parity through P9 |

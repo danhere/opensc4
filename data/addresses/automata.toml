@@ -10763,7 +10763,7 @@ expect = "55 8B 6C 24 08 56 8B F1"
 source = "Name ours, not analysed. Ret 4: the effect part's vector +0x24 assigned. The game's; called by address from src/core/automata_vehicle.cpp (part ad3)."
 
 [[entry]]
-name = "cSC4AutomatonTank::MakeHighlight1"
+name = "cSC4Tank::MakeHighlight1"
 address = 0x0054CF60
 kind = "function"
 convention = "thiscall"
@@ -10772,7 +10772,7 @@ expect = "81 EC 8C 00 00 00 55 8B"
 source = "Name ours. Tank slot 192, as core slot 126 for the highlight +0x2B8 (part +0x2BC) from key 1 and model 1's transform; nothing when slot 5's object answers its slot 22 (0x4001) or with fewer than two keys. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
 
 [[entry]]
-name = "cSC4AutomatonTank::RemoveHighlight1"
+name = "cSC4Tank::RemoveHighlight1"
 address = 0x0054A950
 kind = "function"
 convention = "thiscall"
@@ -10781,7 +10781,7 @@ expect = "56 8B F1 8B 8E B8 02 00"
 source = "Name ours. Tank slot 193, as core slot 127 for +0x2B8. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
 
 [[entry]]
-name = "cSC4AutomatonTank::UpdateHighlight1"
+name = "cSC4Tank::UpdateHighlight1"
 address = 0x0054C2E0
 kind = "function"
 convention = "thiscall"
@@ -10790,7 +10790,7 @@ expect = "83 EC 6C 56 8B F1 8B 46"
 source = "Name ours. Tank slot 194, as core slot 128 for +0x2B8 (slots 193 and 192, the U-Drive object's slot 56 without an argument, model 1 followed, more than one model, lifted by 1.15 at 0x00A9B7EC). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
 
 [[entry]]
-name = "cSC4AutomatonTank::MakeHighlight2"
+name = "cSC4Tank::MakeHighlight2"
 address = 0x0054CBA0
 kind = "function"
 convention = "thiscall"
@@ -10799,7 +10799,7 @@ expect = "81 EC 8C 00 00 00 55 8B"
 source = "Name ours. Tank slot 195, as 192 for the highlight +0x2FC (part +0x300) from key 2 and model 2's transform (with only two keys, past them, as the game). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
 
 [[entry]]
-name = "cSC4AutomatonTank::RemoveHighlight2"
+name = "cSC4Tank::RemoveHighlight2"
 address = 0x0054A9C0
 kind = "function"
 convention = "thiscall"
@@ -10808,7 +10808,7 @@ expect = "56 8B F1 8B 8E FC 02 00"
 source = "Name ours. Tank slot 196, as core slot 127 for +0x2FC. Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
 
 [[entry]]
-name = "cSC4AutomatonTank::UpdateHighlight2"
+name = "cSC4Tank::UpdateHighlight2"
 address = 0x0054C5B0
 kind = "function"
 convention = "thiscall"
@@ -10817,13 +10817,942 @@ expect = "83 EC 6C 56 8B F1 8B 46"
 source = "Name ours. Tank slot 197, as 194 for +0x2FC (slots 196 and 195, model 2 followed with more than one model: past them with two, as the game; lifted by 1.25 at 0x00A9B7F0). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part ad3)."
 
 [[entry]]
-name = "cSC4AutomatonTank::Lift1"
+name = "cSC4Tank::Lift1"
 address = 0x00A9B7EC
 kind = "data"
 source = "Name ours. float 1.15: tank slot 194 lifts the highlight +0x2B8 toward the camera by model 1's height times it (the core's slot 128 by 1.5, 0x00A880D4)."
 
 [[entry]]
-name = "cSC4AutomatonTank::Lift2"
+name = "cSC4Tank::Lift2"
 address = 0x00A9B7F0
 kind = "data"
 source = "Name ours. float 1.25: tank slot 197 lifts the highlight +0x2FC toward the camera by model 2's height times it."
+
+# Part ro1: the other road vehicles (trailer, bus, getaway van, carjacked vehicle, tank, mayor's limo), the objects, the save, the life cycle and the queries (src/core/automata_roadveh.cpp, docs/automata.md "Part ro").
+
+[[entry]]
+name = "cSC4TrailerVehicle::Create"
+address = 0x00514970
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 E4 02 00 00 E8 66 0C"
+source = "The trailer's GZCOM factory: 0x2E4 bytes from SC4::operator_new, the constructor 0x00556DB0 with four zero words; null when the block is. Registered by 0x00514A00 for class 0x4A5B69ED. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Create"
+address = 0x005146C0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 B8 02 00 00 E8 A6 72"
+source = "The bus's GZCOM factory: 0x2B8 bytes from the vehicle pool (0x0055B970), then a tail jump to the constructor 0x00524360; null when the block is. Registered by 0x00514A00 for class 0xAA9F4A3D. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Create"
+address = 0x005146A0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 B8 02 00 00 E8 C6 72"
+source = "The getaway van's GZCOM factory: 0x2B8 bytes from the vehicle pool, a tail jump to the constructor 0x00533BA0. Class 0xEA863423. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Create"
+address = 0x005146E0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 B8 02 00 00 E8 86 72"
+source = "The carjacked vehicle's GZCOM factory: 0x2B8 bytes from the vehicle pool, a tail jump to the constructor 0x005244C0. Class 0xCBB32B0A. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Create"
+address = 0x00514700
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 7C 03 00 00 E8 66 72"
+source = "The tank's GZCOM factory: 0x37C bytes from the vehicle pool's allocator (which hands them to SC4::operator_new), a tail jump to the constructor 0x0054CD90. Class 0xEBE0DCAD. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::Create"
+address = 0x00514720
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 C4 02 00 00 E8 46 72"
+source = "The mayor's limo's GZCOM factory: 0x2C4 bytes from the vehicle pool's allocator, a tail jump to the constructor 0x0053CEC0. Class 0x4C0DD224. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Construct"
+address = 0x00556DB0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t a, uint32_t b, uint32_t c, uint32_t d)"
+expect = "8B 54 24 0C 56 8B F1 8B"
+source = "Name ours. The trailer's constructor, ret 0x10: cSC4Vehicle's with the four words, the six vtables 0x00A9C490.., the two vectors +0x2B8 and +0x2C4 and the occupant +0x2DC zero, the point +0x2D0 (-1, -1, -1); +0x2E0 not set. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Construct"
+address = 0x00524360
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 83 EC 0C 8B C4 8B F1"
+source = "Name ours. The bus's constructor: cSC4Vehicle's with four zero words, the six vtables 0x00A974D8... Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Construct"
+address = 0x00533BA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 83 EC 0C 8B C4 8B F1"
+source = "Name ours. The getaway van's constructor: cSC4Vehicle's, the six vtables 0x00A98B60... Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Construct"
+address = 0x005244C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 83 EC 0C 8B C4 8B F1"
+source = "Name ours. The carjacked vehicle's constructor: cSC4Vehicle's, the six vtables 0x00A97910... Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Construct"
+address = 0x0054CD90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 57 83 EC 0C 8B C4 33"
+source = "Name ours. The tank's constructor: cSC4Vehicle's, the six vtables 0x00A9B9B8.., the highlights +0x2B8 and +0x2FC null with their effect parts +0x2BC and +0x300 (SC4EffectPartB::Construct), the indices +0x358 and +0x359 0xFF, +0x35C..+0x364 null, the attachments +0x368 (cSC4NetworkBridgeOccupant::AttachmentsConstruct). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::Construct"
+address = 0x0053CEC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 83 EC 0C 8B C4 8B F1"
+source = "Name ours. The limo's constructor: cSC4Vehicle's, the six vtables 0x00A999E0.., +0x2B8 50, +0x2BC 48.0, +0x2C0 10.0. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Destroy"
+address = 0x00556F40
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8B 8E DC 02 00"
+source = "Name ours. The trailer's destructor body: the occupant +0x2DC released (not cleared), the buffers of the cars (+0x2C4) and the words (+0x2B8) freed (SC4::Free; the cars not released), then cSC4Vehicle's 0x00504E70 (a tail jump). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Destroy"
+address = 0x0054CEC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8D 8E 68 03 00"
+source = "Name ours. The tank's destructor body: the attachments destroyed (cSC4NetworkBridgeOccupant::AttachmentsDestroy), the shot +0x364 released, the models +0x360 and +0x35C, the highlight +0x2FC and +0x2B8 released through their virtual base with the effect parts destructed (SC4EffectPartB::Destruct), nothing cleared; then cSC4Vehicle's (a tail jump). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Bus::DeletingDestructor"
+address = 0x00524410
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 58 0A FE FF"
+source = "Name ours. The deleting destructor (+0xC slot 22's target) of the bus, the getaway van and the carjacked vehicle, ret 4: cSC4Vehicle's body, then with flag 1 cSC4Vehicle::Delete (0x2B8 bytes). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::DeletingDestructor"
+address = 0x0053CF60
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 08 7F FC FF"
+source = "Name ours. The limo's deleting destructor, ret 4: cSC4Vehicle's body, then with flag 1 cSC4Vehicle::Delete (0x2C4 bytes). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::DeletingDestructor"
+address = 0x0054CE90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 28 00 00 00"
+source = "Name ours. The tank's deleting destructor, ret 4: its body 0x0054CEC0, then with flag 1 cSC4Vehicle::Delete (0x37C bytes). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::DeletingDestructor"
+address = 0x00556F20
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. The trailer's deleting destructor, ret 4: its body 0x00556F40, then with flag 1 SC4::operator_delete (no null test). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::QueryInterface"
+address = 0x00555A60
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D ED 69 5B"
+source = "The trailer's slot 0, ret 8: 0x4A5B69ED answers the object (AddRef, AL 1); anything else goes on to cSC4Vehicle's 0x0055B660 (a tail jump). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::GetGZCLSID"
+address = 0x00556E50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 ED 69 5B 4A C3"
+source = "The serializable part's slot 5: 0x4A5B69ED. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Bus::GetGZCLSID"
+address = 0x005243B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 3D 4A 9F AA C3"
+source = "The serializable part's slot 5: 0xAA9F4A3D. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::GetGZCLSID"
+address = 0x00533BF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 23 34 86 EA C3"
+source = "The serializable part's slot 5: 0xEA863423. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::GetGZCLSID"
+address = 0x00524510
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 0A 2B B3 CB C3"
+source = "The serializable part's slot 5: 0xCBB32B0A. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::GetGZCLSID"
+address = 0x0054CE30
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 AD DC E0 EB C3"
+source = "The serializable part's slot 5: 0xEBE0DCAD. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::GetGZCLSID"
+address = 0x0053CF30
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 24 D2 0D 4C C3"
+source = "The serializable part's slot 5: 0x4C0DD224. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Write"
+address = 0x00524160
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The bus's +8 slot 3 (this = the object + 8), ret 4, shared with cSC4TrainCar: version 2 (uint16), then cSC4Vehicle's Write 0x0055F640 (its EAX). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Read"
+address = 0x00557010
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The bus's +8 slot 4, ret 4, shared with cSC4TrainCar: the version (uint16) into the stream argument's own stack slot; AL 0 unless 2; else cSC4Vehicle's Read 0x0055BCF0 (its EAX). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Write"
+address = 0x0053CE00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The carjacked vehicle's and the limo's +8 slot 3, ret 4: version 1, then cSC4Vehicle's Write (its EAX). Not in Ghidra's function list (0x00524540 jumps here). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Read"
+address = 0x00524490
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The carjacked vehicle's and the limo's +8 slot 4, ret 4: the version into the stream argument's slot; AL 0 unless 1; else cSC4Vehicle's Read (its EAX). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Write"
+address = 0x00533B00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. The getaway van's +8 slot 3, ret 4: version 3, cSC4Vehicle's Write; when true a false (SC4Stream::WriteBool) and a zero (stream slot 0x20). AL cSC4Vehicle's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Read"
+address = 0x00533B40
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. The getaway van's +8 slot 4, ret 4: AL 0 unless the version is 3; cSC4Vehicle's Read; when true a bool (SC4Stream::ReadBool) and a word (stream slot 0x20) read and dropped. AL cSC4Vehicle's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Write"
+address = 0x0054AA30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "83 EC 08 53 56 57 8B 7C"
+source = "Name ours. The tank's +8 slot 3, ret 4: version 2, cSC4Vehicle's Write; when true the indices of the turret (+0x35C) and barrel (+0x360) models in the core's model vector +0x110 (the last match; 0xFF for none) as two sint8s (stream slot 0x10). AL cSC4Vehicle's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Read"
+address = 0x0054A8E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The tank's +8 slot 4, ret 4: the version into the stream argument's slot; AL 0 above 2; else cSC4Vehicle's Read and, when true with version 2, the two indices into +0x358 and +0x359; EAX 1 when the stream has no error (slot 0x48), else 0 (cSC4Vehicle's answer not used). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Write"
+address = 0x005562A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The trailer's +8 slot 3, ret 4: version 2, cSC4Vehicle's Write; when true the cars' count and a reference each (SC4Stream::WriteReference), the words' count and words, the point +0x2D0 (SC4Stream::WriteVector3), the occupant +0x2DC (a reference) and +0x2E0. AL cSC4Vehicle's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Read"
+address = 0x00556C30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* stream)"
+expect = "83 EC 0C 55 8B E9 56 8B"
+source = "Name ours. The trailer's +8 slot 4, ret 4: AL 0 unless the version is 2; cSC4Vehicle's Read; when true the cars (references read as 0x896E714A into a local zeroed each time, pushed when not null), the words (into the same local, not zeroed: a failed read pushes the one before again; zero words skipped; both counts in one local; SC4PtrVector::InsertN when full), the point (SC4Stream::ReadVector3), the occupant (released and cleared, then read as 0xA821EF94) and +0x2E0. AL cSC4Vehicle's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Init"
+address = 0x00555A30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 06 6A 01 68"
+source = "Name ours. The trailer's slot 3: the automata flag 0x10000000 set (slot 30), then cSC4Vehicle's Init 0x0055B9B0 (a tail jump). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Shutdown"
+address = 0x005563C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "53 56 57 8B F1 E8 26 9F"
+source = "Name ours. The trailer's slot 4: cSC4Vehicle's Shutdown 0x005602F0; the occupant cleared and released; each car given its slot 13 (0) and released; the cars' vector emptied (the words kept). AL cSC4Vehicle's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::Init"
+address = 0x0053CE20
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 0C 53 56 57 8B F9"
+source = "Name ours. The limo's slot 3: cSC4Vehicle's Init (its answer dropped, no early way out); the property 0xEC15654A as floats (SC4::GetPropertyFloatVector on the occupant part's slot 6 holder): the first truncated (__ftol2) into +0x2B8, the second and third into +0x2BC and +0x2C0 when there are that many; the buffer freed. AL 1. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Init"
+address = 0x0054C880
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 28 56 8B F1 8B 46"
+source = "Name ours. The tank's slot 3: AL 1 when initialised; else cSC4Vehicle's Init (dropped); with the core's byte +0x3C and both indices set, the models of those indices (when they differ, are above 0 and below the count) held at +0x35C and +0x360 (0x004201D0); else both released and made by index (core slot 99 with 1 and 2). Then +0x350 0.2, +0x34C 0, +0x354 65, +0x340 0; the attachments bound to the barrel model's drawable (slot 2), the shot effect 'fx_00_tankshot' / 'tankshot' (slot 9) held at +0x364, the attachments' slot 5, the tank's slots 192 and 195. AL 1. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Shutdown"
+address = 0x0054A850
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 46 04 8D 4E"
+source = "Name ours. The tank's slot 4: when initialised the two models released and cleared, the shot stopped (its slot 4 with 1) and, when still there, cleared and released; then cSC4Vehicle's Shutdown (a tail jump). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::RearPoint"
+address = 0x00555AE0
+kind = "function"
+convention = "thiscall"
+signature = "float* (void* this, float* out)"
+expect = "8B 81 C4 02 00 00 3B 81"
+source = "Name ours. The trailer's slot 66, ret 4: with no cars the core's 0x00505A40 (the position less the heading times the radius); else the last car's slot 66 (both tail jumps). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CarCount"
+address = 0x00556ED0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "8B 81 C8 02 00 00 2B 81"
+source = "Name ours. The trailer's slot 193: the number of cars (+0x2C4 vector). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::WordCount"
+address = 0x00556EE0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "8B 81 BC 02 00 00 2B 81"
+source = "Name ours. The trailer's slot 194: the number of words (+0x2B8 vector). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4Tank::DebugText"
+address = 0x0054CAA0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The tank's slot 93: the static string 0x00B22908 formatted (0x00A9B810) with the shot's slot 5 (no null test), the mouse point +0x344, the heading +0x58, the turret and barrel angles and the velocity times 0.01. Answers the string. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::RearPoint"
+address = 0x00505A40
+kind = "function"
+convention = "thiscall"
+signature = "float* (void* this, float* out)"
+expect = "83 EC 0C 8B 44 24 10 8B"
+source = "Name ours. Core slot 66, ret 4: the position less the heading (+0x58) times the radius (+0x7C) into out; EAX out. Left the game's. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::DebugTextAtExit"
+address = 0x00A7B4F0
+kind = "function"
+convention = "cdecl"
+signature = "void (void)"
+expect = "A1 0C 29 B2 00 85 C0 C7"
+source = "Name ours. The destructor of the static string 0x00B22908, given to SC4::atexit. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::DebugTextString"
+address = 0x00B22908
+kind = "data"
+source = "Name ours. The tank's debug text, a static string (0x14 bytes). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::DebugTextGuard"
+address = 0x00B2291C
+kind = "data"
+source = "Name ours. Bit 1: the static string 0x00B22908 made. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::DebugFormat"
+address = 0x00A9B810
+kind = "data"
+expect = "46 69 72 69 6E 67 3A 20"
+source = "Name ours. \"Firing: %d, Mouse(%3.0f,%3.0f), Orientation<%3.2f,%3.2f,%3.2f>, TurretAngle %3.2f, BarrelAngle %3.2f, BarrelVelocity %3.2f\". Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::ShotName"
+address = 0x00A9B804
+kind = "data"
+expect = "74 61 6E 6B 73 68 6F 74"
+source = "Name ours. \"tankshot\". Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::ShotEffectName"
+address = 0x00A9B7F4
+kind = "data"
+expect = "66 78 5F 30 30 5F 74 61"
+source = "Name ours. \"fx_00_tankshot\". Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::VelocityScale"
+address = 0x00A9B7C8
+kind = "data"
+expect = "0A D7 23 3C"
+source = "Name ours. float 0.01: the tank's debug text shows the velocity +0x354 times it. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Vtable"
+address = 0x00A9C490
+kind = "data"
+expect = "60 5A 55 00 F0 28 5E 00"
+source = "cSC4TrailerVehicle's main vtable (199 slots). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Vtable4"
+address = 0x00A9C408
+kind = "data"
+expect = "60 6E 55 00 B0 29 5E 00"
+source = "cSC4TrailerVehicle's +4 vtable (the occupant part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Vtable8"
+address = 0x00A9C3EC
+kind = "data"
+expect = "80 6E 55 00 E0 29 5E 00"
+source = "cSC4TrailerVehicle's +8 vtable (the serializable part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::VtableC"
+address = 0x00A9C388
+kind = "data"
+expect = "90 6E 55 00 10 2A 5E 00"
+source = "cSC4TrailerVehicle's +0xC vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Vtable20"
+address = 0x00A9C374
+kind = "data"
+expect = "B0 6E 55 00 A0 06 5E 00"
+source = "cSC4TrailerVehicle's +0x20 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::Vtable38"
+address = 0x00A9C364
+kind = "data"
+expect = "C0 6E 55 00 30 AF 4F 00"
+source = "cSC4TrailerVehicle's +0x38 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Vtable"
+address = 0x00A974D8
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4Bus's main vtable (192 slots). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Vtable4"
+address = 0x00A97450
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4Bus's +4 vtable (the occupant part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Vtable8"
+address = 0x00A97434
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4Bus's +8 vtable (the serializable part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Bus::VtableC"
+address = 0x00A973D0
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4Bus's +0xC vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Vtable20"
+address = 0x00A973B8
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4Bus's +0x20 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Bus::Vtable38"
+address = 0x00A973A8
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4Bus's +0x38 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Vtable"
+address = 0x00A98B60
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4GetawayVan's main vtable (192 slots). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Vtable4"
+address = 0x00A98AD8
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4GetawayVan's +4 vtable (the occupant part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Vtable8"
+address = 0x00A98ABC
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4GetawayVan's +8 vtable (the serializable part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::VtableC"
+address = 0x00A98A58
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4GetawayVan's +0xC vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Vtable20"
+address = 0x00A98A40
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4GetawayVan's +0x20 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4GetawayVan::Vtable38"
+address = 0x00A98A30
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4GetawayVan's +0x38 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Vtable"
+address = 0x00A97910
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4CarjackedVehicle's main vtable (192 slots). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Vtable4"
+address = 0x00A97888
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4CarjackedVehicle's +4 vtable (the occupant part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Vtable8"
+address = 0x00A9786C
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4CarjackedVehicle's +8 vtable (the serializable part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::VtableC"
+address = 0x00A97808
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4CarjackedVehicle's +0xC vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Vtable20"
+address = 0x00A977F4
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4CarjackedVehicle's +0x20 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Vtable38"
+address = 0x00A977E4
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4CarjackedVehicle's +0x38 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Vtable"
+address = 0x00A9B9B8
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4Tank's main vtable (198 slots). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Vtable4"
+address = 0x00A9B930
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4Tank's +4 vtable (the occupant part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Vtable8"
+address = 0x00A9B914
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4Tank's +8 vtable (the serializable part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::VtableC"
+address = 0x00A9B8B0
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4Tank's +0xC vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Vtable20"
+address = 0x00A9B89C
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4Tank's +0x20 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4Tank::Vtable38"
+address = 0x00A9B88C
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4Tank's +0x38 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::Vtable"
+address = 0x00A999E0
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4MayorLimo's main vtable (192 slots). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::Vtable4"
+address = 0x00A99958
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4MayorLimo's +4 vtable (the occupant part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::Vtable8"
+address = 0x00A9993C
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4MayorLimo's +8 vtable (the serializable part). Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::VtableC"
+address = 0x00A998D8
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4MayorLimo's +0xC vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::Vtable20"
+address = 0x00A998C4
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4MayorLimo's +0x20 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+[[entry]]
+name = "cSC4MayorLimo::Vtable38"
+address = 0x00A998B4
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4MayorLimo's +0x38 vtable. Called by address from src/core/automata_roadveh.cpp (part ro1)."
+
+# Part ro2: the other road vehicles' frames (src/core/automata_roadveh.cpp, docs/automata.md "Part ro").
+
+[[entry]]
+name = "cSC4TrailerVehicle::Frame"
+address = 0x00555B50
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t word, float seconds)"
+expect = "8B 44 24 04 53 56 57 8B"
+source = "Name ours. The trailer's slot 72, ret 8: cSC4Vehicle's frame (0x0055BA20); while the point +0x2D0 is unset (x or z below 0) the last car's (or its own) position (slot 7), occupant (slot 137, referenced, into +0x2DC) and groups (slot 136, into +0x2E0); slot 195 while there are more words than cars; then slot 197 with the flag 0x2000, else slot 196 (seconds). AL the frame's. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CanMeet"
+address = 0x00556260
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* automaton)"
+expect = "56 57 8B F1 8B BE C8 02"
+source = "Name ours. The trailer's slot 73, ret 4: false for one of its cars (SC4::FindUint32), else the core's slot 73 (0x005059C0). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::SetTemplate"
+address = 0x00555B10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* from)"
+expect = "53 57 8B 7C 24 0C 57 8B"
+source = "Name ours. The trailer's slot 95, ret 4: the core's slot 95 (0x0050F140), then slot 192 with each word of the template's list (+0x50). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::EnterOccupant"
+address = 0x00555A90
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, uint32_t groups, void* path, uint32_t keep)"
+expect = "56 8B F1 8B 96 B8 02 00"
+source = "Name ours. The trailer's slot 132, ret 0x10: slot 181 (the deque +0x27C, the word count plus one on its low byte), then cSC4Vehicle's slot 132 (0x0055D5A0). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::PushWord"
+address = 0x00556380
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t word)"
+expect = "8B 81 BC 02 00 00 8B 91"
+source = "Name ours. The trailer's slot 192, ret 4: the word pushed on +0x2B8 (SC4PtrVector::InsertN when full). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::AddCar"
+address = 0x00556A30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 14 53 55 57 8B F9"
+source = "Name ours. The trailer's slot 195: a car of the word at the car count made by the vehicle manager's slot 15 once the last car (or the trailer) is twice its radius from the point +0x2D0; led by the last car (slot 49), placed at the point (slot 16), given the occupant +0x2DC (slot 132), pushed and referenced. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::FollowPath"
+address = 0x00556460
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float seconds)"
+expect = "81 EC D4 00 00 00 55 56"
+source = "Name ours. The trailer's slot 196, ret 4: the cars placed where the path (walked back from +0x1F8/+0x1FC and then the deque +0x27C) crosses the segment through the rear point of the one before (slot 198). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::FollowLeader"
+address = 0x00555C70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float seconds)"
+expect = "81 EC E0 00 00 00 53 55"
+source = "Name ours. The trailer's slot 197, ret 4: each car placed its radius behind the rear point of the one before, its front moved by slot 38 or set from the terrain (0x00B43D54 slot 18) by the state 0x10's record. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CrossPath"
+address = 0x005560D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const float* centre, const float* a, const float* b, float* out)"
+expect = "83 EC 2C 56 8B 74 24 38"
+source = "Name ours. The trailer's slot 198, ret 0x10: where a-b crosses (x, z) the 200-metre segment through the centre square to it; y by the share of the squared distances (0x005D6FC0). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4Bus::DriveFrame"
+address = 0x00524180
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 1C 57 8B F9 8B 07"
+source = "Name ours. The bus's slot 164, ret 4: the base's without the flags 0x20 and 4 or at the end of the state's timer; else the timer down and, on half the draws, a waiting occupant (0xA9B40F05 in the state 4) in the 16-metre square removed, else slot 53. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4Bus::Slot172"
+address = 0x005240D0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, uint32_t b, void* c, uint32_t d)"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "Name ours. The bus's slot 172, ret 0x10: the state 0x1E (slot 52) when c's stop answers 0x1301 (slots 48, 3, 22) and slot 173 (a, b) does; else the base's (0x0054D830). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::Slot101"
+address = 0x00524440
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 E8 18 8A FE FF"
+source = "Name ours. The carjacked vehicle's slot 101: the core's (0x0050CE60), then slot 184, the sound 0x00B09AB0 (slot 22) and slot 61 (0xCBC17DDF). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4GetawayVan::Slot101"
+address = 0x005339B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 14 55 8B E9 89 6C"
+source = "Name ours. The getaway van's slot 101: the core's (0x0050CE60), then slot 184 and the siren (slot 22), loud for the driven automaton (city slot 49), by the police and 0x00B43D70 maps at its cell, else on half the draws. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4MayorLimo::Steer"
+address = 0x0053CD30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* controls, float seconds)"
+expect = "8B 44 24 08 55 8B 6C 24"
+source = "Name ours. The limo's slot 121, ret 8: cSC4Vehicle's (0x0055C600); with the controls' +0x98 above 1000, 50 paid (budget slots 6 and 8, 0x00B43DC4 slots 43, 50, 44) or the core's 0x0050D870; 0x00B43D60 slot 7 (x, z, 48, 10); +0x98 zeroed. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4Tank::RemoveHighlights"
+address = 0x0054A750
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 A8 E5 FB FF"
+source = "Name ours. The tank's slot 127: the core's (0x00508D00), then slots 193 and 196 (both tank highlights off). Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::CanMeet"
+address = 0x005059C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* automaton)"
+expect = "53 56 8B 74 24 0C 32 DB"
+source = "Name ours. Core slot 73, ret 4: false for null or itself; else by the other's flag 8 and slot 85, and with the flag 0x200000 on this one by the other's flag 0x200000 and its +4 part's slot 33 bit 4. Left the game's. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Slot101"
+address = 0x0050CE60
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 10 57 8B F9 8A 47"
+source = "Name ours. Core slot 101: with the byte +0x3C and no +0x1C4, +0x1C4 from the groups the +4 part's slot 24 lists. AL 1. Left the game's. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4AutomatonCore::SetTemplate"
+address = 0x0050F140
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* from)"
+expect = "56 8B 74 24 08 85 F6 57"
+source = "Name ours. Core slot 95, ret 4: +0x1C4 from the template's +0x10; with +0x58 above 0 a speed drawn from the core's generator into +0x80 and slot 36; then 0x0050D870 and 0x0050D580. Left the game's. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "SC4::DistanceSquared2D"
+address = 0x005D6FC0
+kind = "function"
+convention = "cdecl"
+signature = "double (const float* a, const float* b)"
+expect = "8B 44 24 08 8B 4C 24 04"
+source = "Name ours. cdecl: (b - a) squared in two floats, (dy * dy + dx * dx) unrounded in ST0. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::FillValue"
+address = 0x00B22954
+kind = "data"
+source = "Name ours. A float (bss) the trailer's frames fill their points with before slots write them. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::One"
+address = 0x00B0A088
+kind = "data"
+expect = "00 00 80 3F 83 F9 22 3E"
+source = "Name ours. 1.0 as a float, the trailer's frames' unit length. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CrossEpsilon"
+address = 0x00A9C35C
+kind = "data"
+expect = "17 B7 D1 38 00 00 C8 42"
+source = "Name ours. 1e-4 as a float: the least segment of slot 198. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4TrailerVehicle::CrossScale"
+address = 0x00A9C360
+kind = "data"
+expect = "00 00 C8 42 C0 6E 55 00"
+source = "Name ours. 100.0 as a float: half the length of the crossing segment of slot 198. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4Bus::Reach"
+address = 0x00B09AA4
+kind = "data"
+expect = "00 00 80 41 E8 06 A8 00"
+source = "Name ours. 16.0 as a float: half the square the bus's slot 164 searches. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4GetawayVan::CellScale"
+address = 0x00A98A28
+kind = "data"
+expect = "00 00 80 3D 17 B7 D1 38"
+source = "Name ours. 0.0625 as a float: metres to cells for the van's siren. Called by address from src/core/automata_roadveh.cpp (part ro2)."
+
+[[entry]]
+name = "cSC4CarjackedVehicle::SoundKey"
+address = 0x00B09AB0
+kind = "data"
+expect = "17 E8 D0 5A F1 57 DB BA"
+source = "Name ours. The carjacked vehicle's sound key (0x5AD0E817, 0xBADB57F1, a word). Called by address from src/core/automata_roadveh.cpp (part ro2)."
