@@ -506,8 +506,8 @@ using Call5Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t
 Call0Fn g_SC4EffectBase_Finish = nullptr;
 void TSC4EffectBase_Finish();
 
-// A particle's start (0x005B7580) is the game's; the pool's comparison
-// watches it.
+// A particle's start (0x005B7580), written by hand in effects_setup.h; the
+// pool's comparison watches it.
 Call1Fn g_startParticle = nullptr;
 
 // --- The effect's small functions ------------------------------------------------------------
@@ -869,8 +869,14 @@ uint32_t LoadTextureByMode(char* self, uint32_t which)
     return result;
 }
 
+// In a noted run (an effect given its description) noted, with the two
+// words it leaves (SuTextureNoted, with the set-up).
+uint32_t SuTextureNoted(char* self, uint32_t which);
+
 uint32_t __fastcall DSC4Effect_LoadTexture(char* self, void*, uint32_t which)
 {
+    if (StNoting())
+        return SuTextureNoted(self, which);
     return LoadTextureByMode(self, which);
 }
 OPENSC4_THUNK(TSC4Effect_LoadTexture, DSC4Effect_LoadTexture, 4)
@@ -1181,6 +1187,9 @@ bool g_takeWatch = false;
 uint32_t g_takeGameParticle = 0, g_takeGameFree = 0;
 char g_takeGameBytes[kParticleBytes];
 
+// The start by its own mode (renderer.effects.start, with the set-up below).
+uint32_t StartByMode(char* effect, uint32_t particle);
+
 uint32_t __fastcall DStartParticle(char* effect, void*, uint32_t particle)
 {
     if (g_takeWatch && !g_takeGameParticle) {
@@ -1188,7 +1197,7 @@ uint32_t __fastcall DStartParticle(char* effect, void*, uint32_t particle)
         g_takeGameFree = Global<uint32_t>(kParticleFree);
         std::memcpy(g_takeGameBytes, reinterpret_cast<char*>(particle), kParticleBytes);
     }
-    return g_startParticle(effect, nullptr, particle);
+    return StartByMode(effect, particle);
 }
 OPENSC4_THUNK(TStartParticle, DStartParticle, 4)
 
@@ -2134,13 +2143,25 @@ bool MxNoting();
 template <typename Real>
 uint32_t MxConstructNoted(uint32_t constructor, char* object, Real&& real);
 
-// The effect's own constructor (0x005B2B50) is the game's. While a maker
-// is noted, its constructor call is noted too.
+// The effect's own constructor (0x005B2B50), written by hand in
+// effects_setup.h. While a maker is noted, its constructor call is noted
+// too.
+uint32_t ConstructEffect(char* self);
+
+uint32_t EffectCtorRun(char* self)
+{
+    if (g_ctorMode == StepMode::Original)
+        return g_SC4Effect_Construct(self, nullptr);
+    if (g_ctorMode == StepMode::Ours)
+        return ConstructEffect(self);
+    return CtorCompared("effects.ctor.effect", self, kEffectSize, 0x14, g_SC4Effect_Construct, &ConstructEffect);
+}
+
 uint32_t __fastcall EffectCtorByMode(char* self, void*)
 {
     if (!MxNoting())
-        return g_SC4Effect_Construct(self, nullptr);
-    return MxConstructNoted(addr::SC4Effect_Construct, self, [&] { return g_SC4Effect_Construct(self, nullptr); });
+        return EffectCtorRun(self);
+    return MxConstructNoted(addr::SC4Effect_Construct, self, [&] { return EffectCtorRun(self); });
 }
 OPENSC4_THUNK(TSC4Effect_Construct, EffectCtorByMode, 0)
 
@@ -2215,7 +2236,7 @@ const bool g_registeredCtor = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4Effect_Construct,
-    "The second effect class's constructor and the sub-object's (the base class's own is still the game's): the "
+    "The effects' constructors (the base class's, the second class's and the sub-object's): the "
     "tables of functions, an empty particle list and the fields' first values; compare mode runs ours and the "
     "game's on the same memory (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
@@ -12738,6 +12759,525 @@ const bool g_registeredTime = registry::Register({
     "helpers and compares the store's way (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallTime,
+});
+
+// --- An effect's set-up ----------------------------------------------------------------------
+//
+// The base class's constructor (in renderer.effects.ctor above), an
+// effect's transform, its particles' axes, its start and a new particle put
+// on the ground (effects_setup.h). Each writes only the effect (and the
+// particle) and draws random numbers from the generator at 0x00B22DF8; the
+// terrain's answers it asks for are the same twice. So the comparison runs
+// ours, keeps what it left of the effect, the particle and the generator,
+// puts them back and runs the game's: the two must leave the same bytes and
+// give the same answer (by its low byte).
+#include "core/effects_setup.h"
+
+constexpr std::uintptr_t kSetupGenerator = 0x00B22DF8;
+constexpr std::size_t kSetupGeneratorSize = 0x10;
+
+template <typename Ours, typename Game>
+uint32_t SuCompared(const char* id, char* self, char* particle, Ours&& ours, Game&& game)
+{
+    char* const generator = reinterpret_cast<char*>(kSetupGenerator);
+    constexpr std::size_t kGeneratorAt = kEffectSize, kParticleAt = kGeneratorAt + kSetupGeneratorSize,
+                          kTotal = kParticleAt + kParticleBytes;
+    char before[kTotal] = {}, mine[kTotal] = {}, theirs[kTotal] = {};
+    const auto save = [&](char* to) {
+        std::memcpy(to, self, kEffectSize);
+        std::memcpy(to + kGeneratorAt, generator, kSetupGeneratorSize);
+        if (particle)
+            std::memcpy(to + kParticleAt, particle, kParticleBytes);
+    };
+    const auto restore = [&](const char* from) {
+        std::memcpy(self, from, kEffectSize);
+        std::memcpy(generator, from + kGeneratorAt, kSetupGeneratorSize);
+        if (particle)
+            std::memcpy(particle, from + kParticleAt, kParticleBytes);
+    };
+    save(before);
+    const uint32_t ourResult = ours();
+    save(mine);
+    restore(before);
+    const uint32_t result = game();
+    save(theirs);
+    const bool same = (result & 0xFF) == (ourResult & 0xFF) && std::memcmp(theirs, mine, kTotal) == 0;
+    std::string gameText, ourText;
+    if (!same) {
+        std::size_t at = 0;
+        while (at < kTotal && theirs[at] == mine[at])
+            ++at;
+        at = at < kTotal ? at & ~std::size_t{3} : 0;
+        char text[48];
+        std::snprintf(text, sizeof text, "%s+%zX ",
+                      at < kGeneratorAt ? "effect" : at < kParticleAt ? "generator" : "particle",
+                      at < kGeneratorAt ? at : at < kParticleAt ? at - kGeneratorAt : at - kParticleAt);
+        char answer[24];
+        std::snprintf(answer, sizeof answer, " answer %02X", result & 0xFF);
+        gameText = text + Hex(theirs + at, 8) + answer;
+        std::snprintf(answer, sizeof answer, " answer %02X", ourResult & 0xFF);
+        ourText = text + Hex(mine + at, 8) + answer;
+    }
+    compare::Record(id, same, gameText, ourText);
+    return result;
+}
+
+StepMode g_transformMode = StepMode::Original, g_axesMode = StepMode::Original, g_beginMode = StepMode::Original,
+         g_groundMode = StepMode::Original;
+Call2Fn g_SC4Effect_SetTransform = nullptr;
+Call1Fn g_SC4Effect_BeforeParticles = nullptr, g_SC4Effect_Begin = nullptr, g_SC4Effect_PlaceOnGround = nullptr;
+
+// The three that answer nothing (the game's answer is a left-over
+// register) are compared on what they leave only.
+uint32_t __fastcall SuTransformByMode(char* self, void*, uint32_t first, uint32_t second)
+{
+    const auto game = [&] { return g_SC4Effect_SetTransform(self, nullptr, first, second); };
+    const auto ours = [&] {
+        SetEffectTransform(self, Ptr(first), Ptr(second));
+        return 0u;
+    };
+    if (g_transformMode == StepMode::Original)
+        return game();
+    if (g_transformMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.transform", self, nullptr, ours, [&] {
+        game();
+        return 0u;
+    });
+}
+OPENSC4_THUNK(TSuTransform, SuTransformByMode, 8)
+
+uint32_t __fastcall SuAxesByMode(char* self, void*, uint32_t context)
+{
+    const auto game = [&] { return g_SC4Effect_BeforeParticles(self, nullptr, context); };
+    const auto ours = [&] {
+        SetEffectAxes(self, Ptr(context));
+        return 0u;
+    };
+    if (g_axesMode == StepMode::Original)
+        return game();
+    if (g_axesMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.axes", self, nullptr, ours, [&] {
+        game();
+        return 0u;
+    });
+}
+OPENSC4_THUNK(TSuAxes, SuAxesByMode, 4)
+
+uint32_t __fastcall SuBeginByMode(char* self, void*, uint32_t again)
+{
+    const auto game = [&] { return g_SC4Effect_Begin(self, nullptr, again); };
+    const auto ours = [&] {
+        BeginEffect(self, again);
+        return 0u;
+    };
+    if (g_beginMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_beginMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.begin", self, nullptr, ours, [&] {
+        game();
+        return 0u;
+    });
+}
+OPENSC4_THUNK(TSuBegin, SuBeginByMode, 4)
+
+uint32_t __fastcall SuGroundByMode(char* self, void*, uint32_t particle)
+{
+    const auto game = [&] { return g_SC4Effect_PlaceOnGround(self, nullptr, particle); };
+    const auto ours = [&] { return PlaceParticleOnGround(self, Ptr(particle)); };
+    if (g_groundMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_groundMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.ground", self, Ptr(particle), ours, game);
+}
+OPENSC4_THUNK(TSuGround, SuGroundByMode, 4)
+
+StepMode g_startMode = StepMode::Original;
+
+uint32_t StartByMode(char* effect, uint32_t particle)
+{
+    const auto game = [&] {
+        g_startParticle(effect, nullptr, particle);
+        return 0u;
+    };
+    const auto ours = [&] {
+        StartParticle(effect, Ptr(particle));
+        return 0u;
+    };
+    if (g_startMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_startParticle(effect, nullptr, particle);
+    if (g_startMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.start", effect, Ptr(particle), ours, game);
+}
+
+template <typename Fn, typename Thunk>
+bool SuInstall(registry::Mode mode, StepMode& target, uint32_t address, Thunk thunk, Fn* original, const char* what)
+{
+    if (!game::IsBuild641() || !(*original || Detour(address, thunk, original)))
+        return false;
+    target = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: %s %s", what, mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallSetupTransform(registry::Mode mode)
+{
+    return SuInstall(mode, g_transformMode, addr::SC4Effect_SetTransform, &TSuTransform, &g_SC4Effect_SetTransform,
+                     "an effect's transform");
+}
+
+bool InstallSetupAxes(registry::Mode mode)
+{
+    return SuInstall(mode, g_axesMode, addr::SC4Effect_BeforeParticles, &TSuAxes, &g_SC4Effect_BeforeParticles,
+                     "an effect's particle axes");
+}
+
+bool InstallSetupBegin(registry::Mode mode)
+{
+    return SuInstall(mode, g_beginMode, addr::SC4Effect_Begin, &TSuBegin, &g_SC4Effect_Begin, "an effect's start");
+}
+
+bool InstallSetupGround(registry::Mode mode)
+{
+    return SuInstall(mode, g_groundMode, addr::SC4Effect_PlaceOnGround, &TSuGround, &g_SC4Effect_PlaceOnGround,
+                     "a new particle put on the ground");
+}
+
+bool InstallSetupStart(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !HookStart())
+        return false;
+    g_startMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a new particle's start %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredSetupStart = registry::Register({
+    "renderer.effects.start",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StartParticle,
+    "A new particle's start (0x005B7580): its life, position, velocity, size and spin from the effect, its "
+    "description and random numbers; compare mode runs ours and the game's on the same effect, particle and "
+    "generator (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallSetupStart,
+});
+
+const bool g_registeredSetupTransform = registry::Register({
+    "renderer.effects.transform",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_SetTransform,
+    "An effect's transform (0x005B3430): the two blocks kept and the effect's centre and box moved by them; "
+    "compare mode runs ours and the game's on the same effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallSetupTransform,
+});
+
+const bool g_registeredSetupAxes = registry::Register({
+    "renderer.effects.axes",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_BeforeParticles,
+    "The two axes an effect's particles are drawn along (0x005B3B90), taken again when the view turns; compare mode "
+    "runs ours and the game's on the same effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallSetupAxes,
+});
+
+const bool g_registeredSetupBegin = registry::Register({
+    "renderer.effects.begin",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_Begin,
+    "An effect started (0x005B3000): its clocks set back, its pull, and the random drift, speed and delay its "
+    "description asks for; compare mode runs ours and the game's on the same effect and generator "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallSetupBegin,
+});
+
+const bool g_registeredSetupGround = registry::Register({
+    "renderer.effects.ground",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_PlaceOnGround,
+    "A new particle put on the ground (0x005B71E0) or ended there; compare mode runs ours and the game's on the "
+    "same effect, particle and generator (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallSetupGround,
+});
+
+// --- A description's constructor and its read ------------------------------------------------
+//
+// The inner constructor (0x005B0FE0) and the read from the effects file
+// (0x005B1DC0), written by hand in effects_setup.h. Both leave lists and a
+// string behind, so two descriptions are compared field by field: the
+// words as they are, and each list's or string's three pointers by its
+// length, its room and its bytes (the third list's records string by
+// string, with their value). The bytes no function writes (+0xD6, +0xD7,
+// +0x1C8) and the count of holders (+0x204) are left out.
+constexpr std::size_t kDescriptionSize = 0x208;
+struct SuVector {
+    uint32_t at, item;
+};
+constexpr SuVector kDescriptionVectors[] = {{0x88, 4},     {0x94, 12},    {0xA0, 4},     {0xAC, 4},  {0xB8, 4},
+                                            {0xC4, 4},     {0x108, 0x1C}, {0x12C, 4},    {0x160, 1}, {0x1A4, 4},
+                                            {0x1B8, 0x20}, {0x1CC, 0x10}, {0x1E0, 4},    {0x1F4, 4}};
+
+// The first place the two differ, or -1.
+int32_t SuDescriptionsDiffer(char* a, char* b)
+{
+    for (uint32_t at = 0; at < 0x204;) {
+        const SuVector* vector = nullptr;
+        for (const SuVector& v : kDescriptionVectors)
+            vector = v.at == at ? &v : vector;
+        if (vector) {
+            char* const first = At<char*>(a, at);
+            char* const second = At<char*>(b, at);
+            const uint32_t used = At<char*>(a, at + 4) - first, room = At<char*>(a, at + 8) - first;
+            if (used != static_cast<uint32_t>(At<char*>(b, at + 4) - second) ||
+                room != static_cast<uint32_t>(At<char*>(b, at + 8) - second))
+                return static_cast<int32_t>(at);
+            if (at == 0x1CC) {
+                for (uint32_t record = 0; record < used; record += 0x10) {
+                    char* const x = first + record;
+                    char* const y = second + record;
+                    const uint32_t length = At<char*>(x, 4) - At<char*>(x, 0);
+                    if (length != static_cast<uint32_t>(At<char*>(y, 4) - At<char*>(y, 0)) ||
+                        At<uint32_t>(x, 0xC) != At<uint32_t>(y, 0xC) ||
+                        (length && std::memcmp(At<char*>(x, 0), At<char*>(y, 0), length) != 0))
+                        return static_cast<int32_t>(at);
+                }
+            } else if (used && std::memcmp(first, second, used) != 0) {
+                return static_cast<int32_t>(at);
+            }
+            at += 12;
+            continue;
+        }
+        if (at == 0xD4) {
+            if (At<uint16_t>(a, at) != At<uint16_t>(b, at))
+                return static_cast<int32_t>(at);
+        } else if (at != 0x1C8 && At<uint32_t>(a, at) != At<uint32_t>(b, at)) {
+            return static_cast<int32_t>(at);
+        }
+        at += 4;
+    }
+    return -1;
+}
+
+// What ours' description holds freed: the lists, the third list's
+// strings and the string.
+void SuFreeDescriptionParts(char* description)
+{
+    const auto release = [](char* storage) {
+        if (storage)
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(storage);
+    };
+    for (char* record = At<char*>(description, 0x1CC); record && record < At<char*>(description, 0x1D0);
+         record += 0x10)
+        release(At<char*>(record, 0));
+    for (const SuVector& v : kDescriptionVectors)
+        release(At<char*>(description, v.at));
+}
+
+StepMode g_descCtorMode = StepMode::Original, g_descReadMode = StepMode::Original;
+Call0Fn g_SC4EffectDescription_Construct = nullptr;
+using SuReadFn = uint32_t(__cdecl*)(uint32_t, uint32_t);
+SuReadFn g_SC4EffectDescription_Read = nullptr;
+
+void SuRecordDescription(const char* id, int32_t at)
+{
+    char text[32];
+    std::snprintf(text, sizeof text, "first at +%X", at < 0 ? 0 : at);
+    compare::Record(id, at < 0, at < 0 ? std::string() : std::string("the game's"), at < 0 ? std::string() : text);
+}
+
+// The constructor's comparison: ours on the memory, what it left kept, the
+// memory put back and the game's; then ours' lists and string freed.
+uint32_t __fastcall SuDescriptionCtorByMode(char* self, void*)
+{
+    if (g_descCtorMode == StepMode::Original)
+        return g_SC4EffectDescription_Construct(self, nullptr);
+    if (g_descCtorMode == StepMode::Ours)
+        return ConstructDescription(self);
+    std::vector<char> before(self, self + kDescriptionSize);
+    const uint32_t ourResult = ConstructDescription(self);
+    std::vector<char> mine(self, self + kDescriptionSize);
+    std::memcpy(self, before.data(), kDescriptionSize);
+    const uint32_t result = g_SC4EffectDescription_Construct(self, nullptr);
+    const int32_t at = result == ourResult ? SuDescriptionsDiffer(self, mine.data()) : 0;
+    SuFreeDescriptionParts(mine.data());
+    SuRecordDescription("effects.description_ctor", at);
+    return result;
+}
+OPENSC4_THUNK(TSuDescriptionCtor, SuDescriptionCtorByMode, 0)
+
+// The read's comparison: a description of ours made new by the game's
+// whole constructor (0x005B1660) and checked to be the same as the one the
+// game reads into (it always is new); the game's reads with each read of
+// the stream noted through a copy of its table of functions (the lists'
+// engine, ListStreamNoted), ours reads the same values into ours, and the
+// two must be the same; ours is then destroyed (0x0059ECB0) and freed.
+uint32_t __cdecl SuDescriptionReadByMode(uint32_t stream, uint32_t description)
+{
+    char* const self = Ptr(description);
+    if (g_descReadMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4EffectDescription_Read(stream, description);
+    if (g_descReadMode == StepMode::Ours)
+        return ReadDescription(stream, self);
+    char* const mine = reinterpret_cast<char*(__cdecl*)(std::size_t)>(0x005E55E0)(kDescriptionSize);
+    CallThis<uint32_t>(addr::SC4EffectDescription_ConstructWhole, mine);
+    uint32_t result = 0;
+    if (const int32_t fresh = SuDescriptionsDiffer(self, mine); fresh >= 0) {
+        compare::Record("effects.description_read.not_new", true, std::string(), std::string());
+        result = g_SC4EffectDescription_Read(stream, description);
+    } else {
+        const std::vector<uint32_t>& table = ListStreamNoted(stream);
+        M<const uint32_t*>(stream) = table.data();
+        g_listGame = true;
+        result = g_SC4EffectDescription_Read(stream, description);
+        g_listGame = false;
+        g_listReplay = true;
+        const uint32_t ourResult = ReadDescription(stream, mine);
+        g_listReplay = false;
+        M<uint32_t>(stream) = g_listStreamReal;
+        const bool reads = !g_listWrong && g_listReplayed == g_listReads.size() && result == ourResult;
+        SuRecordDescription("effects.description_read", reads ? SuDescriptionsDiffer(self, mine) : 0);
+    }
+    CallThis<uint32_t>(0x0059ECB0, mine);
+    reinterpret_cast<void(__cdecl*)(void*)>(0x005E5620)(mine);
+    return result;
+}
+
+bool InstallDescriptionCtor(registry::Mode mode)
+{
+    return SuInstall(mode, g_descCtorMode, addr::SC4EffectDescription_Construct, &TSuDescriptionCtor,
+                     &g_SC4EffectDescription_Construct, "a description's constructor");
+}
+
+bool InstallDescriptionRead(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !DetourCdecl(addr::SC4EffectDescription_Read, &SuDescriptionReadByMode, &g_SC4EffectDescription_Read))
+        return false;
+    g_descReadMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: a description's read %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDescriptionCtor = registry::Register({
+    "renderer.effects.description_ctor",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_Construct,
+    "A description's inner constructor (0x005B0FE0): its fields' first values, an empty string and one value in "
+    "each of seven lists; compare mode runs ours and the game's on the same memory and compares the lists by their "
+    "contents (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDescriptionCtor,
+});
+
+const bool g_registeredDescriptionRead = registry::Register({
+    "renderer.effects.description_read",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDescription_Read,
+    "A description read from the effects file (0x005B1DC0); compare mode notes what the game's reads from the stream "
+    "and has ours read the same into a new description of its own (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallDescriptionRead,
+});
+
+// --- An effect given its description ---------------------------------------------------------
+//
+// 0x005B7C90 (effects_setup.h) holds and lets go of descriptions, loads a
+// counted texture and sets up the batch, which cannot run twice. Its
+// comparison is the store's: the game's runs with those four calls noted
+// (the hold and the let-go by their detours, the texture and the batch's
+// set-up (0x005B7170, slot 0x40) by detours of this group's in compare mode, with the
+// bytes they leave in the effect, +0x68 and +0x28 to +0x67), the effect is
+// put back, and ours runs with the four answered from the notes; the rest
+// (the render state, 0x005B7030, the terrain's height, the names asked of
+// the manager) runs for real in both. The calls and the effect must be the
+// same.
+StepMode g_descriptionMode = StepMode::Original;
+Call1Fn g_SC4Effect_SetDescription = nullptr, g_SC4Effect_SetUpBatch = nullptr;
+
+uint32_t SuTextureNoted(char* self, uint32_t which)
+{
+    return VrNotedInto(StMake(addr::SC4Effect_LoadTexture, self, Ptr(which)), {{self + 0x68, 8}},
+                       [&] { return LoadTextureByMode(self, which); });
+}
+
+uint32_t __fastcall SuBatchNoted(char* self, void*, uint32_t batch)
+{
+    return VrNotedInto(StMake(addr::SC4Effect_SortBatch, self, Ptr(batch)), {{Ptr(batch), 0x40}},
+                       [&] { return g_SC4Effect_SetUpBatch(self, nullptr, batch); });
+}
+OPENSC4_THUNK(TSuBatchNoted, SuBatchNoted, 4)
+
+uint32_t __fastcall SuDescriptionByMode(char* self, void*, uint32_t description)
+{
+    const auto game = [&] { return g_SC4Effect_SetDescription(self, nullptr, description); };
+    const auto ours = [&] {
+        SetEffectDescription(self, Ptr(description));
+        return 0u;
+    };
+    if (g_descriptionMode == StepMode::Original || g_stNoting || g_stReplay)
+        return game();
+    if (g_descriptionMode == StepMode::Ours)
+        return ours();
+    return StSpansCompared("effects.description", {{self, kEffectSize}}, false, game, ours);
+}
+OPENSC4_THUNK(TSuDescription, SuDescriptionByMode, 4)
+
+bool InstallDescription(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_SetDescription ||
+          Detour(addr::SC4Effect_SetDescription, &TSuDescription, &g_SC4Effect_SetDescription)))
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !((g_SC4Effect_Hold || Detour(addr::SC4Effect_Hold, &TSC4Effect_Hold, &g_SC4Effect_Hold)) &&
+          (g_SC4EffectDescription_Release || Detour(addr::SC4EffectDescription_Release,
+                                                    &TSC4EffectDescription_Release, &g_SC4EffectDescription_Release)) &&
+          (g_SC4Effect_LoadTexture ||
+           Detour(addr::SC4Effect_LoadTexture, &TSC4Effect_LoadTexture, &g_SC4Effect_LoadTexture)) &&
+          Detour(addr::SC4Effect_SortBatch, &TSuBatchNoted, &g_SC4Effect_SetUpBatch)))
+        return false;
+    g_descriptionMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: an effect given its description %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDescription = registry::Register({
+    "renderer.effects.description",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_SetDescription,
+    "An effect given its description (0x005B7C90): held, its render state, texture and batch, and the values that "
+    "come from it; compare mode notes the hold, let-go, texture and batch in the game's run and answers ours from "
+    "the notes (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDescription,
 });
 
 } // namespace
