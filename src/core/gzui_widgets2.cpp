@@ -6,8 +6,8 @@
 // (0x00B6358C) and its interface into the interface map (0x00B63598). The
 // dispatcher (0x00957A9B) calls the handler with the window and its
 // properties, then the base window's handler (0x0095660D), twice. Part
-// u15 adds GZWinOptGrp, the base handler and the dispatcher. Replacements,
-// each off by default:
+// u15 adds GZWinOptGrp, the base handler and the dispatcher, part u16a
+// GZWinTreeView. Replacements, each off by default:
 //
 //   framework.uiscript.filebrowser      the registration 0x009552BE
 //   framework.uiscript.filebrowserread  the property handler 0x00954212
@@ -16,6 +16,8 @@
 //   framework.uiscript.baseread         the base window's handler 0x0095660D
 //   framework.uiscript.dispatch         the dispatcher 0x00957A9B (the LEGACY
 //                                       reader's slot 3)
+//   framework.uiscript.treeview         GZWinTreeView's registration 0x009599D2
+//   framework.uiscript.treeviewread     its property handler 0x009586B0
 //
 // The registration is a table, as part u13's are: the game's own literals
 // (by address, the text in the comments) and words, the handler (the game's
@@ -1331,6 +1333,541 @@ uint32_t __fastcall Dispatch(char* reader, void*, char* const* vector)
 }
 
 // ====================================================================================
+// GZWinTreeView's registration (part u16a)
+
+// GZWinTreeView (0x009599D2)
+const Word kTreeViewNames[] = {
+    {0x00AD6874, 0x3AE8BAE1}, // "GZWinTreeView"
+    {0x00AD6864, 0x3AE8BAD2}, // "IGZWinTreeView"
+};
+const Word kTreeViewWords[] = {
+    {0x00AD6858, 0x00001401}, // "displayroot"
+    {0x00AD6844, 0x00001402}, // "displaynodeicons"
+    {0x00AD6830, 0x00001403}, // "displaytreelines"
+    {0x00AD6824, 0x00001404}, // "multiselect"
+    {0x00AD6818, 0x00001405}, // "icongutter"
+    {0x00AD6808, 0x00001406}, // "minmaxboxsize"
+    {0x00AD67FC, 0x00001407}, // "roottext"
+    {0x00AD67F0, 0x00001408}, // "rooticon"
+    {0x00AD67DC, 0x00001409}, // "rooticonselected"
+    {0x00AD67C8, 0x0000140A}, // "rooticonexpanded"
+    {0x00AD67AC, 0x0000140B}, // "rooticonexpandedselected"
+    {0x00AD6798, 0x0000140C}, // "rootcolorforeground"
+    {0x00AD6784, 0x0000140D}, // "rootcolorbackground"
+    {0x00AD6768, 0x0000140E}, // "rootcolorforegroundhilited"
+    {0x00AD674C, 0x0000140F}, // "rootcolorbackgroundhilited"
+    {0x00AD6740, 0x00001410}, // "rootfont"
+    {0x00AD6730, 0x00001411}, // "rootexpanded"
+    {0x00AD6720, 0x00001412}, // "rootselected"
+};
+const Widget kTreeView = {kTreeViewNames, 2, 0x3AE8BAD2, 0x009586B0, 0x3AE8BAE1, 0x3AE8BAD2, kTreeViewWords, 18};
+
+// The detour (void; EAX as the game's leaves it: the last string's end).
+uint32_t __cdecl RegisterTreeView()
+{
+    OPENSC4_FIRST("RegisterTreeView");
+    return Register(kTreeView);
+}
+
+// ====================================================================================
+// GZWinTreeView's property handler (part u16a)
+
+// The interface the handler asks the window for (IGZWinTreeView) and the
+// slots it calls on it (byte offsets). A node is a word: 0 the root.
+constexpr uint32_t kTreeInterface = 0x3AE8BAD2;
+constexpr std::size_t kTreeFlag = 0xC;        // slot 3 (mask, bool)
+constexpr std::size_t kTreeGutter = 0x1C;     // slot 7 (word)
+constexpr std::size_t kTreeLineColour = 0x24; // slot 9 (colour, word)
+constexpr std::size_t kTreeRowHeight = 0x2C;  // slot 11 (word)
+constexpr std::size_t kTreeBoxSize = 0x34;    // slot 13 (word)
+constexpr std::size_t kTreeBackColour = 0x3C; // slot 15 (colour)
+constexpr std::size_t kTreeColour408 = 0x44;  // slot 17 (colour)
+constexpr std::size_t kTreeAddImage = 0x50;   // slot 20 (image, rectangle*): its index
+constexpr std::size_t kTreeAddNode = 0x60;    // slot 24 (parent, position, string*, 0): the node
+constexpr std::size_t kTreeText = 0x80;       // slot 32 (node, string*)
+constexpr std::size_t kTreeIcon = 0x90;       // slot 36 (node, which, index)
+constexpr std::size_t kTreeFont = 0x9C;       // slot 39 (node, font)
+constexpr std::size_t kTreeColour = 0xAC;     // slot 43 (node, which, colour)
+constexpr std::size_t kTreeExpand = 0xB4;     // slot 45 (node, bool)
+constexpr std::size_t kTreeSelect = 0xE0;     // slot 56 (node, 0)
+// An image's slot 12 (its own rectangle) and the font service's slot 38
+// (a font's word by name).
+constexpr std::size_t kImageRect = 0x30;
+constexpr std::size_t kFontByName = 0x98;
+
+// The set pass's flags (the word not 0) and words.
+const Flag kTreeFlags[] = {{0x1401, 2}, {0x1402, 4}, {0x1403, 8}, {0x1404, 0x10}};
+const struct {
+    uint32_t key;
+    std::size_t slot;
+} kTreeWords[] = {{0x1405, kTreeGutter}, {0x1336, kTreeRowHeight}, {0x1406, kTreeBoxSize}};
+
+// The set pass (the byte set). The found words go into the window's
+// argument slot, which is also the colours' third byte; the first two
+// bytes' places are not written before (ours 0 above the low bytes, the
+// game's what its stack held).
+void TreeSet(uint32_t* arguments, char* const* vector, void* face)
+{
+    uint32_t* const word = &arguments[0];
+    for (const Flag& flag : kTreeFlags) {
+        uint32_t edx;
+        if (Yes(FindWordIn(vector, flag.key, word, &edx)))
+            Virtual<uint32_t>(face, kTreeFlag, flag.mask, (edx & ~0xFFu) | (*word != 0 ? 1u : 0u));
+    }
+    for (const auto& entry : kTreeWords) {
+        if (Yes(FindWordIn(vector, entry.key, word)))
+            Virtual<uint32_t>(face, entry.slot, *word);
+    }
+    uint32_t red = 0;
+    uint32_t green = 0;
+    if (ReadBytesIn(vector, 0x133F, &red, &green, word))
+        Virtual<uint32_t>(face, kTreeBackColour, ColourOf(red, green, *word));
+    if (ReadBytesIn(vector, 0x408, &red, &green, word))
+        Virtual<uint32_t>(face, kTreeColour408, ColourOf(red, green, *word));
+}
+
+// A new map of the tree's (0xC bytes; none without memory) made by its
+// constructor.
+void* NewMap(std::uintptr_t constructor)
+{
+    void* const memory = Cdecl<void*>(addr::SC4_operator_new, std::size_t{0xC});
+    return memory ? CallThis<void*>(constructor, memory) : nullptr;
+}
+
+// A map put under the key through the window, as a number of its address.
+void PutMap(void* window, uint32_t key, void* map)
+{
+    Virtual<uint32_t>(window, kWinPut, key, NewValue(addr::SC4ScriptNumber_FromUint, Word32(map)));
+}
+
+// A map's insert (thiscall: the result, the pair; `ret 8`).
+void InsertPair(std::uintptr_t insert, void* map, void* pair)
+{
+    uint32_t result[2];
+    CallThis<uint32_t>(insert, map, static_cast<void*>(result), pair);
+}
+
+// The next part of the value's text (SplitOff 0x0090E98C), its place
+// answered as the game hands it on.
+void* SplitPart(Text& value, Text& part)
+{
+    return CallThis<void*>(addr::SC4String_SplitOff, value.bytes, part.bytes,
+                           reinterpret_cast<const char*>(addr::cGZUIScriptWidgets_FilterSeparator));
+}
+
+// The next part copied into a string of its own (0x00408BE0, which makes it).
+void CopyPart(Text& value, char* into)
+{
+    Text part;
+    CallThis<void*>(addr::SC4String_Substring, into, SplitPart(value, part), 0u, 0xFFFFFFFFu);
+    part.End(0);
+}
+
+// The next part assigned to a string (0x00424380).
+void AssignPart(Text& value, char* into)
+{
+    Text part;
+    CallThis<uint32_t>(addr::cRZBaseString_Assign, into, SplitPart(value, part));
+    part.End(0);
+}
+
+// A string's body (+4), or none for none, as the game hands strings to
+// 0x0043AB70.
+char* BodyOf(void* string) { return string ? static_cast<char*>(string) + 4 : nullptr; }
+
+// Whether a string's body equals a literal's (made with SC4String::FromText
+// and destroyed after).
+bool SameAs(char* body, std::uintptr_t literal)
+{
+    Text text;
+    void* const made = CallThis<void*>(addr::SC4String_FromText, text.bytes, reinterpret_cast<const char*>(literal));
+    const bool same = Yes(Cdecl<uint32_t>(addr::SC4UI_F43AB70, body, BodyOf(made)));
+    text.End(0);
+    return same;
+}
+
+// The name maps' find (0x0094CA22): the node, or the map's header.
+char* FindName(void* map, void* name) { return CallThis<char*>(addr::cGZUIScriptWidgets_TreeNameFind, map, name); }
+
+// A node's record (0x68 bytes): the name +0, the text +0x14, the parent's
+// name +0x28 (strings); the position +0x3C, four icons +0x40, four colours
+// +0x50, the font +0x60, the expanded and selected bytes +0x64 and +0x65
+// (+0x66 and +0x67 never written). Its constructor makes only the strings,
+// its copy 0x009550C3 copies the rest but those two.
+constexpr std::size_t kRecordSize = 0x68;
+constexpr std::size_t kRecordText = 0x14;
+constexpr std::size_t kRecordParent = 0x28;
+constexpr std::size_t kRecordPosition = 0x3C;
+constexpr std::size_t kRecordIcons = 0x40;
+constexpr std::size_t kRecordColours = 0x50;
+constexpr std::size_t kRecordFont = 0x60;
+constexpr std::size_t kRecordExpanded = 0x64;
+constexpr std::size_t kRecordSelected = 0x65;
+
+// The positions a node's word may give (others leave the place as it was).
+const struct {
+    std::uintptr_t literal;
+    uint32_t position;
+} kTreePositions[] = {{addr::cGZUIScriptWidgets_TreeFirst, 0xFFFFFFFEu},
+                      {addr::cGZUIScriptWidgets_TreeLast, 0xFFFFFFFDu},
+                      {addr::cGZUIScriptWidgets_TreeSorted, 0xFFFFFFFCu}};
+
+// The raw pass's state. The game keeps these in one frame: `image` (the
+// images' loaded image, then its index), `instance` and `counter` are
+// also the first, second and third of the root's colour bytes (ReadBytes
+// writes the low bytes) and `counter` the root's words; ours start at 0
+// where the game's hold what its stack held.
+struct Tree {
+    void* window;
+    char* const* vector;
+    void* face;
+    Text value;
+    void* names;   // name -> image index (0x00939D41)
+    void* indices; // image index -> name (0x009561DC)
+    void* keys;    // name -> image key (0x0089508C)
+    uint32_t image;
+    uint32_t instance;
+    uint32_t counter;
+};
+
+uint32_t PairCount(char* const* vector) { return static_cast<uint32_t>(static_cast<int32_t>(vector[1] - vector[0]) >> 3); }
+
+// The pair's text value read into the string (the vector's start read
+// again), when the pair has the key and a text value (a null value is
+// called as the game's is).
+bool PairValue(char* const* vector, uint32_t i, uint32_t key, Text& value)
+{
+    char* const pair = vector[0] + i * 8;
+    if (At<uint32_t>(pair, 0) != key || Virtual<uint32_t>(At<void*>(pair, 4), kValueKind) != kTextKind)
+        return false;
+    Virtual<uint32_t>(At<void*>(vector[0] + i * 8, 4), kValueText, static_cast<void*>(value.bytes));
+    return true;
+}
+
+// The images: every pair of 0xF016, "name:{group,instance}:(x,y,w,h)".
+// The key into the key map; with an image loaded (0x0094C4E0), the face's
+// slot 20 with it and the rectangle (the image's own when the four are 0),
+// its index into the name map and the index map; the image released.
+void TreeImages(Tree& tree)
+{
+    const uint32_t count = PairCount(tree.vector);
+    tree.counter = 0;
+    if (!count)
+        return;
+    do {
+        if (!PairValue(tree.vector, tree.counter, 0xF016, tree.value))
+            continue;
+        Text name;
+        CopyPart(tree.value, name.bytes);
+        Text key;
+        CopyPart(tree.value, key.bytes);
+        Text rest;
+        CallThis<void*>(addr::SC4String_Substring, rest.bytes, static_cast<void*>(tree.value.bytes), 0u, 0xFFFFFFFFu);
+        uint32_t group = 0;
+        tree.instance = 0;
+        tree.image = 0;
+        void* image = nullptr;
+        if (Scan(key.Begin(), addr::cGZUIScriptWidgets_GenImageFormat, &group, &tree.instance) == 2) {
+            image = LoadImageOf(group, tree.instance);
+            tree.image = Word32(image);
+        }
+        const uint32_t words[2] = {group, tree.instance};
+        alignas(4) char keyPair[0x1C];
+        void* const made = CallThis<void*>(addr::cGZUIScriptWidgets_TreeKeyPair, keyPair, static_cast<void*>(name.bytes),
+                                           static_cast<const void*>(words));
+        InsertPair(addr::cGZUIScriptWidgets_TreeKeyMapInsert, tree.keys, made);
+        reinterpret_cast<Text*>(keyPair)->End(0);
+        int32_t rect[4] = {0, 0, 0, 0};
+        Scan(rest.Begin(), addr::cGZUIScriptProps_RectFormat, &rect[0], &rect[1], &rect[2], &rect[3]);
+        if (image) {
+            void* area = rect;
+            if (Yes(CallThis<uint32_t>(addr::cGZUIScriptProps_RectEmpty, static_cast<void*>(rect))))
+                area = Virtual<void*>(image, kImageRect);
+            tree.image = Virtual<uint32_t>(tree.face, kTreeAddImage, image, area);
+            alignas(4) char namePair[0x18];
+            CallThis<void*>(addr::SC4String_Substring, namePair, static_cast<void*>(name.bytes), 0u, 0xFFFFFFFFu);
+            At<uint32_t>(namePair, 0x14) = tree.image;
+            InsertPair(addr::cGZUIScriptWidgets_TreeNameMapInsert, tree.names, namePair);
+            reinterpret_cast<Text*>(namePair)->End(0);
+            alignas(4) char indexPair[0x18];
+            void* const pair = CallThis<void*>(addr::SC4QueryTool_TextPairCopy, indexPair,
+                                               static_cast<void*>(&tree.image), static_cast<void*>(name.bytes));
+            InsertPair(addr::cGZUIScriptWidgets_TreeWordMapInsert, tree.indices, pair);
+            CallThis<uint32_t>(addr::SC4String_Destroy, indexPair + 4);
+            Virtual<uint32_t>(image, 8);
+        }
+        rest.End(0);
+        key.End(0);
+        name.End(0);
+    } while (++tree.counter < count);
+}
+
+// An image index by name (the name map's, else the default).
+uint32_t IconOf(Tree& tree, void* name, uint32_t otherwise)
+{
+    char* const node = FindName(tree.names, name);
+    return node == *static_cast<char**>(tree.names) ? otherwise : At<uint32_t>(node, 0x24);
+}
+
+// The root's: its text 0x1407 (slot 32), four icons 0x1408 to 0x140B by
+// name (slot 36 with 0 to 3; the index, else 0 to 3), four colours 0x140C
+// to 0x140F (slot 43 with 0 to 3), the font 0x1410 (a number: the font
+// service's slot 5 for slot 39, put through the window's slot 114 under
+// its 0 by 0x0094C222; else a text, put the same way by 0x0094C255), expanded 0x1411 (slot 45 with the word's
+// being 1, the bool over the EDX 0x0094C675 leaves), selected 0x1412
+// (slot 56 when 1); then the lines' colour (0,0,0) with 1 (slot 9).
+void TreeRoot(Tree& tree, Text& font)
+{
+    char* const* const vector = tree.vector;
+    if (FindTextIn(vector, tree.value, 0x1407))
+        Virtual<uint32_t>(tree.face, kTreeText, 0u, static_cast<void*>(tree.value.bytes));
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (FindTextIn(vector, tree.value, 0x1408 + i))
+            Virtual<uint32_t>(tree.face, kTreeIcon, 0u, i, IconOf(tree, tree.value.bytes, i));
+    }
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (ReadBytesIn(vector, 0x140C + i, &tree.image, &tree.instance, &tree.counter))
+            Virtual<uint32_t>(tree.face, kTreeColour, 0u, i, ColourOf(tree.image, tree.instance, tree.counter));
+    }
+    font.Make();
+    if (Yes(FindWordIn(vector, 0x1410, &tree.counter))) {
+        void* const service = Cdecl<void*>(addr::SC4_Singleton913C72);
+        const uint32_t made = Virtual<uint32_t>(service, kFont, tree.counter);
+        Virtual<uint32_t>(tree.face, kTreeFont, 0u, made);
+        Regs regs = {0, 0, Word32(tree.window), 0, 0};
+        CallRegs(addr::cGZUIScriptProps_MakeNumber, &regs, tree.counter, 0, 0, 0);
+    } else if (FindTextIn(vector, font, 0x1410)) {
+        Regs regs = {Word32(font.bytes), Word32(font.bytes), Word32(tree.window), Word32(vector), 0};
+        CallRegs(addr::cGZUIScriptProps_MakeText, &regs, Word32(font.bytes), 0, 0, 0);
+    }
+    uint32_t edx;
+    if (Yes(FindWordIn(vector, 0x1411, &tree.counter, &edx)))
+        Virtual<uint32_t>(tree.face, kTreeExpand, 0u, (edx & ~0xFFu) | (tree.counter == 1 ? 1u : 0u));
+    if (Yes(FindWordIn(vector, 0x1412, &tree.counter)) && tree.counter == 1)
+        Virtual<uint32_t>(tree.face, kTreeSelect, 0u, 0u);
+    Virtual<uint32_t>(tree.face, kTreeLineColour, ColourOf(0, 0, 0), 1u);
+}
+
+// The nodes: every pair of 0x1102, "name:text:parent:position:icon:icon:
+// icon:icon:(r,g,b)x4:font:expanded:selected" (the last two "yes"), into a
+// record put at the list's end; the font's word by name into the font map.
+// `record` is the game's one place for it, so a position not named keeps
+// the last record's (the first's what the game's stack held, ours 0).
+void TreeNodes(Tree& tree, void* list, void* fonts, char* record)
+{
+    const uint32_t count = PairCount(tree.vector);
+    tree.counter = 0;
+    if (!count)
+        return;
+    do {
+        if (!PairValue(tree.vector, tree.counter, 0x1102, tree.value))
+            continue;
+        CallThis<void*>(addr::cGZUIScriptWidgets_TreeRecordConstruct, record);
+        AssignPart(tree.value, record);
+        AssignPart(tree.value, record + kRecordText);
+        AssignPart(tree.value, record + kRecordParent);
+        Text position;
+        CopyPart(tree.value, position.bytes);
+        for (const auto& named : kTreePositions) {
+            if (SameAs(position.bytes + 4, named.literal))
+                At<uint32_t>(record, kRecordPosition) = named.position;
+        }
+        for (uint32_t i = 0; i < 4; ++i) {
+            Text part;
+            char* const node = FindName(tree.names, SplitPart(tree.value, part));
+            part.End(0);
+            At<uint32_t>(record, kRecordIcons + i * 4) =
+                node == *static_cast<char**>(tree.names) ? i : At<uint32_t>(node, 0x24);
+        }
+        Text colour;
+        colour.Make();
+        for (uint32_t i = 0; i < 4; ++i) {
+            uint32_t red = 0;
+            uint32_t green = 0;
+            uint32_t blue = 0;
+            AssignPart(tree.value, colour.bytes);
+            Scan(colour.Begin(), addr::cGZUIScriptProps_BytesFormat, &red, &green, &blue);
+            At<uint32_t>(record, kRecordColours + i * 4) = ColourOf(red, green, blue);
+        }
+        Text fontName;
+        CopyPart(tree.value, fontName.bytes);
+        const uint32_t word = Virtual<uint32_t>(Cdecl<void*>(addr::SC4_Singleton913C72), kFontByName,
+                                                static_cast<void*>(fontName.bytes));
+        At<uint32_t>(record, kRecordFont) = Virtual<uint32_t>(Cdecl<void*>(addr::SC4_Singleton913C72), kFont, word);
+        alignas(4) char fontPair[0x18];
+        CallThis<void*>(addr::SC4String_Substring, fontPair, static_cast<void*>(record), 0u, 0xFFFFFFFFu);
+        At<uint32_t>(fontPair, 0x14) = word;
+        InsertPair(addr::cGZUIScriptWidgets_TreeFontMapInsert, fonts, fontPair);
+        reinterpret_cast<Text*>(fontPair)->End(0);
+        {
+            Text yes;
+            void* const made =
+                CallThis<void*>(addr::SC4String_FromText, yes.bytes, reinterpret_cast<const char*>(addr::cGZUIScriptWidgets_TreeYes));
+            Text part;
+            void* const cut = SplitPart(tree.value, part);
+            At<uint8_t>(record, kRecordExpanded) =
+                static_cast<uint8_t>(Cdecl<uint32_t>(addr::SC4UI_F43AB70, BodyOf(cut), BodyOf(made)));
+            part.End(0);
+            yes.End(0);
+        }
+        {
+            Text yes;
+            void* const made =
+                CallThis<void*>(addr::SC4String_FromText, yes.bytes, reinterpret_cast<const char*>(addr::cGZUIScriptWidgets_TreeYes));
+            At<uint8_t>(record, kRecordSelected) =
+                static_cast<uint8_t>(Cdecl<uint32_t>(addr::SC4UI_F43AB70, tree.value.bytes + 4, BodyOf(made)));
+            yes.End(0);
+        }
+        uint32_t result;
+        CallThis<void*>(addr::cGZUIScriptWidgets_TreeRecordInsert, list, static_cast<void*>(&result),
+                        *static_cast<void**>(list), static_cast<void*>(record));
+        fontName.End(0);
+        colour.End(0);
+        position.End(0);
+        CallThis<uint32_t>(addr::cGZUIScriptWidgets_TreeRecordDestruct, record);
+    } while (++tree.counter < count);
+}
+
+// The tree: from the pair ("Root", 0) at the work list's end, the last
+// pair's name is looked for as a record's parent (the first in the list):
+// the node added under its node (slot 24 with the record's position and
+// text), given its icons, font, colours, expanded byte (pushed as the
+// dword at +0x64: with the selected byte and the two never written) and
+// selection, put into the node map (name to node) and the node-name map
+// (node to name), its (name, node) pair at the work list's end and its
+// record erased; with none the last pair taken off. `record` is the
+// records' place, `allocator` what the work list is made with.
+void TreeBuild(Tree& tree, void* list, void* nodes, void* named, char* record, char* allocator)
+{
+    char* queue = nullptr;
+    CallThis<void*>(addr::cGZUIScriptWidgets_TreeQueueConstruct, static_cast<void*>(&queue), allocator);
+    uint32_t handle = 0;
+    {
+        Text root;
+        void* const made =
+            CallThis<void*>(addr::SC4String_FromText, root.bytes, reinterpret_cast<const char*>(addr::cGZUIScriptWidgets_TreeRoot));
+        alignas(4) char start[0x18];
+        CallThis<void*>(addr::cGZUIScriptWidgets_TreeNamePair, start, made, static_cast<void*>(&handle));
+        CallThis<uint32_t>(addr::cGZUIScriptWidgets_TreeQueuePushBack, static_cast<void*>(&queue), static_cast<void*>(start));
+        reinterpret_cast<Text*>(start)->End(0);
+        root.End(0);
+    }
+    while (At<char*>(queue, 0) != queue) {
+        alignas(4) char current[0x18];
+        CallThis<void*>(addr::cGZUIScriptWidgets_TreeNamePairCopy, current, At<char*>(queue, 4) + 8);
+        char* const end = *static_cast<char**>(list);
+        char* node = At<char*>(end, 0);
+        while (node != end && !Yes(Cdecl<uint32_t>(addr::SC4UI_F43AB70, BodyOf(node + 8 + kRecordParent), current + 4)))
+            node = At<char*>(node, 0);
+        if (node == end) {
+            CallThis<uint32_t>(addr::cGZUIScriptWidgets_TreeQueuePopBack, static_cast<void*>(&queue));
+        } else {
+            CallThis<void*>(addr::cGZUIScriptWidgets_TreeRecordCopy, record, node + 8);
+            handle = Virtual<uint32_t>(tree.face, kTreeAddNode, At<uint32_t>(current, 0x14),
+                                       At<uint32_t>(record, kRecordPosition), static_cast<void*>(record + kRecordText), 0u);
+            for (uint32_t i = 0; i < 4; ++i)
+                Virtual<uint32_t>(tree.face, kTreeIcon, handle, i, At<uint32_t>(record, kRecordIcons + i * 4));
+            Virtual<uint32_t>(tree.face, kTreeFont, handle, At<uint32_t>(record, kRecordFont));
+            for (uint32_t i = 0; i < 4; ++i)
+                Virtual<uint32_t>(tree.face, kTreeColour, handle, i, At<uint32_t>(record, kRecordColours + i * 4));
+            Virtual<uint32_t>(tree.face, kTreeExpand, handle, At<uint32_t>(record, kRecordExpanded));
+            if (At<uint8_t>(record, kRecordSelected))
+                Virtual<uint32_t>(tree.face, kTreeSelect, handle, 0u);
+            alignas(4) char nodePair[0x18];
+            CallThis<void*>(addr::SC4String_Substring, nodePair, static_cast<void*>(record), 0u, 0xFFFFFFFFu);
+            At<uint32_t>(nodePair, 0x14) = handle;
+            InsertPair(addr::cGZUIScriptWidgets_TreeNameMapInsert, nodes, nodePair);
+            reinterpret_cast<Text*>(nodePair)->End(0);
+            alignas(4) char namePair[0x18];
+            void* const pair = CallThis<void*>(addr::SC4QueryTool_TextPairCopy, namePair, static_cast<void*>(&handle),
+                                               static_cast<void*>(record));
+            InsertPair(addr::cGZUIScriptWidgets_TreeWordMapInsert, named, pair);
+            CallThis<uint32_t>(addr::SC4String_Destroy, namePair + 4);
+            alignas(4) char child[0x18];
+            CallThis<void*>(addr::SC4String_Substring, child, static_cast<void*>(record), 0u, 0xFFFFFFFFu);
+            At<uint32_t>(child, 0x14) = handle;
+            CallThis<void*>(addr::cGZUIScriptWidgets_TreeQueueInsert, static_cast<void*>(&queue),
+                            static_cast<void*>(&handle), static_cast<void*>(queue), static_cast<void*>(child));
+            reinterpret_cast<Text*>(child)->End(0);
+            CallThis<void*>(addr::cGZUIScriptWidgets_TreeRecordErase, list, static_cast<void*>(&handle),
+                            static_cast<void*>(node));
+            CallThis<uint32_t>(addr::cGZUIScriptWidgets_TreeRecordDestruct, record);
+        }
+        reinterpret_cast<Text*>(current)->End(0);
+    }
+    PutMap(tree.window, 0xE6C21D83u, nodes);
+    PutMap(tree.window, 0x26C21E35u, named);
+    CallThis<uint32_t>(addr::cGZUIScriptWidgets_TreeQueueDestruct, static_cast<void*>(&queue));
+}
+
+// The raw pass (the byte clear): the images and their three maps, the
+// root's settings, the nodes, their font map and the tree with its two
+// maps; each map put under its key through the window. The game never
+// writes the window's argument slot here (two lists are given its top
+// byte's address as their allocator).
+void TreeRaw(uint32_t* arguments, char* const* vector, void* face)
+{
+    Tree tree = {reinterpret_cast<void*>(static_cast<std::uintptr_t>(arguments[0])), vector, face, {}, nullptr,
+                 nullptr, nullptr, 0, 0, 0};
+    tree.value.Make();
+    tree.names = NewMap(addr::SC4StringObjMap_Construct);
+    tree.indices = NewMap(addr::cGZUIScriptWidgets_TreeWordMapConstruct);
+    tree.keys = NewMap(addr::cGZUIScriptWidgets_TreeKeyMapConstruct);
+    TreeImages(tree);
+    PutMap(tree.window, 0x46C207A5u, tree.names);
+    PutMap(tree.window, 0xC6C207C8u, tree.indices);
+    PutMap(tree.window, 0x66C20802u, tree.keys);
+    Text font;
+    TreeRoot(tree, font);
+    void* const fonts = NewMap(addr::cGZUIScriptWidgets_TreeWordMapConstruct);
+    char* list = nullptr;
+    char* const allocator = reinterpret_cast<char*>(arguments) + 3;
+    CallThis<void*>(addr::cGZUIScriptWidgets_TreeRecordListConstruct, static_cast<void*>(&list), allocator);
+    alignas(4) char record[kRecordSize] = {};
+    TreeNodes(tree, static_cast<void*>(&list), fonts, record);
+    PutMap(tree.window, 0x86C21DA0u, fonts);
+    void* const nodes = NewMap(addr::SC4StringObjMap_Construct);
+    void* const named = NewMap(addr::cGZUIScriptWidgets_TreeWordMapConstruct);
+    TreeBuild(tree, static_cast<void*>(&list), nodes, named, record, allocator);
+    CallThis<uint32_t>(addr::cGZUIScriptWidgets_TreeRecordListDestruct, static_cast<void*>(&list));
+    font.End(0);
+    tree.value.End(0);
+}
+
+// The game's 0x009586B0 (cdecl: the window, its properties' vector and a
+// byte): the window's IGZWinTreeView (QueryInterface 0x3AE8BAD2); with it
+// the set pass (byte set) or the raw pass (clear); the interface released
+// (its EAX answered; the QueryInterface's when it gave none).
+uint32_t __cdecl TreeViewReadBody(uint32_t* arguments)
+{
+    OPENSC4_FIRST("TreeViewRead");
+    void* const window = reinterpret_cast<void*>(static_cast<std::uintptr_t>(arguments[0]));
+    char* const* const vector = reinterpret_cast<char* const*>(static_cast<std::uintptr_t>(arguments[1]));
+    void* face = nullptr;
+    uint32_t eax = Virtual<uint32_t>(window, 0, kTreeInterface, &face);
+    if (Yes(eax)) {
+        if (arguments[2] & 0xFF)
+            TreeSet(arguments, vector, face);
+        else
+            TreeRaw(arguments, vector, face);
+    }
+    if (face)
+        eax = Virtual<uint32_t>(face, 8);
+    return eax;
+}
+
+// The thunk hands the body the argument slots (the set pass writes the
+// first).
+__declspec(naked) void TreeViewRead()
+{
+    __asm lea eax, [esp + 4]
+    __asm push eax
+    __asm call TreeViewReadBody
+    __asm add esp, 4
+    __asm ret
+}
+
+// ====================================================================================
 // Install
 
 struct Detour {
@@ -1400,6 +1937,22 @@ bool InstallDispatch(registry::Mode)
     return InstallAll(detours);
 }
 
+bool InstallTreeView(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZUIScriptWidgets_RegisterTreeView, reinterpret_cast<void*>(&RegisterTreeView)},
+    };
+    return InstallAll(detours);
+}
+
+bool InstallTreeViewRead(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZUIScriptWidgets_TreeViewRead, reinterpret_cast<void*>(&TreeViewRead)},
+    };
+    return InstallAll(detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"framework.uiscript.filebrowser", "framework/uiscript", registry::Kind::Detour,
                         registry::Phase::Attach, addr::cGZUIScriptWidgets_RegisterFileBrowser,
@@ -1437,6 +1990,18 @@ const bool g_registered[] = {
                         "and interface, both property handlers twice, its Init and its parent (1 detour; part u15, "
                         "docs/gzui.md)",
                         false, InstallDispatch}),
+    registry::Register({"framework.uiscript.treeview", "framework/uiscript", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZUIScriptWidgets_RegisterTreeView,
+                        "Our registration of GZWinTreeView: its names and 18 property words into the LEGACY "
+                        "readers' variable table, its handler and interface into the two maps (1 detour; part "
+                        "u16a, docs/gzui.md)",
+                        false, InstallTreeView}),
+    registry::Register({"framework.uiscript.treeviewread", "framework/uiscript", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZUIScriptWidgets_TreeViewRead,
+                        "Our property handler of GZWinTreeView (the tree view): its flags, sizes and colours, then "
+                        "its images, root, nodes and the tree built from them, with their six maps (1 detour; "
+                        "part u16a, docs/gzui.md)",
+                        false, InstallTreeViewRead}),
 };
 
 } // namespace

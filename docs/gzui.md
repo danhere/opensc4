@@ -83,7 +83,9 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u12** | 0x0094C900 to 0x00951268 | 4 of 49 | 16 | **Ours** (below), first slice: the readers of a window's script properties (the text finder and its three scanners); the property handlers, their map and tree code and the shared AddRef are still the game's |
 | **u13** | 0x00951269 to 0x00953FFF | 17 of 17 | 17 | **Ours** (below): the 16 stock widget classes' registrations (their names and property words into the LEGACY readers' variable table, their handlers and interfaces into two maps) and GZWinGen's property handler |
 | **u14** | 0x00954000 to 0x00956463 | 2 of 41 | 2 | **Ours** (below): GZWinFileBrowser's registration and property handler; the STLport tree, list and pair code and a counted object's Release stay the game's |
-| u15, u16 | 0x00956464 to 0x0095BBFF | 57 | 14 | GZWinOptGrp, GZWinTreeView and GZWinGrid, the base window's handler, the dispatcher, their helpers (22 KB) |
+| **u15** | 0x00956464 to 0x009586AF | 4 of 23 | 3 | **Ours** (below): GZWinOptGrp's registration and property handler, the base window's handler and the dispatcher; TreeView's and Grid's STLport map code, Grid's text helper and cell lookups stay the game's |
+| **u16a** | 0x009586B0 to 0x00959E30 | 2 of 3 | 1 | **Ours** (below): GZWinTreeView's registration and property handler; a map clear stays the game's |
+| u16b | 0x00959E31 to 0x0095BBFF | 31 | 10 | GZWinGrid's registration and handler, the LEGACY reader's constructor, the constructor bits and STLport code |
 | u17 | 0x0095BC00 to 0x0095FFFF | 29 | 0 | The writers (17.7 KB, never run) |
 
 Leave the game's: the base QueryInterface 0x009457C6, AddRef 0x00968B60, the shared one-instruction getters, the empty functions 0x00949ADE and 0x0091559A, and the STLport and counted-reference code these classes share with the rest of the framework.
@@ -1221,3 +1223,59 @@ All five legs the same on the first pair; `og` was 34E30829 in all 26 test runs.
 **Reached:** in every plain (muted) leg side B logs 3 of the 4 first calls (14 of 14 runs): the registration (every LEGACY reader's constructor that makes the table), the dispatcher and the base handler (every scripted window of a city's UI). No script the runs load makes an option group, so its handler is reached only by the test.
 
 **What is left:** u16 (0x009586B0 to 0x0095BBFF: GZWinTreeView's handler 0x009586B0 and registration 0x009599D2, GZWinGrid's handler 0x0095A250, registration 0x0095B021 and text helper 0x00956464, the LEGACY reader's constructor 0x0095B8C4 and their helpers) and u17 (the writers); u12's property handlers.
+
+## Part u16a: GZWinTreeView's registration and property handler
+
+Part u16a is the first slice of u16's range (0x009586B0 to 0x0095BBFF, 34 functions): GZWinTreeView's handler 0x009586B0 (4,857 bytes), the map clear 0x009599A9 and the registration 0x009599D2. Ours: the class's two, in `src/core/gzui_widgets2.cpp` (with parts u14 and u15's), two groups, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.treeview` | 1 | GZWinTreeView's registration 0x009599D2 |
+| `framework.uiscript.treeviewread` | 1 | GZWinTreeView's property handler 0x009586B0 (4,857 bytes) |
+
+Still the game's, called by ours by address: the STLport code of the handler's maps, lists and records (the inserts 0x0095811B, 0x009581AC, 0x00958230 and 0x009582C1 of part u15's range; the map makers 0x00939D41, 0x009561DC and 0x0089508C; the name find 0x0094CA22; the record's constructor, destructor and copy 0x0094D147, 0x0094D163 and 0x009550C3; the record list's 0x0094C975, 0x009561F5, 0x0095409E and 0x0095517A; the work list's 0x009C9DDB, 0x009CAA9D, 0x009CAA5C, 0x00955144 and 0x009D7712; the pairs 0x00894585, 0x0095515B, 0x009CA065 and 0x004CCF20; the rectangle test 0x0094C49A), all with their database entries (`gzui.toml`, "Part u16a"). The map clear 0x009599A9 is called only by the STLport code after the registration (0x00959F09, 0x0095A0D9), not by the two; it goes with u16b.
+
+**The registration** is part u13's shape (part u14's table code): GZWinTreeView (0x3AE8BAE1) and IGZWinTreeView (0x3AE8BAD2) into the variable table, the handler 0x009586B0 under the interface, the interface under the class, then 18 property words, 0x1401 `displayroot` to 0x1412 `rootselected`.
+
+**The handler** (cdecl: the window, the vector, a byte) asks for IGZWinTreeView (QueryInterface 0x3AE8BAD2). With the byte set: four flags 0x1401 to 0x1404 (slot 3, masks 2, 4, 8 and 0x10, on when the word is not 0, the bool over the EDX 0x0094C675 leaves); the words 0x1405 `icongutter` (slot 7), 0x1336 (the row height, slot 11) and 0x1406 `minmaxboxsize` (slot 13); two colours, 0x133F (slot 15) and 0x408 (slot 17). The found words go into the window's argument slot, which is also the colours' third byte's place; ours writes it through a naked thunk that hands the body the argument slots, as part u15's.
+
+With the byte clear, five steps, each map handed to the window as a number of its address (0x00915D6D, slot 114):
+
+- **Images:** every 0xF016 text, `name:{group,instance}:(x,y,w,h)` cut at its colons (SplitOff 0x0090E98C). The name and its key into the key map (0x66C20802); with an image loaded (0x0094C4E0), slot 20 with the image and the rectangle (the image's own, its slot 12, when the four are 0) gives its index, put into the name map (name to index, 0x46C207A5) and the index map (index to name, 0xC6C207C8); the image released.
+- **The root:** its text 0x1407 (slot 32 with node 0); four icons 0x1408 to 0x140B by name (slot 36 with 0 to 3: the name map's index, else 0 to 3); four colours 0x140C to 0x140F (slot 43); the font 0x1410 (a number: the font service's slot 5 for slot 39, put through the window by 0x0094C222; else a text, by 0x0094C255); expanded 0x1411 (slot 45 with the word's being 1, the bool over the EDX 0x0094C675 leaves); selected 0x1412 (slot 56 when 1); then slot 9 with the colour (0,0,0) and 1.
+- **Nodes:** every 0x1102 text, `name:text:parent:position:icon:icon:icon:icon:(r,g,b)x4:font:expanded:selected`, into a record (0x68 bytes) put at the end of a list: the position `first`, `last` or `sorted` (-2, -3, -4; any other word leaves the place as it was), the icons by name (else 0 to 3), the colours (`(%d,%d,%d)`, the colour service's slot 34), the font by name (the font service's slot 38, then slot 5), `yes` for each byte (the last compared with the whole rest). The font's word by the node's name into the font map (0x86C21DA0).
+- **The tree:** a work list starts with (`Root`, 0); while it has pairs, the last pair's name is looked for as a record's parent (the first in the list). Found: slot 24 with the pair's node, the record's position and text gives the node; slots 36, 39, 43 and 45 with the record's icons, font, colours and expanded byte (pushed as the dword at +0x64), slot 56 when selected; the node into the node map (name to node, 0xE6C21D83) and the node-name map (node to name, 0x26C21E35), its (name, node) pair at the work list's end, the record erased from the list. Not found: the last pair taken off. So the tree is built depth first and a node whose parent never comes is never added.
+- The work list and the record list destroyed, the strings last.
+
+The interface released, its EAX answered (the QueryInterface's without one). The game keeps the raw pass's locals in one frame, and ours keeps the places it shares: the images' last index, instance and the pair counter are the root colours' three bytes' places and the root's words'; one record's place serves every node and the copy the tree loop makes.
+
+**Where the game reads its stack:** the set pass's colours' first two bytes above their low bytes (ReadBytes writes only the low bytes); the root's colours' first two when no 0xF016 text came before; the first node's position when its word is none of the three; and the record's two bytes after the selected byte, which go to slot 45 above the expanded byte. Ours has 0 there; the slot that gets them sees only those leftovers differ.
+
+### Testing
+
+`OPENSC4_TEST_TREEVIEW=<day>` is a test of its own (the fingerprint's `tv` part). It calls the two by address (EBX, ESI, EDI and EBP checked kept after each call). Two stages, each logged as `autotest: treeview: <stage> <hash>`:
+
+- **reg:** part u13's variable table of our own, the registration, the count of names and both maps' entries;
+- **read:** the handler on part u13's windows (QueryInterface failing, answering, answering with AL 0; slot 114 hashes the six maps' entries, read by the game's tree code, and part u12's values) and an interface of our own (every slot it calls hashes its number and what it gets; slot 20 gives indices of its own, slot 24 nodes of its own), part u13's images with a slot 12 of our own, the game's font and colour services; three set vectors (flags as numbers and text, words, colours good, short and out of range) and three raw ones (images with and without an image, an empty and a bad rectangle, a bad key, a number value; the root's text, icons found and not, colours, the font as a number and a text, expanded and selected; nodes under the root and under nodes, an unknown position word, an orphan, a short text, a duplicate name, a part too many), with the byte 1, 0xFFFFFF01, 0 and 0x100, and empty vectors; the argument slots after each call.
+
+The inputs avoid the places where the game reads its stack: every vector's first node names its position, the root's colours come only in vectors with an image text, and a node's expanded bool is hashed by its low byte. With the groups on, each of the 2 logs its first call in a test run. `tv` is BDD5B16A (muted), the same on both sides; the stages reg 1FF0635E, read BDD5B16A. A check with five deliberate slips in ours, one build each (the `rootfont` word 0x1411, the fourth flag's mask 0x20, a node's unfound icon 0, the selection by the expanded byte, the image's own rectangle for a non-empty one): the first changed reg (and so read), each of the others changed read.
+
+The two were checked against the disassembly by the author and by an independent audit: the table's rows and both map inserts in order; in the handler every call, its arguments and order, the vtable slots, the helpers' bodies, the places locals share (above), the registers each helper reads, the bools' upper bytes, the strings' order of making and destroying, the loops (the counts read once per loop, the vector's start read for every pair), the results the work list's insert and the list's erase write over the node's place, EAX on every path: no difference in what they do. The only edge is unreachable (a QueryInterface answering yes with no interface: the game would answer the last call's EAX, ours the QueryInterface's; parts u14 and u15's handlers have the same shape). It found four comments to fix (what the expanded dword holds, the record's unwritten bytes, how the root's font is put, which two maps the tree fills) and one in the database (the root colours' third byte); fixed.
+
+### Parity
+
+Batch `gzu16a-r1` (the final build), 2026-10-24, muted on both sides, the base list (with `determinism.dispatch_info`) on both sides, every `framework.uiscript.*` (with `treeview` and `treeviewread`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu16a`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_TREEVIEW=2` | 12 | 12 same; `tv` BDD5B16A in every run |
+| Making Money d0000, 4 days, `OPENSC4_TEST_TREEVIEW=2` | 1 | same; `tv` BDD5B16A |
+
+All five legs the same on the first pair; `tv` was BDD5B16A in all 26 test runs.
+
+**Reached:** in every plain (muted) leg side B logs 1 of the 2 first calls (14 of 14 runs): the registration (every LEGACY reader's constructor that makes the table). No script the runs load makes a tree view, so its handler is reached only by the test.
+
+**What is left:** u16b (0x00959E31 to 0x0095BBFF, 31 functions, and the map clear 0x009599A9: GZWinGrid's handler 0x0095A250 and registration 0x0095B021, its text helper 0x00956464 (in part u15's range), the LEGACY reader's constructor 0x0095B8C4, the constructor bits from 0x0095B9A1, the STLport code from 0x00959E31) and u17 (the writers); u12's property handlers.

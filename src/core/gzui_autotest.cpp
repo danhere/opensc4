@@ -9727,6 +9727,398 @@ void OgFingerprint(cISC4City*, std::string& line)
 const FingerprintPart kOgFingerprint{"optgrp", 4, &OgFingerprint};
 const DayHook kOgDrive{"optgrp", 4, &DriveOptGrpDay};
 
+// ====================================================================================
+// Part u16a: GZWinTreeView's registration and property handler
+// (OPENSC4_TEST_TREEVIEW). Both called by address (registers checked kept
+// after): the registration with part u13's variable table of our own; the
+// handler on windows and an interface of our own (every slot it calls
+// hashes its number and what it gets; slot 114 the six maps' entries, the
+// game's map code's), with part u13's values, a held object giving images
+// (their slot 12 a rectangle of our own) and the game's font and colour
+// services, both passes. The inputs keep clear of what the game reads from
+// its stack: every vector's first node names its position, the root's
+// colours come only after an image pair, and a node's expanded byte is
+// hashed alone (the game pushes it with the record's padding).
+// Addresses never go into the hash.
+
+bool g_tvOn = false;
+uint32_t g_tvHash = 2166136261u;
+
+void TvStage(const char* name) { log::Write("autotest: treeview: %s %08X", name, g_tvHash); }
+
+void DriveTvRegister()
+{
+    void** const tableAt = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *tableAt;
+    Mix(old ? 1u : 0u);
+    void* table[1] = {WrTableTable()};
+    *tableAt = table;
+    const uint32_t before = g_wrAdds;
+    // EAX is the game's free's: not hashed.
+    PmRegs regs = PmRegsOf(0x16161616u, kPmEsi, kPmEdi, 0xA0A0A0A0u, 0xA1A1A1A1u);
+    PmCall(addr::cGZUIScriptWidgets_RegisterTreeView, regs);
+    Mix(g_wrAdds - before);
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Handlers, 0x3AE8BAD2));
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Interfaces, 0x3AE8BAE1));
+    *tableAt = old;
+    TvStage("reg");
+}
+
+// Which of the test's fonts a font is (0xFF another, then whether there
+// is one).
+void TvMixFont(void* font)
+{
+    uint32_t which = 0xFF;
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (font == g_fbFonts[i])
+            which = i;
+    }
+    Mix(which);
+    Mix(font ? 1u : 0u);
+}
+
+// A font's word by name: the test's own words as they are, others only as
+// being there.
+void TvMixFontWord(uint32_t word)
+{
+    for (uint32_t known : kFbFontWords) {
+        if (word == known) {
+            Mix(word);
+            return;
+        }
+    }
+    Mix(word ? 0xF0F1u : 0xF0F0u);
+}
+
+// The six maps the raw pass puts on the window (a number of the map's
+// address): name keyed (a string at +0x10, words from +0x24) or word
+// keyed (the word at +0x10, a string at +0x14).
+struct TvMapKind {
+    uint32_t key;
+    bool byName;
+    uint32_t words;
+    bool fontWords;
+};
+
+const TvMapKind kTvMaps[] = {{0x46C207A5u, true, 1, false}, {0xC6C207C8u, false, 0, false},
+                             {0x66C20802u, true, 2, false}, {0x86C21DA0u, true, 1, true},
+                             {0xE6C21D83u, true, 1, false}, {0x26C21E35u, false, 0, false}};
+
+void TvMixMap(char* map, const TvMapKind& kind)
+{
+    Mix(map ? 1u : 0u);
+    if (!map)
+        return;
+    char* const header = At<char*>(map, 0);
+    uint32_t count = 0;
+    for (char* node = At<char*>(header, 8); node != header && count < 64; node = TreeNext(node), ++count) {
+        if (kind.byName) {
+            PrMixText(node + 0x10);
+            for (uint32_t i = 0; i < kind.words; ++i) {
+                if (kind.fontWords)
+                    TvMixFontWord(At<uint32_t>(node, 0x24 + i * 4));
+                else
+                    Mix(At<uint32_t>(node, 0x24 + i * 4));
+            }
+        } else {
+            Mix(At<uint32_t>(node, 0x10));
+            PrMixText(node + 0x14);
+        }
+    }
+    Mix(count);
+}
+
+uint32_t __fastcall TvWinPut(WrWindow* self, void* edx, uint32_t key, char* value)
+{
+    Mix(self->mode);
+    for (const TvMapKind& kind : kTvMaps) {
+        if (key != kind.key)
+            continue;
+        Mix(0x114700u);
+        Mix(key);
+        if (!value) {
+            Mix(0xDEADu);
+            return 0x00C11470u;
+        }
+        Mix(At<uint16_t>(value, 0xE));
+        TvMixMap(At<char*>(value, 4), kind);
+        Virtual<void>(value, 0x1FC, 1u);
+        return 0x00C11470u;
+    }
+    return PmWindowPut(self, edx, key, value);
+}
+
+void** TvWindowTable()
+{
+    static void* table[115] = {};
+    table[0] = reinterpret_cast<void*>(&WrWindowQuery);
+    table[114] = reinterpret_cast<void*>(&TvWinPut);
+    return table;
+}
+
+// The images: part u13's, with slot 12 (their own rectangle).
+int32_t g_tvImageRect[4] = {3, 4, 50, 60};
+
+int32_t* __fastcall TvImageRect(WrImage* self, void*)
+{
+    Mix(0x1A0Cu | (self->tag << 16));
+    return g_tvImageRect;
+}
+
+void** TvImageTable()
+{
+    static void* table[13] = {};
+    table[2] = reinterpret_cast<void*>(&WrImageRelease);
+    table[12] = reinterpret_cast<void*>(&TvImageRect);
+    return table;
+}
+
+// The interface (IGZWinTreeView): AddRef, Release and the slots the
+// handler calls, each hashing its number and what it gets. Slot 20 gives
+// image indices of its own, slot 24 nodes of its own.
+struct TvFace {
+    void** vtable;
+    uint32_t count;
+    uint32_t images;
+    uint32_t nodes;
+};
+
+uint32_t __fastcall TvFaceAddRef(TvFace* self, void*) { return ++self->count; }
+
+uint32_t __fastcall TvFaceRelease(TvFace* self, void*)
+{
+    Mix(0x7F2F2u);
+    return 0x00F00000u + --self->count;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall TvSet1(TvFace*, void*, uint32_t a)
+{
+    Mix(0x7F000000u | Slot);
+    Mix(a);
+    return 0x00F00000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall TvSet2(TvFace*, void*, uint32_t a, uint32_t b)
+{
+    Mix(0x7F000000u | Slot);
+    Mix(a);
+    Mix(b);
+    return 0x00F00000u | Slot;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall TvSet3(TvFace*, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    Mix(0x7F000000u | Slot);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    return 0x00F00000u | Slot;
+}
+
+uint32_t __fastcall TvFaceImage(TvFace* self, void*, WrImage* image, const int32_t* rect)
+{
+    Mix(0x7F000014u);
+    Mix(image ? image->tag : 0xDEADu);
+    Mix(rect == g_tvImageRect ? 0x12EC7u : 0x12EC0u);
+    for (int i = 0; i < 4; ++i)
+        Mix(static_cast<uint32_t>(rect[i]));
+    return 0x100u + ++self->images;
+}
+
+uint32_t __fastcall TvFaceNode(TvFace* self, void*, uint32_t parent, uint32_t position, char* text, uint32_t last)
+{
+    Mix(0x7F000018u);
+    Mix(parent);
+    Mix(position);
+    PrMixText(text);
+    Mix(last);
+    return 0x7E000000u + ++self->nodes;
+}
+
+uint32_t __fastcall TvFaceText(TvFace*, void*, uint32_t node, char* text)
+{
+    Mix(0x7F000020u);
+    Mix(node);
+    PrMixText(text);
+    return 0x00F00020u;
+}
+
+uint32_t __fastcall TvFaceFont(TvFace*, void*, uint32_t node, void* font)
+{
+    Mix(0x7F000027u);
+    Mix(node);
+    TvMixFont(font);
+    return 0x00F00027u;
+}
+
+// Expanded: the root's bool whole (its upper bytes the EDX 0x0094C675
+// leaves), a node's low byte only.
+uint32_t __fastcall TvFaceExpand(TvFace*, void*, uint32_t node, uint32_t set)
+{
+    Mix(0x7F00002Du);
+    Mix(node);
+    Mix(node ? (set & 0xFF) : set);
+    return 0x00F0002Du;
+}
+
+void** TvFaceTable()
+{
+    static void* table[57] = {};
+    table[1] = reinterpret_cast<void*>(&TvFaceAddRef);
+    table[2] = reinterpret_cast<void*>(&TvFaceRelease);
+    table[3] = reinterpret_cast<void*>(&TvSet2<3>);
+    table[7] = reinterpret_cast<void*>(&TvSet1<7>);
+    table[9] = reinterpret_cast<void*>(&TvSet2<9>);
+    table[11] = reinterpret_cast<void*>(&TvSet1<11>);
+    table[13] = reinterpret_cast<void*>(&TvSet1<13>);
+    table[15] = reinterpret_cast<void*>(&TvSet1<15>);
+    table[17] = reinterpret_cast<void*>(&TvSet1<17>);
+    table[20] = reinterpret_cast<void*>(&TvFaceImage);
+    table[24] = reinterpret_cast<void*>(&TvFaceNode);
+    table[32] = reinterpret_cast<void*>(&TvFaceText);
+    table[36] = reinterpret_cast<void*>(&TvSet3<36>);
+    table[39] = reinterpret_cast<void*>(&TvFaceFont);
+    table[43] = reinterpret_cast<void*>(&TvSet3<43>);
+    table[45] = reinterpret_cast<void*>(&TvFaceExpand);
+    table[56] = reinterpret_cast<void*>(&TvSet2<56>);
+    return table;
+}
+
+// One call of the handler: its EAX and argument slots after (the first
+// may hold a found word).
+void TvRead(WrWindow& window, WrPair* pairs, std::size_t count, uint32_t set)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    PmRegs regs = PmRegsOf(0x2A2A2A2Au, kPmEsi, kPmEdi, PrArg(&window), PrArg(vector));
+    regs.args[2] = set;
+    Mix(PmCall(addr::cGZUIScriptWidgets_TreeViewRead, regs));
+    Mix(regs.args[0] == PrArg(&window) ? 0x77DDu : regs.args[0]);
+    Mix(regs.args[1] == PrArg(vector) ? 0x77DEu : 0xBAD1u);
+    Mix(regs.args[2]);
+}
+
+void DriveTvRead()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    void* const fonts = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C72)();
+    void* const colours = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C1A)();
+    Mix(fonts ? 1u : 0u);
+    Mix(colours ? 1u : 0u);
+    if (!holder || !fonts || !colours) {
+        TvStage("read");
+        return;
+    }
+    for (uint32_t i = 0; i < 3; ++i)
+        g_fbFonts[i] = Virtual<void*>(fonts, 0x14, kFbFontWords[i]);
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {OgHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    g_wrImages[0] = {TvImageTable(), 0xD0, 0};
+    g_wrImages[1] = {TvImageTable(), 0xD1, 0};
+
+    TvFace face = {TvFaceTable(), 1, 0, 0};
+    WrWindow windows[3] = {{TvWindowTable(), 0, &face}, {TvWindowTable(), 1, &face}, {TvWindowTable(), 2, &face}};
+
+    WrValue n0 = WrNumber(0), n1 = WrNumber(1), n2 = WrNumber(2), n5 = WrNumber(5), n7 = WrNumber(7),
+            n40 = WrNumber(40), nBig = WrNumber(0xFFFFFFFFu), nFont0 = WrNumber(kFbFontWords[0]),
+            other = {WrValueTable(), 9, 1, "(1,2,3)"};
+    WrValue flagText = WrText("1"), c1 = WrText("(1,2,3)"), c2 = WrText("(255,128,0)"), c3 = WrText("(300,-1,256)"),
+            cShort = WrText("(4,5)");
+    WrPair full[] = {
+        {0x1401, &n1}, {0x1402, &n0}, {0x1403, &n5}, {0x1404, &flagText}, {0x1405, &n7},
+        {0x1336, &n40}, {0x1406, &n2}, {0x133F, &c1}, {0x408, &c2},     {0x1401, &other},
+    };
+    WrPair second[] = {{0x408, &cShort}, {0x1406, &nBig}, {0x133F, &c3}, {0x1404, &n1}, {0x1336, &other}};
+    WrPair third[] = {{0x408, &c1}, {0x1402, &nBig}};
+
+    // The raw pass's: images, the root and the nodes.
+    WrValue i1 = WrText("folder:{1a2b,3c4c}:(0,0,0,0)"), i2 = WrText("file:{11,16}:(1,2,3,4)"),
+            i3 = WrText("none:{11,13}:(5,6,7,8)"), i4 = WrText("bad:{zz}:(1,2)"), i5 = WrText("file:{1a2b,3c4e}:()"),
+            rootText = WrText("My Root"), iconFolder = WrText("folder"), iconNone = WrText("unknown"),
+            iconFile = WrText("file"), fontText = WrText("Some Font");
+    WrValue a = WrText("a:Alpha:Root:first:folder:file:x:y:(1,2,3):(4,5,6):(7,8,9):(10,11,12):Arial:yes:no"),
+            b = WrText("b:Beta:a:last:file:folder:folder:file:(1,1,1):(2,2,2):(3,3,3):(4,4,4):Courier:no:yes"),
+            c = WrText("c:Gamma:Root:sorted:none:none:none:none:(9,9,9):(8,8,8):(7,7,7):(6,6,6):Times:yes:yes"),
+            d = WrText("d:Delta:a:middle:folder:x:x:x:(0,0,0):(1,0,0):(0,1,0):(0,0,1):Arial:YES:yes"),
+            e = WrText("e:Orphan:zzz:first:file:file:file:file:(5,5,5):(5,5,5):(5,5,5):(5,5,5):Arial:yes:no"),
+            f = WrText("f:Short:b"), g = WrText("a:Again:Root:last:folder:folder:folder:folder:(1,2,3):(1,2,3):(1,2,3):"
+                                               "(1,2,3):Arial:no:no"),
+            h = WrText("h:Child:c:first:x:x:x:x:(3,2,1):(3,2,1):(3,2,1):(3,2,1)::yes:yes:extra");
+    WrPair raw[] = {
+        {0xF016, &i1},     {0xF016, &i2},      {0x1102, &a},          {0xF016, &i3},       {0xF016, &i4},
+        {0xF016, &n1},     {0x1407, &rootText}, {0x1408, &iconFolder}, {0x1409, &iconNone}, {0x140B, &iconFile},
+        {0x140C, &c1},     {0x140E, &c3},      {0x140F, &cShort},     {0x1410, &nFont0},   {0x1411, &n1},
+        {0x1412, &n1},     {0x1102, &b},       {0x1102, &c},          {0x1102, &d},        {0x1102, &e},
+        {0x1102, &f},      {0x1102, &n2},      {0x1102, &h},
+    };
+    WrPair rawSecond[] = {
+        {0x1410, &fontText}, {0x1411, &n0}, {0x1412, &n2}, {0x1407, &other}, {0x1408, &iconFile},
+        {0xF016, &i5},       {0x140D, &c2}, {0x1102, &g},  {0x1102, &a},     {0x1102, &b},
+    };
+    WrPair rawThird[] = {{0x1411, &nBig}, {0x1412, &n1}, {0x1410, &other}, {0x1102, &c}, {0x1102, &h}};
+
+    for (WrWindow& window : windows) {
+        for (uint32_t set : {1u, 0xFFFFFF01u}) {
+            TvRead(window, full, std::size(full), set);
+            TvRead(window, second, std::size(second), set);
+            TvRead(window, third, std::size(third), set);
+            TvRead(window, full, 0, set);
+        }
+        for (uint32_t set : {0u, 0x100u}) {
+            TvRead(window, raw, std::size(raw), set);
+            TvRead(window, rawSecond, std::size(rawSecond), set);
+            TvRead(window, rawThird, std::size(rawThird), set);
+            TvRead(window, raw, 0, set);
+        }
+    }
+    Mix(face.count);
+    Mix(face.images);
+    Mix(face.nodes);
+    Mix(g_wrImages[0].count);
+    Mix(g_wrImages[1].count);
+    Mix(held.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    TvStage("read");
+}
+
+// OPENSC4_TEST_TREEVIEW=<day>: part u16a by address. Every result goes
+// into the fingerprint's `tv` part.
+void DriveTreeViewDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_TREEVIEW") || !game::IsBuild641())
+        return;
+    g_tvOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_tvHash;
+    DriveTvRegister();
+    DriveTvRead();
+    g_into = saved;
+    log::Write("autotest: treeview driven (hash %08X)", g_tvHash);
+}
+
+void TvFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_tvOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | tv %08X", g_tvHash);
+    line += text;
+}
+
+const FingerprintPart kTvFingerprint{"treeview", 4, &TvFingerprint};
+const DayHook kTvDrive{"treeview", 4, &DriveTreeViewDay};
+
 
 
 // Part u12, slice 3: the property handlers and the variable table's words
