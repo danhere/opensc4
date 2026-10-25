@@ -6074,3 +6074,266 @@ address = 0x00AD5420
 kind = "data"
 expect = "C6 57 94 00 4F D3 94 00 7A 40 95 00"
 source = "Name ours. The vtable of the counted text list the base window's handler 0x0095660D makes (0x14 bytes: a vector of strings at +4): 0x009457C6, AddRef 0x0094D34F, Release 0x0095407A."
+
+# Part u16a (src/core/gzui_widgets2.cpp, docs/gzui.md): GZWinTreeView's registration and property handler, the
+# STLport map, list and record code it calls (the game's) and the words it reads.
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterTreeView"
+address = 0x009599D2
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinTreeView and IGZWinTreeView into the table (its slot 3 with a string from SC4String::FromText), the class's handler 0x009586B0 under its interface 0x3AE8BAD2 (0x0094950A into 0x00B6358C) and its interface under the class 0x3AE8BAE1 (0x004FB6C0 into 0x00B63598), then its 18 property words (0x1401 displayroot to 0x1412 rootselected). Ours in framework.uiscript.treeview (docs/gzui.md, part u16a)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeViewRead"
+address = 0x009586B0
+kind = "function"
+convention = "cdecl"
+signature = "void (cIGZWin* window, void* properties, bool set)"
+expect = "55 8D 6C 24 94 81 EC A8"
+source = "Name ours. GZWinTreeView's property handler (0x00B6358C under 0x3AE8BAD2; the dispatcher 0x00957A9B calls it with the byte 1, then 0). The window's IGZWinTreeView (QueryInterface 0x3AE8BAD2). With the byte set: four flags 0x1401 to 0x1404 (slot 3, masks 2, 4, 8, 0x10, the word not 0; the bool over the EDX 0x0094C675 leaves), the words 0x1405 (slot 7), 0x1336 (slot 11) and 0x1406 (slot 13), all into the window's argument slot, and two colours 0x133F (slot 15) and 0x408 (slot 17), whose third byte's place is that slot. With it clear: the images 0xF016 (name:{group,instance}:(x,y,w,h); slot 20 with the image and its rectangle, the image's own (slot 12) when the four are 0) into three maps put under 0x46C207A5 (name to index), 0xC6C207C8 (index to name) and 0x66C20802 (name to key); the root's text 0x1407 (slot 32), icons 0x1408 to 0x140B (slot 36, by name), colours 0x140C to 0x140F (slot 43; their first two bytes' places the last image's index and instance, the third's the pairs' count), font 0x1410 (slot 39, 0x0094C222 or 0x0094C255 under 0), expanded 0x1411 (slot 45) and selected 0x1412 (slot 56); the lines' colour (slot 9); the nodes 0x1102 (name:text:parent:first|last|sorted:4 icons:4 (r,g,b):font:yes:yes) into a list of records and a font map (0x86C21DA0); the tree from (Root, 0) depth first (slot 24 per node, then 36, 39, 43, 45, 56) with its maps under 0xE6C21D83 (name to node) and 0x26C21E35 (node to name). The interface released, its EAX answered. Ours in framework.uiscript.treeviewread (docs/gzui.md, part u16a)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeKeyPair"
+address = 0x00894585
+kind = "function"
+convention = "thiscall"
+signature = "void* (const SC4String* name, const uint32_t* key)"
+expect = "56 6A FF 6A 00 FF 74 24"
+source = "Name ours. `ret 8`: a (name, image key) pair (0x1C bytes: the string copied by 0x00408BE0, the two words). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeKeyMapConstruct"
+address = 0x0089508C
+kind = "function"
+convention = "thiscall"
+signature = "void* ()"
+expect = "55 8B EC 51 56 8D 45 FF"
+source = "Name ours. A map of names to image keys (0xC bytes; 0x0094CB61). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptProps::RectEmpty"
+address = 0x0094C49A
+kind = "function"
+convention = "thiscall"
+signature = "bool ()"
+expect = "33 C0 39 01 75 10 39 41"
+source = "Name ours. Whether a rectangle's four ints are all 0 (EAX 1, else 0). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeRecordListConstruct"
+address = 0x0094C975
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* allocator)"
+expect = "56 8B F1 83 26 00 6A 70"
+source = "Name ours. `ret 4`: a list of tree records (the header node of 0x70 bytes, linked to itself). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeNameFind"
+address = 0x0094CA22
+kind = "function"
+convention = "thiscall"
+signature = "void* (const SC4String* name)"
+expect = "53 56 8B D9 57 8B 3B 8B"
+source = "Name ours. `ret 4`: a name-keyed map's find (the node, its value at +0x24; else the header). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeRecordConstruct"
+address = 0x0094D147
+kind = "function"
+convention = "thiscall"
+signature = "void* ()"
+expect = "56 8B F1 E8 41 B2 C2 FF"
+source = "Name ours. A tree record's constructor: its three strings (+0, +0x14, +0x28) only. Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeRecordDestruct"
+address = 0x0094D163
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "56 8B F1 8D 4E 28 E8 E2"
+source = "Name ours. A tree record's destructor (its three strings). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeRecordErase"
+address = 0x0095409E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void** result, void* node)"
+expect = "56 57 8B 7C 24 10 8B 37"
+source = "Name ours. `ret 8`: the record list's erase of a node (by value; its record destroyed, the node freed, the next answered). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeRecordCopy"
+address = 0x009550C3
+kind = "function"
+convention = "thiscall"
+signature = "void* (const void* record)"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours. `ret 4`: a tree record's copy (0x68 bytes: three strings, 10 words, two bytes). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeQueuePopBack"
+address = 0x00955144
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "51 8B 11 8B 52 04 51 8B"
+source = "Name ours. The work list's pop_back (0x009217C8 on its last node). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeNamePair"
+address = 0x0095515B
+kind = "function"
+convention = "thiscall"
+signature = "void* (const SC4String* name, const uint32_t* word)"
+expect = "56 6A FF 6A 00 FF 74 24"
+source = "Name ours. `ret 8`: a (name, word) pair (0x18 bytes). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeRecordListDestruct"
+address = 0x0095517A
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "56 8B F1 E8 46 EF FF FF"
+source = "Name ours. The record list's destructor (0x009540C8, the header freed). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeWordMapConstruct"
+address = 0x009561DC
+kind = "function"
+convention = "thiscall"
+signature = "void* ()"
+expect = "55 8B EC 51 56 8D 45 FF"
+source = "Name ours. A map (0xC bytes; 0x0094CB8B) the handler keeps words to names and names to fonts in. Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeRecordInsert"
+address = 0x009561F5
+kind = "function"
+convention = "thiscall"
+signature = "void* (void** result, void* where, const void* record)"
+expect = "FF 74 24 0C E8 DF FE FF"
+source = "Name ours. `ret 0xC`: the record list's insert before a node (by value; the node made by 0x009560DD). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeNameMapInsert"
+address = 0x0095811B
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* result, const void* pair)"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Name ours. `ret 8`: a name-to-word map's insert (the maps of 0x00939D41). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeWordMapInsert"
+address = 0x009581AC
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* result, const void* pair)"
+expect = "55 8B EC 53 8B D9 8B 0B"
+source = "Name ours. `ret 8`: a word-to-name map's insert (pairs of SC4QueryTool::TextPairCopy). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeKeyMapInsert"
+address = 0x00958230
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* result, const void* pair)"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Name ours. `ret 8`: the name-to-key map's insert. Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeFontMapInsert"
+address = 0x009582C1
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* result, const void* pair)"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Name ours. `ret 8`: the name-to-font map's insert. Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeQueueConstruct"
+address = 0x009C9DDB
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* allocator)"
+expect = "56 8B F1 83 26 00 6A 20"
+source = "Name ours. `ret 4`: the work list of (name, node) pairs (the header node of 0x20 bytes, linked to itself). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeNamePairCopy"
+address = 0x009CA065
+kind = "function"
+convention = "thiscall"
+signature = "void* (const void* pair)"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours. `ret 4`: a (name, word) pair's copy. Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeQueueInsert"
+address = 0x009CAA5C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void** result, void* where, const void* pair)"
+expect = "FF 74 24 0C E8 99 B6 F8"
+source = "Name ours. `ret 0xC`: the work list's insert before a node (by value; the node made by 0x009560FE). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeQueuePushBack"
+address = 0x009CAA9D
+kind = "function"
+convention = "thiscall"
+signature = "void (const void* pair)"
+expect = "55 8B EC FF 75 08 8B 11"
+source = "Name ours. `ret 4`: the work list's push_back (0x009CAA5C before the header). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeQueueDestruct"
+address = 0x009D7712
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "56 8B F1 E8 83 FF FF FF"
+source = "Name ours. The work list's destructor (0x009D769D, the header freed). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeFirst"
+address = 0x00AD6718
+kind = "data"
+expect = "66 69 72 73 74 00"
+source = "Name ours. first, a tree node's position word (-2)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeLast"
+address = 0x00AD6710
+kind = "data"
+expect = "6C 61 73 74 00"
+source = "Name ours. last, a tree node's position word (-3)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeSorted"
+address = 0x00AD6708
+kind = "data"
+expect = "73 6F 72 74 65 64 00"
+source = "Name ours. sorted, a tree node's position word (-4)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeYes"
+address = 0x00A863D4
+kind = "data"
+expect = "79 65 73 00"
+source = "Name ours. yes, what sets a tree node's expanded and selected bytes."
+
+[[entry]]
+name = "cGZUIScriptWidgets::TreeRoot"
+address = 0x00AD6700
+kind = "data"
+expect = "52 6F 6F 74 00"
+source = "Name ours. Root, the name GZWinTreeView's handler 0x009586B0 builds its tree from (node 0)."
