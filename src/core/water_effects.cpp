@@ -15766,7 +15766,10 @@ bool DwNoting()
 }
 
 // A box's draw is given the box and the colour on each run's own stack:
-// its note holds what they hold (a hash of the six and the four floats).
+// its note holds a hash of the colour's four floats. The box is not
+// compared: it is the effect's, which the game's run has drawn (and so
+// moved) before the boxes and ours, whose effects' draws are only noted,
+// has not.
 DwNote DwMakeNote(uint32_t kind, char* self, uint32_t a, uint32_t b)
 {
     if (kind == kDwBox) {
@@ -15776,7 +15779,7 @@ DwNote DwMakeNote(uint32_t kind, char* self, uint32_t a, uint32_t b)
                 h = (h ^ static_cast<uint8_t>(Ptr(at)[i])) * 16777619u;
             return h;
         };
-        return DwNote{kind, Word(self), hash(a, 24), hash(b, 16)};
+        return DwNote{kind, Word(self), 0, hash(b, 16)};
     }
     return DwNote{kind, Word(self), a, b};
 }
