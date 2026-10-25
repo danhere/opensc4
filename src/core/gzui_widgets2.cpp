@@ -7,7 +7,8 @@
 // dispatcher (0x00957A9B) calls the handler with the window and its
 // properties, then the base window's handler (0x0095660D), twice. Part
 // u15 adds GZWinOptGrp, the base handler and the dispatcher, part u16a
-// GZWinTreeView. Replacements, each off by default:
+// GZWinTreeView, part u16b GZWinGrid and GZWinCustom's class code.
+// Replacements, each off by default:
 //
 //   framework.uiscript.filebrowser      the registration 0x009552BE
 //   framework.uiscript.filebrowserread  the property handler 0x00954212
@@ -18,6 +19,11 @@
 //                                       reader's slot 3)
 //   framework.uiscript.treeview         GZWinTreeView's registration 0x009599D2
 //   framework.uiscript.treeviewread     its property handler 0x009586B0
+//   framework.uiscript.grid             GZWinGrid's registration 0x0095B021
+//   framework.uiscript.gridread         its property handler 0x0095A250 and
+//                                       its cells' text helper 0x00956464
+//   framework.uiscript.custom           GZWinCustom's constructor, destructors,
+//                                       QueryInterface and slots 3 and 88
 //
 // The registration is a table, as part u13's are: the game's own literals
 // (by address, the text in the comments) and words, the handler (the game's
@@ -32,6 +38,7 @@
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/thunk.h"
 
 #include <opensc4/addresses.h>
 
@@ -1868,6 +1875,616 @@ __declspec(naked) void TreeViewRead()
 }
 
 // ====================================================================================
+// GZWinGrid's registration (part u16b)
+
+// GZWinGrid (0x0095B021)
+const Word kGridNames[] = {
+    {0x00AD6A80, 0xDAA6B9BF}, // "GZWinGrid"
+    {0x00AD6A74, 0xDAA6B9BE}, // "IGZWinGrid"
+};
+const Word kGridWords[] = {
+    {0x00AD6A68, 0x00001601}, // "fontcolor"
+    {0x00AD6A5C, 0x00001602}, // "textalign"
+    {0x00AD6A4C, 0x00001603}, // "textwrapping"
+    {0x00AD6A40, 0x00001604}, // "olinecolor"
+    {0x00AD6A38, 0x00001605}, // "selrule"
+    {0x00AD6A2C, 0x00001606}, // "maxselcount"
+    {0x00AD6A20, 0x00001607}, // "dcolwidth"
+    {0x00AD6A14, 0x00001608}, // "drowheight"
+    {0x00AD6A08, 0x00001609}, // "enablehdr"
+    {0x00AD69FC, 0x0000160A}, // "colhdrsz"
+    {0x00AD69F0, 0x0000160B}, // "rowhdrsz"
+    {0x00AD69E8, 0x0000160C}, // "fnone"
+    {0x00AD69E0, 0x0000160D}, // "fedit"
+    {0x00AD69D4, 0x0000160E}, // "fhscroll"
+    {0x00AD69C8, 0x0000160F}, // "fvscroll"
+    {0x00AD69BC, 0x00001610}, // "fcolheading"
+    {0x00AD69B0, 0x00001611}, // "frowheading"
+    {0x00AD69A4, 0x00001612}, // "fcolgrid"
+    {0x00AD6998, 0x00001613}, // "frowgrid"
+    {0x00AD698C, 0x00001614}, // "finsmode"
+    {0x00AD6980, 0x00001615}, // "fopqbkgnd"
+    {0x00AD6974, 0x00001616}, // "fdoutline"
+    {0x00AD6964, 0x00001617}, // "fdgridoutline"
+    {0x00AD6958, 0x00001618}, // "fcellwrap"
+    {0x00AD694C, 0x00001619}, // "fallownosel"
+    {0x00AD6940, 0x0000161A}, // "ffixcolcnt"
+    {0x00AD6934, 0x0000161B}, // "ffixrowcnt"
+    {0x00AD6924, 0x0000161C}, // "fdpastlastcol"
+    {0x00AD6914, 0x0000161D}, // "fdpastlastrow"
+    {0x00AD6904, 0x0000161E}, // "fcelloverlap"
+    {0x00AD68F8, 0x0000161F}, // "fdrpdnmenu"
+    {0x00AD68EC, 0x00001620}, // "fhlcelldata"
+    {0x00AD68E0, 0x00001621}, // "fdefault"
+    {0x00AD68D8, 0x00001622}, // "fall"
+    {0x00AD68CC, 0x00001623}, // "colgridclr"
+    {0x00AD68C0, 0x00001624}, // "rowgridclr"
+    {0x00AD68B4, 0x00001625}, // "wingridcell"
+    {0x00AD68A8, 0x00001627}, // "wingridrow"
+    {0x00AD689C, 0x00001626}, // "wingridcol"
+};
+const Widget kGrid = {kGridNames, 2, 0xDAA6B9BE, 0x0095A250, 0xDAA6B9BF, 0xDAA6B9BE, kGridWords, 39};
+
+// The detour (void; EAX as the game's leaves it: the last string's end).
+uint32_t __cdecl RegisterGrid()
+{
+    OPENSC4_FIRST("RegisterGrid");
+    return Register(kGrid);
+}
+
+// ====================================================================================
+// GZWinGrid's text helper (part u16b)
+
+// The game's 0x00956464 (cdecl, the cell's text in EAX; the thunk hands
+// the body the text and the argument slots): the text cut at its commas
+// into 11 strings (SC4::SplitText). With 4 or more: the row, the column
+// (TextToUint32) and the flags (TextToInt); with the flags' 0x40000 the
+// fourth part assigned to the string, else the fourth and fifth printed
+// into it as "%s,%s" (the string's slot 27, their characters as they are,
+// none for an empty part); with the flags' 0x1000 (read again) the next
+// part a font's word by name (the font service's slot 38) and the five
+// after it numbers. The strings destroyed by the game's array destructor
+// 0x0041D3C0; AL 1 (4 or more) or 0 over its EAX.
+uint32_t __cdecl GridTextBody(char* text, void* const* out)
+{
+    OPENSC4_FIRST("GridText");
+    Text parts[11];
+    for (Text& part : parts)
+        part.Make();
+    uint32_t count = 11;
+    const char* const begin = At<char*>(text, 4);
+    Cdecl<uint32_t>(addr::SC4_SplitText, begin, static_cast<uint32_t>(At<char*>(text, 8) - begin), 0x2Cu,
+                    static_cast<void*>(parts), &count);
+    uint32_t ok = 0;
+    if (count >= 4) {
+        uint32_t* const* const words = reinterpret_cast<uint32_t* const*>(out);
+        *words[0] = Cdecl<uint32_t>(addr::SC4_TextToUint32, parts[0].Begin());
+        *words[1] = Cdecl<uint32_t>(addr::SC4_TextToUint32, parts[1].Begin());
+        *words[2] = Cdecl<uint32_t>(addr::SC4_TextToInt, parts[2].Begin());
+        std::size_t next = 4;
+        if (*words[2] & 0x40000) {
+            CallThis<uint32_t>(addr::cRZBaseString_Assign, out[3], static_cast<void*>(parts[3].bytes));
+        } else {
+            using Print = uint32_t(__cdecl*)(void*, const char*, ...);
+            void** const vtable = *static_cast<void***>(out[3]);
+            reinterpret_cast<Print>(vtable[0x6C / 4])(out[3], reinterpret_cast<const char*>(addr::cGZUIScriptWidgets_GridPairFormat),
+                                                      parts[3].Begin(), parts[4].Begin());
+            next = 5;
+        }
+        if (*words[2] & 0x1000) {
+            *words[4] = Virtual<uint32_t>(Cdecl<void*>(addr::SC4_Singleton913C72), kFontByName,
+                                          static_cast<void*>(parts[next].bytes));
+            for (std::size_t i = 1; i <= 5; ++i)
+                *words[4 + i] = Cdecl<uint32_t>(addr::SC4_TextToUint32, parts[next + i].Begin());
+        }
+        ok = 1;
+    }
+    using Destroy = uint32_t(__stdcall*)(void*, uint32_t, uint32_t, std::uintptr_t);
+    const uint32_t eax =
+        reinterpret_cast<Destroy>(addr::cSC4Advisors_F41D3C0)(static_cast<void*>(parts), 0x14u, 11u, addr::SC4String_Destroy);
+    return (eax & ~0xFFu) | ok;
+}
+
+__declspec(naked) void GridText()
+{
+    __asm lea ecx, [esp + 4]
+    __asm push ecx
+    __asm push eax
+    __asm call GridTextBody
+    __asm add esp, 8
+    __asm ret
+}
+
+// ====================================================================================
+// GZWinGrid's property handler (part u16b)
+
+// The interface the handler asks the window for (IGZWinGrid) and the slots
+// it calls on it (byte offsets); a cell is (row, column).
+constexpr uint32_t kGridInterface = 0xDAA6B9BE;
+constexpr std::size_t kGridWindow = 0x14;       // slot 5 (its window)
+constexpr std::size_t kGridFlagOn = 0x28;       // slot 10 (mask)
+constexpr std::size_t kGridFlagOff = 0x30;      // slot 12 (mask)
+constexpr std::size_t kGridFont = 0x3C;         // slot 15 (font)
+constexpr std::size_t kGridTextColour = 0x44;   // slot 17 (colour)
+constexpr std::size_t kGridWrap = 0x54;         // slot 21 (bool)
+constexpr std::size_t kGridGutters = 0x60;      // slot 24 (four ints)
+constexpr std::size_t kGridOutline = 0x6C;      // slot 27 (bool, colour)
+constexpr std::size_t kGridSelection = 0x9C;    // slot 39 (rule, count)
+constexpr std::size_t kGridLineColours = 0xE8;  // slot 58 (two colours)
+constexpr std::size_t kGridAlign = 0xF0;        // slot 60 (word)
+constexpr std::size_t kGridColWidth = 0x100;    // slot 64 (word)
+constexpr std::size_t kGridColumn = 0x104;      // slot 65 (column, 1, width)
+constexpr std::size_t kGridRowHeight = 0x108;   // slot 66 (word)
+constexpr std::size_t kGridRows = 0x10C;        // slot 67 (row, count, height)
+constexpr std::size_t kGridHeaders = 0x128;     // slot 74 (two bools)
+constexpr std::size_t kGridHeaderSizes = 0x130; // slot 76 (two words)
+constexpr std::size_t kGridCellStyle = 0x154;   // slot 85 (row, column, style*)
+constexpr std::size_t kGridCellText = 0x1C0;    // slot 112 (row, column, characters, length, 1, bool)
+constexpr std::size_t kGridCellImage = 0x1C8;   // slot 114 (row, column, image, 1)
+// The window's slot 108 (three bytes: a colour; `ret 0xC`) and slot 92.
+constexpr std::size_t kWinColourOf = 0x1B0;
+constexpr std::size_t kWin92 = 0x170;
+
+// The flags 0x160C to 0x1622 (the word not 0: slot 10, else slot 12; for
+// 0x160F's 4 off the window's slot 92 after).
+const Flag kGridFlags[] = {
+    {0x160C, 0},       {0x160D, 1},       {0x160E, 2},       {0x160F, 4},       {0x1610, 8},
+    {0x1611, 0x10},    {0x1612, 0x20},    {0x1613, 0x40},    {0x1614, 0x80},    {0x1615, 0x100},
+    {0x1616, 0x200},   {0x1617, 0x400},   {0x1618, 0x800},   {0x1619, 0x1000},  {0x161A, 0x2000},
+    {0x161B, 0x4000},  {0x161C, 0x8000},  {0x161D, 0x10000}, {0x161E, 0x20000}, {0x161F, 0x40000},
+    {0x1620, 0x80000}, {0x1621, 0x19BFF}, {0x1622, 0xFFFFFFFFu},
+};
+
+// A cell's record (0x38 bytes, 0x0094D490): the key's two words +0 and +4
+// (group, instance), the flags +8, a string +0xC, the style's font word,
+// a word and four more (bytes and a word) from +0x20. Its style (0x24
+// bytes, 0x009A5BF2): the font +0, a word +4, the bytes +0x1C (1 or -1 by
+// the flags' 0x100000) to +0x1F, a word +0x20.
+constexpr std::size_t kCellSize = 0x38;
+constexpr std::size_t kCellFlags = 8;
+constexpr std::size_t kCellText = 0xC;
+constexpr std::size_t kCellStyle = 0x20;
+constexpr std::size_t kStyleSize = 0x24;
+
+// The 0x0094C6C7 and 0x0094D5CA helpers of part u12 by address (the vector
+// in EDI; the rectangle in ESI).
+uint32_t FindWord75In(char* const* vector, uint32_t key, uint32_t* word)
+{
+    Regs regs = {0, 0, 0, Word32(vector), 0};
+    return CallRegs(addr::cGZUIScriptProps_FindWord75, &regs, key, Word32(word), 0, 0);
+}
+
+bool ReadRectIn(char* const* vector, uint32_t key, int32_t* rect)
+{
+    Regs regs = {0, 0, Word32(rect), Word32(vector), 0};
+    return Yes(CallRegs(addr::cGZUIScriptProps_ReadRect, &regs, key, 0, 0, 0));
+}
+
+// The window's colour of three bytes' words (slot 108 of the interface's
+// window, slot 5).
+uint32_t GridColour(void* face, uint32_t first, uint32_t second, uint32_t third)
+{
+    void* const window = Virtual<void*>(face, kGridWindow);
+    return Virtual<uint32_t>(window, kWinColourOf, first, second, third);
+}
+
+// A map of the grid's (0x24 bytes, 0x009ABB63; none without memory) in a
+// holder (0x10 bytes: the vtable, the map, a count 0, whether it has one)
+// that is held, given to a new number value (slot 61) put under the key
+// through the window and released; the map answered. Without the memory
+// for the holder or the value the game calls through null; so does ours.
+char* NewGridMap(void* window, uint32_t key, std::uintptr_t vtable)
+{
+    void* const memory = Cdecl<void*>(addr::SC4_operator_new, std::size_t{0x24});
+    char* const map = memory ? CallThis<char*>(addr::cGZUIScriptWidgets_GridMapConstruct, memory) : nullptr;
+    char* const holder = Cdecl<char*>(addr::SC4_operator_new, std::size_t{0x10});
+    if (holder) {
+        At<uint32_t>(holder, 8) = 0;
+        At<char*>(holder, 4) = map;
+        At<std::uintptr_t>(holder, 0) = vtable;
+        At<uint8_t>(holder, 0xC) = map ? 1 : 0;
+    }
+    Virtual<uint32_t>(holder, 4);
+    void* const value = NewValue(addr::SC4ScriptNumber_Construct);
+    Virtual<uint32_t>(value, 0xF4, static_cast<void*>(holder));
+    Virtual<uint32_t>(window, kWinPut, key, value);
+    Virtual<uint32_t>(holder, 8);
+    return map;
+}
+
+// The set pass's places: the game keeps these in one frame. `a`, `b` and
+// `c` are the first, second and third bytes' places of the colours and
+// the words' (the cells' column and row are `a` and `b`, the cells' map
+// `c`); `flagWord` the flags' word, which the cells' test reads. Ours
+// start at 0 where the game's hold what its stack held.
+struct GridState {
+    void* window;
+    char* const* vector;
+    void* face;
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+    uint32_t index;
+    uint32_t flagWord;
+};
+
+// The window's settings: the text colour 0x1601 (slot 17), the font
+// 0xF000 (a number: the font service's slot 5 for slot 15, then put
+// through the window by 0x0094C222; a text: put by 0x0094C255 alone; else
+// slot 15 with the font 0x68963C4C), the alignment 0x1602 (slot 60), the
+// wrapping 0x1603 (slot 21, the word not 0), the gutters 0xF004 (slot 24;
+// zeros without four numbers), the selection 0x1605 and 0x1606 (slot 39;
+// 2 and 1), the outline 0x1616 and its colour 0x1604 (slot 27: the bool
+// over the colour's upper bytes, the colour), the default sizes 0x1607
+// and 0x1608 (slots 64 and 66; 100 and 20), the headers 0x1609 (slot 74:
+// 0 both, 1 the first, 2 the second, any other none) and their sizes
+// 0x160A and 0x160B (slot 76; 0), then the flags.
+void GridSettings(GridState& grid, Text& font)
+{
+    char* const* const vector = grid.vector;
+    void* const face = grid.face;
+    // The game pushes a fourth argument (0) the window's slot 108 (`ret
+    // 0xC`) leaves on its stack, which its last pops then take: it returns
+    // with EBX 0, EDI the caller's EBX and ESI the caller's EDI, and its
+    // dispatcher then reads the window through ESI and fails. Ours keeps
+    // the registers.
+    if (ReadBytesIn(vector, 0x1601, &grid.a, &grid.b, &grid.c))
+        Virtual<uint32_t>(face, kGridTextColour, GridColour(face, grid.a, grid.b, grid.c));
+    font.Make();
+    if (Yes(FindWordIn(vector, 0xF000, &grid.c))) {
+        void* const service = Cdecl<void*>(addr::SC4_Singleton913C72);
+        Virtual<uint32_t>(face, kGridFont, Virtual<uint32_t>(service, kFont, grid.c));
+        Regs regs = {0, 0, Word32(grid.window), 0, 0};
+        CallRegs(addr::cGZUIScriptProps_MakeNumber, &regs, grid.c, 0, 0, 0);
+    } else if (FindTextIn(vector, font, 0xF000)) {
+        Regs regs = {Word32(font.bytes), Word32(font.bytes), Word32(grid.window), Word32(vector), 0};
+        CallRegs(addr::cGZUIScriptProps_MakeText, &regs, Word32(font.bytes), 0, 0, 0);
+    } else {
+        Virtual<uint32_t>(face, kGridFont, Virtual<uint32_t>(Cdecl<void*>(addr::SC4_Singleton913C72), kFont, 0x68963C4Cu));
+    }
+    if (Yes(FindWord75In(vector, 0x1602, &grid.c)))
+        Virtual<uint32_t>(face, kGridAlign, grid.c);
+    grid.c = 0;
+    const bool wrap = Yes(FindWordIn(vector, 0x1603, &grid.c)) && grid.c != 0;
+    Virtual<uint32_t>(face, kGridWrap, wrap ? 1u : 0u);
+    int32_t rect[4] = {0, 0, 0, 0};
+    if (ReadRectIn(vector, 0xF004, rect))
+        Virtual<uint32_t>(face, kGridGutters, rect[0], rect[1], rect[2], rect[3]);
+    else
+        Virtual<uint32_t>(face, kGridGutters, 0u, 0u, 0u, 0u);
+    grid.b = 2;
+    FindWord75In(vector, 0x1605, &grid.b);
+    grid.c = 1;
+    FindWord75In(vector, 0x1606, &grid.c);
+    Virtual<uint32_t>(face, kGridSelection, grid.b, grid.c);
+    grid.index = 0;
+    FindWordIn(vector, 0x1616, &grid.index);
+    grid.a &= ~0xFFu;
+    grid.b &= ~0xFFu;
+    grid.c &= ~0xFFu;
+    ReadBytesIn(vector, 0x1604, &grid.a, &grid.b, &grid.c);
+    const uint32_t outline = GridColour(face, grid.a, grid.b, grid.c);
+    Virtual<uint32_t>(face, kGridOutline, (outline & ~0xFFu) | (grid.index == 1 ? 1u : 0u), outline);
+    grid.c = 100;
+    grid.b = 20;
+    FindWord75In(vector, 0x1607, &grid.c);
+    Virtual<uint32_t>(face, kGridColWidth, grid.c);
+    FindWord75In(vector, 0x1608, &grid.b);
+    Virtual<uint32_t>(face, kGridRowHeight, grid.b);
+    FindWordIn(vector, 0x1609, &grid.c);
+    const uint32_t headers = grid.c;
+    Virtual<uint32_t>(face, kGridHeaders, headers == 0 || headers == 1 ? 1u : 0u, headers == 0 || headers == 2 ? 1u : 0u);
+    grid.b = 0;
+    grid.c = 0;
+    FindWord75In(vector, 0x160A, &grid.b);
+    FindWord75In(vector, 0x160B, &grid.c);
+    Virtual<uint32_t>(face, kGridHeaderSizes, grid.b, grid.c);
+    for (const Flag& flag : kGridFlags) {
+        if (!Yes(FindWord75In(vector, flag.key, &grid.flagWord)))
+            continue;
+        if (grid.flagWord) {
+            Virtual<uint32_t>(face, kGridFlagOn, flag.mask);
+        } else {
+            Virtual<uint32_t>(face, kGridFlagOff, flag.mask);
+            if (flag.mask == 4)
+                Virtual<uint32_t>(Virtual<void*>(face, kGridWindow), kWin92);
+        }
+    }
+}
+
+// A cell's text given to slot 112 with its length, 1 and the flags'
+// 0x80000.
+void GridCellText(void* face, uint32_t row, uint32_t column, char* string, uint32_t flags)
+{
+    char* const begin = At<char*>(string, 4);
+    Virtual<uint32_t>(face, kGridCellText, row, column, begin, static_cast<uint32_t>(At<char*>(string, 8) - begin), 1u,
+                      (flags & 0x80000) ? 1u : 0u);
+}
+
+// The cells: every pair of 0x1625 with a text, "row,column,flags,..." read
+// by the text helper (ours). For each it reads: the key "%08x,%08x" from
+// its string when the flags' word has no 0x40000 (the game tests the
+// flags' word there, not the cell's flags), the cells' map made at the
+// first (under 0x287A7136); with the cell's 0x40000 its string printed
+// into the record ("%s") and given as the text, else the key into the
+// record and with 0x2000 its image (slot 114, released) or with 0x10000
+// its text (0x0094C58D; slot 112); with 0x1000 the style (slot 85: the
+// font's word, when not 0, through the font service's slot 5); the record
+// set in the map (0x0095A0F3). The record's string destroyed for every
+// pair read. `key` keeps the last key read (the game's what its stack held
+// before one).
+void GridCells(GridState& grid, Text& text, Text& spec)
+{
+    const uint32_t count = PairCount(grid.vector);
+    grid.c = 0;
+    grid.index = 0;
+    if (!count)
+        return;
+    uint32_t key[2] = {0, 0};
+    uint32_t flags = 0;
+    do {
+        if (!PairValue(grid.vector, grid.index, 0x1625, text))
+            continue;
+        alignas(4) char record[kCellSize];
+        CallThis<void*>(addr::cGZUIScriptWidgets_GridCellConstruct, record);
+        void* const out[10] = {&grid.b,          &grid.a,          &flags,           spec.bytes,      record + kCellStyle,
+                               record + 0x24,    record + 0x28,    record + 0x2C,    record + 0x30,   record + 0x34};
+        if (Yes(GridTextBody(text.bytes, out))) {
+            if (!(grid.flagWord & 0x40000))
+                Scan(spec.Begin(), addr::cGZUIScriptWidgets_GridKeyFormat, &key[0], &key[1]);
+            if (!grid.c)
+                grid.c = Word32(NewGridMap(grid.window, 0x287A7136u, addr::cGZUIScriptWidgets_GridCellsVtable));
+            At<uint32_t>(record, kCellFlags) = flags;
+            if (flags & 0x40000) {
+                Cdecl<uint32_t>(addr::cRZBaseString_Sprintf, static_cast<void*>(record + kCellText),
+                                reinterpret_cast<const char*>(addr::SC4_StringFormat), spec.Begin());
+                GridCellText(grid.face, grid.b, grid.a, record + kCellText, flags);
+            } else {
+                At<uint32_t>(record, 0) = key[0];
+                At<uint32_t>(record, 4) = key[1];
+                if (flags & 0x2000) {
+                    if (void* const image = LoadImageOf(key[0], key[1])) {
+                        Virtual<uint32_t>(grid.face, kGridCellImage, grid.b, grid.a, image, 1u);
+                        Virtual<uint32_t>(image, 8);
+                    }
+                } else if (flags & 0x10000) {
+                    Text loaded;
+                    loaded.Make();
+                    if (LoadTextIn(loaded, At<uint32_t>(record, 0), At<uint32_t>(record, 4)))
+                        GridCellText(grid.face, grid.b, grid.a, loaded.bytes, flags);
+                    loaded.End(0);
+                }
+            }
+            if (At<uint32_t>(record, kCellFlags) & 0x1000) {
+                alignas(4) char style[kStyleSize];
+                CallThis<void*>(addr::cGZUIScriptWidgets_GridStyleConstruct, style);
+                if (const uint32_t word = At<uint32_t>(record, kCellStyle))
+                    At<uint32_t>(style, 0) = Virtual<uint32_t>(Cdecl<void*>(addr::SC4_Singleton913C72), kFont, word);
+                At<uint32_t>(style, 4) = At<uint32_t>(record, 0x24);
+                At<uint8_t>(style, 0x1D) = At<uint8_t>(record, 0x28);
+                At<uint8_t>(style, 0x1E) = At<uint8_t>(record, 0x2C);
+                At<uint8_t>(style, 0x1C) = (At<uint32_t>(record, kCellFlags) & 0x100000) ? 1 : 0xFF;
+                At<uint8_t>(style, 0x1F) = At<uint8_t>(record, 0x30);
+                At<uint32_t>(style, 0x20) = At<uint32_t>(record, 0x34);
+                Virtual<uint32_t>(grid.face, kGridCellStyle, grid.b, grid.a, static_cast<void*>(style));
+            }
+            CallThis<uint32_t>(addr::cGZUIScriptWidgets_GridCellSet, reinterpret_cast<void*>(static_cast<std::uintptr_t>(grid.c)),
+                               grid.b, grid.a, static_cast<void*>(record), 0u);
+        }
+        CallThis<uint32_t>(addr::SC4String_Destroy, record + kCellText);
+    } while (++grid.index < count);
+}
+
+// The columns (0x1626) or rows (0x1627): every pair with a text of three
+// numbers "%d,%d,%d" (the first two 0xDEADBEEF, the third 0 before), the
+// map made at the first (under its key, its holder's vtable), the three
+// set in it by `set` and the slot given them (a column's: the first, 1,
+// the third; a row's: the first, the count from the first to the second,
+// the third).
+void GridSpans(GridState& grid, Text& text, uint32_t pairKey, uint32_t mapKey, std::uintptr_t vtable)
+{
+    const uint32_t count = PairCount(grid.vector);
+    grid.c = 0;
+    grid.index = 0;
+    if (!count)
+        return;
+    do {
+        if (!PairValue(grid.vector, grid.index, pairKey, text))
+            continue;
+        int32_t span[3] = {static_cast<int32_t>(0xDEADBEEFu), static_cast<int32_t>(0xDEADBEEFu), 0};
+        if (Scan(text.Begin(), addr::cGZUIScriptWidgets_GridSpanFormat, &span[0], &span[1], &span[2]) != 3)
+            continue;
+        if (!grid.c)
+            grid.c = Word32(NewGridMap(grid.window, mapKey, vtable));
+        void* const map = reinterpret_cast<void*>(static_cast<std::uintptr_t>(grid.c));
+        if (pairKey == 0x1626) {
+            CallThis<uint32_t>(addr::cGZUIScriptWidgets_GridColumnSet, map, span[0], 0, static_cast<void*>(span), 0u);
+            Virtual<uint32_t>(grid.face, kGridColumn, span[0], 1u, span[2]);
+        } else {
+            CallThis<uint32_t>(addr::cGZUIScriptWidgets_GridRowSet, map, 0, span[0], static_cast<void*>(span), 0u);
+            Virtual<uint32_t>(grid.face, kGridRows, span[0], span[1] - span[0] + 1, span[2]);
+        }
+    } while (++grid.index < count);
+}
+
+// The set pass (the byte set): the settings, the cells, the columns and
+// the rows. A fourth string is made and only its characters freed after,
+// as the game's is.
+void GridSet(void* window, char* const* vector, void* face)
+{
+    GridState grid = {window, vector, face, 0, 0, 0, 0, 0};
+    Text font;
+    GridSettings(grid, font);
+    Text text;
+    text.Make();
+    Text spec;
+    spec.Make();
+    Text unused;
+    unused.Make();
+    GridCells(grid, text, spec);
+    GridSpans(grid, text, 0x1626, 0xC88CCB6Du, addr::cGZUIScriptWidgets_GridColumnsVtable);
+    GridSpans(grid, text, 0x1627, 0xC88CCB6Eu, addr::cGZUIScriptWidgets_GridRowsVtable);
+    if (char* const begin = unused.Begin())
+        Free(begin);
+    spec.End(0);
+    text.End(0);
+    font.End(0);
+}
+
+// The raw pass (the byte clear): the line colours 0x1623 and 0x1624 (the
+// window's slot 108 for each) given to slot 58. The third byte's place is
+// the window's argument slot (its low byte cleared first), the other two
+// places' upper bytes what the game's stack held (ours 0).
+void GridRaw(uint32_t* arguments, char* const* vector, void* face)
+{
+    uint32_t first = 0;
+    uint32_t second = 0;
+    uint32_t& third = arguments[0];
+    third &= ~0xFFu;
+    ReadBytesIn(vector, 0x1623, &first, &second, &third);
+    const uint32_t columns = GridColour(face, first, second, third);
+    third &= ~0xFFu;
+    second &= ~0xFFu;
+    first &= ~0xFFu;
+    ReadBytesIn(vector, 0x1624, &first, &second, &third);
+    const uint32_t rows = GridColour(face, first, second, third);
+    Virtual<uint32_t>(face, kGridLineColours, columns, rows);
+}
+
+// The game's 0x0095A250 (cdecl: the window, its properties' vector and a
+// byte): the window's IGZWinGrid (QueryInterface 0xDAA6B9BE); with it the
+// set pass (byte set) or the raw pass (clear); the interface released (its
+// EAX answered; the QueryInterface's when it gave none).
+uint32_t __cdecl GridReadBody(uint32_t* arguments)
+{
+    OPENSC4_FIRST("GridRead");
+    void* const window = reinterpret_cast<void*>(static_cast<std::uintptr_t>(arguments[0]));
+    char* const* const vector = reinterpret_cast<char* const*>(static_cast<std::uintptr_t>(arguments[1]));
+    void* face = nullptr;
+    uint32_t eax = Virtual<uint32_t>(window, 0, kGridInterface, &face);
+    if (Yes(eax)) {
+        if (arguments[2] & 0xFF)
+            GridSet(window, vector, face);
+        else
+            GridRaw(arguments, vector, face);
+    }
+    if (face)
+        eax = Virtual<uint32_t>(face, 8);
+    return eax;
+}
+
+// The thunk hands the body the argument slots (the raw pass writes the
+// first).
+__declspec(naked) void GridRead()
+{
+    __asm lea eax, [esp + 4]
+    __asm push eax
+    __asm call GridReadBody
+    __asm add esp, 4
+    __asm ret
+}
+
+// ====================================================================================
+// GZWinCustom's class code (part u16b)
+
+// GZWinCustom (0x478D1E6F, 0xDC bytes; the dispatcher's class when a
+// script names none it knows): the window base (GZWin, 0xD8 bytes) with
+// the vtable 0x00AD6AA0 and its interface IGZWinCustom (0x678D1E84) at
+// +0xD8 (0x00AD6A8C). Entered through thunks that keep ECX and EDX.
+constexpr uint32_t kCustomInterface = 0x678D1E84;
+constexpr std::size_t kCustomFace = 0xD8;
+constexpr std::size_t kCustomTarget = 0x48;  // the window's notification target
+constexpr std::size_t kCustomSurface = 0x6C; // the window's drawing surface
+
+// The game's 0x0095BAB3: the window base's constructor, the interim
+// interface vtable 0x00AD6CFC, then 0x00AD6A8C and the vtable; `this`.
+void* __fastcall CustomConstruct(char* self, void*)
+{
+    OPENSC4_FIRST("CustomConstruct");
+    CallThis<void*>(addr::GZWin_Construct, self);
+    At<std::uintptr_t>(self, kCustomFace) = addr::cGZUIScript478D1E6F_InterimFaceVtable;
+    At<std::uintptr_t>(self, kCustomFace) = addr::cGZUIScript478D1E6F_FaceVtable;
+    At<std::uintptr_t>(self, 0) = addr::cGZUIScript478D1E6F_Vtable;
+    return self;
+}
+
+// The game's 0x0095B9A1: the vtables back, 0x0099D2FE, then a tail jump
+// to the window base's destructor (its EAX).
+uint32_t __fastcall CustomDestruct(char* self, void*)
+{
+    OPENSC4_FIRST("CustomDestruct");
+    At<std::uintptr_t>(self, 0) = addr::cGZUIScript478D1E6F_Vtable;
+    At<std::uintptr_t>(self, kCustomFace) = addr::cGZUIScript478D1E6F_FaceVtable;
+    CallThis<uint32_t>(addr::SC4Win_F99D2FE, self);
+    return CallThis<uint32_t>(addr::GZWin_Destruct, self);
+}
+
+// The game's 0x0095BA97 (`ret 4`): the destructor, freed
+// (SC4::operator_delete) with flag 1; `this` answered.
+void* __fastcall CustomDeletingDestructor(char* self, void*, uint32_t flags)
+{
+    OPENSC4_FIRST("CustomDeletingDestructor");
+    CustomDestruct(self, nullptr);
+    if (flags & 1)
+        Cdecl<void>(addr::SC4_operator_delete, self);
+    return self;
+}
+
+// The game's 0x0095B9C1 (slot 0, `ret 8`; also through 0x0095BA76):
+// IGZWinCustom gives +0xD8 (0 for null), AddRef through the vtable and AL
+// 1 over its EAX; with no out EAX 0. Anything else a tail jump to the
+// window's QueryInterface 0x0099B774.
+uint32_t __fastcall CustomQueryInterface(char* self, void*, uint32_t iid, void** out)
+{
+    OPENSC4_FIRST("CustomQueryInterface");
+    if (iid != kCustomInterface)
+        return CallThis<uint32_t>(addr::SC4Win_QueryInterface, self, iid, out);
+    if (!out)
+        return 0;
+    *out = self ? self + kCustomFace : nullptr;
+    return (Virtual<uint32_t>(self, 4) & ~0xFFu) | 1u;
+}
+
+// The game's 0x0095B9F8 (slot 3, `ret 4`): for the messages 7, 0xA and
+// 0xD the window's slots 43 and 44 added to the message's +4 and +8; then
+// the target's slot 3 with the message (its EAX); AL 0 without one, over
+// the message's kind or slot 44's EAX.
+uint32_t __fastcall CustomMessage(char* self, void*, uint32_t* message)
+{
+    OPENSC4_FIRST("CustomMessage");
+    uint32_t eax = message[0];
+    if (eax == 7 || eax == 0xA || eax == 0xD) {
+        message[1] += Virtual<uint32_t>(self, 0xAC);
+        eax = Virtual<uint32_t>(self, 0xB0);
+        message[2] += eax;
+    }
+    if (At<void*>(self, kCustomTarget))
+        return Virtual<uint32_t>(At<void*>(self, kCustomTarget), 0xC, static_cast<void*>(message));
+    return eax & ~0xFFu;
+}
+
+// The game's 0x0095BA43 (slot 88): the surface's slot 21 (through the
+// vtable read before) with the window's slot 126, then its slot 35 with
+// +0x24; AL 1 over its EAX.
+uint32_t __fastcall CustomDraw(char* self, void*)
+{
+    OPENSC4_FIRST("CustomDraw");
+    void** const vtable = *At<void***>(self, kCustomSurface);
+    const uint32_t value = Virtual<uint32_t>(self, 0x1F8);
+    using Slot = uint32_t(__thiscall*)(void*, uint32_t);
+    reinterpret_cast<Slot>(vtable[0x54 / 4])(At<void*>(self, kCustomSurface), value);
+    const uint32_t eax = Virtual<uint32_t>(At<void*>(self, kCustomSurface), 0x8C, static_cast<void*>(self + 0x24));
+    return (eax & ~0xFFu) | 1u;
+}
+
+OPENSC4_THUNK(CustomConstructThunk, CustomConstruct, 0)
+OPENSC4_THUNK(CustomDestructThunk, CustomDestruct, 0)
+OPENSC4_THUNK(CustomDeletingDestructorThunk, CustomDeletingDestructor, 4)
+OPENSC4_THUNK(CustomQueryInterfaceThunk, CustomQueryInterface, 8)
+OPENSC4_THUNK(CustomMessageThunk, CustomMessage, 4)
+OPENSC4_THUNK(CustomDrawThunk, CustomDraw, 0)
+
+// ====================================================================================
 // Install
 
 struct Detour {
@@ -1953,6 +2570,36 @@ bool InstallTreeViewRead(registry::Mode)
     return InstallAll(detours);
 }
 
+bool InstallGrid(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZUIScriptWidgets_RegisterGrid, reinterpret_cast<void*>(&RegisterGrid)},
+    };
+    return InstallAll(detours);
+}
+
+bool InstallGridRead(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZUIScriptWidgets_GridRead, reinterpret_cast<void*>(&GridRead)},
+        {addr::cGZUIScriptWidgets_GridText, reinterpret_cast<void*>(&GridText)},
+    };
+    return InstallAll(detours);
+}
+
+bool InstallCustom(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZUIScript478D1E6F_Construct, reinterpret_cast<void*>(&CustomConstructThunk)},
+        {addr::cGZUIScript478D1E6F_Destruct, reinterpret_cast<void*>(&CustomDestructThunk)},
+        {addr::cGZUIScript478D1E6F_DeletingDestructor, reinterpret_cast<void*>(&CustomDeletingDestructorThunk)},
+        {addr::cGZUIScript478D1E6F_QueryInterface, reinterpret_cast<void*>(&CustomQueryInterfaceThunk)},
+        {addr::cGZUIScript478D1E6F_OnMessage, reinterpret_cast<void*>(&CustomMessageThunk)},
+        {addr::cGZUIScript478D1E6F_Draw, reinterpret_cast<void*>(&CustomDrawThunk)},
+    };
+    return InstallAll(detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"framework.uiscript.filebrowser", "framework/uiscript", registry::Kind::Detour,
                         registry::Phase::Attach, addr::cGZUIScriptWidgets_RegisterFileBrowser,
@@ -2002,6 +2649,23 @@ const bool g_registered[] = {
                         "its images, root, nodes and the tree built from them, with their six maps (1 detour; "
                         "part u16a, docs/gzui.md)",
                         false, InstallTreeViewRead}),
+    registry::Register({"framework.uiscript.grid", "framework/uiscript", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZUIScriptWidgets_RegisterGrid,
+                        "Our registration of GZWinGrid: its names and 39 property words into the LEGACY readers' "
+                        "variable table, its handler and interface into the two maps (1 detour; part u16b, "
+                        "docs/gzui.md)",
+                        false, InstallGrid}),
+    registry::Register({"framework.uiscript.gridread", "framework/uiscript", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZUIScriptWidgets_GridRead,
+                        "Our property handler of GZWinGrid (the grid) and its cells' text helper: its colours, "
+                        "font, sizes, headers and flags, then its cells, columns and rows with their three maps (2 "
+                        "detours; part u16b, docs/gzui.md)",
+                        false, InstallGridRead}),
+    registry::Register({"framework.uiscript.custom", "framework/uiscript", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZUIScript478D1E6F_Construct,
+                        "Our GZWinCustom 0x478D1E6F (a script window's default class): its constructor, "
+                        "destructors, QueryInterface, message and draw slots (6 detours; part u16b, docs/gzui.md)",
+                        false, InstallCustom}),
 };
 
 } // namespace

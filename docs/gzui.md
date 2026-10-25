@@ -85,7 +85,7 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u14** | 0x00954000 to 0x00956463 | 2 of 41 | 2 | **Ours** (below): GZWinFileBrowser's registration and property handler; the STLport tree, list and pair code and a counted object's Release stay the game's |
 | **u15** | 0x00956464 to 0x009586AF | 4 of 23 | 3 | **Ours** (below): GZWinOptGrp's registration and property handler, the base window's handler and the dispatcher; TreeView's and Grid's STLport map code, Grid's text helper and cell lookups stay the game's |
 | **u16a** | 0x009586B0 to 0x00959E30 | 2 of 3 | 1 | **Ours** (below): GZWinTreeView's registration and property handler; a map clear stays the game's |
-| u16b | 0x00959E31 to 0x0095BBFF | 31 | 10 | GZWinGrid's registration and handler, the LEGACY reader's constructor, the constructor bits and STLport code |
+| **u16b** | 0x00959E31 to 0x0095BBFF | 9 of 32 | 10 | **Ours** (below): GZWinGrid's registration and property handler (with its text helper 0x00956464 of u15's range), GZWinCustom's class code and the LEGACY reader's constructor; the grid maps' STLport code, GZWinCustom's adjustors and three of the writers' helpers stay the game's |
 | u17 | 0x0095BC00 to 0x0095FFFF | 29 | 0 | The writers (17.7 KB, never run) |
 
 Leave the game's: the base QueryInterface 0x009457C6, AddRef 0x00968B60, the shared one-instruction getters, the empty functions 0x00949ADE and 0x0091559A, and the STLport and counted-reference code these classes share with the rest of the framework.
@@ -1279,3 +1279,169 @@ All five legs the same on the first pair; `tv` was BDD5B16A in all 26 test runs.
 **Reached:** in every plain (muted) leg side B logs 1 of the 2 first calls (14 of 14 runs): the registration (every LEGACY reader's constructor that makes the table). No script the runs load makes a tree view, so its handler is reached only by the test.
 
 **What is left:** u16b (0x00959E31 to 0x0095BBFF, 31 functions, and the map clear 0x009599A9: GZWinGrid's handler 0x0095A250 and registration 0x0095B021, its text helper 0x00956464 (in part u15's range), the LEGACY reader's constructor 0x0095B8C4, the constructor bits from 0x0095B9A1, the STLport code from 0x00959E31) and u17 (the writers); u12's property handlers.
+
+## Part u16b: GZWinGrid, GZWinCustom's class code and the LEGACY reader's constructor
+
+Part u16b is the rest of u16's range: 0x00959E31 to 0x0095BBFF, 32 functions. That count includes the LEGACY reader's constructor 0x0095B8C4, which the function list folds into the registration before it. The part also takes the map clear 0x009599A9 and GZWinGrid's text helper 0x00956464, which sits in part u15's range. Ours: 10, in four groups, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.grid` | 1 | GZWinGrid's registration 0x0095B021 (`src/core/gzui_widgets2.cpp`) |
+| `framework.uiscript.gridread` | 2 | GZWinGrid's property handler 0x0095A250 (3,537 bytes) and its cells' text helper 0x00956464 (`src/core/gzui_widgets2.cpp`) |
+| `framework.uiscript.custom` | 6 | GZWinCustom 0x478D1E6F's constructor 0x0095BAB3, destructor 0x0095B9A1, deleting destructor 0x0095BA97, QueryInterface 0x0095B9C1, slot 3 0x0095B9F8 and slot 88 0x0095BA43 (`src/core/gzui_widgets2.cpp`) |
+| `framework.uiscript.legacyctor` | 1 | The LEGACY reader's constructor 0x0095B8C4 (`src/core/gzui_legacy.cpp`, with part u11's slots) |
+
+Still the game's, with their database entries (`gzui.toml`, "Part u16b"):
+
+- **Not called by ours:** the STLport code of the grid's three maps (0x00959E31 to 0x0095A0D9: the holders' Release and destructors, the maps' clears and destructors, the outer map's pair copies, node maker, insert and insert_unique) and the map clear 0x009599A9.
+- **Called by ours by address:** the cell set 0x0095A0F3; the column and row sets 0x009583C5 and 0x009584E0 (part u15's range); the makers of the record, the map and the style, 0x0094D490, 0x009ABB63 and 0x009A5BF2.
+- **GZWinCustom's four adjustors** 0x0095BA6F to 0x0095BA8C: jumps into ours and into the window's AddRef and Release.
+
+The writers are the only callers of 0x0095BAD7, 0x0095BB29 and 0x0095BB82, so these three go with u17.
+
+The "constructor bits from 0x0095B9A1" belong to GZWinCustom, not to the reader. GZWinCustom is the class the dispatcher (part u15) makes a script's window of when the script names no class it knows. Its factory 0x0094AFA6 (part u9) is its only maker.
+
+**The registration** has part u13's shape. GZWinGrid (0xDAA6B9BF) and IGZWinGrid (0xDAA6B9BE) go into the table, the handler under the interface, the interface under the class. Then 39 words, in the game's order: 0x1601 `fontcolor` to 0x1624 `rowgridclr`, then `wingridcell` 0x1625, `wingridrow` 0x1627 and `wingridcol` 0x1626.
+
+**The text helper** is cdecl, with the cell's text in EAX; ours enters through a thunk that hands the body EAX and the argument slots. It cuts the text at its commas into 11 strings (SC4::SplitText). With 4 or more parts:
+
+- the row and column come from TextToUint32, the flags from TextToInt (hex);
+- with the flags' 0x40000 the fourth part is assigned to the out string; otherwise the fourth and fifth are printed into it as `%s,%s`;
+- with 0x1000 the next part is a font name (the font service's slot 38) and the five after it are numbers.
+
+The game's array destructor then destroys the 11 strings; AL is 1 or 0 over its EAX.
+
+**The handler** is cdecl (the window, the vector, a byte) and asks for IGZWinGrid (QueryInterface 0xDAA6B9BE). With the byte set it does three things.
+
+**Settings**, in this order:
+
+- **Text colour 0x1601:** the interface's window (slot 5), then that window's slot 108, for slot 17.
+- **Font 0xF000:** a number goes through the font service's slot 5 to slot 15, then is put through the window by 0x0094C222; a text is put by 0x0094C255 alone; with neither, slot 15 gets the font 0x68963C4C.
+- **Simple words:** 0x1602 (slot 60); 0x1603 (slot 21, on when the word is not 0); the gutters 0xF004 (slot 24, zeros without four numbers); 0x1605 and 0x1606 (slot 39; 2 and 1 by default).
+- **Outline:** 0x1616 (word 1) and its colour 0x1604 go to slot 27, as the bool over the colour's upper bytes, then the colour.
+- **Sizes:** 0x1607 and 0x1608 (slots 64 and 66; 100 and 20 by default).
+- **Headers:** 0x1609 (slot 74: 0 both, 1 the first, 2 the second, else none) and their sizes 0x160A and 0x160B (slot 76).
+- **Flags:** 23 keys, 0x160C to 0x1622. Slot 10 when the word is not 0, else slot 12. The masks are 0, 1, 2, 4 to 0x80000, 0x19BFF and -1. Turning 0x160F off also calls the window's slot 92.
+
+**Cells:** every 0x1625 text goes through the text helper.
+
+- The key `%08x,%08x` is read from the out string when the flags' word has no 0x40000. The flags' word is the last flag word found, not the cell's own flags.
+- The first cell makes the cells' map: a map 0x009ABB63 in a held holder (vtable 0x00AD538C), given to a new number value (slot 61) that is put under 0x287A7136 through the window; then the holder is released.
+- With the cell's 0x40000, the out string is printed (`%s`) into the record's string and given as the text. Slot 112 gets the row, column, characters, length, 1 and the flags' 0x80000.
+- Without 0x40000, the key goes into the record. With 0x2000 its image (0x0094C4E0) goes to slot 114 and is released; with 0x10000 its text (0x0094C58D) goes to slot 112.
+- With 0x1000, slot 85 gets the style (0x009A5BF2): the font word through the font service's slot 5 (when not 0), a word, three bytes, a word, and the byte 1 or -1 by 0x100000.
+- The record is set in the map (0x0095A0F3) and its string destroyed.
+
+**Columns and rows:** every 0x1626 and 0x1627 text of three numbers `%d,%d,%d`. Before the scan the first two are 0xDEADBEEF and the third 0. The first one makes its map, under 0xC88CCB6D or 0xC88CCB6E (holders 0x00AD5398 and 0x00AD53A4). Then:
+
+- a column: 0x009583C5 with (first, 0), and slot 65 with (first, 1, third);
+- a row: 0x009584E0 with (0, first), and slot 67 with (first, second - first + 1, third).
+
+With the byte clear, the line colours 0x1623 and 0x1624 go through the window's slot 108 to slot 58. The window's argument slot is the third byte's place, with its low byte cleared first. So ours, like part u15's handlers, enters through a naked thunk that hands the body the argument slots. The interface is released and its EAX answered.
+
+**A bug of the game's.** At 0x0095A2C4 the handler pushes four arguments to the window's slot 108, which takes three (`ret 0xC`), so the fourth stays on the stack.
+
+- When 0x1601 is found, the handler's last pops take that leftover dword. The game returns with EBX 0, EDI holding the caller's EBX and ESI the caller's EDI.
+- Its dispatcher then pushes `[ESI]` (the handler's own first bytes) as the window for the base handler, and the base handler fails.
+
+So a grid that sets its text colour would stop the game. No script the runs load does that, which is why the bug was never seen. Ours keeps the registers, and with the game's dispatcher it then goes on. This is the one difference from the game, and it is only on a path where the game fails.
+
+**Where the game reads its stack:**
+
+- the colours' places above their low bytes (ReadBytes writes only the low byte, and the set pass never writes the first colour's places before);
+- the flags' word when no flag key is found (it decides whether the cells read a key);
+- the cells' key when none has been read yet.
+
+Ours has 0 in all three places.
+
+**GZWinCustom** is 0xDC bytes: the window base with the vtable 0x00AD6AA0, and IGZWinCustom (0x678D1E84) at +0xD8 with the vtable 0x00AD6A8C. The constructor writes the interim vtable 0x00AD6CFC first.
+
+- **QueryInterface:** gives +0xD8 for IGZWinCustom (EAX 0 when there is no out) and passes every other interface to the window's 0x0099B774.
+- **Slot 3:** for messages 7, 0xA and 0xD, adds the window's slots 43 and 44 (+0xA8 and +0xAC) to the message's +4 and +8. Then it hands the message to the target at +0x48 (AL 0 without one).
+- **Slot 88:** gives the surface at +0x6C its slot 21 with the window's slot 126, then its slot 35 with +0x24.
+
+**The LEGACY reader's constructor** (the factory 0x0094AF90 jumps to it) writes the interim face vtables 0x00AD53B0 and 0x00AD53CC, then part u11's three, and zeroes the fields.
+
+- **With a variable table at 0x00B63588:** the table is held (slot 1).
+- **Without one:** the COM's slot 3 makes it (0xBA2E7954, 0x1A2BDEBB). If it did, 21 calls by address fill it, in the game's order: the words (0x0094D641, part u12) and the 20 widget classes' registrations (ours when their groups are on).
+
+### Testing
+
+`OPENSC4_TEST_GRID=<day>` is a test of its own: the fingerprint's `gd` part. It calls the ten by address and checks after each call that EBX, ESI, EDI and EBP were kept. The one exception is the handler's set passes with a text colour (the bug above). There are five stages, each logged as `autotest: grid: <stage> <hash>`:
+
+- **reg:** the registration with part u13's variable table of our own. Hashes the count of names and both maps' entries.
+- **text:** the text helper on ten strings of the game's: too few parts, the two forms of the out string, styles after both, more than 11 parts, spaces and bad numbers. Hashes every out and the string after.
+- **read:** the handler, set up as follows:
+  - **Fakes:** part u13's windows and an interface of our own. Every slot it calls hashes its number and what it gets; its window's slot 108 hashes the low bytes of the three bytes.
+  - **Values and services:** part u13's values with a slot 75, part u15's held object (images for even instances, texts for odd), and the game's font and colour services.
+  - **Maps:** the window's slot 114 keeps the three maps' values until the call is over, because the handler goes on using the maps. Then the test hashes each map, read by the game's tree code (the outer and inner trees, every record or span). Last, it destroys the value, which releases the holder and the map through the game's STLport code.
+  - **Inputs:** set vectors with every setting, every flag key on and off, cells of every kind (a key, an image and none, a text and none, literals, styles, a short one, a number, a repeat), and columns and rows good and bad. One vector's flags' word has 0x40000. Also raw vectors and empty vectors, with the byte 1, 0xFFFFFF01, 0 and 0x100. The argument slots are hashed after each call.
+- **custom:** GZWinCustom on windows of the game's:
+  - the constructor;
+  - QueryInterface: IGZWinCustom with and without an out, IGZWin, and another interface;
+  - slot 3 with five messages, without a target and with one of ours (with the fields behind slots 43 and 44 set);
+  - slot 88 with a surface of ours;
+  - the destructor, and the deleting destructor with 0 and with 1.
+- **ctor:** the constructor with a table of our own, which it holds, and with none. With none, the game's COM makes one and the registrations fill it; part u11's reader destructor then releases it, which forgets it.
+
+The inputs avoid the places where the game reads its stack:
+
+- the colours are hashed by their low bytes only;
+- every vector with cells has a flag word before them;
+- the vector whose flags' word has 0x40000 holds only cells that need no key.
+
+With the groups on, each of the 10 logs its first call in a test run. `gd` is AE2D225E (muted) on both sides. The stages: reg 56301CDF, text EDE19A5E, read 7815A398, custom 0EFBC55C, ctor AE2D225E.
+
+**Deliberate slips.** Three slips in ours, one build each, each changed its stage:
+
+| Slip | Stage changed |
+|---|---|
+| 0x1613's mask set to 0x41 | read |
+| slot 43's value added to the message's +8 | custom |
+| the style's part, after a printed string, read one part too early | text |
+
+At first the first two slips changed nothing. That showed two gaps in the test: only five flag keys were found, and a new window's slots 43 and 44 are 0. The test was widened and the slips checked again.
+
+**Audit.** The ten were checked against the disassembly by the author and by an independent audit:
+
+- the table's rows and both map inserts;
+- every call, its arguments and order, the vtable slots, the registers the helpers read, and the places locals share;
+- the loops (the counts read once, the vector's start read for every pair);
+- the strings' order of making and destroying;
+- the stack argument counts (the array destructor is stdcall, the colour slot `ret 0xC`);
+- EAX on every path;
+- GZWinCustom's slots, and the constructor's 21 calls in order.
+
+The audit found no differences and no wrong comments. The test found the register bug above, which the audit had missed. As in parts u14 to u16a, one edge cannot happen: if a QueryInterface answered yes with no interface, the game would answer the last call's EAX where ours answers the QueryInterface's.
+
+### Parity
+
+Batch `gzu16b-r1`, the final build, run 2026-10-24:
+
+- muted on both sides, two jobs, in its own test folder `p4env-gzu16b`;
+- the base list (with `determinism.dispatch_info`) on both sides;
+- on side B, every one of these groups `=ours`: `framework.uiscript.*` (with `grid`, `gridread`, `custom` and `legacyctor`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*`.
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_GRID=2` | 12 | 12 same (Making Money d0000 on the second pair: side A gave two outcomes, B one, one shared); `gd` C31166DE in every run |
+| Making Money d0000, 4 days, `OPENSC4_TEST_GRID=2` | 1 | same; `gd` C31166DE |
+
+All five legs were the same, all but one run on the first pair. `gd` was C31166DE in all 28 test runs (14 pairs, the repeated one included). The single test runs above, a day earlier in their own folder, give AE2D225E on both sides. The difference is the game state the test reads (the fresh windows' fields and the services); the hash is constant across the saves.
+
+**Reached:** in every plain (muted) leg, side B logs 7 of the 10 first calls (14 of 14 runs):
+
+- the grid's registration and the LEGACY reader's constructor, which run whenever the first reader makes the table;
+- GZWinCustom's constructor, both destructors, QueryInterface and message slot (every scripted window of a class it does not name).
+
+No script the runs load makes a grid, and no GZWinCustom is drawn. So the grid's handler, its text helper and GZWinCustom's slot 88 are reached only by the test.
+
+**What is left:**
+
+- **u17** (0x0095BC00 to 0x0095FFFF): the writers, with the three helpers they call, 0x0095BAD7, 0x0095BB29 and 0x0095BB82;
+- **u12's property handlers** (slice 4).
+
+The grid's STLport map code stays the game's.
