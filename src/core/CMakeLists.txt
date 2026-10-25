@@ -263,6 +263,7 @@ add_library(opensc4_core SHARED
   automata_controller.cpp
   automata_vehicle.cpp
   automata_roadveh.cpp
+  automata_trains.cpp
   automata_vehmgr.cpp
   automata_awmgr.cpp
   automata_awmgr_life.cpp

@@ -11918,3 +11918,472 @@ convention = "thiscall"
 signature = "bool (void* this, uint32_t word, float seconds)"
 expect = "8B 44 24 08 81 EC A4 00"
 source = "Name ours. The tank's slot 72, ret 8: cSC4Vehicle's (0x0055BA20, its answer dropped); with the byte +0x340 and both models (+0x35C, +0x360) the models placed (their slot 2: point, axis) by four quaternion turns: the axis the heading's cross with (0, 1, 0) (0x00A9B7A0 multiplied through), the turret turned by its angle x -0.5 about it, the barrel by its angle x -0.25 (the turret model) or x -0.5 (the barrel model) about (-z, 0, x) of the heading, the point the product's rows times the heading; the second pair after the first call from the axis, the angles and the heading read again. Then the attachments' slot 5 and the tank's slots 194 and 197. AL 1. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro3b)."
+
+# Part tr1: the trains (train car, train, mass transit train), the objects, the save, the life cycle and the queries (src/core/automata_trains.cpp, docs/automata.md "Part tr").
+
+[[entry]]
+name = "cSC4TrainCar::Create"
+address = 0x00514910
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 C8 02 00 00 E8 76 29"
+source = "The train car's GZCOM factory: 0x2C8 bytes from the car pool (0x00557290), the constructor 0x0055B150 with four zero words; null when the block is. Registered by 0x00514A00 for class 0x4A416254. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::Create"
+address = 0x00514940
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 FC 02 00 00 E8 96 0C"
+source = "The train's GZCOM factory: 0x2FC bytes from SC4::operator_new, the constructor 0x0055B2F0 with four zero words; null when the block is. Registered by 0x00514A00 for class 0x8A41625A. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Create"
+address = 0x00514760
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 FC 02 00 00 E8 76 0E"
+source = "The mass transit train's GZCOM factory: 0x2FC bytes from SC4::operator_new, a tail jump to the constructor 0x0053CBB0; null when the block is. Registered by 0x00514A00 for class 0x4C22AE53. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Construct"
+address = 0x0055B150
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t a, uint32_t b, uint32_t c, uint32_t d)"
+expect = "8B 54 24 0C 56 57 8B F1"
+source = "Name ours. The train car's constructor, ret 0x10: cSC4Vehicle's with the four words, the six vtables 0x00A9C938.., the byte +0x2B8 zero, +0x2BC..+0x2C4 the float 0x00B22964; a time drawn from the generator 0x00B21D78 (cRZRandomSuper::Between of 0x00B21D0C and 0x00B21D10, as a signed int, times 0x00A9C7C0) into +0x80 and, when it differs from +0x1A4 (or is unordered), the smoothed value +0x1A0. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::Construct"
+address = 0x0055B2F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t a, uint32_t b, uint32_t c, uint32_t d)"
+expect = "8B 54 24 0C 56 8B F1 8B"
+source = "Name ours. The train's constructor, ret 0x10: the car's with the four words, the six vtables 0x00A9CD68.., +0x2C8, +0x2CC, the car vector +0x2D0..+0x2D8, the occupant +0x2E8 and +0x2F0 zero, the point +0x2DC (-1, -1, -1); +0x2EC not set. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Construct"
+address = 0x0053CBB0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 83 EC 0C 8B C4 8B F1"
+source = "Name ours. The mass transit train's constructor: the train's with four zero words, the six vtables 0x00A99588... Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::PoolAllocate"
+address = 0x00557290
+kind = "function"
+convention = "cdecl"
+signature = "void* (size_t size)"
+expect = "8B 44 24 04 3D C8 02 00"
+source = "Name ours. A 0x2C8-byte block from the car pool 0x00B0A09C (its page at +4: the free head at +8, the count at +0xC; SC4EdgePool::Grow when the page has no free block); any other size from SC4::operator_new (a tail jump). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::PoolFree"
+address = 0x005579E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* pool, void* block)"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Name ours. On the car pool (block), ret 4: nothing for null; the block onto its page's free list (the page is the address & 0xFFFF0000), the count one less; the page released at 0 (SC4Pool::ReleaseBlock) and reopened at 0x40000045 (SC4Pool::ReopenBlock), both tail jumps. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::DeletingDestructor"
+address = 0x0055B2C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 A8 9B FA FF"
+source = "Name ours. The train car's deleting destructor (+0xC slot 22 through 0x0055B290), ret 4: cSC4Vehicle's body 0x00504E70, then with flag 1 and a non-null this the block back to the car pool (0x005579E0 on 0x00B0A09C); answers this. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::Destroy"
+address = 0x0053CB80
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8B 8E E8 02 00"
+source = "Name ours. The train's destructor body: the occupant +0x2E8 released (not cleared), the car vector's buffer freed (SC4::Free; the cars not released), then cSC4Vehicle's 0x00504E70 (a tail jump). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::DeletingDestructor"
+address = 0x0053CCE0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 98 FE FF FF"
+source = "Name ours. The train's and the mass transit train's deleting destructor (+0xC slot 22 through 0x0055B3A0), ret 4: the body 0x0053CB80, then with flag 1 SC4::operator_delete (no null test); answers this. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::QueryInterface"
+address = 0x00557040
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D 54 62 41"
+source = "Name ours. The train car's slot 0, ret 8: 0x4A416254 answers the object (AddRef, AL 1); the rest cSC4Vehicle's (a tail jump). The other five parts reach it through thunks. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::QueryInterface"
+address = 0x00557220
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D 5A 62 41"
+source = "Name ours. The train's slot 0 (also the mass transit train's), ret 8: 0x8A41625A and the car's 0x4A416254 answer the object (AddRef, AL 1); the rest cSC4Vehicle's (a tail jump). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::GetGZCLSID"
+address = 0x0055B240
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 54 62 41 4A C3"
+source = "Name ours. The train car's +8 slot 5: 0x4A416254. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::GetGZCLSID"
+address = 0x0055B390
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 5A 62 41 8A C3"
+source = "Name ours. The train's +8 slot 5: 0x8A41625A. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::GetGZCLSID"
+address = 0x0053CC30
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 53 AE 22 4C C3"
+source = "Name ours. The mass transit train's +8 slot 5: 0x4C22AE53. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::Write"
+address = 0x00557930
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* part, void* stream)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. The train's +8 slot 3 (this = the object + 8), ret 4: version 2 and the car's version 2 (uint16s), cSC4Vehicle's Write 0x0055F640; when true the cars' count and a reference each (SC4Stream::WriteReference), the wanted count +0x2C8, the point +0x2DC (SC4Stream::WriteVector3), the occupant +0x2E8 (a reference) and +0x2EC. AL cSC4Vehicle's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::Read"
+address = 0x0055AAD0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* part, void* stream)"
+expect = "83 EC 0C 55 56 8B 74 24"
+source = "Name ours. The train's +8 slot 4, ret 4: AL 0 unless both version words are 2 (the first into an unset local, the second into the stream argument's own slot); cSC4Vehicle's Read 0x0055BCF0; when true the cars (a count, then per car a reference read as 0x4A416254 into a local zeroed first, pushed when not null; the vector not emptied first), the wanted count, the point (SC4Stream::ReadVector3), the occupant (released and cleared, then read as 0xA821EF94) and +0x2EC. AL cSC4Vehicle's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Write"
+address = 0x0053CB30
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The mass transit train's +8 slot 3, ret 4: version 1 (uint16), then the train's Write 0x00557930 (its EAX). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Read"
+address = 0x0053CB50
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The mass transit train's +8 slot 4, ret 4: the version (uint16) into the stream argument's own slot; AL 0 unless 1; else the train's Read 0x0055AAD0 (its EAX). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Init"
+address = 0x00556F80
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "53 56 8B F1 8B 46 04 57"
+source = "Name ours. The train car's slot 3: AL 1 when initialised (the occupant part's slot 5); else cSC4Vehicle's Init 0x0055B9B0, the automata flags 0x10000, 0x4000 and 0x10000000 set (slot 30), the byte +0x2B8 whether the occupant part is in group 0x4217 or 0x4208 (its slot 22). AL cSC4Vehicle's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::Init"
+address = 0x00557A20
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "51 53 55 56 8B F1 8B 46"
+source = "Name ours. The train's slot 3 (the mass transit train's through the jump 0x0053C950): AL 1 when initialised; else the car's Init 0x00556F80, the automata flag 0x10000000 cleared; a time from cRZRandom::Range on 0x00B21D78 between 0x00B21D0C and 0x00B21D10 (unsigned, times 0x00A9C7C0) into +0x80 and the smoothed value; the car group +0x2CC by the train's group (0x4216, 0x4215, 0x4217, 0x422C, 0x422E: 0x4203, 0x4201, 0x4208, 0x422D, 0x422F; else unchanged); when set, a count drawn (SC4Random::Below: 0x00B21D06..0x00B21D07 for 0x4203, else 0x00B21D08..0x00B21D09) given to slot 195; +0x2F4 and +0x2F8 zero. AL the car's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::Shutdown"
+address = 0x00559E70
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "83 EC 28 53 55 56 8B F1"
+source = "Name ours. The train's slot 4 (the mass transit train's through the jump 0x0053C960): for each element of the base's +0x204 deque and then of cSC4Vehicle's +0x27C deque, while 0x00B43D54 is set, its occupant's slot 59 (two words out) and 0x00B43D54's slot 39 (this, the words); cSC4Vehicle's Shutdown 0x005602F0; the occupant +0x2E8 cleared and released; each car given slot 13 (0) and released; the car vector emptied. AL cSC4Vehicle's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::GetTrain"
+address = 0x005573F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 8B 88 B0 00 00 00"
+source = "Name ours. The train car's slot 50: the object +0xB0's slot 50 (a tail jump) when set, else the car itself. The train's slot 50 is 0x00441A50 (mov eax, ecx). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Collide"
+address = 0x00557080
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t a, uint32_t b)"
+expect = "56 8B F1 8B 06 FF 90 EC"
+source = "Name ours. The train car's slot 65, ret 8: unless the state type (slot 59) is 0x14, the train's (slot 50) slot 65 with both words when there is one. AL 1. A car with no train hands it to itself. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::LightFrame"
+address = 0x005572D0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t word)"
+expect = "56 8B F1 8B 0D 3C 3D B4"
+source = "Name ours. The train car's slot 120, ret 4: while 0x00B43D3C's slot 10 answers true, the U-Drive controls' (slot 56, no null test) float +0x10 raised to 10000 (0x00A949E4) when below it; then 0x0055B740 (the core's 0x00508D70), its EAX. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::Slot175"
+address = 0x0053CC20
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 06 00 00 00 C3"
+source = "Name ours. The train's slot 175: 6 (the base's 0x00504FE0 answers the byte 0x00B21D28). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::TrimCars"
+address = 0x00558D20
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "8B 44 24 04 53 56 8B F1"
+source = "Name ours. The train's slot 193, ret 4: the low byte below the car count: while above it, the last car (when not null) given slot 13 (0) and released, the end moved back; above the car count slot 195 with the whole word. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::CarCount"
+address = 0x0053CCB0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "8B 81 D4 02 00 00 2B 81"
+source = "Name ours. The train's slot 194: the number of cars (+0x2D0 vector). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::SetCarCount"
+address = 0x005577F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. The train's slot 195, ret 4: slot 193 (the whole word) when the low byte is below the car count; the low byte into +0x2C8. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4Train::WantedCars"
+address = 0x0053CC10
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "8A 81 C8 02 00 00"
+source = "Name ours. The train's slot 196: the byte +0x2C8. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Pool"
+address = 0x00B0A09C
+kind = "data"
+source = "Name ours. The train car pool (+4 its current page; pages of 64 KB at address & 0xFFFF0000 with the free list at +8 and the count at +0xC). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::DrawLow"
+address = 0x00B21D0C
+kind = "data"
+source = "Name ours. A word of the tuning: the low end of the train car's drawn time (constructor) and of the train's (Init). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::DrawHigh"
+address = 0x00B21D10
+kind = "data"
+source = "Name ours. A word: the high end of the same draws. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::DrawScale"
+address = 0x00A9C7C0
+kind = "data"
+expect = "B5 A2 91 39"
+source = "Name ours. float 1/3600: the train car's and the train's drawn times are multiplied by it. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::DefaultFloat"
+address = 0x00B22964
+kind = "data"
+source = "Name ours. A float the train car's constructor copies into +0x2BC..+0x2C4. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::DisasterTimer"
+address = 0x00A949E4
+kind = "data"
+expect = "00 40 1C 46"
+source = "Name ours. float 10000: the train car's slot 120 raises the U-Drive controls' +0x10 to it during a disaster. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::CarsLeastA"
+address = 0x00B21D06
+kind = "data"
+source = "Name ours. A byte: the least number of cars the train's Init draws for the car group 0x4203. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::CarsMostA"
+address = 0x00B21D07
+kind = "data"
+source = "Name ours. A byte: the most (the draw is below the difference) for 0x4203. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::CarsLeastB"
+address = 0x00B21D08
+kind = "data"
+source = "Name ours. A byte: the least number of cars for the other car groups. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::CarsMostB"
+address = 0x00B21D09
+kind = "data"
+source = "Name ours. A byte: the most for the other car groups. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Vtable"
+address = 0x00A9C938
+kind = "data"
+expect = "40 70 55 00 F0 28 5E 00"
+source = "cSC4TrainCar's main vtable (192 slots). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Vtable4"
+address = 0x00A9C8B0
+kind = "data"
+expect = "50 B2 55 00 B0 29 5E 00"
+source = "cSC4TrainCar's +4 vtable (the occupant part). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Vtable8"
+address = 0x00A9C894
+kind = "data"
+expect = "70 B2 55 00 E0 29 5E 00"
+source = "cSC4TrainCar's +8 vtable (the serializable part). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::VtableC"
+address = 0x00A9C830
+kind = "data"
+expect = "80 B2 55 00 10 2A 5E 00"
+source = "cSC4TrainCar's +0xC vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Vtable20"
+address = 0x00A9C818
+kind = "data"
+expect = "A0 B2 55 00 A0 06 5E 00"
+source = "cSC4TrainCar's +0x20 vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4TrainCar::Vtable38"
+address = 0x00A9C808
+kind = "data"
+expect = "B0 B2 55 00 30 AF 4F 00"
+source = "cSC4TrainCar's +0x38 vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::Vtable"
+address = 0x00A9CD68
+kind = "data"
+expect = "20 72 55 00 F0 28 5E 00"
+source = "cSC4Train's main vtable (200 slots). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::Vtable4"
+address = 0x00A9CCE0
+kind = "data"
+expect = "40 CC 53 00 B0 29 5E 00"
+source = "cSC4Train's +4 vtable (the occupant part). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::Vtable8"
+address = 0x00A9CCC4
+kind = "data"
+expect = "70 CC 53 00 E0 29 5E 00"
+source = "cSC4Train's +8 vtable (the serializable part). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::VtableC"
+address = 0x00A9CC60
+kind = "data"
+expect = "80 CC 53 00 10 2A 5E 00"
+source = "cSC4Train's +0xC vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::Vtable20"
+address = 0x00A9CC4C
+kind = "data"
+expect = "90 CC 53 00 A0 06 5E 00"
+source = "cSC4Train's +0x20 vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4Train::Vtable38"
+address = 0x00A9CC3C
+kind = "data"
+expect = "A0 CC 53 00 30 AF 4F 00"
+source = "cSC4Train's +0x38 vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Vtable"
+address = 0x00A99588
+kind = "data"
+expect = "20 72 55 00 F0 28 5E 00"
+source = "cSC4MassTransitTrain's main vtable (200 slots). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Vtable4"
+address = 0x00A99500
+kind = "data"
+expect = "40 CC 53 00 B0 29 5E 00"
+source = "cSC4MassTransitTrain's +4 vtable (the occupant part). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Vtable8"
+address = 0x00A994E4
+kind = "data"
+expect = "70 CC 53 00 E0 29 5E 00"
+source = "cSC4MassTransitTrain's +8 vtable (the serializable part). Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::VtableC"
+address = 0x00A99480
+kind = "data"
+expect = "80 CC 53 00 10 2A 5E 00"
+source = "cSC4MassTransitTrain's +0xC vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Vtable20"
+address = 0x00A9946C
+kind = "data"
+expect = "90 CC 53 00 A0 06 5E 00"
+source = "cSC4MassTransitTrain's +0x20 vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Vtable38"
+address = 0x00A9945C
+kind = "data"
+expect = "A0 CC 53 00 30 AF 4F 00"
+source = "cSC4MassTransitTrain's +0x38 vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
