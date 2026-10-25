@@ -1,4 +1,4 @@
-# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names. The font system and the font are not hooked yet.
+# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names; the font system (GZFontSystem, f2a) in framework.font.system.object, .faces, .aliases and .getfont. The font and the STLport code of the font system (f2b) are not hooked yet.
 
 [[entry]]
 name = "GZFontDirector::Construct"
@@ -16,7 +16,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "55 8B EC 83 EC 14 53 33"
-source = "Name ours, not hooked. Class 0x20673960, 0x70 bytes, vtables 0x00AC5488 (main) and 0x00AC5454 (+4). Sets up the face and alias maps and the file patterns `*.tt?`, `*.pfb`, `*.mxf`, `*.otf` that its scans use (the game's Fonts folder and the Windows one; slot 15 lists the folders, slot 14 opens each file). No arguments, plain ret (docs/fonts.md, f2)."
+source = "Name ours. Class 0x20673960, 0x70 bytes, vtables 0x00AC5488 (main) and 0x00AC5454 (+4). Sets up the fields, the names set, the families, faces, aliases and sizes-by-face maps and the file patterns `*.tt?`, `*.pfb`, `*.mxf`, `*.otf` that the folder scan (slot 15) uses; the encoding from RZText::DefaultEncoding. No arguments, plain ret. Ours in framework.font.system.object (docs/fonts.md, f2a)."
 
 [[entry]]
 name = "GZFontSystem::GetFont"
@@ -25,7 +25,277 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, void* face_name, uint32_t unknown, uint32_t size, uint32_t style, bool reuse)"
 expect = "55 8B EC 81 EC E0 02 00"
-source = "Name ours, not hooked. Slot 11 (+0x2C) of 0x00AC5488; `ret 0x14`. Splits the face list at commas, scores every face by name and style bits, and either returns a matching font already made (reuse, AddRef'd) or makes one with its own slot 10 (0x00895A1C). ui.toml's SC4::Singleton913D22 is the usual way in (docs/fonts.md, f2)."
+source = "Name ours. Slot 11 (+0x2C) of 0x00AC5488; `ret 0x14`; the second argument is a kind, compared with a face's +0x40 when the list is empty. Splits the face list (in lower case) at commas, renames a name without a face to the alias that lists it, scores every face by name and style bits, and either returns a matching font already made (reuse, AddRef'd) or makes one with its own slot 10 (0x00895A1C). ui.toml's SC4::Singleton913D22 is the usual way in. Ours in framework.font.system.getfont (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Destruct"
+address = 0x00894F2C
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8D 4E 64 C7 06"
+source = "Name ours. The destructor (no slot of its own; the deleting destructor, slot 24, calls it): both vtables, then the sizes-by-face map +0x64, the patterns +0x58, the aliases +0x4C, the faces +0x40, the families +0x34 and the names +0x28 taken down; no font is released. Plain ret. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::DeletingDestruct"
+address = 0x0089538D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 97 FB FF FF"
+source = "Name ours. Slot 24 (+0x60), `ret 4`: the destructor 0x00894F2C, then the game's operator delete if bit 0. Returns this. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::QueryInterface"
+address = 0x00893D2C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 48 74 25 2D"
+source = "Name ours. Slot 0, `ret 8`: 1 and 0x00673960 give this, 0x287FB697 this + 4 (0 for a null this), each AddRef'd through slot 1; any other ID AL 0. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Release"
+address = 0x00893DD7
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 0C 83 F8 01 76 05"
+source = "Name ours. Slot 2, plain ret: the count (+0xC) less one while above 1; at 1 or below 0x00893D68 (Shutdown, then the deleting destructor) and 0, the count left as it was. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Destroy"
+address = 0x00893D68
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 06 FF 50 10"
+source = "Name ours. Release's last reference (its only caller): slot 4 (Shutdown), then slot 24 with 1. Plain ret. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Shutdown"
+address = 0x00894F8D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 20 56 8B"
+source = "Name ours. Slot 4 (+0x10), plain ret. Only if Init's byte +8 is set: every font in the faces' lists released once (one that keeps a reference is asked its family, slot 0x14, into a string dropped at once), each list emptied (0x009A841F), then the faces, families, names and aliases emptied and the blitter (+0x24) released and cleared; the byte cleared. The sizes by face and the patterns stay. AL 1. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::SetEncoding"
+address = 0x00893D7B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t encoding)"
+expect = "8B 44 24 04 89 41 20 B0"
+source = "Name ours. Slot 5 (+0x14), `ret 4`: the text encoding the system's fonts get (+0x20; the constructor sets RZText's default). AL 1. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::SetBlitter"
+address = 0x00893D91
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, cIGZUnknown* blitter)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. Slot 6 (+0x18), `ret 4`: the blitter the system's fonts get (+0x24), AddRef'd, the one before released. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Version"
+address = 0x00894F77
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 A0 BB 0D 00 C3"
+source = "Name ours. Slots 5 and 12 of the +4 vtable 0x00AC5454: 900000 (0xDBBA0). Plain ret. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::QueryInterface2"
+address = 0x00894F7D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this_plus_4, uint32_t iid, void** out)"
+expect = "83 E9 04 E9 A7 ED FF FF"
+source = "Name ours. Slot 0 of the +4 vtable 0x00AC5454: `sub ecx, 4` and a jump to QueryInterface 0x00893D2C. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Release2"
+address = 0x00894F85
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this_plus_4)"
+expect = "83 E9 04 E9 4A EE FF FF"
+source = "Name ours. Slot 2 of the +4 vtable 0x00AC5454: `sub ecx, 4` and a jump to Release 0x00893DD7. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Shutdown2"
+address = 0x00895260
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this_plus_4)"
+expect = "83 E9 04 E9 25 FD FF FF"
+source = "Name ours. Slot 9 of the +4 vtable 0x00AC5454: `sub ecx, 4` and a jump to Shutdown 0x00894F8D. Ours in framework.font.system.object (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::FileType"
+address = 0x0089433C
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cIGZString* path)"
+expect = "55 8D 6C 24 8C 81 EC A0"
+source = "Name ours. `ret 4`, this unused; called by AddFontFile only. A font file's type by its extension in lower case (.ttf 1, .ttc and .otf 4, .pfb 2), else by its first 32 bytes (`%!PS` anywhere 2, 00 01 00 00 at 0 1, `ttcf` at 0 4); 0 for none or a file that does not open or read. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::AddFontFile"
+address = 0x00895564
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZString* path)"
+expect = "55 8D 6C 24 8C 81 EC DC"
+source = "Name ours. Slot 14 (+0x38), `ret 4`. A font file added as a face, tried as given and then in Windows's Fonts folder: opened with a T2K holder (0x00897FED, 0x00898CD9), named by its family (0x0089801E, 1), its style bits (0x0089883F), kind 1 (2 if the scaler's +0x5C is set) and type (0x0089433C); the name in lower case added to the names +0x28. False if the path is a face already, the file is not there or has no name. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::AddFontFolder"
+address = 0x00894864
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cIGZString* folder)"
+expect = "55 8B EC 81 EC 78 02 00"
+source = "Name ours. Slot 15 (+0x3C), `ret 4`. Every file of the folder (Windows's Fonts folder if empty) matching one of the four patterns, given to slot 14; counts each added and each whose name has `.PFB` (capitals) in it. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::AddFont"
+address = 0x008957D6
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZFont* font)"
+expect = "55 8B EC 83 EC 78 53 56"
+source = "Name ours. Slot 13 (+0x34), `ret 4`. A font made elsewhere kept in the faces and AddRef'd: a new face of its path (slot 0x54) named by its family, or pushed onto the face's list unless a font of its size is there (then false). False for null. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::RemoveFace"
+address = 0x00894A3A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZString* name)"
+expect = "55 8B EC 83 EC 18 53 56"
+source = "Name ours. Slot 17 (+0x44), `ret 4`. The name in lower case out of the names; every face whose name equals it, ignoring case (the string's slot 0x28), removed, each of its fonts released once. AL 0. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::ReleaseFont"
+address = 0x00893F22
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cIGZFont* font)"
+expect = "55 8B EC 83 EC 10 8B 49"
+source = "Name ours. Slot 12 (+0x30), `ret 4`. The font released where a face's list has it; when that leaves one reference, released again and taken out of the list (0x00949259). The last count, 0 if not found. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::ListFaces"
+address = 0x00893E5B
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* out, uint32_t count)"
+expect = "55 8B EC 83 7D 0C 00 53"
+source = "Name ours. Slot 18 (+0x48), `ret 8`. With 0, the number of faces; else at most count entries of 0x88 bytes (the name, zero-padded and cut at 127 characters, styles, kind) and how many. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::ListFonts"
+address = 0x00893ECB
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cIGZFont** out, uint32_t count)"
+expect = "55 8B EC 51 51 56 8B 71"
+source = "Name ours. Slot 19 (+0x4C), `ret 8`. Every font the faces' lists hold, as many as fit; with 0 none are written. Answers how many there are, or with a count how many were written. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::HasFace"
+address = 0x008944B2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZString* name, uint32_t unused, uint32_t style)"
+expect = "55 8B EC 83 EC 28 53 56"
+source = "Name ours. Slot 22 (+0x58), `ret 0xC`. Whether the name in lower case is in the names and a face of it has the low two style bits. Ours in framework.font.system.faces (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Init"
+address = 0x00895E68
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 14 53 57"
+source = "Name ours. Slot 3 (+0xC), plain ret. The first time (byte +8 clear): the default faces of families 5 Times New Roman, 9 Arial, 6 Courier New and 10 Lucida Console (0x00895DCF), then the byte set. AL 1. Ours in framework.font.system.aliases (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::Init2"
+address = 0x00895F2E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this_plus_4)"
+expect = "83 E9 04 E9 32 FF FF FF"
+source = "Name ours. Slot 8 of the +4 vtable 0x00AC5454: `sub ecx, 4` and a jump to Init 0x00895E68. Ours in framework.font.system.aliases (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::SetFamily"
+address = 0x00895DCF
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t code, cIGZString* name)"
+expect = "55 8B EC 83 EC 34 53 8D"
+source = "Name ours. `ret 8`, called by Init only. The default face of a family's code in the map +0x34 (a signed word to a string): a new entry, or the old name's text replaced. AL 1. Ours in framework.font.system.aliases (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::AddAlias"
+address = 0x0089595D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZString* alias, cIGZString* face)"
+expect = "55 8B EC 83 EC 48 53 56"
+source = "Name ours. Slot 20 (+0x50), `ret 8`. The face's name added to the alias's vector in the map +0x4C, the alias made if new. AL 1. Ours in framework.font.system.aliases (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::GetAliasFaces"
+address = 0x00894198
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cIGZString* alias, cIGZString** out, uint32_t count)"
+expect = "55 8B EC 83 EC 18 56 57"
+source = "Name ours. Slot 21 (+0x54), `ret 0xC`. The alias's names assigned to `count` strings (each skipped if null; one past the alias's names is given what lies past its vector); answers how many it has, at most count, 0 for an unknown alias. Ours in framework.font.system.aliases (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::ResolveAlias"
+address = 0x0089423C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, cIGZString* alias, cIGZString* out)"
+expect = "55 8B EC 83 EC 1C 53 56"
+source = "Name ours. Slot 23 (+0x5C), `ret 8`. The first of the alias's names that HasFace (slot 22, style 0) knows, into `out`; false if none. Ours in framework.font.system.aliases (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::MakeFont"
+address = 0x00895A1C
+kind = "function"
+convention = "thiscall"
+signature = "cIGZFont* (void* this, cIGZString* path, uint32_t size, uint32_t style, bool reuse)"
+expect = "55 8D 6C 24 98 81 EC 94"
+source = "Name ours. Slot 10 (+0x28), `ret 0x10`. A font of the file (tried as given, else in Windows's Fonts folder): with reuse, one of that size and style in a face of that path (the last such face's); else made by the COM (class 0x1AA404AC, 0x10673960; by hand if it gives none), given the path, size, style, the system's encoding and blitter, draw mode 1 for sizes in the system's range +0x18..+0x1C or the face's (map +0x64; else the default +0x14), and loaded; with reuse it is kept in the faces. Null for size 0 or a font that does not load. Ours in framework.font.system.getfont (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::GetFontFor"
+address = 0x008942E3
+kind = "function"
+convention = "thiscall"
+signature = "cIGZFont* (void* this, uint32_t kind, uint32_t size, uint32_t style, uint32_t colour, bool reuse)"
+expect = "55 8B EC 83 EC 14 56 57"
+source = "Name ours. Slot 9 (+0x24), `ret 0x14`. GetFont (slot 11) with no face list, then the font's colours (slot 0x38) set to `colour` and 0x08000000 (the font's own). Ours in framework.font.system.getfont (docs/fonts.md, f2a)."
+
+[[entry]]
+name = "GZFontSystem::SetMonoRange"
+address = 0x008954CB
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t low, int32_t high, cIGZString* face)"
+expect = "55 8B EC 83 EC 38 83 7D"
+source = "Name ours. Slot 8 (+0x20), `ret 0xC`. The sizes drawn in mode 1: without a face the system's (+0x18, +0x1C); with one, an entry of the map +0x64 (one already there kept), removed if low is not below high. Ours in framework.font.system.getfont (docs/fonts.md, f2a)."
 
 [[entry]]
 name = "GZFont::Construct"
