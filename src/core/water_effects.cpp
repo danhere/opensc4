@@ -15379,6 +15379,64 @@ uint32_t BfCompared(const char* id, char* self, Game&& game, Ours&& ours)
     return result;
 }
 
+// With OPENSC4_EFFECT_FORCE_DRAWS=1 (compare mode of the two base class
+// draws only) each compared draw is made in turn with one of eight
+// changes, put back after both runs: none; the description's turn about
+// y (+0x104) 0.002; its velocity axes (+0xDC) 0.5, so that fast particles
+// are stretched, or 1000, so that none is; both texture flips (flags
+// 0x40000000 and 0x20000000; the plain draw has none); the most size (the
+// vector at +0x1E8's +0x34) 0.5, so that the size is clamped; flip
+// 0x20000000 alone; no texture (+0x68), so that nothing is drawn. They are
+// recorded as effects.draw_buffered.forced and effects.draw_plain.forced.
+// The game's run draws them too.
+bool g_pdForce = false;
+
+template <typename Compare>
+uint32_t PdForced(char* self, Compare&& compare)
+{
+    static uint32_t turn = 0;
+    const uint32_t k = turn++ % 8;
+    char* const description = At<char*>(self, 0x24);
+    char* const most = At<char*>(self, 0x1E8);
+    const uint32_t flags = At<uint32_t>(description, 0), spin = At<uint32_t>(description, 0x104),
+                   axes = At<uint32_t>(description, 0xDC), texture = At<uint32_t>(self, 0x68),
+                   size = most ? At<uint32_t>(most, 0x34) : 0;
+    switch (k) {
+    case 1:
+        At<float>(description, 0x104) = 0.002f;
+        break;
+    case 2:
+        At<float>(description, 0xDC) = 0.5f;
+        break;
+    case 3:
+        At<float>(description, 0xDC) = 1000.0f;
+        break;
+    case 4:
+        At<uint32_t>(description, 0) = flags | 0x60000000u;
+        break;
+    case 5:
+        if (most)
+            At<float>(most, 0x34) = 0.5f;
+        break;
+    case 6:
+        At<uint32_t>(description, 0) = (flags | 0x20000000u) & ~0x40000000u;
+        break;
+    case 7:
+        At<uint32_t>(self, 0x68) = 0;
+        break;
+    default:
+        break;
+    }
+    const uint32_t result = compare();
+    At<uint32_t>(description, 0) = flags;
+    At<uint32_t>(description, 0x104) = spin;
+    At<uint32_t>(description, 0xDC) = axes;
+    At<uint32_t>(self, 0x68) = texture;
+    if (most)
+        At<uint32_t>(most, 0x34) = size;
+    return result;
+}
+
 uint32_t __fastcall BfBufferedByMode(char* self, void*, uint32_t context)
 {
     const auto game = [&] { return g_DwSC4Effect_DrawParticlesTextured(self, nullptr, context); };
@@ -15395,6 +15453,11 @@ uint32_t __fastcall BfBufferedByMode(char* self, void*, uint32_t context)
               {{0x18, reinterpret_cast<uint32_t>(&BfLockStub)},
                {0x20, reinterpret_cast<uint32_t>(&BfUnlockStub)},
                {0x28, reinterpret_cast<uint32_t>(&BfDrawStub)}});
+    if (g_pdForce)
+        return PdForced(self, [&] {
+            return BfCompared("effects.draw_buffered.forced", self, game,
+                              [&] { DrawParticlesBuffered(self, Ptr(context)); });
+        });
     return BfCompared("effects.draw_buffered", self, game, [&] { DrawParticlesBuffered(self, Ptr(context)); });
 }
 OPENSC4_THUNK(TDwSC4Effect_DrawParticlesTextured, BfBufferedByMode, 4)
@@ -15412,6 +15475,10 @@ uint32_t __fastcall PlPlainByMode(char* self, void*, uint32_t context)
     }
     if (EffectNodes(self).empty())
         return game();
+    if (g_pdForce)
+        return PdForced(self, [&] {
+            return BfCompared("effects.draw_plain.forced", self, game, [&] { DrawParticlesPlain(self, Ptr(context)); });
+        });
     return BfCompared("effects.draw_plain", self, game, [&] { DrawParticlesPlain(self, Ptr(context)); });
 }
 OPENSC4_THUNK(TDwSC4Effect_DrawParticles, PlPlainByMode, 4)
@@ -15484,11 +15551,21 @@ bool PdHookBindTexture()
     return g_PdBindTexture || Detour(addr::SC4RenderContext_BindTexture, &TPdBindTexture, &g_PdBindTexture);
 }
 
+void PdReadForce(registry::Mode mode)
+{
+    const char* v = std::getenv("OPENSC4_EFFECT_FORCE_DRAWS");
+    if (mode != registry::Mode::Compare || !v || *v != '1' || g_pdForce)
+        return;
+    g_pdForce = true;
+    log::Write("water effects: the particles' draws forced with made-up turns, axes, flips, sizes and textures");
+}
+
 bool InstallDrawBuffered(registry::Mode mode)
 {
     if (!game::IsBuild641() || !PdHookBuffered() || (mode == registry::Mode::Compare && !PdHookBindTexture()))
         return false;
     g_bfMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    PdReadForce(mode);
     log::Write("water effects: the particles' draw into the dynamic buffer %s",
                mode == registry::Mode::Compare ? "compared with the game's" : "ours");
     return true;
@@ -15503,6 +15580,7 @@ bool InstallDrawPlain(registry::Mode mode)
           (g_PdBatchDraw || Detour(addr::SC4IndexBatch_Draw, &TPdBatchDraw, &g_PdBatchDraw))))
         return false;
     g_plMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    PdReadForce(mode);
     log::Write("water effects: the particles' draw without the dynamic buffer %s",
                mode == registry::Mode::Compare ? "compared with the game's" : "ours");
     return true;
