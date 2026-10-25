@@ -6724,3 +6724,394 @@ address = 0x00AD53CC
 kind = "data"
 expect = "10 4A 5D 00 10 4A 5D 00"
 source = "Name ours. The vtable the LEGACY reader's constructor writes at +8 before 0x00AD5324."
+
+
+
+# Part u17 (src/core/gzui_writers.cpp, docs/gzui.md): the UI script writers, their printers and property
+# helpers, and the printers' formats. The game never writes a UI script; none of this ran in the coverage runs.
+
+[[entry]]
+name = "cGZUIScriptWriters::LineColour"
+address = 0x0095BC92
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, uint8_t r, uint8_t g, uint8_t b)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. %s=(%u,%u,%u) (0x00AD6DD0), the bytes' low bytes. Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineColours2"
+address = 0x0095BCED
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t f)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. Two colours, %s=(%u,%u,%u)(%u,%u,%u) (0x00AD6DE0). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineColours4"
+address = 0x0095BD57
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, uint8_t bytes[12])"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. Four colours, 12 bytes as stack arguments (0x00AD6DFC). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineInt"
+address = 0x0095BDDF
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, int32_t value)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. %s=%d (0x00AD6E2C). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineHex"
+address = 0x0095BE2E
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, uint32_t value)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. %s=0x%08x (0x00AD6E34). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineKey"
+address = 0x0095BE7D
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, uint32_t group, uint32_t instance)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. A resource key, %s={%08x,%08x} (0x00AD6E40). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LinePair"
+address = 0x0095BECF
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, int32_t a, int32_t b)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. %s=(%d,%d) (0x00AD6E50). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineRect"
+address = 0x0095BF21
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, int32_t a, int32_t b, int32_t c, int32_t d)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. %s=(%d,%d,%d,%d) (0x00AD6E5C). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineWord"
+address = 0x0095BF79
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, SC4String* value)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. A word, %s=%s (0x00AD6E70). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineBool"
+address = 0x0095BFCB
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, bool value)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. The byte as yes or no, %s=%s (0x00AD6E70). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineQuoted"
+address = 0x0095C028
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, SC4String* value)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. A quoted text, %s=\"%s\" (0x00AD6E78). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineAppend"
+address = 0x0095C07A
+kind = "function"
+convention = "custom"
+signature = "void (SC4String* string /* EAX */, SC4String* out /* ECX */)"
+expect = "56 8B F1 8B C8 83 C0 04"
+source = "Name ours. The string's body appended to the out string's (SC4String::AppendStd; a null string as a null body), then a space (0x00410F00); EAX that call's. Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineOption"
+address = 0x0095C0A1
+kind = "function"
+convention = "custom"
+signature = "void (SC4String* out, uint32_t id, uint32_t number, uint32_t group, uint32_t instance, int32_t x, int32_t y, int32_t w, int32_t h)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. cdecl with the name string in EDI and the text in ESI. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. With a group and an instance both not 0, %s=\"%u:%s:%u:{%08x,%08x}:(%d,%d,%d,%d)\" (0x00AD6E98), else %s=\"%u:%s:%u::\" (0x00AD6E84). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineMove"
+address = 0x0095C130
+kind = "function"
+convention = "cdecl"
+signature = "void (SC4String* out, SC4String* name, uint32_t id, int32_t a, int32_t b)"
+expect = "55 8B EC 83 EC 14 8D 4D"
+source = "Name ours. A string made on the stack (0x00578390), the line printed into it (cRZBaseString::Sprintf), its body appended to the out string's (SC4String::AppendStd on both +4s), the string destroyed inline; EAX the append's or the free's. An option's move or size, %s=\"%u:(%d,%d)\" (0x00AD6EC4). Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineFlags"
+address = 0x0095C185
+kind = "function"
+convention = "custom"
+signature = "void (SC4String* out, uint32_t flags, uint32_t defaults)"
+expect = "55 8B EC 83 EC 28 56 57"
+source = "Name ours. cdecl with a table in EAX: 12-byte rows (a mask, a name's literal, a byte) ended by a row with no name. Each row whose flag differs from the default, or whose byte is set: yes or no and the name made into strings (in that order), printed by 0x0095BF79, destroyed name first. Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineFont"
+address = 0x0095BC21
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t font)"
+expect = "E8 4C 80 FB FF FF 74 24"
+source = "Name ours. cdecl with the out string in ESI: a font the font service (0x00913C72's slot 37) knows by its face's name (slot 5; %s), the default font 0x68963C4C nothing (AL 0, EAX 0), any other 0x%08x, through the string's slot 27; AL 1 over its EAX. Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::KeyEquals"
+address = 0x0095BC74
+kind = "function"
+convention = "thiscall"
+signature = "bool (const void* other)"
+expect = "8B 51 04 8B 44 24 04 3B"
+source = "Name ours. `ret 4`: two keys the same by their +4 and +8 (EAX 1 or 0). Also called by 0x009647FB and 0x009A9892. Ours in framework.uiscript.writelines (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::PropertyBytes"
+address = 0x0095BAD7
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t key, void* out)"
+expect = "55 8B EC 51 51 53 32 DB"
+source = "Name ours. cdecl with the window in ECX (none allowed: AL 0 over the EAX it came with): the window's script property under the key (slot 113); of type 0xC (its slot 4) its 12 bytes into the out place (slot 57, a count of 0xC); the value released. AL 1 when written, else 0, over the last call's EAX. Ours in framework.uiscript.writeprops (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::PropertyPair"
+address = 0x0095BB29
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t* first, uint32_t* second, uint32_t index)"
+expect = "55 8B EC 51 8B 01 53 8D"
+source = "Name ours. cdecl with the window in ECX: the window's property under 0xDAA3B860 + the index; a value whose kind (slot 3) has 0x8000 gives its two words (slot 103); released. AL 1 when written, else 0, over the last call's EAX. Ours in framework.uiscript.writeprops (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::PropertyFont"
+address = 0x0095BB82
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t index)"
+expect = "55 8B EC 51 8B 01 53 8D"
+source = "Name ours. cdecl with the window in ECX and the out string in EDI: the window's property under 0xFAA3BE85 + the index. A number (kind 6): its word (slot 73) printed into the string (its slot 27) as the font service's face's name (%s) when it is a font, else %d; a text (kind 0x800E): the value's slot 55 with the string. Released. AL 1 for either kind, else 0, over the last call's EAX. Ours in framework.uiscript.writeprops (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::FlatRect"
+address = 0x0095C211
+kind = "function"
+convention = "custom"
+signature = "void (IGZWinFlatRect* face /* EAX */, SC4String* out /* EBX */)"
+expect = "55 8B EC 83 EC 38 56 57"
+source = "Name ours. GZWinFlatRect's UI script writer (IGZWinFlatRect 0xC2AFA76F in EAX, the out string in EBX). The four sides' colours (slot 11 with 0 to 3; one set of byte places for all four) as colorleft, colortop, colorright and colorbottom (0x0095BC92); then each of the style's (slot 13) seven bits (left, top, right, bottom, raised, sunken, nofill) as a style word (0x0095BF79). Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::Text"
+address = 0x0095C55A
+kind = "function"
+convention = "cdecl"
+signature = "void (IGZWinText* face, SC4String* out)"
+expect = "55 8D 6C 24 90 81 EC B0"
+source = "Name ours. GZWinText's UI script writer (IGZWinText 0x212CDC1F). font (slot 20, 0x0095BC21), align (slot 22: nine words, else hex), notify, wrapped and opaque (slot 6 with 1, 2, 4), forecolor and bkgcolor (slot 12 with 0 and 1, the colour service's slot 36), gutters and textoffsets (slots 24 and 26, signed bytes), autofit (the window's property 0xDACF8F9C, its slot 63 byte; 0x0095C07A). Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::TextEdit"
+address = 0x0095CC7B
+kind = "function"
+convention = "custom"
+signature = "void (SC4String* out)"
+expect = "55 8D 6C 24 8C 81 EC 8C"
+source = "Name ours. GZWinTextEdit's UI script writer: cdecl with IGZWinTextEdit 0x231A1C57 in EBX. The flags (slot 80) against 0x11FF by the table 0x00AD6D10 (0x0095C185), font (slot 11), initvalue (slot 46, quoted), six font colours (slot 14 with 0, 2, 4, 1, 3, 5), caretcolor (19), highlightcolor (22), outlinecolor (38), maxtext (32), gutters (39, 41), overwrite (no when slot 65 answers yes), insertindex (67), insertpos (69), caretperiod (73), maxundo (82), hscrollimage and vscrollimage (the window's properties 0x8B4BFEFC and 0x8B4BFEFD by 0x0095BAD7), hscrollimageRect and vscrollimageRect (slots 86 and 85), autofit. Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::ListBox"
+address = 0x0095D439
+kind = "function"
+convention = "custom"
+signature = "void (IGZWinListBox* face)"
+expect = "55 8B EC 83 EC 68 8B 4D"
+source = "Name ours. GZWinListBox's UI script writer: cdecl with the out string in EBX (IGZWinListBox 0x4132242B). vscrollbar and hscrollbar (slot 36), font (the window's by 0x0095BB82), three font colours (slot 40), highlightcolor (43), outlinecolor (56, two colours), sunken (54), outline (52), scrollbargutters (58) and gutters (60) as signed bytes, sort (15), drop (18), initselection (12), each element (slot 30's count, slot 49; listelement, quoted), autofit. Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::LineInput"
+address = 0x0095DB1A
+kind = "function"
+convention = "custom"
+signature = "void (IGZWinLineInput* face)"
+expect = "55 8D 6C 24 8C 81 EC B0"
+source = "Name ours. GZWinLineInput's UI script writer: cdecl with the out string in EBX (IGZWinLineInput 0x21335C59). font (the window's by 0x0095BB82), three font colours (slot 7), colorLT, colorRB, colorLTinside and colorRBinside (15), fillcolorhighlite (18), gutters (34, four signed bytes, always), filled (10), editable (27), style (12: normal, outline3d, outline3dEx), fillalphahilite (slot 20's float times 255.0, _ftol), caretpos (26), charlimit (30), selection (32: start, start + length). Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::Combo"
+address = 0x0095E1E2
+kind = "function"
+convention = "custom"
+signature = "void (IGZWinCombo* face)"
+expect = "55 8B EC 83 EC 7C 56 57"
+source = "Name ours. GZWinCombo's UI script writer: cdecl with the out string in EBX (IGZWinCombo 0x412CE496). font (the window's by 0x0095BB82), three font colours (slot 13), highlightcolor (17), editable (20), outlinecolor (23), initselection (30), combodownarrowimage (the window's pair by 0x0095BB29), combodownarrowrect (34), combodowncolor (36), buttongutter (38), gutters (40), then every item (slot 31 from 0 while it answers; listelement, quoted). Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::Btn"
+address = 0x0095E6F0
+kind = "function"
+convention = "cdecl"
+signature = "void (IGZWinBtn* face, SC4String* out)"
+expect = "55 8D 6C 24 90 81 EC 04"
+source = "Name ours. GZWinBtn's UI script writer (IGZWinBtn 0x8810). image (the window's 12 bytes under 0x2B343BEC by 0x0095BAD7), font (21), six font colours (slot 25 with 0, 4, 2, 1, 5, 3), ten flags (slot 4: toggle and triggerondown on/off; showcaption, autosize, wrapcaption, shiftcaption, tips yes/no; fill, tipsdelay and tipstimeout no when set), style (11: label, standard, toggle, radiocheck), gutters (31, always), tiptext (36), tipres (0x2B340FFE), tipoffsets (41), tipflag (39), align (28), btnclicksnd and btnupsnd (the window's pairs 0x0A5BE39D and 0x4A5BE2F8 by its slot 113). Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers2 (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::BMP"
+address = 0x0095F2CA
+kind = "function"
+convention = "cdecl"
+signature = "void (IGZWinBMP* face, SC4String* out)"
+expect = "55 8B EC 83 EC 3C 53 56"
+source = "Name ours. GZWinBMP's UI script writer (IGZWinBMP 0xC12CEA13). image (the window's 12 bytes under 0xAB428C5D by 0x0095BAD7), imagerect (slot 9, when slot 10 answers for 0x10), notify, transparentbkg and edgeimage (slot 10 with 1, 2, 8), alpha (slot 7: when its byte is set, the float times 255.0 by _ftol, the low byte). Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers2 (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::Slider"
+address = 0x0095F4EC
+kind = "function"
+convention = "custom"
+signature = "void (IGZWinSlider* face /* EDI */, SC4String* out /* EBX */)"
+expect = "55 8B EC 83 EC 38 8B 07"
+source = "Name ours. GZWinSlider's UI script writer (IGZWinSlider 0x21325207 in EDI, the out string in EBX). minmaxvalue (slots 7 and 9), direction (slot 11: 2 vertical, 1 horizontal, else none), image (the window's 12 bytes under 0x6B4BCBD4), initvalue (slot 4). Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers2 (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::Scrollbar"
+address = 0x0095F663
+kind = "function"
+convention = "custom"
+signature = "void (IGZWinScrollbar* face /* EDI */, SC4String* out /* EBX */)"
+expect = "55 8B EC 83 EC 44 8B 07"
+source = "Name ours. GZWinScrollbar's UI script writer (IGZWinScrollbar 0x61325A2D in EDI, the out string in EBX). minmaxvalue (slot 8), direction (slot 10), pagesize (12), linesize (14), linepagecount (16, always), image (the window's 12 bytes under 0x6B4BCBD4), initvalue (slot 6). Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers2 (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::OptGrpOption"
+address = 0x0095F87B
+kind = "function"
+convention = "cdecl"
+signature = "bool (cIGZWin* window, uint32_t id, IGZWinBtn* button, SC4String* out)"
+expect = "55 8B EC 83 EC 4C 53 56"
+source = "Name ours. GZWinOptGrp's writer's callback for each option button, handed to the window's slot 32 (0x0099D708, which reads AL). Nothing for a null button; else the caption (slot 50, SC4String::FromIGZString), the button's window's pair (0x0095BB29), its image rectangle (slot 16) and its window's area (slot 47): option (0x0095C0A1), optionmoveto and optionsetsize (0x0095C130). AL 1. Referenced only at 0x00960152. Ours in framework.uiscript.writers2 (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::OptGrp"
+address = 0x0095F9B0
+kind = "function"
+convention = "cdecl"
+signature = "void (IGZWinOptGrp* face, SC4String* out)"
+expect = "55 8D 6C 24 90 81 EC 94"
+source = "Name ours. GZWinOptGrp's UI script writer (IGZWinOptGrp 0xA1336CC0). maincaption, itemcaption, drawfill and outline (slot 4 with 1, 2, 4, 8), gutters (slot 7, always), labelfont and buttonfont (the window's by 0x0095BB82 with 0 and 1), captiontextresid (the window's pair under 0x4A4AF4AC), backimage (0x0095BB29), five font colours (slot 11), outlinecolor (slot 22, four colours, 0x0095BD57), initselection (13), autofilltype and autofillsize (29), autofit, then each option: the window's slot 32 with IGZWinBtn 0x8810, the callback 0x0095F87B and the out string. Called only by the writers' dispatcher 0x00965F73 (above the block), which reads nothing it returns. Ours in framework.uiscript.writers2 (docs/gzui.md, part u17)."
+
+[[entry]]
+name = "cGZUIScriptWriters::ColourFormat"
+address = 0x00AD6DD0
+kind = "data"
+expect = "25 73 3D 28 25 75 2C 25 75 2C 25 75 29 20 00"
+source = "Name ours. %s=(%u,%u,%u) , a colour's line."
+
+[[entry]]
+name = "cGZUIScriptWriters::Colours2Format"
+address = 0x00AD6DE0
+kind = "data"
+expect = "25 73 3D 28 25 75 2C 25 75 2C 25 75 29 28 25 75 2C 25 75 2C 25 75 29 20 00"
+source = "Name ours. Two colours' line."
+
+[[entry]]
+name = "cGZUIScriptWriters::Colours4Format"
+address = 0x00AD6DFC
+kind = "data"
+expect = "25 73 3D 28 25 75 2C 25 75 2C 25 75 29 28 25 75 2C 25 75 2C 25 75 29 28 25 75 2C 25 75 2C 25 75 29 28 25 75 2C 25 75 2C 25 75 29 20 00"
+source = "Name ours. Four colours' line."
+
+[[entry]]
+name = "cGZUIScriptWriters::IntFormat"
+address = 0x00AD6E2C
+kind = "data"
+expect = "25 73 3D 25 64 20 00"
+source = "Name ours. %s=%d , a number's line."
+
+[[entry]]
+name = "cGZUIScriptWriters::HexFormat"
+address = 0x00AD6E34
+kind = "data"
+expect = "25 73 3D 30 78 25 30 38 78 20 00"
+source = "Name ours. %s=0x%08x , a word's line."
+
+[[entry]]
+name = "cGZUIScriptWriters::KeyFormat"
+address = 0x00AD6E40
+kind = "data"
+expect = "25 73 3D 7B 25 30 38 78 2C 25 30 38 78 7D 20 00"
+source = "Name ours. %s={%08x,%08x} , a resource key's line."
+
+[[entry]]
+name = "cGZUIScriptWriters::PairFormat"
+address = 0x00AD6E50
+kind = "data"
+expect = "25 73 3D 28 25 64 2C 25 64 29 20 00"
+source = "Name ours. %s=(%d,%d) , a pair's line."
+
+[[entry]]
+name = "cGZUIScriptWriters::RectFormat"
+address = 0x00AD6E5C
+kind = "data"
+expect = "25 73 3D 28 25 64 2C 25 64 2C 25 64 2C 25 64 29 20 00"
+source = "Name ours. %s=(%d,%d,%d,%d) , a rectangle's line."
+
+[[entry]]
+name = "cGZUIScriptWriters::WordFormat"
+address = 0x00AD6E70
+kind = "data"
+expect = "25 73 3D 25 73 20 00"
+source = "Name ours. %s=%s , a word's or bool's line."
+
+[[entry]]
+name = "cGZUIScriptWriters::QuotedFormat"
+address = 0x00AD6E78
+kind = "data"
+expect = "25 73 3D 22 25 73 22 20 00"
+source = "Name ours. A quoted text's line."
+
+[[entry]]
+name = "cGZUIScriptWriters::OptionShortFormat"
+address = 0x00AD6E84
+kind = "data"
+expect = "25 73 3D 22 25 75 3A 25 73 3A 25 75 3A 3A 22 20 00"
+source = "Name ours. An option's line without an image."
+
+[[entry]]
+name = "cGZUIScriptWriters::OptionFormat"
+address = 0x00AD6E98
+kind = "data"
+expect = "25 73 3D 22 25 75 3A 25 73 3A 25 75 3A 7B 25 30 38 78 2C 25 30 38 78 7D 3A 28 25 64 2C 25 64 2C 25 64 2C 25 64 29 22 20 00"
+source = "Name ours. An option's line with an image key and a rectangle."
+
+[[entry]]
+name = "cGZUIScriptWriters::MoveFormat"
+address = 0x00AD6EC4
+kind = "data"
+expect = "25 73 3D 22 25 75 3A 28 25 64 2C 25 64 29 22 20 00"
+source = "Name ours. An option's move or size line."
+
+[[entry]]
+name = "cGZUIScriptWriters::Float255"
+address = 0x00A9D8B0
+kind = "data"
+expect = "00 00 7F 43"
+source = "Name ours. 255.0f, the scale of the LineInput and BMP writers' alphas (the float times it, truncated by _ftol)."

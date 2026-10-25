@@ -86,7 +86,7 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u15** | 0x00956464 to 0x009586AF | 4 of 23 | 3 | **Ours** (below): GZWinOptGrp's registration and property handler, the base window's handler and the dispatcher; TreeView's and Grid's STLport map code, Grid's text helper and cell lookups stay the game's |
 | **u16a** | 0x009586B0 to 0x00959E30 | 2 of 3 | 1 | **Ours** (below): GZWinTreeView's registration and property handler; a map clear stays the game's |
 | **u16b** | 0x00959E31 to 0x0095BBFF | 9 of 32 | 10 | **Ours** (below): GZWinGrid's registration and property handler (with its text helper 0x00956464 of u15's range), GZWinCustom's class code and the LEGACY reader's constructor; the grid maps' STLport code, GZWinCustom's adjustors and three of the writers' helpers stay the game's |
-| u17 | 0x0095BC00 to 0x0095FFFF | 29 | 0 | The writers (17.7 KB, never run) |
+| **u17** | 0x0095BC00 to 0x0095FFFF | 29 of 29 | 0 | **Ours** (below): the UI script writers (17.7 KB, never run): 14 printers, the font printer, the flag table, a key compare and 11 classes' writers, with the three property helpers below the range (0x0095BAD7, 0x0095BB29, 0x0095BB82) |
 
 Leave the game's: the base QueryInterface 0x009457C6, AddRef 0x00968B60, the shared one-instruction getters, the empty functions 0x00949ADE and 0x0091559A, and the STLport and counted-reference code these classes share with the rest of the framework.
 
@@ -1445,3 +1445,132 @@ No script the runs load makes a grid, and no GZWinCustom is drawn. So the grid's
 - **u12's property handlers** (slice 4).
 
 The grid's STLport map code stays the game's.
+
+## Part u17: the UI script writers
+
+0x0095BC00 to 0x0095FFFF holds the UI script writers: 29 functions, 17.7 KB. They write a window back out as a LEGACY UI script, the reverse of the readers of parts u13 to u16b. The game never saves a UI script, so none of them ran in the coverage runs. The part also takes the three property helpers just below the range, 0x0095BAD7, 0x0095BB29 and 0x0095BB82, which only writers call. Ours: all 32, in `src/core/gzui_writers.cpp`, four groups, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.writelines` | 17 | the 14 printers 0x0095BC92 to 0x0095C130 (one per form of a line), the font printer 0x0095BC21, the flag table 0x0095C185 and a key compare 0x0095BC74 |
+| `framework.uiscript.writeprops` | 3 | the property helpers 0x0095BAD7, 0x0095BB29 and 0x0095BB82 |
+| `framework.uiscript.writers` | 6 | the writers of GZWinFlatRect 0x0095C211, Text 0x0095C55A, TextEdit 0x0095CC7B, ListBox 0x0095D439, LineInput 0x0095DB1A and Combo 0x0095E1E2 |
+| `framework.uiscript.writers2` | 6 | the writers of GZWinBtn 0x0095E6F0, BMP 0x0095F2CA, Slider 0x0095F4EC, Scrollbar 0x0095F663 and OptGrp 0x0095F9B0, and OptGrp's option callback 0x0095F87B |
+
+Still the game's: the dispatcher 0x00965F73 above the block, which writes `<LEGACY `, the lines of 0x00962FC2 (which calls the printers too), the class's writer and `>`; and the other classes' writers above 0x00960000 (TextTicker, Folders, Spinner, Outline, Gen, FileBrowser, TreeView and Grid), which call our printers and helpers by address when their groups are on. Nothing in the range is STLport code or an adjustor. 46 address entries (`gzui.toml`, "Part u17"): the 32 functions, the printers' 13 formats and the alphas' scale 255.0f (0x00A9D8B0).
+
+**The printers** (cdecl: the out string, the name string, the values) each make a string on the stack, print `name=value ` into it (cRZBaseString::Sprintf), append it to the out string's body (SC4String::AppendStd on both +4s) and destroy it inline:
+
+| Printer | Line |
+|---|---|
+| 0x0095BC92, 0x0095BCED, 0x0095BD57 | one, two or four colours, `%s=(%u,%u,%u) `, each byte argument's low byte |
+| 0x0095BDDF, 0x0095BE2E | `%s=%d `, `%s=0x%08x ` |
+| 0x0095BE7D | a resource key, `%s={%08x,%08x} ` |
+| 0x0095BECF, 0x0095BF21 | `%s=(%d,%d) `, `%s=(%d,%d,%d,%d) ` |
+| 0x0095BF79, 0x0095BFCB | `%s=%s ` with a string, or `yes`/`no` from a byte |
+| 0x0095C028 | `%s="%s" ` |
+| 0x0095C0A1 | an option (the name in EDI, the text in ESI): `%s="%u:%s:%u:{%08x,%08x}:(%d,%d,%d,%d)" ` when the key's group and instance are both not 0, else `%s="%u:%s:%u::" ` |
+| 0x0095C130 | an option's move or size, `%s="%u:(%d,%d)" ` |
+| 0x0095C07A | a word alone (the string in EAX, the out string in ECX): its body and a space |
+
+The font printer 0x0095BC21 (the string in ESI) prints a font word into a string: the face's name (the font service's slot 37, the face's slot 5) when the service knows it, nothing for the default font 0x68963C4C (AL 0), else `0x%08x`. The flag table 0x0095C185 (the table in EAX) walks 12-byte rows (mask, name, byte): each row whose flag differs from the default, or whose byte is set, as `yes` or `no`. 0x0095BC74 compares two keys by their +4 and +8 (`ret 4`); the grid's writer and 0x009A9892 call it.
+
+**The property helpers** read a window's script property by its slot 113 (the window in ECX):
+
+- 0x0095BAD7 (a key and a place): a value of type 0xC gives its 12 bytes (its slot 57). Without a window: AL 0.
+- 0x0095BB29 (two places and an index): the property 0xDAA3B860 + the index; a value whose kind has 0x8000 gives its two words (slot 103).
+- 0x0095BB82 (an index; the string in EDI): the property 0xFAA3BE85 + the index. A number is a font: the face's name, or `%d` when the font service has no face. A text goes into the string by the value's slot 55.
+
+Each answers AL 1 when it wrote, and releases the value.
+
+**The writers** ask their interface for each setting and print it. Most also ask the interface's window for properties: a font (0x0095BB82 with index 0), an image key, `autofit` (the property 0xDACF8F9C, whose value's byte is behind slot 63). Colours go through the colour service's slot 36 into three bytes. Each writer's lines, in order:
+
+| Writer | Interface, in | Lines |
+|---|---|---|
+| FlatRect 0x0095C211 | 0xC2AFA76F in EAX, out in EBX | colorleft, colortop, colorright, colorbottom (slot 11 with 0 to 3); style words for the style's seven bits (slot 13): left, top, right, bottom, raised, sunken, nofill |
+| Text 0x0095C55A | 0x212CDC1F, cdecl (face, out) | font (slot 20); align (slot 22: nine words, else hex); notify, wrapped, opaque (slot 6 with 1, 2, 4); forecolor, bkgcolor (slot 12 with 0 and 1); gutters, textoffsets (slots 24 and 26, signed bytes); autofit |
+| TextEdit 0x0095CC7B | 0x231A1C57 in EBX, cdecl (out) | the flags (slot 80) against 0x11FF by the table 0x00AD6D10: editable to allowundo and singleline always, the other five when they differ; font (11); initvalue (46, quoted); six font colours (slot 14 with 0, 2, 4, 1, 3, 5); caretcolor (19), highlightcolor (22), outlinecolor (38, when its byte is set); maxtext (32), gutters (39, 41); overwrite (`no` when slot 65 answers yes); insertindex (67), insertpos (69), caretperiod (73), maxundo (82); hscrollimage and vscrollimage (the window's 12 bytes under 0x8B4BFEFC and 0x8B4BFEFD); hscrollimageRect and vscrollimageRect (slots 86 and 85); autofit |
+| ListBox 0x0095D439 | 0x4132242B, cdecl (face), out in EBX | vscrollbar, hscrollbar (36); font; three font colours (40); highlightcolor (43); outlinecolor (56, two colours); sunken (54), outline (52); scrollbargutters (58), gutters (60); sort (15), drop (18), initselection (12); every element (slot 30's count, slot 49) as a quoted listelement; autofit |
+| LineInput 0x0095DB1A | 0x21335C59, cdecl (face), out in EBX | font; three font colours (7); colorLT, colorRB, colorLTinside, colorRBinside (15); fillcolorhighlite (18); gutters (34, four signed bytes, always); filled (10), editable (27); style (12: normal, outline3d, outline3dEx); fillalphahilite (slot 20's float times 255.0, truncated by the game's _ftol); caretpos (26), charlimit (30); selection (32: start, start + length) |
+| Combo 0x0095E1E2 | 0x412CE496, cdecl (face), out in EBX | font; three font colours (13); highlightcolor (17); editable (20); outlinecolor (23); initselection (30); combodownarrowimage (the window's pair by 0x0095BB29); combodownarrowrect (34), combodowncolor (36), buttongutter (38), gutters (40); every item (slot 31 from 0 while it answers) as a quoted listelement |
+| Btn 0x0095E6F0 | 0x8810, cdecl (face, out) | image (the window's 12 bytes under 0x2B343BEC); font (21); six font colours (slot 25 with 0, 4, 2, 1, 5, 3); ten flags (slot 4): toggle and triggerondown `on`/`off`, showcaption, autosize, wrapcaption, shiftcaption and tips `yes`/`no`, fill, tipsdelay and tipstimeout `no` when set; style (11: label, standard, toggle, radiocheck); gutters (31, always); tiptext (36); tipres (0x2B340FFE, when not 0); tipoffsets (41), tipflag (39), align (28: center, left, right); btnclicksnd and btnupsnd (the window's pairs 0x0A5BE39D and 0x4A5BE2F8) |
+| BMP 0x0095F2CA | 0xC12CEA13, cdecl (face, out) | image (0xAB428C5D); imagerect (slot 9, when slot 10 answers for 0x10); notify, transparentbkg, edgeimage (slot 10 with 1, 2, 8); alpha (slot 7: with its byte set, the float times 255.0, truncated, its low byte) |
+| Slider 0x0095F4EC | 0x21325207 in EDI, out in EBX | minmaxvalue (slots 7 and 9); direction (11: 2 vertical, 1 horizontal); image (0x6B4BCBD4); initvalue (4) |
+| Scrollbar 0x0095F663 | 0x61325A2D in EDI, out in EBX | minmaxvalue (8); direction (10); pagesize (12), linesize (14); linepagecount (16, always); image (0x6B4BCBD4); initvalue (6) |
+| OptGrp 0x0095F9B0 | 0xA1336CC0, cdecl (face, out) | maincaption, itemcaption, drawfill, outline (slot 4 with 1, 2, 4, 8); gutters (7, always); labelfont and buttonfont (the window's fonts 0 and 1); captiontextresid (the window's pair 0x4A4AF4AC); backimage (0x0095BB29); five font colours (11); outlinecolor (22, four colours); initselection (13); autofilltype and autofillsize (29); autofit; then each option button |
+
+The writers make their strings on the stack and destroy them inline, in the game's order. For a word line the value is made first and the name destroyed first. The writers' EAX is not the game's: their only caller, the dispatcher, reads none.
+
+**OptGrp's options.** OptGrp hands the window's slot 32 (the base window's 0x0099D708) IGZWinBtn, the callback 0x0095F87B and the out string. Slot 32 calls the callback (cdecl: the window, the child's id, the child, the word) for each child, and counts its AL 0 answers. The callback prints three lines for each button:
+
+- `option`: its caption (slot 50, SC4String::FromIGZString), its window's pair 0 as the image key, and its image rectangle (slot 16);
+- `optionmoveto` and `optionsetsize`: its window's area (slot 47).
+
+It answers AL 1.
+
+**Odd but the game's:** Btn writes `fill`, `tipsdelay` and `tipstimeout` as `no` when their flags are set, and uses `toggle` both as a flag's name and a style's word; TextEdit writes `overwrite=no` when slot 65 answers yes. Several writers print a slot's places without testing its answer (LineInput's gutters, style and alpha; Btn's gutters; Scrollbar's counts; OptGrp's gutters). No bugs were found.
+
+**Where the game reads its stack.** Many getters write into places the writer never set first. If a getter answers yes without writing, the game prints what its stack held there. The cases:
+
+- the font words, the alignments and the colour words, and the colour bytes when the colour service writes none;
+- the gutters', offsets' and scroll bars' bytes;
+- the rectangles: BMP's lies on the words of the destroyed `image` name;
+- LineInput's and Scrollbar's always-printed words;
+- OptGrp's outline colours and its autofill words;
+- the option callback's rectangle and area.
+
+Ours has 0 there. Places the game shares between calls are shared in ours too, so a getter that writes nothing prints the last value, as in the game. The one place left uninitialised is 0x0095BAD7's value pointer, which the game does not zero either. So both crash alike if slot 113 answers yes and writes nothing.
+
+### Testing
+
+`OPENSC4_TEST_WRITERS=<day>` is a test of its own (the fingerprint's `wt` part). It calls all 32 by address and checks after each call that EBX, ESI, EDI and EBP were kept. After each call it hashes the out string's text. There are 13 stages, each logged as `autotest: writers: <stage> <hash>`:
+
+- **lines:** each printer on strings of the game's: colours with their upper bytes set, numbers at the edges, empty strings, options with and without a key, a flag table with rows that differ and rows always written (a byte with upper bits) and an empty table, the font printer on the known font words, the default and an unknown one, the key compare.
+- **props:** the three helpers on a window of our own whose slot 113 gives script values of our own (bytes, numbers, fonts, texts, pairs, the wrong kinds, missing keys) and on no window.
+- **flatrect, text, textedit, listbox, lineinput, combo, btn, bmp, slider, scrollbar, optgrp:** each writer on interfaces of our own. Every slot it calls hashes its number and arguments, and answers by a case number so that every branch runs: getters answering no, every switch value and its default, every flag, known, default and unknown fonts, texts and none, elements failing, autofit on, off and missing. The interfaces' windows are ours (slot 113, plus OptGrp's slots 32 and 47). The font and colour services are the game's. OptGrp's option callback runs through a fake slot 32 and directly by address, with a null button among the cases.
+
+The inputs keep clear of the places where the game reads its stack: a getter that answers yes always writes. With the groups on, side B logs all 32 first calls in a test run. `wt` is F68A8309 (muted) on both sides. The stages: lines 2061B908, props 18877EC9, flatrect ABA387DF, text C8B69844, textedit 3299ED13, listbox DC69E7B5, lineinput 83F33DC5, combo FA0B055B, btn C20F759D, bmp EFFC34BB, slider 3C53646D, scrollbar ADE0D7AA, optgrp F68A8309.
+
+**Deliberate slips.** Four slips in ours, one build each. Each changed its own stage, and none before it:
+
+| Slip | Stage changed first |
+|---|---|
+| the flag table's byte tested as a dword | lines |
+| ListBox's first scrollbar gutter not sign-extended | listbox |
+| Btn's `fill` not inverted | btn |
+| an option's height from the wrong side | optgrp |
+
+**Audit.** The author and three independent audits checked the 32 against the disassembly, reading every instruction:
+
+- the register inputs and the thunks that hand them over, and the stack arguments and who pops them;
+- every call, its arguments and order, the vtable slots, and the registers set for each register-argument callee;
+- every literal, checked against the exe, the align jump table and TextEdit's flag table;
+- byte against dword tests, signed and unsigned compares, sign extension, the loops;
+- the order of making and destroying strings, and the places shared between calls;
+- AL and EAX where a caller reads them.
+
+All callers of the register-argument helpers in the whole exe were checked: none relies on ECX or EDX after the call. Some rely on EDI, ESI and EBX, which ours keep. Nothing jumps into the first five bytes of any of the 32; the only references are their callers' calls and OptGrp's push of the callback.
+
+The audits found no differences in what the functions do. They found comments to fix, now fixed: TextEdit's `singleline` written always, not when it differs; the printers' count; the empty flag table's EAX; which places were shared and which only unset; the option callback's EAX; BMP's and OptGrp's lists of stack places. They also found duplicate helpers in OptGrp's writer, now folded into the shared ones.
+
+### Parity
+
+Batches `gzu17-r1` (before the audits' comment fixes and the folding of OptGrp's helpers) and `gzu17-r2` (the final build), run 2026-10-24:
+
+- muted on both sides, two jobs, in their own test folder `p4env-gzu17`;
+- the base list (with `determinism.dispatch_info`) on both sides;
+- on side B, every one of these groups `=ours`: `framework.uiscript.*` (with `writelines`, `writeprops`, `writers` and `writers2`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*`.
+
+| Leg | Saves | r2 (final) | r1 |
+|---|---|---|---|
+| Making Money d0000, 4 days | 1 | same | same |
+| Rush Hour t0000, 7 days | 1 | same | same |
+| 12 saves, 7 days | 12 | 12 same | 10 same, 2 partly |
+| 12 saves, 7 days, `OPENSC4_TEST_WRITERS=2` | 12 | 12 same; `wt` F68A8309 in every run | 11 same, 1 partly; `wt` F68A8309 |
+| Making Money d0000, 4 days, `OPENSC4_TEST_WRITERS=2` | 1 | same; `wt` F68A8309 | same |
+
+In r2 three saves took a second or third pair (Making Money d0000 and Rush Hour d0090 in the plain leg, Rush Hour d0000 in the test leg): in each, side A, the game's, gave more than one outcome and B one, shared. In r1 three saves were partly the same (Big City d0000 and Making Money d1095 in the plain leg, Big City d1095 in the test leg): B gave two outcomes, one of them A's. r1 ran while three audits, four slip builds and their test runs shared the machine. In plain legs none of the 32 runs, so these are the earlier batches' pattern of a side differing from itself (parts u3, u10 and u14). `wt` was F68A8309 in all 28 test runs of r2 and in every test run of r1.
+
+**Reached:** in plain (muted) legs, none of the 32 runs (0 of 14 runs log a first call): the game never writes a UI script. They are reached only by the test.
+
+**What is left:** u12's property handlers (slice 4). The writers above 0x00960000 (TextTicker, Folders, Spinner, Outline, Gen, FileBrowser, TreeView and Grid, with the dispatcher 0x00965F73) are outside the block.
