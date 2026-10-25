@@ -80,7 +80,7 @@ Pieces of about 35 to 45 functions, by address and class; thunks count. Sizes va
 | **u9** | 0x0094AF19 to 0x0094BBFD | 31 of 54 | 26 | **Ours** (below): the UI script loader 0xFA3562FB (the framework's system service that makes the UI file parser and builds windows from UI scripts) and its director; 19 adjustors, the base service's two AddRef and Release adjustors, the director's ID getter and the shared list node stay the game's |
 | **u10** | 0x0094A079 to 0x0094AF18, 0x0094BBFE to 0x0094BF3B | 48 of 54 | 25 | **Ours** (below): the MP3 decoder director 0x1CEC20BE ("HitMP3Decoder"), its stream 0x3CEC2B47 and maker 0x9CEC2B58, the decoder's feed, decode, reset, frame header and ID3 size; the UI script root holder 0x5A354595's slots, its vector's insert and copies, the rectangle test; two jump thunks, a shared stub, the ID getter and the holder's two folded slots stay the game's |
 | **u11** | 0x0094C000 to 0x0094C8FF | 21 of 50 | 35 | **Ours** (below): the rest of the UI script root holder 0x5A354595 (constructor, slot 4, destructors, the vector's constructor, push and erase) and the LEGACY reader 0xFA450242's own slots; 8 adjustors, helpers that take their arguments in registers and other classes' small functions stay the game's |
-| **u12** | 0x0094C900 to 0x00951268 | 4 of 49 | 16 | **Ours** (below), first slice: the readers of a window's script properties (the text finder and its three scanners); the property handlers, their map and tree code and the shared AddRef are still the game's |
+| **u12** | 0x0094C900 to 0x00951268 | 19 of 49 | 16 | **Ours** (below), four slices: the readers of a window's script properties, the variable table's words and all 14 property handlers (6 of them never run); the STLport map and tree code, the shared AddRef and 7 small functions of other classes stay the game's |
 | **u13** | 0x00951269 to 0x00953FFF | 17 of 17 | 17 | **Ours** (below): the 16 stock widget classes' registrations (their names and property words into the LEGACY readers' variable table, their handlers and interfaces into two maps) and GZWinGen's property handler |
 | **u14** | 0x00954000 to 0x00956463 | 2 of 41 | 2 | **Ours** (below): GZWinFileBrowser's registration and property handler; the STLport tree, list and pair code and a counted object's Release stay the game's |
 | **u15** | 0x00956464 to 0x009586AF | 4 of 23 | 3 | **Ours** (below): GZWinOptGrp's registration and property handler, the base window's handler and the dispatcher; TreeView's and Grid's STLport map code, Grid's text helper and cell lookups stay the game's |
@@ -1056,7 +1056,54 @@ Batch `gzu12c-r3`, after merging main (with part u13), the same five legs with u
 
 **Reached:** in every plain (muted) leg side B logs 22 first calls: all 9 of this slice (the words when the first LEGACY reader is made, every handler when a city's UI loads) and 13 of slices 1 and 2; the text maker 0x0094C255 is still reached only by the test.
 
-**What is left of u12:** 36 of the 49 functions. The six handlers that did not run in the coverage runs or the plain legs: 0x0094CE28, 0x0094D17E, 0x0094F36D, 0x009503AB, 0x009505B6 and 0x00951084 (the natural next slice, the same pattern). Then, staying the game's: the STLport map and tree code 0x0094C92D to 0x0094CDB5 (22 functions, but for the text finder 0x0094CCD9), the AddRef 0x0094D34F that 14 vtables share, and seven small functions that belong to other classes, not to the handlers: 0x0094D147 and 0x0094D163 (three strings made and destroyed), 0x0094D356 and 0x0094D3D4 (maps copied), 0x0094D452 and 0x0094D471 (deleting destructors), 0x0094D490 (a constructor). Their callers are in parts u13 to u16's ranges, and they go with those classes.
+**What was left of u12 after slice 3:** 36 of the 49 functions. The six handlers that did not run in the coverage runs or the plain legs: 0x0094CE28, 0x0094D17E, 0x0094F36D, 0x009503AB, 0x009505B6 and 0x00951084 (slice 4, below). Then, staying the game's: the STLport map and tree code 0x0094C92D to 0x0094CDB5 (22 functions, but for the text finder 0x0094CCD9), the AddRef 0x0094D34F that 14 vtables share, and seven small functions that belong to other classes, not to the handlers: 0x0094D147 and 0x0094D163 (three strings made and destroyed), 0x0094D356 and 0x0094D3D4 (maps copied), 0x0094D452 and 0x0094D471 (deleting destructors), 0x0094D490 (a constructor). Their callers are in parts u13 to u16's ranges, and they go with those classes.
+
+## Part u12, slice 4: the property handlers that never run
+
+The fourth slice makes ours the six property handlers left in the range. Each belongs to a stock widget that part u13's registrations put in the handler map, but no UI script the game ships makes one of these widgets, so the handlers never run in the game (none ran in the coverage runs or in any plain leg). They are in `src/core/gzui_props.cpp`, one group, off by default, installed at Attach:
+
+| Group | Detours | What |
+|---|---:|---|
+| `framework.uiscript.prophandle2` | 6 | 0x0094CE28 (0x032F0B3C, GZWinTextTicker), 0x0094D17E (0xA13351B8, GZWinFolders), 0x0094F36D (0x412CE496, GZWinCombo), 0x009503AB (0x61325A2D, GZWinScrollbar), 0x009505B6 (0x21335C59, GZWinLineInput) and 0x00951084 (0xE303E5AE, GZWinOutline) |
+
+They have the shape of slice 3's: cdecl (the window, its script's vector of pairs, the pass byte), the control's interface asked of the window's slot 0 and released at the end, the properties read through slices 1 and 2's helpers (ours call our bodies directly):
+
+- 0x0094CE28, the text ticker, second pass only: 0x1200 and 0x1201 to slots 8 and 9; the font to slot 7 (a number through 0x00913C72's slot 5, put back by 0x0094C222; else a text put back by 0x0094C255; else the default `main9`); then the pairs in order: each 0xF002 and 0xF001 text an unchecked "(%d,%d,%d)" colour (0xFFFFFFFF and 0 until one is read), each 0x1202 text a new game string (SC4::operator_new and the string constructor, unchecked; its slot 1 before and slot 2 after) given to slot 3 with the two colours read so far, 0 and 0. So a ticker item takes the colours of the pairs before it.
+- 0x0094D17E, the folders: first pass, slot 7, then every 0x502 text to slot 4 (the text, 0); second, the font to slot 10 (a number, else a text back), the 0xF016 image (unchecked "{%x,%x}") to slot 11 and its two words as 8 bytes under 0xDAA3B860.
+- 0x0094F36D, the combo: first pass, the colours 0xF00F to 0xF011 to slot 12 (with 0 to 2), 0x408 to slot 16, 0x40B to slot 22 and 0x802 to slot 35, 0x400 at 1 to slot 21, every 0x502 text to slot 27 (the text, -2), 0x501 to slot 28 (the word, 1); second, the font to slot 11, the 0x800 image with the 0x801 rectangle (else none) to slot 33 and its words back by 0x0094C1DA, 0x803 to slot 37, the 0xF004 pair to slot 39.
+- 0x009503AB, the scrollbar: first pass, 0x40A through slot 75 to slot 5; second, the 0xC00 range (the smaller first) to slot 7, 0xC01 (0xC03 as 2, else 1) to slot 9, 0xD00 and 0xD01 to slots 11 and 13, the 0xD02 pair to slot 15, the 0xF016 image to slot 17 with the 0xF018 rectangle (else the image's own area, its slot 12) and 0, written back under 0x6B4BCBD4.
+- 0x009505B6, the line input: first pass, 0xE09 to slot 25, 0x400 to slot 28, 0xE0A to slot 29, the 0xE0B pair to slot 31 as the first and the second less the first; second, the font to slot 4 (or the default), eight colours (0xF00F to 0xF011 to slot 5, 0xE03 to 0xE06 to slot 14, by index; 0xE07 to slot 17), 0xE08 (at most 0xFF) times 1/255 as a float to slot 19, 0xE00 to slot 9, the style 0xF005 (0xE01 2, 0xE02 3, 0xF00A 1) to slot 11, and the gutters 0xF004 by the commas of their text to slot 33 ("(%d,%d)" given as both pairs, or "(%d,%d,%d,%d)"; unchecked).
+- 0x00951084, the outline, second pass only: flags from every 0xF005 number pair (0xF009 1, 0xF00B 2, 0xF00C 4, 0xF00D 0x20) to slot 3 when any; the 0x1100 and 0x1101 bytes to slot 5 (with 1 and 2); every 0x1102 text read as an unchecked "(%d,%d)" into a table of at most 32 pairs on its stack, given to slot 13 (the count, the table, 1, 1) when it has any. Pairs beyond the 32nd are left unread.
+
+**What ours keep.** As in slice 3: the argument slots (the window's is the out of several finds and scans, the outline's flags and both loops' index, so the ticker's and the outline's end as an index), the bools pushed over the EDX the number finder left, the order of the calls. Where the game scans a text without checking the count, the locals it does not fill keep what they held: an earlier pair's values (the same in ours) or, for the first, the stack's leftovers (ours 0). The folders' image, the ticker's first colours, the outline's first pair and the line input's gutters are read that way.
+
+### Testing
+
+`OPENSC4_TEST_PROPHANDLE2=<day>` is a test of its own (the fingerprint's `p2` part). One stage, logged as `autotest: prophandle2: handle <hash>`, with a line per handler:
+
+- **handle:** every handler by address with slice 3's windows, controls (every slot hashes its number and what it gets; the outline's table hashed by its count), number and text values and images, the UI script loader's held object ours (the game's put back), on seven vectors (every read good, the ticker's texts before, between and after its colours; the other branches; malformed texts and values that are not numbers, the default fonts; an empty gutters text and one without commas; more outline pairs than its table holds; none), each with the pass byte 0, 1, 0xFFFFFF01 and 0x100, and once with no control. None of the vectors has a malformed text where a handler scans unchecked into locals the game leaves unset (the folders skip the malformed one).
+
+With the group on, each of the 6 logs its first call in a test run. `p2` is 603A9C90 (muted), the same on both sides; `ph` stays BAAA5D6E. A build with four slips on purpose (the combo's bool without the finder's EDX, the line input's two-number gutters in the wrong order, the outline's table one short, the ticker's first colour default) changed side B's hash from the ticker's line on.
+
+The six were checked against the disassembly by the author and by an independent audit (every path: calls, their objects, slots, arguments and order, the singleton calls against the control's, which scans and values are checked, signed compares, the switches, byte against dword writes, the argument slots and their final values, loop counts and the outline's 32-pair cap). The audit found no difference in behaviour; only locals ours start at 0 where the game leaves them unset, which nothing reads unless a scan fails.
+
+### Parity
+
+Batch `gzu12d-r1`, 2026-10-25, muted on both sides, the base list on both sides, every `framework.uiscript.*` (with `prophandle2`), `framework.mp3.*`, `framework.soundmix.*`, `framework.soundsvc.*`, `framework.sound.*`, `framework.xmlparse.*` and `framework.propio.*` group `=ours` on side B, two jobs, own test folder `p4env-gzu12d`:
+
+| Leg | Saves | Result |
+|---|---|---|
+| Making Money d0000, 4 days | 1 | same |
+| Rush Hour t0000, 7 days | 1 | same |
+| 12 saves, 7 days | 12 | 12 same |
+| 12 saves, 7 days, `OPENSC4_TEST_PROPHANDLE=2 OPENSC4_TEST_PROPHANDLE2=2` | 12 | 12 same; `p2` 603A9C90 in every run |
+| Making Money d0000, 4 days, the same two tests | 1 | same; `p2` 603A9C90 |
+
+All on the first pair.
+
+**Reached:** in plain (muted) legs none of the 6 runs (no shipped script makes these widgets); only the test reaches them.
+
+**What is left of u12:** 30 of the 49 functions, all staying the game's: the STLport map and tree code 0x0094C92D to 0x0094CDB5 (22 functions, but for the text finder 0x0094CCD9), the AddRef 0x0094D34F that 14 vtables share, and the seven small functions of other classes (0x0094D147, 0x0094D163, 0x0094D356, 0x0094D3D4, 0x0094D452, 0x0094D471, 0x0094D490), whose callers are in parts u13 to u16's ranges.
 
 ## Part u13: the stock widgets' registrations and GZWinGen's property handler
 
@@ -1573,4 +1620,4 @@ In r2 three saves took a second or third pair (Making Money d0000 and Rush Hour 
 
 **Reached:** in plain (muted) legs, none of the 32 runs (0 of 14 runs log a first call): the game never writes a UI script. They are reached only by the test.
 
-**What is left:** u12's property handlers (slice 4). The writers above 0x00960000 (TextTicker, Folders, Spinner, Outline, Gen, FileBrowser, TreeView and Grid, with the dispatcher 0x00965F73) are outside the block.
+**What is left:** u12's property handlers (slice 4, done: see part u12, slice 4). The writers above 0x00960000 (TextTicker, Folders, Spinner, Outline, Gen, FileBrowser, TreeView and Grid, with the dispatcher 0x00965F73) are outside the block.

@@ -62,6 +62,17 @@
 //
 // The handlers call our readers, makers, loaders and lookups directly. They
 // go in at Attach too.
+//
+// The fourth slice (part u12, slice 4): the handlers of six stock widgets no
+// shipped UI script makes, so they never run in the game:
+//
+//   framework.uiscript.prophandle2  0x0094CE28 (0x032F0B3C, the text
+//                                   ticker), 0x0094D17E (0xA13351B8, the
+//                                   folders), 0x0094F36D (0x412CE496, the
+//                                   combo), 0x009503AB (0x61325A2D, the
+//                                   scrollbar), 0x009505B6 (0x21335C59, the
+//                                   line input) and 0x00951084 (0xE303E5AE,
+//                                   the outline)
 #include "core/address_check.h"
 #include "core/game.h"
 #include "core/hook.h"
@@ -1525,6 +1536,414 @@ void __cdecl Handle612CE0C3Body(uint32_t* args)
     }
 }
 
+// ====================================================================================
+// The property handlers that never run (part u12, slice 4): those of six
+// stock widgets no shipped UI script makes. Laid out as the eight above.
+
+// A colour from a text read as "(%d,%d,%d)", the count not checked (the
+// three ints are the caller's, left as they were where the text has fewer).
+uint32_t ScanColor(const Text& text, uint32_t* first, uint32_t* second, uint32_t* third)
+{
+    Scan(text.Begin(), addr::cGZUIScriptProps_BytesFormat, first, second, third);
+    return Color(*first, *second, *third);
+}
+
+// The game's 0x0094CE28 (interface 0x032F0B3C, GZWinTextTicker): on the
+// second pass only. 0x1200 and 0x1201 to slots 8 and 9; the 0xF000 font
+// number through 0x00913C72's slot 5 to slot 7 and back (else its text
+// back, else the default font to slot 7); then the pairs in order: each
+// 0xF002 or 0xF001 text (the value checked set) a colour, unchecked
+// "(%d,%d,%d)" (the defaults 0xFFFFFFFF and 0), and each 0x1202 text put
+// into a new game string (from SC4::operator_new, unchecked; its slot 1
+// before, slot 2 after) given to slot 3 with the two colours so far, 0 and
+// 0. The window argument ends as the loop's index (the pair count).
+void __cdecl Handle032F0B3CBody(uint32_t* args)
+{
+    OPENSC4_FIRST("Handle032F0B3C");
+    Control control(AsPointer(args[0]), 0x032F0B3C);
+    if (!control.found || !static_cast<uint8_t>(args[2]))
+        return;
+    void* const window = AsPointer(args[0]);
+    Props props(args[1]);
+    uint32_t f8 = 0, fC = 0;
+    if (props.Word(0x1200, &fC))
+        Virtual<uint32_t>(control.object, 0x20, fC);
+    if (props.Word(0x1201, &fC))
+        Virtual<uint32_t>(control.object, 0x24, fC);
+    Text f64;
+    if (props.Word(0xF000, &f8)) {
+        Virtual<uint32_t>(control.object, 0x1C, Font(f8));
+        MakeNumberBody(window, f8, 0);
+    } else if (props.Find(f64, 0xF000)) {
+        MakeTextBody(window, f64.bytes, 0);
+    } else {
+        Text name("main9");
+        const uint32_t font = Virtual<uint32_t>(Singleton913C72(), 0x98, static_cast<void*>(name.bytes));
+        void* const singleton = Singleton913C72();
+        Virtual<uint32_t>(control.object, 0x1C, Virtual<uint32_t>(singleton, 0x14, font));
+    }
+    f8 = 0;
+    fC = 0xFFFFFFFF;
+    uint32_t f10 = 0, f14 = 0, f18 = 0, f1C = 0, f20 = 0, f24 = 0;
+    const uint32_t count = PairCount(props.vector);
+    for (args[0] = 0; args[0] < count; ++args[0]) {
+        char* const pair = props.vector[0] + args[0] * 8;
+        const uint32_t key = At<uint32_t>(pair, 0);
+        if (key != 0x1202 && key != 0xF001 && key != 0xF002)
+            continue;
+        void* const value = At<void*>(pair, 4);
+        if (!value || Virtual<uint32_t>(value, 0xC) != kTextKind)
+            continue;
+        void* const text = At<void*>(props.vector[0] + args[0] * 8, 4);
+        if (key == 0x1202) {
+            void* const memory = NewValue();
+            void* const string = memory ? CallThis<void*>(addr::SC4String_SC4String, memory) : nullptr;
+            Virtual<uint32_t>(string, 4);
+            Virtual<uint32_t>(text, 0xDC, string);
+            Virtual<uint32_t>(control.object, 0xC, string, fC, f8, 0u, 0u);
+            Virtual<uint32_t>(string, 8);
+        } else if (key == 0xF001) {
+            Text f50;
+            Virtual<uint32_t>(text, 0xDC, static_cast<void*>(f50.bytes));
+            f8 = ScanColor(f50, &f24, &f20, &f1C);
+        } else {
+            Text f3C;
+            Virtual<uint32_t>(text, 0xDC, static_cast<void*>(f3C.bytes));
+            fC = ScanColor(f3C, &f18, &f14, &f10);
+        }
+    }
+}
+
+// The game's 0x0094D17E (interface 0xA13351B8, GZWinFolders). First pass:
+// slot 7, then every 0x502 pair whose value is a text (not checked set) to
+// slot 4 (the text, 0). Second pass: the 0xF000 font number through
+// 0x00913C72's slot 5 to slot 10 and back (else its text back); the 0xF016
+// image (unchecked "{%x,%x}", into the window argument and a local) to
+// slot 11, its two words as 8 bytes under 0xDAA3B860.
+void __cdecl HandleA13351B8Body(uint32_t* args)
+{
+    OPENSC4_FIRST("HandleA13351B8");
+    void* const window = AsPointer(args[0]);
+    Control control(window, 0xA13351B8);
+    if (!control.found)
+        return;
+    Props props(args[1]);
+    if (!static_cast<uint8_t>(args[2])) {
+        Virtual<uint32_t>(control.object, 0x1C);
+        Text f38;
+        const uint32_t count = PairCount(props.vector);
+        for (uint32_t i = 0; i < count; ++i) {
+            char* const pair = props.vector[0] + i * 8;
+            if (At<uint32_t>(pair, 0) != 0x502 || Virtual<uint32_t>(At<void*>(pair, 4), 0xC) != kTextKind)
+                continue;
+            Virtual<uint32_t>(At<void*>(props.vector[0] + i * 8, 4), 0xDC, static_cast<void*>(f38.bytes));
+            Virtual<uint32_t>(control.object, 0x10, static_cast<void*>(f38.bytes), 0u);
+        }
+        return;
+    }
+    Text f38;
+    if (props.Word(0xF000, &args[0])) {
+        Virtual<uint32_t>(control.object, 0x28, Font(args[0]));
+        MakeNumberBody(window, args[0], 0);
+    } else if (props.Find(f38, 0xF000)) {
+        MakeTextBody(window, f38.bytes, 0);
+    }
+    Text f24;
+    if (props.Find(f24, 0xF016)) {
+        uint32_t f8 = 0;
+        ScanKey(f24, &args[0], &f8);
+        void* const loaded = LoadImageOf(args[0], f8);
+        if (loaded)
+            Virtual<uint32_t>(control.object, 0x2C, loaded);
+        const uint32_t f10[2] = {args[0], f8};
+        PutBytes(window, kPairKeyBase, f10);
+        if (loaded)
+            Virtual<uint32_t>(loaded, 8);
+    }
+}
+
+// The game's 0x0094F36D (interface 0x412CE496, GZWinCombo). First pass:
+// the colours 0xF00F, 0xF010 and 0xF011 to slot 12 (0, 1, 2), 0x408 to
+// slot 16, 0x40B to slot 22 and 0x802 to slot 35; 0x400 at 1 to slot 21;
+// every 0x502 text (not checked set) to slot 27 (the text, -2); 0x501 to
+// slot 28 (the word, 1). The window argument the outs'. Second pass: the
+// 0xF000 font number through 0x00913C72's slot 5 to slot 11 and back (else
+// its text back); the 0x800 image (both words read) with the 0x801
+// rectangle (else none) to slot 33, its words by 0x0094C1DA under 0; 0x803
+// to slot 37; the 0xF004 pair to slot 39.
+void __cdecl Handle412CE496Body(uint32_t* args)
+{
+    OPENSC4_FIRST("Handle412CE496");
+    void* const window = AsPointer(args[0]);
+    Control control(window, 0x412CE496);
+    if (!control.found)
+        return;
+    Props props(args[1]);
+    uint32_t f8 = 0, fC = 0, f10 = 0, f14 = 0;
+    if (!static_cast<uint8_t>(args[2])) {
+        for (uint32_t index = 0; index < 3; ++index) {
+            if (props.Bytes(0xF00F + index, &fC, &f8, &args[0]))
+                Virtual<uint32_t>(control.object, 0x30, index, Color(fC, f8, args[0]));
+        }
+        const uint32_t colors[][2] = {{0x408, 0x40}, {0x40B, 0x58}, {0x802, 0x8C}};
+        for (const auto& color : colors) {
+            if (props.Bytes(color[0], &fC, &f8, &args[0]))
+                Virtual<uint32_t>(control.object, color[1], Color(fC, f8, args[0]));
+        }
+        if (props.Word(0x400, &args[0]))
+            Virtual<uint32_t>(control.object, 0x54, props.Dl(args[0] == 1));
+        Text f4C;
+        const uint32_t count = PairCount(props.vector);
+        for (uint32_t i = 0; i < count; ++i) {
+            char* const pair = props.vector[0] + i * 8;
+            if (At<uint32_t>(pair, 0) != 0x502 || Virtual<uint32_t>(At<void*>(pair, 4), 0xC) != kTextKind)
+                continue;
+            Virtual<uint32_t>(At<void*>(props.vector[0] + i * 8, 4), 0xDC, static_cast<void*>(f4C.bytes));
+            Virtual<uint32_t>(control.object, 0x6C, static_cast<void*>(f4C.bytes), 0xFFFFFFFEu);
+        }
+        if (props.Word(0x501, &args[0]))
+            Virtual<uint32_t>(control.object, 0x70, args[0], 1u);
+        return;
+    }
+    Text f4C;
+    if (props.Word(0xF000, &fC)) {
+        Virtual<uint32_t>(control.object, 0x2C, Font(fC));
+        MakeNumberBody(window, fC, 0);
+    } else if (props.Find(f4C, 0xF000)) {
+        MakeTextBody(window, f4C.bytes, 0);
+    }
+    Text f38;
+    if (props.Find(f38, 0x800) && ScanKey(f38, &f8, &fC) == 2) {
+        void* const loaded = LoadImageOf(f8, fC);
+        if (loaded) {
+            int32_t f24[4] = {};
+            const bool read = props.Rect(0x801, f24);
+            Virtual<uint32_t>(control.object, 0x84, loaded, read ? static_cast<void*>(f24) : nullptr);
+        }
+        MakePairBody(f8, window, fC, 0);
+        if (loaded)
+            Virtual<uint32_t>(loaded, 8);
+    }
+    if (props.Word(0x803, &args[0]))
+        Virtual<uint32_t>(control.object, 0x94, args[0]);
+    if (props.Pair(0xF004, &f14, &f10))
+        Virtual<uint32_t>(control.object, 0x9C, f14, f10);
+}
+
+// The game's 0x009503AB (interface 0x61325A2D, GZWinScrollbar). First
+// pass: 0x40A through slot 75 to slot 5 (the window argument the out).
+// Second pass: the 0xC00 pair, the smaller then the larger, to slot 7;
+// 0xC01 (0xC03 as 2, else 1) to slot 9; 0xD00 to slot 11, 0xD01 to slot
+// 13; the 0xD02 pair to slot 15; the 0xF016 image (both words read) to
+// slot 17 with the 0xF018 rectangle (else the image's slot 12 area) and
+// 0, written back under 0x6B4BCBD4.
+void __cdecl Handle61325A2DBody(uint32_t* args)
+{
+    OPENSC4_FIRST("Handle61325A2D");
+    void* const window = AsPointer(args[0]);
+    Control control(window, 0x61325A2D);
+    if (!control.found)
+        return;
+    Props props(args[1]);
+    if (!static_cast<uint8_t>(args[2])) {
+        if (props.Word75(0x40A, &args[0]))
+            Virtual<uint32_t>(control.object, 0x14, args[0]);
+        return;
+    }
+    uint32_t f8 = 0, fC = 0, f10 = 0, f14 = 0, f18 = 0, f1C = 0;
+    if (props.Pair(0xC00, &f10, &fC)) {
+        if (static_cast<int32_t>(f10) > static_cast<int32_t>(fC)) {
+            const uint32_t larger = f10;
+            f10 = fC;
+            fC = larger;
+        }
+        Virtual<uint32_t>(control.object, 0x1C, f10, fC);
+    }
+    if (props.Word(0xC01, &f8))
+        Virtual<uint32_t>(control.object, 0x24, f8 == 0xC03 ? 2u : 1u);
+    if (props.Word(0xD00, &f8))
+        Virtual<uint32_t>(control.object, 0x2C, f8);
+    if (props.Word(0xD01, &f8))
+        Virtual<uint32_t>(control.object, 0x34, f8);
+    if (props.Pair(0xD02, &f1C, &f18))
+        Virtual<uint32_t>(control.object, 0x3C, f1C, f18);
+    Text f4C;
+    if (props.Find(f4C, 0xF016) && ScanKey(f4C, &f14, &f8) == 2) {
+        void* const loaded = LoadImageOf(f14, f8);
+        if (loaded) {
+            int32_t f38[4] = {};
+            if (props.Rect(0xF018, f38))
+                Virtual<uint32_t>(control.object, 0x44, static_cast<void*>(f38), loaded, 0u);
+            else
+                Virtual<uint32_t>(control.object, 0x44, Virtual<void*>(loaded, 0x30), loaded, 0u);
+        }
+        const uint32_t f28[3] = {kImageKeyType, f14, f8};
+        MakeKeyOf(window, 0x6B4BCBD4, f28);
+        MakePairBody(f14, window, f8, 0);
+        if (loaded)
+            Virtual<uint32_t>(loaded, 8);
+    }
+}
+
+// The game's 0x009505B6 (interface 0x21335C59, GZWinLineInput). First
+// pass: 0xE09 to slot 25; 0x400 (on when not 0) to slot 28; 0xE0A to slot
+// 29; the 0xE0B pair to slot 31 (the first, the second less the first; the
+// first into the window argument). Second pass: the 0xF000 font number
+// through 0x00913C72's slot 5 to slot 4 and back (else its text back, else
+// the default font to slot 4); the colours 0xF00F, 0xF010 and 0xF011 to
+// slot 5 (0, 1, 2), 0xE03 to 0xE06 to slot 14 (0 to 3) and 0xE07 to slot
+// 17; 0xE08 (above 0xFF as 0xFF) times 1/255 as a float to slot 19; 0xE00
+// (on when not 0; the out zeroed first) to slot 9; the 0xF005 style
+// (0xE01 2, 0xE02 3, 0xF00A 1; the out zeroed first) to slot 11; the 0xF004
+// gutters ("(%d,%d)" as both pairs, or "(%d,%d,%d,%d)", by the text's
+// commas; unchecked) to slot 33. The window argument the outs'.
+void __cdecl Handle21335C59Body(uint32_t* args)
+{
+    OPENSC4_FIRST("Handle21335C59");
+    void* const window = AsPointer(args[0]);
+    Control control(window, 0x21335C59);
+    if (!control.found)
+        return;
+    Props props(args[1]);
+    uint32_t f8 = 0, fC = 0, f10 = 0;
+    if (!static_cast<uint8_t>(args[2])) {
+        if (props.Word(0xE09, &f10))
+            Virtual<uint32_t>(control.object, 0x64, f10);
+        if (props.Word(0x400, &f10))
+            Virtual<uint32_t>(control.object, 0x70, props.Dl(f10 != 0));
+        if (props.Word(0xE0A, &f10))
+            Virtual<uint32_t>(control.object, 0x74, f10);
+        if (props.Pair(0xE0B, &args[0], &fC))
+            Virtual<uint32_t>(control.object, 0x7C, args[0], fC - args[0]);
+        return;
+    }
+    Text f38;
+    if (props.Word(0xF000, &args[0])) {
+        Virtual<uint32_t>(control.object, 0x10, Font(args[0]));
+        MakeNumberBody(window, args[0], 0);
+    } else if (props.Find(f38, 0xF000)) {
+        MakeTextBody(window, f38.bytes, 0);
+    } else {
+        Text name("main9");
+        const uint32_t font = Virtual<uint32_t>(Singleton913C72(), 0x98, static_cast<void*>(name.bytes));
+        void* const singleton = Singleton913C72();
+        Virtual<uint32_t>(control.object, 0x10, Virtual<uint32_t>(singleton, 0x14, font));
+    }
+    if (props.Bytes(0xF00F, &fC, &f8, &args[0])) {
+        const uint32_t color = Color(fC, f8, args[0]);
+        f10 = AsWord(*static_cast<void**>(control.object));
+        Virtual<uint32_t>(control.object, 0x14, 0u, color);
+    }
+    for (uint32_t index = 1; index < 3; ++index) {
+        if (props.Bytes(0xF00F + index, &fC, &f8, &args[0]))
+            Virtual<uint32_t>(control.object, 0x14, index, Color(fC, f8, args[0]));
+    }
+    for (uint32_t index = 0; index < 4; ++index) {
+        if (props.Bytes(0xE03 + index, &fC, &f8, &args[0]))
+            Virtual<uint32_t>(control.object, 0x38, index, Color(fC, f8, args[0]));
+    }
+    if (props.Bytes(0xE07, &fC, &f8, &args[0]))
+        Virtual<uint32_t>(control.object, 0x44, Color(fC, f8, args[0]));
+    if (props.Word(0xE08, &args[0])) {
+        // As 0x0095002C's: a word of at most 0xFF, never negative.
+        args[0] = args[0] > 0xFF ? 0xFFu : args[0];
+        const float alpha = static_cast<float>(static_cast<double>(static_cast<int32_t>(args[0])) *
+                                               static_cast<double>(Global<float>(addr::SC4_FloatInv255)));
+        Virtual<uint32_t>(control.object, 0x4C, alpha);
+    }
+    args[0] = 0;
+    if (props.Word(0xE00, &args[0]))
+        Virtual<uint32_t>(control.object, 0x24, props.Dl(args[0] != 0));
+    args[0] = 0;
+    if (props.Word(0xF005, &args[0])) {
+        switch (args[0]) {
+        case 0xE01: Virtual<uint32_t>(control.object, 0x2C, 2u); break;
+        case 0xE02: Virtual<uint32_t>(control.object, 0x2C, 3u); break;
+        case 0xF00A: Virtual<uint32_t>(control.object, 0x2C, 1u); break;
+        default: break;
+        }
+    }
+    Text f24;
+    if (!props.Find(f24, 0xF004))
+        return;
+    const uint32_t length = CallThis<uint32_t>(addr::cRZBaseString_Strlen, f24.bytes);
+    if (!length)
+        return;
+    const char* const text = f24.Begin();
+    uint32_t commas = 0;
+    for (uint32_t i = 0; i < length; ++i) {
+        if (text[i] == ',')
+            ++commas;
+    }
+    if (commas == 1) {
+        Scan(text, addr::cGZUIScriptProps_PairFormat, &fC, &args[0]);
+        Virtual<uint32_t>(control.object, 0x84, fC, args[0], fC, args[0]);
+    } else if (commas == 3) {
+        Scan(text, addr::cGZUIScriptProps_RectFormat, &f8, &fC, &f10, &args[0]);
+        Virtual<uint32_t>(control.object, 0x84, f8, fC, f10, args[0]);
+    }
+}
+
+// The game's 0x00951084 (interface 0xE303E5AE, GZWinOutline): on the
+// second pass only. The flags (the window argument) from every 0xF005
+// number pair (slot 73's word: 0xF009 1, 0xF00B 2, 0xF00C 4, 0xF00D 0x20)
+// to slot 3 when any; the 0x1100 and 0x1101 bytes to slot 5 (1 and 2, the
+// three bytes' dwords); every 0x1102 text (the value checked set) read as
+// "(%d,%d)" (unchecked) into a table of at most 32 pairs on the stack, with
+// any to slot 13 (the count, the table, 1, 1). The window argument ends as
+// the loop's index.
+void __cdecl HandleE303E5AEBody(uint32_t* args)
+{
+    OPENSC4_FIRST("HandleE303E5AE");
+    Control control(AsPointer(args[0]), 0xE303E5AE);
+    if (!control.found || !static_cast<uint8_t>(args[2]))
+        return;
+    Props props(args[1]);
+    args[0] = 0;
+    uint32_t count = PairCount(props.vector);
+    for (uint32_t i = 0; i < count; ++i) {
+        char* const pair = props.vector[0] + i * 8;
+        if (At<uint32_t>(pair, 0) != 0xF005)
+            continue;
+        void* const value = At<void*>(pair, 4);
+        if (!value || Virtual<uint32_t>(value, 0xC) != kNumberKind)
+            continue;
+        switch (*Virtual<const uint32_t*>(At<void*>(props.vector[0] + i * 8, 4), 0x124)) {
+        case 0xF009: args[0] |= 0x01; break;
+        case 0xF00B: args[0] |= 0x02; break;
+        case 0xF00C: args[0] |= 0x04; break;
+        case 0xF00D: args[0] |= 0x20; break;
+        default: break;
+        }
+    }
+    if (count && args[0])
+        Virtual<uint32_t>(control.object, 0xC, args[0]);
+    uint32_t f8 = 0, fC = 0;
+    if (props.Bytes(0x1100, &f8, &fC, &args[0]))
+        Virtual<uint32_t>(control.object, 0x14, 1u, f8, fC, args[0]);
+    if (props.Bytes(0x1101, &f8, &fC, &args[0]))
+        Virtual<uint32_t>(control.object, 0x14, 2u, f8, fC, args[0]);
+    uint32_t table[32][2] = {};
+    uint32_t used = 0;
+    count = PairCount(props.vector);
+    for (args[0] = 0; args[0] < count && used < 32; ++args[0]) {
+        char* const pair = props.vector[0] + args[0] * 8;
+        if (At<uint32_t>(pair, 0) != 0x1102)
+            continue;
+        void* const value = At<void*>(pair, 4);
+        if (!value || Virtual<uint32_t>(value, 0xC) != kTextKind)
+            continue;
+        Text f20;
+        Virtual<uint32_t>(At<void*>(props.vector[0] + args[0] * 8, 4), 0xDC, static_cast<void*>(f20.bytes));
+        Scan(f20.Begin(), addr::cGZUIScriptProps_PairFormat, &f8, &fC);
+        table[used][0] = f8;
+        table[used][1] = fC;
+        ++used;
+    }
+    if (used)
+        Virtual<uint32_t>(control.object, 0x34, used, static_cast<void*>(table), 1u, 1u);
+}
+
 // The thunks: the bodies get the handler's three argument slots.
 #define OPENSC4_HANDLER_THUNK(name)                                                                            \
     __declspec(naked) void name()                                                                              \
@@ -1544,6 +1963,12 @@ OPENSC4_HANDLER_THUNK(Handle8810)
 OPENSC4_HANDLER_THUNK(HandleC12CEA13)
 OPENSC4_HANDLER_THUNK(Handle21325207)
 OPENSC4_HANDLER_THUNK(Handle612CE0C3)
+OPENSC4_HANDLER_THUNK(Handle032F0B3C)
+OPENSC4_HANDLER_THUNK(HandleA13351B8)
+OPENSC4_HANDLER_THUNK(Handle412CE496)
+OPENSC4_HANDLER_THUNK(Handle61325A2D)
+OPENSC4_HANDLER_THUNK(Handle21335C59)
+OPENSC4_HANDLER_THUNK(HandleE303E5AE)
 
 #undef OPENSC4_HANDLER_THUNK
 
@@ -1634,6 +2059,19 @@ bool InstallPropHandle(registry::Mode)
     return InstallAll(detours);
 }
 
+bool InstallPropHandle2(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZUIScriptProps_Handle032F0B3C, &Handle032F0B3C},
+        {addr::cGZUIScriptProps_HandleA13351B8, &HandleA13351B8},
+        {addr::cGZUIScriptProps_Handle412CE496, &Handle412CE496},
+        {addr::cGZUIScriptProps_Handle61325A2D, &Handle61325A2D},
+        {addr::cGZUIScriptProps_Handle21335C59, &Handle21335C59},
+        {addr::cGZUIScriptProps_HandleE303E5AE, &HandleE303E5AE},
+    };
+    return InstallAll(detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"framework.uiscript.propread", "framework/uiscript", registry::Kind::Detour,
                         registry::Phase::Attach, addr::cGZUIScriptProps_FindText,
@@ -1665,6 +2103,12 @@ const bool g_registered[] = {
                         "Our handlers of a window's script properties for eight controls: the text control, "
                         "the text edit, the button and five others (8 detours; part u12, slice 3, docs/gzui.md)",
                         false, InstallPropHandle}),
+    registry::Register({"framework.uiscript.prophandle2", "framework/uiscript", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZUIScriptProps_Handle032F0B3C,
+                        "Our handlers of a window's script properties for six widgets no shipped script "
+                        "makes: the text ticker, folders, combo, scrollbar, line input and outline (6 "
+                        "detours; part u12, slice 4, docs/gzui.md)",
+                        false, InstallPropHandle2}),
 };
 
 } // namespace
