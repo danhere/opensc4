@@ -309,6 +309,16 @@
 //   which are put back after). The U-Drive sounds are the game's; 0x13, 0xC
 //   and 0xF are stopped after. rflags 0x80 when all 3 ran, 0x100 when the
 //   factory or the sound service failed. Log line: "ro3a rtank".
+//   Part ro3b (the tank's frame) adds `,<rturret>` after rtank (32
+//   fields): the tank's slot 72 over thirteen frames on a tank of the
+//   factory's (ro2's vtable copy, slots 194 and 197 the test's): the byte
+//   +0x340 clear, each model missing, then both models of the test's on
+//   eight headings (one not of unit length, one straight up) and angles;
+//   twice the turret model's call changes the axis, the angles and the
+//   heading before the barrel model's turns; then 256 frames on drawn
+//   headings and angles (a fixed LCG). Each answer is mixed whole
+//   (slot 197's EAX with AL 1). rflags 0x200 when all 13 ran, 0x400 when
+//   the factory failed. Log line: "ro3b rturret".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -20827,6 +20837,186 @@ void RoadTankDrive(Hash& rtank, uint32_t& rflags)
                reached);
 }
 
+// Part ro3b: the tank's slot 72 on a tank of the factory's (ro2's vtable
+// copy, slots 194 and 197 the test's). The turret and barrel models are
+// the test's: their slot 2 mixes the point and the axis it is given and,
+// when asked, changes the axis, the angles and the heading before the
+// second pair of turns reads them again.
+struct RbAnswers {
+    char* tank = nullptr;
+    bool change = false;
+    uint32_t high = 0;
+};
+RbAnswers g_rb;
+
+struct RbModel {
+    void** vtable;
+};
+uint32_t __fastcall RbPlace(RbModel* m, void*, float* point, float* axis)
+{
+    g_probe->calls.Mix(0x802);
+    g_probe->calls.Mix(g_probe->Id(m));
+    g_probe->calls.MixBytes(point, 12);
+    g_probe->calls.MixBytes(axis, 12);
+    if (g_rb.change && g_rb.tank) {
+        axis[0] += 0.125f;
+        axis[1] *= -0.5f;
+        At<float>(g_rb.tank, rv::tank::kTurret) += 0.75f;
+        At<float>(g_rb.tank, rv::tank::kBarrel) += 0.05f;
+        float* const h = &At<float>(g_rb.tank, av::field::kHeading);
+        h[0] *= 0.5f;
+        h[2] -= 0.25f;
+        g_rb.change = false;
+    }
+    return 0x80u;
+}
+void** RbModelVtable()
+{
+    static void* t[8] = {};
+    t[2] = reinterpret_cast<void*>(&RbPlace);
+    return t;
+}
+// The attachments' slot 5.
+uint32_t __fastcall RbAttachDone(void* a, void*)
+{
+    g_probe->calls.Mix(0x705);
+    g_probe->calls.Mix(g_probe->Id(a));
+    return 0x5u;
+}
+void** RbAttachVtable()
+{
+    static void* t[16] = {};
+    t[5] = reinterpret_cast<void*>(&RbAttachDone);
+    return t;
+}
+// The tank's slots 194 and 197 (the highlights' updates); 197's EAX is the
+// frame's but for AL.
+uint32_t __fastcall RbHigh194(char*, void*)
+{
+    g_probe->calls.Mix(194);
+    return 0x194u;
+}
+uint32_t __fastcall RbHigh197(char*, void*)
+{
+    g_probe->calls.Mix(197);
+    return g_rb.high;
+}
+
+void RoadTankFrame(Hash& rturret, uint32_t& rflags)
+{
+    Probe probe;
+    Probe* const savedProbe = g_probe;
+    g_probe = &probe;
+    g_rf = RfAnswers{};
+    g_rb = RbAnswers{};
+    uint32_t madeFlags = 0;
+    char* const tank = MakeRoad(4, madeFlags);
+    const bool ok = tank && madeFlags == 0;
+    uint32_t runs = 0;
+    static void* table[200];
+    RbModel turretModel{RbModelVtable()}, barrelModel{RbModelVtable()};
+    if (ok) {
+        At<void**>(tank, 0) = RfTable(table, kRoadClasses[4].tables[0], 198, 4);
+        table[194] = reinterpret_cast<void*>(&RbHigh194);
+        table[197] = reinterpret_cast<void*>(&RbHigh197);
+        At<uint8_t>(tank, av::field::kByte3C) = 0;
+        std::memset(tank + av::field::kSmoothed, 0, 0x10);
+        At<float>(tank, av::field::kTimer254) = 0.0f;
+        for (const void* p : {static_cast<const void*>(tank), static_cast<const void*>(&turretModel),
+                              static_cast<const void*>(&barrelModel),
+                              static_cast<const void*>(tank + rv::tank::kAttachments)})
+            probe.known.push_back(p);
+        At<float>(tank, av::field::kRadius) = 3.0f;
+        SetPoint(tank, av::field::kPosition, 100.0f, 5.0f, 200.0f);
+        g_rb.tank = tank;
+    }
+    if (ok) {
+        using FrameFn = uint32_t(__thiscall*)(void*, uint32_t, float);
+        const auto frame = reinterpret_cast<FrameFn>(addr::cSC4Tank_Frame);
+        void* const keptTurret = At<void*>(tank, rv::tank::kTurretModel);
+        void* const keptBarrel = At<void*>(tank, rv::tank::kBarrelModel);
+        void* const keptAttachments = At<void*>(tank, rv::tank::kAttachments);
+        At<void**>(tank, rv::tank::kAttachments) = RbAttachVtable();
+        struct Case {
+            uint8_t firing;
+            int models; // 1 the turret's, 2 the barrel's, 3 both
+            bool change;
+            float turret, barrel;
+            float heading[3];
+        };
+        const Case cases[] = {
+            {0, 3, false, 1.0f, 0.2f, {0.0f, 0.0f, 1.0f}},
+            {1, 2, false, 1.0f, 0.2f, {0.0f, 0.0f, 1.0f}},
+            {1, 1, false, 1.0f, 0.2f, {0.0f, 0.0f, 1.0f}},
+            {1, 3, false, 0.0f, 0.2f, {0.0f, 0.0f, 1.0f}},
+            {1, 3, false, 1.0f, 0.35f, {0.6f, 0.0f, 0.8f}},
+            {1, 3, false, -2.25f, 0.0f, {1.0f, 0.0f, 0.0f}},
+            {1, 3, false, 7.5f, 0.4f, {-0.28f, 0.1f, -0.954f}},
+            {1, 3, false, 3.1415927f, 0.1f, {0.70710677f, 0.0f, -0.70710677f}},
+            {1, 3, false, 100.0f, -0.5f, {-0.6f, -0.2f, 0.77459667f}},
+            {1, 3, false, 0.3f, 0.25f, {3.0f, 0.5f, -2.0f}},
+            {1, 3, false, 0.5f, 0.15f, {0.0f, 1.0f, 0.0f}},
+            {1, 3, true, 1.25f, 0.3f, {0.6f, 0.0f, 0.8f}},
+            {1, 3, true, 5.5f, 0.05f, {-0.28f, 0.1f, -0.954f}},
+        };
+        for (const Case& c : cases) {
+            At<uint8_t>(tank, rv::tank::kFiring) = c.firing;
+            At<void*>(tank, rv::tank::kTurretModel) = (c.models & 1) ? &turretModel : nullptr;
+            At<void*>(tank, rv::tank::kBarrelModel) = (c.models & 2) ? &barrelModel : nullptr;
+            At<float>(tank, rv::tank::kTurret) = c.turret;
+            At<float>(tank, rv::tank::kBarrel) = c.barrel;
+            SetPoint(tank, av::field::kHeading, c.heading[0], c.heading[1], c.heading[2]);
+            g_rb.change = c.change;
+            g_rb.high = 0x19700000u | (runs << 8) | 0x7Eu;
+            rturret.Mix(frame(tank, 0xBEEFu, 0.25f));
+            rturret.MixBytes(tank + av::field::kHeading, 12);
+            rturret.Mix(Bits(At<float>(tank, rv::tank::kTurret)));
+            rturret.Mix(Bits(At<float>(tank, rv::tank::kBarrel)));
+            ++runs;
+        }
+        // 256 more on drawn headings and angles (a fixed LCG), each fourth
+        // with the turret model's changes.
+        uint32_t draw = 0x0B3B1234u;
+        auto next = [&](float least, float most) {
+            draw = draw * 1664525u + 1013904223u;
+            return least + (most - least) * static_cast<float>(draw >> 8) * (1.0f / 16777216.0f);
+        };
+        At<uint8_t>(tank, rv::tank::kFiring) = 1;
+        At<void*>(tank, rv::tank::kTurretModel) = &turretModel;
+        At<void*>(tank, rv::tank::kBarrelModel) = &barrelModel;
+        Hash drawn;
+        for (uint32_t i = 0; i < 256; ++i) {
+            const float h0 = next(-1.0f, 1.0f), h1 = next(-0.5f, 0.5f), h2 = next(-1.0f, 1.0f);
+            SetPoint(tank, av::field::kHeading, h0, h1, h2);
+            At<float>(tank, rv::tank::kTurret) = next(-7.0f, 7.0f);
+            At<float>(tank, rv::tank::kBarrel) = next(0.0f, 0.4f);
+            g_rb.change = (i & 3) == 3;
+            drawn.Mix(frame(tank, 0xBEEFu, 0.25f));
+            drawn.MixBytes(tank + av::field::kHeading, 12);
+        }
+        rturret.Mix(drawn.h);
+        At<uint8_t>(tank, rv::tank::kFiring) = 0;
+        At<void*>(tank, rv::tank::kTurretModel) = keptTurret;
+        At<void*>(tank, rv::tank::kBarrelModel) = keptBarrel;
+        At<void*>(tank, rv::tank::kAttachments) = keptAttachments;
+    }
+    if (tank) {
+        At<std::uintptr_t>(tank, 0) = kRoadClasses[4].tables[0];
+        At<void*>(tank, av::field::kOccupant) = nullptr;
+        ReleaseRoad(tank);
+    }
+    g_rb = RbAnswers{};
+    rturret.Mix(probe.calls.h);
+    rturret.Mix(runs);
+    g_probe = savedProbe;
+    if (ok && runs == 13u)
+        rflags |= 0x200;
+    if (!ok)
+        rflags |= 0x400;
+    log::Write("autotest: automata: vehicle: ro3b rturret %08X calls %08X runs %u of 13", rturret.h, probe.calls.h,
+               runs);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -21097,6 +21287,10 @@ void VehicleDrive(cISC4City* city)
     Hash rtank;
     RoadTankDrive(rtank, rflags);
 
+    // ---- Part ro3b.
+    Hash rturret;
+    RoadTankFrame(rturret, rflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -21152,10 +21346,11 @@ void VehicleDrive(cISC4City* city)
     char text[320];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
-                  vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h);
+                  vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
+                  rturret.h);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
