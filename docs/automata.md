@@ -35,7 +35,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
-| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1) (part ro below counts 103) |
+| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | 2 |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
@@ -2900,7 +2900,7 @@ What each class overrides of cSC4Vehicle:
   - The tank: 127 0x0054A750 (both highlights off).
 - **ro3 (4, 6,322 bytes):** the tank on frames, split in two:
   - **ro3a (3, 3,484 bytes, done):** 110 0x0054A780, 115 0x0054AAE0, 121 0x0054B030. Below.
-  - **ro3b (1, 2,838 bytes):** the tank's frame, slot 72 0x0054B7C0.
+  - **ro3b (1, 2,838 bytes, done):** the tank's frame, slot 72 0x0054B7C0. Below.
 
 No helper is called only by the group beyond the two destructor bodies. No NAM site and none of SC4UIScale's addresses is in it.
 
@@ -3128,3 +3128,47 @@ The tank comes from its factory. Its main vtable is ro2's copy, with slots 18, 1
 Every B run reached all 3, and its ro3a field equalled the A run's (0xD2870417). The whole ` V` token was equal too, ad3's `chighlight` included. The game itself reaches none of the 3 before the test day in these saves: everything is reached by the test.
 
 - **The audit:** an independent check against the disassembly found no defect in the 3. On its one doubt, the local holding __CIacos's address was renamed so it no longer shares a name with the C runtime's acos.
+
+### What is ours (ro3b)
+
+1 function, in the same group (`simulators.automata.roadveh`, list kTankFrame in [automata_roadveh.cpp](../src/core/automata_roadveh.cpp)), written by hand from the disassembly.
+
+- **Slot 72** 0x0054B7C0 (a word, frame seconds), the tank's frame. It runs cSC4Vehicle's frame (0x0055BA20) and drops its answer. With the byte +0x340 set and both models (+0x35C the turret's, +0x360 the barrel's), it places each model by its slot 2 (a point, an axis):
+  - The axis is the heading's cross with (0, 1, 0). The zero 0x00A9B7A0 is multiplied through, as in slot 115.
+  - Four quaternion turns: the turret by its angle +0x34C times -0.5 about the axis, then the barrel about (-z, 0, x) of the heading over its length. The barrel's turn for the turret model is by its angle +0x350 times -0.25 (0.5 x -0.5), for the barrel model by its angle times -0.5.
+  - The turret's matrix is folded with the zero into rows, the barrel's matrix multiplies them, and the point is the product's rows times the heading.
+  - The second pair (the barrel model's) is made after the turret model's call, from the axis, the angles and the heading read again. The barrel's axis is not read again: the second pair uses the float of the first's inverse length.
+  - Then the attachments' (+0x368) slot 5 and the tank's slots 194 and 197 (the highlights' updates, part ad3's). AL is 1, the rest of EAX slot 197's.
+
+Floats follow the x87 at 53 bits, each FSIN and FCOS at 64 bits in its products. The compiler kept different values on the stack in each of the four inlined turns, so the two matrix shapes (turret, barrel) and the two row foldings are separate helpers, each rounding where its instance stores a float.
+
+Oddities kept:
+
+- The barrel's turn for the turret model is half the one for the barrel model (-0.25 against -0.5 times the angle).
+- cSC4Vehicle's frame's answer is dropped; the frame answers 1 even without the models.
+- The zero 0x00A9B7A0 is multiplied through the axis, both foldings and the barrel's axis.
+
+### Test (ro3b)
+
+The ` V` token gains `,<rturret>` after rtank (32 fields). rflags gains 0x200 when all 13 fixed frames ran and 0x400 when the factory failed. The log line is "ro3b rturret", with the calls' hash and the count of the fixed frames.
+
+The tank comes from its factory with ro2's vtable copy; slots 194 and 197 are the test's (197 answers a word whose upper bytes are mixed with the frame's answer). The two models are the test's: their slot 2 mixes the point and the axis it is given, and when asked changes the axis, both angles and the heading before the second pair is made. The attachments' vtable is the test's.
+
+- Thirteen fixed frames: the byte +0x340 clear, each model missing, then both on eight headings (one not of unit length, one straight up, whose axis is zero) and angles; two with the turret model's changes.
+- Then 256 frames on headings and angles drawn by a fixed LCG, every fourth with the changes. A check with one rounding of ours changed on purpose (the turret matrix's 2xy + 2zw stored as a float) found the fixed frames alike and the drawn ones different, so the drawn frames are what catches a rounding.
+- **Not reached:** the game's own tanks (only in U-Drive).
+
+### Parity (ro3b)
+
+2026-10-25, the same setup as ro3a's (B = `simulators.automata.vehicle` and `simulators.automata.roadveh`, two jobs, `OPENSC4_MUTE=1`, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-ro3b, snapshot ro3b-t1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same on shared outcomes (ro3b-t1b, 3 pairs) |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached slot 72, and its ro3b field equalled the A run's (0xC16875ED). The game itself does not reach it before the test day in these saves.
+
+- **Rush Hour t0000:** ro3b-t1 found it different after 3 pairs; the only difference was ad3's `chighlight` in the ` V` token (0xB49EAE5C against 0xB7A37F8C, two of the values it takes on either side, see ro2). The rerun ro3b-t1b found the sides sharing outcomes.
+- **The audit:** an independent check against the disassembly (the x87 stack traced by hand) found no defect: every float store, every sum's grouping, the reads after the turret model's call and the calls' arguments match.
