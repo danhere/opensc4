@@ -1,4 +1,4 @@
-# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names; the font system (GZFontSystem, f2a) in framework.font.system.object, .faces, .aliases and .getfont. The font and the STLport code of the font system (f2b) are not hooked yet.
+# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names; the font system (GZFontSystem, f2a) in framework.font.system.object, .faces, .aliases and .getfont. The font system's STLport tables (f2b) in framework.font.system.tables and .shared (four of the shared ones are named in gzui.toml). The font is not hooked yet.
 
 [[entry]]
 name = "GZFontDirector::Construct"
@@ -693,3 +693,444 @@ convention = "thiscall"
 signature = "uint32_t (void* this, uint32_t character)"
 expect = "55 8B EC 83 EC 24 83 65"
 source = "Name ours. `ret 4`. The glyph of a character for type 1 and 0x16 faces: the holder's map, else by the glyph name from the static table, then by uniXXXX (0x0089F4F3, 0x0089F4B2); a glyph found is kept in the map. 0 if none. Called by RenderGlyph (0x00898FDC). Ours in framework.font.t2k.names (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontSystem::SetDrawMode"
+address = 0x00893D87
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t mode)"
+expect = "8B 44 24 04 89 41 14 C2"
+source = "Name ours. Slot 7 (+0x1C) of 0x00AC5488, `ret 4`: the draw mode fonts get by default into +0x14; EAX the mode. Folded: the vtables 0x00AC2A44 and 0x00AD7310 have it too. Ours in framework.font.system.shared (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontBytes::Fill"
+address = 0x00893DB8
+kind = "function"
+convention = "cdecl"
+signature = "char* (char* at, int32_t count, const char* value)"
+expect = "55 8B EC 8B 45 0C 85 C0"
+source = "Name ours. STLport's fill_n for bytes: `count` copies of *value from `at` if count is above 0 (signed), the byte read again for each; returns the end. Called by 0x00894060. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZTree::Distance"
+address = 0x00893DEC
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void** first, void** last, void* tag)"
+expect = "8B 44 24 04 8B 4C 24 08"
+source = "Name ours. STLport's distance over a tree's iterators (0x0040D4C0). Called by the sizes' EraseKey 0x00894E0C and by 0x00927FD8, 0x00934901, 0x009A99C0, 0x009AB66B. Ours in framework.font.system.shared (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZPairList::MakeNode"
+address = 0x00893E0F
+kind = "function"
+convention = "thiscall"
+signature = "void* (const uint32_t* pair)"
+expect = "56 6A 10 E8 3D 91 07 00"
+source = "Name ours. `ret 4`, ECX unused: a list node of 0x10 bytes with the two words at +8 (0x00997792), its links left. Called by the list insert 0x0092119E, which every list of word pairs uses. Ours in framework.font.system.shared (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::MakeHeader"
+address = 0x00893E2F
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* allocator)"
+expect = "56 8B F1 83 26 00 6A 48"
+source = "Name ours. `ret 4`: the faces' map's header (0x48 bytes, a node's size) into +0. Called by 0x00893F9C. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::MakeHeader"
+address = 0x00893E45
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* allocator)"
+expect = "56 8B F1 83 26 00 6A 30"
+source = "Name ours. `ret 4`: the aliases' map's header (0x30 bytes) into +0. Called by 0x00893FC6. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::Init"
+address = 0x00893F9C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* compare, void* allocator)"
+expect = "56 FF 74 24 0C 8B F1 E8"
+source = "Name ours. `ret 8`: the header (0x00893E2F), the count 0, the header red, no root, its own first and last. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::Init"
+address = 0x00893FC6
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* compare, void* allocator)"
+expect = "56 FF 74 24 0C 8B F1 E8"
+source = "Name ours. `ret 8`: as 0x00893F9C with 0x00893E45. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::LowerBound"
+address = 0x00893FF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* key)"
+expect = "56 57 8B 39 8B 77 04 85"
+source = "Name ours. `ret 4`: the first node whose string key is not less (SC4String::Less), or the header. Called by 0x0089411A. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::UpperBound"
+address = 0x00894028
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* key)"
+expect = "56 57 8B 39 8B 77 04 85"
+source = "Name ours. `ret 4`: the first node whose string key is greater, or the header. Called by 0x0089411A. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontBytes::Allocate"
+address = 0x00894060
+kind = "function"
+convention = "thiscall"
+signature = "char* (void* this, uint32_t count, char value, void* allocator)"
+expect = "56 57 8B 7C 24 0C 8D 47"
+source = "Name ours. `ret 0xC`: room for count + 1 bytes (0x00407E50), count of value (0x00893DB8), a zero after them; returns the end. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontBytes::Construct"
+address = 0x008940A7
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t count, char value)"
+expect = "55 8B EC 56 33 C0 8B F1"
+source = "Name ours. `ret 8`: a byte vector of count of value and a zero (0x00894060). Called by the file type 0x0089433C. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZPairList::InsertRange"
+address = 0x008940CD
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* position, void* first, void* last)"
+expect = "55 8B EC 8B 55 08 8D 45"
+source = "Name ours. `ret 0xC`: the pairs of [first, last) inserted before position (0x009A960E). Called by 0x008940EB and 0x009AABC6. Ours in framework.font.system.shared (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZPairList::Copy"
+address = 0x008940EB
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "55 8B EC 56 8D 45 0B 50"
+source = "Name ours. `ret 4`: a copy of a list of word pairs (a face's fonts and styles): empty (0x009A88C4), then 0x008940CD. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::EqualRange"
+address = 0x0089411A
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** result, const void* key)"
+expect = "56 57 FF 74 24 10 8B F9"
+source = "Name ours. `ret 8`: the lower and upper bounds of key (the upper found first). Called by 0x00894E0C. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFace::Construct"
+address = 0x00894144
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "51 56 8D 44 24 07 50 8B"
+source = "Name ours. A face (0x24 bytes), empty: its list and name; the three words after them are left. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFace::Destruct"
+address = 0x0089415F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8D 4E 04 E8 E6"
+source = "Name ours. A face's name, then its list (0x0096EDBC, a tail jump). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFacePair::Destruct"
+address = 0x00894172
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8D 4E 14 E8 E2"
+source = "Name ours. A path and its face: the face (0x0089415F), then the path. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasPair::Destruct"
+address = 0x00894185
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8D 4E 14 E8 B0"
+source = "Name ours. An alias and its names: the vector (0x00419140), then the name. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangePair::Copy"
+address = 0x0089448D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours. `ret 4`: a copy of a name and its two words. Called by 0x00894843. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFace::Copy"
+address = 0x008945AA
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours. `ret 4`: a copy of a face: the list (0x008940EB), the name, the three words. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::EraseNode"
+address = 0x008945E1
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node)"
+expect = "56 57 8B F9 8B 07 8D 48"
+source = "Name ours. `ret 4`: the node out of the tree (0x0040DAF0), its pair destroyed, freed, one fewer. Called by RemoveFace 0x00894A3A. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::EraseTree"
+address = 0x00894657
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. `ret 4`: a subtree destroyed and freed, right subtrees first (by itself), then down the left. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::EraseTree"
+address = 0x0089468C
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. `ret 4`: as 0x00894657 for the aliases. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::EraseTree"
+address = 0x008946C1
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. `ret 4`: as 0x00894657 for the sizes (only the name destroyed). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFacePair::Copy"
+address = 0x008946F6
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours. `ret 4`: a copy of a path and its face (0x008945AA). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasPair::Copy"
+address = 0x0089471B
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* other)"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours. `ret 4`: a copy of an alias and its names (0x0051FE90). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFacePair::Construct"
+address = 0x00894740
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* path, const void* face)"
+expect = "56 6A FF 6A 00 FF 74 24"
+source = "Name ours. `ret 8`: a path and a face (0x008945AA). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasPair::Construct"
+address = 0x00894762
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* name, const void* names)"
+expect = "56 6A FF 6A 00 FF 74 24"
+source = "Name ours. `ret 8`: an alias's name and its names (0x0051FE90). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::Clear"
+address = 0x00894784
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. If not empty, every node erased (0x00894657) and the header as a new map's. Called by Shutdown and 0x00894DC7. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::Clear"
+address = 0x008947AD
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. As 0x00894784 with 0x0089468C. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::Clear"
+address = 0x008947D6
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. As 0x00894784 with 0x008946C1. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::EraseRange"
+address = 0x008947FF
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* first, void* last)"
+expect = "55 8B EC 51 8B 01 53 56"
+source = "Name ours. `ret 8`: the nodes of [first, last) erased one by one (0x0089461C), or the map cleared if they are all of them. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::MakeNode"
+address = 0x00894843
+kind = "function"
+convention = "thiscall"
+signature = "void* (const void* pair)"
+expect = "56 6A 2C E8 09 87 07 00"
+source = "Name ours. `ret 4`, ECX unused: a node of 0x2C bytes with a copy of a name and two words (0x0089448D). Called by 0x00894E55 and 0x009577A8. Ours in framework.font.system.shared (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::Destruct"
+address = 0x00894DC7
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 B5 F9 FF FF"
+source = "Name ours. Cleared (0x00894784), the header freed. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::Destruct"
+address = 0x00894DDE
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 C7 F9 FF FF"
+source = "Name ours. Cleared (0x008947AD), the header freed. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::Destruct"
+address = 0x00894DF5
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 D9 F9 FF FF"
+source = "Name ours. Cleared (0x008947D6), the header freed. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::EraseKey"
+address = 0x00894E0C
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* key)"
+expect = "55 8B EC 51 51 56 57 FF"
+source = "Name ours. `ret 4`: the nodes of key erased (0x0089411A, 0x00893DEC, 0x008947FF); returns how many. Called by SetMonoRange 0x008954CB. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::InsertAt"
+address = 0x00894E55
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** result, void* x, void* parent, const void* pair, void* right)"
+expect = "55 8B EC 53 8B 5D 10 56"
+source = "Name ours. `ret 0x14`: STLport's _M_insert: a node (0x00894843) as the parent's left child if the parent is the header, x is set or the key is less, else its right; first and last kept, balanced (0x0040D5E0), one more. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::MakeNode"
+address = 0x00894EEA
+kind = "function"
+convention = "thiscall"
+signature = "void* (const void* pair)"
+expect = "56 6A 48 E8 62 80 07 00"
+source = "Name ours. `ret 4`, ECX unused: a node of 0x48 bytes with a copy of the pair (0x008946F6). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::MakeNode"
+address = 0x00894F0B
+kind = "function"
+convention = "thiscall"
+signature = "void* (const void* pair)"
+expect = "56 6A 30 E8 41 80 07 00"
+source = "Name ours. `ret 4`, ECX unused: a node of 0x30 bytes with a copy of the pair (0x0089471B). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontSystem::SetServiceID"
+address = 0x00894F6D
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t id)"
+expect = "8B 44 24 04 89 41 0C C2"
+source = "Name ours. Slot 4 of the +4 vtable 0x00AC5454 and of 51 other vtables, `ret 4`: the word at +0xC (the system's +0x10, its class); EAX the word. Folded code. Ours in framework.font.system.shared (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::Construct"
+address = 0x0089505A
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "55 8B EC 51 56 8D 45 FF"
+source = "Name ours. The faces' map (0xC bytes) empty (0x00893F9C). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::Construct"
+address = 0x00895073
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "55 8B EC 51 56 8D 45 FF"
+source = "Name ours. The aliases' map empty (0x00893FC6). Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontRangeMap::Insert"
+address = 0x008950A5
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, const void* pair)"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Name ours. `ret 8`: STLport's insert_unique: the node of the pair's key and a byte, 1 if inserted (0x00894E55). Called by SetMonoRange. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::InsertAt"
+address = 0x00895136
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** result, void* x, void* parent, const void* pair, void* right)"
+expect = "55 8B EC 53 8B 5D 10 56"
+source = "Name ours. `ret 0x14`: as 0x00894E55 with the faces' node 0x00894EEA. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::InsertAt"
+address = 0x008951CB
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** result, void* x, void* parent, const void* pair, void* right)"
+expect = "55 8B EC 53 8B 5D 10 56"
+source = "Name ours. `ret 0x14`: as 0x00894E55 with the aliases' node 0x00894F0B. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontFaceMap::Insert"
+address = 0x008953A9
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, const void* pair)"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Name ours. `ret 8`: as 0x008950A5 with 0x00895136. Called by AddFontFile, AddFont and MakeFont. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontAliasMap::Insert"
+address = 0x0089543A
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, const void* pair)"
+expect = "55 8B EC 51 53 56 8B D9"
+source = "Name ours. `ret 8`: as 0x008950A5 with 0x008951CB. Called by AddAlias. Ours in framework.font.system.tables (docs/fonts.md, f2b)."

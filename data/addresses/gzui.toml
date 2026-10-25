@@ -2361,7 +2361,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* node)"
 expect = "56 57 8B F9 8B 07 8D 48"
-source = "Name ours. `ret 4`: a node erased. STLport code; stays the game's, called by ours."
+source = "Name ours. `ret 4`: a node erased (0x0040DAF0), its string key destroyed, freed, one fewer; also the font system's sizes by face (0x008947FF). Ours in framework.font.system.shared (docs/fonts.md, f2b)."
 
 [[entry]]
 name = "SC4StringObjMap::EraseSubtree"
@@ -3108,7 +3108,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* list, const int32_t* pair)"
 expect = "55 8B EC FF 75 08 8B 11"
-source = "Name ours. `ret 4`: a pair of dwords added at the end of an STLport list (0x0092119E). Stays the game's; called by ours."
+source = "Name ours. `ret 4`: a pair of dwords added at the end of an STLport list (0x0092119E); the font system's AddFont and MakeFont use it too. Ours in framework.font.system.shared (docs/fonts.md, f2b)."
 
 [[entry]]
 name = "cGZSoundService::Prepare"
@@ -6103,7 +6103,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (const SC4String* name, const uint32_t* key)"
 expect = "56 6A FF 6A 00 FF 74 24"
-source = "Name ours. `ret 8`: a (name, image key) pair (0x1C bytes: the string copied by 0x00408BE0, the two words). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+source = "Name ours. `ret 8`: a (name, image key) pair (0x1C bytes: the string copied by 0x00408BE0, the two words). Called by GZWinTreeView's handler 0x009586B0 and the font system's SetMonoRange (its sizes by face). Ours in framework.font.system.shared (docs/fonts.md, f2b)."
 
 [[entry]]
 name = "cGZUIScriptWidgets::TreeKeyMapConstruct"
@@ -6112,7 +6112,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* ()"
 expect = "55 8B EC 51 56 8D 45 FF"
-source = "Name ours. A map of names to image keys (0xC bytes; 0x0094CB61). Called by GZWinTreeView's handler 0x009586B0; stays the game's."
+source = "Name ours. A map of names to image keys (0xC bytes; 0x0094CB61). Called by GZWinTreeView's handler 0x009586B0, 0x009ABC95 and the font system's constructor (its sizes by face). Ours in framework.font.system.shared (docs/fonts.md, f2b)."
 
 [[entry]]
 name = "cGZUIScriptProps::RectEmpty"
