@@ -800,11 +800,12 @@ std::uint32_t __fastcall CarEnterState(char* self, void*, char* entered)
         return ok;
     std::uint32_t id = Virtual<std::uint32_t>(self, slot::kId);
     Virtual<void>(At<void*>(entered, 0x28), slot::kRecordSlot13, 0x10u, &id, 1u);
-    if (char* const train = At<char*>(self, field::kObjectB0))
-        if (Virtual<std::uint32_t>(train, slot::kStateType) == 0x14u)
-            if (char* const controls = Virtual<char*>(train, slot::kControls))
+    // +0xB0 is read again for each of the train's calls, as the game does.
+    if (At<char*>(self, field::kObjectB0))
+        if (Virtual<std::uint32_t>(At<char*>(self, field::kObjectB0), slot::kStateType) == 0x14u)
+            if (char* const controls = Virtual<char*>(At<char*>(self, field::kObjectB0), slot::kControls))
                 if (At<void*>(controls, 0x28)) {
-                    std::uint32_t trainId = Virtual<std::uint32_t>(train, slot::kId);
+                    std::uint32_t trainId = Virtual<std::uint32_t>(At<char*>(self, field::kObjectB0), slot::kId);
                     Virtual<void>(At<void*>(entered, 0x28), slot::kRecordSlot13, 0x11u, &trainId, 1u);
                 }
     if (Bool(Virtual<std::uint32_t>(self, slot::kIsTrain))) {
@@ -1008,7 +1009,8 @@ __declspec(naked) double __cdecl X87Slope(const float* y, const float* factor)
 // (0x00505AB0) as a float; with an occupant and without the automata flag
 // 0x40 the slope as cSC4Vehicle's slot 125 (X87Slope): asin of the
 // heading's y x 0x00B21CFC / 0x00B21CF8 (at most 0x00B21CFC, below 0 as 0),
-// 1 less it uphill, 1 plus it downhill, times the rate unrounded.
+// 1 less it uphill, 1 plus it downhill (where it is below 0 for a positive
+// tuning ratio, so 1), times the rate unrounded.
 double __fastcall TrainSpeedFactor(char* self, void*)
 {
     static bool logged;

@@ -339,6 +339,24 @@
 //   down (occupants of the test's in both deques, an occupant and cars,
 //   the network service of the test's or none). The test's objects' calls
 //   are mixed into tobject and tlife. Log line: "tr1 tobject".
+//   Part tr2a (the trains' frames) adds `,<tframe>` before tflags (37
+//   fields): a car, a train and a mass transit train of the factories with
+//   vtable copies (ro2's probe slots and vb4's, the state, controls, slots
+//   65, 166, 169 and 192 the test's), vb4's vehicle manager, the city and
+//   0x00B43D54 the test's (slots 38 and 39 added), the lot manager
+//   0x00B43D08 the test's: the car's slot 110 over the states 0x14 (its
+//   +0x28 object or none), 0x1E and 0xD, as a car and a train, with a train
+//   of the test's or none in the state 0x14 or not and its controls; the
+//   train's 110 and 111 over the states 0x10 (by the template's entry),
+//   0x1E, 0xD and 0x14 on cars of the test's; slot 73 on its cars and
+//   others; slot 121 by the state's +0x7C and +0x80; slot 125 on drawn
+//   headings (a fixed LCG) with the slope tuning the test's; both slots 172
+//   over stop chains and groups; slot 165 of both (the wanted count, the
+//   deques before and after, the lots by direction); slot 65 on drawn
+//   headings (the generator clock-seeded at the game's site); the car's and
+//   the train's slot 132 over occupants answering 0x4A10AFC2 or not. tflags
+//   0x20 when it ran, 0x40 when a factory failed, 0x80 when the city's
+//   other slots were called. Log line: "tr2a tframe".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
