@@ -15791,13 +15791,131 @@ bool HrNoting()
     return g_hrNotes && g_hrDepth == 0 && GetCurrentThreadId() == g_hrThread;
 }
 
+// The lines' making (0x00585C20) has one detour: noted for the lines'
+// draw's comparison (above), and run by this group's mode. Its comparison
+// runs ours with the line list's calls (the clear, its +0xC, the colour,
+// the normal, each box) only noted, then the game's with the same calls
+// noted at their entry by detours of compare mode and passed on. The notes,
+// each with what it is given (three floats; the colour's three; a box's
+// eight corners), must be the same. The reads (the terrain's height, the
+// map's height and normal) run in both.
+struct MlNote {
+    uint32_t kind, self, words[24];
+    bool operator==(const MlNote& other) const { return std::memcmp(this, &other, sizeof *this) == 0; }
+};
+std::vector<MlNote>* g_mlNotes = nullptr;
+bool g_mlPass = false;
+DWORD g_mlThread = 0;
+Call0Fn g_SC4HeightMapLines_Clear = nullptr;
+Call1Fn g_SC4HeightMapLines_SetVectorC = nullptr, g_SC4HeightMapLines_SetColour = nullptr,
+        g_SC4HeightMapLines_SetNormal = nullptr;
+using MlAddBoxFn = void(__cdecl*)(char*, const float*);
+MlAddBoxFn g_SC4HeightMapLines_AddBox = nullptr;
+
+// Whether a call is to be noted; one that is not passed on is not made.
+bool MlAdd(uint32_t kind, char* self, const void* data, std::size_t words, bool& pass)
+{
+    pass = true;
+    if (!g_mlNotes || GetCurrentThreadId() != g_mlThread)
+        return false;
+    MlNote note{kind, Word(self), {}};
+    if (data)
+        std::memcpy(note.words, data, words * 4);
+    g_mlNotes->push_back(note);
+    pass = g_mlPass;
+    return true;
+}
+
+uint32_t __fastcall MlClearNoted(char* self, void*)
+{
+    bool pass = true;
+    MlAdd(1, self, nullptr, 0, pass);
+    return pass ? g_SC4HeightMapLines_Clear(self, nullptr) : 0;
+}
+OPENSC4_THUNK(TMlClear, MlClearNoted, 0)
+
+uint32_t __fastcall MlVectorCNoted(char* self, void*, uint32_t value)
+{
+    bool pass = true;
+    MlAdd(2, self, Ptr(value), 3, pass);
+    return pass ? g_SC4HeightMapLines_SetVectorC(self, nullptr, value) : 0;
+}
+OPENSC4_THUNK(TMlVectorC, MlVectorCNoted, 4)
+
+uint32_t __fastcall MlColourNoted(char* self, void*, uint32_t rgb)
+{
+    bool pass = true;
+    MlAdd(3, self, Ptr(rgb), 3, pass);
+    return pass ? g_SC4HeightMapLines_SetColour(self, nullptr, rgb) : 0;
+}
+OPENSC4_THUNK(TMlColour, MlColourNoted, 4)
+
+uint32_t __fastcall MlNormalNoted(char* self, void*, uint32_t normal)
+{
+    bool pass = true;
+    MlAdd(4, self, Ptr(normal), 3, pass);
+    return pass ? g_SC4HeightMapLines_SetNormal(self, nullptr, normal) : 0;
+}
+OPENSC4_THUNK(TMlNormal, MlNormalNoted, 4)
+
+void __cdecl MlAddBoxNoted(char* lines, const float* corners)
+{
+    bool pass = true;
+    MlAdd(5, lines, corners, 24, pass);
+    if (pass)
+        g_SC4HeightMapLines_AddBox(lines, corners);
+}
+OPENSC4_CDECL_THUNK(TMlAddBox, MlAddBoxNoted, 8)
+
+std::string MlNotesText(const std::vector<MlNote>& notes, std::size_t at)
+{
+    char text[64];
+    if (at >= notes.size()) {
+        std::snprintf(text, sizeof text, "%zu calls", notes.size());
+        return text;
+    }
+    std::snprintf(text, sizeof text, "%zu calls, #%zu kind %u on %08X ", notes.size(), at, notes[at].kind,
+                  notes[at].self);
+    return text + Hex(notes[at].words, sizeof notes[at].words);
+}
+
+void MlCompared(const char* id, char* self)
+{
+    std::vector<MlNote> ours, game;
+    g_mlThread = GetCurrentThreadId();
+    g_mlPass = false;
+    g_mlNotes = &ours;
+    MakeHeightMapLines(self);
+    g_mlPass = true;
+    g_mlNotes = &game;
+    g_SC4EffectHeightMap_MakeLines(self, nullptr);
+    g_mlNotes = nullptr;
+    std::size_t at = 0;
+    while (at < ours.size() && at < game.size() && ours[at] == game[at])
+        ++at;
+    const bool same = ours == game;
+    StRecord(id, same, same ? std::string() : MlNotesText(game, at), same ? std::string() : MlNotesText(ours, at));
+}
+
+uint32_t MlByMode(char* self)
+{
+    if (g_hrMode == StepMode::Ours) {
+        MakeHeightMapLines(self);
+        return 0;
+    }
+    if (g_hrMode == StepMode::Original || HrGameOnly() || g_mlNotes)
+        return g_SC4EffectHeightMap_MakeLines(self, nullptr);
+    MlCompared("effects.heightmap_rest.make_lines", self);
+    return 0;
+}
+
 uint32_t __fastcall HrMakeLinesNoted(char* self, void*)
 {
     if (!HrNoting())
-        return g_SC4EffectHeightMap_MakeLines(self, nullptr);
+        return MlByMode(self);
     g_hrNotes->push_back(HrNote{1, Word(self), {}});
     ++g_hrDepth;
-    const uint32_t result = g_SC4EffectHeightMap_MakeLines(self, nullptr);
+    const uint32_t result = MlByMode(self);
     --g_hrDepth;
     return result;
 }
@@ -16650,12 +16768,17 @@ bool InstallHeightMapRest(registry::Mode mode)
     if (!game::IsBuild641() ||
         !(g_DwBeforeDraw || Detour(addr::SC4EffectHeightMap_DrawLines, &TDwBeforeDraw, &g_DwBeforeDraw)) ||
         !Detour(addr::SC4EffectHeightMap_ClearValues, &THrClear, &g_SC4EffectHeightMap_ClearValues) ||
-        !Detour(addr::SC4EffectHeightMap_Destructor, &THrEnd, &g_SC4EffectHeightMap_Destructor))
+        !Detour(addr::SC4EffectHeightMap_Destructor, &THrEnd, &g_SC4EffectHeightMap_Destructor) ||
+        !Detour(addr::SC4EffectHeightMap_MakeLines, &THrMakeLines, &g_SC4EffectHeightMap_MakeLines))
         return false;
     if (mode == registry::Mode::Compare) {
-        if (!Detour(addr::SC4EffectHeightMap_MakeLines, &THrMakeLines, &g_SC4EffectHeightMap_MakeLines) ||
-            !Detour(addr::SC4RenderState_Init, &THrState, &g_SC4RenderState_Init) ||
-            !Detour(addr::SC4HeightMapLines_Mesh, &THrMesh, &g_SC4HeightMapLines_Mesh))
+        if (!Detour(addr::SC4RenderState_Init, &THrState, &g_SC4RenderState_Init) ||
+            !Detour(addr::SC4HeightMapLines_Mesh, &THrMesh, &g_SC4HeightMapLines_Mesh) ||
+            !Detour(addr::SC4HeightMapLines_Clear, &TMlClear, &g_SC4HeightMapLines_Clear) ||
+            !Detour(addr::SC4HeightMapLines_SetVectorC, &TMlVectorC, &g_SC4HeightMapLines_SetVectorC) ||
+            !Detour(addr::SC4HeightMapLines_SetColour, &TMlColour, &g_SC4HeightMapLines_SetColour) ||
+            !Detour(addr::SC4HeightMapLines_SetNormal, &TMlNormal, &g_SC4HeightMapLines_SetNormal) ||
+            !Detour(addr::SC4HeightMapLines_AddBox, &TMlAddBox, &g_SC4HeightMapLines_AddBox))
             return false;
         const char* v = std::getenv("OPENSC4_HEIGHTMAP_FORCE");
         if (v && *v == '1') {
@@ -16667,7 +16790,7 @@ bool InstallHeightMapRest(registry::Mode mode)
         }
     }
     g_hrMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
-    log::Write("water effects: the height map's lines, clear and destructor %s",
+    log::Write("water effects: the height map's lines, their making, clear and destructor %s",
                mode == registry::Mode::Compare ? "compared with the game's" : "ours");
     return true;
 }
@@ -16678,9 +16801,10 @@ const bool g_registeredHeightMapRest = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4EffectHeightMap_DrawLines,
-    "The particles' height map's own lines (a debug view the manager's draw asks for), the clear of its values and "
-    "its plain destructor (0x00586720, 0x00586700, 0x00586900); compare mode runs ours and the game's with the "
-    "draw's calls noted, or ours on a copy, OPENSC4_HEIGHTMAP_FORCE=1 forces all three before the manager's draw "
+    "The particles' height map's own lines (a debug view the manager's draw asks for: their draw and their making), "
+    "the clear of its values and its plain destructor (0x00586720, 0x00585C20, 0x00586700, 0x00586900); compare "
+    "mode runs ours and the game's with the calls they are made of noted, or ours on a copy, "
+    "OPENSC4_HEIGHTMAP_FORCE=1 forces them before the manager's draw "
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallHeightMapRest,

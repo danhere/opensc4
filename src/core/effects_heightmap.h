@@ -283,10 +283,103 @@ void ClearHeightMapValues(char* self)
         At<uint32_t>(at, 0) = 0;
 }
 
+// 0x00585C20 (no arguments): the map's own lines made anew. Nothing
+// without layers. The line list (+0x4C) is emptied (0x00801660), its +0xC
+// set to (0.25, 0.5, 1) (0x00800F80), its colour to yellow (0x00800F30
+// with 0x00B0A23C) and its normal up (0x00800F10). Then for each vertex,
+// rows (+0x2C) and columns (+0x28) read anew, whose first layer's value is
+// not the zero at 0x00A81054 (a NaN is not): a box from the terrain's
+// height (its slot 0x38, kept as a float) up to the map's (slot 7, the
+// first layer), its half-width the cell size (made a float) times the
+// double at 0x00A9EFE8 (0.45, kept as a float), yellow, or red (0x00B0A230)
+// when the map's height is below the terrain's or unordered, its top then
+// mirrored above the terrain; its corners laid out (0x00800FA0, the
+// eight first filled with the float at 0x00B22C50) and added (0x008014D0).
+// Then in blue (0x00B0A248) a flat box at the top, its half-width the
+// size times the double at 0x00A9EFE0 (0.1, unrounded), whose four upper
+// corners are moved by the map's normal there (slot 8) times the size,
+// added the same way. The x87 keeps some sums unrounded and stores others
+// first: the box's low x and z from the unrounded place, its high ones
+// from the stored one; of the normal's moves, x is added unrounded to the
+// corners 3 and 6 and as a float to 2 and 7, y always unrounded, z
+// unrounded to 2 and as a float to the others.
+void MakeHeightMapLines(char* self)
+{
+    using Corners = void(__cdecl*)(const float*, float*);
+    using AddBox = void(__cdecl*)(char*, const float*);
+    if (At<char*>(self, 0x14) == At<char*>(self, 0x18))
+        return;
+    char* const lines = self + 0x4C;
+    CallThis<void>(addr::SC4HeightMapLines_Clear, lines);
+    const float light[3] = {0.25f, 0.5f, 1.0f};
+    CallThis<void>(addr::SC4HeightMapLines_SetVectorC, lines, light);
+    CallThis<void>(addr::SC4HeightMapLines_SetColour, lines, Ptr(0x00B0A23C));
+    const float up[3] = {0.0f, 1.0f, 0.0f};
+    CallThis<void>(addr::SC4HeightMapLines_SetNormal, lines, up);
+    const float size = static_cast<float>(HmUnsigned(At<uint32_t>(self, 0x30)));
+    for (uint32_t z = 0; z < At<uint32_t>(self, 0x2C); ++z) {
+        for (uint32_t x = 0; x < At<uint32_t>(self, 0x28); ++x) {
+            const float value = At<float*>(At<char*>(self, 0x14), 0)[At<uint32_t>(self, 0x28) * z + x];
+            if (value == M<float>(0x00A81054))
+                continue;
+            const double sized = size;
+            const float half = static_cast<float>(sized * M<double>(0x00A9EFE8));
+            const float ground = static_cast<float>(HmSlot<double>(At<char*>(self, 0xC), 0x38, x, z));
+            const double height = HmSlot<double>(self, 0x1C, 0u, x, z);
+            float top = static_cast<float>(height);
+            uint32_t colour = 0x00B0A23C;
+            if (!(height >= ground)) {
+                const double below = static_cast<double>(ground) - top;
+                top = static_cast<float>(below + below + top);
+                colour = 0x00B0A230;
+            }
+            CallThis<void>(addr::SC4HeightMapLines_SetColour, lines, Ptr(colour));
+            const double placeX = static_cast<double>(static_cast<int32_t>(x)) * size;
+            const float storedX = static_cast<float>(placeX);
+            const double placeZ = static_cast<double>(static_cast<int32_t>(z)) * size;
+            const float storedZ = static_cast<float>(placeZ);
+            uint32_t corners[24];
+            for (uint32_t& corner : corners)
+                corner = M<uint32_t>(0x00B22C50);
+            float* const at = reinterpret_cast<float*>(corners);
+            const float box[6] = {static_cast<float>(placeX - half),
+                                  ground,
+                                  static_cast<float>(placeZ - half),
+                                  static_cast<float>(static_cast<double>(storedX) + half),
+                                  top,
+                                  static_cast<float>(static_cast<double>(storedZ) + half)};
+            reinterpret_cast<Corners>(addr::SC4_BoxCorners)(box, at);
+            reinterpret_cast<AddBox>(addr::SC4HeightMapLines_AddBox)(lines, at);
+            CallThis<void>(addr::SC4HeightMapLines_SetColour, lines, Ptr(0x00B0A248));
+            float normal[3];
+            HmSlot<float*>(self, 0x20, normal, 0u, storedX, storedZ);
+            const double small = sized * M<double>(0x00A9EFE0);
+            const float flat[6] = {static_cast<float>(storedX - small), top, static_cast<float>(storedZ - small),
+                                   static_cast<float>(storedX + small), top, static_cast<float>(storedZ + small)};
+            reinterpret_cast<Corners>(addr::SC4_BoxCorners)(flat, at);
+            const double nx = static_cast<double>(normal[0]) * size;
+            const double ny = static_cast<double>(normal[1]) * size;
+            const double nz = static_cast<double>(normal[2]) * size;
+            const float storedNx = static_cast<float>(nx), storedNz = static_cast<float>(nz);
+            const auto move = [&](uint32_t corner, double dx, double dz) {
+                float* const c = at + corner * 3;
+                c[0] = static_cast<float>(c[0] + dx);
+                c[1] = static_cast<float>(c[1] + ny);
+                c[2] = static_cast<float>(c[2] + dz);
+            };
+            move(2, storedNx, nz);
+            move(3, nx, storedNz);
+            move(6, nx, storedNz);
+            move(7, storedNx, storedNz);
+            reinterpret_cast<AddBox>(addr::SC4HeightMapLines_AddBox)(lines, at);
+        }
+    }
+}
+
 // 0x00586720 (ret 4), with a render context: the map's own lines drawn, a
 // debug view the manager's draw asks for when its +0xD98 byte is set.
 // Nothing without layers. With +0x48 set the lines are made anew first
-// (0x00585C20, the game's); then +0x48 is cleared, a render state made
+// (0x00585C20, above); then +0x48 is cleared, a render state made
 // (0x007D2B50 on two cleared words with 1, 1, 1, 1, 1, 0, 0, 3, 4, 5, 4,
 // 0.9, 1, -1), set on the context (0x007D4530) and the lines brought up to
 // date (0x00801140, which answers the list itself) drawn as the context's
