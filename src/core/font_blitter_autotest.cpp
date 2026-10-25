@@ -25,6 +25,16 @@
 // the static table of glyph names; the three factories, the director made
 // in a space of our own, its ID, its start on a mock director, the getter
 // and the byte.
+//
+// Then the font system (f2a, docs/fonts.md, "f2a: the font system is
+// ours"), by address, on systems of our own: the object (QueryInterface for
+// eight IDs, the references, the version, the encoding, a mock blitter,
+// Init, the families, Shutdown, the destructors in place); the faces (the
+// type of every file and of files of our own, the files and folders added,
+// ListFaces, HasFace, fonts added and released, faces removed, ListFonts);
+// the aliases (added, listed into strings, resolved); GetFont over a matrix
+// of face lists, kinds, sizes, styles and reuse, slot 9, slot 10 on every
+// face, the sizes in mode 1.
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -1099,8 +1109,628 @@ void DriveDirector()
     FtStage("director");
 }
 
+// ====================================================================================
+// The font system (f2a)
+
+// Systems of our own, made by the game's allocator and the constructor at
+// its address, given a reference; taken down by the last Release, which
+// shuts them down. Fonts are made from the game's and Windows's faces and
+// files of our own; every result goes into the hash with the texts and
+// numbers the system keeps, never an address (fonts by the order they were
+// first seen in).
+
+using SThis = uint32_t(__fastcall*)(void*, void*);
+using SOne = uint32_t(__fastcall*)(void*, void*, uint32_t);
+using STwo = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t);
+using SThree = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, uint32_t);
+using SFour = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, uint32_t, uint32_t);
+using SFive = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+
+uint32_t U(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+uint32_t TreeNext(uint32_t node) { return Game<uint32_t(__cdecl*)(uint32_t)>(0x0040D4C0)(node); }
+
+// The text of a string kept in the system (begin and end at +4 and +8).
+void MixTextAt(const uint8_t* string)
+{
+    const char* const begin = Field<const char*>(string, 4);
+    const char* const end = Field<const char*>(string, 8);
+    const uint32_t size = begin ? static_cast<uint32_t>(end - begin) : 0;
+    Mix(size);
+    if (size)
+        MixBytes(reinterpret_cast<const uint8_t*>(begin), size);
+}
+
+std::string TextAt(const uint8_t* string)
+{
+    const char* const begin = Field<const char*>(string, 4);
+    return begin ? std::string(begin, Field<const char*>(string, 8)) : std::string();
+}
+
+// Fonts by the order they were first seen in.
+struct Seen {
+    std::vector<void*> fonts;
+    uint32_t Index(void* font)
+    {
+        if (!font)
+            return 0xFFFFFFFF;
+        for (std::size_t i = 0; i < fonts.size(); ++i)
+            if (fonts[i] == font)
+                return static_cast<uint32_t>(i);
+        fonts.push_back(font);
+        return static_cast<uint32_t>(fonts.size() - 1);
+    }
+};
+
+// Every map of the system: the faces (path, name, styles, kind, type unless
+// the path has `noType` in it, each font's size and style), the names, the
+// families, the aliases, the sizes by face; the patterns and the fields.
+void MixSystem(void* s, const char* noType = nullptr)
+{
+    const uint8_t* const b = static_cast<const uint8_t*>(s);
+    MixByte(b[8]);
+    Mix(Field<uint32_t>(b, 0xC));
+    Mix(Field<uint32_t>(b, 0x10));
+    Mix(Field<uint32_t>(b, 0x14));
+    Mix(Field<uint32_t>(b, 0x18));
+    Mix(Field<uint32_t>(b, 0x1C));
+    Mix(Field<uint32_t>(b, 0x20));
+    MixByte(Field<uint32_t>(b, 0x24) ? 1 : 0);
+    const auto each = [&](uint32_t map, auto&& fn) {
+        Mix(Field<uint32_t>(At32(map), 4));
+        const uint32_t header = Field<uint32_t>(At32(map), 0);
+        for (uint32_t node = Field<uint32_t>(At32(header), 8); node != header; node = TreeNext(node))
+            fn(At32(node));
+    };
+    each(U(b) + 0x40, [&](const uint8_t* node) {
+        MixTextAt(node + 0x10);
+        MixTextAt(node + 0x28);
+        Mix(Field<uint32_t>(node, 0x3C));
+        Mix(Field<uint32_t>(node, 0x40));
+        if (!noType || TextAt(node + 0x10).find(noType) == std::string::npos)
+            Mix(Field<uint32_t>(node, 0x44));
+        const uint8_t* const list = Field<const uint8_t*>(node, 0x24);
+        for (const uint8_t* e = Field<const uint8_t*>(list, 0); e != list; e = Field<const uint8_t*>(e, 0)) {
+            Mix(Virtual<uint32_t>(Field<void*>(e, 8), 0x28));
+            Mix(Field<uint32_t>(e, 0xC));
+        }
+        Mix(0xFACE);
+    });
+    each(U(b) + 0x28, [&](const uint8_t* node) { MixTextAt(node + 0x10); });
+    each(U(b) + 0x34, [&](const uint8_t* node) {
+        Mix(Field<uint32_t>(node, 0x10));
+        MixTextAt(node + 0x14);
+    });
+    each(U(b) + 0x4C, [&](const uint8_t* node) {
+        MixTextAt(node + 0x10);
+        const uint8_t* const begin = Field<const uint8_t*>(node, 0x24);
+        const uint8_t* const end = Field<const uint8_t*>(node, 0x28);
+        Mix(static_cast<uint32_t>(end - begin));
+        for (const uint8_t* name = begin; name < end; name += 0x14)
+            MixTextAt(name);
+    });
+    each(U(b) + 0x64, [&](const uint8_t* node) {
+        MixTextAt(node + 0x10);
+        Mix(Field<uint32_t>(node, 0x24));
+        Mix(Field<uint32_t>(node, 0x28));
+    });
+    const uint8_t* const patterns = Field<const uint8_t*>(b, 0x58);
+    for (const uint8_t* p = patterns; p < Field<const uint8_t*>(b, 0x5C); p += 0x14)
+        MixTextAt(p);
+}
+
+// A font as the system made it: its path, size, style, kind, draw mode and
+// encoding, and which font it is.
+void MixFont(void* font, Seen& seen)
+{
+    Mix(seen.Index(font));
+    if (!font)
+        return;
+    GameString path = EmptyString();
+    Virtual<void>(font, 0x54, &path);
+    MixString(path);
+    FreeString(path);
+    Mix(Virtual<uint32_t>(font, 0x28));
+    Mix(Virtual<uint32_t>(font, 0x1C));
+    Mix(Virtual<uint32_t>(font, 0x24));
+    Mix(Field<uint32_t>(font, 0x4C));
+    Mix(Field<uint32_t>(font, 0x7C));
+}
+
+void* NewSystem()
+{
+    void* const s = Game<void*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(0x70);
+    Game<SThis>(addr::GZFontSystem_Construct)(s, nullptr);
+    Virtual<uint32_t>(s, 0x4);
+    return s;
+}
+
+uint32_t ReleaseSystem(void* s) { return Game<SThis>(addr::GZFontSystem_Release)(s, nullptr); }
+
+// A blitter of our own that counts what it is given and taken.
+struct MockUnknown {
+    void** vtable;
+    int32_t refs;
+};
+
+uint32_t __fastcall MockAddRef(MockUnknown* u, void*) { return static_cast<uint32_t>(++u->refs); }
+uint32_t __fastcall MockRelease(MockUnknown* u, void*) { return static_cast<uint32_t>(--u->refs); }
+
+std::string GameFonts()
+{
+    char exe[MAX_PATH] = {};
+    GetModuleFileNameA(nullptr, exe, MAX_PATH);
+    std::string root(exe);
+    for (int up = 0; up < 2; ++up)
+        root = root.substr(0, root.find_last_of("\\/"));
+    return root + "\\Fonts";
+}
+
+std::string TestFolder()
+{
+    char temp[MAX_PATH] = {};
+    GetTempPathA(MAX_PATH, temp);
+    return std::string(temp) + "opensc4-fonttest\\";
+}
+
+// Every face of the game's and Windows's (FontPaths' first 25) and our
+// files, added to a system.
+void AddFaces(void* s, const std::vector<std::string>& paths, bool mix)
+{
+    const auto add = Game<SOne>(addr::GZFontSystem_AddFontFile);
+    for (const std::string& p : paths) {
+        GameString path = MakeString(p.c_str());
+        const uint32_t added = add(s, nullptr, U(&path)) & 0xFF;
+        if (mix)
+            MixByte(static_cast<uint8_t>(added));
+        FreeString(path);
+    }
+}
+
+void DriveSystemObject()
+{
+    const auto queryInterface = Game<STwo>(addr::GZFontSystem_QueryInterface);
+    const auto queryInterface2 = Game<STwo>(addr::GZFontSystem_QueryInterface2);
+    const auto release2 = Game<SThis>(addr::GZFontSystem_Release2);
+    void* const s = NewSystem();
+    MixSystem(s);
+
+    for (const uint32_t iid : {1u, 0x00673960u, 0x287FB697u, 0u, 2u, 0x20673960u, 0x10673960u, 0xFFFFFFFFu}) {
+        for (int through = 0; through < 2; ++through) {
+            uint32_t out = 0x12345678;
+            const uint32_t ok = (through ? queryInterface2(static_cast<uint8_t*>(s) + 4, nullptr, iid, U(&out))
+                                         : queryInterface(s, nullptr, iid, U(&out))) &
+                                0xFF;
+            MixByte(static_cast<uint8_t>(ok));
+            Mix(out == 0x12345678 ? 0xFFFF : out - U(s));
+            Mix(Field<uint32_t>(s, 0xC));
+        }
+    }
+    // Down to one reference, by address, through the thunk and the vtables.
+    Mix(Virtual<uint32_t>(s, 0x4));
+    Mix(Virtual<uint32_t>(static_cast<uint8_t*>(s) + 4, 0x4));
+    while (Field<uint32_t>(s, 0xC) > 2)
+        Mix(Game<SThis>(addr::GZFontSystem_Release)(s, nullptr));
+    Mix(release2(static_cast<uint8_t*>(s) + 4, nullptr));
+    Mix(Field<uint32_t>(s, 0xC));
+
+    // The version, by address and through the +4 vtable's two slots.
+    Mix(Game<SThis>(addr::GZFontSystem_Version)(s, nullptr));
+    Mix(Virtual<uint32_t>(static_cast<uint8_t*>(s) + 4, 0x14));
+    Mix(Virtual<uint32_t>(static_cast<uint8_t*>(s) + 4, 0x30));
+
+    // The encoding and the blitter.
+    const uint32_t encoding = Field<uint32_t>(s, 0x20);
+    for (const uint32_t e : {0x10u, 0x4E4u, 0u, encoding}) {
+        MixByte(static_cast<uint8_t>(Game<SOne>(addr::GZFontSystem_SetEncoding)(s, nullptr, e)));
+        Mix(Field<uint32_t>(s, 0x20));
+    }
+    {
+        static void* table[4] = {};
+        table[1] = reinterpret_cast<void*>(&MockAddRef);
+        table[2] = reinterpret_cast<void*>(&MockRelease);
+        MockUnknown a{table, 1}, b{table, 1};
+        const auto setBlitter = Game<SOne>(addr::GZFontSystem_SetBlitter);
+        for (MockUnknown* u : {&a, &a, &b, static_cast<MockUnknown*>(nullptr), &b}) {
+            setBlitter(s, nullptr, U(u));
+            MixByte(Field<uint32_t>(s, 0x24) == U(&a) ? 1 : Field<uint32_t>(s, 0x24) == U(&b) ? 2 : 0);
+            Mix(static_cast<uint32_t>(a.refs));
+            Mix(static_cast<uint32_t>(b.refs));
+        }
+        setBlitter(s, nullptr, 0);
+        Mix(static_cast<uint32_t>(b.refs));
+    }
+
+    // Init, again, through the thunk; the families' faces, new and replaced.
+    MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFontSystem_Init)(s, nullptr)));
+    MixSystem(s);
+    MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFontSystem_Init)(s, nullptr)));
+    MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFontSystem_Init2)(static_cast<uint8_t*>(s) + 4, nullptr)));
+    for (const auto& [code, name] : {std::pair<uint32_t, const char*>{5, "Georgia"}, {77, "New Face"},
+                                     {0xFFFFFFFF, "Negative"}, {9, ""}, {77, "Again"}}) {
+        GameString text = MakeString(name);
+        MixByte(static_cast<uint8_t>(Game<STwo>(addr::GZFontSystem_SetFamily)(s, nullptr, code, U(&text))));
+        FreeString(text);
+    }
+    MixSystem(s);
+
+    // Shutdown with Init's byte set, then without; Init after.
+    MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFontSystem_Shutdown)(s, nullptr)));
+    MixSystem(s);
+    MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFontSystem_Shutdown2)(static_cast<uint8_t*>(s) + 4, nullptr)));
+    MixByte(static_cast<uint8_t>(Virtual<uint32_t>(static_cast<uint8_t*>(s) + 4, 0x20)));
+    MixSystem(s);
+    Mix(ReleaseSystem(s));
+
+    // In place between margins: the constructor, then the destructor; the
+    // deleting destructor without freeing, then freed by us.
+    {
+        alignas(8) uint8_t space[16 + 0x70 + 16];
+        std::memset(space, 0xA5, sizeof space);
+        void* const self = space + 16;
+        MixByte(Game<SThis>(addr::GZFontSystem_Construct)(self, nullptr) == U(self) ? 1 : 0);
+        MixBytes(space, 16);
+        MixBytes(space + 16 + 0x70, 16);
+        MixByte(Field<uint32_t>(self, 0) == 0x00AC5488 ? 1 : 0);
+        MixByte(Field<uint32_t>(self, 4) == 0x00AC5454 ? 1 : 0);
+        MixBytes(space + 16 + 8, 0x1C);
+        MixSystem(self);
+        Game<SThis>(addr::GZFontSystem_Destruct)(self, nullptr);
+        MixBytes(space, 16);
+        MixBytes(space + 16 + 0x70, 16);
+        MixByte(Field<uint32_t>(self, 0) == 0x00AC5488 ? 1 : 0);
+    }
+    {
+        void* const t = NewSystem();
+        MixByte(Game<SOne>(addr::GZFontSystem_DeletingDestruct)(t, nullptr, 0) == U(t) ? 1 : 0);
+        Game<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(t);
+    }
+    FtStage("system");
+}
+
+void DriveSystemFaces()
+{
+    const auto fileType = Game<SOne>(addr::GZFontSystem_FileType);
+    const auto addFolder = Game<SOne>(addr::GZFontSystem_AddFontFolder);
+    const auto makeFont = Game<SFour>(addr::GZFontSystem_MakeFont);
+    const std::vector<std::string> paths = FontPaths();
+    const std::string ours = TestFolder();
+    char windows[MAX_PATH] = {};
+    GetWindowsDirectoryA(windows, MAX_PATH);
+    const std::string system = std::string(windows) + "\\Fonts\\";
+
+    // Files of our own for the types: by extension in any case, by their
+    // first bytes, too short, empty, missing.
+    {
+        Random random{0x5EED0F06};
+        std::vector<uint8_t> junk(64);
+        for (uint8_t& v : junk)
+            v = random.Byte();
+        std::vector<uint8_t> ps = junk, tt = junk, ttcf = junk, late = junk;
+        std::memcpy(ps.data() + 11, "%!PS", 4);
+        std::memcpy(tt.data(), "\0\1\0\0", 4);
+        std::memcpy(ttcf.data(), "ttcf", 4);
+        std::memcpy(late.data() + 40, "%!PS", 4);
+        WriteFile(ours + "ps.dat", ps);
+        WriteFile(ours + "tt.dat", tt);
+        WriteFile(ours + "ttcf.dat", ttcf);
+        WriteFile(ours + "late.dat", late);
+        WriteFile(ours + "junk.dat", junk);
+        WriteFile(ours + "upper.TTF", junk);
+        WriteFile(ours + "mixed.PfB", junk);
+        WriteFile(ours + "x.OtF", junk);
+        WriteFile(ours + "x.ttc", junk);
+        WriteFile(ours + "empty.dat", {});
+        WriteFile(ours + "three.dat", {'%', '!', 'P'});
+        WriteFile(ours + "made-arial.ttf", ReadWhole(system + "arial.ttf"));
+    }
+    std::vector<std::string> typed = paths;
+    for (const char* name : {"ps.dat", "tt.dat", "ttcf.dat", "late.dat", "junk.dat", "upper.TTF", "mixed.PfB", "x.OtF",
+                             "x.ttc", "empty.dat", "three.dat", "missing.dat", "noextension"})
+        typed.push_back(ours + name);
+    void* const s = NewSystem();
+    Game<SThis>(addr::GZFontSystem_Init)(s, nullptr);
+    std::string types;
+    for (const std::string& p : typed) {
+        GameString path = MakeString(p.c_str());
+        const uint32_t type = fileType(s, nullptr, U(&path));
+        Mix(type);
+        types += static_cast<char>('0' + (type < 10 ? type : 9));
+        FreeString(path);
+    }
+
+    // Every file of FontPaths, three of them again, then names that are
+    // only in Windows's Fonts folder or nowhere.
+    AddFaces(s, paths, true);
+    AddFaces(s, {paths[0], paths[3], paths[19]}, true);
+    AddFaces(s, {"arial.ttf", "times.ttf", "nosuch.ttf", "", ours + "ps.dat"}, true);
+    MixSystem(s);
+
+    // Folders: the game's (all there already), on a new system the game's
+    // with a separator, ours, one that is not there; Windows's is left out
+    // (its faces differ from machine to machine).
+    uint32_t scanned = 0;
+    const auto folder = [&](void* on, const std::string& name) {
+        GameString text = MakeString(name.c_str());
+        const uint32_t n = addFolder(on, nullptr, U(&text));
+        Mix(n);
+        scanned += n;
+        FreeString(text);
+    };
+    folder(s, GameFonts());
+    void* const t = NewSystem();
+    Game<SThis>(addr::GZFontSystem_Init)(t, nullptr);
+    folder(t, GameFonts() + "\\");
+    folder(t, ours);
+    folder(t, ours + "nosuch\\");
+    MixSystem(t);
+
+    // ListFaces into a buffer between margins.
+    {
+        const uint32_t faces = Field<uint32_t>(s, 0x44);
+        for (const uint32_t count : {0u, 1u, 3u, faces, faces + 4}) {
+            std::vector<uint8_t> buffer(32 + (std::size_t{count} + 1) * 0x88, 0xA5);
+            Mix(Game<STwo>(addr::GZFontSystem_ListFaces)(s, nullptr, U(buffer.data() + 16), count));
+            MixBytes(buffer.data(), buffer.size());
+        }
+    }
+
+    // HasFace by name and style.
+    for (const char* name : {"arial", "ARIAL", "Arial MT", "arial mt", "times new roman", "Courier LD", "nosuch", ""}) {
+        GameString text = MakeString(name);
+        for (const uint32_t style : {0u, 1u, 2u, 3u, 4u, 0xFFu})
+            MixByte(static_cast<uint8_t>(
+                Game<SThree>(addr::GZFontSystem_HasFace)(s, nullptr, U(&text), 0x77, style)));
+        FreeString(text);
+    }
+
+    // Fonts made on t (not kept there) added to s: to a face of their path,
+    // the same size again, another size, none; one of a path s does not
+    // have, which makes a face.
+    Seen seen;
+    const auto made = [&](const std::string& p, uint32_t size) {
+        GameString path = MakeString(p.c_str());
+        void* const f = reinterpret_cast<void*>(
+            static_cast<uintptr_t>(makeFont(t, nullptr, U(&path), size, 0, 0)));
+        FreeString(path);
+        MixFont(f, seen);
+        return f;
+    };
+    void* const f1 = made(paths[3], 12);
+    void* const f2 = made(paths[3], 12);
+    void* const f3 = made(paths[3], 15);
+    void* const f4 = made(ours + "made-arial.ttf", 11);
+    const auto addFont = Game<SOne>(addr::GZFontSystem_AddFont);
+    for (void* f : {f1, f2, f3, static_cast<void*>(nullptr), f4, f4})
+        MixByte(static_cast<uint8_t>(addFont(s, nullptr, U(f))));
+    MixSystem(s, "made-");
+
+    // ListFonts between margins, the fonts by index.
+    for (const uint32_t count : {0u, 1u, 2u, 10u}) {
+        uint32_t out[16];
+        for (uint32_t& v : out)
+            v = 0xA5A5A5A5;
+        Mix(Game<STwo>(addr::GZFontSystem_ListFonts)(s, nullptr, U(out + 1), count));
+        for (const uint32_t v : out)
+            Mix(v == 0xA5A5A5A5 ? 0xA5 : seen.Index(reinterpret_cast<void*>(static_cast<uintptr_t>(v))));
+    }
+
+    // ReleaseFont: f1 has the face's reference and ours, so it is released
+    // twice and taken out (ours with it); f2 is in no list.
+    const auto releaseFont = Game<SOne>(addr::GZFontSystem_ReleaseFont);
+    Mix(releaseFont(s, nullptr, U(f1)));
+    Mix(releaseFont(s, nullptr, U(f2)));
+    MixSystem(s, "made-");
+
+    // RemoveFace: every Arial MT face, f3's reference with it; one that is
+    // not there.
+    for (const char* name : {"Arial MT", "nosuch", "ARIAL MT"}) {
+        GameString text = MakeString(name);
+        MixByte(static_cast<uint8_t>(Game<SOne>(addr::GZFontSystem_RemoveFace)(s, nullptr, U(&text))));
+        FreeString(text);
+    }
+    MixSystem(s, "made-");
+    for (void* f : {f2, f3, f4})
+        Mix(Virtual<uint32_t>(f, 0x8));
+    Mix(ReleaseSystem(s));
+    Mix(ReleaseSystem(t));
+    log::Write("autotest: fonts: system types %s, %u from folders", types.c_str(), scanned);
+    FtStage("faces");
+}
+
+void DriveSystemAliases()
+{
+    void* const s = NewSystem();
+    Game<SThis>(addr::GZFontSystem_Init)(s, nullptr);
+    std::vector<std::string> paths = FontPaths();
+    paths.resize(23);
+    AddFaces(s, paths, false);
+    struct Alias {
+        const char* alias;
+        const char* face;
+    };
+    const Alias aliases[] = {{"Sans", "nosuch face"}, {"Sans", "Arial"},      {"Sans", "Arial MT"},
+                             {"Serif", "Times New Roman"}, {"Mono", "Courier LD"}, {"Mono", "Courier New"},
+                             {"sans", "x"},           {"Empty", ""},         {"Sans", "Arial"}};
+    for (const Alias& a : aliases) {
+        GameString alias = MakeString(a.alias), face = MakeString(a.face);
+        MixByte(static_cast<uint8_t>(
+            Game<STwo>(addr::GZFontSystem_AddAlias)(s, nullptr, U(&alias), U(&face))));
+        FreeString(alias);
+        FreeString(face);
+    }
+    MixSystem(s);
+
+    struct Known {
+        const char* alias;
+        uint32_t names;
+    };
+    for (const Known& k : {Known{"Sans", 4}, Known{"Serif", 1}, Known{"Mono", 2}, Known{"sans", 1}, Known{"Empty", 1},
+                           Known{"nosuch", 0}}) {
+        GameString alias = MakeString(k.alias);
+        for (uint32_t count = 0; count <= 5; ++count) {
+            // A string for each of the alias's names, null past them (the
+            // game would give those what lies past its vector).
+            GameString outs[5];
+            void* pointers[5] = {};
+            for (uint32_t i = 0; i < 5; ++i) {
+                outs[i] = MakeString("before");
+                if (i < k.names && !(count == 3 && i == 1))
+                    pointers[i] = &outs[i];
+            }
+            Mix(Game<SThree>(addr::GZFontSystem_GetAliasFaces)(s, nullptr, U(&alias), U(pointers), count));
+            for (GameString& o : outs) {
+                MixString(o);
+                FreeString(o);
+            }
+        }
+        GameString out = MakeString("unchanged");
+        MixByte(static_cast<uint8_t>(
+            Game<STwo>(addr::GZFontSystem_ResolveAlias)(s, nullptr, U(&alias), U(&out))));
+        MixString(out);
+        FreeString(out);
+        FreeString(alias);
+    }
+    Mix(ReleaseSystem(s));
+    FtStage("aliases");
+}
+
+void DriveSystemGetFont()
+{
+    const auto getFont = Game<SFive>(addr::GZFontSystem_GetFont);
+    const auto makeFont = Game<SFour>(addr::GZFontSystem_MakeFont);
+    const auto range = Game<SThree>(addr::GZFontSystem_SetMonoRange);
+    void* const s = NewSystem();
+    Game<SThis>(addr::GZFontSystem_Init)(s, nullptr);
+    std::vector<std::string> paths = FontPaths();
+    paths.resize(23);
+    AddFaces(s, paths, false);
+    for (const auto& [alias, face] : {std::pair<const char*, const char*>{"Sans", "Arial MT"}, {"Sans", "Arial"},
+                                      {"Serif", "Times New Roman"}, {"Gothic", "HG-Gothic"},
+                                      {"fixed", "courier new"}, {"Arial MT", "Times New Roman"}}) {
+        GameString a = MakeString(alias), f = MakeString(face);
+        Game<STwo>(addr::GZFontSystem_AddAlias)(s, nullptr, U(&a), U(&f));
+        FreeString(a);
+        FreeString(f);
+    }
+    // The sizes in mode 1: the system's, two faces' (the second of one kept
+    // as the first), one removed, one that was never there removed.
+    const auto setRange = [&](int32_t low, int32_t high, const char* face) {
+        GameString text = MakeString(face ? face : "");
+        range(s, nullptr, static_cast<uint32_t>(low), static_cast<uint32_t>(high), face ? U(&text) : 0);
+        FreeString(text);
+    };
+    setRange(9, 11, nullptr);
+    setRange(14, 18, "Times New Roman");
+    setRange(20, 30, "Times New Roman");
+    setRange(5, 5, "Arial");
+    setRange(1, 2, "Courier New");
+    setRange(3, 1, "Courier New");
+    setRange(-4, 40, "HG-Gothic");
+    MixSystem(s);
+
+    Seen seen;
+    std::vector<void*> held;
+    std::string many;
+    for (int i = 0; i < 40; ++i)
+        many += "a,";
+    many += "Arial";
+    const std::string lists[] = {"Arial MT", "arial mt,times new roman", "Unknown,Courier New", "", ",", "Sans",
+                                 "serif,sans", "Gothic", "nosuch", "Times New Roman,Arial MT,Courier LD,HG-Gothic",
+                                 "FIXED", many};
+    uint32_t made = 0, none = 0;
+    for (const std::string& list : lists) {
+        GameString text = MakeString(list.c_str());
+        for (const uint32_t kind : {0u, 2u})
+            for (const uint32_t size : {0u, 10u, 16u})
+                for (const uint32_t style : {0u, 1u, 3u, 0x7Eu})
+                    for (const uint32_t reuse : {0u, 1u}) {
+                        void* const f = reinterpret_cast<void*>(static_cast<uintptr_t>(
+                            getFont(s, nullptr, U(&text), kind, size, style, reuse)));
+                        MixFont(f, seen);
+                        if (f) {
+                            held.push_back(f);
+                            ++made;
+                        } else {
+                            ++none;
+                        }
+                    }
+        FreeString(text);
+    }
+    MixSystem(s);
+
+    // Slot 9: by kind, its colours set.
+    for (const uint32_t kind : {0u, 1u, 2u})
+        for (const uint32_t style : {0u, 2u})
+            for (const uint32_t reuse : {0u, 1u}) {
+                void* const f = reinterpret_cast<void*>(static_cast<uintptr_t>(
+                    Game<SFive>(addr::GZFontSystem_GetFontFor)(s, nullptr, kind, 12, style, 0x00123456, reuse)));
+                MixFont(f, seen);
+                if (f)
+                    held.push_back(f);
+            }
+
+    // Slot 10 on every face's path, a name only in Windows's Fonts folder,
+    // a file that does not load and one that is not there.
+    std::vector<std::string> keys;
+    {
+        const uint32_t header = Field<uint32_t>(static_cast<uint8_t*>(s) + 0x40, 0);
+        for (uint32_t node = Field<uint32_t>(At32(header), 8); node != header; node = TreeNext(node))
+            keys.push_back(TextAt(At32(node) + 0x10));
+    }
+    keys.push_back("arial.ttf");
+    keys.push_back(TestFolder() + "junk.ttf");
+    keys.push_back(TestFolder() + "missing.ttf");
+    for (const std::string& key : keys) {
+        GameString path = MakeString(key.c_str());
+        for (const uint32_t size : {0u, 13u})
+            for (const uint32_t style : {0u, 2u})
+                for (const uint32_t reuse : {0u, 1u}) {
+                    void* const f = reinterpret_cast<void*>(
+                        static_cast<uintptr_t>(makeFont(s, nullptr, U(&path), size, style, reuse)));
+                    MixFont(f, seen);
+                    if (f)
+                        held.push_back(f);
+                }
+        FreeString(path);
+    }
+    MixSystem(s);
+    for (void* f : held)
+        Virtual<uint32_t>(f, 0x8);
+    Mix(ReleaseSystem(s));
+
+    log::Write("autotest: fonts: system %u fonts got, %u none, %zu different", made, none, seen.fonts.size());
+
+    // The game's own system, without reuse (nothing is kept there). Its
+    // fonts may take the places of those just freed: counted afresh.
+    if (void* const fonts = Game<void*(__cdecl*)()>(addr::SC4_Singleton913D22)()) {
+        Seen fresh;
+        std::vector<void*> got;
+        for (const char* list : {"Arial MT", "nosuch,Arial MT", ""}) {
+            GameString text = MakeString(list);
+            void* const f =
+                reinterpret_cast<void*>(static_cast<uintptr_t>(getFont(fonts, nullptr, U(&text), 0, 12, 0, 0)));
+            MixFont(f, fresh);
+            if (f)
+                got.push_back(f);
+            FreeString(text);
+        }
+        for (void* f : got)
+            Virtual<uint32_t>(f, 0x8);
+    }
+    FtStage("getfont");
+}
+
+void DriveSystem()
+{
+    DriveSystemObject();
+    DriveSystemFaces();
+    DriveSystemAliases();
+    DriveSystemGetFont();
+}
+
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,
-// then the holder, its stream and the director (f1 and f5).
+// then the holder, its stream and the director (f1 and f5), then the font
+// system (f2a).
 // Every result goes into the fingerprint's `ft` part.
 void DriveFontsDay(const Day& day)
 {
@@ -1114,6 +1744,7 @@ void DriveFontsDay(const Day& day)
     DriveStrings();
     DriveHolder();
     DriveDirector();
+    DriveSystem();
     log::Write("autotest: fonts driven (hash %08X)", g_ftHash);
 }
 
