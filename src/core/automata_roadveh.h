@@ -1,4 +1,4 @@
-// The layout of the other road vehicles, parts ro1 to ro3a (build 641; functions,
+// The layout of the other road vehicles, parts ro1 to ro3b (build 641; functions,
 // vtables and data in data/addresses/automata.toml, the survey in
 // docs/automata.md, "Part ro").
 //
@@ -136,6 +136,10 @@ inline constexpr std::size_t kShotStart = 0x0C;        // the shot effect's slot
 inline constexpr std::size_t kPick = 0x90;             // 0x00B43DC4's slot 36: (x, y, out, 0), ret 0x10
 inline constexpr std::size_t kSoundOn = 0x14;          // the U-Drive sounds' (0x00602640) slot 5: (id), ret 4
 inline constexpr std::size_t kSoundOff = 0x18;         // their slot 6: (id), ret 4
+// Part ro3b's.
+inline constexpr std::size_t kModelPlace = 0x08;        // the turret's and barrel's models' slot 2: (point, axis), ret 8
+inline constexpr std::size_t kUpdateHighlight1 = 0x308; // the tank's 194
+inline constexpr std::size_t kUpdateHighlight2 = 0x314; // the tank's 197
 } // namespace slot
 
 // The U-Drive controls (slot 56's object, part vb8's state) as the tank's

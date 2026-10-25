@@ -11907,3 +11907,14 @@ name = "cSC4Tank::BarrelSoundTimer"
 address = 0x00B228F8
 kind = "data"
 source = "Name ours. A float (bss): the barrel's sound timer, shared by every tank (slot 121). Called by address from src/core/automata_roadveh.cpp (part ro3a)."
+
+# Part ro3b: the tank's frame (src/core/automata_roadveh.cpp, docs/automata.md "Part ro").
+
+[[entry]]
+name = "cSC4Tank::Frame"
+address = 0x0054B7C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t word, float seconds)"
+expect = "8B 44 24 08 81 EC A4 00"
+source = "Name ours. The tank's slot 72, ret 8: cSC4Vehicle's (0x0055BA20, its answer dropped); with the byte +0x340 and both models (+0x35C, +0x360) the models placed (their slot 2: point, axis) by four quaternion turns: the axis the heading's cross with (0, 1, 0) (0x00A9B7A0 multiplied through), the turret turned by its angle x -0.5 about it, the barrel by its angle x -0.25 (the turret model) or x -0.5 (the barrel model) about (-z, 0, x) of the heading, the point the product's rows times the heading; the second pair after the first call from the axis, the angles and the heading read again. Then the attachments' slot 5 and the tank's slots 194 and 197. AL 1. Ours in simulators.automata.roadveh (src/core/automata_roadveh.cpp, part ro3b)."
