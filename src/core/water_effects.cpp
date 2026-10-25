@@ -15765,19 +15765,35 @@ bool DwNoting()
     return g_dwTrace == DwTrace::Game && g_dwDepth == 0 && GetCurrentThreadId() == g_dwThread;
 }
 
+// A box's draw is given the box and the colour on each run's own stack:
+// its note holds what they hold (a hash of the six and the four floats).
+DwNote DwMakeNote(uint32_t kind, char* self, uint32_t a, uint32_t b)
+{
+    if (kind == kDwBox) {
+        const auto hash = [](uint32_t at, std::size_t size) {
+            uint32_t h = 2166136261u;
+            for (std::size_t i = 0; i < size; ++i)
+                h = (h ^ static_cast<uint8_t>(Ptr(at)[i])) * 16777619u;
+            return h;
+        };
+        return DwNote{kind, Word(self), hash(a, 24), hash(b, 16)};
+    }
+    return DwNote{kind, Word(self), a, b};
+}
+
 void DwAddNote(uint32_t kind, char* self, uint32_t a, uint32_t b)
 {
     if (kind >= kDwDecal && !g_dwFourthTaken) {
         g_dwFourth = DwFourth(g_dwManager);
         g_dwFourthTaken = true;
     }
-    g_dwGame.push_back(DwNote{kind, Word(self), a, b});
+    g_dwGame.push_back(DwMakeNote(kind, self, a, b));
 }
 
 uint32_t DwManagerCall(uint32_t kind, uint32_t target, char* self, uint32_t a, uint32_t b)
 {
     if (g_dwTrace == DwTrace::Ours) {
-        g_dwOurs.push_back(DwNote{kind, Word(self), a, b});
+        g_dwOurs.push_back(DwMakeNote(kind, self, a, b));
         return 0;
     }
     switch (kind) {
