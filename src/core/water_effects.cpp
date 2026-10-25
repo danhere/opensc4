@@ -16710,9 +16710,11 @@ std::string DwDescribe(const std::vector<DwNote>& notes, std::size_t at)
 extern bool g_forceMgrSteps;
 void FsForceAfterDraw(char* self, char* context);
 
+bool g_dwForce = false, g_dwForcing = false;
+
 uint32_t DwManagerCompared(char* self, char* context)
 {
-    const char* const id = "effects.draw_manager";
+    const char* const id = g_dwForcing ? "effects.draw_manager.forced" : "effects.draw_manager";
     DwReserve(self);
     char* const manager = self - 4;
     const std::vector<char> before(manager, manager + kManagerSize);
@@ -16794,8 +16796,82 @@ uint32_t DwManagerCompared(char* self, char* context)
         compare::Record(id, false, "the effects in view, sorted, and those out of view", "another order or set");
         return result;
     }
-    compare::Record(early ? "effects.draw_manager.off" : id, true, std::string(), std::string());
+    compare::Record(early ? (g_dwForcing ? "effects.draw_manager.off.forced" : "effects.draw_manager.off") : id, true,
+                    std::string(), std::string());
     FsForceAfterDraw(self, context);
+    return result;
+}
+
+// With OPENSC4_EFFECT_FORCE_MANAGER=1 (compare mode of the manager's draw
+// only) each compared draw is made in turn with one of seven changes, put
+// back after both runs: none; the render's property at +0x39C set (the
+// draw does nothing); its +0x1BC cleared (no effect drawn); its +0x35C set
+// (the boxes drawn); the blend (the render's +0x24's +0xBC) 0.5 with the
+// last frame's count (+0xC8C) 6,000, above the most; the blend 0.5 with the
+// budget (+0xC9C) 0.5, below the target; every description of the three
+// lists given flag 0x10 (no frustum test). The budget the draw leaves is
+// put back too, so that the forcing does not change later frames. They
+// are recorded as effects.draw_manager.forced (.off.forced for +0x39C).
+uint32_t DwManagerForced(char* self, char* context)
+{
+    static uint32_t turn = 0;
+    const uint32_t k = turn++ % 7;
+    char* const properties = At<char*>(At<char*>(context, 0x38), 0xC);
+    char* const options = At<char*>(At<char*>(context, 0x38), 0x24);
+    const uint8_t off = At<uint8_t>(properties, 0x39C), effects = At<uint8_t>(properties, 0x1BC),
+                  boxes = At<uint8_t>(properties, 0x35C);
+    const uint32_t blend = At<uint32_t>(options, 0xBC), budget = At<uint32_t>(self, 0xC9C);
+    std::vector<std::pair<char*, uint32_t>> flagged;
+    switch (k) {
+    case 1:
+        At<uint8_t>(properties, 0x39C) = 1;
+        break;
+    case 2:
+        At<uint8_t>(properties, 0x1BC) = 0;
+        break;
+    case 3:
+        At<uint8_t>(properties, 0x35C) = 1;
+        break;
+    case 4:
+        At<float>(options, 0xBC) = 0.5f;
+        At<uint32_t>(self, 0xC8C) = 6000;
+        break;
+    case 5:
+        At<float>(options, 0xBC) = 0.5f;
+        At<float>(self, 0xC9C) = 0.5f;
+        break;
+    case 6:
+        for (const auto& [indices, table] : {std::pair{std::size_t{0xBF0}, std::size_t{0xBE4}},
+                                             std::pair{std::size_t{0xC38}, std::size_t{0xC2C}},
+                                             std::pair{std::size_t{0xC5C}, std::size_t{0xC50}}}) {
+            for (uint32_t* it = At<uint32_t*>(self, indices); it != At<uint32_t*>(self, indices + 4); ++it) {
+                char* const description = At<char*>(At<char**>(self, table)[*it], 0x24);
+                if (!description)
+                    continue;
+                bool seen = false;
+                for (const auto& entry : flagged)
+                    seen = seen || entry.first == description;
+                if (!seen) {
+                    flagged.push_back({description, At<uint32_t>(description, 0)});
+                    At<uint32_t>(description, 0) |= 0x10u;
+                }
+            }
+        }
+        break;
+    default:
+        break;
+    }
+    g_dwForcing = true;
+    const uint32_t result = DwManagerCompared(self, context);
+    g_dwForcing = false;
+    At<uint8_t>(properties, 0x39C) = off;
+    At<uint8_t>(properties, 0x1BC) = effects;
+    At<uint8_t>(properties, 0x35C) = boxes;
+    At<uint32_t>(options, 0xBC) = blend;
+    if (k == 4 || k == 5)
+        At<uint32_t>(self, 0xC9C) = budget;
+    for (const auto& [description, flags] : flagged)
+        At<uint32_t>(description, 0) = flags;
     return result;
 }
 
@@ -16816,6 +16892,8 @@ uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
             FsForceAfterDraw(self, Ptr(context));
         return result;
     }
+    if (g_dwForce)
+        return DwManagerForced(self, Ptr(context));
     return DwManagerCompared(self, Ptr(context));
 }
 OPENSC4_THUNK(TDwManager, DwManagerByMode, 4)
@@ -16877,6 +16955,10 @@ bool InstallDrawManager(registry::Mode mode)
     if (!g_SC4EffectsManager_Draw && !Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
         return false;
     g_dwManagerMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    if (const char* v = std::getenv("OPENSC4_EFFECT_FORCE_MANAGER"); mode == registry::Mode::Compare && v && *v == '1') {
+        g_dwForce = true;
+        log::Write("water effects: the effects manager's draw forced with made-up properties, budgets and flags");
+    }
     log::Write("water effects: the effects manager's draw %s",
                mode == registry::Mode::Compare ? "compared with the game's" : "ours");
     return true;
