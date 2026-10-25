@@ -16637,11 +16637,19 @@ void FsForceAfterDraw(char* self, char* context)
         const float savedX = At<float>(props, 0x3DC), savedZ = At<float>(props, 0x3E4);
         At<float>(props, 0x3DC) = savedX + 37.25f;
         At<float>(props, 0x3E4) = savedZ - 11.5f;
+        // The flash's place near the camera and the properties' range
+        // (+0x150, zero in the test cities, which makes the factor minus
+        // infinity) set, so that the rest of that path runs.
+        const float savedRange = At<float>(props, 0x150);
+        At<float>(props, 0x150) = 2.5f;
+        At<float>(object, 0xD50) = At<float>(props, 0x3DC) + At<float>(object, 0xD50) / 40.0f;
+        At<float>(object, 0xD54) = At<float>(props, 0x3E4) - At<float>(object, 0xD54) / 25.0f;
         FsCompareRun("effects.flash.forced", object, 0xD44,
                      [&] { DrawFlash(object, context, step); },
                      [&] { g_DwDrawFlash(self - 4, nullptr, Word(context), LfBits(step)); });
         At<float>(props, 0x3DC) = savedX;
         At<float>(props, 0x3E4) = savedZ;
+        At<float>(props, 0x150) = savedRange;
     }
     if (g_shakeMode == StepMode::Compare && camera) {
         static uint32_t turn = 0;
