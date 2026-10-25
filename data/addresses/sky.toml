@@ -2334,6 +2334,15 @@ expect = "53 56 8B F1 E8 AE A2 38"
 source = "Name ours. The 0x40-byte counted object the effect description's list at +0x5C holds: its counted base made (0x0090D957), its table 0x00A9EEA4, +8 cleared, an empty string at +0xC (8 bytes of storage from 0x0090CF54, the first cleared), +0x18 1.0, the rest cleared. Answers this. Called by 0x0058AB88, 0x0059DBD2, 0x0059F13F and 0x005A5D50. Ours in renderer.effects.hashes (src/core/effects_hashes.h)."
 
 [[entry]]
+name = "SC4Counted40::Read"
+address = 0x005837C0
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void* stream, void* object)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Reads the 0x40-byte counted object (0x005836A0) from a stream: a word of seven bits to +8 (the stream's slot 0x24, read into the stream argument's own slot), the string at +0xC (0x005811F0), a word to +0x30, the list of IDs at +0x34 (0x005DB350), then six floats +0x18 to +0x2C (slot 0x30); answers what the last read answers. Called by the effects file reader 0x005A51E0 (0x005A5D97) for each object of an effect description's list at +0x5C. Ours in renderer.effects.decal_read (src/core/effects_decal.h)."
+
+[[entry]]
 name = "SC4Counted40::DeletingDestructor"
 address = 0x00583700
 kind = "function"

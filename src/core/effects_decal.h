@@ -4,9 +4,11 @@
 // description's (0x64 bytes, at the decal's +0xC) end (0x00583130) and
 // assignment (0x005833F0); the manager's fill of held pointers
 // (0x0058DF60) and the AddRef thunks of its interfaces at +4 and +8
-// (0x0058FD60, 0x0058FD80). The decal's update (slot 3) is still the
-// game's. Included by water_effects.cpp, which has what ours calls (the Dc
-// functions, noted in a replay).
+// (0x0058FD60, 0x0058FD80); and the reader of the 0x40-byte counted
+// object (0x005837C0, renderer.effects.decal_read). The decal's update
+// (slot 3) is renderer.effects.decal_update's. Included by
+// water_effects.cpp, which has what ours calls (the Dc functions, noted in
+// a replay).
 
 // Slot 5 (0x00582F00): a parameter by its id. 3: the word at value to
 // +0x108. 0x102: the word at value + 4 to +0x10C. 0xC: a rectangle (x0,
@@ -115,4 +117,25 @@ char* FillHeldPointers(char* place, uint32_t count, char* const* value)
 uint32_t AddRefManagerFrom(char* self, uint32_t offset)
 {
     return CallThis<uint32_t>(addr::SC4EffectsManager_AddRef, self - offset);
+}
+
+// The reader of the 0x40-byte counted object an effect description's list
+// at +0x5C holds (0x005837C0, cdecl (stream, object); the effects file
+// reader 0x005A51E0 calls it once for each). Every value comes through the
+// stream's own functions: a word of seven bits to +8 (read into the stream
+// argument's slot, so a read that writes nothing leaves the stream's
+// pointer there), the string at +0xC (0x005811F0), a word to +0x30, the
+// list of IDs at +0x34 (0x005DB350), then the six floats +0x18 to +0x2C.
+// Answers what the last read answers.
+uint32_t ReadCounted40(uint32_t stream, uint32_t object)
+{
+    uint32_t word = stream;
+    StreamRead(stream, 0x24, reinterpret_cast<uint32_t>(&word));
+    M<uint32_t>(object + 8) = word & 0x7F;
+    StreamHelper(kStreamString, stream, object + 0xC);
+    StreamRead(stream, 0x24, object + 0x30);
+    StreamHelper(addr::SC4Save_F5DB350, stream, object + 0x34);
+    for (uint32_t at = 0x18; at < 0x2C; at += 4)
+        StreamRead(stream, 0x30, object + at);
+    return StreamRead(stream, 0x30, object + 0x2C);
 }
