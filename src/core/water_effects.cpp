@@ -15141,8 +15141,8 @@ const bool g_registeredDrawB = registry::Register({
 
 // --- The draws without particles -------------------------------------------------------------
 //
-// The manager's draw, an effect's draw, a decal's step and its update
-// (effects_draw.h).
+// The manager's draw, an effect's draw, a decal's step, its update and
+// its draw (effects_draw.h).
 //
 // The effect's draw is compared by the record and replay of the emitters:
 // the game's run with its calls recorded (the particle's step answered),
@@ -15174,6 +15174,14 @@ const bool g_registeredDrawB = registry::Register({
 // game's runs with them noted and passed on. The update only writes the
 // decal (DcDecalCompared), but for its calls on the owner, which run the
 // game's only.
+//
+// The decal's draw puts it on the terrain through the terrain's view
+// (0x00602160) and an overlay manager. The comparison gives it stand-ins
+// for both (the view through a detour of 0x00602160 in compare mode, the
+// manager as its owner): the game's runs first with each call noted, made
+// on the real object and its answer kept; the decal is put back and ours
+// runs with the calls noted and answered from the game's. Compared: the
+// calls and the decal.
 #include "core/effects_draw.h"
 
 bool DwRecorded(uint32_t target)
@@ -15548,6 +15556,233 @@ uint32_t __fastcall DwUpdateByMode(char* decal, void*, uint32_t first, uint32_t 
 }
 OPENSC4_THUNK(TDwUpdate, DwUpdateByMode, 8)
 
+// --- A decal's draw by its mode
+
+StepMode g_ddMode = StepMode::Original;
+Call1Fn g_SC4EffectDecal_Start = nullptr;
+using DdPickerFn = char*(__cdecl*)();
+DdPickerFn g_DdTerrainPicker = nullptr;
+
+// A call as the draw's comparison notes it: the slot (0 the terrain's view
+// asked for, 0x148 the view's slot 0x48, else the overlay manager's), the
+// words and the bytes behind a pointer.
+struct DdCall {
+    uint32_t slot, words[4];
+    char data[0x24];
+    bool operator==(const DdCall& other) const
+    {
+        return slot == other.slot && std::memcmp(words, other.words, sizeof words) == 0 &&
+               std::memcmp(data, other.data, sizeof data) == 0;
+    }
+};
+// The game's answer to a call: the word, and the bytes a block's query
+// (slot 0x38) wrote.
+struct DdAnswer {
+    uint32_t value;
+    char block[0x24];
+    bool written[0x24];
+};
+enum class DdRun { Off, Game, Ours };
+DdRun g_ddRun = DdRun::Off;
+DWORD g_ddThread = 0;
+int g_ddDepth = 0;
+std::vector<DdCall> g_ddGame, g_ddOurs;
+std::vector<DdAnswer> g_ddAnswers;
+std::size_t g_ddAnswered = 0;
+char* g_ddView = nullptr;
+char* g_ddOwner = nullptr;
+uint32_t g_ddViewTable[kDwDecalSlots], g_ddOwnerTable[kDwDecalSlots];
+uint32_t* g_ddViewStandIn = g_ddViewTable;
+uint32_t* g_ddOwnerStandIn = g_ddOwnerTable;
+
+// Notes a call. In the game's run `made` makes it on the real object and
+// the answer is kept; in ours' the game's answer of the same turn is given.
+template <typename Made>
+DdAnswer DdCalled(uint32_t slot, std::initializer_list<uint32_t> words, const void* data, std::size_t size,
+                  Made&& made)
+{
+    DdCall call{slot, {}, {}};
+    std::copy(words.begin(), words.end(), call.words);
+    if (size)
+        std::memcpy(call.data, data, size);
+    if (g_ddRun == DdRun::Game) {
+        g_ddGame.push_back(call);
+        DdAnswer answer{};
+        ++g_ddDepth;
+        answer.value = made(answer);
+        --g_ddDepth;
+        g_ddAnswers.push_back(answer);
+        return answer;
+    }
+    g_ddOurs.push_back(call);
+    return g_ddAnswered < g_ddAnswers.size() ? g_ddAnswers[g_ddAnswered++] : DdAnswer{};
+}
+
+// The terrain's view, in a compared run the stand-in.
+char* __cdecl DdPicker()
+{
+    if (g_ddRun == DdRun::Off || g_ddDepth != 0 || GetCurrentThreadId() != g_ddThread)
+        return g_DdTerrainPicker();
+    const DdAnswer answer = DdCalled(0, {}, nullptr, 0, [](DdAnswer&) {
+        g_ddView = g_DdTerrainPicker();
+        return Word(g_ddView);
+    });
+    return answer.value ? reinterpret_cast<char*>(&g_ddViewStandIn) : nullptr;
+}
+OPENSC4_CDECL_THUNK(TDdPicker, DdPicker, 0)
+
+// The stand-in view's slot 0x48: the overlay manager by number, the
+// stand-in owner for it.
+uint32_t __fastcall DdViewManager(void*, void*, uint32_t number)
+{
+    const DdAnswer answer = DdCalled(0x148, {number}, nullptr, 0, [&](DdAnswer&) {
+        g_ddOwner = SuSlot<char*>(g_ddView, 0x48, number);
+        return Word(g_ddOwner);
+    });
+    return answer.value ? Word(&g_ddOwnerStandIn) : 0;
+}
+
+// The stand-in owner's slots.
+template <uint32_t Slot>
+uint32_t __fastcall DdOwnerCount(void*, void*)
+{
+    return DdCalled(Slot, {}, nullptr, 0, [](DdAnswer&) { return SuSlot<uint32_t>(g_ddOwner, Slot); }).value;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall DdOwnerAdd(void*, void*, uint32_t key, uint32_t place, uint32_t size, uint32_t turn)
+{
+    return DdCalled(Slot, {key, place, size, turn}, Ptr(place), 12, [&](DdAnswer&) {
+               return SuSlot<uint32_t>(g_ddOwner, Slot, key, place, size, turn);
+           }).value;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall DdOwnerValue(void*, void*, uint32_t handle, uint32_t value)
+{
+    return DdCalled(Slot, {handle, value}, nullptr, 0, [&](DdAnswer&) {
+               return SuSlot<uint32_t>(g_ddOwner, Slot, handle, value);
+           }).value;
+}
+
+template <uint32_t Slot, std::size_t Size>
+uint32_t __fastcall DdOwnerData(void*, void*, uint32_t handle, uint32_t data)
+{
+    return DdCalled(Slot, {handle}, Ptr(data), Size, [&](DdAnswer&) {
+               return SuSlot<uint32_t>(g_ddOwner, Slot, handle, data);
+           }).value;
+}
+
+// The block's query: noted by its first two words (the rest is what the
+// caller's stack held); ours is given the bytes the game's query wrote.
+// Which those are is learnt by asking it twice more, on blocks of zero
+// bytes and of 0xFF bytes: it only reads the manager.
+uint32_t __fastcall DdOwnerInfo(void*, void*, uint32_t handle, uint32_t block)
+{
+    char* const out = Ptr(block);
+    const DdAnswer answer = DdCalled(0x38, {handle}, out, 8, [&](DdAnswer& a) {
+        const uint32_t value = SuSlot<uint32_t>(g_ddOwner, 0x38, handle, block);
+        std::memcpy(a.block, out, sizeof a.block);
+        char zeros[0x24] = {}, ones[0x24];
+        std::memset(ones, 0xFF, sizeof ones);
+        SuSlot<uint32_t>(g_ddOwner, 0x38, handle, zeros);
+        SuSlot<uint32_t>(g_ddOwner, 0x38, handle, ones);
+        for (std::size_t at = 0; at < sizeof zeros; ++at)
+            a.written[at] = zeros[at] == ones[at];
+        return value;
+    });
+    if (g_ddRun == DdRun::Ours) {
+        for (std::size_t at = 0; at < sizeof answer.block; ++at) {
+            if (answer.written[at])
+                out[at] = answer.block[at];
+        }
+    }
+    return answer.value;
+}
+
+std::string DdDescribe(const std::vector<DdCall>& calls, std::size_t at)
+{
+    char text[96];
+    if (at >= calls.size()) {
+        std::snprintf(text, sizeof text, "%zu calls", calls.size());
+        return text;
+    }
+    const DdCall& c = calls[at];
+    std::snprintf(text, sizeof text, "call %zu of %zu: slot %X (%08X %08X %08X %08X) ", at, calls.size(), c.slot,
+                  c.words[0], c.words[1], c.words[2], c.words[3]);
+    return text + Hex(c.data, sizeof c.data);
+}
+
+uint32_t DdCompared(char* self, uint32_t atEnd)
+{
+    std::memset(g_ddViewTable, 0, sizeof g_ddViewTable);
+    g_ddViewTable[0x48 / 4] = Word(reinterpret_cast<void*>(&DdViewManager));
+    std::memset(g_ddOwnerTable, 0, sizeof g_ddOwnerTable);
+    g_ddOwnerTable[1] = Word(reinterpret_cast<void*>(&DdOwnerCount<4>));
+    g_ddOwnerTable[2] = Word(reinterpret_cast<void*>(&DdOwnerCount<8>));
+    g_ddOwnerTable[0x10 / 4] = Word(reinterpret_cast<void*>(&DdOwnerAdd<0x10>));
+    g_ddOwnerTable[0x18 / 4] = Word(reinterpret_cast<void*>(&DdOwnerAdd<0x18>));
+    g_ddOwnerTable[0x1C / 4] = Word(reinterpret_cast<void*>(&DdOwnerAdd<0x1C>));
+    g_ddOwnerTable[0x34 / 4] = Word(reinterpret_cast<void*>(&DdOwnerData<0x34, 0x24>));
+    g_ddOwnerTable[0x38 / 4] = Word(reinterpret_cast<void*>(&DdOwnerInfo));
+    g_ddOwnerTable[0x44 / 4] = Word(reinterpret_cast<void*>(&DdOwnerValue<0x44>));
+    g_ddOwnerTable[0x48 / 4] = Word(reinterpret_cast<void*>(&DdOwnerData<0x48, 12>));
+    g_ddOwnerTable[0x4C / 4] = Word(reinterpret_cast<void*>(&DdOwnerValue<0x4C>));
+    g_ddOwnerTable[0x50 / 4] = Word(reinterpret_cast<void*>(&DdOwnerValue<0x50>));
+    g_ddOwner = At<char*>(self, 0x120);
+    g_ddView = nullptr;
+    if (g_ddOwner)
+        At<uint32_t**>(self, 0x120) = &g_ddOwnerStandIn;
+    char before[kDecalSize], theirs[kDecalSize];
+    std::memcpy(before, self, kDecalSize);
+    g_ddGame.clear();
+    g_ddOurs.clear();
+    g_ddAnswers.clear();
+    g_ddAnswered = 0;
+    g_ddThread = GetCurrentThreadId();
+    g_ddRun = DdRun::Game;
+    const uint32_t result = g_SC4EffectDecal_Start(self, nullptr, atEnd);
+    std::memcpy(theirs, self, kDecalSize);
+    std::memcpy(self, before, kDecalSize);
+    g_ddRun = DdRun::Ours;
+    StartDecal(self, atEnd);
+    g_ddRun = DdRun::Off;
+    char text[96];
+    if (!(g_ddGame == g_ddOurs)) {
+        std::size_t at = 0;
+        while (at < g_ddGame.size() && at < g_ddOurs.size() && g_ddGame[at] == g_ddOurs[at])
+            ++at;
+        compare::Record("effects.decal_draw", false, DdDescribe(g_ddGame, at), DdDescribe(g_ddOurs, at));
+    } else if (std::memcmp(theirs, self, kDecalSize) != 0) {
+        std::size_t at = 0;
+        while (theirs[at] == self[at])
+            ++at;
+        at &= ~std::size_t{3};
+        std::snprintf(text, sizeof text, "decal+%zX ", at);
+        compare::Record("effects.decal_draw", false, text + Hex(theirs + at, 4), text + Hex(self + at, 4));
+    } else {
+        compare::Record(At<uint8_t>(before, 8) ? "effects.decal_draw.started" : "effects.decal_draw", true,
+                        std::string(), std::string());
+    }
+    std::memcpy(self, theirs, kDecalSize);
+    if (At<uint32_t**>(self, 0x120) == &g_ddOwnerStandIn)
+        At<char*>(self, 0x120) = g_ddOwner;
+    return result;
+}
+
+uint32_t __fastcall DdStartByMode(char* self, void*, uint32_t atEnd)
+{
+    CountEffectCall(addr::SC4EffectDecal_Start);
+    if (g_ddMode == StepMode::Original || g_stNoting || g_stReplay || g_ddRun != DdRun::Off)
+        return g_SC4EffectDecal_Start(self, nullptr, atEnd);
+    if (g_ddMode == StepMode::Ours) {
+        StartDecal(self, atEnd);
+        return 0;
+    }
+    return DdCompared(self, atEnd);
+}
+OPENSC4_THUNK(TDdStart, DdStartByMode, 4)
+
 // --- The manager's draw by its mode
 
 StepMode g_dwManagerMode = StepMode::Original;
@@ -15768,6 +16003,17 @@ bool InstallDecalUpdate(registry::Mode mode)
                      "a decal's update");
 }
 
+bool InstallDecalDraw(registry::Mode mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    if (mode == registry::Mode::Compare &&
+        !(g_DdTerrainPicker || Detour(addr::SC4_TerrainPicker, &TDdPicker, &g_DdTerrainPicker)))
+        return false;
+    return SuInstall(mode, g_ddMode, addr::SC4EffectDecal_Start, &TDdStart, &g_SC4EffectDecal_Start,
+                     "a decal's draw");
+}
+
 const bool g_registeredDrawManager = registry::Register({
     "renderer.effects.draw_manager",
     "renderer/effects",
@@ -15818,6 +16064,20 @@ const bool g_registeredDecalUpdate = registry::Register({
     "and ours on the same decal (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallDecalUpdate,
+});
+
+const bool g_registeredDecalDraw = registry::Register({
+    "renderer.effects.decal_draw",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectDecal_Start,
+    "A decal's draw (0x00582090): the decal put on the terrain once, through an overlay manager of the terrain's "
+    "view, with its block, flags, opacity, colour and draw mode; compare mode gives it a stand-in view and owner "
+    "that note the calls, runs the game's and then ours with the game's answers, and compares the calls and the "
+    "decal (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDecalDraw,
 });
 
 } // namespace
