@@ -3450,7 +3450,7 @@ bool SameModelField(const ModelField& field, uint32_t theirs, uint32_t ours)
 uint32_t ModelCompared(const char* id, uint32_t stream, uint32_t object, std::size_t size,
                        std::initializer_list<ModelField> fields, ListReadFn game, uint32_t (*ours)(uint32_t, uint32_t))
 {
-    uint32_t mine[0x38 / 4];
+    uint32_t mine[0x40 / 4];
     std::memcpy(mine, reinterpret_cast<const void*>(object), size);
     const uint32_t mineAt = reinterpret_cast<uint32_t>(mine);
     bool asNew = true;
@@ -11539,6 +11539,53 @@ const bool g_registeredDecalParts = registry::Register({
     "clouds\")",
     true,
     InstallDecalParts,
+});
+
+// The reader of the 0x40-byte counted object (0x005837C0), compared as
+// the compound descriptions' readers are: the game's reads with the
+// stream's reads noted, ours reads the same into a copy of the object as
+// it was (an empty string and list of its own), and the two must hold the
+// same word, text, floats, word and IDs and answer the same.
+using Counted40ReadFn = uint32_t(__cdecl*)(uint32_t, uint32_t);
+Counted40ReadFn g_SC4Counted40_Read = nullptr;
+StepMode g_drMode = StepMode::Original;
+
+uint32_t __cdecl ReadCounted40ByMode(uint32_t stream, uint32_t object)
+{
+    if (g_drMode == StepMode::Original || g_listGame || g_listReplay)
+        return g_SC4Counted40_Read(stream, object);
+    if (g_drMode == StepMode::Ours)
+        return ReadCounted40(stream, object);
+    return ModelCompared("effects.decal_read", stream, object, 0x40,
+                         {{ModelField::Words, 8, 4},
+                          {ModelField::String, 0xC, 0},
+                          {ModelField::Words, 0x18, 0x1C},
+                          {ModelField::Plain, 0x34, 0}},
+                         g_SC4Counted40_Read, &ReadCounted40);
+}
+
+bool InstallDecalRead(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !Detour(addr::SC4Counted40_Read, reinterpret_cast<void (*)()>(&ReadCounted40ByMode), &g_SC4Counted40_Read))
+        return false;
+    g_drMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the counted objects' reading %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredDecalRead = registry::Register({
+    "renderer.effects.decal_read",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Counted40_Read,
+    "The reader of the 0x40-byte counted objects of an effect description's list at +0x5C, from the effects file; "
+    "compare mode notes what the game's reads from the stream and has ours read the same into a copy of the object "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallDecalRead,
 });
 
 // The store's comparison over more than one span of memory.
