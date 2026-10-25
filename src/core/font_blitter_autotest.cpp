@@ -14,6 +14,17 @@
 // mode; real fonts at several sizes and styles in modes 1, 2 and 3. Every
 // result goes into the fingerprint's `ft` part, one hash per stage logged as
 // `autotest: fonts: <stage> <hash>`; addresses never go in.
+//
+// Then the T2K holder, its stream and the fonts' director (f5 and f1,
+// docs/fonts.md, "f1 and f5 are ours"), by address: every face of the
+// game's Fonts folder, four of Windows's and two OpenType ones, and files of
+// our own (a TrueType face scrambled behind an MXFN header, headers too
+// short and just long enough, junk, a file that is not there) opened,
+// read through the stream at offsets around its ends and whole, named, their
+// style bits and the glyphs of characters by name for faces without a cmap;
+// the static table of glyph names; the three factories, the director made
+// in a space of our own, its ID, its start on a mock director, the getter
+// and the byte.
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -26,6 +37,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include <windows.h>
 
 namespace opensc4::autotest {
 namespace {
@@ -643,7 +656,451 @@ void DriveStrings()
     FtStage("strings");
 }
 
-// OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings.
+// ====================================================================================
+// The T2K holder and its stream (f5)
+
+using HThis = void*(__fastcall*)(void*, void*);
+using HOpen = uint8_t(__fastcall*)(void*, void*, void*);
+using HRemaining = uint32_t(__fastcall*)(void*, void*);
+using HConstructStream = void*(__fastcall*)(void*, void*, void*);
+using HRead = uint8_t(__fastcall*)(void*, void*, uint8_t*, uint32_t, uint32_t);
+using HReadCallback = uint32_t(__cdecl*)(void*, uint8_t*, uint32_t, uint32_t);
+using HReadAll = uint8_t(__fastcall*)(void*, void*, uint32_t*, uint32_t);
+using HGetName = uint8_t(__fastcall*)(void*, void*, GameString*, uint32_t);
+using HStyles = uint32_t(__fastcall*)(void*, void*);
+using HGlyph = uint32_t(__fastcall*)(void*, void*, uint32_t);
+using HMapFind = uint8_t*(__fastcall*)(void*, void*, const uint32_t*);
+
+constexpr std::uintptr_t kHolderDestruct = 0x00897E36;
+constexpr std::uintptr_t kMapFind = 0x0089762F;
+constexpr std::uintptr_t kNameMap = 0x00B5C41C;
+constexpr std::uintptr_t kNameTable = 0x00B150F0;
+constexpr uint32_t kNameTableBytes = 0xEF8;
+
+template <typename T>
+T Field(const void* base, std::size_t offset)
+{
+    T value;
+    std::memcpy(&value, static_cast<const uint8_t*>(base) + offset, sizeof value);
+    return value;
+}
+
+uint8_t* At32(uint32_t address) { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(address)); }
+
+// A game string made from text; freed by FreeString.
+GameString MakeString(const char* text)
+{
+    GameString s{};
+    Game<void*(__fastcall*)(GameString*, void*, const char*)>(addr::SC4String_FromText)(&s, nullptr, text);
+    return s;
+}
+
+GameString EmptyString()
+{
+    GameString s{};
+    Game<void*(__fastcall*)(GameString*, void*)>(addr::SC4String_SC4String)(&s, nullptr);
+    return s;
+}
+
+void FreeString(GameString& s)
+{
+    s.vtable = addr::SC4String_Vtable;
+    if (s.begin)
+        Game<void(__cdecl*)(void*)>(addr::SC4_Free)(s.begin);
+    s.begin = nullptr;
+}
+
+void MixString(const GameString& s)
+{
+    Mix(static_cast<uint32_t>(s.end - s.begin));
+    MixBytes(reinterpret_cast<const uint8_t*>(s.begin), static_cast<std::size_t>(s.end - s.begin));
+}
+
+// The holder as Open leaves it: which objects there are (not where), the
+// unwrapped bytes, flags and kind, the stream's fields and what Open set in
+// the scaler; the map's count.
+void MixHolder(const uint8_t* h)
+{
+    uint32_t present = 0;
+    for (std::size_t field = 0; field <= 0x10; field += 4)
+        present = present << 1 | (Field<uint32_t>(h, field) ? 1u : 0u);
+    Mix(present);
+    const auto* begin = Field<const uint8_t*>(h, 0x14);
+    const auto* end = Field<const uint8_t*>(h, 0x18);
+    Mix(static_cast<uint32_t>(end - begin));
+    if (begin)
+        MixBytes(begin, static_cast<std::size_t>(end - begin));
+    Mix(Field<uint16_t>(h, 0x20));
+    Mix(Field<uint32_t>(h, 0x24));
+    if (const auto* file = Field<const uint8_t*>(h, 0xC)) {
+        Mix(Field<uint32_t>(file, 0x80));
+        Mix(Field<uint32_t>(file, 0x84));
+        MixByte(Field<uint8_t>(file, 0x88));
+    }
+    if (const auto* made = Field<const uint8_t*>(h, 8)) {
+        const auto* type = Field<const uint8_t*>(made, 0x180);
+        Mix(Field<uint32_t>(made, 0x48));
+        Mix(Field<uint16_t>(type, 0x74));
+        Mix(Field<uint16_t>(type, 0x76));
+    }
+    Mix(Field<uint32_t>(h, 0x2C)); // the glyph map's count
+}
+
+// The stream's reads at offsets around its ends, into a buffer between
+// margins; ReadAll whole, cut short and empty.
+void DriveStreamOf(void* stream)
+{
+    const auto remaining = Game<HRemaining>(addr::GZFontStream_Remaining);
+    const auto read = Game<HRead>(addr::GZFontStream_Read);
+    const auto callback = Game<HReadCallback>(addr::GZFontStream_ReadCallback);
+    const auto readAll = Game<HReadAll>(addr::GZFontStream_ReadAll);
+    const uint32_t length = remaining(stream, nullptr);
+    Mix(length);
+    const uint32_t offsets[] = {0, 1, 7, 100, length - 3, length, length + 5};
+    const uint32_t counts[] = {0, 1, 4, 64};
+    uint8_t buffer[64 + 64 + 64];
+    for (const uint32_t offset : offsets)
+        for (const uint32_t count : counts) {
+            std::memset(buffer, 0xA5, sizeof buffer);
+            MixByte(read(stream, nullptr, buffer + 64, offset, count));
+            MixBytes(buffer, sizeof buffer);
+            std::memset(buffer, 0x5A, sizeof buffer);
+            Mix(callback(stream, buffer + 64, offset, count));
+            MixBytes(buffer, sizeof buffer);
+        }
+    for (const uint32_t most : {0xFFFFFFFFu, 100u, 0u}) {
+        uint32_t vector[3] = {};
+        MixByte(readAll(stream, nullptr, vector, most));
+        const auto* begin = At32(vector[0]);
+        Mix(vector[1] - vector[0]);
+        if (begin)
+            MixBytes(begin, vector[1] - vector[0]);
+        // Again into the same vector, which empties it first.
+        MixByte(readAll(stream, nullptr, vector, most == 0 ? 3u : most));
+        Mix(vector[1] - vector[0]);
+        if (vector[0])
+            MixBytes(At32(vector[0]), vector[1] - vector[0]);
+        if (vector[0])
+            Game<void(__cdecl*)(void*)>(addr::SC4_Free)(At32(vector[0]));
+    }
+}
+
+void WriteFile(const std::string& path, const std::vector<uint8_t>& bytes)
+{
+    if (std::FILE* f = std::fopen(path.c_str(), "wb")) {
+        if (!bytes.empty())
+            std::fwrite(bytes.data(), 1, bytes.size(), f);
+        std::fclose(f);
+    }
+}
+
+std::vector<uint8_t> ReadWhole(const std::string& path)
+{
+    std::vector<uint8_t> bytes;
+    if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+        uint8_t chunk[4096];
+        std::size_t n;
+        while ((n = std::fread(chunk, 1, sizeof chunk, f)) != 0)
+            bytes.insert(bytes.end(), chunk, chunk + n);
+        std::fclose(f);
+    }
+    return bytes;
+}
+
+// The fonts: the game's Fonts folder (every face it has), four of
+// Windows's, two OpenType faces if there, and files of our own in the temp
+// folder: Courier New scrambled behind an MXFN header, MXFN headers too
+// short and just long enough, junk, and a file that is not there.
+std::vector<std::string> FontPaths()
+{
+    std::vector<std::string> paths;
+    char exe[MAX_PATH] = {};
+    GetModuleFileNameA(nullptr, exe, MAX_PATH);
+    std::string root(exe);
+    for (int up = 0; up < 2; ++up)
+        root = root.substr(0, root.find_last_of("\\/"));
+    const char* const game[] = {"Arial MT (Bold Italic).mxf", "Arial MT (Bold).mxf", "Arial MT (Italic).mxf",
+                                "Arial MT.mxf", "Arta (Italic).mxf", "Arta.mxf", "CordiaUPC (Bold).mxf",
+                                "CordiaUPC.mxf", "Courier LD (Bold Italic).mxf", "Courier LD (Bold).mxf",
+                                "Courier LD (Italic).mxf", "Courier LD.mxf", "HG-Gothic (Bold).mxf", "HG-Gothic.mxf",
+                                "Hy Round Gothic (bold).mxf", "Hy Round Gothic.mxf", "MHei B5 (Bold).mxf",
+                                "MHei GB (Bold).mxf", "Stoclet ITC TT (Bold).mxf"};
+    for (const char* name : game)
+        paths.push_back(root + "\\Fonts\\" + name);
+    char windows[MAX_PATH] = {};
+    GetWindowsDirectoryA(windows, MAX_PATH);
+    const std::string system = std::string(windows) + "\\Fonts\\";
+    for (const char* name : {"arial.ttf", "times.ttf", "cour.ttf", "consola.ttf", "OpusMetronomeStd.otf",
+                             "OpusBigTimeStd.otf"})
+        paths.push_back(system + name);
+
+    char temp[MAX_PATH] = {};
+    GetTempPathA(MAX_PATH, temp);
+    const std::string ours = std::string(temp) + "opensc4-fonttest\\";
+    CreateDirectoryA(ours.c_str(), nullptr);
+    std::vector<uint8_t> courier = ReadWhole(system + "cour.ttf");
+    {
+        const uint32_t scrambled = 4096;
+        const uint8_t key = 0x5A;
+        std::vector<uint8_t> file = {'M', 'X', 'F', 'N', 0, 0, 0x10, 0x00, key};
+        for (std::size_t i = 0; i < courier.size(); ++i)
+            file.push_back(i < scrambled ? static_cast<uint8_t>(courier[i] ^ key) : courier[i]);
+        WriteFile(ours + "scrambled.mxf", file);
+    }
+    WriteFile(ours + "short.mxf", {'M', 'X', 'F', 'N', 0});
+    WriteFile(ours + "ten.mxf", {'M', 'X', 'F', 'N', 0, 0, 0, 3, 0x11, 'A'});
+    WriteFile(ours + "plain.ttf", courier);
+    Random random{0x5EED0F05};
+    std::vector<uint8_t> junk(3000);
+    for (uint8_t& b : junk)
+        b = random.Byte();
+    WriteFile(ours + "junk.ttf", junk);
+    for (const char* name : {"scrambled.mxf", "short.mxf", "ten.mxf", "plain.ttf", "junk.ttf", "missing.ttf"})
+        paths.push_back(ours + name);
+    return paths;
+}
+
+void DriveHolder()
+{
+    const auto construct = Game<HThis>(addr::GZFontFile_Construct);
+    const auto open = Game<HOpen>(addr::GZFontFile_Open);
+    const auto close = Game<HThis>(addr::GZFontFile_Close);
+    const auto styles = Game<HStyles>(addr::GZFontFile_Styles);
+    const auto getName = Game<HGetName>(addr::GZFontFile_GetName);
+    const auto glyph = Game<HGlyph>(addr::GZFontFile_GlyphByUnicodeName);
+    const auto allocate = Game<void*(__cdecl*)(uint32_t)>(addr::SC4_operator_new);
+    const auto release = Game<void(__cdecl*)(void*)>(addr::SC4_operator_delete);
+    const std::vector<std::string> paths = FontPaths();
+
+    // Made in place between margins; its map's header is a pointer.
+    {
+        uint8_t space[16 + 0x34 + 16];
+        std::memset(space, 0xA5, sizeof space);
+        MixByte(construct(space + 16, nullptr) == space + 16 ? 1 : 0);
+        uint8_t copy[sizeof space];
+        std::memcpy(copy, space, sizeof space);
+        std::memset(copy + 16 + 0x28, 0, 4);
+        MixBytes(copy, sizeof copy);
+        Game<HThis>(kHolderDestruct)(space + 16, nullptr);
+    }
+
+    const uint32_t characters[] = {0x20, 0x41, 0x61, 0xE9, 0x152, 0x2022, 0x20AC, 0xFB01, 0x0E33, 0x4E00, 0xFFFF,
+                                   0x10041, 0};
+    uint32_t opened = 0, named = 0;
+    std::string kinds;
+    for (std::size_t i = 0; i < paths.size(); ++i) {
+        void* const h = allocate(0x34);
+        construct(h, nullptr);
+        GameString path = MakeString(paths[i].c_str());
+        const uint8_t ok = open(h, nullptr, &path);
+        MixByte(ok);
+        MixHolder(static_cast<const uint8_t*>(h));
+        opened += ok;
+        char kind[4];
+        std::snprintf(kind, sizeof kind, "%u", Field<uint32_t>(h, 0x24));
+        kinds += kind;
+        if (void* const stream = Field<void*>(h, 0xC))
+            if (Virtual<uint8_t>(stream, 0x10))
+                DriveStreamOf(stream);
+        Mix(styles(h, nullptr));
+        for (const uint32_t id : {0u, 1u, 2u, 3u, 4u, 5u, 6u, 0x10u}) {
+            GameString name = EmptyString();
+            const uint8_t got = getName(h, nullptr, &name, id);
+            MixByte(got);
+            named += got;
+            MixString(name);
+            FreeString(name);
+        }
+        // The family name into a string that held something.
+        {
+            GameString name = MakeString("Something Bold Italic");
+            MixByte(getName(h, nullptr, &name, 1));
+            MixString(name);
+            FreeString(name);
+        }
+        const uint32_t faceKind = Field<uint32_t>(h, 0x24);
+        if (ok && (faceKind == 2 || faceKind == 3))
+            for (int pass = 0; pass < 2; ++pass)
+                for (const uint32_t c : characters)
+                    Mix(glyph(h, nullptr, c));
+        // Opened again over what is open (Open closes first), then closed
+        // twice; then the name of a closed face.
+        if (i + 1 < paths.size()) {
+            GameString next = MakeString(paths[(i + 7) % paths.size()].c_str());
+            MixByte(open(h, nullptr, &next));
+            MixHolder(static_cast<const uint8_t*>(h));
+            FreeString(next);
+        }
+        MixByte(static_cast<uint8_t>(reinterpret_cast<uintptr_t>(close(h, nullptr))));
+        MixHolder(static_cast<const uint8_t*>(h));
+        MixByte(static_cast<uint8_t>(reinterpret_cast<uintptr_t>(close(h, nullptr))));
+        {
+            GameString name = MakeString("Kept");
+            MixByte(getName(h, nullptr, &name, 1));
+            MixString(name);
+            FreeString(name);
+            Mix(styles(h, nullptr));
+        }
+        FreeString(path);
+        Game<HThis>(kHolderDestruct)(h, nullptr);
+        release(h);
+    }
+    log::Write("autotest: fonts: %u of %zu files opened (kinds %s), %u names", opened, paths.size(), kinds.c_str(),
+               named);
+    FtStage("holder");
+
+    // The stream on its own, on our files: the MXFN header read or not.
+    const auto constructStream = Game<HConstructStream>(addr::GZFontStream_Construct);
+    for (std::size_t i = paths.size() - 6; i < paths.size(); ++i) {
+        uint8_t space[16 + 0x8C + 16];
+        std::memset(space, 0xA5, sizeof space);
+        GameString path = MakeString(paths[i].c_str());
+        void* const stream = space + 16;
+        MixByte(constructStream(stream, nullptr, &path) == stream ? 1 : 0);
+        MixBytes(space + 16 + 0x80, 0x8C - 0x80 + 16);
+        const uint8_t isOpen = Virtual<uint8_t>(stream, 0x10);
+        MixByte(isOpen);
+        if (isOpen)
+            DriveStreamOf(stream);
+        Game<HThis>(addr::cRZFile_Destruct)(stream, nullptr);
+        FreeString(path);
+    }
+    FtStage("stream");
+
+    // The static table of glyph names: built (again; the map keeps what it
+    // has), then every entry's name.
+    Game<void(__cdecl*)()>(addr::GZFontFile_BuildNameTable)();
+    const auto find = Game<HMapFind>(kMapFind);
+    Mix(Field<uint32_t>(At32(static_cast<uint32_t>(kNameMap)), 4));
+    for (uint32_t i = 0; i < kNameTableBytes; i += 8) {
+        const uint32_t key = Field<uint16_t>(At32(static_cast<uint32_t>(kNameTable)), i);
+        const uint8_t* const node = find(At32(static_cast<uint32_t>(kNameMap)), nullptr, &key);
+        if (node == Field<const uint8_t*>(At32(static_cast<uint32_t>(kNameMap)), 0)) {
+            Mix(0xFFFFFFFF);
+            continue;
+        }
+        const char* const name = Field<const char*>(node, 0x14);
+        MixBytes(reinterpret_cast<const uint8_t*>(name), std::strlen(name) + 1);
+    }
+    FtStage("names");
+}
+
+// ====================================================================================
+// The director (f1)
+
+// A director of our own whose COM object answers the font system's maker
+// with nothing, so its start does not reach the framework.
+struct MockCom {
+    void** vtable;
+    uint32_t calls;
+};
+
+uint32_t __fastcall MockGetClassObject(MockCom* com, void*, uint32_t classId, uint32_t iid, void** out)
+{
+    ++com->calls;
+    Mix(classId);
+    Mix(iid);
+    MixByte(*out == nullptr ? 1 : 0);
+    return 0;
+}
+
+struct MockDirector {
+    void** vtable;
+    MockCom* com;
+};
+
+MockCom* __fastcall MockDirectorCom(MockDirector* director, void*)
+{
+    Mix(0xD1C0);
+    return director->com;
+}
+
+void DriveDirector()
+{
+    // The three factories: each object's vtable, then a reference given and
+    // taken, which ends it.
+    struct Factory {
+        std::uintptr_t address, vtable;
+    };
+    const Factory factories[] = {{addr::GZFontDirector_MakeFontSystem, 0x00AC5488},
+                                 {addr::GZFontDirector_MakeFont, 0x00AC55D8},
+                                 {addr::GZFontDirector_MakeBlitter, addr::GZFontBlitter_Vtable}};
+    for (const Factory& factory : factories) {
+        void* const made = Game<void*(__cdecl*)()>(factory.address)();
+        MixByte(made ? 1 : 0);
+        if (!made)
+            continue;
+        MixByte(Field<uintptr_t>(made, 0) == factory.vtable ? 1 : 0);
+        Mix(Virtual<uint32_t>(made, 0x4));
+        Mix(Virtual<uint32_t>(made, 0x8));
+    }
+
+    // The constructor on a director of our own: its vtables, its three
+    // classes and their factories (the class table: buckets at +0x3C and
+    // +0x40, nodes {next, class, factory, type}), then the base's destructor.
+    {
+        alignas(8) uint8_t space[16 + 0x4C + 16];
+        std::memset(space, 0xA5, sizeof space);
+        void* const self = space + 16;
+        MixByte(Game<HThis>(addr::GZFontDirector_Construct)(self, nullptr) == self ? 1 : 0);
+        MixByte(Field<uint32_t>(self, 0) == 0x00AC5548 ? 1 : 0);
+        MixByte(Field<uint32_t>(self, 4) == 0x00AC5518 ? 1 : 0);
+        MixBytes(space, 16);
+        MixBytes(space + 16 + 0x4C, 16);
+        auto* const buckets = Field<uint8_t**>(self, 0x3C);
+        const auto count = static_cast<uint32_t>(Field<uint8_t**>(self, 0x40) - buckets);
+        Mix(count);
+        for (const uint32_t id : {0x20673960u, 0x1AA404ACu, 0x08CDA30Bu, 0x12345678u}) {
+            uint32_t factory = 0, type = 0;
+            for (uint8_t* node = count ? buckets[id % count] : nullptr; node; node = Field<uint8_t*>(node, 0))
+                if (Field<uint32_t>(node, 4) == id) {
+                    factory = Field<uint32_t>(node, 8);
+                    type = Field<uint32_t>(node, 0xC);
+                    break;
+                }
+            Mix(factory);
+            Mix(type);
+        }
+        Mix(Virtual<uint32_t>(self, 0x34));
+        Game<HThis>(addr::cRZCOMDllDirector_Destruct)(self, nullptr);
+    }
+
+    // The ID by address and through the real director's vtable; the getter
+    // (the director is made, so it is only handed back).
+    void* const director = Game<void*(__cdecl*)()>(addr::GZFontDirector_Get)();
+    MixByte(director == reinterpret_cast<void*>(static_cast<uintptr_t>(0x00B543C8)) ? 1 : 0);
+    MixByte(*reinterpret_cast<const uint8_t*>(0x00B54414) & 1);
+    Mix(Game<uint32_t(__fastcall*)(void*, void*)>(addr::GZFontDirector_DirectorId)(nullptr, nullptr));
+    Mix(Virtual<uint32_t>(director, 0x34));
+
+    // The start, on a director whose COM object makes nothing.
+    {
+        static void* comTable[4] = {};
+        static void* directorTable[16] = {};
+        comTable[3] = reinterpret_cast<void*>(&MockGetClassObject);
+        directorTable[12] = reinterpret_cast<void*>(&MockDirectorCom);
+        MockCom com{comTable, 0};
+        MockDirector mock{directorTable, &com};
+        for (uint32_t argument : {0u, 0x77u}) {
+            MixByte(Game<uint8_t(__fastcall*)(void*, void*, uint32_t)>(addr::GZFontDirector_OnStart)(&mock, nullptr,
+                                                                                                   argument));
+            Mix(com.calls);
+        }
+    }
+
+    // The byte: set to 1 whatever it held.
+    for (const uint8_t held : {0, 1, 0x80, 0xFF}) {
+        uint8_t bytes[3] = {0xA5, held, 0x5A};
+        MixByte(Game<void*(__fastcall*)(void*, void*)>(addr::GZFontStatic_SetByte)(bytes + 1, nullptr) == bytes + 1
+                    ? 1
+                    : 0);
+        MixBytes(bytes, sizeof bytes);
+    }
+    FtStage("director");
+}
+
+// OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,
+// then the holder, its stream and the director (f1 and f5).
 // Every result goes into the fingerprint's `ft` part.
 void DriveFontsDay(const Day& day)
 {
@@ -655,6 +1112,8 @@ void DriveFontsDay(const Day& day)
     DriveObject();
     DriveGlyphs();
     DriveStrings();
+    DriveHolder();
+    DriveDirector();
     log::Write("autotest: fonts driven (hash %08X)", g_ftHash);
 }
 
