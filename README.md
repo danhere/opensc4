@@ -112,6 +112,12 @@ Bugs in the original game that OpenSC4 fixes. The fixes are part of the game: al
 
 Buildings are pre-rendered sprites baked at fixed angles (4 rotations x 5 zooms, day and night). With original assets OpenSC4 can deliver modern resolutions, UI scaling, stability, performance, smoother zoom and better terrain and water, but not free camera angles or relit buildings. Those need new art, like OpenTTD's OpenGFX.
 
+## AI disclosure
+
+Much of OpenSC4's code and documentation was written with [Claude](https://www.anthropic.com/claude) (via Claude Code), working under Dan's direction. Dan sets the goals, reviews the work and decides what ships. Changes are checked by building on Windows, running the tests, and parity checks against the original game's behaviour before they are merged.
+
+Contributors: Dan ([@danhere](https://github.com/danhere)), with Claude (Anthropic) as an AI coding assistant.
+
 ## License
 
 OpenSC4 is licensed under the [GNU Lesser General Public License v2.1 or later](LICENSE) (LGPL-2.1-or-later). Why this license: [docs/decisions.md](docs/decisions.md#license-lgpl-21-or-later).
