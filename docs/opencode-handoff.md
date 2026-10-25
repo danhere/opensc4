@@ -22,6 +22,9 @@ opencode run --title "<piece>" --auto -f <brief.md> "Do the task in the attached
 - Pick the agent with `--agent <name>` (default is `build`); see "Which agent" below.
 - Follow-ups go to the same session: `opencode run -s <session-id> "..."` (or `-c` for the last one).
 - Long runs go in the background; Claude reads only the tail of the output.
+- The session runs inside the background service (`opencode serve --service`), so stopping the `opencode run`
+  command does not stop the work: it carried on running tests and editing files (2026-10-25). To stop a session,
+  stop the service process and any processes under the piece's own build/test dirs, then start the service again.
 
 ## Which agent
 
@@ -33,13 +36,10 @@ tokens, input/output, as of 2026-10-17.
 |---|---|---|---|
 | `build` (default) | `deepseek/deepseek-v4.1-flash` | $0.06 / $0.14 | Routine pieces from a clear brief, builds, parity runs, follow-up fixes. |
 | `deep` | `deepseek/deepseek-v4-pro` | $0.66 / $1.98 | Harder pieces: a new subsystem, tricky reverse-engineered layouts, or a piece `build` came back blocked on twice. |
-| `auto` (trial) | `openrouter/pareto-code` | varies | See the trial note below. |
+| `auto` (dropped) | `openrouter/pareto-code` | varies | Don't use. Dropped 2026-10-25: the router picked Claude Fable and spent about a dollar on a few minutes of reading. |
 | `debug` | `anthropic/claude-sonnet-5.5` | $2 / $10 | Hard debugging only: parity mismatches or crashes `deep` couldn't crack. Brief it with the failing test and what was already tried. |
 
-**Trial (from 2026-10-17):** brief the next piece with `--agent auto` (OpenRouter's Pareto Code router,
-which picks a strong coding model per request, priced at whatever it picks). Afterwards, compare its
-cost on Dan's OpenRouter activity page against a typical `build` piece, and record the result here.
-Keep it or drop it based on that comparison. One trial piece only; then go back to `build` until it's decided.
+**Cheap models only (Dan, 2026-10-25):** use `build` or `deep` (DeepSeek); Kimi or GLM via `-m openrouter/<model>` are fine too. No router and no Fable or Opus; the `debug` agent stays for hard debugging only.
 
 Start with `build`; step up one level only after a blocked or wrong result, and say so in the brief.
 Subagents (`explore`, `general`) and housekeeping (titles, summaries, compaction) use the cheap models.
