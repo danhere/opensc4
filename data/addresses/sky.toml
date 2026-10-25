@@ -2595,6 +2595,15 @@ expect = "83 EC 44 56 8B F1 8A 86"
 source = "Name ours. Ret 8. Slot 3 of the decal's table: unless +0x110 is set, the decal's place (+0xE4, +0xE8), scale (+0xEC, times +0xF8) and turn (+0xF0, the x87 arctangent over 2 pi) from two transforms (each with a byte at +1 saying it holds one); with the description's flag 0x40 and +0x70 not -1, values for the object at +0x120 (its slots 0x38 and 0x34) from the curves at +0x28 and +0x1C. Ours in renderer.effects.decal_update (src/core/effects_draw.h)."
 
 [[entry]]
+name = "SC4EffectDecal::Start"
+address = 0x00582090
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t at_end)"
+expect = "83 EC 50 56 8B F1 8A 46"
+source = "Name ours (the decal's draw in docs/renderer.md). Ret 4. Slot 0 of the decal's table 0x00A9EE78: once (+8), unless told to start at the end with kind 2 (+0x15; kind 3 starts at 1), the decal is put on the terrain: without an owner (+0x120) it takes the terrain view's (0x00602160) overlay manager (its slot 0x48) by the description's flags 4 and 0x40, then adds itself there (slot 0x1C with flag 0x20, slot 0x10 with a texture at +0x11C, else slot 0x18) with its place, size and turn read at the start; the handle (+0x70) gets its block (slots 0x38, 0x34), flags (slot 0x50 with flag 2), opacity (0x44), colour (0x48) and draw mode (0x4C, the byte +0x14). Ours in renderer.effects.decal_draw (src/core/effects_draw.h)."
+
+[[entry]]
 name = "SC4Float3Vector::Assign"
 address = 0x0050C540
 kind = "function"

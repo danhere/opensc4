@@ -1,9 +1,10 @@
 // The effects' draws without particles, written by hand from the game's
 // code: the effects manager's draw (0x00593120), an effect's draw
-// (0x005B8540), a decal's step (0x00582920) and a decal's update
-// (0x00582600). Included by water_effects.cpp after effects_emit.h, whose
-// conventions it keeps: the x87 runs at 53 bits, intermediates are
-// doubles, rounded to float where the game stores one, in the game's order.
+// (0x005B8540), a decal's step (0x00582920), a decal's update
+// (0x00582600) and a decal's draw (0x00582090). Included by
+// water_effects.cpp after effects_emit.h, whose conventions it keeps: the
+// x87 runs at 53 bits, intermediates are doubles, rounded to float where
+// the game stores one, in the game's order.
 //
 // The effect's draw makes its calls through CallThisTraced and
 // CallPlainTraced, so that the comparison's replay answers them from the
@@ -159,6 +160,37 @@ double DwCurve(char* self, std::size_t at, float t)
     return data[index];
 }
 
+// The point of a decal's list of three-float points (from `points`, the
+// last at index `last`) that `t` has reached: the place is the last index
+// (made unsigned as DwCurve's) times `t`, rounded down as there; past the
+// zero at 0x00A81054 the part past it, rounded to float, goes towards the
+// next point: each axis's part of the next one plus, as floats, the rest
+// (the float one at 0x00A81228 less the part) of this one, the first axis
+// unrounded.
+void DwPointAt(const float* points, uint32_t last, float t, float* at)
+{
+    const double place = LfUnsignedF(last) * t;
+    uint32_t index =
+        LfBits(static_cast<float>((place - M<float>(0x00A84D2C)) + M<float>(0x00A9EE6C))) + 0xB4C00000u;
+    if (place == static_cast<double>(static_cast<int32_t>(index + 1)))
+        index += 1;
+    const float part = static_cast<float>(place - LfUnsignedF(index));
+    const float* const p = points + index * 3;
+    if (part > M<float>(0x00A81054)) {
+        const double nx = static_cast<double>(part) * p[3];
+        const double ny = static_cast<double>(part) * p[4];
+        const float nz = static_cast<float>(static_cast<double>(part) * p[5]);
+        const double rest = static_cast<double>(M<float>(0x00A81228)) - part;
+        at[0] = static_cast<float>(rest * p[0] + nx);
+        const float ry = static_cast<float>(rest * p[1]);
+        const float rz = static_cast<float>(rest * p[2]);
+        at[1] = static_cast<float>(static_cast<double>(ry) + ny);
+        at[2] = static_cast<float>(static_cast<double>(rz) + nz);
+    } else {
+        std::memcpy(at, p, 12);
+    }
+}
+
 // 0x00582920 (slot 0x24 of the decal's table 0x00A9EE78, ret 4), with the
 // step. Nothing for a decal without a handle (+0x70 is -1). Its time
 // (+0x114) grows by the step; the time, unrounded, times +0x118 is where it
@@ -231,30 +263,9 @@ void StepDecal(char* self, float step)
     const int32_t count = static_cast<int32_t>(At<uint32_t>(self, 0x44) - At<uint32_t>(self, 0x40)) / 12;
     if (static_cast<uint32_t>(count) <= 1)
         return;
-    float* const points = At<float*>(self, 0x40);
     owner = At<char*>(self, 0x120);
-    const uint32_t last = static_cast<uint32_t>(count - 1);
-    const double place = LfUnsignedF(last) * t;
-    uint32_t index =
-        LfBits(static_cast<float>((place - M<float>(0x00A84D2C)) + M<float>(0x00A9EE6C))) + 0xB4C00000u;
-    if (place == static_cast<double>(static_cast<int32_t>(index + 1)))
-        index += 1;
-    const float part = static_cast<float>(place - LfUnsignedF(index));
-    float* const p = points + index * 3;
     float at[3];
-    if (part > M<float>(0x00A81054)) {
-        const double nx = static_cast<double>(part) * p[3];
-        const double ny = static_cast<double>(part) * p[4];
-        const float nz = static_cast<float>(static_cast<double>(part) * p[5]);
-        const double rest = static_cast<double>(M<float>(0x00A81228)) - part;
-        at[0] = static_cast<float>(rest * p[0] + nx);
-        const float ry = static_cast<float>(rest * p[1]);
-        const float rz = static_cast<float>(rest * p[2]);
-        at[1] = static_cast<float>(static_cast<double>(ry) + ny);
-        at[2] = static_cast<float>(static_cast<double>(rz) + nz);
-    } else {
-        std::memcpy(at, p, sizeof at);
-    }
+    DwPointAt(At<float*>(self, 0x40), static_cast<uint32_t>(count - 1), t, at);
     SuSlot<uint32_t>(owner, 0x48, At<uint32_t>(self, 0x70), at);
 }
 
@@ -335,6 +346,102 @@ void UpdateDecal(char* self, char* first, char* second)
     const double turn = DwCurve(self, 0x1C, zero);
     block[3] = LfBits(static_cast<float>(turn * DwF(self, 0xFC) + DwF(self, 0xF0)));
     SuSlot<uint32_t>(owner, 0x34, At<uint32_t>(self, 0x70), block);
+}
+
+// --- A decal's draw --------------------------------------------------------------------------
+
+// 0x00582090 (slot 0 of the decal's table, ret 4), with a word saying
+// whether to start at the end. It puts the decal on the terrain once:
+// nothing when +8 is set. `t` is 0, or with the word set nothing for a
+// decal of kind 2 (+0x15) and 1 for one of kind 3. Nothing either without
+// the terrain's view (0x00602160). A decal without an owner (+0x120) takes
+// the view's overlay manager (its slot 0x48) number flag 4 of +0xC, plus 2
+// without flag 0x40, as a counted reference (0x005447B0), and nothing more
+// when there is none. Its size (the curve at +0x28 times +0xEC) and turn
+// (the curve at +0x1C times +0xFC plus +0xF0), floats read at `t`, go with
+// the place (+0xE4) to the owner: with flag 0x20 its slot 0x1C (a ring)
+// with the word at +0x10, else with a texture at +0x11C its slot 0x10 with
+// it, else its slot 0x18 with the word at +0x10. The answer is the handle
+// (+0x70); nothing more for -1. The owner is asked the handle's block of
+// nine values (slot 0x38, the first two words zero; the game leaves the
+// others as its stack held them, ours zero), which gets the curve at +0x4C
+// times +0x104 and, with flag 8, +0x100 times +0x64 and that times the
+// first (else two ones), then +0x68 and +0x6C, and goes back (slot 0x34).
+// With flag 2 slot 0x50 gets 1. Then the opacity as the step's (slot
+// 0x44), the point of the list at +0x40 at `t` (slot 0x48; with one point
+// that one) and the byte +0x14 (slot 0x4C). Last `t` goes to +0x114 and +8
+// is set.
+void StartDecal(char* self, uint32_t atEnd)
+{
+    if (At<uint8_t>(self, 8))
+        return;
+    float t = 0.0f;
+    if (atEnd) {
+        const uint8_t kind = At<uint8_t>(self, 0x15);
+        if (kind == 2)
+            return;
+        if (kind == 3)
+            t = 1.0f;
+    }
+    char* const view = reinterpret_cast<char*(__cdecl*)()>(addr::SC4_TerrainPicker)();
+    if (!view)
+        return;
+    if (!At<char*>(self, 0x120)) {
+        const uint32_t flags = At<uint32_t>(self, 0xC);
+        const uint32_t number = (flags >> 2 & 1) | (flags >> 6 & 1 ? 0u : 2u);
+        const uint32_t made = SuSlot<uint32_t>(view, 0x48, number);
+        CallThis<uint32_t>(addr::SC4RefPtr_Assign, self + 0x120, made);
+        if (!At<char*>(self, 0x120))
+            return;
+    }
+    char* owner = At<char*>(self, 0x120);
+    const float size = static_cast<float>(DwCurve(self, 0x28, t) * DwF(self, 0xEC));
+    const float turn = static_cast<float>(DwCurve(self, 0x1C, t) * DwF(self, 0xFC) + DwF(self, 0xF0));
+    char* const place = self + 0xE4;
+    uint32_t handle;
+    if (At<uint32_t>(self, 0xC) >> 5 & 1)
+        handle = SuSlot<uint32_t>(owner, 0x1C, At<uint32_t>(self, 0x10), place, LfBits(size), LfBits(turn));
+    else if (const uint32_t texture = At<uint32_t>(self, 0x11C))
+        handle = SuSlot<uint32_t>(owner, 0x10, texture, place, LfBits(size), LfBits(turn));
+    else
+        handle = SuSlot<uint32_t>(owner, 0x18, At<uint32_t>(self, 0x10), place, LfBits(size), LfBits(turn));
+    At<uint32_t>(self, 0x70) = handle;
+    if (handle == 0xFFFFFFFFu)
+        return;
+    uint32_t block[9] = {};
+    SuSlot<uint32_t>(At<char*>(self, 0x120), 0x38, handle, block);
+    const float ratio = static_cast<float>(DwCurve(self, 0x4C, t) * DwF(self, 0x104));
+    block[4] = LfBits(ratio);
+    if (At<uint32_t>(self, 0xC) >> 3 & 1) {
+        const double width = DwF(self, 0x100) * DwF(self, 0x64);
+        block[5] = LfBits(static_cast<float>(width));
+        block[6] = LfBits(static_cast<float>(width * ratio));
+    } else {
+        block[5] = 0x3F800000u;
+        block[6] = 0x3F800000u;
+    }
+    block[7] = At<uint32_t>(self, 0x68);
+    block[8] = At<uint32_t>(self, 0x6C);
+    SuSlot<uint32_t>(At<char*>(self, 0x120), 0x34, At<uint32_t>(self, 0x70), block);
+    if (At<uint32_t>(self, 0xC) >> 1 & 1)
+        SuSlot<uint32_t>(At<char*>(self, 0x120), 0x50, At<uint32_t>(self, 0x70), 1u);
+    owner = At<char*>(self, 0x120);
+    const double opacity = DwCurve(self, 0x34, t);
+    SuSlot<uint32_t>(owner, 0x44, At<uint32_t>(self, 0x70),
+                     LfBits(static_cast<float>(DwF(self, 0x108) * DwF(self, 0xF4) * opacity)));
+    const float* const points = At<float*>(self, 0x40);
+    owner = At<char*>(self, 0x120);
+    const uint32_t last =
+        static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(self, 0x44) - Word(points)) / 12 - 1);
+    float at[3];
+    if (last == 0)
+        std::memcpy(at, points, sizeof at);
+    else
+        DwPointAt(points, last, t, at);
+    SuSlot<uint32_t>(owner, 0x48, At<uint32_t>(self, 0x70), at);
+    SuSlot<uint32_t>(At<char*>(self, 0x120), 0x4C, At<uint32_t>(self, 0x70), uint32_t{At<uint8_t>(self, 0x14)});
+    At<float>(self, 0x114) = t;
+    At<uint8_t>(self, 8) = 1;
 }
 
 // --- The manager's draw ----------------------------------------------------------------------

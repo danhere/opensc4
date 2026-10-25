@@ -1,4 +1,4 @@
-# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). The glyph blitter (GZFontBlitter, f4) is ours in framework.font.blitter.draw and framework.font.blitter.object; nothing else here is hooked yet.
+# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names. The font system and the font are not hooked yet.
 
 [[entry]]
 name = "GZFontDirector::Construct"
@@ -7,7 +7,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "56 8B F1 E8 0A 82 07 00"
-source = "Name ours, not hooked. The fonts' COM director (vtables 0x00AC5548 and 0x00AC5518), made once by its static getter 0x00896012 (called from 0x004600EE). Registers class 0x20673960 (font system, factory 0x00895F36), 0x1AA404AC (font, 0x00895F4C) and 0x08CDA30B (glyph blitter, 0x00895F65). Its slot 4 (0x00895FCD) makes the font system with interface 0x287FB697 and gives it to the framework as a system service (docs/fonts.md, f1)."
+source = "Name ours. The fonts' COM director (0x4C bytes, vtables 0x00AC5548 and 0x00AC5518), made once by its static getter 0x00896012 (called from 0x004600EE): the director base (0x0090E18D), the vtables, then class 0x20673960 (font system, factory 0x00895F36), 0x1AA404AC (font, 0x00895F4C) and 0x08CDA30B (glyph blitter, 0x00895F65) with AddCls. Plain ret, EAX this. Ours in framework.font.director (docs/fonts.md, f1)."
 
 [[entry]]
 name = "GZFontSystem::Construct"
@@ -185,9 +185,9 @@ name = "GZFontFile::Open"
 address = 0x00898CD9
 kind = "function"
 convention = "thiscall"
-signature = "bool (void* this, void* file)"
+signature = "bool (void* this, void* path)"
 expect = "55 8B EC 51 56 57 33 FF"
-source = "Name ours, not hooked. `ret 4`, this the font's 0x34-byte T2K holder. tsi_NewMemhandler (0x0089A594), an input stream over the file (0x00896D2F, read callback 0x00896E4A), the font type (0x008A1C10: 1 Type 1, whose .pfb is unwrapped by 0x0089F7C6 and reopened; 2 likely TrueType; 7 and 0x16 not identified), then the sfnt and scaler objects (0x0089D662, 0x0089D8DC) (docs/fonts.md, f5)."
+source = "Name ours. `ret 4`, this the font's 0x34-byte T2K holder, path a game string. Close first (0x008976A4), then T2K's memory handler (0x0089A594), the stream over the file (0x00896D2F) and T2K's input stream over it (0x0089AD13, read callback 0x00896E4A), the font type (0x008A1C10: 1 Type 1, kind 2, read whole by 0x00898C6B, unwrapped from its .pfb by 0x0089F7C6 and read again from memory by 0x0089AC7E; 2 TrueType, kind 1; 0x16 kind 3; 7 kind 4), then the sfnt and scaler (0x0089D662, 0x0089D8DC), each step stopping at T2K's first error. Returns AL scaler != 0. Ours in framework.font.t2k.holder (docs/fonts.md, f5)."
 
 [[entry]]
 name = "GZFontBlitter::Blend4444"
@@ -261,3 +261,165 @@ name = "GZFontBlitter::TablesBuilt"
 address = 0x00B5C418
 kind = "data"
 source = "Name ours. The byte right after the blend tables: set by the first blitter constructed (0x00897722) once it has built them (docs/fonts.md, f4)."
+
+[[entry]]
+name = "GZFontDirector::MakeFontSystem"
+address = 0x00895F36
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "6A 70 E8 A3 F6 D4 FF 85"
+source = "Name ours. The director's factory of class 0x20673960: 0x70 bytes from the game's allocator, the font system's constructor (0x00895268) jumped to; null if the allocation fails. Ours in framework.font.director (docs/fonts.md, f1)."
+
+[[entry]]
+name = "GZFontDirector::MakeFont"
+address = 0x00895F4C
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "68 5C 01 00 00 E8 8A F6"
+source = "Name ours. The director's factory of class 0x1AA404AC: 0x15C bytes, the font's constructor (0x00899AAB) jumped to; null if the allocation fails. Ours in framework.font.director (docs/fonts.md, f1)."
+
+[[entry]]
+name = "GZFontDirector::MakeBlitter"
+address = 0x00895F65
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "6A 08 E8 74 F6 D4 FF 85"
+source = "Name ours. The director's factory of class 0x08CDA30B: 8 bytes, the glyph blitter's constructor (0x00897722) jumped to; null if the allocation fails. Ours in framework.font.director (docs/fonts.md, f1)."
+
+[[entry]]
+name = "GZFontDirector::DirectorId"
+address = 0x00895FC7
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 D3 0B A4 5A C3"
+source = "Name ours. Slot 13 (+0x34) of 0x00AC5548, GetDirectorID (6 bytes): EAX 0x5AA40BD3. Ours in framework.font.director (docs/fonts.md, f1)."
+
+[[entry]]
+name = "GZFontDirector::OnStart"
+address = 0x00895FCD
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* unused)"
+expect = "55 8B EC 51 8B 01 83 65"
+source = "Name ours. Slot 4 of 0x00AC5548; `ret 4`, its argument (the COM object) unused. Through the director's COM object (its slot 12) makes class 0x20673960 with interface 0x287FB697; if made, the framework (RZGetFramework) gets it as a system service (slot 3) and it is released. Returns AL 1. Ours in framework.font.director (docs/fonts.md, f1)."
+
+[[entry]]
+name = "GZFontDirector::Get"
+address = 0x00896012
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "F6 05 14 44 B5 00 01 75"
+source = "Name ours. The static getter of the fonts' director at 0x00B543C8 (called from 0x004600EE): the first call sets bit 0 of 0x00B54414, constructs it (0x00895F7B) and leaves its teardown 0x00A7F355 to atexit. Ours in framework.font.director (docs/fonts.md, f1)."
+
+[[entry]]
+name = "GZFontStream::Remaining"
+address = 0x0089603D
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 06 FF 50 1C"
+source = "Name ours. The file's Length (slot 7) less where the font starts (+0x80). Plain ret. Called by Open (0x00898CD9) for T2K's input stream. Ours in framework.font.t2k.stream (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontStatic::SetByte"
+address = 0x0089604D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 C6 00 01 C3"
+source = "Name ours. Six bytes: the byte at this set to 1, EAX this. Its only caller is the static initializer 0x00A78FA5, for 0x00B543C2. Ours in framework.font.director (docs/fonts.md, f1)."
+
+[[entry]]
+name = "GZFontStream::Construct"
+address = 0x00896D2F
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* path)"
+expect = "55 8B EC 51 53 56 57 FF"
+source = "Name ours. `ret 4`. The font's 0x8C-byte file stream: the game's file (cRZFile, 0x00918C00), then +0x80 base, +0x84 scrambled length and +0x88 key all 0; the file opened (1, 2, 1) and, if longer than 9 bytes and starting with MXFN (big-endian), base 9 and the length (big-endian) and key from bytes 4 to 8. Returns this. Ours in framework.font.t2k.stream (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontStream::Read"
+address = 0x00896DDD
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* buffer, uint32_t offset, uint32_t count)"
+expect = "55 8B EC 53 56 8B F1 8B"
+source = "Name ours. `ret 0xC`. Seeks to base + offset (slot 12), reads count bytes (slot 14) and XORs those below the scrambled length with the key. AL false if the read fails. Ours in framework.font.t2k.stream (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontStream::ReadCallback"
+address = 0x00896E4A
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void* stream, void* buffer, uint32_t offset, uint32_t count)"
+expect = "FF 74 24 10 8B 4C 24 08"
+source = "Name ours. T2K's read callback (handed to 0x0089AD13 by Open): 0x00896DDD on the stream, its AL widened. Ours in framework.font.t2k.stream (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontFile::Close"
+address = 0x008976A4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 51 53 56 8B F1"
+source = "Name ours. Plain ret. Deletes the holder's scaler (0x0089F3E6), sfnt (0x0089CABE) and input stream (0x0089AE0C), destroys and frees the file stream (0x00918C70), deletes the memory handler (0x0089A8A7), clearing each field. Returns AL 1. Ours in framework.font.t2k.holder (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontFile::Construct"
+address = 0x00897FED
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "33 C0 56 8B F1 89 06 89"
+source = "Name ours. The font's 0x34-byte T2K holder: +0x00 to +0x1C cleared, the flags word +0x20 0xA, the kind +0x24 0, the glyph map at +0x28 made (0x0092E6C9). Plain ret, EAX this. Ours in framework.font.t2k.holder (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontFile::GetName"
+address = 0x0089801E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* out, uint32_t id)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. `ret 8`. Name id of the face into a game string: T2K's name loader (0x0089F353) in American English, then language 0, then for the full name (4), each also with the class's word +0x76 cleared; UTF-16 or Windows-1252 into the string (0x00911358), else emptied. For id 1 cut at bold and at italic, for id 2 from the first of them; then trimmed. AL out not empty. Ours in framework.font.t2k.names (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontFile::Styles"
+address = 0x0089883F
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "55 8B EC 83 EC 14 56 8B"
+source = "Name ours. Plain ret. 1 bold, 2 italic: from the bits of the scaler's style table and from italic and bold in the lower-cased style name (0x0089801E, id 2). Ours in framework.font.t2k.names (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontFile::BuildNameTable"
+address = 0x008988F1
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 10 56 33"
+source = "Name ours. The 479 entries of 0x00B150F0 (a character and its PostScript glyph name) into the static map 0x00B5C41C, once (by 0x00898EB2 while the map is empty). Ours in framework.font.t2k.names (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontStream::ReadAll"
+address = 0x00898C6B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* vector, uint32_t most)"
+expect = "55 8B EC 53 56 57 8B 7D"
+source = "Name ours. `ret 8`. The vector emptied, then if the file is open sized to the font's length (at most most) and filled by 0x00896DDD from 0. Open uses it for a Type 1 face. Ours in framework.font.t2k.stream (docs/fonts.md, f5)."
+
+[[entry]]
+name = "GZFontFile::GlyphByUnicodeName"
+address = 0x00898EB2
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t character)"
+expect = "55 8B EC 83 EC 24 83 65"
+source = "Name ours. `ret 4`. The glyph of a character for type 1 and 0x16 faces: the holder's map, else by the glyph name from the static table, then by uniXXXX (0x0089F4F3, 0x0089F4B2); a glyph found is kept in the map. 0 if none. Called by RenderGlyph (0x00898FDC). Ours in framework.font.t2k.names (docs/fonts.md, f5)."

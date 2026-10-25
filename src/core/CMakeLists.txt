@@ -352,6 +352,8 @@ add_library(opensc4_core SHARED
   gzbuffer_blit.cpp
   font_blitter.cpp
   font_blitter_autotest.cpp
+  font_director.cpp
+  font_t2k_holder.cpp
   gzbuffer_blit_autotest.cpp
   camera_control.cpp
   photo_mode.cpp
