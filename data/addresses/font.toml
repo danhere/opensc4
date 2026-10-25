@@ -1,4 +1,4 @@
-# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names; the font system (GZFontSystem, f2a) in framework.font.system.object, .faces, .aliases and .getfont. The font system's STLport tables (f2b) in framework.font.system.tables and .shared (four of the shared ones are named in gzui.toml). The font is not hooked yet.
+# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names; the font system (GZFontSystem, f2a) in framework.font.system.object, .faces, .aliases and .getfont. The font system's STLport tables (f2b) in framework.font.system.tables and .shared (four of the shared ones are named in gzui.toml). The font's object, properties and blitter (GZFont, f3a) in framework.font.font.object, .properties and .blitter; the rest of the font is not hooked yet.
 
 [[entry]]
 name = "GZFontDirector::Construct"
@@ -304,7 +304,340 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "51 53 56 8B F1 33 DB 8D"
-source = "Name ours, not hooked. Class 0x1AA404AC, 0x15C bytes, vtable 0x00AC55D8 (64 slots, QueryInterface answers 0x10673960). Size 16, scales 1.0, encoding +0x7C, fallback character 0x20 at +0xE4; makes its T2K holder (0x34 bytes, 0x00897FED) at +0xEC. Plain ret (docs/fonts.md, f3)."
+source = "Name ours. Class 0x1AA404AC, 0x15C bytes, vtable 0x00AC55D8 (64 slots, QueryInterface answers 0x10673960). Size 16, scales 1.0, encoding +0x7C, fallback character 0x20 at +0xE4; makes its T2K holder (0x34 bytes, 0x00897FED) at +0xEC. Plain ret. Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::Destroy"
+address = 0x00896293
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 06 FF 50 10"
+source = "Name ours. Release's last reference: Unload (slot 4), then the deleting destructor (slot 57) with 1. Plain ret. Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::QueryInterface"
+address = 0x0089626E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "81 7C 24 04 60 39 67 10"
+source = "Name ours. Slot 0, `ret 8`: 0x10673960 and 1 give the font, AddRef'd through slot 1 (0x0094C4B1, the framework's shared AddRef of +8); AL only. Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetStyle"
+address = 0x008962A9
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t bits, bool on)"
+expect = "8B 44 24 04 83 E0 3C 80"
+source = "Name ours. Slot 8 (+0x20), `ret 8`: bits 2 to 5 of `bits` set or cleared in the style bits +0x40. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GlyphCache"
+address = 0x008962C4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "83 79 4C 01 8D 81 04 01"
+source = "Name ours. Slot 59 (+0xEC): the monochrome glyph cache +0x104 in draw mode 1, else the grey one +0x130. Plain ret. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetMode"
+address = 0x00896654
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t mode)"
+expect = "8B 44 24 04 85 C0 74 03"
+source = "Name ours. Slot 16 (+0x40), `ret 4`: the draw mode +0x4C, unless 0. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GetPower"
+address = 0x00896662
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "D9 41 54 C3"
+source = "Name ours. Slot 17 (+0x44): the grey ramp's power +0x54 (FLD, RET: four bytes, so ours takes its vtable slot, not a detour). Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GetBias"
+address = 0x00896666
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "D9 41 58 C3"
+source = "Name ours. Slot 19 (+0x4C): the grey ramp's bias +0x58 (four bytes: ours takes its vtable slot). Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GetEncoding"
+address = 0x0089666A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t* out)"
+expect = "8B 41 7C 8B 4C 24 04 89"
+source = "Name ours. Slot 23 (+0x5C), `ret 4`: the text encoding +0x7C into `out`; AL 1 over the encoding's upper bytes. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetEncoding"
+address = 0x00896678
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t encoding)"
+expect = "8B 44 24 04 89 41 7C B0"
+source = "Name ours. Slot 24 (+0x60), `ret 4`: the text encoding +0x7C; AL 1. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SupportsEncoding"
+address = 0x00896684
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t encoding)"
+expect = "32 C0 83 7C 24 04 02 75"
+source = "Name ours. Slot 26 (+0x68), `ret 4`: true for encoding 2 alone; AL only. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GetScale"
+address = 0x00896692
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float* x, float* y)"
+expect = "D9 41 68 8B 44 24 04 D9"
+source = "Name ours. Slot 29 (+0x74), `ret 8`: the scale +0x68, +0x6C (SetScale is slot 30). Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GetExtra"
+address = 0x008966A7
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float* extra, float* one)"
+expect = "D9 41 70 8B 44 24 04 D9"
+source = "Name ours. Slot 31 (+0x7C), `ret 8`: the extra scale +0x70, and 1.0. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GetSpacing"
+address = 0x008966BB
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t* spacing, uint32_t* line_spacing)"
+expect = "8B 41 74 8B 54 24 04 89"
+source = "Name ours. Slot 33 (+0x84), `ret 8`: +0x74 and +0x78; EAX the second. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetSpacing"
+address = 0x008966D0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t spacing, uint32_t line_spacing)"
+expect = "8B 44 24 04 39 41 74 74"
+source = "Name ours. Slot 34 (+0x88), `ret 8`: +0x74 and +0x78, each written only if it differs. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::LineHeight"
+address = 0x008966EB
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 78 03 41 3C C3"
+source = "Name ours. Slot 35 (+0x8C): the line spacing +0x78 and the glyphs' height +0x3C. Seven bytes. Plain ret. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::TextHeight"
+address = 0x008966F2
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* text, uint32_t count)"
+expect = "8B 41 3C C2 08 00"
+source = "Name ours. Slot 37 (+0x94), `ret 8`, both arguments unused: the glyphs' height +0x3C. Six bytes. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::Baseline"
+address = 0x008966F8
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 84 00 00 00 03 41"
+source = "Name ours. Slot 38 (+0x98): +0x84 (set by SetSize) and the line spacing +0x78. Plain ret. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::BelowBaseline"
+address = 0x00896702
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 06 57 FF 90"
+source = "Name ours. Slot 39 (+0x9C): slot 35 less slot 38, slot 38 asked first. Plain ret. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::BlitMode"
+address = 0x00896B2C
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (uint32_t mode)"
+expect = "8B 44 24 04 48 74 0E 48"
+source = "Name ours. The blitter's mode of a draw mode (+0x4C): 2 and 3 as they are, anything else 1. Called by Begin, End, DrawString and DrawStringInRect. Ours in framework.font.font.blitter (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetBlitter"
+address = 0x00896B45
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* blitter)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Slot 54 (+0xD8), `ret 4`: a new blitter (+0x8C) AddRef'd and given the font (its slot 3), the old one taken it (slot 4) and released; nothing if the same. Ours in framework.font.font.blitter (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::Begin"
+address = 0x00896B8E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* picture)"
+expect = "56 8B F1 83 BE 80 00 00"
+source = "Name ours. Slot 55 (+0xDC), `ret 4`: at depth +0x80 of 0 the blitter's slot 5 (the font, the picture, the blitter's mode); the depth one more. AL 1. Ours in framework.font.font.blitter (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::End"
+address = 0x00896BC2
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* picture)"
+expect = "56 8B F1 83 BE 80 00 00"
+source = "Name ours. Slot 56 (+0xE0), `ret 4`: at depth 1 the blitter's slot 6; the depth one less (below 0 too). AL 1. Ours in framework.font.font.blitter (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::Release"
+address = 0x008972A8
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 08 83 F8 01 7E 05"
+source = "Name ours. Slot 2 (+0x08): the count +8 less one while above 1 (signed); at 1 or below 0x00896293 destroys the font and 0 is returned. Plain ret. Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::CacheClear"
+address = 0x008982BA
+kind = "function"
+convention = "thiscall"
+signature = "void (void* cache)"
+expect = "56 8B F1 FF 36 E8 5C D3"
+source = "Name ours. A glyph cache (0x2C bytes) emptied: its block freed, its first six words 0, its table at +0x18 cleared (0x0097C1A2, a tail jump). Plain ret. Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::Unload"
+address = 0x008982E1
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 80 7E 04 00 74"
+source = "Name ours. Slot 4 (+0x10): if loaded (+4), the blitter given up (slot 54 with 0), both glyph caches cleared, +0xFC 0, the blocks of the list +0x100 freed and the list cleared (0x009A841F), the face closed (0x008976A4), +4 cleared. AL 1. Plain ret. Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetExtra"
+address = 0x0089865F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float extra, uint32_t unused)"
+expect = "D9 44 24 04 56 D8 15 50"
+source = "Name ours. Slot 32 (+0x80), `ret 8`: the extra scale +0x70 kept in 0.1 to 10 (0x00A8C950, 0x00A94D50) and, if it differs, stored and both glyph caches cleared. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::CacheDestroy"
+address = 0x0089892E
+kind = "function"
+convention = "thiscall"
+signature = "void (void* cache)"
+expect = "56 8B F1 E8 84 F9 FF FF"
+source = "Name ours. A glyph cache cleared (0x008982BA) and its table taken down (0x0099784E, a tail jump). Plain ret. Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::Destruct"
+address = 0x0089893F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 56 8B F1 57 C7 06 D8"
+source = "Name ours. The destructor: the vtable, Unload, the T2K holder destroyed (0x00897E36) and freed, the caches, the list, the vectors +0xF0 and +0xD8, the six objects +0x90, the levels +0x5C, the family and the path. Plain ret (a tail jump). Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GetFamily"
+address = 0x008989E5
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cIGZString* out)"
+expect = "56 8B 74 24 08 83 C1 20"
+source = "Name ours. Slot 5 (+0x14), `ret 4`: the family +0x20 into `out` (its slot 4 with our text, slot 5). Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::HasStyle"
+address = 0x00898A00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t bits)"
+expect = "8B 41 40 23 44 24 04 2B"
+source = "Name ours. Slot 6 (+0x18), `ret 4`: whether every one of `bits` is in +0x40 (EAX 0 or 1). Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetColours"
+address = 0x00898A13
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t colour, uint32_t colour2)"
+expect = "8B 44 24 04 89 41 44 8B"
+source = "Name ours. Slot 14 (+0x38), `ret 8`: +0x44 and +0x48. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::GetPath"
+address = 0x00898A24
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cIGZString* out)"
+expect = "56 8B 74 24 08 83 C1 0C"
+source = "Name ours. Slot 21 (+0x54), `ret 4`: the path +0x0C into `out`. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetPath"
+address = 0x00898A3F
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const cIGZString* path)"
+expect = "56 8D 71 0C 8B 4C 24 08"
+source = "Name ours. Slot 22 (+0x58), `ret 4`: the path +0x0C from `path`'s text. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::DeletingDestruct"
+address = 0x00898FC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 77 F9 FF FF"
+source = "Name ours. Slot 57 (+0xE4), `ret 4`: the destructor (0x0089893F), freed if bit 0. Ours in framework.font.font.object (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetPower"
+address = 0x00899987
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float power)"
+expect = "D9 44 24 04 D8 15 54 10"
+source = "Name ours. Slot 18 (+0x48), `ret 4`: the grey ramp's power +0x54 kept in 0 to 10 and, if it differs (unordered too), stored and the levels +0x5C rebuilt (0x008993BB). Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::SetBias"
+address = 0x008999CE
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float bias)"
+expect = "D9 44 24 04 D8 15 78 FE"
+source = "Name ours. Slot 20 (+0x50), `ret 4`: the grey ramp's bias +0x58 kept in -1 to 1 and, if it differs, stored and the levels rebuilt. Ours in framework.font.font.properties (docs/fonts.md, f3a)."
+
+[[entry]]
+name = "GZFont::CacheConstruct"
+address = 0x00899A89
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* cache)"
+expect = "33 C0 56 8B F1 8D 4E 18"
+source = "Name ours. A glyph cache (0x2C bytes, the font's +0x104 and +0x130): six words 0, its table at +0x18 made (0x00969AD5). Returns this. Ours in framework.font.font.object (docs/fonts.md, f3a)."
 
 [[entry]]
 name = "GZFont::Load"
