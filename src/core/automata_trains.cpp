@@ -34,15 +34,14 @@
 // group as it was when the train is in none of the five groups, and draws
 // the wanted count only for a group set; the train's +0x2EC is not set by
 // its constructor; the train's QueryInterface answers the car's class ID
-// too, the mass transit train answers neither its own nor the car's
-// (it has the train's); the train's Read reads its first version word into
-// an unset local (ours zero) and its second into the stream argument's own
-// stack slot, as the mass transit train's does its one; its count, its cars
-// and its words go to locals as the trailer's do (the car local zeroed
+// too, and the mass transit train has the train's (it answers the train's
+// and the car's, not its own); the train's Read reads its first version word
+// into an unset local (ours zero) and its second into the stream argument's
+// own stack slot, as the mass transit train's does its one; its count and
+// each car reference go to locals as the trailer's do (the car local zeroed
 // before each reference, the cars not emptied first); its Shutdown stops
 // and releases the cars, and its destructor frees the cars' buffer without
-// releasing them. Slot 195
-// passes its whole argument on to slot 193 but stores its low byte; slot
+// releasing them. Slot 195 passes its whole argument on to slot 193 but stores its low byte; slot
 // 193 hands a count above the car count back to slot 195. AL only in the
 // game (ours zero-extends): the car's and the train's Inits, the train's
 // Shutdown, Write and Read, the mass transit train's Read when the version
