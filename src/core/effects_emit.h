@@ -118,7 +118,7 @@ inline void TakeAndStep(char* self, uint32_t time)
     if (At<uint8_t>(Ptr(particle), 0) &&
         (CallThisTraced(At<uint32_t>(At<char*>(self, 0), 0x50), self, particle, time) & 0xFF)) {
         if (At<uint32_t>(At<char*>(self, 0x24), 0) >> 31 & 1)
-            CallThisTraced(addr::SC4Effect_SpawnFromParticle, self, particle);
+            CallThisTraced(addr::SC4Effect_StartAtBirth, self, particle);
         CallThisTraced(At<uint32_t>(At<char*>(sub, 0), 0x2C), sub, particle);
     } else {
         CallThisTraced(At<uint32_t>(At<char*>(sub, 0), 0x40), sub, particle);

@@ -361,13 +361,13 @@ expect = "81 EC D8 00 00 00 55 8B"
 source = "Name ours (0x005AF390 to 0x005AF930). Slot 0x40 of the second effect class's sub-object (vtable 0x00AA0C10): with an object at +0x274 and a particle within its life, SC4EffectB::RestartParticle; else the particle's own effect stopped (slot 0x10 with +0x188) and released, for effects with +0x26A and nothing at +0x188 the effect named with \"_death\" (0x00AA0CDC) made by the effects manager where the particle was, placed, started and let go, and the particle put on the free list 0x00B0A5CC; last the object at +0x274 told (slot 4 with 0) when no particle is left and +0xC is set."
 
 [[entry]]
-name = "SC4Effect::SpawnFromParticle"
+name = "SC4Effect::StartAtBirth"
 address = 0x005B84C0
 kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, SC4Particle* particle)"
 expect = "51 8B 44 24 08 8B D1 8A"
-source = "Name ours, not analysed. For a running particle, walks the description's table at +0x1CC (0x10 bytes each) and calls 0x005B8290 with each entry whose +0xC is 0 and the particle's position. The emitters call it for descriptions with flag 0x80000000."
+source = "Name ours (was SpawnFromParticle). Ours by hand (renderer.effects.birth_starts, src/core/effects_life.h StartAtBirth). For a running particle (first byte set), walks the description's table at +0x1CC (0x10 bytes each, count read once) from its first entry while the entry's age (+0xC) is exactly the zero at 0x00A81054, calling 0x005B8290 with the entry's suffix (+0) and the particle's place (+0xC); the first other age (or a NaN) ends the walk. The emitters' take-and-step calls it for descriptions with flag 0x80000000."
 
 [[entry]]
 name = "SC4Effect::SetStopped"
@@ -972,7 +972,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, const char* suffix, const float* place)"
 expect = "A0 68 2D B2 00 83 EC 3C"
-source = "Name ours, not analysed. Starts another effect at a place, named by the effect and a suffix: SC4Effect::StepFlag100 calls it with \"_water\" (0x00AA0F2C, 0x005B8E4B) and \"_terrain\" (0x00AA0F20, 0x005B948B); SC4Effect::StartAtAges from 0x005B8489 and SC4Effect::SpawnFromParticle from 0x005B8525."
+source = "Name ours, not analysed. Starts another effect at a place, named by the effect and a suffix: SC4Effect::StepFlag100 calls it with \"_water\" (0x00AA0F2C, 0x005B8E4B) and \"_terrain\" (0x00AA0F20, 0x005B948B); SC4Effect::StartAtAges from 0x005B8489 and SC4Effect::StartAtBirth from 0x005B8525."
 
 [[entry]]
 name = "SC4Effect::StepFlag100"

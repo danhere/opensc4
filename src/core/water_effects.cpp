@@ -389,7 +389,7 @@ bool Recorded(uint32_t target)
     return g_poolHooked &&
            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
             target == addr::SC4EffectBase_AddParticle || target == addr::SC4EffectBase_GiveBackParticle ||
-            target == addr::SC4EffectBaseB_GiveBackParticle || target == addr::SC4Effect_SpawnFromParticle ||
+            target == addr::SC4EffectBaseB_GiveBackParticle || target == addr::SC4Effect_StartAtBirth ||
             target == addr::SC4Effect_SetStopped || target == addr::SC4EffectB_SetStopped ||
             target == addr::SC4EffectBase_SetEnding || target == addr::SC4EffectBase_LetGo ||
             target == addr::SC4EffectBaseB_LetGo ||
@@ -1469,7 +1469,10 @@ uint32_t PartDescriptionByMode(char* part, uint32_t description)
         [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); },
         [&] { return SetPartDescription(part, description); });
 }
-OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
+// The starts at birth (0x005B84C0) are recorded through their switch's
+// detour (TLfBirth, with the starts at set ages below).
+Call1Fn g_SC4Effect_StartAtBirth = nullptr;
+void TLfBirth();
 
 // While the game's run is recorded, what it frees is only noted and freed
 // once the comparison is over: until then the replay reads and writes the
@@ -2453,7 +2456,7 @@ bool HookPool()
                &g_SC4EffectBase_GiveBackParticle) &&
         Detour(addr::SC4EffectBaseB_GiveBackParticle, &TSC4EffectBaseB_GiveBackParticle,
                &g_SC4EffectBaseB_GiveBackParticle) &&
-        Detour(addr::SC4Effect_SpawnFromParticle, &TSC4Effect_SpawnFromParticle, &g_SC4Effect_SpawnFromParticle) &&
+        (g_SC4Effect_StartAtBirth || Detour(addr::SC4Effect_StartAtBirth, &TLfBirth, &g_SC4Effect_StartAtBirth)) &&
         Detour(addr::SC4Effect_SetStopped, &TSC4Effect_SetStopped, &g_SC4Effect_SetStopped) &&
         Detour(addr::SC4EffectB_SetStopped, &TSC4EffectB_SetStopped, &g_SC4EffectB_SetStopped) &&
         Detour(addr::SC4EffectBase_SetEnding, &TSC4EffectBase_SetEnding, &g_SC4EffectBase_SetEnding) &&
@@ -14142,20 +14145,21 @@ std::string LfStartText(const std::vector<LfStartNote>& notes, std::size_t at)
     return text + Hex(reinterpret_cast<const char*>(n.at), sizeof n.at);
 }
 
-void LfAgesCompared(const char* id, char* self)
+// Ours and the game's run with their starts noted (the game's through
+// 0x005B8290's detour); the effect must be left as it was.
+template <typename Ours, typename Game>
+void LfStartsCompared(const char* id, char* self, Ours&& ours, Game&& game)
 {
     const std::vector<char> before(self, self + kEffectSize);
     g_agesOurs.clear();
-    StartAtAges(self, [](char* effect, uint32_t suffix, char* place) {
-        g_agesOurs.push_back(LfNoteStart(effect, suffix, place));
-    });
+    ours([](char* effect, uint32_t suffix, char* place) { g_agesOurs.push_back(LfNoteStart(effect, suffix, place)); });
     std::size_t wrote = 0;
     while (wrote < kEffectSize && before[wrote] == self[wrote])
         ++wrote;
     g_agesGame.clear();
     g_agesThread = GetCurrentThreadId();
     g_agesWatch = true;
-    g_SC4Effect_StartAtAges(self, nullptr);
+    game();
     g_agesWatch = false;
     const bool same = wrote == kEffectSize && g_agesOurs == g_agesGame;
     std::string gameText, ourText;
@@ -14174,6 +14178,12 @@ void LfAgesCompared(const char* id, char* self)
     compare::Record(id, same, gameText, ourText);
 }
 
+void LfAgesCompared(const char* id, char* self)
+{
+    LfStartsCompared(
+        id, self, [&](auto note) { StartAtAges(self, note); }, [&] { g_SC4Effect_StartAtAges(self, nullptr); });
+}
+
 uint32_t __fastcall LfAgesByMode(char* self, void*)
 {
     if (g_effectRecord && g_drawRecording)
@@ -14190,6 +14200,37 @@ uint32_t __fastcall LfAgesByMode(char* self, void*)
     return 0;
 }
 OPENSC4_THUNK(TLfAges, LfAgesByMode, 0)
+
+// The starts at birth (0x005B84C0) are compared as the starts at set ages.
+// The emitters' take-and-step reaches them only for descriptions with flag
+// 0x80000000, which no test city has; OPENSC4_EFFECT_FORCE_STEPS=1 runs
+// them in LfForceSteps too (effects.birth_starts.forced). The pool's and
+// the draw's comparisons record them through this detour.
+StepMode g_birthMode = StepMode::Original;
+
+void LfBirthCompared(const char* id, char* self, char* particle)
+{
+    LfStartsCompared(
+        id, self, [&](auto note) { StartAtBirth(self, particle, note); },
+        [&] { g_SC4Effect_StartAtBirth(self, nullptr, Word(particle)); });
+}
+
+uint32_t __fastcall LfBirthByMode(char* self, void*, uint32_t particle)
+{
+    if (g_effectRecord && Recorded(addr::SC4Effect_StartAtBirth))
+        return EffectRecorded(addr::SC4Effect_StartAtBirth, g_SC4Effect_StartAtBirth, self, particle);
+    if (g_birthMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_StartAtBirth(self, nullptr, particle);
+    if (g_birthMode == StepMode::Ours) {
+        StartAtBirth(self, Ptr(particle), [](char* effect, uint32_t suffix, char* place) {
+            CallThis<uint32_t>(addr::SC4Effect_StartNamed, effect, suffix, place);
+        });
+        return 0;
+    }
+    LfBirthCompared("effects.birth_starts", self, Ptr(particle));
+    return 0;
+}
+OPENSC4_THUNK(TLfBirth, LfBirthByMode, 4)
 
 bool g_forceSteps = false;
 
@@ -14230,6 +14271,46 @@ void LfForceSteps(char* self)
             });
         std::memcpy(self, saved, kEffectSize);
         At<uint32_t>(description, 0) = flags;
+    }
+    if (g_birthMode == StepMode::Compare) {
+        char* particle = nullptr;
+        for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14) && !particle;
+             node = At<char*>(node, 0)) {
+            if (At<uint8_t>(At<char*>(node, 8), 0))
+                particle = At<char*>(node, 8);
+        }
+        if (particle) {
+            // Ages in turn: all zero, zero and -0 then the smallest float,
+            // a NaN first, one first, seven zeros and -1, no entries.
+            static uint32_t turn = 0;
+            static const char suffixes[8][8] = {"_e6a", "_e6b", "_e6c", "_e6d", "_e6e", "_e6f", "_e6g", "_e6h"};
+            static const uint32_t ages[5][8] = {
+                {0, 0, 0, 0, 0, 0, 0, 0},
+                {0, 0x80000000u, 1, 0, 0, 0, 0, 0},
+                {0x7FC00000u, 0, 0, 0, 0, 0, 0, 0},
+                {0x3F800000u, 0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0, 0xBF800000u},
+            };
+            const uint32_t k = turn++ % 6;
+            uint32_t table[8][4] = {};
+            for (uint32_t i = 0; i < 8; ++i) {
+                table[i][0] = Word(const_cast<char*>(suffixes[i]));
+                table[i][3] = k < 5 ? ages[k][i] : 0;
+            }
+            // A copy of the particle that does not run starts nothing.
+            char stopped[0x18];
+            std::memcpy(stopped, particle, sizeof stopped);
+            stopped[0] = 0;
+            const uint32_t begin = At<uint32_t>(description, 0x1CC), end = At<uint32_t>(description, 0x1D0);
+            At<uint32_t*>(description, 0x1CC) = table[0];
+            At<uint32_t*>(description, 0x1D0) = k < 5 ? table[0] + 32 : table[0];
+            g_agesForced = true;
+            LfBirthCompared("effects.birth_starts.forced", self, particle);
+            LfBirthCompared("effects.birth_starts.forced", self, stopped);
+            g_agesForced = false;
+            At<uint32_t>(description, 0x1CC) = begin;
+            At<uint32_t>(description, 0x1D0) = end;
+        }
     }
     if (g_agesMode == StepMode::Compare) {
         char* particle = nullptr;
@@ -14281,7 +14362,7 @@ bool LfHookForce()
     if (!DwHookEffectDraw())
         return false;
     if (!g_forceSteps)
-        log::Write("water effects: the start edge and the starts at set ages forced before each effect's draw");
+        log::Write("water effects: the start edge and the starts at set ages and at birth forced before each effect's draw");
     g_forceSteps = true;
     return true;
 }
@@ -14300,6 +14381,16 @@ bool InstallLifeAges(registry::Mode mode)
         return false;
     return SuInstall(mode, g_agesMode, addr::SC4Effect_StartAtAges, &TLfAges, &g_SC4Effect_StartAtAges,
                      "the effects started at set ages of particles") &&
+           (mode != registry::Mode::Compare || LfHookForce());
+}
+
+bool InstallLifeBirth(registry::Mode mode)
+{
+    if (mode == registry::Mode::Compare && game::IsBuild641() &&
+        !(g_SC4Effect_StartNamed || Detour(addr::SC4Effect_StartNamed, &TLfStartNamed, &g_SC4Effect_StartNamed)))
+        return false;
+    return SuInstall(mode, g_birthMode, addr::SC4Effect_StartAtBirth, &TLfBirth, &g_SC4Effect_StartAtBirth,
+                     "the effects started where particles are born") &&
            (mode != registry::Mode::Compare || LfHookForce());
 }
 
@@ -14327,6 +14418,19 @@ const bool g_registeredLifeAges = registry::Register({
     "with made-up ages (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallLifeAges,
+});
+
+const bool g_registeredLifeBirth = registry::Register({
+    "renderer.effects.birth_starts",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StartAtBirth,
+    "Effects started where the emitters' particles are born (0x005B84C0), for descriptions with flag 0x80000000; "
+    "compare mode notes the starts in ours and the game's, OPENSC4_EFFECT_FORCE_STEPS=1 forces it on every running "
+    "effect with made-up tables (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeBirth,
 });
 
 // The meeting with the ground writes the particle and the effect, draws
