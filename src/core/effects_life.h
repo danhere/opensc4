@@ -428,6 +428,95 @@ void PullEffect(char* self)
     At<float>(self, 0x170) = static_cast<float>(static_cast<double>(v(0x14)) * w);
 }
 
+// 0x005B7030 (ret 4), with a word (0 from both callers, the effect's draw
+// for flag 0x2000 and its taking of a description for flags 0x1000 and
+// 0x2000): the limits of where particles start (+0x200 to +0x214) put on
+// one edge of the map (its size at +0x1F4 and +0x1F8, as the set-up has
+// it). For a description with flag 0x2000 the word grows by what the
+// vector at +0x1E8's +8 says, its first float against its third and the
+// one that is greater (the third when they are equal) against the zero at
+// 0x00A81054: the first above the third and above zero 3, at most zero 2;
+// else the third above zero 0, at most zero 1. Then by the word
+// (unsigned): 0 the first axis from zero to +0x1F4 and the third at zero;
+// 1 the first at +0x1F4 and the third from zero to +0x1F8; 2 the first
+// from zero to +0x1F4 and the third at +0x1F8; 3 the first at zero and the
+// third from zero to +0x1F8; anything else leaves them. The second axis
+// is not touched.
+void SetStartEdge(char* self, uint32_t which)
+{
+    if (At<uint32_t>(At<char*>(self, 0x24), 0) >> 13 & 1) {
+        char* const pushed = At<char*>(self, 0x1E8) + 8;
+        const float a = At<float>(pushed, 0);
+        const float b = At<float>(pushed, 8);
+        const float zero = M<float>(0x00A81054);
+        if (a > b)
+            which += a > zero ? 3 : 2;
+        else
+            which += b > zero ? 0 : 1;
+    }
+    switch (which) {
+    case 0:
+        At<uint32_t>(self, 0x200) = 0;
+        At<uint32_t>(self, 0x20C) = At<uint32_t>(self, 0x1F4);
+        At<uint32_t>(self, 0x208) = 0;
+        At<uint32_t>(self, 0x214) = 0;
+        break;
+    case 1:
+        At<uint32_t>(self, 0x200) = At<uint32_t>(self, 0x1F4);
+        At<uint32_t>(self, 0x20C) = At<uint32_t>(self, 0x1F4);
+        At<uint32_t>(self, 0x208) = 0;
+        At<uint32_t>(self, 0x214) = At<uint32_t>(self, 0x1F8);
+        break;
+    case 2:
+        At<uint32_t>(self, 0x200) = 0;
+        At<uint32_t>(self, 0x20C) = At<uint32_t>(self, 0x1F4);
+        At<uint32_t>(self, 0x208) = At<uint32_t>(self, 0x1F8);
+        At<uint32_t>(self, 0x214) = At<uint32_t>(self, 0x1F8);
+        break;
+    case 3:
+        At<uint32_t>(self, 0x200) = 0;
+        At<uint32_t>(self, 0x20C) = 0;
+        At<uint32_t>(self, 0x208) = 0;
+        At<uint32_t>(self, 0x214) = At<uint32_t>(self, 0x1F8);
+        break;
+    default:
+        break;
+    }
+}
+
+// 0x005B8410 (no arguments, plain RET), for descriptions with flag
+// 0x80000000: effects started where particles are when they reach set
+// ages. The description's table at +0x1CC holds entries of 16 bytes, a
+// suffix (a string's address) first and an age at +0xC. For each particle
+// of the list at +0x14 that runs (its first byte), with the table's count
+// worked out anew, each entry whose age the particle's (+4) has not passed
+// and will reach within the step: its age less the entry's at most the
+// zero at 0x00A81054, and that plus the step (+0x108) above it (doubles,
+// so a NaN starts nothing). `start` gets the effect, the suffix and the
+// particle's place (+0xC), as 0x005B8290 does in the game. The table's
+// first entry and the particle's age are read again for each entry.
+template <typename Start>
+void StartAtAges(char* self, Start&& start)
+{
+    char* const table = At<char*>(self, 0x24) + 0x1CC;
+    const double zero = M<float>(0x00A81054);
+    for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14);
+         node = At<char*>(node, 0)) {
+        const int32_t count = static_cast<int32_t>(At<uint32_t>(table, 4) - At<uint32_t>(table, 0)) >> 4;
+        char* const particle = At<char*>(node, 8);
+        if (!At<uint8_t>(particle, 0) || count <= 0)
+            continue;
+        for (int32_t i = 0; i < count; ++i) {
+            char* const entry = At<char*>(table, 0) + i * 16;
+            const double left = static_cast<double>(At<float>(particle, 4)) - At<float>(entry, 0xC);
+            if (!(left <= zero))
+                continue;
+            if (left + At<float>(self, 0x108) > zero)
+                start(self, At<uint32_t>(entry, 0), particle + 0xC);
+        }
+    }
+}
+
 // 0x005B9790 (ret 8): a particle's full step, which the plain step
 // (0x005B9BA0) hands over to for descriptions with a flag of the mask at
 // 0x00B22E14; the effect, the particle and the step. The particle's age

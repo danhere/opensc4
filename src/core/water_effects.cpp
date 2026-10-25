@@ -14052,6 +14052,283 @@ const bool g_registeredLifeStepFull = registry::Register({
     InstallLifeStepFull,
 });
 
+// The start edge (0x005B7030) writes only the effect and is compared as
+// the pull. The starts at set ages (0x005B8410) start other effects
+// (0x005B8290), which cannot run twice: ours runs first with each start
+// only noted (the effect, the suffix, the place's address and the place),
+// then the game's with 0x005B8290's calls noted at its entry (a detour in
+// compare mode) and passed on. The notes must be the same, and ours must
+// leave the effect as it was.
+//
+// No description in the test cities has flag 0x2000 or 0x80000000, so
+// neither is called there. With OPENSC4_EFFECT_FORCE_STEPS=1 (compare mode
+// only) both run on every running effect before its draw (LfForceSteps),
+// and what they change is put back after. The start edge: one choice per
+// draw in turn of the description's flag 0x2000 (set or cleared), the
+// vector at +0x1E8 (the effect's own or one of seven made up: each order
+// of its two floats against each other and zero, equal ones, a NaN) and
+// the word (0 to 4, or -1). The starts at set ages: the description's
+// table swapped for eight made-up entries with ages around the first
+// running particle's (its age, half a step and a step on, the floats just
+// below and above it, zero, far off, a NaN), whose starts the game's run
+// only notes. They are recorded as effects.start_edge.forced and
+// effects.age_starts.forced.
+StepMode g_edgeMode = StepMode::Original, g_agesMode = StepMode::Original;
+Call1Fn g_SC4Effect_StartEdge = nullptr;
+Call0Fn g_SC4Effect_StartAtAges = nullptr;
+Call2Fn g_SC4Effect_StartNamed = nullptr;
+
+uint32_t __fastcall LfEdgeByMode(char* self, void*, uint32_t which)
+{
+    const auto game = [&] { return g_SC4Effect_StartEdge(self, nullptr, which); };
+    const auto ours = [&] {
+        SetStartEdge(self, which);
+        return 0u;
+    };
+    if (g_effectRecord && g_drawRecording)
+        return EffectRecorded(addr::SC4Effect_StartEdge, g_SC4Effect_StartEdge, self, which);
+    if (g_edgeMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_edgeMode == StepMode::Ours)
+        return ours();
+    return SuCompared("effects.start_edge", self, nullptr, ours, [&] {
+        game();
+        return 0u;
+    });
+}
+OPENSC4_THUNK(TLfEdge, LfEdgeByMode, 4)
+
+// One start as noted.
+struct LfStartNote {
+    uint32_t effect, suffix, place, at[3];
+    bool operator==(const LfStartNote& other) const { return std::memcmp(this, &other, sizeof *this) == 0; }
+};
+std::vector<LfStartNote> g_agesOurs, g_agesGame;
+bool g_agesWatch = false, g_agesForced = false;
+int g_agesDepth = 0;
+DWORD g_agesThread = 0;
+
+LfStartNote LfNoteStart(char* effect, uint32_t suffix, char* place)
+{
+    LfStartNote note{Word(effect), suffix, Word(place), {}};
+    std::memcpy(note.at, place, sizeof note.at);
+    return note;
+}
+
+uint32_t __fastcall LfStartNamedNoted(char* self, void*, uint32_t suffix, uint32_t place)
+{
+    if (!g_agesWatch || g_agesDepth > 0 || GetCurrentThreadId() != g_agesThread)
+        return g_SC4Effect_StartNamed(self, nullptr, suffix, place);
+    g_agesGame.push_back(LfNoteStart(self, suffix, Ptr(place)));
+    if (g_agesForced)
+        return 0;
+    ++g_agesDepth;
+    const uint32_t result = g_SC4Effect_StartNamed(self, nullptr, suffix, place);
+    --g_agesDepth;
+    return result;
+}
+OPENSC4_THUNK(TLfStartNamed, LfStartNamedNoted, 8)
+
+std::string LfStartText(const std::vector<LfStartNote>& notes, std::size_t at)
+{
+    char text[112];
+    if (at >= notes.size()) {
+        std::snprintf(text, sizeof text, "%zu starts", notes.size());
+        return text;
+    }
+    const LfStartNote& n = notes[at];
+    std::snprintf(text, sizeof text, "%zu starts, #%zu effect %08X suffix %08X place %08X ", notes.size(), at, n.effect,
+                  n.suffix, n.place);
+    return text + Hex(reinterpret_cast<const char*>(n.at), sizeof n.at);
+}
+
+void LfAgesCompared(const char* id, char* self)
+{
+    const std::vector<char> before(self, self + kEffectSize);
+    g_agesOurs.clear();
+    StartAtAges(self, [](char* effect, uint32_t suffix, char* place) {
+        g_agesOurs.push_back(LfNoteStart(effect, suffix, place));
+    });
+    std::size_t wrote = 0;
+    while (wrote < kEffectSize && before[wrote] == self[wrote])
+        ++wrote;
+    g_agesGame.clear();
+    g_agesThread = GetCurrentThreadId();
+    g_agesWatch = true;
+    g_SC4Effect_StartAtAges(self, nullptr);
+    g_agesWatch = false;
+    const bool same = wrote == kEffectSize && g_agesOurs == g_agesGame;
+    std::string gameText, ourText;
+    if (!same) {
+        std::size_t at = 0;
+        while (at < g_agesOurs.size() && at < g_agesGame.size() && g_agesOurs[at] == g_agesGame[at])
+            ++at;
+        gameText = LfStartText(g_agesGame, at);
+        ourText = LfStartText(g_agesOurs, at);
+        if (wrote < kEffectSize) {
+            char text[40];
+            std::snprintf(text, sizeof text, ", wrote effect+%zX", wrote);
+            ourText += text;
+        }
+    }
+    compare::Record(id, same, gameText, ourText);
+}
+
+uint32_t __fastcall LfAgesByMode(char* self, void*)
+{
+    if (g_effectRecord && g_drawRecording)
+        return EffectRecorded(addr::SC4Effect_StartAtAges, g_SC4Effect_StartAtAges, self);
+    if (g_agesMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_StartAtAges(self, nullptr);
+    if (g_agesMode == StepMode::Ours) {
+        StartAtAges(self, [](char* effect, uint32_t suffix, char* place) {
+            CallThis<uint32_t>(addr::SC4Effect_StartNamed, effect, suffix, place);
+        });
+        return 0;
+    }
+    LfAgesCompared("effects.age_starts", self);
+    return 0;
+}
+OPENSC4_THUNK(TLfAges, LfAgesByMode, 0)
+
+bool g_forceSteps = false;
+
+void LfForceSteps(char* self)
+{
+    if (!g_forceSteps || g_effectRecord || g_effectReplay || !At<uint8_t>(self, 9) || !At<char*>(self, 0x24))
+        return;
+    char* const description = At<char*>(self, 0x24);
+    const uint32_t flags = At<uint32_t>(description, 0);
+    if (g_edgeMode == StepMode::Compare) {
+        static uint32_t turn = 0;
+        static const uint32_t words[] = {0, 1, 2, 3, 4, 0xFFFFFFFFu};
+        static const uint32_t pairs[][2] = {
+            {0x3F800000u, 0},           {0xBF800000u, 0xC0000000u}, {0, 0xBF800000u}, {0xBF800000u, 0x3F800000u},
+            {0xC0000000u, 0xBF800000u}, {0x3F000000u, 0x3F000000u}, {0x7FC00000u, 0},
+        };
+        const uint32_t k = turn++ % 96;
+        const uint32_t vector = k / 2 % 8;
+        const uint32_t word = words[k / 16];
+        uint32_t made[5] = {};
+        char saved[kEffectSize];
+        std::memcpy(saved, self, kEffectSize);
+        if (vector) {
+            made[2] = pairs[vector - 1][0];
+            made[4] = pairs[vector - 1][1];
+            At<uint32_t*>(self, 0x1E8) = made;
+        }
+        At<uint32_t>(description, 0) = (k & 1) && At<char*>(self, 0x1E8) ? flags | 0x2000u : flags & ~0x2000u;
+        SuCompared(
+            "effects.start_edge.forced", self, nullptr,
+            [&] {
+                SetStartEdge(self, word);
+                return 0u;
+            },
+            [&] {
+                g_SC4Effect_StartEdge(self, nullptr, word);
+                return 0u;
+            });
+        std::memcpy(self, saved, kEffectSize);
+        At<uint32_t>(description, 0) = flags;
+    }
+    if (g_agesMode == StepMode::Compare) {
+        char* particle = nullptr;
+        for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14) && !particle;
+             node = At<char*>(node, 0)) {
+            if (At<uint8_t>(At<char*>(node, 8), 0))
+                particle = At<char*>(node, 8);
+        }
+        if (!particle)
+            return;
+        static const char suffixes[8][8] = {"_e5a", "_e5b", "_e5c", "_e5d", "_e5e", "_e5f", "_e5g", "_e5h"};
+        const float age = At<float>(particle, 4);
+        const float step = At<float>(self, 0x108);
+        const uint32_t nan = 0x7FC00000u;
+        float notANumber = 0.0f;
+        std::memcpy(&notANumber, &nan, 4);
+        const float ages[8] = {age,
+                               age + step * 0.5f,
+                               age + step,
+                               std::nextafter(age, -1.0e30f),
+                               std::nextafter(age, 1.0e30f),
+                               0.0f,
+                               age + 1000.0f,
+                               notANumber};
+        uint32_t table[8][4] = {};
+        for (uint32_t i = 0; i < 8; ++i) {
+            table[i][0] = Word(const_cast<char*>(suffixes[i]));
+            std::memcpy(&table[i][3], &ages[i], 4);
+        }
+        const uint32_t begin = At<uint32_t>(description, 0x1CC), end = At<uint32_t>(description, 0x1D0);
+        At<uint32_t*>(description, 0x1CC) = table[0];
+        At<uint32_t*>(description, 0x1D0) = table[0] + 32;
+        g_agesForced = true;
+        LfAgesCompared("effects.age_starts.forced", self);
+        g_agesForced = false;
+        At<uint32_t>(description, 0x1CC) = begin;
+        At<uint32_t>(description, 0x1D0) = end;
+    }
+}
+
+// Forcing hooks the effect's draw (DwHookEffectDraw, below).
+bool DwHookEffectDraw();
+
+bool LfHookForce()
+{
+    const char* v = std::getenv("OPENSC4_EFFECT_FORCE_STEPS");
+    if (!v || *v != '1')
+        return true;
+    if (!DwHookEffectDraw())
+        return false;
+    if (!g_forceSteps)
+        log::Write("water effects: the start edge and the starts at set ages forced before each effect's draw");
+    g_forceSteps = true;
+    return true;
+}
+
+bool InstallLifeEdge(registry::Mode mode)
+{
+    return SuInstall(mode, g_edgeMode, addr::SC4Effect_StartEdge, &TLfEdge, &g_SC4Effect_StartEdge,
+                     "the edge where an effect's particles start") &&
+           (mode != registry::Mode::Compare || LfHookForce());
+}
+
+bool InstallLifeAges(registry::Mode mode)
+{
+    if (mode == registry::Mode::Compare && game::IsBuild641() &&
+        !(g_SC4Effect_StartNamed || Detour(addr::SC4Effect_StartNamed, &TLfStartNamed, &g_SC4Effect_StartNamed)))
+        return false;
+    return SuInstall(mode, g_agesMode, addr::SC4Effect_StartAtAges, &TLfAges, &g_SC4Effect_StartAtAges,
+                     "the effects started at set ages of particles") &&
+           (mode != registry::Mode::Compare || LfHookForce());
+}
+
+const bool g_registeredLifeEdge = registry::Register({
+    "renderer.effects.start_edge",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StartEdge,
+    "The limits of where an effect's particles start put on one edge of the map (0x005B7030), for descriptions with "
+    "flag 0x2000; compare mode runs ours and the game's on the same effect, OPENSC4_EFFECT_FORCE_STEPS=1 forces it "
+    "on every running effect (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeEdge,
+});
+
+const bool g_registeredLifeAges = registry::Register({
+    "renderer.effects.age_starts",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StartAtAges,
+    "Effects started where particles reach set ages (0x005B8410), for descriptions with flag 0x80000000; compare "
+    "mode notes the starts in ours and the game's, OPENSC4_EFFECT_FORCE_STEPS=1 forces it on every running effect "
+    "with made-up ages (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeAges,
+});
+
 // The meeting with the ground writes the particle and the effect, draws
 // random numbers and asks the terrain, all of which can be done twice; the
 // effects it may start ("_water", "_terrain", 0x005B8290) cannot, so an
@@ -15234,7 +15511,7 @@ const bool g_registeredDrawB = registry::Register({
 bool DwRecorded(uint32_t target)
 {
     for (const uint32_t address :
-         {addr::SC4Effect_StepFlag2000, addr::SC4Effect_PathVelocity, addr::SC4Effect_StepFlag80000000,
+         {addr::SC4Effect_StartEdge, addr::SC4Effect_PathVelocity, addr::SC4Effect_StartAtAges,
           addr::SC4Effect_StepParticle, addr::SC4Effect_Emit, addr::SC4Effect_BeforeParticles,
           addr::SC4Effect_DrawParticlesTextured, addr::SC4Effect_DrawParticles, addr::SC4EffectB_DrawParticles,
           addr::SC4Effect_NotDrawn, addr::SC4EffectB_NotDrawn, addr::SC4Effect_StepFlag800000,
@@ -15263,8 +15540,6 @@ bool DwRecorded(uint32_t target)
     }                                                                                                                  \
     OPENSC4_THUNK(TDw##Name, DDw##Name, 4)
 
-OPENSC4_DRAW_HOOK1(SC4Effect_StepFlag2000)
-OPENSC4_DRAW_HOOK0(SC4Effect_StepFlag80000000)
 OPENSC4_DRAW_HOOK1(SC4RenderContext_SetColourAlt)
 OPENSC4_DRAW_HOOK0(SC4RenderContext_UpdateViewMatrix)
 OPENSC4_DRAW_HOOK1(SC4RenderContext_SetRenderState)
@@ -15409,6 +15684,7 @@ uint32_t DwEffectDrawRun(char* self, uint32_t step, uint32_t context)
 
 uint32_t __fastcall DwEffectDrawByMode(char* self, void*, uint32_t step, uint32_t context)
 {
+    LfForceSteps(self);
     if (!DwNoting())
         return DwEffectDrawRun(self, step, context);
     DwAddNote(kDwEffect, self, step, context);
@@ -15998,9 +16274,8 @@ bool InstallDrawEffect(registry::Mode mode)
           (g_SC4Effect_Wander || Detour(addr::SC4Effect_StepFlag800000, &TLfWander, &g_SC4Effect_Wander)) &&
           (g_SC4Effect_PathVelocity ||
            Detour(addr::SC4Effect_PathVelocity, &TLfPull, &g_SC4Effect_PathVelocity)) &&
-          Detour(addr::SC4Effect_StepFlag2000, &TDwSC4Effect_StepFlag2000, &g_DwSC4Effect_StepFlag2000) &&
-          Detour(addr::SC4Effect_StepFlag80000000, &TDwSC4Effect_StepFlag80000000,
-                 &g_DwSC4Effect_StepFlag80000000) &&
+          (g_SC4Effect_StartEdge || Detour(addr::SC4Effect_StartEdge, &TLfEdge, &g_SC4Effect_StartEdge)) &&
+          (g_SC4Effect_StartAtAges || Detour(addr::SC4Effect_StartAtAges, &TLfAges, &g_SC4Effect_StartAtAges)) &&
           PdHookBuffered() && PdHookPlain() && PdHookB() &&
           (g_SC4EffectB_NotDrawn || Detour(addr::SC4EffectB_NotDrawn, &TSdNotDrawn, &g_SC4EffectB_NotDrawn)) &&
           Detour(addr::SC4RenderContext_SetColourAlt, &TDwSC4RenderContext_SetColourAlt,

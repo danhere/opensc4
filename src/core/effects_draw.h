@@ -71,7 +71,7 @@ uint32_t DrawEffect(char* self, float step, char* context)
     At<double>(self, 0x110) = time + At<double>(self, 0x110);
     At<float>(self, 0x1FC) = static_cast<float>(SuSlot<double>(At<char*>(self, 0x1F0), 0x74));
     if (At<uint32_t>(At<char*>(self, 0x24), 0) >> 13 & 1)
-        CallThisTraced(addr::SC4Effect_StepFlag2000, self, 0u);
+        CallThisTraced(addr::SC4Effect_StartEdge, self, 0u);
     char* d = At<char*>(self, 0x24);
     if (At<uint32_t>(d, 0x1A4) != At<uint32_t>(d, 0x1A8) && DwF(d, 0x1B0) > M<float>(0x00A81054)) {
         CallThisTraced(addr::SC4Effect_PathVelocity, self);
@@ -94,7 +94,7 @@ uint32_t DrawEffect(char* self, float step, char* context)
     At<float>(self, 0x13C) = static_cast<float>(static_cast<double>(vx) + px);
     At<float>(self, 0x140) = static_cast<float>(static_cast<double>(vy) + py);
     if (At<uint32_t>(At<char*>(self, 0x24), 0) >> 31)
-        CallThisTraced(addr::SC4Effect_StepFlag80000000, self);
+        CallThisTraced(addr::SC4Effect_StartAtAges, self);
     char* node = At<char*>(At<char*>(self, 0x14), 0);
     while (node != At<char*>(self, 0x14)) {
         char* const particle = At<char*>(node, 8);
