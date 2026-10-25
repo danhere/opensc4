@@ -1,4 +1,4 @@
-# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names; the font system (GZFontSystem, f2a) in framework.font.system.object, .faces, .aliases and .getfont. The font system's STLport tables (f2b) in framework.font.system.tables and .shared (four of the shared ones are named in gzui.toml). The font's object, properties and blitter (GZFont, f3a) in framework.font.font.object, .properties and .blitter; the rest of the font is not hooked yet.
+# The framework's fonts: the font system, the font class and its glyph blitter (docs/fonts.md). Ours: the glyph blitter (GZFontBlitter, f4) in framework.font.blitter.draw and framework.font.blitter.object; the director (GZFontDirector, f1) in framework.font.director; the T2K holder and its stream (GZFontFile, GZFontStream, f5) in framework.font.t2k.stream, .holder and .names; the font system (GZFontSystem, f2a) in framework.font.system.object, .faces, .aliases and .getfont. The font system's STLport tables (f2b) in framework.font.system.tables and .shared (four of the shared ones are named in gzui.toml). The font's object, properties and blitter (GZFont, f3a) in framework.font.font.object, .properties and .blitter; its containers (f3b) in framework.font.font.containers and .shared; its loading, size and scale (f3c) in framework.font.font.load; the rest of the font is not hooked yet.
 
 [[entry]]
 name = "GZFontDirector::Construct"
@@ -646,7 +646,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this)"
 expect = "55 8B EC 51 56 8B F1 80"
-source = "Name ours, not hooked. Slot 3 (+0x0C); plain ret. Opens the face's file with T2K (0x00898CD9), applies the size (slot 11), the style flags and the fallback glyph, and makes the glyph blitter (0x00897722) at +0x8C. Sets the loaded byte at +4 and returns it (docs/fonts.md, f3)."
+source = "Name ours. Slot 3 (+0x0C); plain ret. Unless loaded (+4) or the path +0x0C is empty: when RZFile::Exists finds the path and the T2K holder opens it (0x00898CD9), the size (slot 11, if +0x38; refused, nothing more), the family named (0x0089801E with 1), the face's style bits over bits 2 to 5 of +0x40, the kind +0x34 (2 when the scaler's +0x5C, else 1), +0xE8 the glyph of the fallback character +0xE4 (T2K 0x0089F4B2; 0 on an error), loaded when the family has text. Once loaded, a glyph blitter made (0x00897722) and AddRef'd at +0x8C if none, the levels rebuilt (0x008993BB). AL the loaded byte. Ours in framework.font.font.load (docs/fonts.md, f3c)."
 
 [[entry]]
 name = "GZFont::SetSize"
@@ -655,7 +655,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, uint32_t pixels)"
 expect = "55 8B EC 83 EC 14 8B 45"
-source = "Name ours, not hooked. Slot 11 (+0x2C); `ret 4`. Pixel height (at most 0x800) into +0x38; sets T2K's transform at 72 dpi (0x0089DC9A) and stores the ascent (+0x88), descent (+0x84) and line height (+0x3C, one more for type 1 and 0x16 faces). The size is where a crisp-text hook would scale (docs/fonts.md)."
+source = "Name ours. Slot 11 (+0x2C); `ret 4`. False for 0 or while either glyph cache counts glyphs (+0x12C, +0x158); the size (at most 0x800) into +0x38; true without a scaler; else T2K's transformation at 72 dpi (0x0089DC9A, the scales times 65536 times the size, ftol) and, from the scaler, +0x88 its +0x7C, +0x84 +0x7C and +0x6C, +0x3C +0x7C less +0x74 and +0x6C (16.16, signed; 1 when 0; one more, and another above 28, for holders of kind 2 and 3); AL whether T2K reported nothing. The size is where a crisp-text hook would scale. Ours in framework.font.font.load (docs/fonts.md, f3c)."
 
 [[entry]]
 name = "GZFont::SetScale"
@@ -664,7 +664,25 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, float x, float y)"
 expect = "55 8B EC 83 EC 10 D9 05"
-source = "Name ours, not hooked. Slot 30 (+0x78); `ret 8`. Clamps both scales, stores them at +0x68/+0x6C, empties the glyph cache and resets T2K's transform (docs/fonts.md, f3)."
+source = "Name ours. Slot 30 (+0x78); `ret 8`. Both scales kept in 0.01 to 1000 (0x00A823A4, 0x00A8FAF0) and, if either differs from +0x68/+0x6C (unordered too), both stored, both glyph caches cleared and T2K's transformation set at the size (no check for a face, its error unread). Ours in framework.font.font.load (docs/fonts.md, f3c)."
+
+[[entry]]
+name = "GZFont::RebuildLevels"
+address = 0x008993BB
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "55 8B EC 83 EC 0C D9 05"
+source = "Name ours. The grey ramp's 256 levels +0x5C from its power +0x54 and bias +0x58: with power 1.0 and bias 0.0 the vector emptied (0x0040E490) and the grey cache cleared; else 256 zeros (0x004610A0), the grey cache cleared, and level i = ftol(255 * f(i / 255)) on the x87, f the power through 0x004C37A0 (pow of floats) and the bias's curve pow(bias + 1, 1 / 0x009F2160(2.0)) bending each half. Plain ret. Called by Load and the ramp's setters. Ours in framework.font.font.load (docs/fonts.md, f3c)."
+
+[[entry]]
+name = "GZFont::SupportsLanguage"
+address = 0x00898A5A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t language)"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Name ours. Slot 25 (+0x64), `ret 4`: true for languages 8 and 0x10; else one or two sample characters of the language (0x61 for 0 and 0x4E4, 0xE01/0xE2C for 0x36A, 0x3061/0x30A4 for 0x3A4, ...; none for others) gathered in a vector of words (0x007EBD30) and asked of T2K (0x0089F538 with flags 0), false at the first without a glyph. Ours in framework.font.font.load (docs/fonts.md, f3c)."
 
 [[entry]]
 name = "GZFont::FitString"

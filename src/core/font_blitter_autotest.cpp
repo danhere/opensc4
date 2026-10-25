@@ -54,6 +54,11 @@
 // (resize, fill insert, erase, overflow), the UTF-16 text's vector and
 // find, both maps of characters, a glyph cache's table, a list of words, a
 // vector of pointers out of room and a holder taken down.
+//
+// Then the font's loading, size and scale (f3c, docs/fonts.md, "f3c: the
+// font's loading, size and scale are ours"), by address on fonts of our own
+// given the paths of faces: Load, the sample characters of 21 languages,
+// sizes and scales past their limits, the levels over powers and biases.
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -2964,12 +2969,153 @@ void DriveFontContainers()
     FtStage("fontcontainers");
 }
 
+// ====================================================================================
+// The font's loading, size and scale (f3c)
+
+// Fonts of our own given the paths of faces (the game's, Windows's and our
+// own files), loaded by address and asked their languages; sizes set past
+// both ends and while a glyph cache holds glyphs; scales past both ends, -0,
+// infinities and NaN, with strings measured at sensible ones; the levels
+// rebuilt over powers and biases set in place (off, NaN among them); Load
+// again while loaded, without a size, with a blitter of its own, refused by
+// SetSize, of a file that is not there and of no path.
+using FFloatTwo = uint32_t(__fastcall*)(void*, void*, float, float);
+
+void SetFontPath(void* f, const std::string& path)
+{
+    GameString s = MakeString(path.c_str());
+    Game<SOne>(addr::GZFont_SetPath)(f, nullptr, U(&s));
+    FreeString(s);
+}
+
+void DriveFontLoad()
+{
+    const auto load = Game<SThis>(addr::GZFont_Load);
+    const auto setSize = Game<SOne>(addr::GZFont_SetSize);
+    const auto languageOf = Game<SOne>(addr::GZFont_SupportsLanguage);
+    const auto setScale = Game<FFloatTwo>(addr::GZFont_SetScale);
+    const auto rebuild = Game<SThis>(addr::GZFont_RebuildLevels);
+    const char text[] = "OpenSC4 fonts, Wgjpqy 0123456789";
+    const auto measure = [&](void* f) {
+        for (const uint32_t mode : {1u, 2u}) {
+            Game<SOne>(addr::GZFont_SetMode)(f, nullptr, mode);
+            Mix(Virtual<uint32_t>(f, 0xC0, text, uint32_t{sizeof text - 1}));
+        }
+        MixFontFields(f);
+    };
+    const uint32_t languages[] = {0,     1,     8,     0x10,  0x36A, 0x3A4, 0x3A8, 0x3B5, 0x3B6,      0x4E2,     0x4E3,
+                                  0x4E4, 0x4E5, 0x4E6, 0x4E7, 0x4E8, 0x4E9, 0x4EA, 0x369, 0xFFFFFFFF, 0x80000000};
+    const float inf = std::numeric_limits<float>::infinity();
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+
+    std::vector<std::string> paths = FontPaths();
+    for (const std::size_t i : {std::size_t{3}, std::size_t{0}, std::size_t{5}, std::size_t{7}, std::size_t{13},
+                                std::size_t{18}, std::size_t{19},
+                                std::size_t{20}, std::size_t{25}, std::size_t{28}, std::size_t{29}}) {
+        if (i >= paths.size())
+            continue;
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        // A size before the face is open: stored, true.
+        Mix(setSize(f, nullptr, 13) & 0xFF);
+        SetFontPath(f, paths[i]);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixFontFields(f);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        if (!Field<uint8_t>(f, 4)) {
+            Game<SThis>(addr::GZFont_Release)(f, nullptr);
+            continue;
+        }
+        for (const uint32_t language : languages)
+            MixByte(static_cast<uint8_t>(languageOf(f, nullptr, language)));
+        for (const uint32_t pixels : {0u, 1u, 5u, 12u, 29u, 64u, 0x800u, 0x801u, 0x7FFFFFFFu, 0xFFFFFFFFu, 14u}) {
+            MixByte(static_cast<uint8_t>(setSize(f, nullptr, pixels)));
+            MixFontFields(f);
+        }
+        // With glyphs in the caches SetSize refuses; SetScale clears them.
+        measure(f);
+        MixByte(static_cast<uint8_t>(setSize(f, nullptr, 20)));
+        MixFontFields(f);
+        for (const auto& [x, y] : {std::pair<float, float>{1.0f, 1.0f}, {0.5f, 2.0f}, {1.25f, 0.75f}, {0.001f, 5000.0f},
+                                   {0.01f, 1000.0f}, {-0.0f, 0.0f}, {-1.0f, 0.2f}, {inf, -inf}, {nan, 1.0f},
+                                   {nan, 1.0f}, {1.0f, nan}, {1.0f, 1.0f}, {1.5f, 1.5f}}) {
+            setScale(f, nullptr, x, y);
+            MixFontFields(f);
+            if (x == x && y == y && x > 0.1f && x < 10.0f && y > 0.1f && y < 10.0f)
+                measure(f);
+        }
+        MixByte(static_cast<uint8_t>(setSize(f, nullptr, 18)));
+        setScale(f, nullptr, 1.0f, 1.0f);
+        MixByte(static_cast<uint8_t>(setSize(f, nullptr, 18)));
+        measure(f);
+        // The levels over powers and biases put in place.
+        for (const auto& [power, bias] :
+             {std::pair<float, float>{1.0f, 0.0f}, {2.0f, 0.0f}, {1.0f, 0.5f}, {0.5f, -0.5f}, {1.0f, -1.0f},
+              {1.0f, 1.0f}, {10.0f, 1.0f}, {0.0f, 0.0f}, {1.0f, -0.0f}, {nan, 0.0f}, {1.0f, nan}, {0.3f, 0.7f},
+              {3.0f, -0.9f}, {1.0f, 0.0f}}) {
+            std::memcpy(static_cast<uint8_t*>(f) + 0x54, &power, 4);
+            std::memcpy(static_cast<uint8_t*>(f) + 0x58, &bias, 4);
+            rebuild(f, nullptr);
+            MixFontFields(f);
+        }
+        // Unloaded, loaded again without a size (T2K then has no
+        // transformation, so nothing is measured) and with a ramp on.
+        Game<SThis>(addr::GZFont_Unload)(f, nullptr);
+        const uint32_t noSize = 0;
+        std::memcpy(static_cast<uint8_t*>(f) + 0x38, &noSize, 4);
+        const float power = 0.6f;
+        std::memcpy(static_cast<uint8_t*>(f) + 0x54, &power, 4);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixFontFields(f);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+
+    // A blitter of its own kept by Load.
+    {
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        MockBlitter mock{MockBlitterTable(), 1, 1, f};
+        Game<SOne>(addr::GZFont_SetBlitter)(f, nullptr, U(&mock));
+        SetFontPath(f, paths[3]);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixByte(Field<uint32_t>(f, 0x8C) == U(&mock) ? 1 : 0);
+        Mix(static_cast<uint32_t>(mock.refs));
+        MixFontFields(f);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+        Mix(static_cast<uint32_t>(mock.refs));
+    }
+    // Refused by SetSize (a glyph counted in the monochrome cache).
+    {
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        const uint32_t one = 1, zero = 0;
+        std::memcpy(static_cast<uint8_t*>(f) + 0x12C, &one, 4);
+        SetFontPath(f, paths[3]);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixFontFields(f);
+        std::memcpy(static_cast<uint8_t*>(f) + 0x12C, &zero, 4);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    // A file that is not there, and no path.
+    for (const char* path : {"C:\\opensc4-no-such-folder\\none.ttf", ""}) {
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        if (*path)
+            SetFontPath(f, path);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixFontFields(f);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    FtStage("fontload");
+}
+
 void DriveFont()
 {
     DriveFontObject();
     DriveFontProperties();
     DriveFontBlitter();
     DriveFontContainers();
+    DriveFontLoad();
 }
 
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,
