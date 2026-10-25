@@ -15507,6 +15507,7 @@ const bool g_registeredDrawB = registry::Register({
 // runs with the calls noted and answered from the game's. Compared: the
 // calls and the decal.
 #include "core/effects_draw.h"
+#include "core/effects_flash.h"
 
 bool DwRecorded(uint32_t target)
 {
@@ -15609,9 +15610,13 @@ uint32_t DwManagerCall(uint32_t kind, uint32_t target, char* self, uint32_t a, u
     }
 }
 
-// The rarer calls of the manager's draw, noted in the game's run.
+// The rarer calls of the manager's draw, noted in the game's run. The flash
+// and the shake have modes of their own (ours / compare / original): ours
+// runs the hand-written function at the top level, anything else is noted in
+// the game's run (compare's own run is the forcing's).
 Call1Fn g_DwBeforeDraw = nullptr, g_DwStepShake = nullptr;
 Call2Fn g_DwDrawFlash = nullptr, g_DwDrawBox = nullptr;
+StepMode g_flashMode = StepMode::Original, g_shakeMode = StepMode::Original;
 
 template <typename Fn, typename... Args>
 uint32_t DwNoted(uint32_t kind, Fn original, char* self, Args... args)
@@ -15636,12 +15641,20 @@ OPENSC4_THUNK(TDwBeforeDraw, DwBeforeDrawNoted, 4)
 
 uint32_t __fastcall DwDrawFlashNoted(char* self, void*, uint32_t context, uint32_t step)
 {
+    if (g_flashMode == StepMode::Ours && g_dwTrace == DwTrace::Off && g_dwDepth == 0) {
+        DrawFlash(self, Ptr(context), LfFloat(step));
+        return 0;
+    }
     return DwNoted(kDwFlash, g_DwDrawFlash, self, context, step);
 }
 OPENSC4_THUNK(TDwDrawFlash, DwDrawFlashNoted, 8)
 
 uint32_t __fastcall DwStepShakeNoted(char* self, void*, uint32_t step)
 {
+    if (g_shakeMode == StepMode::Ours && g_dwTrace == DwTrace::Off && g_dwDepth == 0) {
+        StepShake(self, LfFloat(step));
+        return 0;
+    }
     return DwNoted(kDwShake, g_DwStepShake, self, step);
 }
 OPENSC4_THUNK(TDwStepShake, DwStepShakeNoted, 4)
@@ -16150,6 +16163,9 @@ std::string DwDescribe(const std::vector<DwNote>& notes, std::size_t at)
     return text;
 }
 
+extern bool g_forceMgrSteps;
+void FsForceAfterDraw(char* self, char* context);
+
 uint32_t DwManagerCompared(char* self, char* context)
 {
     const char* const id = "effects.draw_manager";
@@ -16235,15 +16251,26 @@ uint32_t DwManagerCompared(char* self, char* context)
         return result;
     }
     compare::Record(early ? "effects.draw_manager.off" : id, true, std::string(), std::string());
+    FsForceAfterDraw(self, context);
     return result;
 }
 
 uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
 {
-    if (g_dwManagerMode == StepMode::Original || g_dwTrace != DwTrace::Off || g_depth > 0)
-        return g_SC4EffectsManager_Draw(self, nullptr, context);
-    if (g_dwManagerMode == StepMode::Ours)
-        return DrawEffects(self, Ptr(context));
+    if (g_dwManagerMode == StepMode::Original || g_dwTrace != DwTrace::Off || g_depth > 0) {
+        const uint32_t result = g_SC4EffectsManager_Draw(self, nullptr, context);
+        // The flash and the shake are forced after the manager's draw (the
+        // compared manager's draw does it in DwManagerCompared).
+        if (g_forceMgrSteps && g_dwManagerMode == StepMode::Original && g_dwTrace == DwTrace::Off && g_depth == 0)
+            FsForceAfterDraw(self, Ptr(context));
+        return result;
+    }
+    if (g_dwManagerMode == StepMode::Ours) {
+        const uint32_t result = DrawEffects(self, Ptr(context));
+        if (g_forceMgrSteps && g_dwTrace == DwTrace::Off && g_depth == 0)
+            FsForceAfterDraw(self, Ptr(context));
+        return result;
+    }
     return DwManagerCompared(self, Ptr(context));
 }
 OPENSC4_THUNK(TDwManager, DwManagerByMode, 4)
@@ -16400,6 +16427,295 @@ const bool g_registeredDecalDraw = registry::Register({
     "decal (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallDecalDraw,
+});
+
+// --- The flash and the camera shake after the draw ------------------------------------------
+
+// The flash (0x0058E870) and the camera shake (0x0058EC40), the manager's
+// two steps after the draw. No test city runs them (nothing sets +0xD44
+// above 0 with the property at +0x3FC, nor +0xD88 above 0), so they are
+// compared only when forced: OPENSC4_EFFECT_FORCE_MGR_STEPS=1 sets up
+// +0xD44/+0xD88 and their point lists and curves with made-up but valid
+// data, runs both ours and the game's, compares the bytes each writes and
+// the calls each makes, and puts everything back.
+//
+// Both calls are made from the flash and the shake on objects of their
+// own: the context's +0x34 (slot 0x2C gives a pair, slot 0xC4 draws) and
+// the object at 0x00B43DDC (slot 0x1C shakes, slot 0x20 stops). The
+// forcing stands a table of its own in front of each, so ours and the
+// game's are handed the same pair and both draws are noted, never made.
+
+bool g_forceMgrSteps = false;
+
+// One call noted by a stand-in, with the words it was given (the draw's
+// data and block, or the shake's direction) and one further word.
+struct FsCall {
+    uint32_t kind;
+    uint32_t last;
+    uint32_t words[8];
+    bool operator==(const FsCall& other) const
+    {
+        return kind == other.kind && last == other.last && std::memcmp(words, other.words, sizeof words) == 0;
+    }
+};
+
+std::vector<FsCall> g_fsOurs, g_fsGame;
+bool g_fsForward = false;
+uint32_t g_fsPair[2] = {0, 0};
+
+void FsNote(uint32_t kind, const void* first, std::size_t firstSize, uint32_t last)
+{
+    FsCall call{kind, last, {}};
+    if (first)
+        std::memcpy(call.words, first, firstSize);
+    (g_fsForward ? g_fsGame : g_fsOurs).push_back(call);
+}
+
+uint32_t __fastcall FsPairOf(void*, void*, uint32_t first, uint32_t second)
+{
+    At<uint32_t>(Ptr(first), 0) = g_fsPair[0];
+    At<uint32_t>(Ptr(second), 0) = g_fsPair[1];
+    return 0;
+}
+
+uint32_t __fastcall FsDrawSprite(void*, void*, uint32_t data, uint32_t block, uint32_t, uint32_t)
+{
+    uint32_t words[8] = {};
+    std::memcpy(words, Ptr(data), 16);
+    std::memcpy(words + 4, Ptr(block), 16);
+    FsNote(0xC4, words, sizeof words, 0);
+    return 0;
+}
+
+uint32_t __fastcall FsShakeSet(void*, void*, uint32_t direction, uint32_t strength)
+{
+    FsNote(0x1C, Ptr(direction), 12, strength);
+    return 0;
+}
+
+uint32_t __fastcall FsShakeStop(void*, void*)
+{
+    FsNote(0x20, nullptr, 0, 0);
+    return 0;
+}
+
+// The two functions and the manager's draw have one detour each, which the
+// manager's comparison, the switches and the forcing share: never hook one
+// twice (a second Install would undo the first).
+bool FsHookFlash()
+{
+    return g_DwDrawFlash || Detour(addr::SC4EffectsManager_DrawFlash, &TDwDrawFlash, &g_DwDrawFlash);
+}
+
+bool FsHookShake()
+{
+    return g_DwStepShake || Detour(addr::SC4EffectsManager_StepShake, &TDwStepShake, &g_DwStepShake);
+}
+
+bool FsHookForce()
+{
+    const char* v = std::getenv("OPENSC4_EFFECT_FORCE_MGR_STEPS");
+    if (!v || *v != '1')
+        return true;
+    if (!(FsHookFlash() && FsHookShake() &&
+          (g_SC4EffectsManager_Draw || Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))))
+        return false;
+    if (!g_forceMgrSteps)
+        log::Write("water effects: the flash and the shake forced after the manager's draw");
+    g_forceMgrSteps = true;
+    return true;
+}
+
+// Four point entries and four curve floats for the flash and the shake.
+constexpr float kFsPoints[4][3] = {{0.1f, 0.2f, 0.3f}, {0.4f, 0.5f, 0.6f}, {0.7f, 0.8f, 0.9f}, {1.0f, 1.0f, 1.0f}};
+constexpr float kFsCurve[4] = {0.25f, 0.5f, 0.75f, 1.0f};
+
+// Runs ours then the game's on the same state: the two floats at `at` and
+// the calls each noted are compared. The manager's two floats are put back
+// to their start before the game's run.
+template <typename FnOurs, typename FnGame>
+void FsCompareRun(const char* id, char* iface, std::size_t at, FnOurs&& ours, FnGame&& game)
+{
+    char before[8], mine[8], theirs[8];
+    std::memcpy(before, iface + at, sizeof before);
+    g_fsOurs.clear();
+    g_fsForward = false;
+    ours();
+    std::memcpy(mine, iface + at, sizeof mine);
+    std::vector<FsCall> ourCalls = g_fsOurs;
+    std::memcpy(iface + at, before, sizeof before);
+    g_fsGame.clear();
+    g_fsForward = true;
+    game();
+    std::memcpy(theirs, iface + at, sizeof theirs);
+    std::vector<FsCall> gameCalls = g_fsGame;
+    std::memcpy(iface + at, before, sizeof before);
+    const bool callsSame = ourCalls == gameCalls;
+    const bool bytesSame = std::memcmp(mine, theirs, sizeof mine) == 0;
+    std::string gameText, ourText;
+    if (!bytesSame) {
+        char text[48];
+        std::snprintf(text, sizeof text, "interface+%zX ", at);
+        gameText = text + Hex(theirs, 8);
+        ourText = text + Hex(mine, 8);
+    } else if (!callsSame) {
+        std::size_t n = 0;
+        while (n < ourCalls.size() && n < gameCalls.size() && ourCalls[n] == gameCalls[n])
+            ++n;
+        char text[64];
+        std::snprintf(text, sizeof text, "call %zu of %zu/%zu ", n, ourCalls.size(), gameCalls.size());
+        gameText = std::string(text) + (n < gameCalls.size() ? Hex(&gameCalls[n], sizeof(FsCall)) : "none");
+        ourText = std::string(text) + (n < ourCalls.size() ? Hex(&ourCalls[n], sizeof(FsCall)) : "none");
+    }
+    compare::Record(id, bytesSame && callsSame, gameText, ourText);
+}
+
+// The forcing: called after the manager draw (compared or not) when
+// OPENSC4_EFFECT_FORCE_MGR_STEPS=1. Sets up the flash and the shake with
+// made-up data, runs ours and the game's, and puts the manager back.
+void FsForceAfterDraw(char* self, char* context)
+{
+    if (!g_forceMgrSteps)
+        return;
+    // The manager's draw calls the flash and the shake with the object at
+    // its interface less four (0x00593958), so both use that as theirs.
+    char* const object = self - 4;
+    // Save what the two functions may write and what they read.
+    constexpr std::size_t kSavedAt = 0xC80, kSavedLen = 0x320;
+    char saved[kSavedLen];
+    std::memcpy(saved, object + kSavedAt, kSavedLen);
+
+    // Stand-in tables: the context's +0x34 object and the camera. Only the
+    // slots the two functions call are given, the rest are zero: a call the
+    // two do not make would be found at once.
+    uint32_t standIn[0xCC / 4] = {};
+    char* const obj34 = At<char*>(context, 0x34);
+    const uint32_t savedObj34 = obj34 ? At<uint32_t>(obj34, 0) : 0;
+    if (obj34) {
+        standIn[0x2C / 4] = Word(reinterpret_cast<void*>(&FsPairOf));
+        standIn[0xC4 / 4] = Word(reinterpret_cast<void*>(&FsDrawSprite));
+        At<uint32_t>(obj34, 0) = Word(standIn);
+    }
+    uint32_t cameraStandIn[0x24 / 4] = {};
+    char* const camera = M<char*>(0x00B43DDC);
+    const uint32_t savedCamera = camera ? At<uint32_t>(camera, 0) : 0;
+    if (camera) {
+        cameraStandIn[0x1C / 4] = Word(reinterpret_cast<void*>(&FsShakeSet));
+        cameraStandIn[0x20 / 4] = Word(reinterpret_cast<void*>(&FsShakeStop));
+        At<uint32_t>(camera, 0) = Word(cameraStandIn);
+    }
+    const float step = 1.0f;
+    if ((g_flashMode == StepMode::Compare || g_shakeMode == StepMode::Compare) && obj34) {
+        static uint32_t turn = 0;
+        const uint32_t k = turn++ % 144;
+        const uint32_t pointCount = 1 + k % 4;
+        g_fsPair[0] = 0x12345678u + k;
+        g_fsPair[1] = 0x9ABCDEF0u - k;
+        At<float>(object, 0xD44) = k % 4 == 0 ? 0.3f : k % 3 == 0 ? 1.5f : 0.9f;
+        At<float>(object, 0xD48) = k % 2 ? -0.3f : -0.1f;
+        At<uint8_t>(object, 0xD4C) = static_cast<uint8_t>((k / 4) & 1);
+        At<float*>(object, 0xD28) = const_cast<float*>(kFsPoints[0]);
+        At<float*>(object, 0xD2C) = const_cast<float*>(kFsPoints[0] + pointCount * 3);
+        At<float*>(object, 0xD34) = const_cast<float*>(kFsCurve);
+        At<float*>(object, 0xD38) = const_cast<float*>(kFsCurve + 2 + k % 3);
+        At<float>(object, 0xD58) = 1.0f;
+        At<int32_t>(object, 0xC80) = static_cast<int32_t>((k / 12) % 5);
+        // The flash's place, set near the render properties' origin so that
+        // the attenuation is in (0, 1) (and past it for some choices, ending
+        // the flash): dx = part * scale, dz = part * scale / 2.
+        char* const props = At<char*>(context, 0x24);
+        const double scale = DwF(props, 0x150) * DwF(object, 0xD58);
+        const double part = (k / 3) % 2 ? 2.5 : 0.45 + (k % 3) * 0.05;
+        At<float>(object, 0xD54) = static_cast<float>(DwF(props, 0x3DC) + scale * part);
+        At<float>(object, 0xD50) = static_cast<float>(DwF(props, 0x3E4) + scale * part * 0.5);
+    }
+    if (g_flashMode == StepMode::Compare && obj34) {
+        // The camera's place (+0x3DC, +0x3E4) is the same on both axes in
+        // the square test maps, which hides a swap of the two; made unequal
+        // for the run and put back.
+        char* const props = At<char*>(context, 0x24);
+        const float savedX = At<float>(props, 0x3DC), savedZ = At<float>(props, 0x3E4);
+        At<float>(props, 0x3DC) = savedX + 37.25f;
+        At<float>(props, 0x3E4) = savedZ - 11.5f;
+        FsCompareRun("effects.flash.forced", object, 0xD44,
+                     [&] { DrawFlash(object, context, step); },
+                     [&] { g_DwDrawFlash(self - 4, nullptr, Word(context), LfBits(step)); });
+        At<float>(props, 0x3DC) = savedX;
+        At<float>(props, 0x3E4) = savedZ;
+    }
+    if (g_shakeMode == StepMode::Compare && camera) {
+        static uint32_t turn = 0;
+        const uint32_t k = turn++ % 72;
+        const uint32_t pointCount = 1 + k % 4;
+        At<float>(object, 0xD88) = k % 3 == 0 ? 0.3f : k % 2 == 0 ? 1.5f : 0.9f;
+        At<float>(object, 0xD8C) = k % 2 ? -0.3f : -0.1f;
+        At<float*>(object, 0xD6C) = const_cast<float*>(kFsPoints[0]);
+        At<float*>(object, 0xD70) = const_cast<float*>(kFsPoints[0] + pointCount * 3);
+        At<float*>(object, 0xD78) = const_cast<float*>(kFsCurve);
+        At<float*>(object, 0xD7C) = const_cast<float*>(kFsCurve + 2 + k % 3);
+        FsCompareRun("effects.shake.forced", object, 0xD88,
+                     [&] { StepShake(object, step); },
+                     [&] { g_DwStepShake(self - 4, nullptr, LfBits(step)); });
+    }
+
+    if (camera)
+        At<uint32_t>(camera, 0) = savedCamera;
+    if (obj34)
+        At<uint32_t>(obj34, 0) = savedObj34;
+    std::memcpy(object + kSavedAt, saved, kSavedLen);
+}
+
+bool InstallFlash(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !FsHookFlash())
+        return false;
+    if (mode == registry::Mode::Compare && !FsHookForce())
+        return false;
+    g_flashMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the flash after the draw %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+bool InstallShake(registry::Mode mode)
+{
+    if (!game::IsBuild641() || !FsHookShake())
+        return false;
+    if (mode == registry::Mode::Compare && !FsHookForce())
+        return false;
+    g_shakeMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the camera shake after the draw %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredFlash = registry::Register({
+    "renderer.effects.flash",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_DrawFlash,
+    "The full-screen flash after the effects manager's draw (0x0058E870): a colour from a point list, strength "
+    "from a curve, drawn as a sprite over the view; compare mode only with OPENSC4_EFFECT_FORCE_MGR_STEPS=1, "
+    "which sets up the manager's +0xD44 and the lists with made-up data, runs ours and the game's and compares "
+    "every byte each writes (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallFlash,
+});
+
+const bool g_registeredShake = registry::Register({
+    "renderer.effects.shake",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectsManager_StepShake,
+    "The camera shake after the effects manager's draw (0x0058EC40): a direction from a point list and strength "
+    "from a curve applied to the object at 0x00B43DDC; compare mode only with "
+    "OPENSC4_EFFECT_FORCE_MGR_STEPS=1, which sets up the manager's +0xD88 and the lists with made-up data, "
+    "runs ours and the game's and compares every byte each writes (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallShake,
 });
 
 } // namespace

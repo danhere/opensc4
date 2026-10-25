@@ -79,7 +79,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectsManager* this, SC4RenderContext* context, float step)"
 expect = "83 EC 48 D9 44 24 50 56"
-source = "Name ours, not analysed. Called at the end of SC4EffectsManager::Draw (0x0059395B) when the float at interface +0xD44 is above 0 and the render property at +0x3FC is set."
+source = "Ours in renderer.effects.flash (src/core/effects_flash.h). A full-screen flash drawn as a sprite. `this` is the manager's object (the draw calls it with the interface less four, 0x00593958). The value at +0xD44 decays by +0xD48 each step and is stored back; above 1 the flash is over (+0xD48 cleared, nothing more). Else a colour from the 3-float list at +0xD28 and an intensity from the float curve at +0xD34 are read at the value; with the byte at +0xD4C set the intensity is multiplied by 1 less the squared distance of the flash's place (+0xD50, +0xD54) from the render properties' (+0x24's +0x3DC, +0x3E4) over the square of the properties' +0x150 times +0xD58, and by the float at 0x00A9F0A8 once for each of the 4 less the zoom (+0xC80) steps (a factor below 0 ends it). The context's +0x34 object (slot 0x2C, two words out) is asked for a pair, the render state is set (0x007D4530), and the object is drawn (slot 0xC4 with the pair, zero and one): with the intensity below 0 the colour less (0x00B0A270, 0x00B0A274, 0x00B0A278) times the intensity and the intensity negated as its scale (render state +0xD64); else the colour, with min(the intensity, 1) as its scale (render state +0xD5C)."
 
 [[entry]]
 name = "SC4EffectsManager::StepShake"
@@ -88,7 +88,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4EffectsManager* this, float step)"
 expect = "83 EC 28 D9 44 24 2C D8"
-source = "Name ours, not analysed. Called at the end of SC4EffectsManager::Draw (0x0059397D) when the float at interface +0xD88 is above 0."
+source = "Ours in renderer.effects.shake (src/core/effects_flash.h). A camera shake. `this` is the manager's object (the draw calls it with the interface less four, 0x0059397d). The value at +0xD88 decays by +0xD8C each step and is stored back; above 1 the shake is over (+0xD8C cleared, the shake stopped through slot 0x20 of 0x00B43DDC, nothing more). Else a direction from the 3-float point list at +0xD6C and a strength from the float curve at +0xD78 are read at the value, and the object at 0x00B43DDC is shaken (slot 0x1C with the direction and the strength)."
 
 [[entry]]
 name = "SC4EffectsManager::AfterDraw"
