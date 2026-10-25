@@ -562,7 +562,7 @@ uint32_t DrawEffects(char* self, char* context)
     if (At<uint8_t>(At<char*>(At<char*>(context, 0x38), 0xC), 0x39C))
         return 1;
     if (At<uint8_t>(self, 0xD98))
-        DwManagerCall(kDwBeforeDraw, addr::SC4EffectsManager_BeforeDraw, At<char*>(self, 0xD94), Word(context));
+        DwManagerCall(kDwBeforeDraw, addr::SC4EffectHeightMap_DrawLines, At<char*>(self, 0xD94), Word(context));
     At<uint32_t>(self, 0xDA4) = At<uint32_t>(self, 0xDA0);
     At<uint32_t>(self, 0xDB0) = At<uint32_t>(self, 0xDAC);
     uint32_t axis = 0;
