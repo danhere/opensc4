@@ -445,7 +445,7 @@ Results, 2026-10-25:
 
 **Reached** in plain play: 25 of the 36, the maps (Find, Insert, InsertAt, the node and pair, both maps' erase, clear and destructor), the glyph table's four, Resize, the fill insert, the overflow and the fills, construct and uninitialised copy under them, the list's insert and the holder's destructor. Not reached: the text's five (only Thai text uses them), Erase and the four copies, the pointers' overflow. The test reaches all 36.
 
-**Audit**: AUDIT
+**Audit**: each translation was checked against the disassembly by the author and by an independent audit (every write and its order, what is read once and what again, signed and unsigned compares and divisions, byte, word and double word widths, every call's address, convention, ECX and arguments, the thunks' byte counts against each `ret`, the expect bytes and that no patch covers a branch target, every `addr::` name; then compare mode's safety). No difference reachable by a caller. Left: EAX where the game's void functions leave something no caller reads (the erases, clears of an empty map, destructors, the fill insert of 0, the construct); the tags, which ours points at a byte of its own where the game points at one of its argument slots (no callee reads them); in compare mode the tagged find and the glyph table's Insert also compare the find and InsertNoResize they call, reads only.
 
 ### f3: what is left
 
