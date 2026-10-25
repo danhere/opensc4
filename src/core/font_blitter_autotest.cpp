@@ -1720,12 +1720,446 @@ void DriveSystemGetFont()
     FtStage("getfont");
 }
 
+// ====================================================================================
+// The font system's tables (f2b)
+
+// Maps, lists and vectors of our own, made and changed by the 53 functions
+// at their addresses (and the game's strings, vectors of strings and
+// allocator). A tree goes into the hash whole: its count, its root and last
+// node, then in order each node's colour, the places of its parent and
+// children (by their order, never an address), its key and its value.
+
+namespace tables {
+constexpr std::uintptr_t kSetDrawMode = 0x00893D87, kSetServiceId = 0x00894F6D, kFill = 0x00893DB8,
+                         kDistance = 0x00893DEC, kListNode = 0x00893E0F, kLowerBound = 0x00893FF0,
+                         kUpperBound = 0x00894028, kBytesAllocate = 0x00894060, kListPushBack = 0x0089408D,
+                         kBytesConstruct = 0x008940A7, kListInsertRange = 0x008940CD, kListCopy = 0x008940EB,
+                         kEqualRange = 0x0089411A, kFaceConstruct = 0x00894144, kFaceDestruct = 0x0089415F,
+                         kFacePairDestruct = 0x00894172, kAliasPairDestruct = 0x00894185,
+                         kRangePairConstruct = 0x00894585, kFaceCopy = 0x008945AA, kFacesEraseNode = 0x008945E1,
+                         kRangesEraseNode = 0x0089461C, kFacePairCopy = 0x008946F6, kAliasPairCopy = 0x0089471B,
+                         kFacePairConstruct = 0x00894740, kAliasPairConstruct = 0x00894762,
+                         kFacesClear = 0x00894784, kAliasesClear = 0x008947AD, kRangesClear = 0x008947D6,
+                         kRangesEraseRange = 0x008947FF, kRangesNode = 0x00894843, kFacesDestruct = 0x00894DC7,
+                         kAliasesDestruct = 0x00894DDE, kRangesDestruct = 0x00894DF5, kRangesEraseKey = 0x00894E0C,
+                         kRangesInsertAt = 0x00894E55, kFacesNode = 0x00894EEA, kAliasesNode = 0x00894F0B,
+                         kFacesConstruct = 0x0089505A, kAliasesConstruct = 0x00895073,
+                         kRangesConstruct = 0x0089508C, kRangesInsert = 0x008950A5, kFacesInsertAt = 0x00895136,
+                         kAliasesInsertAt = 0x008951CB, kFacesInsert = 0x008953A9, kAliasesInsert = 0x0089543A;
+// The game's: an empty list, a list freed, a string assigned, a vector of
+// strings' push_back and destructor, a string destroyed.
+constexpr std::uintptr_t kListMake = 0x009A88C4, kListFree = 0x0096EDBC, kStringAssign = 0x00424380,
+                         kVectorPushBack = 0x004522F0, kVectorFree = 0x00419140, kStringDestroy = 0x00414250;
+} // namespace tables
+
+using SCdecl3 = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t);
+
+// A map: the header, the count, the comparator.
+struct Tree {
+    uint32_t header = 0, count = 0, compare = 0;
+};
+
+template <typename ValueFn>
+void MixTree(const Tree& tree, ValueFn&& value)
+{
+    Mix(tree.count);
+    const uint32_t header = tree.header;
+    std::vector<uint32_t> order;
+    for (uint32_t node = Field<uint32_t>(At32(header), 8); node != header; node = TreeNext(node))
+        order.push_back(node);
+    const auto place = [&](uint32_t node) -> uint32_t {
+        if (!node)
+            return 0xFFFFFFFF;
+        if (node == header)
+            return 0xFFFFFFFE;
+        for (std::size_t i = 0; i < order.size(); ++i)
+            if (order[i] == node)
+                return static_cast<uint32_t>(i);
+        return 0xFFFFFFFD;
+    };
+    Mix(static_cast<uint32_t>(order.size()));
+    MixByte(Field<uint8_t>(At32(header), 0));
+    Mix(place(Field<uint32_t>(At32(header), 4)));
+    Mix(place(Field<uint32_t>(At32(header), 0xC)));
+    for (const uint32_t node : order) {
+        const uint8_t* const n = At32(node);
+        MixByte(Field<uint8_t>(n, 0));
+        Mix(place(Field<uint32_t>(n, 4)));
+        Mix(place(Field<uint32_t>(n, 8)));
+        Mix(place(Field<uint32_t>(n, 0xC)));
+        MixTextAt(n + 0x10);
+        value(n);
+    }
+}
+
+// A list of word pairs: each pair, and whether its node's previous is the
+// one before it.
+void MixList(uint32_t list)
+{
+    const uint32_t header = Field<uint32_t>(At32(list), 0);
+    uint32_t before = header;
+    uint32_t count = 0;
+    for (uint32_t e = Field<uint32_t>(At32(header), 0); e != header; e = Field<uint32_t>(At32(e), 0)) {
+        Mix(Field<uint32_t>(At32(e), 8));
+        Mix(Field<uint32_t>(At32(e), 0xC));
+        MixByte(Field<uint32_t>(At32(e), 4) == before ? 1 : 0);
+        before = e;
+        ++count;
+    }
+    Mix(count);
+    MixByte(Field<uint32_t>(At32(header), 4) == before ? 1 : 0);
+}
+
+// A face (0x24 bytes): its fonts, its name, its three words.
+void MixFace(const uint8_t* face)
+{
+    MixList(U(face));
+    MixTextAt(face + 4);
+    Mix(Field<uint32_t>(face, 0x18));
+    Mix(Field<uint32_t>(face, 0x1C));
+    Mix(Field<uint32_t>(face, 0x20));
+}
+
+// A vector of strings.
+void MixNames(const uint8_t* vector)
+{
+    const uint8_t* const begin = Field<const uint8_t*>(vector, 0);
+    const uint8_t* const end = Field<const uint8_t*>(vector, 4);
+    Mix(static_cast<uint32_t>(end - begin));
+    for (const uint8_t* name = begin; name < end; name += 0x14)
+        MixTextAt(name);
+}
+
+// An insert's result: the byte, the three bytes after it (neither side
+// writes them) and the node's key.
+void MixInserted(const uint32_t (&result)[2])
+{
+    Mix(result[1]);
+    MixTextAt(At32(result[0]) + 0x10);
+}
+
+void FreeNode(uint32_t node, std::uintptr_t destroyValue)
+{
+    Game<SThis>(destroyValue)(At32(node) + 0x10, nullptr);
+    Game<void(__cdecl*)(void*)>(addr::SC4_Free)(At32(node));
+}
+
+void DriveTablesFaces(Random& random)
+{
+    using namespace tables;
+    Tree faces;
+    Game<SThis>(kFacesConstruct)(&faces, nullptr);
+    const auto value = [](const uint8_t* node) { MixFace(node + 0x24); };
+    const auto insert = [&](const char* text, uint32_t words) {
+        GameString key = MakeString(text);
+        uint8_t face[0x24];
+        Game<SThis>(kFaceConstruct)(face, nullptr);
+        GameString name = MakeString(words % 3 ? "Arial" : "");
+        Game<SOne>(kStringAssign)(face + 4, nullptr, U(&name));
+        FreeString(name);
+        std::memcpy(face + 0x18, &words, 4);
+        const uint32_t kind = words * 7, type = random.Next();
+        std::memcpy(face + 0x1C, &kind, 4);
+        std::memcpy(face + 0x20, &type, 4);
+        for (uint32_t j = 0; j < words % 4; ++j) {
+            const uint32_t pair[2] = {words, j};
+            Game<SOne>(kListPushBack)(face, nullptr, U(pair));
+        }
+        uint8_t pair[0x38];
+        Game<STwo>(kFacePairConstruct)(pair, nullptr, U(&key), U(face));
+        uint32_t result[2] = {0, 0xA5A5A5A5};
+        Game<STwo>(kFacesInsert)(&faces, nullptr, U(result), U(pair));
+        MixInserted(result);
+        Game<SThis>(kFacePairDestruct)(pair, nullptr);
+        Game<SThis>(kFaceDestruct)(face, nullptr);
+        FreeString(key);
+    };
+    char text[24];
+    for (uint32_t i = 0; i < 64; ++i) {
+        std::snprintf(text, sizeof text, "face %02d", random.Range(0, 40));
+        insert(text, i);
+    }
+    MixTree(faces, value);
+
+    // The root's face and pair copied, and a node made of the pair.
+    const uint32_t root = Field<uint32_t>(At32(faces.header), 4);
+    uint8_t face[0x24];
+    Game<SOne>(kFaceCopy)(face, nullptr, root + 0x24);
+    MixFace(face);
+    Game<SThis>(kFaceDestruct)(face, nullptr);
+    uint8_t pair[0x38];
+    Game<SOne>(kFacePairCopy)(pair, nullptr, root + 0x10);
+    MixTextAt(pair);
+    MixFace(pair + 0x14);
+    const uint32_t node = Game<SOne>(kFacesNode)(&faces, nullptr, U(pair));
+    MixTextAt(At32(node) + 0x10);
+    MixFace(At32(node) + 0x24);
+    FreeNode(node, kFacePairDestruct);
+
+    // Under the last node on its right, and under the first on its left with
+    // x set.
+    uint32_t result[2] = {0, 0};
+    GameString last = MakeString("zz last");
+    Game<SOne>(kStringAssign)(pair, nullptr, U(&last));
+    Game<SFive>(kFacesInsertAt)(&faces, nullptr, U(result), 0, Field<uint32_t>(At32(faces.header), 0xC), U(pair), 1);
+    GameString first = MakeString("  first");
+    Game<SOne>(kStringAssign)(pair, nullptr, U(&first));
+    Game<SFive>(kFacesInsertAt)(&faces, nullptr, U(result), 1, Field<uint32_t>(At32(faces.header), 8), U(pair), 0);
+    FreeString(last);
+    FreeString(first);
+    Game<SThis>(kFacePairDestruct)(pair, nullptr);
+    MixTree(faces, value);
+
+    // Every third key's node erased.
+    for (int k = 0; k <= 40; k += 3) {
+        std::snprintf(text, sizeof text, "face %02d", k);
+        GameString key = MakeString(text);
+        const uint32_t found = Game<SOne>(kLowerBound)(&faces, nullptr, U(&key));
+        if (found != faces.header && TextAt(At32(found) + 0x10) == text)
+            Game<SOne>(kFacesEraseNode)(&faces, nullptr, found);
+        FreeString(key);
+    }
+    MixTree(faces, value);
+    Game<SThis>(kFacesClear)(&faces, nullptr);
+    MixTree(faces, value);
+    for (uint32_t i = 0; i < 5; ++i)
+        insert(i % 2 ? "again" : "face 07", i);
+    MixTree(faces, value);
+    Game<SThis>(kFacesDestruct)(&faces, nullptr);
+}
+
+void DriveTablesAliases(Random& random)
+{
+    using namespace tables;
+    Tree aliases;
+    Game<SThis>(kAliasesConstruct)(&aliases, nullptr);
+    const auto value = [](const uint8_t* node) { MixNames(node + 0x24); };
+    const auto insert = [&](const char* text, uint32_t names) {
+        GameString key = MakeString(text);
+        uint32_t vector[3] = {};
+        char name[24];
+        for (uint32_t j = 0; j < names % 5; ++j) {
+            std::snprintf(name, sizeof name, "name %u", random.Next() % 9);
+            GameString s = MakeString(name);
+            Game<SOne>(kVectorPushBack)(vector, nullptr, U(&s));
+            FreeString(s);
+        }
+        uint8_t pair[0x20];
+        Game<STwo>(kAliasPairConstruct)(pair, nullptr, U(&key), U(vector));
+        uint32_t result[2] = {0, 0x5A5A5A5A};
+        Game<STwo>(kAliasesInsert)(&aliases, nullptr, U(result), U(pair));
+        MixInserted(result);
+        Game<SThis>(kAliasPairDestruct)(pair, nullptr);
+        Game<SThis>(kVectorFree)(vector, nullptr);
+        FreeString(key);
+    };
+    char text[24];
+    for (uint32_t i = 0; i < 48; ++i) {
+        std::snprintf(text, sizeof text, "alias %u", random.Next() % 30);
+        insert(text, i);
+    }
+    MixTree(aliases, value);
+
+    const uint32_t root = Field<uint32_t>(At32(aliases.header), 4);
+    uint8_t pair[0x20];
+    Game<SOne>(kAliasPairCopy)(pair, nullptr, root + 0x10);
+    MixTextAt(pair);
+    MixNames(pair + 0x14);
+    const uint32_t node = Game<SOne>(kAliasesNode)(&aliases, nullptr, U(pair));
+    MixTextAt(At32(node) + 0x10);
+    MixNames(At32(node) + 0x24);
+    FreeNode(node, kAliasPairDestruct);
+    uint32_t result[2] = {0, 0};
+    GameString last = MakeString("zz last");
+    Game<SOne>(kStringAssign)(pair, nullptr, U(&last));
+    Game<SFive>(kAliasesInsertAt)(&aliases, nullptr, U(result), 0, Field<uint32_t>(At32(aliases.header), 0xC), U(pair),
+                                   1);
+    FreeString(last);
+    Game<SThis>(kAliasPairDestruct)(pair, nullptr);
+    MixTree(aliases, value);
+    Game<SThis>(kAliasesClear)(&aliases, nullptr);
+    MixTree(aliases, value);
+    for (uint32_t i = 0; i < 6; ++i)
+        insert(i % 2 ? "alias 1" : "alias 2", i);
+    MixTree(aliases, value);
+    Game<SThis>(kAliasesDestruct)(&aliases, nullptr);
+}
+
+void DriveTablesRanges(Random& random)
+{
+    using namespace tables;
+    Tree ranges;
+    Game<SThis>(kRangesConstruct)(&ranges, nullptr);
+    const auto value = [](const uint8_t* node) {
+        Mix(Field<uint32_t>(node, 0x24));
+        Mix(Field<uint32_t>(node, 0x28));
+    };
+    const auto insert = [&](const char* text, uint32_t low) {
+        GameString key = MakeString(text);
+        const uint32_t words[2] = {low, random.Next()};
+        uint8_t pair[0x1C];
+        Game<STwo>(kRangePairConstruct)(pair, nullptr, U(&key), U(words));
+        uint32_t result[2] = {0, 0xC3C3C3C3};
+        Game<STwo>(kRangesInsert)(&ranges, nullptr, U(result), U(pair));
+        MixInserted(result);
+        Game<SThis>(kStringDestroy)(pair, nullptr);
+        FreeString(key);
+    };
+    const auto place = [&](uint32_t node) {
+        if (node == ranges.header)
+            Mix(0xFFFFFFFE);
+        else
+            MixTextAt(At32(node) + 0x10);
+    };
+    char text[24];
+    for (uint32_t i = 0; i < 80; ++i) {
+        std::snprintf(text, sizeof text, "r%02u", random.Next() % 50);
+        insert(text, i);
+    }
+    MixTree(ranges, value);
+
+    // The bounds, the equal range and its distance for keys there and not,
+    // before the first and after the last.
+    for (const char* k : {"", "r", "r00", "r07", "r10", "r255", "r33", "r49", "r5", "s"}) {
+        GameString key = MakeString(k);
+        place(Game<SOne>(kLowerBound)(&ranges, nullptr, U(&key)));
+        place(Game<SOne>(kUpperBound)(&ranges, nullptr, U(&key)));
+        uint32_t range[2] = {};
+        Mix(Game<STwo>(kEqualRange)(&ranges, nullptr, U(range), U(&key)) == U(range) ? 1 : 0);
+        place(range[0]);
+        place(range[1]);
+        uint8_t tag = 0;
+        Mix(Game<SCdecl3>(kDistance)(U(&range[0]), U(&range[1]), U(&tag)));
+        FreeString(key);
+    }
+
+    // Keys erased (there and not), a range of them, a node, all of them.
+    for (const char* k : {"r03", "r03", "r20", "zz", "r41"}) {
+        GameString key = MakeString(k);
+        Mix(Game<SOne>(kRangesEraseKey)(&ranges, nullptr, U(&key)));
+        FreeString(key);
+    }
+    MixTree(ranges, value);
+    {
+        GameString from = MakeString("r10"), to = MakeString("r30");
+        const uint32_t first = Game<SOne>(kLowerBound)(&ranges, nullptr, U(&from));
+        const uint32_t last = Game<SOne>(kLowerBound)(&ranges, nullptr, U(&to));
+        Game<STwo>(kRangesEraseRange)(&ranges, nullptr, first, last);
+        FreeString(from);
+        FreeString(to);
+    }
+    MixTree(ranges, value);
+    Game<SOne>(kRangesEraseNode)(&ranges, nullptr, Field<uint32_t>(At32(ranges.header), 8));
+    MixTree(ranges, value);
+
+    // A node made, and one put under the last on its right.
+    GameString key = MakeString("zz last");
+    const uint32_t words[2] = {7, 9};
+    uint8_t pair[0x1C];
+    Game<STwo>(kRangePairConstruct)(pair, nullptr, U(&key), U(words));
+    const uint32_t node = Game<SOne>(kRangesNode)(&ranges, nullptr, U(pair));
+    MixTextAt(At32(node) + 0x10);
+    value(At32(node));
+    FreeNode(node, kStringDestroy);
+    uint32_t result[2] = {0, 0};
+    Game<SFive>(kRangesInsertAt)(&ranges, nullptr, U(result), 0, Field<uint32_t>(At32(ranges.header), 0xC), U(pair), 1);
+    Game<SThis>(kStringDestroy)(pair, nullptr);
+    FreeString(key);
+    MixTree(ranges, value);
+
+    Game<STwo>(kRangesEraseRange)(&ranges, nullptr, Field<uint32_t>(At32(ranges.header), 8), ranges.header);
+    MixTree(ranges, value);
+    for (uint32_t i = 0; i < 9; ++i) {
+        std::snprintf(text, sizeof text, "r%u", i * 7 % 5);
+        insert(text, i);
+    }
+    MixTree(ranges, value);
+    Game<SThis>(kRangesClear)(&ranges, nullptr);
+    MixTree(ranges, value);
+    insert("one", 1);
+    Game<SThis>(kRangesDestruct)(&ranges, nullptr);
+}
+
+void DriveTablesRest()
+{
+    using namespace tables;
+    // The byte vector: made of counts and bytes, and filled into a buffer
+    // between margins (counts below 0, 0 and above).
+    const uint32_t made[][2] = {{0, 0}, {1, 'a'}, {5, 0xFF}, {33, 'x'}, {2, 0x180}};
+    for (const auto& m : made) {
+        uint32_t v[3] = {0xA5A5A5A5, 0xA5A5A5A5, 0xA5A5A5A5};
+        Mix(Game<STwo>(kBytesConstruct)(v, nullptr, m[0], m[1]) == U(v) ? 1 : 0);
+        Mix(v[1] - v[0]);
+        Mix(v[2] - v[0]);
+        MixBytes(At32(v[0]), v[1] - v[0] + 1);
+        const uint32_t before = v[0];
+        const uint32_t end = Game<SThree>(kBytesAllocate)(v, nullptr, m[0] + 2, m[1] + 1, 0);
+        Mix(end - v[0]);
+        MixBytes(At32(v[0]), v[1] - v[0] + 1);
+        Game<void(__cdecl*)(void*)>(addr::SC4_Free)(At32(before));
+        Game<void(__cdecl*)(void*)>(addr::SC4_Free)(At32(v[0]));
+    }
+    uint8_t buffer[64];
+    for (const int32_t count : {-3, 0, 1, 20}) {
+        std::memset(buffer, 0xA5, sizeof buffer);
+        const uint8_t byte = static_cast<uint8_t>('q' + count);
+        Mix(Game<SCdecl3>(kFill)(U(buffer + 8), static_cast<uint32_t>(count), U(&byte)) - U(buffer));
+        MixBytes(buffer, sizeof buffer);
+    }
+
+    // Lists of word pairs: pushed, copied, a range inserted, a node.
+    uint32_t list = 0, copy = 0;
+    uint8_t allocator = 0;
+    Game<SOne>(kListMake)(&list, nullptr, U(&allocator));
+    for (uint32_t i = 0; i < 9; ++i) {
+        const uint32_t pair[2] = {i, i * i};
+        Game<SOne>(kListPushBack)(&list, nullptr, U(pair));
+    }
+    MixList(U(&list));
+    Game<SOne>(kListCopy)(&copy, nullptr, U(&list));
+    MixList(U(&copy));
+    const uint32_t second = Field<uint32_t>(At32(Field<uint32_t>(At32(copy), 0)), 0);
+    const uint32_t header = list;
+    Game<SThree>(kListInsertRange)(&copy, nullptr, second, Field<uint32_t>(At32(header), 0), header);
+    Game<SThree>(kListInsertRange)(&copy, nullptr, second, header, header);
+    MixList(U(&copy));
+    const uint32_t pair[2] = {0x12345678, 0x9ABCDEF0};
+    const uint32_t node = Game<SOne>(kListNode)(&list, nullptr, U(pair));
+    Mix(Field<uint32_t>(At32(node), 8));
+    Mix(Field<uint32_t>(At32(node), 0xC));
+    Game<void(__cdecl*)(void*)>(addr::SC4_Free)(At32(node));
+    Game<SThis>(kListFree)(&copy, nullptr);
+    Game<SThis>(kListFree)(&list, nullptr);
+
+    // The two setters.
+    uint32_t object[8];
+    for (uint32_t i = 0; i < 8; ++i)
+        object[i] = 0x11111111u * i;
+    Mix(Game<SOne>(kSetDrawMode)(object, nullptr, 0xCAFE));
+    Mix(Game<SOne>(kSetServiceId)(object, nullptr, 0xBEEF));
+    MixBytes(reinterpret_cast<const uint8_t*>(object), sizeof object);
+}
+
+void DriveSystemTables()
+{
+    Random random{0x0F2B};
+    DriveTablesFaces(random);
+    FtStage("stl-faces");
+    DriveTablesAliases(random);
+    FtStage("stl-aliases");
+    DriveTablesRanges(random);
+    FtStage("stl-ranges");
+    DriveTablesRest();
+    FtStage("stl");
+}
+
 void DriveSystem()
 {
     DriveSystemObject();
     DriveSystemFaces();
     DriveSystemAliases();
     DriveSystemGetFont();
+    DriveSystemTables();
 }
 
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,

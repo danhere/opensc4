@@ -38,12 +38,12 @@
 //                                  0x008954CB)
 //
 // Slot 7 (0x00893D87, the default draw mode into +0x14) is shared with two
-// other classes' vtables and stays the game's, as do slot 1 (AddRef,
-// 0x0094C47C) and the +4 vtable's framework functions. The STLport maps,
-// sets, lists, vectors and strings the system keeps its tables in are the
-// game's code (f2b), called at the game's addresses, as are the game's
-// files and folders (cRZFile, cRZDirectory), the T2K holder (f5), the font
-// class and the COM.
+// other classes' vtables and is f2b's (font_system_tables.cpp); slot 1
+// (AddRef, 0x0094C47C) and the +4 vtable's framework functions stay the
+// game's. The STLport maps, lists and vectors of f2b the system keeps its
+// tables in are called at the game's addresses (ours when their groups are
+// on), as are the game's strings, sets of names, files and folders (cRZFile,
+// cRZDirectory), the T2K holder (f5), the font class and the COM.
 //
 // The system (0x70 bytes): +0x08 a byte set by Init and cleared by
 // Shutdown, +0x0C the references, +0x10 the class, +0x14 the draw mode
