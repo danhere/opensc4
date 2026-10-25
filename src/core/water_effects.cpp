@@ -16069,6 +16069,20 @@ void HrForce(char* self, char* context)
     std::vector<char> empty(map, map + kHeightMapSize);
     At<char*>(empty.data(), 0x18) = At<char*>(empty.data(), 0x14);
     HrLinesCompared("effects.heightmap_rest.lines.forced", empty.data(), context);
+    if (k % 8 == 4) {
+        // The lines made on a copy whose first layer's values are negated
+        // (the map's height below the terrain's) and whose cell size is 13
+        // (products that are not exact as floats), its line list its own.
+        std::vector<char> odd = HmDeepCopy(map);
+        char* const layer = At<char*>(odd.data(), 0x14);
+        for (char* at = At<char*>(layer, 0); at != At<char*>(layer, 4); at += 4)
+            At<float>(at, 0) = -At<float>(at, 0);
+        At<uint32_t>(odd.data(), 0x30) = 13;
+        CallThis<void*>(addr::SC4HeightMapLines_Construct, odd.data() + 0x4C);
+        MlCompared("effects.heightmap_rest.make_lines.forced", odd.data());
+        CallThis<void>(addr::SC4HeightMapLines_Destroy, odd.data() + 0x4C);
+        HrFreeCopy(odd);
+    }
     if (k % 8 != 0)
         return;
     std::vector<char> theirs = HmDeepCopy(map), mine = HmDeepCopy(map);
