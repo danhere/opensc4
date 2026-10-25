@@ -247,11 +247,12 @@ char* ConstructHeightMap(char* self)
     return self;
 }
 
-// The deleting destructor (0x00586940, the base's slot 3 through
-// 0x005868F0): the tables put back, the line list ended (0x008011F0), the
-// layers freed (0x004638B0), the terrain let go (slot 2; the pointer is
-// left), the base ended (0x0090D990), and with flag 1 the object deleted.
-char* DestroyHeightMap(char* self, uint32_t flags)
+// The plain destructor (0x00586900; the effects manager's destructor ends
+// in a jump to it for the map it is built on): the tables put back, the
+// line list ended (0x008011F0), the layers freed (0x004638B0), the terrain
+// let go (slot 2; the pointer is left), the base ended (0x0090D990, a
+// jump: its answer is the destructor's).
+uint32_t EndHeightMap(char* self)
 {
     At<uint32_t>(self, 0) = 0x00A9F008;
     At<uint32_t>(self, 4) = 0x00A9EFF0;
@@ -259,10 +260,50 @@ char* DestroyHeightMap(char* self, uint32_t flags)
     CallThis<void>(addr::SC4ShortVectorVector_Destroy, self + 0x14);
     if (char* const terrain = At<char*>(self, 0xC))
         HmSlot<uint32_t>(terrain, 8);
-    CallThis<void>(addr::cRZBaseUnknown_Destruct, self + 4);
+    return CallThis<uint32_t>(addr::cRZBaseUnknown_Destruct, self + 4);
+}
+
+// The deleting destructor (0x00586940, the base's slot 3 through
+// 0x005868F0): the plain one's work, and with flag 1 the object deleted.
+char* DestroyHeightMap(char* self, uint32_t flags)
+{
+    EndHeightMap(self);
     if (flags & 1)
         g_hmDelete(self);
     return self;
+}
+
+// 0x00586700 (no arguments): every value of the first layer cleared (the
+// game does not look whether there is one). The manager calls it (from
+// 0x00592BB0's end) when the map is to be forgotten.
+void ClearHeightMapValues(char* self)
+{
+    char* const layer = At<char*>(self, 0x14);
+    for (char* at = At<char*>(layer, 0); at != At<char*>(layer, 4); at += 4)
+        At<uint32_t>(at, 0) = 0;
+}
+
+// 0x00586720 (ret 4), with a render context: the map's own lines drawn, a
+// debug view the manager's draw asks for when its +0xD98 byte is set.
+// Nothing without layers. With +0x48 set the lines are made anew first
+// (0x00585C20, the game's); then +0x48 is cleared, a render state made
+// (0x007D2B50 on two cleared words with 1, 1, 1, 1, 1, 0, 0, 3, 4, 5, 4,
+// 0.9, 1, -1), set on the context (0x007D4530) and the lines brought up to
+// date (0x00801140, which answers the list itself) drawn as the context's
+// mesh (0x007D4A80). The manager's draw does not look at the answer.
+void DrawHeightMapLines(char* self, char* context)
+{
+    if (At<char*>(self, 0x14) == At<char*>(self, 0x18))
+        return;
+    if (At<uint8_t>(self, 0x48))
+        CallThis<void>(addr::SC4EffectHeightMap_MakeLines, self);
+    uint32_t state[2] = {0, 0};
+    At<uint8_t>(self, 0x48) = 0;
+    CallThis<void>(addr::SC4RenderState_Init, state, 1u, 1u, 1u, 1u, 1u, 0u, 0u, 3u, 4u, 5u, 4u, 0x3F666666u, 1u,
+                   0xFFFFFFFFu);
+    CallThis<void>(addr::SC4RenderContext_SetRenderState, context, state);
+    CallThis<void>(addr::SC4RenderContext_DrawMesh, context,
+                   CallThis<char*>(addr::SC4HeightMapLines_Mesh, self + 0x4C));
 }
 
 // The shutdown (0x00586990): the terrain let go and cleared, the layers
