@@ -319,6 +319,26 @@
 //   headings and angles (a fixed LCG). Each answer is mixed whole
 //   (slot 197's EAX with AL 1). rflags 0x200 when all 13 ran, 0x400 when
 //   the factory failed. Log line: "ro3b rturret".
+//   Part tr1 (the trains, src/core/automata_trains.cpp) adds
+//   `,<tobject>,<tsave>,<tlife>,<tflags>` after rturret (36 fields): one
+//   train car, train and mass transit train from their factories (tflags 1,
+//   0x10 when a factory failed): their fields, GetGZCLSID, QueryInterface
+//   through slot 0 for six IDs and both QueryInterfaces at their addresses,
+//   the car pool with another size and a null block; the train's slots 175
+//   and 193 to 196 over nine steps on cars of the test's (a null one among
+//   them; tflags 8); the car's slot 50 without and with a train of the
+//   test's, slot 65 by three states (a car that is its own train has a
+//   recorder in its slot 65), slot 120 with a disaster service of the
+//   test's over six values of the controls' +0x10 (the automata flag 1 set,
+//   so the core's slot 120 answers at once). tsave (tflags 2): each class
+//   written by its Write and cSC4Vehicle's, read back as written, with each
+//   version word 3, cut by the last word (the trains) and empty. tlife
+//   (tflags 4): the car's Init (groups through a copy of its +4 vtable)
+//   twice and on two more cars; eight trains (the last a mass transit train
+//   through its slots 3 and 4) initialised over the group sets and shut
+//   down (occupants of the test's in both deques, an occupant and cars,
+//   the network service of the test's or none). The test's objects' calls
+//   are mixed into tobject and tlife. Log line: "tr1 tobject".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -691,6 +711,7 @@
 #include "core/automata_ctlmgr.h"
 #include "core/automata_scripts.h"
 #include "core/automata_situations.h"
+#include "core/automata_trains.h"
 #include "core/automata_vehicle.h"
 #include "core/automata_vehmgr.h"
 #include "core/autotest_hooks.h"
@@ -21017,6 +21038,520 @@ void RoadTankFrame(Hash& rturret, uint32_t& rflags)
                runs);
 }
 
+// ---- Part tr1: the trains (src/core/automata_trains.cpp).
+
+namespace tn = automata_trains;
+
+// What the tr1 test's objects answer and record.
+struct TrAnswers {
+    uint32_t state = 7;       // the car's slot 59
+    uint32_t disaster = 0;    // 0x00B43D3C's slot 10
+    float controls[8] = {};   // the car's slot 56 answers these (+0x10 the fourth)
+    uint32_t groups[4] = {};  // the occupant part's slot 22 answers true for these
+    char* self = nullptr;     // the train the network service is told about
+    Hash calls;               // every call of the test's objects
+};
+TrAnswers g_tr;
+
+// A train of the test's for the car's slots 50 and 65: slot 50 answers
+// itself, slot 65 records its words.
+struct TrFakeTrain {
+    void** vtable;
+    uint32_t collisions;
+};
+void* __fastcall TrFakeGetTrain(TrFakeTrain* t, void*) { return t; }
+uint32_t __fastcall TrFakeCollide(TrFakeTrain* t, void*, uint32_t a, uint32_t b)
+{
+    ++t->collisions;
+    g_tr.calls.Mix(0x65);
+    g_tr.calls.Mix(a);
+    g_tr.calls.Mix(b);
+    return 0x77;
+}
+void** TrFakeTrainVtable()
+{
+    static void* t[80] = {};
+    t[tn::slot::kSlot50 / 4] = reinterpret_cast<void*>(&TrFakeGetTrain);
+    t[tn::slot::kCollide / 4] = reinterpret_cast<void*>(&TrFakeCollide);
+    return t;
+}
+
+// The car's main vtable copy: slot 59 the state, slot 56 the controls, slot
+// 65 a recorder (so a car that is its own train does not recurse).
+uint32_t __fastcall TrStateType(char*, void*)
+{
+    g_tr.calls.Mix(59);
+    return g_tr.state;
+}
+float* __fastcall TrControls(char*, void*)
+{
+    g_tr.calls.Mix(56);
+    return g_tr.controls;
+}
+uint32_t __fastcall TrSelfCollide(char*, void*, uint32_t a, uint32_t b)
+{
+    g_tr.calls.Mix(0x165);
+    g_tr.calls.Mix(a);
+    g_tr.calls.Mix(b);
+    return 0x99;
+}
+
+// The occupant part's slot 22 (group): true for the groups set.
+uint8_t __fastcall TrInGroup(char*, void*, uint32_t group)
+{
+    g_tr.calls.Mix(22);
+    g_tr.calls.Mix(group);
+    for (const uint32_t g : g_tr.groups)
+        if (g && g == group)
+            return 1;
+    return 0;
+}
+
+// The disaster service (slot 10) and the network service (slot 39).
+uint8_t __fastcall TrDisasterActive(void*, void*)
+{
+    g_tr.calls.Mix(10);
+    return static_cast<uint8_t>(g_tr.disaster);
+}
+void __fastcall TrLeaveCell(void*, void*, char* automaton, int32_t a, int32_t b)
+{
+    g_tr.calls.Mix(39);
+    g_tr.calls.Mix(automaton == g_tr.self ? 1u : 2u);
+    g_tr.calls.Mix(static_cast<uint32_t>(a));
+    g_tr.calls.Mix(static_cast<uint32_t>(b));
+}
+
+struct TrService {
+    void** vtable;
+};
+
+// The classes, in the order of the token.
+struct TrainClass {
+    std::uintptr_t create;
+    std::uintptr_t tables[6];
+    uint32_t clsid;
+    std::uintptr_t write;
+    std::uintptr_t read;
+    std::size_t header; // the version words before cSC4Vehicle's part
+};
+
+const TrainClass kTrainClasses[3] = {
+    {addr::cSC4TrainCar_Create,
+     {addr::cSC4TrainCar_Vtable, addr::cSC4TrainCar_Vtable4, addr::cSC4TrainCar_Vtable8, addr::cSC4TrainCar_VtableC,
+      addr::cSC4TrainCar_Vtable20, addr::cSC4TrainCar_Vtable38},
+     tn::kCarClassId,
+     addr::cSC4Bus_Write,
+     addr::cSC4Bus_Read,
+     2},
+    {addr::cSC4Train_Create,
+     {addr::cSC4Train_Vtable, addr::cSC4Train_Vtable4, addr::cSC4Train_Vtable8, addr::cSC4Train_VtableC,
+      addr::cSC4Train_Vtable20, addr::cSC4Train_Vtable38},
+     tn::kTrainClassId,
+     addr::cSC4Train_Write,
+     addr::cSC4Train_Read,
+     4},
+    {addr::cSC4MassTransitTrain_Create,
+     {addr::cSC4MassTransitTrain_Vtable, addr::cSC4MassTransitTrain_Vtable4, addr::cSC4MassTransitTrain_Vtable8,
+      addr::cSC4MassTransitTrain_VtableC, addr::cSC4MassTransitTrain_Vtable20, addr::cSC4MassTransitTrain_Vtable38},
+     tn::kMassTransitClassId,
+     addr::cSC4MassTransitTrain_Write,
+     addr::cSC4MassTransitTrain_Read,
+     6},
+};
+
+char* MakeTrain(int which, uint32_t& tflags)
+{
+    char* const o = reinterpret_cast<char* (*)()>(kTrainClasses[which].create)();
+    if (!o) {
+        tflags |= 0x10;
+        return nullptr;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    return o;
+}
+
+void ReleaseTrain(char* o)
+{
+    if (!o)
+        return;
+    At<void*>(o, av::field::kObjectB0) = nullptr;
+    At<void*>(o, av::field::kOccupant) = nullptr;
+    At<void*>(o, av::field::kNetwork) = nullptr;
+    Virtual<uint32_t>(o, av::slot::kRelease);
+}
+
+// The class's own fields after construction (the train's +0x2EC, +0x2F4 and
+// +0x2F8 are not set by its constructor).
+void MixTrainFields(Hash& h, int which, char* o)
+{
+    h.Mix(At<uint8_t>(o, tn::car::kGroupByte));
+    h.MixBytes(o + tn::car::kFloats, 12);
+    if (which == 0)
+        return;
+    h.MixBytes(o + tn::train::kWanted, tn::train::kWord - tn::train::kWanted);
+    h.Mix(At<uint32_t>(o, tn::train::kWord2F0));
+}
+
+// The train's fields the save and the life cycle change.
+void MixTrainState(Hash& h, char* o)
+{
+    h.Mix(At<uint32_t>(o, tn::train::kWanted));
+    h.Mix(At<uint32_t>(o, tn::train::kCarGroup));
+    MixGameVector(h, o, tn::train::kCars);
+    h.MixBytes(o + tn::train::kPoint, 12);
+    h.Mix(At<void*>(o, tn::train::kOccupant) ? 1u : 0u);
+    h.Mix(At<uint32_t>(o, tn::train::kWord));
+}
+
+// Write `o` (its class's Write) and the same object by cSC4Vehicle's Write;
+// the header, whether cSC4Vehicle's bytes follow it and the bytes after them
+// into the hash. Answers the class's bytes.
+std::vector<uint8_t> WriteTrain(Hash& h, int which, char* o)
+{
+    using Serialize = uint32_t(__thiscall*)(void*, void*);
+    ByteOStream out;
+    const uint32_t wrote = reinterpret_cast<Serialize>(kTrainClasses[which].write)(
+        o + av::field::kSerializable, static_cast<cIGZOStream*>(&out));
+    ByteOStream vehicle;
+    reinterpret_cast<Serialize>(addr::cSC4Vehicle_Write)(o + av::field::kSerializable,
+                                                         static_cast<cIGZOStream*>(&vehicle));
+    h.Mix(wrote & 0xFF);
+    const std::vector<uint8_t>& w = out.bytes;
+    const std::vector<uint8_t>& v = vehicle.bytes;
+    const std::size_t header = kTrainClasses[which].header;
+    const bool fits = w.size() >= header + v.size();
+    h.Mix(static_cast<uint32_t>(fits ? w.size() - header - v.size() : 0xFFFFu));
+    if (fits) {
+        h.MixBytes(w.data(), header);
+        h.Mix(std::equal(v.begin(), v.end(), w.begin() + header) ? 1u : 0u);
+        h.MixBytes(w.data() + header + v.size(), w.size() - header - v.size());
+    }
+    return w;
+}
+
+// Read `bytes` into a new object of the class; its answer (AL), the stream's
+// position and error into the hash. Answers the object (referenced).
+char* ReadTrain(Hash& h, int which, const std::vector<uint8_t>& bytes, uint32_t& tflags)
+{
+    char* const o = MakeTrain(which, tflags);
+    if (!o)
+        return nullptr;
+    if (which > 0)
+        At<uint32_t>(o, tn::train::kWord) = 0xDEADu; // not set by the constructor; a cut read leaves it
+    ByteIStream in(bytes);
+    using Serialize = uint32_t(__thiscall*)(void*, void*);
+    const uint32_t answer = reinterpret_cast<Serialize>(kTrainClasses[which].read)(
+        o + av::field::kSerializable, static_cast<cIGZIStream*>(&in));
+    h.Mix(answer & 0xFF);
+    h.Mix(static_cast<uint32_t>(in.at));
+    h.Mix(static_cast<uint32_t>(in.error));
+    return o;
+}
+
+std::vector<uint8_t> WithWord(std::vector<uint8_t> bytes, std::size_t at, uint16_t word)
+{
+    if (bytes.size() >= at + 2)
+        std::memcpy(bytes.data() + at, &word, 2);
+    return bytes;
+}
+
+void MixRoadCars(Hash& h, const RoadCar* cars, int count)
+{
+    for (int i = 0; i < count; ++i) {
+        h.Mix(static_cast<uint32_t>(cars[i].references));
+        h.Mix(cars[i].stops);
+    }
+}
+
+void TrainDrive(Hash& tobject, Hash& tsave, Hash& tlife, uint32_t& tflags)
+{
+    g_tr = TrAnswers{};
+    char* made[3] = {};
+    for (int i = 0; i < 3; ++i)
+        made[i] = MakeTrain(i, tflags);
+    for (char* o : made)
+        if (!o) {
+            for (char* m : made)
+                ReleaseTrain(m);
+            log::Write("autotest: automata: vehicle: tr1: a factory failed");
+            return;
+        }
+    tflags |= 1;
+
+    // ---- The objects: the fields, GetGZCLSID through +8 and at its
+    // address, QueryInterface through slot 0 and at its address; the car
+    // pool with another size and a null block.
+    for (int i = 0; i < 3; ++i) {
+        char* const o = made[i];
+        MixFields(tobject, o, kTrainClasses[i].tables, true);
+        MixTrainFields(tobject, i, o);
+        tobject.Mix(Virtual<uint32_t>(o + av::field::kSerializable, 0x14));
+        const uint32_t iids[] = {tn::kCarClassId,      tn::kTrainClassId,      tn::kMassTransitClassId,
+                                 av::kVehicleClassId, av::kBaseInterfaceId, 0x12345678u};
+        for (const uint32_t iid : iids) {
+            void* out = reinterpret_cast<void*>(0x1);
+            const uint8_t answer = Virtual<uint8_t>(o, av::slot::kQueryInterface, iid, &out);
+            tobject.Mix(answer);
+            tobject.Mix(out == reinterpret_cast<void*>(0x1) ? 0xFFFFFFFEu
+                        : out ? static_cast<uint32_t>(static_cast<char*>(out) - o)
+                              : 0xFFFFFFFFu);
+            if (answer && out && out != reinterpret_cast<void*>(0x1))
+                Virtual<uint32_t>(out, av::slot::kRelease);
+        }
+    }
+    {
+        using Query = uint8_t(__thiscall*)(void*, uint32_t, void**);
+        for (const std::uintptr_t query : {addr::cSC4TrainCar_QueryInterface, addr::cSC4Train_QueryInterface})
+            for (const uint32_t iid : {tn::kCarClassId, tn::kTrainClassId, av::kVehicleClassId, 7u}) {
+                void* out = nullptr;
+                const uint8_t answer = reinterpret_cast<Query>(query)(made[1], iid, &out);
+                tobject.Mix(answer);
+                tobject.Mix(out == made[1] ? 1u : out ? 2u : 0u);
+                if (answer && out)
+                    Virtual<uint32_t>(out, av::slot::kRelease);
+            }
+        for (const std::uintptr_t id :
+             {addr::cSC4TrainCar_GetGZCLSID, addr::cSC4Train_GetGZCLSID, addr::cSC4MassTransitTrain_GetGZCLSID})
+            tobject.Mix(This<uint32_t>(id, made[0] + av::field::kSerializable));
+        using Allocate = void*(__cdecl*)(std::size_t);
+        using Delete = void(__cdecl*)(void*);
+        void* const other = reinterpret_cast<Allocate>(addr::cSC4TrainCar_PoolAllocate)(0x20);
+        tobject.Mix(other ? 1u : 0u);
+        if (other)
+            reinterpret_cast<Delete>(addr::SC4_operator_delete)(other);
+        This<void>(addr::cSC4TrainCar_PoolFree, reinterpret_cast<void*>(addr::cSC4TrainCar_Pool),
+                   static_cast<void*>(nullptr));
+    }
+
+    // ---- The train's queries: the counts, slot 175, slots 193 and 195
+    // over cars of the test's (a null one among them).
+    char* const train = made[1];
+    RoadCar cars[4];
+    for (int i = 0; i < 4; ++i)
+        cars[i] = {RoadCarVtable(), 1, 0, {}};
+    auto carWord = [&](int i) {
+        return i < 0 ? 0u : static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&cars[i]));
+    };
+    {
+        tobject.Mix(This<uint32_t>(addr::cSC4Train_CarCount, train));
+        tobject.Mix(This<uint32_t>(addr::cSC4Train_WantedCars, train) & 0xFF);
+        tobject.Mix(This<uint32_t>(addr::cSC4Train_Slot175, train));
+        const uint32_t words[4] = {carWord(0), carWord(1), carWord(-1), carWord(2)};
+        SetGameVector(train, tn::train::kCars, words, 4, 6);
+        auto step = [&](std::uintptr_t fn, uint32_t word) {
+            This<void>(fn, train, word);
+            tobject.Mix(At<uint32_t>(train, tn::train::kWanted));
+            tobject.Mix(This<uint32_t>(addr::cSC4Train_CarCount, train));
+            tobject.Mix(This<uint32_t>(addr::cSC4Train_WantedCars, train) & 0xFF);
+            MixRoadCars(tobject, cars, 4);
+        };
+        step(addr::cSC4Train_SetCarCount, 5);
+        step(addr::cSC4Train_SetCarCount, 0x103);
+        step(addr::cSC4Train_SetCarCount, 0x4);
+        step(addr::cSC4Train_TrimCars, 0x209);
+        step(addr::cSC4Train_TrimCars, 0x102);
+        step(addr::cSC4Train_TrimCars, 2);
+        step(addr::cSC4Train_SetCarCount, 0);
+        const uint32_t again[2] = {carWord(3), carWord(1)};
+        SetGameVector(train, tn::train::kCars, again, 2, 2);
+        cars[1].references = 2;
+        step(addr::cSC4Train_TrimCars, 0x301);
+        tflags |= 8;
+    }
+
+    // ---- The car's queries: slot 50 without and with a train, slot 65 by
+    // state and train, slot 120 with a disaster service of the test's.
+    char* const car = made[0];
+    {
+        static void* table[192];
+        void** const real = At<void**>(car, 0);
+        for (int i = 0; i < 192; ++i)
+            table[i] = real[i];
+        table[tn::slot::kStateType / 4] = reinterpret_cast<void*>(&TrStateType);
+        table[tn::slot::kControls / 4] = reinterpret_cast<void*>(&TrControls);
+        table[tn::slot::kCollide / 4] = reinterpret_cast<void*>(&TrSelfCollide);
+        At<void**>(car, 0) = table;
+        TrFakeTrain fake{TrFakeTrainVtable(), 0};
+        for (void* const b0 : {static_cast<void*>(nullptr), static_cast<void*>(&fake)}) {
+            At<void*>(car, av::field::kObjectB0) = b0;
+            void* const answer = This<void*>(addr::cSC4TrainCar_GetTrain, car);
+            tobject.Mix(answer == car ? 1u : answer == &fake ? 2u : 3u);
+            for (const uint32_t state : {7u, 0x14u, 0u}) {
+                g_tr.state = state;
+                tobject.Mix(This<uint32_t>(addr::cSC4TrainCar_Collide, car, 0xABCu + state, 0x55u) & 0xFF);
+            }
+        }
+        tobject.Mix(fake.collisions);
+        At<void*>(car, av::field::kObjectB0) = nullptr;
+
+        TrService disaster{nullptr};
+        static void* disasterTable[16] = {};
+        disasterTable[tn::slot::kDisasterActive / 4] = reinterpret_cast<void*>(&TrDisasterActive);
+        disaster.vtable = disasterTable;
+        RfSwap swapDisaster(addr::SC4_Service43D3C, &disaster);
+        uint32_t& flags = At<uint32_t>(car, av::field::kAutomataFlags);
+        const uint32_t savedFlags = flags;
+        flags |= 1; // the core's slot 120 then answers 0 at once
+        const float values[] = {5.0f, 20000.0f, 10000.0f, -1.0e30f, std::numeric_limits<float>::quiet_NaN(), 9999.99f};
+        for (const uint32_t active : {0u, 1u})
+            for (const float value : values) {
+                g_tr.disaster = active;
+                g_tr.controls[4] = value;
+                tobject.Mix(This<uint32_t>(addr::cSC4TrainCar_LightFrame, car, 0x1234u) & 0xFF);
+                tobject.Mix(Bits(g_tr.controls[4]));
+            }
+        flags = savedFlags;
+        At<void**>(car, 0) = real;
+    }
+
+    // ---- The save: the car (the bus's Write and Read), the train and the
+    // mass transit train written, read back with their versions and wrong
+    // ones, cut short and empty.
+    {
+        SetPoint(train, tn::train::kPoint, 1.5f, -2.0f, 3.25f);
+        At<uint32_t>(train, tn::train::kWord) = 0x1234u;
+        At<uint32_t>(made[2], tn::train::kWord) = 0x5678u;
+        At<uint32_t>(made[2], tn::train::kWanted) = 9;
+        for (int i = 0; i < 3; ++i) {
+            const std::vector<uint8_t> bytes = WriteTrain(tsave, i, made[i]);
+            const std::size_t header = kTrainClasses[i].header;
+            std::vector<std::vector<uint8_t>> variants = {bytes};
+            for (std::size_t at = 0; at < header; at += 2)
+                variants.push_back(WithWord(bytes, at, 3));
+            if (i > 0 && bytes.size() > header + 4)
+                variants.emplace_back(bytes.begin(), bytes.end() - 4);
+            variants.emplace_back();
+            for (const std::vector<uint8_t>& v : variants) {
+                char* const read = ReadTrain(tsave, i, v, tflags);
+                if (read && i > 0)
+                    MixTrainState(tsave, read);
+                ReleaseTrain(read);
+            }
+        }
+        tflags |= 2;
+    }
+
+    // ---- The life cycle: the car's Init (groups of the test's through a
+    // copy of its +4 vtable), the train's Init over the group sets, its
+    // Shutdown with occupants in both deques, an occupant and cars of the
+    // test's, the network service of the test's and none; the mass transit
+    // train's through its slots 3 and 4.
+    {
+        static void* partTable[34];
+        void** const realPart = At<void**>(made[1], av::field::kVtable4);
+        for (int i = 0; i < 34; ++i)
+            partTable[i] = realPart[i];
+        partTable[tn::slot::kInGroup / 4] = reinterpret_cast<void*>(&TrInGroup);
+        static void* carPartTable[34];
+        void** const realCarPart = At<void**>(made[0], av::field::kVtable4);
+        for (int i = 0; i < 34; ++i)
+            carPartTable[i] = realCarPart[i];
+        carPartTable[tn::slot::kInGroup / 4] = reinterpret_cast<void*>(&TrInGroup);
+
+        auto carInit = [&](char* c) {
+            const uint32_t before = At<uint32_t>(c, av::field::kAutomataFlags);
+            At<void**>(c, av::field::kVtable4) = carPartTable;
+            tlife.Mix(This<uint32_t>(addr::cSC4TrainCar_Init, c) & 0xFF);
+            At<void**>(c, av::field::kVtable4) = realCarPart;
+            tlife.Mix((At<uint32_t>(c, av::field::kAutomataFlags) ^ before) & 0x10014000u);
+            tlife.Mix(At<uint8_t>(c, tn::car::kGroupByte));
+        };
+        g_tr.groups[0] = 0x4217u;
+        carInit(car);
+        carInit(car); // initialised: nothing more
+        for (const uint32_t group : {0x4208u, 0x4216u}) {
+            char* const c = MakeTrain(0, tflags);
+            if (!c)
+                continue;
+            g_tr.groups[0] = group;
+            carInit(c);
+            ReleaseTrain(c);
+        }
+
+        const uint32_t sets[][2] = {{0, 0},           {0x4216u, 0}, {0x4215u, 0},      {0x4217u, 0},
+                                    {0x422Cu, 0},     {0x422Eu, 0}, {0x422Eu, 0x4216u}, {0x4208u, 0}};
+        Counted ahead[2] = {{CountedVtable(), 1, 3, 0}, {CountedVtable(), 1, -5, 0}};
+        Counted behind{CountedVtable(), 1, 7, 0};
+        Counted occupant{CountedVtable(), 1, 9, 0};
+        TrService network{nullptr};
+        static void* networkTable[48] = {};
+        networkTable[tn::slot::kLeaveCell / 4] = reinterpret_cast<void*>(&TrLeaveCell);
+        network.vtable = networkTable;
+        int run = 0;
+        for (const auto& set : sets) {
+            char* const t = MakeTrain(run == 7 ? 2 : 1, tflags);
+            if (!t)
+                continue;
+            g_tr.groups[0] = set[0];
+            g_tr.groups[1] = set[1];
+            g_tr.self = t;
+            const uint32_t before = At<uint32_t>(t, av::field::kAutomataFlags);
+            At<void**>(t, av::field::kVtable4) = partTable;
+            const uint32_t answer = run == 7 ? Virtual<uint32_t>(t, 3 * 4) : This<uint32_t>(addr::cSC4Train_Init, t);
+            tlife.Mix(answer & 0xFF);
+            tlife.Mix(This<uint32_t>(addr::cSC4Train_Init, t) & 0xFF); // initialised
+            At<void**>(t, av::field::kVtable4) = realPart;
+            tlife.Mix((At<uint32_t>(t, av::field::kAutomataFlags) ^ before) & 0x10014000u);
+            tlife.Mix(Bits(At<float>(t, av::field::kDraw)));
+            tlife.MixBytes(t + av::field::kSmoothed, 0x10);
+            tlife.Mix(At<uint8_t>(t, tn::car::kGroupByte));
+            tlife.Mix(At<uint32_t>(t, tn::train::kWord2F4));
+            tlife.Mix(At<uint8_t>(t, tn::train::kByte2F8));
+            MixTrainState(tlife, t);
+
+            // Shutdown: occupants of the test's in the deques (runs 1 and 7),
+            // the network service of the test's (none in run 2).
+            if (run == 1 || run == 7) {
+                for (Counted& c : ahead) {
+                    alignas(4) char element[0xC] = {};
+                    At<Counted*>(element, 0) = &c;
+                    At<uint32_t>(element, 4) = 0x10u + static_cast<uint32_t>(c.id);
+                    This<void>(addr::SC4AutomatonDeque204_PushBack, t + av::field::kDeque204,
+                               static_cast<void*>(element));
+                }
+                alignas(4) char element[8] = {};
+                At<Counted*>(element, 0) = &behind;
+                At<uint32_t>(element, 4) = 0x21u;
+                This<void>(addr::SC4VehicleDeque27C_PushBack, t + av::field::kDeque27C, static_cast<void*>(element));
+                At<Counted*>(t, tn::train::kOccupant) = &occupant;
+                ++occupant.references;
+                const uint32_t words[3] = {carWord(0), carWord(-1), carWord(1)};
+                SetGameVector(t, tn::train::kCars, words, 3, 3);
+                for (RoadCar& c : cars)
+                    c.references = 1;
+            }
+            {
+                RfSwap swapNetwork(addr::SC4_Service43D54, run == 2 ? nullptr : static_cast<void*>(&network));
+                const uint32_t done =
+                    run == 7 ? Virtual<uint32_t>(t, 4 * 4) : This<uint32_t>(addr::cSC4Train_Shutdown, t);
+                tlife.Mix(done & 0xFF);
+            }
+            MixTrainState(tlife, t);
+            MixRoadCars(tlife, cars, 4);
+            for (const Counted* c : {&ahead[0], &ahead[1], &behind, &occupant}) {
+                tlife.Mix(static_cast<uint32_t>(c->references));
+                tlife.Mix(c->keys);
+            }
+            ReleaseTrain(t);
+            ++run;
+        }
+        tlife.Mix(static_cast<uint32_t>(run));
+        for (const Counted* c : {&ahead[0], &ahead[1], &behind, &occupant})
+            tlife.Mix(static_cast<uint32_t>(c->references));
+        tflags |= 4;
+    }
+    tlife.Mix(g_tr.calls.h);
+    tobject.Mix(g_tr.calls.h);
+
+    // ---- The release (the deleting destructors).
+    At<void*>(train, tn::train::kOccupant) = nullptr;
+    for (char* o : made)
+        ReleaseTrain(o);
+    log::Write("autotest: automata: vehicle: tr1 tobject %08X tsave %08X tlife %08X tflags %X calls %08X", tobject.h,
+               tsave.h, tlife.h, tflags, g_tr.calls.h);
+    g_tr = TrAnswers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -21291,6 +21826,11 @@ void VehicleDrive(cISC4City* city)
     Hash rturret;
     RoadTankFrame(rturret, rflags);
 
+    // ---- Part tr1.
+    Hash tobject, tsave, tlife;
+    uint32_t tflags = 0;
+    TrainDrive(tobject, tsave, tlife, tflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -21343,14 +21883,14 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[320];
+    char text[400];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
-                  rturret.h);
+                  rturret.h, tobject.h, tsave.h, tlife.h, tflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
