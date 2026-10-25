@@ -59,6 +59,11 @@
 // font's loading, size and scale are ours"), by address on fonts of our own
 // given the paths of faces: Load, the sample characters of 21 languages,
 // sizes and scales past their limits, the levels over powers and biases.
+//
+// Then the font's encodings and Thai (f3d, docs/fonts.md, "f3d: the font's
+// encodings and Thai are ours"), by address on fonts of our own in six
+// encodings: ToUnicode through each vector, Convert, the Thai pass, HasThai,
+// the marks' kinds and forms, over Thai text that reaches every branch.
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -3109,6 +3114,262 @@ void DriveFontLoad()
     FtStage("fontload");
 }
 
+// Fonts of our own (the six need no face) in UTF-16, ASCII, UTF-8 (8 and
+// 0xFFFFFFFE), Thai's code page 874 and 1252, given Thai text that reaches
+// every branch (SARA AM after a consonant, a tone mark, at the start and the
+// end, twice; tall consonants under upper vowels, tone marks, THANTHAKHAT,
+// MAITAIKHU, NIKHAHIT; YO YING over lower vowels; tone marks over upper
+// vowels; a 0 word; random runs of Thai) and Latin text, by ToUnicode
+// through each of the five vectors the callers use, with and
+// without the offsets; Convert into vectors of our own with room for none,
+// a few and enough; the Thai pass alone over copies of the texts; HasThai
+// over every length; the mark's kind of every 16-bit character (and with
+// bits above it); every form of the Thai block by kinds 0 to 4; Thai text
+// measured by fonts the font system loaded.
+namespace fonttext {
+using ToUnicodeFn = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+
+std::vector<std::u16string> ThaiTexts()
+{
+    std::vector<std::u16string> texts = {
+        u"",
+        u"ก",
+        u"ำ",
+        u"กำ",
+        u"ก่ำ",
+        u"ำก้ำำ",
+        u"ปี",
+        u"ป่",
+        u"กิ่",
+        u"ปิ่",
+        u"ญุ",
+        u"ญูญฺญ่",
+        u"ปุ่",
+        u"ฝู๊",
+        u"ก์",
+        u"ฟ์ฬ๋",
+        u"ป็ปํปัปึปื",
+        u"ฬั้กั้กี๋",
+        u"ก้ำป้ำปำ",
+        u"น้ำตาล สวัสดีครับ",
+        std::u16string(u"ก่ำ\0ป่", 6),
+        u"่ก",
+        u"Wgjpqy ก é 0123",
+        u"OpenSC4 fonts",
+    };
+    // Random runs of the Thai block, and of Thai with Latin.
+    Random random{0x7A1B00F3u};
+    for (uint32_t i = 0; i < 24; ++i) {
+        std::u16string t;
+        const int32_t length = random.Range(1, 40);
+        for (int32_t k = 0; k < length; ++k)
+            t += static_cast<char16_t>(i % 4 == 3 && random.Range(0, 3) == 0 ? random.Range(0x20, 0x7E)
+                                                                                : random.Range(0x0E01, 0x0E5B));
+        texts.push_back(t);
+    }
+    return texts;
+}
+
+std::string Utf8Of(const std::u16string& t)
+{
+    std::string s;
+    for (const char16_t c : t) {
+        if (c < 0x80) {
+            s += static_cast<char>(c);
+        } else if (c < 0x800) {
+            s += static_cast<char>(0xC0 | (c >> 6));
+            s += static_cast<char>(0x80 | (c & 0x3F));
+        } else {
+            s += static_cast<char>(0xE0 | (c >> 12));
+            s += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
+            s += static_cast<char>(0x80 | (c & 0x3F));
+        }
+    }
+    return s;
+}
+
+// Code page 874: U+0E01 to U+0E3A at 0xA1, U+0E3F to U+0E5B at 0xDF; what
+// is not there becomes '?'.
+std::string Cp874Of(const std::u16string& t)
+{
+    std::string s;
+    for (const char16_t c : t) {
+        if (c < 0x80)
+            s += static_cast<char>(c);
+        else if (c >= 0x0E01 && c <= 0x0E5B && !(c > 0x0E3A && c < 0x0E3F))
+            s += static_cast<char>(c - 0x0E01 + 0xA1);
+        else
+            s += '?';
+    }
+    return s;
+}
+
+// The font's seven vectors (+0x90 to +0xE4): size, room and contents.
+void MixTextVectors(const void* font)
+{
+    for (std::size_t v = 0x90; v < 0xE4; v += 0xC) {
+        const uint32_t begin = Field<uint32_t>(font, v);
+        const uint32_t end = Field<uint32_t>(font, v + 4);
+        Mix(end - begin);
+        Mix(Field<uint32_t>(font, v + 8) - begin);
+        if (end > begin)
+            MixBytes(At32(begin), end - begin);
+    }
+}
+
+// An answer: its count, where its text is (the input, a vector of the font
+// or neither) and the text.
+void MixAnswer(const void* font, uint32_t input, uint32_t inputBytes, uint32_t text, uint32_t count)
+{
+    Mix(count);
+    uint32_t place = 0xFFFF;
+    if (text >= input && text <= input + inputBytes) {
+        place = 0x10000 + text - input;
+    } else {
+        for (std::size_t v = 0x90; v < 0xE4; v += 0xC) {
+            const uint32_t begin = Field<uint32_t>(font, v);
+            if (begin && text >= begin && text <= Field<uint32_t>(font, v + 8)) {
+                place = static_cast<uint32_t>(v) << 16 | (text - begin);
+                break;
+            }
+        }
+    }
+    Mix(place);
+    if (place != 0xFFFF && count < 0x1000)
+        MixBytes(At32(text), count * 2);
+}
+} // namespace fonttext
+
+void DriveFontText()
+{
+    using namespace fonttext;
+    const auto toUnicode = Game<ToUnicodeFn>(addr::GZFont_ToUnicode);
+    const auto convert = Game<SThree>(addr::GZFont_Convert);
+    const auto hasThai = Game<STwo>(addr::GZFont_HasThai);
+    const auto markKind = Game<SOne>(addr::GZFont_ThaiMarkKind);
+    const auto thai = Game<SFive>(addr::GZFont_Thai);
+    const auto form = Game<STwo>(addr::GZFont_ThaiForm);
+    const std::vector<std::u16string> texts = ThaiTexts();
+    std::vector<std::string> bytes;
+    for (const std::u16string& t : texts) {
+        bytes.push_back(Utf8Of(t));
+        bytes.push_back(Cp874Of(t));
+    }
+    bytes.push_back("caf\xE9 na\xEFve \x80\x9F\xFF");
+    bytes.push_back("\xC3\x28 \xE0\xB8 \xF0\x9F\x98\x80");
+
+    // The mark's kind and the forms.
+    uint32_t kinds = 2166136261u;
+    for (uint32_t c = 0; c < 0x10000; ++c)
+        kinds = (kinds ^ markKind(nullptr, nullptr, c)) * 16777619u;
+    Mix(kinds);
+    for (const uint32_t c : {0x10E33u, 0xFFFF0E48u, 0x80000E0Du, 0x0E0C0000u})
+        Mix(markKind(nullptr, nullptr, c));
+    for (uint32_t c = 0x0E00; c < 0x0E60; ++c) {
+        for (const uint32_t kind : {0u, 1u, 2u, 3u, 4u, 0x101u, 0xFFFFFFFFu})
+            Mix(form(nullptr, nullptr, c, kind) & 0xFFFF);
+    }
+    for (const auto& [c, kind] : {std::pair<uint32_t, uint32_t>{0x10E48, 2}, {0xFFFF0E4D, 1}, {0x41, 1}, {0xF705, 3}})
+        Mix(form(nullptr, nullptr, c, kind) & 0xFFFF);
+
+    // HasThai over every length of each text.
+    {
+        void* const f = NewFont();
+        for (const std::u16string& t : texts) {
+            for (uint32_t n = 0; n <= t.size(); ++n)
+                MixByte(static_cast<uint8_t>(hasThai(f, nullptr, U(t.data()), n)));
+        }
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+
+    // ToUnicode in each encoding, through each vector, with and without the
+    // offsets.
+    for (const uint32_t encoding : {0x10u, 0u, 8u, 0x36Au, 0x4E4u, 0xFFFFFFFEu}) {
+        void* const f = NewFont();
+        Game<SOne>(addr::GZFont_SetEncoding)(f, nullptr, encoding);
+        const auto run = [&](uint32_t input, uint32_t count, uint32_t unit) {
+            for (const auto& [which, keep] : {std::pair<uint32_t, uint32_t>{0, 0}, {1, 0}, {2, 1}, {3, 1}, {4, 0}, {0, 1},
+                                              {4, 0x100}}) {
+                uint32_t out = 0xDEADBEEF, n = 0xBEEF;
+                toUnicode(f, nullptr, input, count, U(&out), U(&n), which, keep);
+                MixAnswer(f, input, count * unit, out, n);
+                MixTextVectors(f);
+            }
+        };
+        if (encoding == 0x10) {
+            for (const std::u16string& t : texts)
+                run(U(t.data()), static_cast<uint32_t>(t.size()), 2);
+        } else {
+            for (const std::string& b : bytes)
+                run(U(b.data()), static_cast<uint32_t>(b.size()), 1);
+        }
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+
+    // Convert into vectors of our own: no room, a few words, enough.
+    for (const uint32_t encoding : {0x10u, 8u, 0x36Au, 0u}) {
+        void* const f = NewFont();
+        Game<SOne>(addr::GZFont_SetEncoding)(f, nullptr, encoding);
+        for (std::size_t i = 0; i < 20; ++i) {
+            for (const uint32_t room : {0u, 3u, 160u}) {
+                uint32_t v[4] = {};
+                if (room) {
+                    v[0] = StlAllocate(room * 2);
+                    std::memset(At32(v[0]), 0x5A, room * 2);
+                    v[1] = v[2] = v[0] + room * 2;
+                }
+                const uint32_t n =
+                    encoding == 0x10
+                        ? convert(f, nullptr, U(texts[i].data()), static_cast<uint32_t>(texts[i].size()), U(v))
+                        : convert(f, nullptr, U(bytes[i].data()), static_cast<uint32_t>(bytes[i].size()), U(v));
+                Mix(n);
+                MixVector(v);
+                if (v[0])
+                    StlFree(v[0]);
+            }
+        }
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+
+    // The Thai pass alone, over copies of the texts, with and without the
+    // offsets.
+    {
+        void* const f = NewFont();
+        for (const uint32_t keep : {0u, 1u}) {
+            for (const std::u16string& t : texts) {
+                std::u16string copy = t + u'￿';
+                uint32_t out = 0xDEADBEEF, n = 0xBEEF;
+                thai(f, nullptr, U(copy.data()), static_cast<uint32_t>(t.size()), U(&out), U(&n), keep);
+                MixAnswer(f, U(copy.data()), static_cast<uint32_t>(t.size()) * 2, out, n);
+                MixBytes(reinterpret_cast<const uint8_t*>(copy.data()), copy.size() * 2);
+                MixTextVectors(f);
+            }
+        }
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+
+    // Thai text measured by fonts the font system loaded (MeasureString
+    // ends in ToUnicode).
+    std::vector<std::string> paths = FontPaths();
+    for (const std::size_t i : {std::size_t{3}, std::size_t{19}, std::size_t{20}}) {
+        if (i >= paths.size())
+            continue;
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        Game<SOne>(addr::GZFont_SetSize)(f, nullptr, 16);
+        SetFontPath(f, paths[i]);
+        MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFont_Load)(f, nullptr)));
+        if (Field<uint8_t>(f, 4)) {
+            Game<SOne>(addr::GZFont_SetEncoding)(f, nullptr, 0x10);
+            for (const std::u16string& t : texts)
+                Mix(Virtual<uint32_t>(f, 0xC0, t.data(), static_cast<uint32_t>(t.size())));
+            MixTextVectors(f);
+        }
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    FtStage("fonttext");
+}
+
 void DriveFont()
 {
     DriveFontObject();
@@ -3116,6 +3377,7 @@ void DriveFont()
     DriveFontBlitter();
     DriveFontContainers();
     DriveFontLoad();
+    DriveFontText();
 }
 
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,

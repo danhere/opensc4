@@ -685,6 +685,60 @@ expect = "55 8B EC 83 EC 10 53 56"
 source = "Name ours. Slot 25 (+0x64), `ret 4`: true for languages 8 and 0x10; else one or two sample characters of the language (0x61 for 0 and 0x4E4, 0xE01/0xE2C for 0x36A, 0x3061/0x30A4 for 0x3A4, ...; none for others) gathered in a vector of words (0x007EBD30) and asked of T2K (0x0089F538 with flags 0), false at the first without a glyph. Ours in framework.font.font.load (docs/fonts.md, f3c)."
 
 [[entry]]
+name = "GZFont::ToUnicode"
+address = 0x00899BCA
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text, uint32_t count, uint16_t** out, uint32_t* outCount, uint32_t which, bool keep)"
+expect = "55 8B EC 80 7D 1C 00 8B"
+source = "Name ours. `ret 0x18`: the text in the font's encoding (+0x7C) as UTF-16 through the font's vector which (+0x90 + 0xC x which; the callers pass 0 to 4), the offsets +0xD8 emptied first with keep (0x0040E490). UTF-16 without a Thai mark (0x00896425) is given back as it is; with one it is copied (vector sized for twice the count, 0x0049D0C0) and the Thai pass 0x00899665 runs on the copy; other encodings are converted (sized for 12 words a character) and the Thai pass runs if the result has a mark. Called by FitString, MeasureString, DrawString and four more. Ours in framework.font.font.text (docs/fonts.md, f3d)."
+
+[[entry]]
+name = "GZFont::Convert"
+address = 0x00899A15
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* text, uint32_t count, void* vector)"
+expect = "55 8B EC 8B 51 7C 83 FA"
+source = "Name ours. `ret 0xC`: the text into the vector of words as UTF-16. Encoding 0x10: the vector resized to count (0x0049D0C0) and the words copied (CRT memcpy); else 0x00910E18 (text, count, encoding, words, &room, 0x10) converts as many as the vector's size holds. Answers the count. Called by ToUnicode 0x00899BCA. Ours in framework.font.font.text (docs/fonts.md, f3d)."
+
+[[entry]]
+name = "GZFont::HasThai"
+address = 0x00896425
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const uint16_t* text, uint32_t count)"
+expect = "8B 44 24 08 53 56 8B 74"
+source = "Name ours. `ret 8`: whether any word of the text has a Thai mark's kind (0x008963C9); answers AL. Called by ToUnicode 0x00899BCA. Ours in framework.font.font.text (docs/fonts.md, f3d)."
+
+[[entry]]
+name = "GZFont::ThaiMarkKind"
+address = 0x008963C9
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint16_t character)"
+expect = "66 8B 44 24 04 B9 0D 0E"
+source = "Name ours. `ret 4`, this unread: 1 for 0x0E0D, 0x0E31, 0x0E33, 0x0E34 to 0x0E37, 0x0E47 and 0x0E4D, 3 for 0x0E48 to 0x0E4C, else 0. Called by HasThai 0x00896425. Ours in framework.font.font.text (docs/fonts.md, f3d)."
+
+[[entry]]
+name = "GZFont::Thai"
+address = 0x00899665
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint16_t* text, uint32_t count, uint16_t** out, uint32_t* outCount, bool keep)"
+expect = "55 8B EC 83 EC 10 8B 45"
+source = "Name ours. `ret 0x14`: the Thai pass. Each SARA AM (0x0E33, found by 0x00897599) becomes NIKHAHIT 0x0E4D and SARA AA 0x0E32 in the vector +0xCC (the NIKHAHIT before a tone mark, class 9 of 0x0091169F), with keep the input index of each word pushed on +0xD8 (and every rebuild's count pushed there whatever keep is); then in place the marks take their presentation forms (0x0089645A): YO YING before a lower vowel, upper vowels and marks after a tall consonant (0x0E1B, 0x0E1D, 0x0E1F, 0x0E2C) shifted left, tone marks lowered when nothing is above. Called by ToUnicode 0x00899BCA. Ours in framework.font.font.text (docs/fonts.md, f3d)."
+
+[[entry]]
+name = "GZFont::ThaiForm"
+address = 0x0089645A
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (void* this, uint16_t character, uint32_t kind)"
+expect = "55 8B EC 0F B7 4D 08 B8"
+source = "Name ours. `ret 8`, this unread: a Thai mark's presentation form in the private characters 0xF701 to 0xF717 (kind 1 shifted left, 2 lowered, 3 both, for the tone marks 0x0E48 to 0x0E4C; kind 1 only for the others), the character itself otherwise. Called by the Thai pass 0x00899665. Ours in framework.font.font.text (docs/fonts.md, f3d)."
+
+[[entry]]
 name = "GZFont::FitString"
 address = 0x00899D81
 kind = "function"

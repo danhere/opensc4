@@ -360,6 +360,7 @@ add_library(opensc4_core SHARED
   font_system.cpp
   font_system_tables.cpp
   font_t2k_holder.cpp
+  font_text.cpp
   gzbuffer_blit_autotest.cpp
   camera_control.cpp
   photo_mode.cpp

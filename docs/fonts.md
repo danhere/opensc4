@@ -2,7 +2,7 @@
 
 The text engine at 0x00893D2C to 0x008AE76D: a Maxis framework layer (a COM director, the font system, the font, a glyph blitter) on top of **T2K**, the font scaler Sampo Kaasila wrote and Bitstream sold as Font Fusion. It is the "Font engine" line of [uncharted-code.md](uncharted-code.md), which gave it as 0x00894000 to 0x008A7FFF; the code runs a little lower and higher than that.
 
-Everything here was read from the disassembly with Ghidra; the glyph blitter (f4), the director (f1), the T2K holder (f5), the font system's own functions (f2a), its tables (f2b) and the font's object and properties (f3a), its containers (f3b) and its loading, size and scale (f3c) are ours and were checked in the game ("f4: the glyph blitter is ours", "f1 and f5", "f2a", "f2b", "f3a", "f3b" and "f3c" below). Names are ours unless they come from T2K. The addresses the doc relies on are in [data/addresses/font.toml](../data/addresses/font.toml) (f1, f2a, f2b, f3a, f3b, f3c, f4 and f5 hooked) and [data/names-641.txt](../data/names-641.txt). "Ran" counts come from the 17 coverage files on TurboToaster ([dev-environment.md](dev-environment.md), "Coverage"); code that runs only while the game starts is never recorded there.
+Everything here was read from the disassembly with Ghidra; the glyph blitter (f4), the director (f1), the T2K holder (f5), the font system's own functions (f2a), its tables (f2b) and the font's object and properties (f3a), its containers (f3b), its loading, size and scale (f3c) and its encodings and Thai (f3d) are ours and were checked in the game ("f4: the glyph blitter is ours", "f1 and f5", "f2a", "f2b", "f3a", "f3b", "f3c" and "f3d" below). Names are ours unless they come from T2K. The addresses the doc relies on are in [data/addresses/font.toml](../data/addresses/font.toml) (f1, f2a, f2b, f3a, f3b, f3c, f3d, f4 and f5 hooked) and [data/names-641.txt](../data/names-641.txt). "Ran" counts come from the 17 coverage files on TurboToaster ([dev-environment.md](dev-environment.md), "Coverage"); code that runs only while the game starts is never recorded there.
 
 ## Library or Maxis
 
@@ -52,7 +52,7 @@ Text comes in as the font's encoding and is turned into UTF-16 first (0x00899BCA
 |---|---|---:|---:|---|
 | f1 | 0x00895F36 to 0x0089604D, less 0x0089603D | 8 | 1 | The director, its three factories, the static getter, slot 4 (the 1 is the font factory). **Ours** (`framework.font.director`, below) |
 | f2 | 0x00893D2C to 0x00895F35 | 85 | 7 | The font system: folder scans, face table, aliases, GetFont, and the STLport map and list code for them. Most of it runs while the game starts, before the meter is armed; the 7 are QueryInterface, Release, GetFont, slot 10 and three helpers. **f2a**, the system's own 32, and **f2b**, the 51 STLport functions and two folded setters, are **ours** (`framework.font.system.*`, below) |
-| f3 | 0x00896254 to 0x0089A577, less f4 and f5 | 113 | 59 | The font: layout, measuring, line breaking, drawing, glyph cache and sheet, encodings, Thai, sample characters per language (slot 25). **f3a**, 38 of them (the object, its properties, the blitter's hand-over), **f3b**, 36 (its STLport containers), and **f3c**, 5 (Load, SetSize, SetScale, the sample characters, the levels), are **ours** (`framework.font.font.*`, below); the rest is the game's ("f3: what is left") |
+| f3 | 0x00896254 to 0x0089A577, less f4 and f5 | 113 | 59 | The font: layout, measuring, line breaking, drawing, glyph cache and sheet, encodings, Thai, sample characters per language (slot 25). **f3a**, 38 of them (the object, its properties, the blitter's hand-over), **f3b**, 36 (its STLport containers), **f3c**, 5 (Load, SetSize, SetScale, the sample characters, the levels), and **f3d**, 6 (the encodings and Thai), are **ours** (`framework.font.font.*`, below); the rest is the game's ("f3: what is left") |
 | f4 | 0x00896053 to 0x00896243, 0x00896E63, 0x00897246, 0x00897722 | 11 | 4 | The glyph blitter and its blend tables. **Ours** (`framework.font.blitter.draw` and `.object`, below) |
 | f5 | 0x0089603D, 0x00896D2F, 0x00896DDD, 0x00896E4A, 0x008976A4, 0x00897FED, 0x0089801E, 0x0089883F, 0x008988F1, 0x00898C6B, 0x00898CD9, 0x00898EB2 | 12 | 11 | The T2K holder: open, close, the file stream and T2K's read callback, names and styles, glyph names. **Ours** (`framework.font.t2k.*`, below; the first map counted 13 over ranges that also held some of the font's functions) |
 | f6 | 0x0089A578 to 0x008AE76D | 321 | 142 | **T2K** (third-party) |
@@ -500,6 +500,57 @@ Results, 2026-10-25:
 
 **Audit**: each translation was checked against the disassembly by the author and by an independent audit (every write and its order, what is read once and what again, signed and unsigned compares and divisions, the x87 compares with NaN, -0 and equality, the naked functions' stack offsets and that their instructions and rounding points are the game's, every call's address, convention and arguments, the thunks' byte counts, the expect bytes, every `addr::` name; then compare mode's safety). No difference reachable by a caller. Left: EAX above AL (above), and the sample characters' error word, which the game points at its argument slot and ours at a local (T2K writes it, nobody reads it).
 
-### f3: what is left
+## f3d: the font's encodings and Thai are ours
 
-The other 35 functions of f3 stay the game's: the encodings' conversion (0x00899BCA, 0x00896425 and their helpers), Thai (0x00899665, 0x0089645A), FitString, MeasureString and its trimmed form, the string shortener, DrawString and DrawStringInRect with DrawString's resize of its placed glyphs (0x00899A73), GetGlyph, RenderGlyph, the sheet's store and growth and DrawString's colour ramp (0x0089838C): 0x00896254 0x008962D7 0x0089632D 0x008963C9 0x00896425 0x0089645A 0x00896618 0x00896636 0x0089671F 0x00896808 0x00896886 0x008968EB 0x00896957 0x008969F2 0x00896A2D 0x008972BD 0x00897304 0x00897348 0x0089738F 0x008973D4 0x00897748 0x0089834C 0x0089838C 0x00898FDC 0x00899665 0x00899A15 0x00899A73 0x00899BCA 0x00899CA7 0x00899D2A 0x00899D81 0x00899F71 0x00899FF4 0x0089A099 0x0089A35B. Ghidra now finds 114 functions in f3's range less f4 and f5 (the first map counted 113).
+Six more of f3's functions are translated by hand ([src/core/font_text.cpp](../src/core/font_text.cpp)), in one group, off by default and installed at Attach:
+
+| Group | Functions | What |
+|---|---:|---|
+| `framework.font.font.text` | 6 | ToUnicode 0x00899BCA (every string the font lays out, measures or draws passes it), Convert 0x00899A15, HasThai 0x00896425, the Thai mark's kind 0x008963C9, the Thai pass 0x00899665 and the Thai presentation forms 0x0089645A |
+
+All six are detours. The text's conversion between encodings (0x00910E18, the game's RZText code: the encodings are code pages, 0 ASCII, 8 UTF-8, 0x10 UTF-16, others through Windows), the Thai classes (0x0091169F), the vectors' code (the words' resize 0x0049D0C0 and push_back 0x00800540, the pointers' push_back and insert, the erase 0x0040E490), the CRT's memcpy and f3b's text find, reserve and insert stay the game's, called at their addresses, as do these six when they call one another. Addresses: [data/addresses/font.toml](../data/addresses/font.toml) (six new entries).
+
+### What they do
+
+- **ToUnicode** (`ret 0x18`: text, count, out text, out count, which, keep): the text in the font's encoding (+0x7C) as UTF-16, through the font's vector `which` (+0x90 + 0xC x which; the seven callers pass 0 to 4: FitString 2, MeasureString 4, its trimmed form 3, DrawString 1). With `keep` the offsets (+0xD8) are emptied first. UTF-16 without a Thai mark is handed back as it is; with one it is copied into the vector (sized for at least twice the count) and the Thai pass runs on the copy. Other encodings are converted into the vector (sized for at least 12 words a character) and the Thai pass runs if the result has a mark.
+- **Convert**: for UTF-16 the vector resized to the count and the words copied; else 0x00910E18 converts into the vector's words, as many as its size holds, and gives the count.
+- **The mark's kind**: 1 for the characters the pass may change (YO YING 0x0E0D, MAI HAN-AKAT 0x0E31, SARA AM 0x0E33, the upper vowels 0x0E34 to 0x0E37, MAITAIKHU 0x0E47, NIKHAHIT 0x0E4D), 3 for the tone marks and THANTHAKHAT (0x0E48 to 0x0E4C); HasThai is whether any word of the text has one.
+- **The Thai pass**: while the text has a SARA AM it is rebuilt into +0xCC, each SARA AM becoming NIKHAHIT and SARA AA (the NIKHAHIT before the word last rebuilt when the word before the SARA AM is a tone mark, class 9), with `keep` the index of each word's input word pushed on the offsets. Then, in place, the marks take their forms: YO YING before a lower vowel (classes 6 to 8) its form without the tail; upper vowels and marks (classes 9 to 11 and 13 to 15) shifted left after a tall consonant (PO PLA, FO FA, FO FAN, LO CHULA) or after a word that was shifted, and tone marks and THANTHAKHAT lowered after a word of a class below 10 (nothing above them); a lower vowel after a tall consonant passes the shift on to the next word.
+- **The forms** are the fonts' private characters 0xF701 to 0xF717: shifted 0xF701 to 0xF704 (upper vowels), 0xF710 to 0xF712 (MAI HAN-AKAT, NIKHAHIT, MAITAIKHU), 0xF713 to 0xF717 (tone marks); lowered 0xF70A to 0xF70E; both 0xF705 to 0xF709; YO YING 0xF70F.
+
+### Quirks kept
+
+- Every rebuild of the Thai pass pushes the count of its input on the offsets whatever `keep` is, and only ToUnicode with `keep` empties them: a font that draws Thai text with SARA AM through callers without `keep` grows +0xD8 by a word each time.
+- The forms are written where the out text points, which is the text handed to the pass: the input itself when it has no SARA AM (the vector ToUnicode made, never a caller's text).
+- The pass's kind of a word is passed on only through a lower vowel and through a shifted mark; YO YING's form resets it.
+- HasThai answers AL (the game's upper bytes are whatever EAX held); ToUnicode's and the pass's EAX is 0 in ours (no caller reads more than AL of a value made later).
+
+### Testing
+
+**Compare mode**: the mark's kind, HasThai and the forms compare their answer. ToUnicode, Convert and the Thai pass run ours first on scratch copies (the font's 0x15C bytes with empty vectors of its own, a copy of the vector given, a copy of the text), then the game's on what they were called with, and compare the count, the words, where the text is (the input or which vector) and what was pushed on the offsets. While the game's side runs, our detours inside it pass through to the game's; while ours runs on a scratch copy, they run ours.
+
+**`OPENSC4_TEST_FONTS=<day>`** has one more stage after the font's loading (same file, same ` | ft` hash):
+
+| Stage | What |
+|---|---|
+| fonttext | the mark's kind of every 16-bit character and with bits above it; every form of 0x0E00 to 0x0E5F by kinds 0 to 4 and two more; HasThai over every length of 48 texts (Thai that reaches every branch: SARA AM after a consonant, a tone mark, at the start and the end, twice; tall consonants under upper vowels, tone marks, THANTHAKHAT, MAITAIKHU, NIKHAHIT; YO YING over lower vowels; tone marks over upper vowels; a 0 word; 24 random runs, some with Latin); ToUnicode on fonts in six encodings (UTF-16, ASCII, UTF-8 as 8 and 0xFFFFFFFE, 874, 1252) over the texts (as UTF-8 and code page 874 bytes for the others) through the five vectors with and without `keep`; Convert into vectors of our own with no room, 3 words and 160; the Thai pass alone over copies; Thai measured by three loaded fonts |
+
+Answers go into the hash by count, place (the input or a vector and the offset) and words, with the font's seven vectors (size, room, contents) after each call. A mutation check (the NIKHAHIT put before a class 8 word instead of 9, LO CHULA not tall, the lowered and shifted tone marks one along, ToUnicode's room 11 words a character, the rebuild's count not pushed, MAI HAN-AKAT not a mark) changed the hash at fonttext each time and not before.
+
+Results, 2026-10-25:
+
+| Check | Result |
+|---|---|
+| Test runs, group off (four) vs on (three), with every font group on (19), and in compare mode | every stage hash the same: the 23 before as with f3c (fontload 9B5AEA61), fonttext A5B57CEC; `ft` A5B57CEC. All 6 reached. One compare run gave fontload F568837C (and so fonttext AAAD5F4D), f3c's known noise in the game's side; the four runs after it gave 9B5AEA61 |
+| Compare mode, test | 0 divergences: markkind 65540 calls, tounicode 8559, hasthai 725, form 676, convert 240, thai 96 |
+| Compare mode, 90 s of plain play (Making Money) | 0 divergences: tounicode 97088 on the final build, 191224 on the one before (the others run inside it; no Thai text, so neither the pass nor the forms run) |
+| Screenshots (`run-shots.sh`, Making Money, the group on) vs the game | 20 of 20 within `--tolerance 32 --max-differing 1.2` |
+| Parity `ft8-t1`, 12 saves, 7 days, muted, `OPENSC4_TEST_FONTS=2`, own folder `p4env-ft8`, two jobs, A `determinism.dispatch_info`, B that and the group | 12 same at the first try; `ft` DE7460D9 in all 120 daily fingerprints, both sides |
+
+**Reached** in plain play: ToUnicode, Convert, HasThai and the mark's kind (every string). Not reached: the Thai pass and the forms (only Thai text). The test reaches all 6.
+
+**Audit**: each translation was checked against the disassembly by the author and by an independent audit (every write and its order, what is read once and what again, the 16-bit values the game keeps in double-word slots, signed and unsigned compares and shifts, every call's address, convention, arguments and conditions, the thunks' byte counts, the expect bytes, the positioning loop's slots across iterations; then compare mode's safety). No difference reachable by a caller. Left: EAX above AL (HasThai) and the void functions' EAX (above). Fixed from the audit: the copy of a word in the positioning reads where the text goes before the word, as the game does (no effect); compare mode's place of a text no longer counts a vector whose block starts at the input's end as the input. All checks ran on the final build but parity and the screenshots (one build before those two, which a caller cannot see).
+
+## f3: what is left
+
+The other 29 functions of f3 stay the game's: FitString, MeasureString and its trimmed form, the string shortener, DrawString and DrawStringInRect with DrawString's resize of its placed glyphs (0x00899A73), GetGlyph, RenderGlyph, the sheet's store and growth and DrawString's colour ramp (0x0089838C): 0x00896254 0x008962D7 0x0089632D 0x00896618 0x00896636 0x0089671F 0x00896808 0x00896886 0x008968EB 0x00896957 0x008969F2 0x00896A2D 0x008972BD 0x00897304 0x00897348 0x0089738F 0x008973D4 0x00897748 0x0089834C 0x0089838C 0x00898FDC 0x00899A73 0x00899CA7 0x00899D2A 0x00899D81 0x00899F71 0x00899FF4 0x0089A099 0x0089A35B. Ghidra now finds 114 functions in f3's range less f4 and f5 (the first map counted 113).
