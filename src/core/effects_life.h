@@ -517,6 +517,29 @@ void StartAtAges(char* self, Start&& start)
     }
 }
 
+// 0x005B84C0 (ret 4), with a particle the emitters just took and stepped,
+// for descriptions with flag 0x80000000: effects started where it is born.
+// For a running particle (its first byte), the same table as above (its
+// count worked out once) is walked from its first entry while the entry's
+// age is the zero at 0x00A81054 (floats, so -0 starts too and a NaN ends
+// the walk); `start` gets the effect, the suffix and the particle's place
+// (+0xC). The first entry with another age ends the walk. The table's
+// first entry is read again for each entry.
+template <typename Start>
+void StartAtBirth(char* self, char* particle, Start&& start)
+{
+    char* const table = At<char*>(self, 0x24) + 0x1CC;
+    if (!At<uint8_t>(particle, 0))
+        return;
+    const int32_t count = static_cast<int32_t>(At<uint32_t>(table, 4) - At<uint32_t>(table, 0)) >> 4;
+    for (int32_t i = 0; i < count; ++i) {
+        char* const entry = At<char*>(table, 0) + i * 16;
+        if (!(At<float>(entry, 0xC) == M<float>(0x00A81054)))
+            return;
+        start(self, At<uint32_t>(entry, 0), particle + 0xC);
+    }
+}
+
 // 0x005B9790 (ret 8): a particle's full step, which the plain step
 // (0x005B9BA0) hands over to for descriptions with a flag of the mask at
 // 0x00B22E14; the effect, the particle and the step. The particle's age

@@ -2,7 +2,7 @@
 
 The text engine at 0x00893D2C to 0x008AE76D: a Maxis framework layer (a COM director, the font system, the font, a glyph blitter) on top of **T2K**, the font scaler Sampo Kaasila wrote and Bitstream sold as Font Fusion. It is the "Font engine" line of [uncharted-code.md](uncharted-code.md), which gave it as 0x00894000 to 0x008A7FFF; the code runs a little lower and higher than that.
 
-Everything here was read from the disassembly with Ghidra; the glyph blitter (f4), the director (f1), the T2K holder (f5), the font system's own functions (f2a) and its tables (f2b) are ours and were checked in the game ("f4: the glyph blitter is ours", "f1 and f5", "f2a" and "f2b" below). Names are ours unless they come from T2K. The addresses the doc relies on are in [data/addresses/font.toml](../data/addresses/font.toml) (f1, f2a, f2b, f4 and f5 hooked) and [data/names-641.txt](../data/names-641.txt). "Ran" counts come from the 17 coverage files on TurboToaster ([dev-environment.md](dev-environment.md), "Coverage"); code that runs only while the game starts is never recorded there.
+Everything here was read from the disassembly with Ghidra; the glyph blitter (f4), the director (f1), the T2K holder (f5), the font system's own functions (f2a), its tables (f2b) and the font's object and properties (f3a), its containers (f3b) and its loading, size and scale (f3c) are ours and were checked in the game ("f4: the glyph blitter is ours", "f1 and f5", "f2a", "f2b", "f3a", "f3b" and "f3c" below). Names are ours unless they come from T2K. The addresses the doc relies on are in [data/addresses/font.toml](../data/addresses/font.toml) (f1, f2a, f2b, f3a, f3b, f3c, f4 and f5 hooked) and [data/names-641.txt](../data/names-641.txt). "Ran" counts come from the 17 coverage files on TurboToaster ([dev-environment.md](dev-environment.md), "Coverage"); code that runs only while the game starts is never recorded there.
 
 ## Library or Maxis
 
@@ -52,7 +52,7 @@ Text comes in as the font's encoding and is turned into UTF-16 first (0x00899BCA
 |---|---|---:|---:|---|
 | f1 | 0x00895F36 to 0x0089604D, less 0x0089603D | 8 | 1 | The director, its three factories, the static getter, slot 4 (the 1 is the font factory). **Ours** (`framework.font.director`, below) |
 | f2 | 0x00893D2C to 0x00895F35 | 85 | 7 | The font system: folder scans, face table, aliases, GetFont, and the STLport map and list code for them. Most of it runs while the game starts, before the meter is armed; the 7 are QueryInterface, Release, GetFont, slot 10 and three helpers. **f2a**, the system's own 32, and **f2b**, the 51 STLport functions and two folded setters, are **ours** (`framework.font.system.*`, below) |
-| f3 | 0x00896254 to 0x0089A577, less f4 and f5 | 113 | 59 | The font: layout, measuring, line breaking, drawing, glyph cache and sheet, encodings, Thai, sample characters per language (slot 25) |
+| f3 | 0x00896254 to 0x0089A577, less f4 and f5 | 113 | 59 | The font: layout, measuring, line breaking, drawing, glyph cache and sheet, encodings, Thai, sample characters per language (slot 25). **f3a**, 38 of them (the object, its properties, the blitter's hand-over), **f3b**, 36 (its STLport containers), and **f3c**, 5 (Load, SetSize, SetScale, the sample characters, the levels), are **ours** (`framework.font.font.*`, below); the rest is the game's ("f3: what is left") |
 | f4 | 0x00896053 to 0x00896243, 0x00896E63, 0x00897246, 0x00897722 | 11 | 4 | The glyph blitter and its blend tables. **Ours** (`framework.font.blitter.draw` and `.object`, below) |
 | f5 | 0x0089603D, 0x00896D2F, 0x00896DDD, 0x00896E4A, 0x008976A4, 0x00897FED, 0x0089801E, 0x0089883F, 0x008988F1, 0x00898C6B, 0x00898CD9, 0x00898EB2 | 12 | 11 | The T2K holder: open, close, the file stream and T2K's read callback, names and styles, glyph names. **Ours** (`framework.font.t2k.*`, below; the first map counted 13 over ranges that also held some of the font's functions) |
 | f6 | 0x0089A578 to 0x008AE76D | 321 | 142 | **T2K** (third-party) |
@@ -95,7 +95,7 @@ Slots 51 and 52 ran in all 17 coverage runs, far more often than these callers, 
 - **The blitter's DrawGlyphs (slot 7 of 0x00AC55B4, 0x00897246).** The last step before text is pixels: a list of placed glyphs (0x24 bytes each: box, sheet pixels, pitch, width, height, character) and the picture. A replacement blitter could send glyphs to the driver instead of the picture, which is also a vtable swap rather than a detour. Most fonts draw through the font system's blitter instead (vtable 0x00AC14D0, through a drawing context; "Two blitters" below), so a hook here alone misses most text; the font's SetBlitter (slot 54) is where either is handed over.
 - GetFont (0x00894ADF) is where fonts are made, if the larger font objects should be made alongside the game's.
 
-Of these, the f4 blitter and GetFont (f2a) are ours (as translations, not yet as crisp-text hooks); f1 and f5, which open the faces, are ours too but are not drawing.
+Of these, the f4 blitter, GetFont (f2a) and SetBlitter (f3a) are ours (as translations, not yet as crisp-text hooks); f1 and f5, which open the faces, are ours too but are not drawing.
 
 ## f4: the glyph blitter is ours
 
@@ -337,3 +337,169 @@ Results, 2026-10-25:
 **Reached** in plain play (39 of 53): the three maps' constructors, initialisers and headers, the faces' and aliases' inserts, inserts under a parent, nodes and pair copies, the faces' and aliases' pairs, a face made, copied and destroyed, a list's push_back, node, copy and range insert, the byte vector and its fill, both setters; at exit the three maps' destructors and clears, the faces' and aliases' erases of subtrees and pair destructors. Not reached: the sizes' insert, insert under a parent, bounds, equal range, erases, pair, pair copy and node (SetMonoRange is never called), the distance and the faces' erase of a node (RemoveFace). The test reaches all 53.
 
 **Audit**: each translation was checked against the disassembly by the author and by an independent audit (every write and its order, what is read again, signed compares, byte and word stores, every call's address, convention, arguments and `ret`, the thunks' byte counts, what is returned, every `addr::` name; then compare mode's safety). No difference a caller could see. Left: the EAX of void functions (push_back and the range insert return the list insert's result pointer, which in the game points at its own argument slot and in ours into a returned frame). In compare mode the fill writes its bytes twice and the setters their field three times, ending in the game's state.
+
+## f3a: the font's object and properties are ours
+
+38 of f3's functions, the font's object, its properties and the blitter's hand-over (class 0x1AA404AC), are translated by hand ([src/core/font_object.cpp](../src/core/font_object.cpp)), in three groups, off by default and installed at Attach (fonts are made while the game starts):
+
+| Group | Functions | What |
+|---|---:|---|
+| `framework.font.font.object` | 10 | the constructor 0x00899AAB, the destructor 0x0089893F and the deleting destructor (slot 57, 0x00898FC0), QueryInterface (slot 0, 0x0089626E), Release (slot 2, 0x008972A8) and its last reference 0x00896293, Unload (slot 4, 0x008982E1), and the glyph cache's constructor 0x00899A89, clear 0x008982BA and destructor 0x0089892E |
+| `framework.font.font.properties` | 24 | GetFamily (slot 5, 0x008989E5), HasStyle (6, 0x00898A00), SetStyle (8, 0x008962A9), SetColours (14, 0x00898A13), SetMode (16, 0x00896654), the grey ramp's power and bias (17 to 20: 0x00896662, 0x00899987, 0x00896666, 0x008999CE), GetPath and SetPath (21, 22: 0x00898A24, 0x00898A3F), GetEncoding, SetEncoding and SupportsEncoding (23, 24, 26: 0x0089666A, 0x00896678, 0x00896684), GetScale (29, 0x00896692), the extra scale (31, 32: 0x008966A7, 0x0089865F), the spacing (33, 34: 0x008966BB, 0x008966D0), LineHeight (35, 0x008966EB), TextHeight (37, 0x008966F2), Baseline (38, 0x008966F8), BelowBaseline (39, 0x00896702), the glyph cache of the mode (59, 0x008962C4) |
+| `framework.font.font.blitter` | 4 | the blitter's mode of a draw mode 0x00896B2C, SetBlitter (slot 54, 0x00896B45), Begin and End (55, 56: 0x00896B8E, 0x00896BC2) |
+
+Slots 17 and 19 are four bytes each (`FLD`, `RET`), back to back, too short for a detour: ours takes their slots of the vtable 0x00AC55D8 instead (nothing else points at them). The other 36 are detours. Slots 1, 7, 9, 10, 12, 13, 15 and 53 are a few bytes the linker folded with other classes' (AddRef 0x0094C4B1 among them) and stay the game's, as do Load, SetSize, SetScale, the layout, measuring and drawing, the glyph cache's lookups and the sheet (the other 76, listed below), the T2K holder (f5) and the containers' code, all called at the game's addresses. Addresses: [data/addresses/font.toml](../data/addresses/font.toml) (37 entries are new there; GZFont::Construct was there).
+
+### What they do
+
+- **The object** (0x15C bytes): +0x04 the loaded byte, +0x08 the count, +0x0C the path and +0x20 the family (the game's strings), +0x34 the kind, +0x38 the size, +0x3C the glyphs' height, +0x40 the style bits, +0x44 and +0x48 two colours, +0x4C the draw mode (1 when made) and +0x50 a 2, +0x54 and +0x58 the grey ramp's power (1.0) and bias (0.0) with +0x5C the vector of 256 levels rebuilt from them (0x008993BB), +0x68 and +0x6C the scale, +0x70 an extra scale, +0x74 and +0x78 two spacings, +0x7C the encoding, +0x80 Begin's depth, +0x84 and +0x88 two metrics SetSize sets, +0x8C the blitter, +0x90 six objects of 0xC bytes, +0xD8 and +0xF0 two vectors, +0xE4 the fallback character 0x20, +0xEC the T2K holder (made by the constructor, 0x34 bytes), +0xFC a word, +0x100 a list of blocks, +0x104 and +0x130 the monochrome and grey glyph caches. A glyph cache (0x2C bytes) is a glyph sheet (the block, its pixels, width, height, pitch and next free column) and the table of its glyphs at +0x18.
+- **QueryInterface** answers 0x10673960 and 1, AddRef'd through slot 1; **Release** counts down while above 1 and at 1 or below calls Unload and the deleting destructor. **Unload**, if loaded, gives the blitter up (slot 54 with null), clears both caches, frees the blocks of +0x100 and clears the list, closes the face (f5's Close) and clears the loaded byte. The **destructor** unloads, destroys and frees the holder, then takes down the caches, the list, the vectors, the six objects, the levels and the strings.
+- **Properties**: SetStyle sets or clears bits 2 to 5 (the flag a byte); HasStyle is whether all the asked bits are there; SetMode ignores 0. The ramp's power is kept in 0 to 10 and its bias in -1 to 1, the extra scale in 0.1 to 10; each is stored only if it differs from the field (a NaN always differs), the first two then rebuilding the levels, the third clearing both caches. LineHeight is the glyphs' height and the second spacing, Baseline +0x84 and the second spacing, BelowBaseline the first less the second (asked through the vtable, Baseline first). The glyph cache of the mode is the monochrome one in mode 1, else the grey one.
+- **The blitter**: SetBlitter AddRefs a new blitter and hands it the font (its slot 3), hands the old one's slot 4 the font and releases it. Begin calls the blitter's Begin (slot 5: the font, the picture, the blitter's mode, which is the draw mode for 2 and 3 and 1 for anything else) at depth 0, End its End (slot 6) at depth 1; both move the depth.
+
+### Quirks kept
+
+- End goes on counting below 0, and Begin from below 0 calls nothing until the depth is back at 0.
+- Release at a count of 0 or below destroys the font too (a signed compare); the count is not touched.
+- The ramp's power below 0 becomes +0, so -0 is kept as -0 only when the field was not 0 already (0 and -0 compare equal and nothing is stored); a NaN is stored and rebuilds the levels every time.
+- SetExtra's second argument is unused, and GetExtra's second answer is always 1.0; TextHeight ignores the text it is given.
+- GetEncoding and SetEncoding answer AL 1 over the encoding's upper three bytes, as the game loads them into EAX; SupportsEncoding answers only AL (true for encoding 2 alone), ours 0 above it. Unload answers AL 1 over whatever EAX held (ours 0 above it). The void slots' EAX is the game's last value in each (SetStyle's mask, SetColours' and SetSpacing's second argument) and ours gives the same.
+- The constructor passes the list's constructor a byte of its stack as an allocator, which it never reads; ours passes a 0.
+
+### Testing
+
+**Compare mode**: what only reads compares its result (HasStyle, SupportsEncoding, the line metrics, the glyph cache, the blitter's mode; the ramp's getters by their bits); what writes only the font or its caller's answers (QueryInterface, SetStyle, SetColours, SetMode, the encoding, the spacing, GetScale, GetExtra) keeps what ours wrote aside with the font's 0x15C bytes and the answers, puts them back, runs the game's and compares; GetFamily, GetPath and SetPath assign the same text twice and compare it. The three setters that rebuild or clear run the game's and compare the field it left with what ours would leave. The constructor runs the game's on the font and ours on a scratch font, compares every field but where pointers point (whether they are set), and takes the scratch down with the game's destructor. The rest (they free, release or call the blitter) run the game's alone. While the game's side runs, our detours inside it pass through to the game's.
+
+**`OPENSC4_TEST_FONTS=<day>`** has three more stages after the font system's tables (same file, same ` | ft` hash):
+
+| Stage | What |
+|---|---|
+| fontobject | the constructor and destructor in place between margins; QueryInterface for eight IDs, the count down by address and the vtable, Unload of a font never loaded; Release at 0, at 1 and down from three, the last reference's function, the deleting destructor with and without freeing; a glyph cache made, cleared empty and with a block, taken down, between margins; three fonts the font system made and loaded (Arial MT at 12 and 30, Times New Roman at 17), measured in modes 1 and 2 (filling both caches), the extra scale changed, unloaded twice, loaded again and measured, released to the last |
+| fontprops | on a font of our own: SetStyle by seven masks and flags and HasStyle by nine; the colours; the mode by eight values with the cache of each; the ramp's power by 14 values and its bias by 12 (past both ends, -0, infinities, NaN twice) with the levels they build; the path and the family into strings that held text; the encoding by four and SupportsEncoding by six; the scales and the extra scale by 11; the spacing by five pairs with the line metrics |
+| fontblitter | the blitter's mode of seven values; SetBlitter over two mock blitters that note every call (the same one twice, another, none); Begin and End nested, past 0 and back, in four modes |
+
+Every font goes into the hash by its fields, texts and levels and by whether its pointers are set. A mutation check (Unload leaving the loaded byte, the extra scale's low clamp at 0, End at depth 2, the blitter's mode losing 3) changed the hash at the stage it should each time: fontobject, fontprops, fontblitter, and strings for the last (the first stage that draws in mode 3).
+
+Results, 2026-10-25:
+
+| Check | Result |
+|---|---|
+| Test runs, groups off (twice) vs on (the three), and with every font group on | every stage hash the same: the 18 before as with f2b (stl 28F25CD5), fontobject F81D0D6F, fontprops CC037FDD, fontblitter 7EEE16FF; `ft` 7EEE16FF. All 38 reached. (Before f2b's stage was added: E8435DED, 31C1F067, BDD0D65D, the same off and on) |
+| Compare mode, test | 0 divergences: glyphcache 210667 calls, blitmode 22890, textheight 2205, getpath 507, setmode 487, setstyle 413, construct 387, queryinterface 386, setencoding 382, setpath 381, getfamily 275, lineheight 156, setcolours 105, setspacing 88, setextra 74, hasstyle 72, baseline 55, getpower 28, getbias 28, setpower 15, setbias 13, getscale 12, getextra 12, belowbaseline 8, supportsencoding 6, getspacing 5, getencoding 4 |
+| Compare mode, 90 s of plain play (Making Money) | 0 divergences: glyphcache 1654756, blitmode 32987, baseline 16542, textheight 14006, lineheight 11933, setstyle 3316, setmode 115, setcolours 90, setspacing 83, setextra 60, construct 32, getfamily 32, queryinterface 32, setencoding 32, setpath 32 |
+| Screenshots (`run-shots.sh`, Making Money, the three groups on) vs the game | 20 of 20 within `--tolerance 32 --max-differing 1.2` |
+| Parity `ft5-r1`, 12 saves, 7 days, muted, own folder `p4env-ft5`, two jobs, A `determinism.dispatch_info`, B that and the three groups (before the rebase on f2b) | 12 same |
+| The same with `OPENSC4_TEST_FONTS=2` on the rebased build (`ft5-t1`) | 12 same (Rush Hour d0000 after a second pair, A itself giving two outcomes: the harness's noise); `ft` 0DF2E70F in all 130 runs, both sides. Under `determinism.fixed_ticks` (one of the parity's settings) fontobject hashes BC3BBF4F rather than F81D0D6F, off and on alike: the fonts the font system loads differ there, not the translations |
+| Compare mode, test, on the rebased build | 0 divergences in all 27 comparisons |
+
+**Reached** in plain play: the constructor, QueryInterface, SetPath, SetEncoding, SetStyle, SetMode, SetColours, SetSpacing, SetExtra, GetFamily, SetBlitter, Begin, End, the blitter's mode, the glyph cache of the mode (1.65 million times in 90 s), LineHeight, TextHeight, Baseline, the caches' three functions, and at exit Release, its last reference, Unload and the destructors. Not reached: HasStyle, the ramp's four, GetPath, GetEncoding, SupportsEncoding, GetScale, GetExtra, GetSpacing, BelowBaseline. The test reaches all 38.
+
+**Audit**: each translation was checked against the disassembly by the author and by an independent audit (every write and its order, signed and byte compares, what is read again, every call's address, convention and arguments, the x87 compares with NaN, -0 and equality, the thunks' byte counts, the expect bytes and that no patch covers a branch target, every `addr::` name; then compare mode's safety). No difference reachable by a caller. Left: the upper bytes of EAX where only AL is answered and the void slots' EAX (above); a signalling NaN, which the game's `FLD`/`FSTP` copies quiet and ours copies as it is (GetScale, GetExtra and the three setters' stores; nothing makes one). Changed from the audit: the bias's high is read from 0x00A81228 as the game reads it (the same 1.0). A compare-mode limit it noted: GetFamily and GetPath assign the caller's string twice.
+
+## f3b: the font's containers are ours
+
+36 more of f3's functions, the STLport container code the linker put in the font's range, are translated by hand ([src/core/font_containers.cpp](../src/core/font_containers.cpp)), in two groups, off by default and installed at Attach:
+
+| Group | Functions | What |
+|---|---:|---|
+| `framework.font.font.containers` | 34 | the maps of characters (the holder's at +0x28 and the static map of glyph names 0x00B5C41C): Find 0x0089762F, Insert 0x00897E7C, InsertAt 0x00897DAC, the node 0x00897A91 and its pair 0x0089768B, and each map's own erase of a subtree, clear and destructor (0x0089753F, 0x00897A1C, 0x00897C5F; 0x0089756C, 0x00897A45, 0x00897C76); the glyph table of a glyph cache: Insert 0x008986BF, InsertNoResize 0x00897CB2, the node 0x00897A6E and its value 0x0089766B; DrawString's vector of placed glyphs: Resize 0x00899513, Erase 0x00897E56, the fill insert 0x0089874D, the insert overflow 0x00897F04, and under them the fill 0x00896BF6, the copies 0x00896C90 and 0x008975B4, the copies back 0x00896CFD and 0x008975F7, the construct 0x00896CC2, the fills 0x00896CD8 and 0x00897614, the uninitialised copy 0x008975D1; the Thai pass's vector of UTF-16 text: Insert 0x00897BDC, Reserve 0x008986E3, the copy into a new block 0x00897FC2, the finds 0x00896C19 and 0x00897599; the T2K holder's destructor 0x00897E36 |
+| `framework.font.font.shared` | 2 | a list of words' insert before a node (0x00897C8D; seven call sites outside the font, the packed files' among them) and a vector of pointers' insert overflow (0x00897D22, called by 0x00997959) |
+
+All 36 are detours. DrawString's resize of its placed glyphs (0x00899A73) stays the game's: it hands Resize an uninitialised 0x24-byte value from its stack. The balancing (0x0040D5E0), the tree's step back (0x0040D500), the hash table's growth (0x009978AF), the allocators (0x0090CF54, 0x0049CAF0, 0x009B3553, 0x009DB998, 0x0094B33A), the copies and fills of words and pointers (0x004622A0, 0x00413D00, 0x00407A50, 0x004186F0), the text's own insert overflow (0x004658B0) and f5's Close stay the game's, called at their addresses, as do these functions when they call one another. Addresses: [data/addresses/font.toml](../data/addresses/font.toml) (35 entries are new there; the list's insert was in resources.toml).
+
+### What they do
+
+- **The maps of characters** are STLport red-black trees: the map is its header's pointer and the count; a node (0x18 bytes) is its colour, parent, left, right, the character (a word) at +0x10 and a double word at +0x14 (a glyph in the holder's map, a glyph name in the static one). Find and Insert read the character once for the descent and again for the last test; Insert tests the node before the last one it reached (unless that was the first) and inserts under the last; InsertAt puts the node left when the parent is the header, right when asked, left when x is set or the character is below the parent's. The two maps are two copies of the same code for erase, clear and destructor and share the rest.
+- **The glyph table** (+0x18 of a glyph cache) is a hash table: the buckets' vector at +4, the count at +0x10, nodes of 0x20 bytes (the next node, the character, six words). Insert grows the table for one more first; InsertNoResize finds the character's bucket (unsigned remainder by the number of buckets) and either answers the node there or puts a new one at the bucket's front.
+- **The placed glyphs** (0x24 bytes: box, pixels, pitch, width, height, character) are copied as nine words, forwards or backwards. Counts are signed divisions by 0x24, compared unsigned where the game does (room against the count, the size against the count asked).
+- **The text** is a vector of 16-bit words. Its find compares each word with the double word at the value, four at a time and then the last three, so a value with bits above the word is never found.
+- **The holder's destructor** closes the holder (f5's Close), takes down its map at +0x28 and frees its block at +0x14.
+
+### Quirks kept
+
+- The text's find reads the value once for the fours and again for each of the last three words.
+- The placed glyphs' construct leaves EAX as it came (ours answers the place); the maps' clear answers the header only when it cleared. The void functions' EAX is otherwise what the game leaves where a caller could see it (the overflows' end of room, the fill insert's fill).
+- Resize counts the size again from the end read again but the begin read first.
+
+### Testing
+
+**Compare mode**: the finds (the maps' and the text's two) compare their results; the maps' insert runs ours to its decision without its effects (the node there, or the parent it would insert under) and then the game's, whose call of InsertAt is noted and compared; the glyph table's InsertNoResize decides with ours (the node there, or the bucket's first node the new one goes before) and compares it with what the game's did. The rest run the game's alone. While the game's side runs, our detours inside it pass through to the game's.
+
+**`OPENSC4_TEST_FONTS=<day>`** has one more stage after the font's blitter (same file, same ` | ft` hash):
+
+| Stage | What |
+|---|---|
+| fontcontainers | the placed glyphs' helpers in a buffer between margins (fills, copies forwards, backwards and overlapping, counts of 0, a part of a glyph and backwards, the construct at null); a glyph's value and a map's pair, and at null; a vector of placed glyphs resized up from nothing, down and past its room, copies put in at the front, middle and end with more and fewer glyphs after the place, ranges erased, the overflow at both ends; the text reserved from nothing, words put in at the end, front and middle until past its room, reserved again, copied into a new block and searched over every length for words there, not there and with bits above the word; both maps filled with 70 random characters and the ends, searched, InsertAt at both ends, a node made, a subtree erased, cleared, filled again and taken down; a glyph cache's table filled with 90 characters and four more without growing, a node made, taken down; a list of words, a vector of pointers out of room four ways, a holder with characters in its map and a block taken down |
+
+Maps go into the hash by order (each node's colour, the places of its parent and children, its pair), tables by bucket, vectors by contents, places by offsets. A mutation check (the maps' clear leaving the count, the text's find skipping its third last word, the glyph table's insert not counting, the pointers' overflow answering one word more room) changed the hash at fontcontainers each time.
+
+Results, 2026-10-25:
+
+| Check | Result |
+|---|---|
+| Test runs, groups off vs on (the two), with every font group on (17), and in compare mode | every stage hash the same: the 21 before as with f3a (fontblitter 7EEE16FF), fontcontainers BCF8FA6E; `ft` BCF8FA6E. All 36 reached |
+| Compare mode, test | 0 divergences: glyphinsert 1277 calls, mapinsert 1148, mapfind 640, textfind 155, textfindtagged 75 |
+| Compare mode, 90 s of plain play (Making Money) | 0 divergences: glyphinsert 509, mapinsert 489, mapfind 20 |
+| Screenshots (`run-shots.sh`, Making Money, the two groups on) vs the game | 20 of 20 within `--tolerance 32 --max-differing 1.2` |
+| Parity `ft6-t1`, 12 saves, 7 days, muted, `OPENSC4_TEST_FONTS=2`, own folder `p4env-ft6`, two jobs, A `determinism.dispatch_info`, B that and the two groups | 12 same at the first try; `ft` FCB199D3 in all 120 daily fingerprints, both sides |
+
+**Reached** in plain play: 25 of the 36, the maps (Find, Insert, InsertAt, the node and pair, both maps' erase, clear and destructor), the glyph table's four, Resize, the fill insert, the overflow and the fills, construct and uninitialised copy under them, the list's insert and the holder's destructor. Not reached: the text's five (only Thai text uses them), Erase and the four copies, the pointers' overflow. The test reaches all 36.
+
+**Audit**: each translation was checked against the disassembly by the author and by an independent audit (every write and its order, what is read once and what again, signed and unsigned compares and divisions, byte, word and double word widths, every call's address, convention, ECX and arguments, the thunks' byte counts against each `ret`, the expect bytes and that no patch covers a branch target, every `addr::` name; then compare mode's safety). No difference reachable by a caller. Left: EAX where the game's void functions leave something no caller reads (the erases, clears of an empty map, destructors, the fill insert of 0, the construct); the tags, which ours points at a byte of its own where the game points at one of its argument slots (no callee reads them); in compare mode the tagged find and the glyph table's Insert also compare the find and InsertNoResize they call, reads only.
+
+## f3c: the font's loading, size and scale are ours
+
+Five more of f3's functions are translated by hand ([src/core/font_load.cpp](../src/core/font_load.cpp)), in one group, off by default and installed at Attach:
+
+| Group | Functions | What |
+|---|---:|---|
+| `framework.font.font.load` | 5 | Load (slot 3, 0x0089955C), SetSize (slot 11, 0x00897AB1), the sample characters of a language (slot 25, 0x00898A5A), SetScale (slot 30, 0x0089854E) and the grey ramp's levels (0x008993BB) |
+
+All five are detours. The T2K holder (f5), T2K itself (its transformation 0x0089DC9A and its glyph lookups 0x0089F4B2 and 0x0089F538), the glyph blitter's constructor (f4), the glyph caches' clear (f3a), the C runtime's pow (0x009EFC20), its function at 0x009F2160, the pow of two floats (0x004C37A0), ftol and the byte vector's resize and erase stay the game's, called at their addresses. Addresses: [data/addresses/font.toml](../data/addresses/font.toml) (Load, SetSize and SetScale were there, not hooked; RebuildLevels and SupportsLanguage are new).
+
+### What they do
+
+- **Load**: unless loaded already or without a path, and only when the path's file is there (RZFile::Exists) and the holder opens it: the size set through slot 11 when +0x38 has one (refused, and the font stays unloaded), the family named by the holder, the face's style bits over bits 2 to 5 of the font's own, the kind +0x34 (2 when T2K's scaler has +0x5C, else 1), +0xE8 the glyph of the fallback character +0xE4 (0 when T2K reports an error); loaded when the family has text. Once loaded, a glyph blitter is made and AddRef'd if there is none, and the levels are rebuilt. The answer is the loaded byte.
+- **SetSize** refuses 0 pixels and any size while either glyph cache counts glyphs (+0x12C, +0x158). It stores the size, at most 0x800; with a face open it sets T2K's transformation at 72 dpi (each scale times 65536 times the size, truncated) and reads the metrics back in pixels (signed, truncated): +0x88 the scaler's +0x7C, +0x84 that and +0x6C, the glyphs' height +0x3C that less +0x74 (1 when 0; one more, and another above 28, for holders of kind 2 and 3). True when T2K reports nothing, or without a face.
+- **SetScale** keeps both scales in 0.01 to 1000 and, if either differs from its field (unordered too), stores both, clears both glyph caches and sets T2K's transformation at the size.
+- **The levels**: with the ramp's power 1.0 and bias 0.0 the vector is emptied and the grey cache cleared; else it is made 256 zeros, the grey cache is cleared, and level i is 255 times f(i / 255), truncated, where f is the power (pow of two floats) and then, unless the bias is 0, the bias's curve c = pow(bias + 1, 1 / 0x009F2160(2.0)) bending each half: below 128 pow(2t, c) / 2, from 128 1 less pow(2 - 2t, c) / 2, t kept at most 1.
+- **The sample characters** (slot 25): true for languages 8 and 0x10; else whether T2K has a glyph for each sample character of the language, stopping at the first missing: 0x61 for 0 and 0x4E4, 0xE01 and 0xE2C for 0x36A (Thai), 0x3061 and 0x30A4 for 0x3A4, 0x70A7 and 0x7535 for 0x3A8, 0xC2B9 and 0xC9D1 for 0x3B5, 0x6F54 and 0x70B5 for 0x3B6, 0x142 for 0x4E2, 0x401 for 0x4E3, 0x370 and 0x393 for 0x4E5, 0x11E for 0x4E6, 0x5D0 and 0x5E2 for 0x4E7, 0x621 and 0x641 for 0x4E8, 0x160 for 0x4E9; none (so true) for any other language.
+
+The x87 arithmetic (the transformation's two words, the curve and each level) is the game's own instruction sequence in naked functions, with the same rounding points and the game's ftol and pow, so the results are the FPU's at whatever precision it is set to, as the game's are.
+
+### Quirks kept
+
+- SetScale sets T2K's transformation without checking for a face, and reads nothing back; Load leaves the font unloaded but the face open when SetSize refuses.
+- A NaN scale is stored as it came (and always counts as differing); its ftol is the x87's integer indefinite.
+- The answers are AL; ours is 0 above it where the game leaves what EAX held.
+- The game gathers the sample characters in a vector of its allocator (0x007EBD30) and frees it; ours keeps them in an array, so the game's heap sees one allocation fewer.
+
+### Testing
+
+**Compare mode**: the sample characters compare their answer; SetSize runs ours, keeps what it wrote aside with the font's 0x15C bytes, puts them back and runs the game's (both hand T2K the same transformation, the game's last); SetScale runs the game's and compares the two scales it left with what ours would leave; the levels run the game's and compare the vector it left with the 256 bytes ours works out (or none). Load runs the game's, and what it calls compares itself. While the game's side runs, our detours inside it pass through to the game's.
+
+**`OPENSC4_TEST_FONTS=<day>`** has one more stage after the font's containers (same file, same ` | ft` hash):
+
+| Stage | What |
+|---|---|
+| fontload | eleven faces (six of the game's, the two Arta faces of kind 2 among them, Arial and Times New Roman of Windows's, our scrambled MXFN, Courier as a plain file and junk) on fonts of our own: SetSize before the face is open, Load and Load again, 21 languages, sizes 0, 1, 5, 12, 29, 64, 0x800, past it and back, SetSize refused with glyphs cached, 13 pairs of scales (past both ends, -0, infinities, NaN twice) with strings measured at the sensible ones, the levels over 14 powers and biases put in place (off, -0, NaN), unloaded and loaded again without a size; Load keeping a mock blitter of its own, refused by SetSize, of a file that is not there and of no path |
+
+Fonts go into the hash as in f3a (fields, texts, levels, whether pointers are set), with every answer and measure. A mutation check (SetSize without the second step above 28, the levels' halves split at 127 rather than 128, the sample character of 0x4E3 changed, SetScale comparing only the first scale, Load's kind always 1) changed the hash at fontload each time (and at the earlier font stages for the two that the font system's own loading reaches: the levels and the kind).
+
+Results, 2026-10-25:
+
+| Check | Result |
+|---|---|
+| Test runs, group off vs on, with every font group on (18), and in compare mode | every stage hash the same: the 22 before as with f3b (fontcontainers BCF8FA6E), fontload 9B5AEA61; `ft` 9B5AEA61. All 5 reached. One of six runs with the group off (all the game's code) gave fontload F568837C once; the other five, five with it on, the one with every group on and compare mode all gave 9B5AEA61: noise in the game's side, not found |
+| Compare mode, test | 0 divergences: setsize 914 calls, levels 553, setscale 233, supportslanguage 210 |
+| Compare mode, 90 s of plain play (Making Money) | 0 divergences: setscale 81, setsize 64, levels 32 |
+| Screenshots (`run-shots.sh`, Making Money, the group on) vs the game | 20 of 20 within `--tolerance 32 --max-differing 1.2` |
+| Parity `ft7-t1`, 12 saves, 7 days, muted, `OPENSC4_TEST_FONTS=2`, own folder `p4env-ft7`, two jobs, A `determinism.dispatch_info`, B that and the group (the stage with nine faces, before the two of kind 2 were added) | 12 same at the first try; `ft` 3AD89C56 in all 130 daily fingerprints, both sides |
+
+**Reached** in plain play: Load, SetSize, SetScale and the levels (while the game starts and its fonts are loaded). Not reached: the sample characters (nothing in plain play asks). The test reaches all 5.
+
+**Audit**: each translation was checked against the disassembly by the author and by an independent audit (every write and its order, what is read once and what again, signed and unsigned compares and divisions, the x87 compares with NaN, -0 and equality, the naked functions' stack offsets and that their instructions and rounding points are the game's, every call's address, convention and arguments, the thunks' byte counts, the expect bytes, every `addr::` name; then compare mode's safety). No difference reachable by a caller. Left: EAX above AL (above), and the sample characters' error word, which the game points at its argument slot and ours at a local (T2K writes it, nobody reads it).
+
+### f3: what is left
+
+The other 35 functions of f3 stay the game's: the encodings' conversion (0x00899BCA, 0x00896425 and their helpers), Thai (0x00899665, 0x0089645A), FitString, MeasureString and its trimmed form, the string shortener, DrawString and DrawStringInRect with DrawString's resize of its placed glyphs (0x00899A73), GetGlyph, RenderGlyph, the sheet's store and growth and DrawString's colour ramp (0x0089838C): 0x00896254 0x008962D7 0x0089632D 0x008963C9 0x00896425 0x0089645A 0x00896618 0x00896636 0x0089671F 0x00896808 0x00896886 0x008968EB 0x00896957 0x008969F2 0x00896A2D 0x008972BD 0x00897304 0x00897348 0x0089738F 0x008973D4 0x00897748 0x0089834C 0x0089838C 0x00898FDC 0x00899665 0x00899A15 0x00899A73 0x00899BCA 0x00899CA7 0x00899D2A 0x00899D81 0x00899F71 0x00899FF4 0x0089A099 0x0089A35B. Ghidra now finds 114 functions in f3's range less f4 and f5 (the first map counted 113).

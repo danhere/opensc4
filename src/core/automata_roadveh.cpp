@@ -1,4 +1,4 @@
-// Our other road vehicles, parts ro1 to ro3a (build 641): the trailer, the bus, the
+// Our other road vehicles, parts ro1 to ro3b (build 641): the trailer, the bus, the
 // getaway van, the carjacked vehicle, the tank and the mayor's limo, all
 // derived from cSC4Vehicle (src/core/automata_vehicle.cpp). ro1: the
 // objects (the six factories and constructors, the tank's and the trailer's
@@ -13,14 +13,15 @@
 // the tank's 127). ro3a: the tank on frames (its slots 110, 115 and 121: the
 // turret's record on entering the state 0x10, the heading turned by the
 // U-Drive turn keys, the turret, barrel, velocity and shot by the keys and
-// the pointer). The layout is in src/core/automata_roadveh.h and the survey in
+// the pointer). ro3b: the tank's frame (its slot 72: the turret and barrel
+// models placed by four quaternion turns). The layout is in src/core/automata_roadveh.h and the survey in
 // docs/automata.md, "Part ro". Calls between functions of the part go to the
 // game's addresses, so each detour stands alone and OPENSC4_AUTOMATA_SKIP
 // (function addresses, hex, eight digits) bisects them.
 //
 // Group, off by default:
 //   simulators.automata.roadveh: the 44 detours in kObject (ro1), the 15 in
-//   kFrame (ro2) and the 3 in kTankFrame (ro3a) below.
+//   kFrame (ro2) and the 4 in kTankFrame (ro3a's 3, ro3b's 1) below.
 //
 // What it does. The trailer is 0x2E4 bytes from SC4::operator_new; the other
 // five come from the vehicle pool's allocator (which hands sizes other than
@@ -2237,6 +2238,283 @@ std::uint32_t __fastcall TankSteer(char* self, void*, char* controls, float seco
 }
 
 // ====================================================================================
+// The tank's frame (ro3b)
+
+// A turn's quaternion: x and y floats, z unrounded, the cosine at 64 bits.
+struct TankTurn {
+    float x, y;
+    double z;
+    X87 cosine;
+};
+
+// The quaternion of a turn by twice `half` about the unit axis n.
+TankTurn TankQuaternion(float n0, float n1, float n2, double half)
+{
+    TankTurn t{};
+    X87 sine;
+    X87SinCos(half, &sine, &t.cosine);
+    t.x = static_cast<float>(X87Times(sine, n0));
+    t.y = static_cast<float>(X87Times(sine, n1));
+    t.z = X87Times(sine, n2);
+    return t;
+}
+
+// A turn's matrix as the game keeps it: a, b and c the diagonal's
+// (1 - 2xx - 2yy, 1 - 2xx - 2zz, 1 - 2yy - 2zz), p = 2xy + 2zw, q = 2xz -
+// 2yw, r = 2xy - 2zw, s = 2yz + 2xw, u = 2yw + 2xz, v = 2yz - 2xw. Each held
+// as a double; which are floats depends on the instance.
+struct TankMatrix {
+    double a, b, c, p, q, r, s, u, v;
+};
+
+// The turret's two instances (the first and third turns): 2xx and 2yy
+// unrounded, 2zz and the parts of p..v floats, p, r, s, u and v unrounded.
+TankMatrix TankMatrixA(const TankTurn& t)
+{
+    const double one = Global<float>(addr::SC4_FloatOneA81228);
+    const double yy = static_cast<double>(t.y) * t.y;
+    const double yy2 = yy + yy;
+    const double xx = static_cast<double>(t.x) * t.x;
+    const double xx2 = xx + xx;
+    const double zz = t.z * t.z;
+    const float zz2 = static_cast<float>(zz + zz);
+    const double xx1 = one - xx2;
+    TankMatrix m{};
+    m.a = static_cast<float>(xx1 - yy2);
+    m.b = static_cast<float>(xx1 - zz2);
+    m.c = static_cast<float>((one - yy2) - zz2);
+    const double zx = t.z * t.x;
+    const float xz2 = static_cast<float>(zx + zx);
+    const double yx = static_cast<double>(t.y) * t.x;
+    const float xy2 = static_cast<float>(yx + yx);
+    const double xw = X87Times(t.cosine, t.x);
+    const float xw2 = static_cast<float>(xw + xw);
+    const double zy = t.z * t.y;
+    const float yz2 = static_cast<float>(zy + zy);
+    const double yw = X87Times(t.cosine, t.y);
+    const float yw2 = static_cast<float>(yw + yw);
+    const double zw = X87Times(t.cosine, t.z);
+    const double zw2 = zw + zw;
+    m.p = xy2 + zw2;
+    m.q = static_cast<float>(static_cast<double>(xz2) - yw2);
+    m.r = xy2 - zw2;
+    m.s = static_cast<double>(yz2) + xw2;
+    m.u = static_cast<double>(yw2) + xz2;
+    m.v = static_cast<double>(yz2) - xw2;
+    return m;
+}
+
+// The barrel's two instances (the second and fourth turns): 2xx a float,
+// 1 - 2xx unrounded for a and a float for b; p and r unrounded, the rest
+// floats.
+TankMatrix TankMatrixB(const TankTurn& t)
+{
+    const double one = Global<float>(addr::SC4_FloatOneA81228);
+    const double yy = static_cast<double>(t.y) * t.y;
+    const double yy2 = yy + yy;
+    const double xx = static_cast<double>(t.x) * t.x;
+    const float xx2 = static_cast<float>(xx + xx);
+    const double zz = t.z * t.z;
+    const float zz2 = static_cast<float>(zz + zz);
+    const double xx1 = one - xx2;
+    const float xx1f = static_cast<float>(xx1);
+    TankMatrix m{};
+    m.a = static_cast<float>(xx1 - yy2);
+    m.b = static_cast<float>(static_cast<double>(xx1f) - zz2);
+    m.c = static_cast<float>((one - yy2) - zz2);
+    const double xz = static_cast<double>(t.x) * t.z;
+    const float xz2 = static_cast<float>(xz + xz);
+    const double xy = static_cast<double>(t.x) * t.y;
+    const float xy2 = static_cast<float>(xy + xy);
+    const double xw = X87Times(t.cosine, t.x);
+    const float xw2 = static_cast<float>(xw + xw);
+    const double zy = t.z * t.y;
+    const float yz2 = static_cast<float>(zy + zy);
+    const double yw = X87Times(t.cosine, t.y);
+    const float yw2 = static_cast<float>(yw + yw);
+    const double zw = X87Times(t.cosine, t.z);
+    const double zw2 = zw + zw;
+    m.p = xy2 + zw2;
+    m.q = static_cast<float>(static_cast<double>(xz2) - yw2);
+    m.r = xy2 - zw2;
+    m.s = static_cast<float>(static_cast<double>(yz2) + xw2);
+    m.u = static_cast<float>(static_cast<double>(yw2) + xz2);
+    m.v = static_cast<float>(static_cast<double>(yz2) - xw2);
+    return m;
+}
+
+// The turret's matrix folded with the zero k (0x00A9B7A0) in its rows: nine
+// entries, the first seven floats, the last two unrounded.
+struct TankRows {
+    double e[9];
+};
+
+// The first instance: some k products unrounded where the game keeps them
+// on the stack.
+TankRows TankRowsFirst(const TankMatrix& m, double k)
+{
+    TankRows r{};
+    const float rk = static_cast<float>(m.r * k);
+    const double ck = m.c * k;
+    const float ckf = static_cast<float>(ck);
+    r.e[0] = static_cast<float>((ck + rk) + m.u);
+    const float pk = static_cast<float>(m.p * k);
+    const double bk = m.b * k;
+    const float bkf = static_cast<float>(bk);
+    r.e[1] = static_cast<float>((bk + pk) + m.v);
+    const float sk = static_cast<float>(m.s * k);
+    const double qk = m.q * k;
+    const float qkf = static_cast<float>(qk);
+    r.e[2] = static_cast<float>((qk + sk) + m.a);
+    const double uk = m.u * k;
+    const float ukf = static_cast<float>(uk);
+    r.e[3] = static_cast<float>((uk + ckf) + m.r);
+    const double vk = m.v * k;
+    const float vkf = static_cast<float>(vk);
+    r.e[4] = static_cast<float>((vk + pk) + m.b);
+    const double ak = m.a * k;
+    const float akf = static_cast<float>(ak);
+    r.e[5] = static_cast<float>((ak + qkf) + m.s);
+    r.e[6] = static_cast<float>((static_cast<double>(ukf) + rk) + m.c);
+    r.e[7] = (static_cast<double>(vkf) + bkf) + m.p;
+    r.e[8] = (static_cast<double>(akf) + sk) + m.q;
+    return r;
+}
+
+// The third instance: every k product a float but b's, the entry first.
+TankRows TankRowsSecond(const TankMatrix& m, double k)
+{
+    TankRows r{};
+    const float rk = static_cast<float>(m.r * k);
+    const float ck = static_cast<float>(m.c * k);
+    r.e[0] = static_cast<float>((m.u + ck) + rk);
+    const float pk = static_cast<float>(m.p * k);
+    const double bk = m.b * k;
+    const float bkf = static_cast<float>(bk);
+    r.e[1] = static_cast<float>((bk + m.v) + pk);
+    const float sk = static_cast<float>(m.s * k);
+    const float qk = static_cast<float>(m.q * k);
+    r.e[2] = static_cast<float>((m.a + qk) + sk);
+    const float uk = static_cast<float>(m.u * k);
+    r.e[3] = static_cast<float>((m.r + uk) + ck);
+    const float vk = static_cast<float>(m.v * k);
+    r.e[4] = static_cast<float>((m.b + vk) + pk);
+    const float ak = static_cast<float>(m.a * k);
+    r.e[5] = static_cast<float>((m.s + ak) + qk);
+    r.e[6] = static_cast<float>((m.c + uk) + rk);
+    r.e[7] = (m.p + vk) + bkf;
+    r.e[8] = (m.q + ak) + sk;
+    return r;
+}
+
+// The barrel's matrix times the turret's rows (both instances alike): the
+// first eight floats, the last unrounded.
+TankRows TankProduct(const TankMatrix& m, const TankRows& t)
+{
+    TankRows r{};
+    for (int row = 0; row < 3; ++row) {
+        const double* const e = t.e + 3 * row;
+        r.e[3 * row] = static_cast<float>((m.c * e[0] + m.u * e[2]) + m.r * e[1]);
+        r.e[3 * row + 1] = static_cast<float>((m.p * e[0] + m.v * e[2]) + m.b * e[1]);
+        const double last = (m.q * e[0] + m.s * e[1]) + m.a * e[2];
+        r.e[3 * row + 2] = row < 2 ? static_cast<float>(last) : last;
+    }
+    return r;
+}
+
+// A model's slot 2 (point, axis), ret 8.
+void PlaceModel(void* model, float* point, float* axis)
+{
+    Virtual<std::uint32_t>(model, slot::kModelPlace, point, axis);
+}
+
+// 0x0054B7C0, the tank's slot 72 (word, seconds), ret 8: cSC4Vehicle's
+// frame (0x0055BA20, its answer dropped). With the byte +0x340 set and both
+// models (+0x35C, +0x360), the models placed (their slot 2: a point and
+// the axis) by four quaternion turns: the axis is the heading's cross with
+// (0, 1, 0) (k = 0x00A9B7A0, zero, multiplied through); the turret turns by
+// the turret angle about it, the barrel by the barrel angle about (-z, 0, x)
+// of the heading, and the point is the product's rows times the heading. The
+// turret model's point has the barrel's turn at a quarter of the angle, the
+// barrel model's at half; the second pair is made after the turret model's
+// call from the axis, the angles and the heading read again (the barrel's
+// axis is not). Then the attachments' slot 5 and the tank's slots 194 and
+// 197 (the highlights' updates). AL 1 (the rest of EAX slot 197's).
+//
+// The x87 at 53 bits: each FSIN and FCOS at 64 bits in the products, the
+// game's float stores where it makes them.
+std::uint32_t __fastcall TankFrame(char* self, void*, std::uint32_t word, float seconds)
+{
+    static bool logged;
+    FirstCall("TankFrame", logged);
+    CallThis<std::uint32_t>(addr::cSC4Vehicle_Frame, self, word, seconds);
+    void* const turretModel = At<void*>(self, tank::kTurretModel);
+    if (At<std::uint8_t>(self, tank::kFiring) && turretModel && At<void*>(self, tank::kBarrelModel)) {
+        const double k = TankZero();
+        const double half = Global<float>(addr::SC4_FloatHalf);
+        const double minusHalf = Global<float>(addr::SC4_FloatMinusHalf);
+        const double oneA = Global<float>(addr::SC4_FloatOneA81228);
+        const double oneB = Global<float>(addr::SC4_FloatOneB0A078);
+        const float* const h = &At<float>(self, field::kHeading);
+        const float h0 = h[0], h1 = h[1], h2 = h[2];
+        const float minusH2 = -h2;
+        // The axis: the heading's cross with (0, 1, 0).
+        float axis[3];
+        axis[0] = static_cast<float>(static_cast<double>(h2) * k - static_cast<double>(h0) * h1);
+        axis[1] = static_cast<float>(static_cast<double>(h0) * h0 - static_cast<double>(minusH2) * h2);
+        axis[2] = static_cast<float>(static_cast<double>(minusH2) * h1 - static_cast<double>(h0) * k);
+        // The barrel's axis (-z, 0, x) over its length, the first time from
+        // the unrounded inverse, the second from its float.
+        const double flat = oneA / std::sqrt(static_cast<double>(h0) * h0 + static_cast<double>(minusH2) * minusH2);
+        const float flatF = static_cast<float>(flat);
+        float point[3];
+        {
+            const double inverse = oneB / std::sqrt((static_cast<double>(axis[2]) * axis[2] +
+                                                     static_cast<double>(axis[1]) * axis[1]) +
+                                                    static_cast<double>(axis[0]) * axis[0]);
+            const TankTurn turret = TankQuaternion(static_cast<float>(axis[0] * inverse),
+                                                   static_cast<float>(axis[1] * inverse),
+                                                   static_cast<float>(axis[2] * inverse),
+                                                   At<float>(self, tank::kTurret) * minusHalf);
+            const TankRows rows = TankRowsFirst(TankMatrixA(turret), k);
+            const double scale = flat * oneB;
+            const TankTurn barrel = TankQuaternion(static_cast<float>(minusH2 * scale), static_cast<float>(k * scale),
+                                                   static_cast<float>(scale * h0),
+                                                   At<float>(self, tank::kBarrel) * half * minusHalf);
+            const TankRows p = TankProduct(TankMatrixB(barrel), rows);
+            point[0] = static_cast<float>((p.e[6] * h0 + p.e[8] * h2) + p.e[7] * h1);
+            point[1] = static_cast<float>((p.e[3] * h0 + p.e[5] * h2) + p.e[4] * h1);
+            point[2] = static_cast<float>((p.e[0] * h0 + p.e[2] * h2) + p.e[1] * h1);
+            PlaceModel(turretModel, point, axis);
+        }
+        {
+            const double inverse = oneB / std::sqrt((static_cast<double>(axis[0]) * axis[0] +
+                                                     static_cast<double>(axis[2]) * axis[2]) +
+                                                    static_cast<double>(axis[1]) * axis[1]);
+            const TankTurn turret = TankQuaternion(static_cast<float>(axis[0] * inverse),
+                                                   static_cast<float>(axis[1] * inverse),
+                                                   static_cast<float>(inverse * axis[2]),
+                                                   At<float>(self, tank::kTurret) * minusHalf);
+            const TankRows rows = TankRowsSecond(TankMatrixA(turret), k);
+            const double scale = flatF * oneB;
+            const TankTurn barrel = TankQuaternion(static_cast<float>(minusH2 * scale), static_cast<float>(k * scale),
+                                                   static_cast<float>(h0 * scale),
+                                                   At<float>(self, tank::kBarrel) * minusHalf);
+            const TankRows p = TankProduct(TankMatrixB(barrel), rows);
+            const double g0 = h[0], g1 = h[1], g2 = h[2];
+            point[0] = static_cast<float>((g0 * p.e[6] + p.e[8] * g2) + p.e[7] * g1);
+            point[1] = static_cast<float>((p.e[5] * g2 + p.e[4] * g1) + g0 * p.e[3]);
+            point[2] = static_cast<float>((p.e[2] * g2 + p.e[1] * g1) + g0 * p.e[0]);
+            PlaceModel(At<void*>(self, tank::kBarrelModel), point, axis);
+        }
+    }
+    Virtual<std::uint32_t>(self + tank::kAttachments, slot::kAttachDone);
+    Virtual<std::uint32_t>(self, slot::kUpdateHighlight1);
+    const std::uint32_t last = Virtual<std::uint32_t>(self, slot::kUpdateHighlight2);
+    return (last & 0xFFFFFF00u) | 1u;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -2351,6 +2629,7 @@ const Detour kTankFrame[] = {
     OPENSC4_DETOUR(addr::cSC4Tank_EnterState, TankEnterState),
     OPENSC4_DETOUR(addr::cSC4Tank_DriveFrame, TankDriveFrame),
     OPENSC4_DETOUR(addr::cSC4Tank_Steer, TankSteer),
+    OPENSC4_DETOUR(addr::cSC4Tank_Frame, TankFrame), // part ro3b
 };
 
 #undef OPENSC4_DETOUR
@@ -2373,7 +2652,8 @@ const bool g_registered[] = {
                         "and counts and the tank's debug text (44 detours, part ro1); the frames: the trailer's "
                         "slots 72, 73, 95, 132 and 192 to 198, the bus's 164 and 172, the carjacked vehicle's and the "
                         "van's 101, the limo's 121 and the tank's 127 (15 detours, part ro2); the tank on "
-                        "frames: its slots 110, 115 and 121 (3 detours, part ro3a; src/core/automata_roadveh.cpp)",
+                        "frames: its slots 110, 115 and 121 (3 detours, part ro3a) and its frame, slot 72 (1 detour, "
+                        "part ro3b; src/core/automata_roadveh.cpp)",
                         false, InstallObject}),
 };
 

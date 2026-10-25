@@ -35,16 +35,44 @@
 // the aliases (added, listed into strings, resolved); GetFont over a matrix
 // of face lists, kinds, sizes, styles and reuse, slot 9, slot 10 on every
 // face, the sizes in mode 1.
+//
+// Then the font's object, properties and blitter (f3a, docs/fonts.md,
+// "f3a: the font's object and properties are ours"), by address on fonts
+// of our own and fonts the font system loaded: the constructor and the
+// destructor between margins, QueryInterface, the count down to the last
+// Release, Unload of fonts loaded (after measuring fills their glyph
+// caches) and not, the glyph cache's three functions; every property's
+// getter and setter (styles, colours, mode, the grey ramp's power and bias
+// with the levels they build, path, family, encoding, scales, spacing,
+// line metrics) over values at and past their limits, NaN and -0 among
+// them; the blitter's mode, SetBlitter with mock blitters, Begin and End
+// nested and past 0.
+//
+// Then the font's containers (f3b, docs/fonts.md, "f3b: the font's
+// containers are ours"), by address on buffers between margins and
+// containers of our own: the placed glyphs' copies, fills and vector
+// (resize, fill insert, erase, overflow), the UTF-16 text's vector and
+// find, both maps of characters, a glyph cache's table, a list of words, a
+// vector of pointers out of room and a holder taken down.
+//
+// Then the font's loading, size and scale (f3c, docs/fonts.md, "f3c: the
+// font's loading, size and scale are ours"), by address on fonts of our own
+// given the paths of faces: Load, the sample characters of 21 languages,
+// sizes and scales past their limits, the levels over powers and biases.
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
 
 #include <opensc4/addresses.h>
 
+#include <algorithm>
+#include <bit>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -2162,9 +2190,938 @@ void DriveSystem()
     DriveSystemTables();
 }
 
+// ====================================================================================
+// The font's object, properties and blitter (f3a)
+
+// Fonts of our own, made by the constructor at its address in the game's
+// allocator's memory or between margins, and fonts the font system made
+// and loaded; the functions called by address (slots 17 and 19, which ours
+// take in the vtable, through it). A font goes into the hash by its fields,
+// texts and levels and whether its pointers are set, never where they are.
+
+constexpr uint32_t kFontBytes = 0x15C;
+constexpr uint32_t kCacheBytes = 0x2C;
+
+using FFloat = uint32_t(__fastcall*)(void*, void*, float);
+using FFloat2 = uint32_t(__fastcall*)(void*, void*, float, uint32_t);
+
+void* NewFont()
+{
+    void* const f = Game<void*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(kFontBytes);
+    Game<SThis>(addr::GZFont_Construct)(f, nullptr);
+    return f;
+}
+
+// A glyph cache's sheet: whether it has a block and pixels, then its width,
+// height, pitch and next free column.
+void MixCache(const uint8_t* cache)
+{
+    MixByte(Field<uint32_t>(cache, 0) ? 1 : 0);
+    MixByte(Field<uint32_t>(cache, 4) ? 1 : 0);
+    for (std::size_t word = 8; word < 0x18; word += 4)
+        Mix(Field<uint32_t>(cache, word));
+}
+
+void MixFontFields(void* font)
+{
+    const uint8_t* const b = static_cast<const uint8_t*>(font);
+    MixByte(Field<uint32_t>(b, 0) == 0x00AC55D8 ? 1 : 0);
+    MixByte(b[4]);
+    Mix(Field<uint32_t>(b, 8));
+    MixTextAt(b + 0x0C);
+    MixTextAt(b + 0x20);
+    for (std::size_t field = 0x34; field < 0x90; field += 4) {
+        if (field >= 0x5C && field < 0x68)
+            continue;
+        Mix(field == 0x8C ? (Field<uint32_t>(b, field) ? 1u : 0u) : Field<uint32_t>(b, field));
+    }
+    const uint8_t* const levels = Field<const uint8_t*>(b, 0x5C);
+    const uint32_t count = levels ? static_cast<uint32_t>(Field<const uint8_t*>(b, 0x60) - levels) : 0;
+    Mix(count);
+    if (count)
+        MixBytes(levels, count);
+    Mix(Field<uint32_t>(b, 0xE4));
+    Mix(Field<uint32_t>(b, 0xE8));
+    MixByte(Field<uint32_t>(b, 0xEC) ? 1 : 0);
+    Mix(Field<uint32_t>(b, 0xFC));
+    MixCache(b + 0x104);
+    MixCache(b + 0x130);
+}
+
+// A blitter of our own that notes every call: AddRef and Release count,
+// slots 3 and 4 (given and taken a font), 5 and 6 (Begin and End: the
+// font, the picture, the mode).
+struct MockBlitter {
+    void** vtable;
+    int32_t refs;
+    uint32_t id;
+    void* font;
+};
+
+void NoteBlit(MockBlitter* b, uint32_t slot, void* font, uint32_t picture = 0, uint32_t mode = 0)
+{
+    Mix(b->id << 8 | slot);
+    MixByte(font == b->font ? 1 : font ? 2 : 0);
+    Mix(picture);
+    Mix(mode);
+}
+
+uint32_t __fastcall BlitAddRef(MockBlitter* b, void*) { return static_cast<uint32_t>(++b->refs); }
+uint32_t __fastcall BlitRelease(MockBlitter* b, void*) { return static_cast<uint32_t>(--b->refs); }
+uint32_t __fastcall BlitGiven(MockBlitter* b, void*, void* font) { NoteBlit(b, 3, font); return 1; }
+uint32_t __fastcall BlitTaken(MockBlitter* b, void*, void* font) { NoteBlit(b, 4, font); return 1; }
+uint32_t __fastcall BlitBegin(MockBlitter* b, void*, void* font, uint32_t picture, uint32_t mode)
+{
+    NoteBlit(b, 5, font, picture, mode);
+    return 1;
+}
+uint32_t __fastcall BlitEnd(MockBlitter* b, void*, void* font, uint32_t picture, uint32_t mode)
+{
+    NoteBlit(b, 6, font, picture, mode);
+    return 1;
+}
+
+void** MockBlitterTable()
+{
+    static void* table[8] = {};
+    table[1] = reinterpret_cast<void*>(&BlitAddRef);
+    table[2] = reinterpret_cast<void*>(&BlitRelease);
+    table[3] = reinterpret_cast<void*>(&BlitGiven);
+    table[4] = reinterpret_cast<void*>(&BlitTaken);
+    table[5] = reinterpret_cast<void*>(&BlitBegin);
+    table[6] = reinterpret_cast<void*>(&BlitEnd);
+    return table;
+}
+
+void DriveFontObject()
+{
+    // In place between margins: the constructor, QueryInterface, the count,
+    // Unload of a font never loaded, then the destructor.
+    {
+        alignas(8) uint8_t space[16 + kFontBytes + 16];
+        std::memset(space, 0xA5, sizeof space);
+        void* const self = space + 16;
+        MixByte(Game<SThis>(addr::GZFont_Construct)(self, nullptr) == U(self) ? 1 : 0);
+        MixBytes(space, 16);
+        MixBytes(space + 16 + kFontBytes, 16);
+        MixFontFields(self);
+        for (const uint32_t iid : {0x10673960u, 1u, 0u, 2u, 0x1AA404ACu, 0x00673960u, 0x287FB697u, 0xFFFFFFFFu}) {
+            uint32_t out = 0x12345678;
+            MixByte(static_cast<uint8_t>(Game<STwo>(addr::GZFont_QueryInterface)(self, nullptr, iid, U(&out))));
+            Mix(out == 0x12345678 ? 0xFFFF : out - U(self));
+            Mix(Field<uint32_t>(self, 8));
+        }
+        Mix(Virtual<uint32_t>(self, 0x4));
+        while (Field<int32_t>(self, 8) > 1)
+            Mix(Game<SThis>(addr::GZFont_Release)(self, nullptr));
+        MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFont_Unload)(self, nullptr)));
+        MixByte(static_cast<uint8_t>(Virtual<uint32_t>(self, 0x10)));
+        MixFontFields(self);
+        Game<SThis>(addr::GZFont_Destruct)(self, nullptr);
+        MixBytes(space, 16);
+        MixBytes(space + 16 + kFontBytes, 16);
+        MixByte(Field<uint32_t>(self, 0) == 0x00AC55D8 ? 1 : 0);
+        MixByte(space[16 + 4]);
+        Mix(Field<uint32_t>(self, 0xEC));
+    }
+    // From the allocator: Release at 0 and at 1 (each destroys), down from
+    // three, through the vtable; the last reference's function; the
+    // deleting destructor without freeing (freed by us) and with.
+    Mix(Game<SThis>(addr::GZFont_Release)(NewFont(), nullptr));
+    {
+        void* const f = NewFont();
+        for (int i = 0; i < 3; ++i)
+            Mix(Virtual<uint32_t>(f, 0x4));
+        for (int i = 0; i < 2; ++i)
+            Mix(Game<SThis>(addr::GZFont_Release)(f, nullptr));
+        Mix(Virtual<uint32_t>(f, 0x8));
+    }
+    Game<SThis>(addr::GZFont_Destroy)(NewFont(), nullptr);
+    {
+        void* const f = NewFont();
+        MixByte(Game<SOne>(addr::GZFont_DeletingDestruct)(f, nullptr, 0) == U(f) ? 1 : 0);
+        Game<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(f);
+        void* const g = NewFont();
+        MixByte(Game<SOne>(addr::GZFont_DeletingDestruct)(g, nullptr, 3) == U(g) ? 1 : 0);
+    }
+    // A glyph cache in place between margins: made, cleared, cleared with a
+    // block, taken down.
+    {
+        alignas(8) uint8_t space[16 + kCacheBytes + 16];
+        std::memset(space, 0xA5, sizeof space);
+        uint8_t* const cache = space + 16;
+        MixByte(Game<SThis>(addr::GZFont_CacheConstruct)(cache, nullptr) == U(cache) ? 1 : 0);
+        MixCache(cache);
+        Game<SThis>(addr::GZFont_CacheClear)(cache, nullptr);
+        MixCache(cache);
+        void* const block = Game<void*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(0x40);
+        std::memcpy(cache, &block, 4);
+        for (uint32_t word = 1; word < 6; ++word)
+            std::memcpy(cache + 4 * word, &word, 4);
+        Game<SThis>(addr::GZFont_CacheClear)(cache, nullptr);
+        MixCache(cache);
+        Game<SThis>(addr::GZFont_CacheDestroy)(cache, nullptr);
+        MixCache(cache);
+        MixBytes(space, 16);
+        MixBytes(space + 16 + kCacheBytes, 16);
+    }
+    // Fonts the font system made and loaded: measured (filling the caches),
+    // their properties, unloaded by address, loaded again, measured, freed
+    // by their last Release.
+    void* const fonts = Game<void*(__cdecl*)()>(addr::SC4_Singleton913D22)();
+    if (!fonts) {
+        Mix(0xF0F0F0F0);
+        FtStage("fontobject");
+        return;
+    }
+    struct Face {
+        const char* name;
+        uint32_t size, style;
+    };
+    const char text[] = "OpenSC4 fonts, Wgjpqy 0123456789";
+    for (const Face& face : {Face{"Arial MT", 12, 0}, Face{"Times New Roman", 17, 2}, Face{"Arial MT", 30, 1}}) {
+        GameString name = MakeString(face.name);
+        void* const font = Virtual<void*>(fonts, 0x2C, &name, uint32_t{0}, face.size, face.style, uint32_t{0});
+        FreeString(name);
+        if (!font) {
+            Mix(0xF0F00000 | face.size);
+            continue;
+        }
+        MixFontFields(font);
+        GameString family = EmptyString();
+        Mix(Game<SOne>(addr::GZFont_GetFamily)(font, nullptr, U(&family)) & 0xFF);
+        MixString(family);
+        FreeString(family);
+        for (const uint32_t mode : {1u, 2u}) {
+            Game<SOne>(addr::GZFont_SetMode)(font, nullptr, mode);
+            Mix(Virtual<uint32_t>(font, 0xC0, text, uint32_t{sizeof text - 1}));
+            MixByte(Virtual<uint32_t>(font, 0xF0, uint32_t{'W'}) ? 1 : 0);
+            Mix(Game<SThis>(addr::GZFont_GlyphCache)(font, nullptr) - U(font));
+            MixFontFields(font);
+        }
+        Mix(Game<SThis>(addr::GZFont_LineHeight)(font, nullptr));
+        Mix(Game<SThis>(addr::GZFont_Baseline)(font, nullptr));
+        Mix(Game<SThis>(addr::GZFont_BelowBaseline)(font, nullptr));
+        Game<FFloat2>(addr::GZFont_SetExtra)(font, nullptr, 2.0f, 0);
+        MixFontFields(font);
+        Mix(Virtual<uint32_t>(font, 0xC0, text, uint32_t{sizeof text - 1}));
+        MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFont_Unload)(font, nullptr)));
+        MixFontFields(font);
+        MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFont_Unload)(font, nullptr)));
+        MixByte(static_cast<uint8_t>(Virtual<uint32_t>(font, 0x0C)));
+        MixFontFields(font);
+        Mix(Virtual<uint32_t>(font, 0xC0, text, uint32_t{sizeof text - 1}));
+        while (Field<int32_t>(font, 8) > 1)
+            Mix(Game<SThis>(addr::GZFont_Release)(font, nullptr));
+        Mix(Game<SThis>(addr::GZFont_Release)(font, nullptr));
+    }
+    FtStage("fontobject");
+}
+
+void DriveFontProperties()
+{
+    void* const f = NewFont();
+    Virtual<uint32_t>(f, 0x4);
+    uint8_t* const b = static_cast<uint8_t*>(f);
+
+    // The style bits: set and cleared (the flag is a byte), asked.
+    const uint32_t asks[] = {0, 1, 2, 4, 0x10, 0x3C, 0x40, 0x14, 0xFFFFFFFF};
+    const std::pair<uint32_t, uint32_t> sets[] = {{0xFF, 1}, {0x4, 0}, {0x3, 1}, {0x10, 0x100}, {0x20, 0xFF},
+                                                  {0xFFFFFFFF, 0}, {0x3C, 1}};
+    for (const auto& [bits, on] : sets) {
+        Mix(Game<STwo>(addr::GZFont_SetStyle)(f, nullptr, bits, on));
+        Mix(Field<uint32_t>(b, 0x40));
+        for (const uint32_t ask : asks)
+            Mix(Game<SOne>(addr::GZFont_HasStyle)(f, nullptr, ask));
+    }
+    const uint32_t all = 0xFFFFFFFF;
+    std::memcpy(b + 0x40, &all, 4);
+    for (const uint32_t ask : asks)
+        Mix(Game<SOne>(addr::GZFont_HasStyle)(f, nullptr, ask));
+
+    // The colours and the mode.
+    for (const auto& [c, d] : {std::pair<uint32_t, uint32_t>{0xFF00FF00, 0x12}, {0, 0}, {0x08000000, 0xFFFFFFFF}}) {
+        Mix(Game<STwo>(addr::GZFont_SetColours)(f, nullptr, c, d));
+        Mix(Field<uint32_t>(b, 0x44));
+        Mix(Field<uint32_t>(b, 0x48));
+    }
+    for (const uint32_t mode : {2u, 0u, 1u, 3u, 7u, 0u, 0xFFFFFFFFu, 1u}) {
+        Mix(Game<SOne>(addr::GZFont_SetMode)(f, nullptr, mode));
+        Mix(Field<uint32_t>(b, 0x4C));
+        Mix(Game<SThis>(addr::GZFont_GlyphCache)(f, nullptr) - U(f));
+    }
+
+    // The grey ramp: power and bias, read through the vtable, the levels.
+    const float inf = std::numeric_limits<float>::infinity();
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const auto mixRamp = [&] {
+        Mix(std::bit_cast<uint32_t>(Virtual<float>(f, 0x44)));
+        Mix(std::bit_cast<uint32_t>(Virtual<float>(f, 0x4C)));
+        MixFontFields(f);
+    };
+    mixRamp();
+    for (const float power : {0.5f, 0.5f, -1.0f, -0.0f, 0.0f, 0.25f, 9.99f, 10.0f, 11.0f, inf, -inf, nan, nan, 1.0f}) {
+        Game<FFloat>(addr::GZFont_SetPower)(f, nullptr, power);
+        mixRamp();
+    }
+    for (const float bias : {0.3f, 0.3f, -2.0f, -1.0f, -0.5f, -0.0f, 0.0f, 0.75f, 1.0f, 2.0f, nan, 0.0f}) {
+        Game<FFloat>(addr::GZFont_SetBias)(f, nullptr, bias);
+        mixRamp();
+    }
+    Game<FFloat>(addr::GZFont_SetPower)(f, nullptr, 2.0f);
+    Game<FFloat>(addr::GZFont_SetBias)(f, nullptr, -0.25f);
+    mixRamp();
+
+    // The path and the family.
+    for (const char* path : {"C:\\Fonts\\face.ttf", "", "arial.ttf"}) {
+        GameString in = MakeString(path);
+        Mix(Game<SOne>(addr::GZFont_SetPath)(f, nullptr, U(&in)) & 0xFF);
+        FreeString(in);
+        GameString out = MakeString("was here");
+        Mix(Game<SOne>(addr::GZFont_GetPath)(f, nullptr, U(&out)) & 0xFF);
+        MixString(out);
+        FreeString(out);
+        GameString family = MakeString("old");
+        Mix(Game<SOne>(addr::GZFont_GetFamily)(f, nullptr, U(&family)) & 0xFF);
+        MixString(family);
+        FreeString(family);
+    }
+
+    // The encoding.
+    for (const uint32_t e : {0x10u, 0x4E4u, 0xFFFFFF02u, 0u}) {
+        Mix(Game<SOne>(addr::GZFont_SetEncoding)(f, nullptr, e));
+        uint32_t out = 0x12345678;
+        Mix(Game<SOne>(addr::GZFont_GetEncoding)(f, nullptr, U(&out)));
+        Mix(out);
+    }
+    for (const uint32_t e : {0u, 1u, 2u, 3u, 0x102u, 0x10u})
+        MixByte(static_cast<uint8_t>(Game<SOne>(addr::GZFont_SupportsEncoding)(f, nullptr, e)));
+
+    // The scales.
+    const auto mixScales = [&] {
+        float x = 7.0f, y = 7.0f;
+        Game<STwo>(addr::GZFont_GetScale)(f, nullptr, U(&x), U(&y));
+        Mix(std::bit_cast<uint32_t>(x));
+        Mix(std::bit_cast<uint32_t>(y));
+        Game<STwo>(addr::GZFont_GetExtra)(f, nullptr, U(&x), U(&y));
+        Mix(std::bit_cast<uint32_t>(x));
+        Mix(std::bit_cast<uint32_t>(y));
+        MixFontFields(f);
+    };
+    mixScales();
+    for (const float extra : {0.05f, 0.1f, 0.1f, 1.0f, 5.5f, 10.0f, 20.0f, nan, -1.0f, -0.0f, 3.0f}) {
+        Game<FFloat2>(addr::GZFont_SetExtra)(f, nullptr, extra, 0xDEADBEEF);
+        mixScales();
+    }
+
+    // The spacing and the line's metrics (+0x84 and +0x3C set by hand, as
+    // SetSize would).
+    const uint32_t above = 11, height = 14;
+    std::memcpy(b + 0x84, &above, 4);
+    std::memcpy(b + 0x3C, &height, 4);
+    for (const auto& [s, t] : {std::pair<uint32_t, uint32_t>{1, 2}, {1, 2}, {0xFFFFFFFF, 5}, {3, 0xFFFFFFF0}, {0, 0}}) {
+        Mix(Game<STwo>(addr::GZFont_SetSpacing)(f, nullptr, s, t));
+        uint32_t x = 0x12345678, y = 0x9ABCDEF0;
+        Mix(Game<STwo>(addr::GZFont_GetSpacing)(f, nullptr, U(&x), U(&y)));
+        Mix(x);
+        Mix(y);
+        Mix(Game<SThis>(addr::GZFont_LineHeight)(f, nullptr));
+        Mix(Game<STwo>(addr::GZFont_TextHeight)(f, nullptr, 0x1234, 99));
+        Mix(Game<SThis>(addr::GZFont_Baseline)(f, nullptr));
+        Mix(Game<SThis>(addr::GZFont_BelowBaseline)(f, nullptr));
+    }
+    Mix(Game<SThis>(addr::GZFont_Release)(f, nullptr));
+    FtStage("fontprops");
+}
+
+void DriveFontBlitter()
+{
+    for (const uint32_t mode : {0u, 1u, 2u, 3u, 4u, 0xFFFFFFFFu, 0x80000002u})
+        Mix(Game<uint32_t(__cdecl*)(uint32_t)>(addr::GZFont_BlitMode)(mode));
+
+    void* const f = NewFont();
+    Virtual<uint32_t>(f, 0x4);
+    MockBlitter a{MockBlitterTable(), 1, 1, f}, b{MockBlitterTable(), 1, 2, f};
+    const auto setBlitter = Game<SOne>(addr::GZFont_SetBlitter);
+    for (MockBlitter* m : {&a, &a, &b, static_cast<MockBlitter*>(nullptr), &b, &a}) {
+        setBlitter(f, nullptr, U(m));
+        MixByte(Field<uint32_t>(f, 0x8C) == U(&a) ? 1 : Field<uint32_t>(f, 0x8C) == U(&b) ? 2 : 0);
+        Mix(static_cast<uint32_t>(a.refs));
+        Mix(static_cast<uint32_t>(b.refs));
+    }
+    // Begin and End nested, End below 0 and Begin from there, in four modes.
+    const auto begin = Game<SOne>(addr::GZFont_Begin);
+    const auto end = Game<SOne>(addr::GZFont_End);
+    for (const uint32_t mode : {1u, 2u, 3u, 9u}) {
+        std::memcpy(static_cast<uint8_t*>(f) + 0x4C, &mode, 4);
+        for (const auto& [isBegin, picture] : {std::pair<bool, uint32_t>{true, 0x1000}, {true, 0x2000}, {false, 0x3000},
+                                               {false, 0x4000}, {false, 0x5000}, {true, 0x6000}, {true, 0x7000},
+                                               {true, 0x8000}, {false, 0x9000}}) {
+            MixByte(static_cast<uint8_t>((isBegin ? begin : end)(f, nullptr, picture)));
+            Mix(Field<uint32_t>(f, 0x80));
+        }
+        const uint32_t zero = 0;
+        std::memcpy(static_cast<uint8_t*>(f) + 0x80, &zero, 4);
+    }
+    setBlitter(f, nullptr, 0);
+    Mix(static_cast<uint32_t>(a.refs));
+    Mix(Game<SThis>(addr::GZFont_Release)(f, nullptr));
+    FtStage("fontblitter");
+}
+
+// ====================================================================================
+// The font's containers (f3b)
+
+// Buffers between margins, vectors, maps, glyph tables and lists of our own,
+// changed by the 36 functions at their addresses (and the game's allocator,
+// balancing and growth). What goes into the hash is contents and places
+// (offsets into a buffer, a node's order), never an address.
+
+namespace containers {
+constexpr std::uintptr_t kPlacedFill = 0x00896BF6, kTextFind = 0x00896C19, kPlacedCopy = 0x00896C90,
+                         kPlacedConstruct = 0x00896CC2, kPlacedFillN = 0x00896CD8, kPlacedCopyBack = 0x00896CFD,
+                         kGlyphsEraseTree = 0x0089753F, kNamesEraseTree = 0x0089756C, kTextFindTagged = 0x00897599,
+                         kPlacedCopyTagged = 0x008975B4, kPlacedUninitCopy = 0x008975D1,
+                         kPlacedCopyBackTagged = 0x008975F7, kPlacedFillNTagged = 0x00897614, kMapFind = 0x0089762F,
+                         kGlyphValueConstruct = 0x0089766B, kPairConstruct = 0x0089768B, kGlyphsClear = 0x00897A1C,
+                         kNamesClear = 0x00897A45, kGlyphNode = 0x00897A6E, kMapNode = 0x00897A91,
+                         kTextInsert = 0x00897BDC, kGlyphsDestruct = 0x00897C5F, kNamesDestruct = 0x00897C76,
+                         kListInsert = 0x00897C8D, kGlyphInsertNoResize = 0x00897CB2,
+                         kPointersOverflow = 0x00897D22, kMapInsertAt = 0x00897DAC, kHolderDestruct = 0x00897E36,
+                         kPlacedErase = 0x00897E56, kMapInsert = 0x00897E7C, kPlacedOverflow = 0x00897F04,
+                         kTextAllocateCopy = 0x00897FC2, kGlyphInsert = 0x008986BF, kTextReserve = 0x008986E3,
+                         kPlacedFillInsert = 0x0089874D, kPlacedResize = 0x00899513;
+constexpr std::uintptr_t kHolderConstruct = 0x00897FED;
+} // namespace containers
+
+using CTwo = uint32_t(__cdecl*)(uint32_t, uint32_t);
+using CThree = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t);
+using CFour = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t);
+
+uint32_t StlAllocate(uint32_t bytes) { return U(Game<void*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(bytes)); }
+void StlFree(uint32_t p) { Game<void(__cdecl*)(void*)>(addr::SC4_Free)(At32(p)); }
+
+// A place in a buffer: its offset, or a mark for null and for elsewhere.
+uint32_t PlaceIn(uint32_t base, uint32_t size, uint32_t p)
+{
+    if (!p)
+        return 0xFFFFFFFF;
+    return p >= base && p <= base + size ? p - base : 0xFFFFFFFE;
+}
+
+// A vector (begin, end, room): its size and room in bytes and its contents.
+void MixVector(const uint32_t (&v)[4])
+{
+    Mix(v[1] - v[0]);
+    Mix(v[2] - v[0]);
+    MixByte(v[0] ? 1 : 0);
+    if (v[1] > v[0])
+        MixBytes(At32(v[0]), v[1] - v[0]);
+}
+
+void DriveContainersHelpers()
+{
+    using namespace containers;
+    // Placed glyphs in a buffer of 16 between margins.
+    constexpr uint32_t kBytes = 0x24 * 16 + 64;
+    uint8_t buffer[kBytes];
+    const uint32_t base = U(buffer) + 32;
+    uint32_t value[9], other[9];
+    for (uint32_t i = 0; i < 9; ++i) {
+        value[i] = 0x01010101u * (i + 1);
+        other[i] = 0xF0E0D0C0u ^ (i * 0x1111);
+    }
+    const auto reset = [&] {
+        for (uint32_t i = 0; i < kBytes; ++i)
+            buffer[i] = static_cast<uint8_t>(i * 7 + 3);
+    };
+    const auto mixAll = [&](uint32_t result) {
+        Mix(PlaceIn(U(buffer), kBytes, result));
+        MixBytes(buffer, kBytes);
+    };
+    const auto at = [&](int32_t index) { return base + static_cast<uint32_t>(index * 0x24); };
+    for (const auto& [first, last] : {std::pair<int32_t, int32_t>{0, 0}, {0, 1}, {2, 5}, {3, 3}}) {
+        reset();
+        mixAll(Game<CThree>(kPlacedFill)(at(first), at(last), U(value)));
+    }
+    // Copies forwards and back, by counts of 0, 2 and 5, one that is not a
+    // whole number of glyphs, one backwards, and overlapping.
+    for (const auto& [first, last, to] : {std::tuple<int32_t, int32_t, int32_t>{0, 0, 4}, {0, 2, 6}, {1, 6, 8},
+                                          {5, 1, 0}, {0, 5, 2}, {3, 8, 1}}) {
+        reset();
+        mixAll(Game<CFour>(kPlacedCopy)(at(first), at(last), at(to), 0));
+        reset();
+        mixAll(Game<CThree>(kPlacedCopyTagged)(at(first), at(last), at(to)));
+        reset();
+        mixAll(Game<CFour>(kPlacedCopyBack)(at(first), at(last), at(to + last - first), 0));
+        reset();
+        mixAll(Game<CThree>(kPlacedCopyBackTagged)(at(first), at(last), at(to + last - first)));
+        if (last >= first) {
+            reset();
+            mixAll(Game<CFour>(kPlacedUninitCopy)(at(first), at(last), at(to), 0));
+        }
+    }
+    reset();
+    mixAll(Game<CFour>(kPlacedCopy)(at(0), at(1) + 0x10, at(3), 0));
+    reset();
+    Game<CTwo>(kPlacedConstruct)(0, U(value));
+    Game<CTwo>(kPlacedConstruct)(at(4), U(other));
+    mixAll(0);
+    for (const uint32_t count : {0u, 1u, 4u}) {
+        reset();
+        mixAll(Game<CFour>(kPlacedFillN)(at(2), count, U(other), 0));
+        reset();
+        mixAll(Game<CThree>(kPlacedFillNTagged)(at(1), count, U(value)));
+    }
+
+    // A glyph's value and a map's pair made, and not where null.
+    uint32_t glyph[9], pair[3];
+    std::memset(glyph, 0xA5, sizeof glyph);
+    std::memset(pair, 0x5A, sizeof pair);
+    Mix(Game<CTwo>(kGlyphValueConstruct)(U(glyph + 1), U(other)) == U(glyph + 1) ? 1 : 0);
+    Mix(Game<CTwo>(kGlyphValueConstruct)(0, U(other)));
+    MixBytes(reinterpret_cast<const uint8_t*>(glyph), sizeof glyph);
+    Mix(Game<CTwo>(kPairConstruct)(U(pair), U(value)) == U(pair) ? 1 : 0);
+    Mix(Game<CTwo>(kPairConstruct)(0, U(value)));
+    MixBytes(reinterpret_cast<const uint8_t*>(pair), sizeof pair);
+}
+
+void DriveContainersPlaced()
+{
+    using namespace containers;
+    uint32_t v[4] = {};
+    uint32_t glyph[9];
+    const auto make = [&](uint32_t seed) {
+        for (uint32_t i = 0; i < 9; ++i)
+            glyph[i] = seed * 0x9E3779B9u + i;
+        return U(glyph);
+    };
+    // Resized up from nothing, down, the same, up past its room.
+    for (const uint32_t count : {5u, 3u, 3u, 0u, 2u, 9u, 30u, 31u, 4u}) {
+        Game<STwo>(kPlacedResize)(v, nullptr, count, make(count));
+        MixVector(v);
+    }
+    // Copies put in at the front, the middle and the end, with more and
+    // fewer glyphs after the place than are put in, room left and none.
+    for (const auto& [place, count] : {std::pair<uint32_t, uint32_t>{0, 2}, {1, 1}, {3, 0}, {2, 5}, {6, 1}, {0, 9},
+                                       {5, 3}, {0, 40}, {7, 2}}) {
+        const uint32_t size = (v[1] - v[0]) / 0x24;
+        const uint32_t to = v[0] + std::min(place, size) * 0x24;
+        Game<SThree>(kPlacedFillInsert)(v, nullptr, to, count, make(place * 31 + count));
+        MixVector(v);
+    }
+    // Erased: a range from the middle, from the front, nothing, to the end.
+    for (const auto& [first, last] : {std::pair<uint32_t, uint32_t>{3, 7}, {0, 2}, {4, 4}, {10, 0xFFFFFFFF}}) {
+        const uint32_t size = (v[1] - v[0]) / 0x24;
+        const uint32_t a = v[0] + std::min(first, size) * 0x24;
+        const uint32_t b = last == 0xFFFFFFFF ? v[1] : v[0] + std::min(last, size) * 0x24;
+        Mix(Game<STwo>(kPlacedErase)(v, nullptr, a, b) == a ? 1 : 0);
+        MixVector(v);
+    }
+    // The overflow by itself: one copy and three, at the front and at the end.
+    uint8_t tag = 0;
+    for (const auto& [place, count, atEnd] : {std::tuple<uint32_t, uint32_t, uint32_t>{0, 1, 0}, {2, 3, 0},
+                                             {0xFFFFFFFF, 1, 1}, {0xFFFFFFFF, 4, 1}}) {
+        const uint32_t to = place == 0xFFFFFFFF ? v[1] : v[0] + place * 0x24;
+        Mix(Game<SFive>(kPlacedOverflow)(v, nullptr, to, make(count), U(&tag), count, atEnd) - v[0]);
+        MixVector(v);
+    }
+    if (v[0])
+        StlFree(v[0]);
+}
+
+void DriveContainersText()
+{
+    using namespace containers;
+    uint32_t t[4] = {};
+    // Reserve on nothing (no room asked, then some), words put in at the end,
+    // the front and the middle until there is no room, then past it.
+    Mix(Game<SOne>(kTextReserve)(t, nullptr, 0));
+    MixVector(t);
+    Game<SOne>(kTextReserve)(t, nullptr, 4);
+    MixVector(t);
+    for (uint32_t i = 0; i < 14; ++i) {
+        const uint16_t word = static_cast<uint16_t>(0x0E30 + i);
+        const uint32_t size = (t[1] - t[0]) / 2;
+        const uint32_t place = i % 3 == 0 ? size : i % 3 == 1 ? 0 : size / 2;
+        const uint32_t answer = Game<STwo>(kTextInsert)(t, nullptr, t[0] + place * 2, U(&word));
+        Mix((answer - t[0]) / 2);
+        MixVector(t);
+    }
+    // Reserve with words there: more (copied), less (nothing).
+    Game<SOne>(kTextReserve)(t, nullptr, 40);
+    MixVector(t);
+    Mix(Game<SOne>(kTextReserve)(t, nullptr, 10) == t[0] ? 1 : 0);
+    MixVector(t);
+    // A copy into a new block.
+    const uint32_t block = Game<SThree>(kTextAllocateCopy)(t, nullptr, 20, t[0] + 2, t[1] - 2);
+    MixBytes(At32(block), t[1] - t[0] - 4);
+    StlFree(block);
+
+    // The find, by both, over every length from 0 to 14 for words there,
+    // not there and with bits above the word, and over a range backwards.
+    for (const uint32_t value : {0x0E30u, 0x0E35u, 0x0E3Du, 0x0E99u, 0x10E31u}) {
+        for (uint32_t length = 0; length <= 14 && length <= (t[1] - t[0]) / 2; ++length) {
+            const uint32_t first = t[0], last = t[0] + length * 2;
+            Mix(PlaceIn(first, 64, Game<CFour>(kTextFind)(first, last, U(&value), 0)));
+            Mix(PlaceIn(first, 64, Game<CThree>(kTextFindTagged)(first, last, U(&value))));
+        }
+        Mix(PlaceIn(t[0], 64, Game<CFour>(kTextFind)(t[0] + 8, t[0], U(&value), 0)));
+    }
+    StlFree(t[0]);
+}
+
+// A map of characters (header, count): its count, then in order each node's
+// colour, the places of its parent and children (by their order) and its pair.
+void MixCharMap(const uint32_t (&map)[2])
+{
+    Mix(map[1]);
+    const uint32_t header = map[0];
+    std::vector<uint32_t> order;
+    for (uint32_t node = Field<uint32_t>(At32(header), 8); node != header; node = TreeNext(node))
+        order.push_back(node);
+    const auto place = [&](uint32_t node) -> uint32_t {
+        if (!node)
+            return 0xFFFFFFFF;
+        if (node == header)
+            return 0xFFFFFFFE;
+        for (std::size_t i = 0; i < order.size(); ++i)
+            if (order[i] == node)
+                return static_cast<uint32_t>(i);
+        return 0xFFFFFFFD;
+    };
+    Mix(static_cast<uint32_t>(order.size()));
+    Mix(place(Field<uint32_t>(At32(header), 4)));
+    Mix(place(Field<uint32_t>(At32(header), 0xC)));
+    for (const uint32_t node : order) {
+        const uint8_t* const n = At32(node);
+        MixByte(Field<uint8_t>(n, 0));
+        Mix(place(Field<uint32_t>(n, 4)));
+        Mix(place(Field<uint32_t>(n, 8)));
+        Mix(place(Field<uint32_t>(n, 0xC)));
+        Mix(Field<uint16_t>(n, 0x10));
+        Mix(Field<uint32_t>(n, 0x14));
+    }
+}
+
+void DriveContainersMap(Random& random, std::uintptr_t clear, std::uintptr_t destruct, std::uintptr_t eraseTree)
+{
+    using namespace containers;
+    uint32_t map[2] = {StlAllocate(0x18), 0};
+    const uint32_t header = map[0];
+    std::memset(At32(header), 0, 0x18);
+    std::memcpy(At32(header) + 8, &header, 4);
+    std::memcpy(At32(header) + 0xC, &header, 4);
+    const auto insert = [&](uint16_t key, uint32_t value) {
+        const uint32_t pair[2] = {key, value};
+        uint32_t result[2] = {0, 0xA5A5A5A5};
+        Mix(Game<STwo>(kMapInsert)(map, nullptr, U(result), U(pair)) == U(result) ? 1 : 0);
+        Mix(result[1]);
+        Mix(Field<uint16_t>(At32(result[0]), 0x10));
+        Mix(Field<uint32_t>(At32(result[0]), 0x14));
+    };
+    for (uint32_t i = 0; i < 70; ++i)
+        insert(static_cast<uint16_t>(random.Range(0, 60) * 0x123), i);
+    insert(0, 1);
+    insert(0xFFFF, 2);
+    insert(0, 3);
+    MixCharMap(map);
+    for (const uint16_t key : {0, 0x123, 0x124, 0x1FFF, 0x2A0F, 0x4374, 0xFFFF, 0xFFFE}) {
+        const uint32_t found = Game<SOne>(containers::kMapFind)(map, nullptr, U(&key));
+        Mix(found == header ? 0xFFFFFFFE : Field<uint16_t>(At32(found), 0x10));
+    }
+    // Under the last node on its right and under the first on its left with
+    // x set; a node made.
+    uint32_t result = 0;
+    const uint32_t last[2] = {0xFFFF, 77}, first[2] = {0, 88};
+    Game<SFive>(kMapInsertAt)(map, nullptr, U(&result), 0, Field<uint32_t>(At32(header), 0xC), U(last), 1);
+    Game<SFive>(kMapInsertAt)(map, nullptr, U(&result), 1, Field<uint32_t>(At32(header), 8), U(first), 0);
+    MixCharMap(map);
+    const uint32_t node = Game<SOne>(kMapNode)(map, nullptr, U(last));
+    Mix(Field<uint16_t>(At32(node), 0x10));
+    Mix(Field<uint32_t>(At32(node), 0x14));
+    StlFree(node);
+    // The root's right subtree erased by itself, then the map cleared, filled
+    // again and taken down.
+    const uint32_t root = Field<uint32_t>(At32(header), 4);
+    const uint32_t right = Field<uint32_t>(At32(root), 0xC);
+    Game<SOne>(eraseTree)(map, nullptr, right);
+    const uint32_t none = 0;
+    std::memcpy(At32(root) + 0xC, &none, 4);
+    Game<SThis>(clear)(map, nullptr);
+    MixCharMap(map);
+    Game<SThis>(clear)(map, nullptr);
+    for (uint32_t i = 0; i < 6; ++i)
+        insert(static_cast<uint16_t>(i * 3 % 4), i);
+    MixCharMap(map);
+    Game<SThis>(destruct)(map, nullptr);
+}
+
+void DriveContainersGlyphs(Random& random)
+{
+    using namespace containers;
+    uint8_t cache[kCacheBytes];
+    Game<SThis>(addr::GZFont_CacheConstruct)(cache, nullptr);
+    uint8_t* const table = cache + 0x18;
+    const auto mixTable = [&] {
+        const uint32_t begin = Field<uint32_t>(table, 4), end = Field<uint32_t>(table, 8);
+        Mix(Field<uint32_t>(table, 0x10));
+        Mix((end - begin) / 4);
+        for (uint32_t bucket = begin; bucket < end; bucket += 4) {
+            uint32_t count = 0;
+            for (uint32_t n = Field<uint32_t>(At32(bucket), 0); n; n = Field<uint32_t>(At32(n), 0), ++count)
+                MixBytes(At32(n) + 4, 0x1C);
+            Mix(count);
+        }
+    };
+    uint32_t value[7];
+    const auto insert = [&](std::uintptr_t fn, uint32_t key) {
+        value[0] = key;
+        for (uint32_t i = 1; i < 7; ++i)
+            value[i] = random.Next();
+        uint32_t result[3] = {0, 0, 0xC3C3C3C3};
+        Mix(Game<STwo>(fn)(table, nullptr, U(result), U(value)) == U(result) ? 1 : 0);
+        Mix(result[1] == U(table) ? 1 : 0);
+        Mix(result[2]);
+        Mix(Field<uint32_t>(At32(result[0]), 4));
+    };
+    for (uint32_t i = 0; i < 90; ++i)
+        insert(kGlyphInsert, random.Range(0x20, 0x7E) + (i % 7 == 0 ? 0x0E00u : 0u));
+    mixTable();
+    for (const uint32_t key : {0x41u, 0x10041u, 0xFFFFFFFFu, 0u})
+        insert(kGlyphInsertNoResize, key);
+    mixTable();
+    const uint32_t node = Game<SOne>(kGlyphNode)(table, nullptr, U(value));
+    Mix(Field<uint32_t>(At32(node), 0));
+    MixBytes(At32(node) + 4, 0x1C);
+    StlFree(node);
+    Game<SThis>(addr::GZFont_CacheDestroy)(cache, nullptr);
+}
+
+void DriveContainersRest()
+{
+    using namespace containers;
+    // A list of words: put in before its header, its first node and others.
+    uint32_t list = StlAllocate(0xC);
+    std::memcpy(At32(list), &list, 4);
+    std::memcpy(At32(list) + 4, &list, 4);
+    for (uint32_t i = 0; i < 8; ++i) {
+        uint32_t before = list;
+        for (uint32_t step = 0; step < i % 3; ++step)
+            before = Field<uint32_t>(At32(before), 0);
+        const uint32_t word = 0x1000 + i;
+        uint32_t result = 0;
+        Mix(Game<SThree>(kListInsert)(&list, nullptr, U(&result), before, U(&word)) == U(&result) ? 1 : 0);
+        Mix(Field<uint32_t>(At32(result), 8));
+    }
+    uint32_t previous = list, count = 0;
+    for (uint32_t e = Field<uint32_t>(At32(list), 0); e != list; ++count) {
+        Mix(Field<uint32_t>(At32(e), 8));
+        MixByte(Field<uint32_t>(At32(e), 4) == previous ? 1 : 0);
+        previous = e;
+        const uint32_t next = Field<uint32_t>(At32(e), 0);
+        StlFree(e);
+        e = next;
+    }
+    Mix(count);
+    StlFree(list);
+
+    // A vector of pointers out of room: from nothing, in the middle, none,
+    // one at the end.
+    uint32_t v[4] = {};
+    uint8_t tag = 0;
+    for (const auto& [place, n, atEnd] : {std::tuple<uint32_t, uint32_t, uint32_t>{0, 3, 1}, {1, 2, 0},
+                                         {0xFFFFFFFF, 0, 1}, {0xFFFFFFFF, 1, 1}, {0, 5, 0}}) {
+        const uint32_t to = place == 0xFFFFFFFF ? v[1] : v[0] + place * 4;
+        const uint32_t word = 0xABC00000 + n * 0x10 + place;
+        Mix(Game<SFive>(kPointersOverflow)(v, nullptr, to, U(&word), U(&tag), n, atEnd) - v[0]);
+        MixVector(v);
+    }
+    if (v[0])
+        StlFree(v[0]);
+
+    // A holder never opened, with characters in its map and a block, taken
+    // down.
+    const uint32_t holder = StlAllocate(0x34);
+    Game<SThis>(kHolderConstruct)(At32(holder), nullptr);
+    for (uint16_t key : {0x41, 0x20, 0x7A}) {
+        const uint32_t pair[2] = {key, key * 2u};
+        uint32_t result[2] = {};
+        Game<STwo>(kMapInsert)(At32(holder) + 0x28, nullptr, U(result), U(pair));
+    }
+    const uint32_t block = StlAllocate(16);
+    std::memcpy(At32(holder) + 0x14, &block, 4);
+    Game<SThis>(containers::kHolderDestruct)(At32(holder), nullptr);
+    Mix(Field<uint32_t>(At32(holder), 0x20));
+    StlFree(holder);
+}
+
+void DriveFontContainers()
+{
+    Random random{0x0F3B};
+    DriveContainersHelpers();
+    DriveContainersPlaced();
+    DriveContainersText();
+    DriveContainersMap(random, containers::kGlyphsClear, containers::kGlyphsDestruct, containers::kGlyphsEraseTree);
+    DriveContainersMap(random, containers::kNamesClear, containers::kNamesDestruct, containers::kNamesEraseTree);
+    DriveContainersGlyphs(random);
+    DriveContainersRest();
+    FtStage("fontcontainers");
+}
+
+// ====================================================================================
+// The font's loading, size and scale (f3c)
+
+// Fonts of our own given the paths of faces (the game's, Windows's and our
+// own files), loaded by address and asked their languages; sizes set past
+// both ends and while a glyph cache holds glyphs; scales past both ends, -0,
+// infinities and NaN, with strings measured at sensible ones; the levels
+// rebuilt over powers and biases set in place (off, NaN among them); Load
+// again while loaded, without a size, with a blitter of its own, refused by
+// SetSize, of a file that is not there and of no path.
+using FFloatTwo = uint32_t(__fastcall*)(void*, void*, float, float);
+
+void SetFontPath(void* f, const std::string& path)
+{
+    GameString s = MakeString(path.c_str());
+    Game<SOne>(addr::GZFont_SetPath)(f, nullptr, U(&s));
+    FreeString(s);
+}
+
+void DriveFontLoad()
+{
+    const auto load = Game<SThis>(addr::GZFont_Load);
+    const auto setSize = Game<SOne>(addr::GZFont_SetSize);
+    const auto languageOf = Game<SOne>(addr::GZFont_SupportsLanguage);
+    const auto setScale = Game<FFloatTwo>(addr::GZFont_SetScale);
+    const auto rebuild = Game<SThis>(addr::GZFont_RebuildLevels);
+    const char text[] = "OpenSC4 fonts, Wgjpqy 0123456789";
+    const auto measure = [&](void* f) {
+        for (const uint32_t mode : {1u, 2u}) {
+            Game<SOne>(addr::GZFont_SetMode)(f, nullptr, mode);
+            Mix(Virtual<uint32_t>(f, 0xC0, text, uint32_t{sizeof text - 1}));
+        }
+        MixFontFields(f);
+    };
+    const uint32_t languages[] = {0,     1,     8,     0x10,  0x36A, 0x3A4, 0x3A8, 0x3B5, 0x3B6,      0x4E2,     0x4E3,
+                                  0x4E4, 0x4E5, 0x4E6, 0x4E7, 0x4E8, 0x4E9, 0x4EA, 0x369, 0xFFFFFFFF, 0x80000000};
+    const float inf = std::numeric_limits<float>::infinity();
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+
+    std::vector<std::string> paths = FontPaths();
+    for (const std::size_t i : {std::size_t{3}, std::size_t{0}, std::size_t{5}, std::size_t{7}, std::size_t{13},
+                                std::size_t{18}, std::size_t{19},
+                                std::size_t{20}, std::size_t{25}, std::size_t{28}, std::size_t{29}}) {
+        if (i >= paths.size())
+            continue;
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        // A size before the face is open: stored, true.
+        Mix(setSize(f, nullptr, 13) & 0xFF);
+        SetFontPath(f, paths[i]);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixFontFields(f);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        if (!Field<uint8_t>(f, 4)) {
+            Game<SThis>(addr::GZFont_Release)(f, nullptr);
+            continue;
+        }
+        for (const uint32_t language : languages)
+            MixByte(static_cast<uint8_t>(languageOf(f, nullptr, language)));
+        for (const uint32_t pixels : {0u, 1u, 5u, 12u, 29u, 64u, 0x800u, 0x801u, 0x7FFFFFFFu, 0xFFFFFFFFu, 14u}) {
+            MixByte(static_cast<uint8_t>(setSize(f, nullptr, pixels)));
+            MixFontFields(f);
+        }
+        // With glyphs in the caches SetSize refuses; SetScale clears them.
+        measure(f);
+        MixByte(static_cast<uint8_t>(setSize(f, nullptr, 20)));
+        MixFontFields(f);
+        for (const auto& [x, y] : {std::pair<float, float>{1.0f, 1.0f}, {0.5f, 2.0f}, {1.25f, 0.75f}, {0.001f, 5000.0f},
+                                   {0.01f, 1000.0f}, {-0.0f, 0.0f}, {-1.0f, 0.2f}, {inf, -inf}, {nan, 1.0f},
+                                   {nan, 1.0f}, {1.0f, nan}, {1.0f, 1.0f}, {1.5f, 1.5f}}) {
+            setScale(f, nullptr, x, y);
+            MixFontFields(f);
+            if (x == x && y == y && x > 0.1f && x < 10.0f && y > 0.1f && y < 10.0f)
+                measure(f);
+        }
+        MixByte(static_cast<uint8_t>(setSize(f, nullptr, 18)));
+        setScale(f, nullptr, 1.0f, 1.0f);
+        MixByte(static_cast<uint8_t>(setSize(f, nullptr, 18)));
+        measure(f);
+        // The levels over powers and biases put in place.
+        for (const auto& [power, bias] :
+             {std::pair<float, float>{1.0f, 0.0f}, {2.0f, 0.0f}, {1.0f, 0.5f}, {0.5f, -0.5f}, {1.0f, -1.0f},
+              {1.0f, 1.0f}, {10.0f, 1.0f}, {0.0f, 0.0f}, {1.0f, -0.0f}, {nan, 0.0f}, {1.0f, nan}, {0.3f, 0.7f},
+              {3.0f, -0.9f}, {1.0f, 0.0f}}) {
+            std::memcpy(static_cast<uint8_t*>(f) + 0x54, &power, 4);
+            std::memcpy(static_cast<uint8_t*>(f) + 0x58, &bias, 4);
+            rebuild(f, nullptr);
+            MixFontFields(f);
+        }
+        // Unloaded, loaded again without a size (T2K then has no
+        // transformation, so nothing is measured) and with a ramp on.
+        Game<SThis>(addr::GZFont_Unload)(f, nullptr);
+        const uint32_t noSize = 0;
+        std::memcpy(static_cast<uint8_t*>(f) + 0x38, &noSize, 4);
+        const float power = 0.6f;
+        std::memcpy(static_cast<uint8_t*>(f) + 0x54, &power, 4);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixFontFields(f);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+
+    // A blitter of its own kept by Load.
+    {
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        MockBlitter mock{MockBlitterTable(), 1, 1, f};
+        Game<SOne>(addr::GZFont_SetBlitter)(f, nullptr, U(&mock));
+        SetFontPath(f, paths[3]);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixByte(Field<uint32_t>(f, 0x8C) == U(&mock) ? 1 : 0);
+        Mix(static_cast<uint32_t>(mock.refs));
+        MixFontFields(f);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+        Mix(static_cast<uint32_t>(mock.refs));
+    }
+    // Refused by SetSize (a glyph counted in the monochrome cache).
+    {
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        const uint32_t one = 1, zero = 0;
+        std::memcpy(static_cast<uint8_t*>(f) + 0x12C, &one, 4);
+        SetFontPath(f, paths[3]);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixFontFields(f);
+        std::memcpy(static_cast<uint8_t*>(f) + 0x12C, &zero, 4);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    // A file that is not there, and no path.
+    for (const char* path : {"C:\\opensc4-no-such-folder\\none.ttf", ""}) {
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        if (*path)
+            SetFontPath(f, path);
+        MixByte(static_cast<uint8_t>(load(f, nullptr)));
+        MixFontFields(f);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    FtStage("fontload");
+}
+
+void DriveFont()
+{
+    DriveFontObject();
+    DriveFontProperties();
+    DriveFontBlitter();
+    DriveFontContainers();
+    DriveFontLoad();
+}
+
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,
 // then the holder, its stream and the director (f1 and f5), then the font
-// system (f2a).
+// system (f2a), then the font's object, properties and blitter (f3a)
+// and its containers (f3b).
 // Every result goes into the fingerprint's `ft` part.
 void DriveFontsDay(const Day& day)
 {
@@ -2179,6 +3136,7 @@ void DriveFontsDay(const Day& day)
     DriveHolder();
     DriveDirector();
     DriveSystem();
+    DriveFont();
     log::Write("autotest: fonts driven (hash %08X)", g_ftHash);
 }
 

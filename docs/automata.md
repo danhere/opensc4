@@ -35,8 +35,8 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Vehicle and pedestrian managers and their base | 96 | 20,337 | v1 (32, done), v2 (25, done), v3 (29, done) |
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
-| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1) (part ro below counts 103) |
-| Trains | 79 | 18,124 | 2 |
+| Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
+| Trains | 79 | 18,124 | tr1 (31, done), tr2 (18), tr3 (4) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
@@ -2900,7 +2900,7 @@ What each class overrides of cSC4Vehicle:
   - The tank: 127 0x0054A750 (both highlights off).
 - **ro3 (4, 6,322 bytes):** the tank on frames, split in two:
   - **ro3a (3, 3,484 bytes, done):** 110 0x0054A780, 115 0x0054AAE0, 121 0x0054B030. Below.
-  - **ro3b (1, 2,838 bytes):** the tank's frame, slot 72 0x0054B7C0.
+  - **ro3b (1, 2,838 bytes, done):** the tank's frame, slot 72 0x0054B7C0. Below.
 
 No helper is called only by the group beyond the two destructor bodies. No NAM site and none of SC4UIScale's addresses is in it.
 
@@ -3128,3 +3128,135 @@ The tank comes from its factory. Its main vtable is ro2's copy, with slots 18, 1
 Every B run reached all 3, and its ro3a field equalled the A run's (0xD2870417). The whole ` V` token was equal too, ad3's `chighlight` included. The game itself reaches none of the 3 before the test day in these saves: everything is reached by the test.
 
 - **The audit:** an independent check against the disassembly found no defect in the 3. On its one doubt, the local holding __CIacos's address was renamed so it no longer shares a name with the C runtime's acos.
+
+### What is ours (ro3b)
+
+1 function, in the same group (`simulators.automata.roadveh`, list kTankFrame in [automata_roadveh.cpp](../src/core/automata_roadveh.cpp)), written by hand from the disassembly.
+
+- **Slot 72** 0x0054B7C0 (a word, frame seconds), the tank's frame. It runs cSC4Vehicle's frame (0x0055BA20) and drops its answer. With the byte +0x340 set and both models (+0x35C the turret's, +0x360 the barrel's), it places each model by its slot 2 (a point, an axis):
+  - The axis is the heading's cross with (0, 1, 0). The zero 0x00A9B7A0 is multiplied through, as in slot 115.
+  - Four quaternion turns: the turret by its angle +0x34C times -0.5 about the axis, then the barrel about (-z, 0, x) of the heading over its length. The barrel's turn for the turret model is by its angle +0x350 times -0.25 (0.5 x -0.5), for the barrel model by its angle times -0.5.
+  - The turret's matrix is folded with the zero into rows, the barrel's matrix multiplies them, and the point is the product's rows times the heading.
+  - The second pair (the barrel model's) is made after the turret model's call, from the axis, the angles and the heading read again. The barrel's axis is not read again: the second pair uses the float of the first's inverse length.
+  - Then the attachments' (+0x368) slot 5 and the tank's slots 194 and 197 (the highlights' updates, part ad3's). AL is 1, the rest of EAX slot 197's.
+
+Floats follow the x87 at 53 bits, each FSIN and FCOS at 64 bits in its products. The compiler kept different values on the stack in each of the four inlined turns, so the two matrix shapes (turret, barrel) and the two row foldings are separate helpers, each rounding where its instance stores a float.
+
+Oddities kept:
+
+- The barrel's turn for the turret model is half the one for the barrel model (-0.25 against -0.5 times the angle).
+- cSC4Vehicle's frame's answer is dropped; the frame answers 1 even without the models.
+- The zero 0x00A9B7A0 is multiplied through the axis, both foldings and the barrel's axis.
+
+### Test (ro3b)
+
+The ` V` token gains `,<rturret>` after rtank (32 fields). rflags gains 0x200 when all 13 fixed frames ran and 0x400 when the factory failed. The log line is "ro3b rturret", with the calls' hash and the count of the fixed frames.
+
+The tank comes from its factory with ro2's vtable copy; slots 194 and 197 are the test's (197 answers a word whose upper bytes are mixed with the frame's answer). The two models are the test's: their slot 2 mixes the point and the axis it is given, and when asked changes the axis, both angles and the heading before the second pair is made. The attachments' vtable is the test's.
+
+- Thirteen fixed frames: the byte +0x340 clear, each model missing, then both on eight headings (one not of unit length, one straight up, whose axis is zero) and angles; two with the turret model's changes.
+- Then 256 frames on headings and angles drawn by a fixed LCG, every fourth with the changes. A check with one rounding of ours changed on purpose (the turret matrix's 2xy + 2zw stored as a float) found the fixed frames alike and the drawn ones different, so the drawn frames are what catches a rounding.
+- **Not reached:** the game's own tanks (only in U-Drive).
+
+### Parity (ro3b)
+
+2026-10-25, the same setup as ro3a's (B = `simulators.automata.vehicle` and `simulators.automata.roadveh`, two jobs, `OPENSC4_MUTE=1`, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-ro3b, snapshot ro3b-t1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same on shared outcomes (ro3b-t1b, 3 pairs) |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached slot 72, and its ro3b field equalled the A run's (0xC16875ED). The game itself does not reach it before the test day in these saves.
+
+- **Rush Hour t0000:** ro3b-t1 found it different after 3 pairs; the only difference was ad3's `chighlight` in the ` V` token (0xB49EAE5C against 0xB7A37F8C, two of the values it takes on either side, see ro2). The rerun ro3b-t1b found the sides sharing outcomes.
+- **The audit:** an independent check against the disassembly (the x87 stack traced by hand) found no defect: every float store, every sum's grouping, the reads after the turret model's call and the calls' arguments match.
+
+## Part tr: the trains
+
+### Survey
+
+Three classes, each on the one before: cSC4TrainCar on cSC4Vehicle, cSC4Train on the car, cSC4MassTransitTrain on the train ([automata_trains.h](../src/core/automata_trains.h) has their fields). The read-only survey (%LOCALAPPDATA%\opensc4\analysis\trains-survey) found them as part ro's did: by their vtables against the one before, the constructors that write them, and the factories registered by 0x00514A00.
+
+| Class | ID | Factory | Constructor | Size | Main vtable |
+| --- | --- | --- | --- | --- | --- |
+| cSC4TrainCar | 0x4A416254 | 0x00514910 | 0x0055B150 | 0x2C8, its own pool (0x00B0A09C) | 0x00A9C938 (192 slots) |
+| cSC4Train | 0x8A41625A | 0x00514940 | 0x0055B2F0 | 0x2FC, SC4::operator_new | 0x00A9CD68 (200 slots) |
+| cSC4MassTransitTrain | 0x4C22AE53 | 0x00514760 | 0x0053CBB0 | 0x2FC | 0x00A99588 (200 slots) |
+
+What each class overrides:
+
+- **The car** (of cSC4Vehicle): slots 0, 3, 50 (its train: the object +0xB0's slot 50, else itself), 65 (a collision handed to the train), 110, 120 (the light frame), 132 and 135 (a jump); folds in 115, 129, 141, 162; the base's 158 and the trailer's 176. Its +8 Write and Read are the bus's (version 2, part ro1); it has its own GetGZCLSID and deleting destructor (back to its pool).
+- **The train** (of the car): slots 0, 3, 4, 50 (back to itself), 65, 72, 73, 110, 111, 115, 121, 125, 129, 131, 132, 134, 165, 172, 175, and it adds 192 to 199. It keeps the wanted number of cars, the cars' occupant group, a vector of its cars, a point, an occupant and two words. Its Write and Read have two version words (its own and the car's, both 2).
+- **The mass transit train** (of the train): 3 and 4 (jumps to the train's), 164 (a jump to the base's), 165 and 172, and a Write and Read of version 1 around the train's. It has the train's QueryInterface, so it answers the train's and the car's class IDs but not its own.
+
+79 functions, 17,591 bytes:
+
+- **tr1 (31, 2,908 bytes, done):** the objects, the save, the life cycle and the queries. Below.
+- **tr2 (18, 6,992 bytes):** the smaller frame code. The train's 73 0x00558DC0, 65 0x00558E00, 110 0x00557530 (with the car's 110 0x00557410), 111 0x00557620, 121 0x005570C0, 125 0x00557830, 129 0x00558510, 131 0x005588D0, 132 0x005574F0 (with the car's 132 0x00557320), 134 0x0055AD00, 165 0x00558FA0, 172 0x00557170, 197 0x00559C30 and 199 0x0055A8B0; the mass transit train's 165 0x0053CA20 and 172 0x0053C970. Could be split by the train's movement (129, 131, 134, 197, 199) and the rest.
+- **tr3 (4, 7,498 bytes):** the frame 72 0x00557BF0, slot 198 0x0055A050, the driven frame 115 0x005591A0 and its helper 0x00557680. Likely a piece each.
+- **Stay the game's (26):** 21 adjustor thunks and five plain jumps (0x0053C950, 0x0053C960, 0x0053CA10, 0x00557070, 0x0055B740).
+
+Shared and not counted: the bus's Write and Read and their thunks, the trailer's jump 0x00555A50, the base's 0x0053CC00, and the folds 0x00441A50, 0x00648F00, 0x004FC900 and 0x005DEB40. No NAM site and none of SC4UIScale's addresses is in the group.
+
+### What is ours (tr1)
+
+31 functions in a new group, off by default: `simulators.automata.trains` ([automata_trains.cpp](../src/core/automata_trains.cpp)).
+
+- **The objects (16):**
+  - The three factories 0x00514910, 0x00514940, 0x00514760 and constructors 0x0055B150, 0x0055B2F0, 0x0053CBB0.
+  - The car pool: 0x00557290 (allocate) and 0x005579E0 (free), as the vehicle pool's but for 0x2C8 bytes and reopened at 0x40000045.
+  - The car's deleting destructor 0x0055B2C0, the train's destructor body 0x0053CB80 and its deleting destructor 0x0053CCE0 (shared with the mass transit train).
+  - QueryInterface of the car 0x00557040 and of the train 0x00557220.
+  - The three GetGZCLSIDs 0x0055B240, 0x0055B390, 0x0053CC30.
+- **The save (4):** Write and Read of the train (0x00557930, 0x0055AAD0) and of the mass transit train (0x0053CB30, 0x0053CB50).
+- **The life cycle (3):** Init of the car 0x00556F80 and of the train 0x00557A20, Shutdown of the train 0x00559E70.
+- **The queries (8):** the car's slots 50 0x005573F0, 65 0x00557080 and 120 0x005572D0; the train's 175 0x0053CC20 (6), 193 0x00558D20 (trim the cars), 194 0x0053CCB0 (the car count), 195 0x005577F0 (set the wanted count) and 196 0x0053CC10 (the wanted count).
+
+What they do:
+
+- The car's constructor clears its byte, sets three floats to 0x00B22964 and draws a time as cSC4Vehicle's does, from its own range (0x00B21D0C to 0x00B21D10).
+- The car's Init sets the automata flags 0x10000, 0x4000 and 0x10000000, and its byte when it is in group 0x4217 or 0x4208.
+- The train's Init clears the flag 0x10000000 again and draws a second time with cRZRandom::Range. It then picks the cars' group by its own (0x4216, 0x4215, 0x4217, 0x422C, 0x422E give 0x4203, 0x4201, 0x4208, 0x422D, 0x422F), and draws the wanted number of cars from the byte pairs 0x00B21D06..07 (for 0x4203) or 0x00B21D08..09.
+- The train's Shutdown first tells the network service 0x00B43D54 (its slot 39) about the cell of every occupant in the base's +0x204 deque and cSC4Vehicle's +0x27C deque, then runs cSC4Vehicle's Shutdown and lets go of its occupant and its cars.
+- Slot 195 stores the wanted count and trims the cars when there are more; slot 193 trims, and with fewer cars hands the count back to slot 195. The cars themselves are made by the frame code (tr2, slots 197 to 199).
+
+Left the game's: cSC4Vehicle's code (part vb), the bus's Write and Read (ro1), the jumps, the thunks and the folds above, the stream helpers, SC4PtrVector::InsertN, the pool's page code and the generator.
+
+Oddities kept:
+
+- **The car's slot 65** hands the collision to its train (slot 50) unless its state is 0x14. A car with no train at +0xB0 is its own train, so it would call itself again; the game's own cars always have one.
+- **The car's slot 120** does not test the U-Drive controls for null while a disaster is active.
+- **The train's Init** leaves the cars' group as it was when the train is in none of the five groups.
+- **The train's constructor** does not set +0x2EC.
+- **The train's Read** reads its first version word into an unset local (ours zero) and the second into the stream argument's own stack slot; the mass transit train's does the same with its one. As with the trailer, the count and each car reference go to locals, the car's zeroed before each reference, and pushed without emptying the vector first.
+- **The train's destructor** frees the cars' buffer without releasing the cars (Shutdown releases them).
+- **Slots 193 and 195** pass their whole argument on to each other but use only its low byte.
+- **AL only in the game:** the Inits, the train's Shutdown, Write and Read, the mass transit train's Read when the version is wrong (the stream's vtable with AL 0), slots 65 and 196. Ours zero-extends.
+
+### Test (tr1)
+
+The ` V` token gains `,<tobject>,<tsave>,<tlife>,<tflags>` (36 fields). tflags: 1 objects made, 2 the save ran, 4 the life cycle ran, 8 the queries ran, 0x10 a factory failed. All on objects of the test's, with the generator seeded as for vb (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). The log line is "tr1 tobject".
+
+- **tobject:** one object of each class from its factory: its fields, GetGZCLSID, QueryInterface for six IDs (both QueryInterfaces also at their addresses), and the car pool with another size and a null block. The train's slots 175 and 193 to 196 over nine steps on cars of the test's, a null one among them. The car's slot 50 without and with a train of the test's; slot 65 under three states (the car's main vtable a copy whose slot 65 records, so a car that is its own train does not recurse); slot 120 with a disaster service of the test's, on and off, over six values of the controls' +0x10 (the automata flag 1 set, so the core's slot 120 answers at once).
+- **tsave:** each class written by its Write and by cSC4Vehicle's (the version words, whether cSC4Vehicle's bytes follow, the rest), read back as written, with each version word set to 3, cut by the last word (the trains) and empty.
+- **tlife:** the car's Init twice and on two more cars, its groups answered through a copy of its +4 vtable. Eight trains initialised over the group sets (the last a mass transit train, through its slots 3 and 4) and shut down: occupants of the test's in both deques, an occupant and cars of the test's, the network service of the test's or none.
+- The calls of the test's objects are mixed into tobject and tlife.
+
+A trial with three deliberate changes (a group, a compare, the written count) changed tsave and tlife; the compare change (`<` to `<=` against 10000) writes the same value and is not observable.
+
+### Parity (tr1)
+
+2026-10-25. B = `simulators.automata.vehicle`, `simulators.automata.roadveh` and `simulators.automata.trains` against the original; the base list includes `determinism.dispatch_info=ours`. Two jobs, `OPENSC4_MUTE=1`, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. Env p4env-tr1, snapshot tr1-t1 (the Rush Hour leg rerun as tr1-t1b from a copy of it):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same on shared outcomes (tr1-t1b, 2 pairs) |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached all 31, and its tr1 fields equalled the A run's (tobject 0xEAF28B77, tsave 0x2BBC8341, tlife 0x0F6C5B87, tflags 0xF). The game itself reaches none of them before the test day in these saves.
+
+- **Rush Hour t0000:** tr1-t1 found it different after 3 pairs; the only difference in the ` V` token was ad3's `chighlight` (0xB7A37F8C against 0xB49EAE5C, the two values it takes on either side, see ro2). The rerun tr1-t1b found the sides sharing outcomes.
+- **The audit:** an independent check against the disassembly found no defect in the 31. It corrected two comments (the mass transit train answers the train's and the car's class IDs; which reads of the train's Read go to locals).

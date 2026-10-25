@@ -389,7 +389,7 @@ bool Recorded(uint32_t target)
     return g_poolHooked &&
            (target == addr::SC4EffectBase_TakeParticle || target == addr::SC4EffectBaseB_TakeParticle ||
             target == addr::SC4EffectBase_AddParticle || target == addr::SC4EffectBase_GiveBackParticle ||
-            target == addr::SC4EffectBaseB_GiveBackParticle || target == addr::SC4Effect_SpawnFromParticle ||
+            target == addr::SC4EffectBaseB_GiveBackParticle || target == addr::SC4Effect_StartAtBirth ||
             target == addr::SC4Effect_SetStopped || target == addr::SC4EffectB_SetStopped ||
             target == addr::SC4EffectBase_SetEnding || target == addr::SC4EffectBase_LetGo ||
             target == addr::SC4EffectBaseB_LetGo ||
@@ -1469,7 +1469,10 @@ uint32_t PartDescriptionByMode(char* part, uint32_t description)
         [&] { return g_SC4EffectPartB_SetDescription(part, nullptr, description); },
         [&] { return SetPartDescription(part, description); });
 }
-OPENSC4_EFFECT_HOOK1(SC4Effect_SpawnFromParticle)
+// The starts at birth (0x005B84C0) are recorded through their switch's
+// detour (TLfBirth, with the starts at set ages below).
+Call1Fn g_SC4Effect_StartAtBirth = nullptr;
+void TLfBirth();
 
 // While the game's run is recorded, what it frees is only noted and freed
 // once the comparison is over: until then the replay reads and writes the
@@ -2453,7 +2456,7 @@ bool HookPool()
                &g_SC4EffectBase_GiveBackParticle) &&
         Detour(addr::SC4EffectBaseB_GiveBackParticle, &TSC4EffectBaseB_GiveBackParticle,
                &g_SC4EffectBaseB_GiveBackParticle) &&
-        Detour(addr::SC4Effect_SpawnFromParticle, &TSC4Effect_SpawnFromParticle, &g_SC4Effect_SpawnFromParticle) &&
+        (g_SC4Effect_StartAtBirth || Detour(addr::SC4Effect_StartAtBirth, &TLfBirth, &g_SC4Effect_StartAtBirth)) &&
         Detour(addr::SC4Effect_SetStopped, &TSC4Effect_SetStopped, &g_SC4Effect_SetStopped) &&
         Detour(addr::SC4EffectB_SetStopped, &TSC4EffectB_SetStopped, &g_SC4EffectB_SetStopped) &&
         Detour(addr::SC4EffectBase_SetEnding, &TSC4EffectBase_SetEnding, &g_SC4EffectBase_SetEnding) &&
@@ -14142,20 +14145,21 @@ std::string LfStartText(const std::vector<LfStartNote>& notes, std::size_t at)
     return text + Hex(reinterpret_cast<const char*>(n.at), sizeof n.at);
 }
 
-void LfAgesCompared(const char* id, char* self)
+// Ours and the game's run with their starts noted (the game's through
+// 0x005B8290's detour); the effect must be left as it was.
+template <typename Ours, typename Game>
+void LfStartsCompared(const char* id, char* self, Ours&& ours, Game&& game)
 {
     const std::vector<char> before(self, self + kEffectSize);
     g_agesOurs.clear();
-    StartAtAges(self, [](char* effect, uint32_t suffix, char* place) {
-        g_agesOurs.push_back(LfNoteStart(effect, suffix, place));
-    });
+    ours([](char* effect, uint32_t suffix, char* place) { g_agesOurs.push_back(LfNoteStart(effect, suffix, place)); });
     std::size_t wrote = 0;
     while (wrote < kEffectSize && before[wrote] == self[wrote])
         ++wrote;
     g_agesGame.clear();
     g_agesThread = GetCurrentThreadId();
     g_agesWatch = true;
-    g_SC4Effect_StartAtAges(self, nullptr);
+    game();
     g_agesWatch = false;
     const bool same = wrote == kEffectSize && g_agesOurs == g_agesGame;
     std::string gameText, ourText;
@@ -14174,6 +14178,12 @@ void LfAgesCompared(const char* id, char* self)
     compare::Record(id, same, gameText, ourText);
 }
 
+void LfAgesCompared(const char* id, char* self)
+{
+    LfStartsCompared(
+        id, self, [&](auto note) { StartAtAges(self, note); }, [&] { g_SC4Effect_StartAtAges(self, nullptr); });
+}
+
 uint32_t __fastcall LfAgesByMode(char* self, void*)
 {
     if (g_effectRecord && g_drawRecording)
@@ -14190,6 +14200,37 @@ uint32_t __fastcall LfAgesByMode(char* self, void*)
     return 0;
 }
 OPENSC4_THUNK(TLfAges, LfAgesByMode, 0)
+
+// The starts at birth (0x005B84C0) are compared as the starts at set ages.
+// The emitters' take-and-step reaches them only for descriptions with flag
+// 0x80000000, which no test city has; OPENSC4_EFFECT_FORCE_STEPS=1 runs
+// them in LfForceSteps too (effects.birth_starts.forced). The pool's and
+// the draw's comparisons record them through this detour.
+StepMode g_birthMode = StepMode::Original;
+
+void LfBirthCompared(const char* id, char* self, char* particle)
+{
+    LfStartsCompared(
+        id, self, [&](auto note) { StartAtBirth(self, particle, note); },
+        [&] { g_SC4Effect_StartAtBirth(self, nullptr, Word(particle)); });
+}
+
+uint32_t __fastcall LfBirthByMode(char* self, void*, uint32_t particle)
+{
+    if (g_effectRecord && Recorded(addr::SC4Effect_StartAtBirth))
+        return EffectRecorded(addr::SC4Effect_StartAtBirth, g_SC4Effect_StartAtBirth, self, particle);
+    if (g_birthMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_StartAtBirth(self, nullptr, particle);
+    if (g_birthMode == StepMode::Ours) {
+        StartAtBirth(self, Ptr(particle), [](char* effect, uint32_t suffix, char* place) {
+            CallThis<uint32_t>(addr::SC4Effect_StartNamed, effect, suffix, place);
+        });
+        return 0;
+    }
+    LfBirthCompared("effects.birth_starts", self, Ptr(particle));
+    return 0;
+}
+OPENSC4_THUNK(TLfBirth, LfBirthByMode, 4)
 
 bool g_forceSteps = false;
 
@@ -14230,6 +14271,46 @@ void LfForceSteps(char* self)
             });
         std::memcpy(self, saved, kEffectSize);
         At<uint32_t>(description, 0) = flags;
+    }
+    if (g_birthMode == StepMode::Compare) {
+        char* particle = nullptr;
+        for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14) && !particle;
+             node = At<char*>(node, 0)) {
+            if (At<uint8_t>(At<char*>(node, 8), 0))
+                particle = At<char*>(node, 8);
+        }
+        if (particle) {
+            // Ages in turn: all zero, zero and -0 then the smallest float,
+            // a NaN first, one first, seven zeros and -1, no entries.
+            static uint32_t turn = 0;
+            static const char suffixes[8][8] = {"_e6a", "_e6b", "_e6c", "_e6d", "_e6e", "_e6f", "_e6g", "_e6h"};
+            static const uint32_t ages[5][8] = {
+                {0, 0, 0, 0, 0, 0, 0, 0},
+                {0, 0x80000000u, 1, 0, 0, 0, 0, 0},
+                {0x7FC00000u, 0, 0, 0, 0, 0, 0, 0},
+                {0x3F800000u, 0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0, 0xBF800000u},
+            };
+            const uint32_t k = turn++ % 6;
+            uint32_t table[8][4] = {};
+            for (uint32_t i = 0; i < 8; ++i) {
+                table[i][0] = Word(const_cast<char*>(suffixes[i]));
+                table[i][3] = k < 5 ? ages[k][i] : 0;
+            }
+            // A copy of the particle that does not run starts nothing.
+            char stopped[0x18];
+            std::memcpy(stopped, particle, sizeof stopped);
+            stopped[0] = 0;
+            const uint32_t begin = At<uint32_t>(description, 0x1CC), end = At<uint32_t>(description, 0x1D0);
+            At<uint32_t*>(description, 0x1CC) = table[0];
+            At<uint32_t*>(description, 0x1D0) = k < 5 ? table[0] + 32 : table[0];
+            g_agesForced = true;
+            LfBirthCompared("effects.birth_starts.forced", self, particle);
+            LfBirthCompared("effects.birth_starts.forced", self, stopped);
+            g_agesForced = false;
+            At<uint32_t>(description, 0x1CC) = begin;
+            At<uint32_t>(description, 0x1D0) = end;
+        }
     }
     if (g_agesMode == StepMode::Compare) {
         char* particle = nullptr;
@@ -14281,7 +14362,7 @@ bool LfHookForce()
     if (!DwHookEffectDraw())
         return false;
     if (!g_forceSteps)
-        log::Write("water effects: the start edge and the starts at set ages forced before each effect's draw");
+        log::Write("water effects: the start edge and the starts at set ages and at birth forced before each effect's draw");
     g_forceSteps = true;
     return true;
 }
@@ -14300,6 +14381,16 @@ bool InstallLifeAges(registry::Mode mode)
         return false;
     return SuInstall(mode, g_agesMode, addr::SC4Effect_StartAtAges, &TLfAges, &g_SC4Effect_StartAtAges,
                      "the effects started at set ages of particles") &&
+           (mode != registry::Mode::Compare || LfHookForce());
+}
+
+bool InstallLifeBirth(registry::Mode mode)
+{
+    if (mode == registry::Mode::Compare && game::IsBuild641() &&
+        !(g_SC4Effect_StartNamed || Detour(addr::SC4Effect_StartNamed, &TLfStartNamed, &g_SC4Effect_StartNamed)))
+        return false;
+    return SuInstall(mode, g_birthMode, addr::SC4Effect_StartAtBirth, &TLfBirth, &g_SC4Effect_StartAtBirth,
+                     "the effects started where particles are born") &&
            (mode != registry::Mode::Compare || LfHookForce());
 }
 
@@ -14327,6 +14418,19 @@ const bool g_registeredLifeAges = registry::Register({
     "with made-up ages (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallLifeAges,
+});
+
+const bool g_registeredLifeBirth = registry::Register({
+    "renderer.effects.birth_starts",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StartAtBirth,
+    "Effects started where the emitters' particles are born (0x005B84C0), for descriptions with flag 0x80000000; "
+    "compare mode notes the starts in ours and the game's, OPENSC4_EFFECT_FORCE_STEPS=1 forces it on every running "
+    "effect with made-up tables (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifeBirth,
 });
 
 // The meeting with the ground writes the particle and the effect, draws
@@ -15633,11 +15737,373 @@ uint32_t DwNoted(uint32_t kind, Fn original, char* self, Args... args)
     return result;
 }
 
-uint32_t __fastcall DwBeforeDrawNoted(char* self, void*, uint32_t context)
+// --- The height map's rest ---------------------------------------------------------------
+//
+// The particles' height map's own lines (0x00586720, a debug view), the
+// clear of its values (0x00586700) and its plain destructor (0x00586900),
+// written by hand in effects_heightmap.h. The lines' draw has one detour,
+// which the manager's draw's comparison notes it through (DwNoted) and
+// this group's mode runs otherwise. Compare mode runs ours and then the
+// game's on the same map and context, both drawing, with the calls the
+// draw is made of noted at their entry (the lines made anew, the render
+// state's two words and fourteen values, the line list asked for its
+// mesh: detours of compare mode) and passed on; between the two runs the
+// byte +0x48 is put back. The notes and the map's bytes before the line
+// list (+0x4C, which the game's functions keep) must be the same. The
+// context's two calls (the state set and the mesh drawn) are not noted:
+// other switches detour them. The clear and the destructor run ours on a
+// copy whose layers are its own (HmDeepCopy) and the game's on the map,
+// compared as the height map's destructor; the destructor's answer (the
+// base's end's) is not compared, and a map whose line list holds anything
+// is left to the game's.
+//
+// No test city reaches any of the three (the manager's +0xD98 byte is
+// never set, the clear and the manager's destructor never called). With
+// OPENSC4_HEIGHTMAP_FORCE=1 (compare mode only) the manager's draw runs
+// them before its own on the manager's map when it has layers: the lines
+// each frame (every fourth with +0x48 set, so that they are made anew;
+// +0x48 put back after) and on a copy without layers, and every eighth
+// frame the clear and the destructor, each on two copies of the map whose
+// layers are their own (the destructor's with line lists made anew), the
+// game's on one and ours on the other. They are recorded as
+// effects.heightmap_rest.*.forced.
+StepMode g_hrMode = StepMode::Original;
+Call0Fn g_SC4EffectHeightMap_MakeLines = nullptr, g_SC4EffectHeightMap_ClearValues = nullptr,
+        g_SC4EffectHeightMap_Destructor = nullptr, g_SC4HeightMapLines_Mesh = nullptr;
+using HrStateFn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                        uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+HrStateFn g_SC4RenderState_Init = nullptr;
+bool g_hrForce = false;
+
+// One call noted: 1 the lines made anew (the map), 2 the render state (its
+// two words at the call, then the fourteen values), 3 the mesh asked for
+// (the line list).
+struct HrNote {
+    uint32_t kind, self, words[16];
+    bool operator==(const HrNote& other) const { return std::memcmp(this, &other, sizeof *this) == 0; }
+};
+std::vector<HrNote>* g_hrNotes = nullptr;
+DWORD g_hrThread = 0;
+int g_hrDepth = 0;
+
+bool HrGameOnly()
 {
-    return DwNoted(kDwBeforeDraw, g_DwBeforeDraw, self, context);
+    return g_hrMode == StepMode::Original || g_stNoting || g_stReplay;
 }
-OPENSC4_THUNK(TDwBeforeDraw, DwBeforeDrawNoted, 4)
+
+bool HrNoting()
+{
+    return g_hrNotes && g_hrDepth == 0 && GetCurrentThreadId() == g_hrThread;
+}
+
+// The lines' making (0x00585C20) has one detour: noted for the lines'
+// draw's comparison (above), and run by this group's mode. Its comparison
+// runs ours with the line list's calls (the clear, its +0xC, the colour,
+// the normal, each box) only noted, then the game's with the same calls
+// noted at their entry by detours of compare mode and passed on. The notes,
+// each with what it is given (three floats; the colour's three; a box's
+// eight corners), must be the same. The reads (the terrain's height, the
+// map's height and normal) run in both.
+struct MlNote {
+    uint32_t kind, self, words[24];
+    bool operator==(const MlNote& other) const { return std::memcmp(this, &other, sizeof *this) == 0; }
+};
+std::vector<MlNote>* g_mlNotes = nullptr;
+bool g_mlPass = false;
+DWORD g_mlThread = 0;
+Call0Fn g_SC4HeightMapLines_Clear = nullptr;
+Call1Fn g_SC4HeightMapLines_SetVectorC = nullptr, g_SC4HeightMapLines_SetColour = nullptr,
+        g_SC4HeightMapLines_SetNormal = nullptr;
+using MlAddBoxFn = void(__cdecl*)(char*, const float*);
+MlAddBoxFn g_SC4HeightMapLines_AddBox = nullptr;
+
+// Whether a call is to be noted; one that is not passed on is not made.
+bool MlAdd(uint32_t kind, char* self, const void* data, std::size_t words, bool& pass)
+{
+    pass = true;
+    if (!g_mlNotes || GetCurrentThreadId() != g_mlThread)
+        return false;
+    MlNote note{kind, Word(self), {}};
+    if (data)
+        std::memcpy(note.words, data, words * 4);
+    g_mlNotes->push_back(note);
+    pass = g_mlPass;
+    return true;
+}
+
+uint32_t __fastcall MlClearNoted(char* self, void*)
+{
+    bool pass = true;
+    MlAdd(1, self, nullptr, 0, pass);
+    return pass ? g_SC4HeightMapLines_Clear(self, nullptr) : 0;
+}
+OPENSC4_THUNK(TMlClear, MlClearNoted, 0)
+
+uint32_t __fastcall MlVectorCNoted(char* self, void*, uint32_t value)
+{
+    bool pass = true;
+    MlAdd(2, self, Ptr(value), 3, pass);
+    return pass ? g_SC4HeightMapLines_SetVectorC(self, nullptr, value) : 0;
+}
+OPENSC4_THUNK(TMlVectorC, MlVectorCNoted, 4)
+
+uint32_t __fastcall MlColourNoted(char* self, void*, uint32_t rgb)
+{
+    bool pass = true;
+    MlAdd(3, self, Ptr(rgb), 3, pass);
+    return pass ? g_SC4HeightMapLines_SetColour(self, nullptr, rgb) : 0;
+}
+OPENSC4_THUNK(TMlColour, MlColourNoted, 4)
+
+uint32_t __fastcall MlNormalNoted(char* self, void*, uint32_t normal)
+{
+    bool pass = true;
+    MlAdd(4, self, Ptr(normal), 3, pass);
+    return pass ? g_SC4HeightMapLines_SetNormal(self, nullptr, normal) : 0;
+}
+OPENSC4_THUNK(TMlNormal, MlNormalNoted, 4)
+
+void __cdecl MlAddBoxNoted(char* lines, const float* corners)
+{
+    bool pass = true;
+    MlAdd(5, lines, corners, 24, pass);
+    if (pass)
+        g_SC4HeightMapLines_AddBox(lines, corners);
+}
+OPENSC4_CDECL_THUNK(TMlAddBox, MlAddBoxNoted, 8)
+
+std::string MlNotesText(const std::vector<MlNote>& notes, std::size_t at)
+{
+    char text[64];
+    if (at >= notes.size()) {
+        std::snprintf(text, sizeof text, "%zu calls", notes.size());
+        return text;
+    }
+    std::snprintf(text, sizeof text, "%zu calls, #%zu kind %u on %08X ", notes.size(), at, notes[at].kind,
+                  notes[at].self);
+    return text + Hex(notes[at].words, sizeof notes[at].words);
+}
+
+void MlCompared(const char* id, char* self)
+{
+    std::vector<MlNote> ours, game;
+    g_mlThread = GetCurrentThreadId();
+    g_mlPass = false;
+    g_mlNotes = &ours;
+    MakeHeightMapLines(self);
+    g_mlPass = true;
+    g_mlNotes = &game;
+    g_SC4EffectHeightMap_MakeLines(self, nullptr);
+    g_mlNotes = nullptr;
+    std::size_t at = 0;
+    while (at < ours.size() && at < game.size() && ours[at] == game[at])
+        ++at;
+    const bool same = ours == game;
+    StRecord(id, same, same ? std::string() : MlNotesText(game, at), same ? std::string() : MlNotesText(ours, at));
+}
+
+uint32_t MlByMode(char* self)
+{
+    if (g_hrMode == StepMode::Ours) {
+        MakeHeightMapLines(self);
+        return 0;
+    }
+    if (g_hrMode == StepMode::Original || HrGameOnly() || g_mlNotes)
+        return g_SC4EffectHeightMap_MakeLines(self, nullptr);
+    MlCompared("effects.heightmap_rest.make_lines", self);
+    return 0;
+}
+
+uint32_t __fastcall HrMakeLinesNoted(char* self, void*)
+{
+    if (!HrNoting())
+        return MlByMode(self);
+    g_hrNotes->push_back(HrNote{1, Word(self), {}});
+    ++g_hrDepth;
+    const uint32_t result = MlByMode(self);
+    --g_hrDepth;
+    return result;
+}
+OPENSC4_THUNK(THrMakeLines, HrMakeLinesNoted, 0)
+
+uint32_t __fastcall HrStateNoted(char* self, void*, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
+                                 uint32_t a6, uint32_t a7, uint32_t a8, uint32_t a9, uint32_t a10, uint32_t a11,
+                                 uint32_t a12, uint32_t a13, uint32_t a14)
+{
+    if (HrNoting()) {
+        // The state is a local of each run: its place is not noted.
+        g_hrNotes->push_back(HrNote{2,
+                                    0,
+                                    {At<uint32_t>(self, 0), At<uint32_t>(self, 4), a1, a2, a3, a4, a5, a6, a7, a8, a9,
+                                     a10, a11, a12, a13, a14}});
+    }
+    ++g_hrDepth;
+    const uint32_t result =
+        g_SC4RenderState_Init(self, nullptr, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+    --g_hrDepth;
+    return result;
+}
+OPENSC4_THUNK(THrState, HrStateNoted, 56)
+
+uint32_t __fastcall HrMeshNoted(char* self, void*)
+{
+    if (!HrNoting())
+        return g_SC4HeightMapLines_Mesh(self, nullptr);
+    g_hrNotes->push_back(HrNote{3, Word(self), {}});
+    ++g_hrDepth;
+    const uint32_t result = g_SC4HeightMapLines_Mesh(self, nullptr);
+    --g_hrDepth;
+    return result;
+}
+OPENSC4_THUNK(THrMesh, HrMeshNoted, 0)
+
+std::string HrNotesText(const std::vector<HrNote>& notes, std::size_t at)
+{
+    char text[64];
+    if (at >= notes.size()) {
+        std::snprintf(text, sizeof text, "%zu calls", notes.size());
+        return text;
+    }
+    std::snprintf(text, sizeof text, "%zu calls, #%zu kind %u on %08X ", notes.size(), at, notes[at].kind,
+                  notes[at].self);
+    return text + Hex(notes[at].words, sizeof notes[at].words);
+}
+
+void HrLinesCompared(const char* id, char* self, char* context)
+{
+    const uint8_t changed = At<uint8_t>(self, 0x48);
+    std::vector<HrNote> ours, game;
+    g_hrThread = GetCurrentThreadId();
+    g_hrNotes = &ours;
+    DrawHeightMapLines(self, context);
+    g_hrNotes = nullptr;
+    const std::vector<char> mine(self, self + 0x4C);
+    At<uint8_t>(self, 0x48) = changed;
+    g_hrNotes = &game;
+    g_DwBeforeDraw(self, nullptr, Word(context));
+    g_hrNotes = nullptr;
+    std::size_t wrote = 0;
+    while (wrote < 0x4C && mine[wrote] == self[wrote])
+        ++wrote;
+    if (wrote < 0x4C) {
+        char text[16];
+        std::snprintf(text, sizeof text, "+%zX ", wrote);
+        StRecord(id, false, text + Hex(self + wrote, 1), text + Hex(mine.data() + wrote, 1));
+        return;
+    }
+    std::size_t at = 0;
+    while (at < ours.size() && at < game.size() && ours[at] == game[at])
+        ++at;
+    const bool same = ours == game;
+    StRecord(id, same, same ? std::string() : HrNotesText(game, at), same ? std::string() : HrNotesText(ours, at));
+}
+
+uint32_t __fastcall HrLinesByMode(char* self, void*, uint32_t context)
+{
+    if (DwNoting())
+        return DwNoted(kDwBeforeDraw, g_DwBeforeDraw, self, context);
+    if (g_hrMode == StepMode::Ours) {
+        DrawHeightMapLines(self, Ptr(context));
+        return 0;
+    }
+    if (g_hrMode == StepMode::Original || HrGameOnly() || g_hrNotes)
+        return g_DwBeforeDraw(self, nullptr, context);
+    HrLinesCompared("effects.heightmap_rest.lines", self, Ptr(context));
+    return 0;
+}
+OPENSC4_THUNK(TDwBeforeDraw, HrLinesByMode, 4)
+
+// A copy of the map from HmDeepCopy done with: its layers freed, its
+// terrain let go.
+void HrFreeCopy(std::vector<char>& copy)
+{
+    CallThis<void>(addr::SC4ShortVectorVector_Destroy, copy.data() + 0x14);
+    if (char* const terrain = At<char*>(copy.data(), 0xC))
+        HmSlot<uint32_t>(terrain, 8);
+}
+
+uint32_t __fastcall HrClearByMode(char* self, void*)
+{
+    if (g_hrMode == StepMode::Ours) {
+        ClearHeightMapValues(self);
+        return 0;
+    }
+    if (g_hrMode == StepMode::Original || HrGameOnly() || !HmCopyable(self) ||
+        At<char*>(self, 0x14) == At<char*>(self, 0x18))
+        return g_SC4EffectHeightMap_ClearValues(self, nullptr);
+    std::vector<char> mine = HmDeepCopy(self);
+    ClearHeightMapValues(mine.data());
+    const uint32_t result = g_SC4EffectHeightMap_ClearValues(self, nullptr);
+    HmSame("effects.heightmap_rest.clear", self, mine.data(), true);
+    HrFreeCopy(mine);
+    return result;
+}
+OPENSC4_THUNK(THrClear, HrClearByMode, 0)
+
+uint32_t __fastcall HrEndByMode(char* self, void*)
+{
+    if (g_hrMode == StepMode::Ours)
+        return EndHeightMap(self);
+    if (g_hrMode == StepMode::Original || HrGameOnly() || !HmCopyable(self) || At<uint32_t>(self, 0x4C) ||
+        At<uint32_t>(self, 0x50) || At<uint32_t>(self, 0x54))
+        return g_SC4EffectHeightMap_Destructor(self, nullptr);
+    std::vector<char> mine = HmDeepCopy(self);
+    EndHeightMap(mine.data());
+    const uint32_t result = g_SC4EffectHeightMap_Destructor(self, nullptr);
+    HmSame("effects.heightmap_rest.end", self, mine.data(), false);
+    return result;
+}
+OPENSC4_THUNK(THrEnd, HrEndByMode, 0)
+
+// The forcing, before the manager's draw (`self` the interface).
+void HrForce(char* self, char* context)
+{
+    if (!g_hrForce)
+        return;
+    char* const map = At<char*>(self, 0xD94);
+    if (!map || !context || At<char*>(map, 0x14) == At<char*>(map, 0x18) || !HmCopyable(map) || HrGameOnly() ||
+        g_hrNotes)
+        return;
+    static uint32_t turn = 0;
+    const uint32_t k = turn++;
+    const uint8_t changed = At<uint8_t>(map, 0x48);
+    if (k % 4 == 0)
+        At<uint8_t>(map, 0x48) = 1;
+    HrLinesCompared("effects.heightmap_rest.lines.forced", map, context);
+    At<uint8_t>(map, 0x48) = changed;
+    std::vector<char> empty(map, map + kHeightMapSize);
+    At<char*>(empty.data(), 0x18) = At<char*>(empty.data(), 0x14);
+    HrLinesCompared("effects.heightmap_rest.lines.forced", empty.data(), context);
+    if (k % 8 == 4) {
+        // The lines made on a copy whose first layer's values are negated
+        // (the map's height below the terrain's) and whose cell size is 13
+        // (products that are not exact as floats), its line list its own.
+        std::vector<char> odd = HmDeepCopy(map);
+        char* const layer = At<char*>(odd.data(), 0x14);
+        for (char* at = At<char*>(layer, 0); at != At<char*>(layer, 4); at += 4)
+            At<float>(at, 0) = -At<float>(at, 0);
+        At<uint32_t>(odd.data(), 0x30) = 13;
+        CallThis<void*>(addr::SC4HeightMapLines_Construct, odd.data() + 0x4C);
+        MlCompared("effects.heightmap_rest.make_lines.forced", odd.data());
+        CallThis<void>(addr::SC4HeightMapLines_Destroy, odd.data() + 0x4C);
+        HrFreeCopy(odd);
+    }
+    if (k % 8 != 0)
+        return;
+    std::vector<char> theirs = HmDeepCopy(map), mine = HmDeepCopy(map);
+    g_SC4EffectHeightMap_ClearValues(theirs.data(), nullptr);
+    ClearHeightMapValues(mine.data());
+    HmSame("effects.heightmap_rest.clear.forced", theirs.data(), mine.data(), true);
+    HrFreeCopy(theirs);
+    HrFreeCopy(mine);
+    theirs = HmDeepCopy(map);
+    mine = HmDeepCopy(map);
+    CallThis<void*>(addr::SC4HeightMapLines_Construct, theirs.data() + 0x4C);
+    CallThis<void*>(addr::SC4HeightMapLines_Construct, mine.data() + 0x4C);
+    g_SC4EffectHeightMap_Destructor(theirs.data(), nullptr);
+    EndHeightMap(mine.data());
+    HmSame("effects.heightmap_rest.end.forced", theirs.data(), mine.data(), false);
+}
 
 uint32_t __fastcall DwDrawFlashNoted(char* self, void*, uint32_t context, uint32_t step)
 {
@@ -16257,6 +16723,7 @@ uint32_t DwManagerCompared(char* self, char* context)
 
 uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
 {
+    HrForce(self, Ptr(context));
     if (g_dwManagerMode == StepMode::Original || g_dwTrace != DwTrace::Off || g_depth > 0) {
         const uint32_t result = g_SC4EffectsManager_Draw(self, nullptr, context);
         // The flash and the shake are forced after the manager's draw (the
@@ -16324,18 +16791,65 @@ bool InstallDrawManager(registry::Mode mode)
         return false;
     if (mode == registry::Mode::Compare &&
         !(DwHookEffectDraw() && DwHookDecalStep() &&
-          Detour(addr::SC4EffectsManager_BeforeDraw, &TDwBeforeDraw, &g_DwBeforeDraw) &&
+          (g_DwBeforeDraw || Detour(addr::SC4EffectHeightMap_DrawLines, &TDwBeforeDraw, &g_DwBeforeDraw)) &&
           Detour(addr::SC4EffectsManager_DrawFlash, &TDwDrawFlash, &g_DwDrawFlash) &&
           Detour(addr::SC4EffectsManager_StepShake, &TDwStepShake, &g_DwStepShake) &&
           Detour(addr::SC4RenderContext_DrawBox, &TDwDrawBox, &g_DwDrawBox)))
         return false;
-    if (!Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
+    if (!g_SC4EffectsManager_Draw && !Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
         return false;
     g_dwManagerMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
     log::Write("water effects: the effects manager's draw %s",
                mode == registry::Mode::Compare ? "compared with the game's" : "ours");
     return true;
 }
+
+bool InstallHeightMapRest(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_DwBeforeDraw || Detour(addr::SC4EffectHeightMap_DrawLines, &TDwBeforeDraw, &g_DwBeforeDraw)) ||
+        !Detour(addr::SC4EffectHeightMap_ClearValues, &THrClear, &g_SC4EffectHeightMap_ClearValues) ||
+        !Detour(addr::SC4EffectHeightMap_Destructor, &THrEnd, &g_SC4EffectHeightMap_Destructor) ||
+        !Detour(addr::SC4EffectHeightMap_MakeLines, &THrMakeLines, &g_SC4EffectHeightMap_MakeLines))
+        return false;
+    if (mode == registry::Mode::Compare) {
+        if (!Detour(addr::SC4RenderState_Init, &THrState, &g_SC4RenderState_Init) ||
+            !Detour(addr::SC4HeightMapLines_Mesh, &THrMesh, &g_SC4HeightMapLines_Mesh) ||
+            !Detour(addr::SC4HeightMapLines_Clear, &TMlClear, &g_SC4HeightMapLines_Clear) ||
+            !Detour(addr::SC4HeightMapLines_SetVectorC, &TMlVectorC, &g_SC4HeightMapLines_SetVectorC) ||
+            !Detour(addr::SC4HeightMapLines_SetColour, &TMlColour, &g_SC4HeightMapLines_SetColour) ||
+            !Detour(addr::SC4HeightMapLines_SetNormal, &TMlNormal, &g_SC4HeightMapLines_SetNormal) ||
+            !Detour(addr::SC4HeightMapLines_AddBox, &TMlAddBox, &g_SC4HeightMapLines_AddBox))
+            return false;
+        const char* v = std::getenv("OPENSC4_HEIGHTMAP_FORCE");
+        if (v && *v == '1') {
+            if (!g_SC4EffectsManager_Draw &&
+                !Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
+                return false;
+            g_hrForce = true;
+            log::Write("water effects: the height map's lines, clear and destructor forced before the manager's draw");
+        }
+    }
+    g_hrMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the height map's lines, their making, clear and destructor %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredHeightMapRest = registry::Register({
+    "renderer.effects.heightmap_rest",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectHeightMap_DrawLines,
+    "The particles' height map's own lines (a debug view the manager's draw asks for: their draw and their making), "
+    "the clear of its values and its plain destructor (0x00586720, 0x00585C20, 0x00586700, 0x00586900); compare "
+    "mode runs ours and the game's with the calls they are made of noted, or ours on a copy, "
+    "OPENSC4_HEIGHTMAP_FORCE=1 forces them before the manager's draw "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallHeightMapRest,
+});
 
 bool InstallDecalStep(registry::Mode mode)
 {

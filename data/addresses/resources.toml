@@ -2884,7 +2884,7 @@ address = 0x00897C8D
 kind = "function"
 convention = "thiscall"
 expect = "FF 74 24 0C E8 A4 36 0B"
-source = "Name ours. (iterator* out, node* before, const value* value), ret 0xC, this = a list of 4-byte values: allocates a node with *value (0x0094B33A), links it in before the given node, writes the node to out and returns out. Generic list code."
+source = "Name ours. (iterator* out, node* before, const value* value), ret 0xC, this = a list of 4-byte values: allocates a node with *value (0x0094B33A), links it in before the given node, writes the node to out and returns out. Generic list code; called from seven places outside the font, which the linker folded it into. Ours in framework.font.font.shared (docs/fonts.md, f3b)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::KeyDequeIteratorNext"

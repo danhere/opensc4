@@ -263,6 +263,7 @@ add_library(opensc4_core SHARED
   automata_controller.cpp
   automata_vehicle.cpp
   automata_roadveh.cpp
+  automata_trains.cpp
   automata_vehmgr.cpp
   automata_awmgr.cpp
   automata_awmgr_life.cpp
@@ -353,6 +354,9 @@ add_library(opensc4_core SHARED
   font_blitter.cpp
   font_blitter_autotest.cpp
   font_director.cpp
+  font_containers.cpp
+  font_load.cpp
+  font_object.cpp
   font_system.cpp
   font_system_tables.cpp
   font_t2k_holder.cpp

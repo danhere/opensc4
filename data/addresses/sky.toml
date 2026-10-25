@@ -64,13 +64,103 @@ expect = "83 EC 54 53 8B 5C 24 5C"
 source = "Class name ours. Slot 3 of the vtable at 0x00A9F250, the object cSC43DRender::AddViewObject gets for pass 5, order 1900 (diagnostics.trace.viewobjects). Collects the effects in view from three lists into a vector of {depth, effect} (+0xDA0), sorts it and draws each (the effect's slot 0x24); then a fourth list (+0xBC0). With it left out the clouds and their shadows are gone (docs/renderer.md, \"Water effects, sky and clouds\"). Ours in renderer.effects.draw_manager (src/core/effects_draw.h)."
 
 [[entry]]
-name = "SC4EffectsManager::BeforeDraw"
+name = "SC4EffectHeightMap::DrawLines"
 address = 0x00586720
 kind = "function"
 convention = "thiscall"
-signature = "void (void* this, SC4RenderContext* context)"
+signature = "void (SC4EffectHeightMap* this, SC4RenderContext* context)"
 expect = "83 EC 08 56 8B F1 8B 46"
-source = "Name ours, not analysed. Called by SC4EffectsManager::Draw on the object at the manager's +0xD98 (interface +0xD94) when the byte at interface +0xD98 is set (0x00593150)."
+source = "Name ours (was SC4EffectsManager::BeforeDraw). Ret 4. The particles' height map's own lines, a debug view: called by SC4EffectsManager::Draw on the map at the manager's +0xD98 (interface +0xD94) when the byte at interface +0xD98 is set (0x00593150). Nothing without layers; with +0x48 set the lines made anew (0x00585C20); +0x48 cleared, a render state (0x007D2B50: 1, 1, 1, 1, 1, 0, 0, 3, 4, 5, 4, 0.9, 1, -1) set on the context (0x007D4530) and the line list (0x00801140) drawn as its mesh (0x007D4A80). Ours in renderer.effects.heightmap_rest (src/core/effects_heightmap.h)."
+
+[[entry]]
+name = "SC4EffectHeightMap::MakeLines"
+address = 0x00585C20
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectHeightMap* this)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. No arguments. With layers, the line list at +0x4C cleared (0x00801660), its +0xC set to (0.25, 0.5, 1), colour yellow (0x00B0A23C), normal up; then for each vertex (rows +0x2C, columns +0x28, read anew) whose first layer's value is not zero: a box from the terrain's height (its slot 0x38) to the map's (slot 7), half-width the cell size times 0.45, yellow (red 0x00B0A230 when the map's is below the terrain's or unordered, its top then mirrored above the terrain), and a blue (0x00B0A248) flat box at the top, half-width the size times 0.1, whose four upper corners are moved by the map's normal (slot 8) times the size; each box's corners by 0x00800FA0 and added by 0x008014D0. Ours in renderer.effects.heightmap_rest (src/core/effects_heightmap.h)."
+
+[[entry]]
+name = "SC4HeightMapLines::Clear"
+address = 0x00801660
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 10 56 8B F1 8B 06"
+source = "Name ours, not analysed in full. No arguments: the list's lines and indices emptied (0x00616550, 0x00616CC0). The game's."
+
+[[entry]]
+name = "SC4HeightMapLines::SetVectorC"
+address = 0x00800F80
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* value)"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. Ret 4: three floats to +0xC. The game's."
+
+[[entry]]
+name = "SC4HeightMapLines::SetColour"
+address = 0x00800F30
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* rgb)"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. Ret 4: three floats to +0x24, the float at 0x00B0E358 (1) to +0x30. The game's."
+
+[[entry]]
+name = "SC4HeightMapLines::SetNormal"
+address = 0x00800F10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* normal)"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. Ret 4: three floats to +0x18. The game's."
+
+[[entry]]
+name = "SC4HeightMapLines::AddBox"
+address = 0x008014D0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* lines, const float* corners)"
+expect = "53 55 56 8B 74 24 10 57"
+source = "Name ours, not analysed in full. A box's six faces as lines (0x00801200, 0x00801380), from eight corners as 0x00800FA0 lays them out, each face's normal at +0x18. The game's."
+
+[[entry]]
+name = "SC4::BoxCorners"
+address = 0x00800FA0
+kind = "function"
+convention = "cdecl"
+signature = "void (const float* box, float* corners)"
+expect = "8B 44 24 04 D9 40 08 8B"
+source = "Name ours. A box (low x, y, z, high x, y, z) into eight corners: x alternating, then y, then z (low first). The game's."
+
+[[entry]]
+name = "SC4EffectHeightMap::ClearValues"
+address = 0x00586700
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectHeightMap* this)"
+expect = "8B 41 14 8B 48 04 8B 00"
+source = "Name ours. No arguments: every value of the first layer set to 0 (whether there is a layer is not looked at). Called at 0x00592C0C by the effects manager. Ours in renderer.effects.heightmap_rest (src/core/effects_heightmap.h)."
+
+[[entry]]
+name = "SC4EffectHeightMap::Destructor"
+address = 0x00586900
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectHeightMap* this)"
+expect = "56 8B F1 57 8D 7E 04 8D"
+source = "Name ours. The plain destructor (the deleting one's work without the delete, ending in a jump to the base's end 0x0090D990); the effects manager's destructor ends in a jump to it (0x0058FD34) for the map it is built on. Ours in renderer.effects.heightmap_rest (src/core/effects_heightmap.h)."
+
+[[entry]]
+name = "SC4HeightMapLines::Mesh"
+address = 0x00801140
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8A 46 38 84 C0"
+source = "Name ours. No arguments: with +0x38 set and something at +0, the list brought up to date (0x00801040) and +0x38 cleared; answers the list itself (drawn as a mesh by 0x007D4A80). The game's."
 
 [[entry]]
 name = "SC4EffectsManager::DrawFlash"
@@ -361,13 +451,13 @@ expect = "81 EC D8 00 00 00 55 8B"
 source = "Name ours (0x005AF390 to 0x005AF930). Slot 0x40 of the second effect class's sub-object (vtable 0x00AA0C10): with an object at +0x274 and a particle within its life, SC4EffectB::RestartParticle; else the particle's own effect stopped (slot 0x10 with +0x188) and released, for effects with +0x26A and nothing at +0x188 the effect named with \"_death\" (0x00AA0CDC) made by the effects manager where the particle was, placed, started and let go, and the particle put on the free list 0x00B0A5CC; last the object at +0x274 told (slot 4 with 0) when no particle is left and +0xC is set."
 
 [[entry]]
-name = "SC4Effect::SpawnFromParticle"
+name = "SC4Effect::StartAtBirth"
 address = 0x005B84C0
 kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, SC4Particle* particle)"
 expect = "51 8B 44 24 08 8B D1 8A"
-source = "Name ours, not analysed. For a running particle, walks the description's table at +0x1CC (0x10 bytes each) and calls 0x005B8290 with each entry whose +0xC is 0 and the particle's position. The emitters call it for descriptions with flag 0x80000000."
+source = "Name ours (was SpawnFromParticle). Ours by hand (renderer.effects.birth_starts, src/core/effects_life.h StartAtBirth). For a running particle (first byte set), walks the description's table at +0x1CC (0x10 bytes each, count read once) from its first entry while the entry's age (+0xC) is exactly the zero at 0x00A81054, calling 0x005B8290 with the entry's suffix (+0) and the particle's place (+0xC); the first other age (or a NaN) ends the walk. The emitters' take-and-step calls it for descriptions with flag 0x80000000."
 
 [[entry]]
 name = "SC4Effect::SetStopped"
@@ -972,7 +1062,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, const char* suffix, const float* place)"
 expect = "A0 68 2D B2 00 83 EC 3C"
-source = "Name ours, not analysed. Starts another effect at a place, named by the effect and a suffix: SC4Effect::StepFlag100 calls it with \"_water\" (0x00AA0F2C, 0x005B8E4B) and \"_terrain\" (0x00AA0F20, 0x005B948B); SC4Effect::StartAtAges from 0x005B8489 and SC4Effect::SpawnFromParticle from 0x005B8525."
+source = "Name ours, not analysed. Starts another effect at a place, named by the effect and a suffix: SC4Effect::StepFlag100 calls it with \"_water\" (0x00AA0F2C, 0x005B8E4B) and \"_terrain\" (0x00AA0F20, 0x005B948B); SC4Effect::StartAtAges from 0x005B8489 and SC4Effect::StartAtBirth from 0x005B8525."
 
 [[entry]]
 name = "SC4Effect::StepFlag100"
