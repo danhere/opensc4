@@ -10,7 +10,8 @@
 // the LEGACY reader's (OPENSC4_TEST_LEGACY, part u11), the readers of a
 // window's script properties (OPENSC4_TEST_PROPREAD, part u12) and their
 // makers, loaders and lookups (OPENSC4_TEST_PROPMAKE, part u12, slice 2) and
-// their handlers (OPENSC4_TEST_PROPHANDLE, part u12, slice 3).
+// their handlers (OPENSC4_TEST_PROPHANDLE, part u12, slice 3; the six
+// that never run in the game, OPENSC4_TEST_PROPHANDLE2, slice 4).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -23,6 +24,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
+#include <map>
 #include <process.h>
 #include <string>
 #include <utility>
@@ -10930,7 +10932,8 @@ struct PhVector {
         uint32_t word;
         const char* text;
     };
-    PhVector(std::initializer_list<Item> items)
+    PhVector(std::initializer_list<Item> items) : PhVector(std::vector<Item>(items)) {}
+    explicit PhVector(const std::vector<Item>& items)
     {
         values.reserve(items.size());
         for (const Item& item : items) {
@@ -11069,8 +11072,16 @@ uint32_t PhRecord(PhControl* self, uint32_t slot, const uint32_t* args)
         if (known.slot == slot)
             kinds = known.args;
     }
-    for (uint32_t i = 0; kinds[i]; ++i)
+    for (uint32_t i = 0; kinds[i]; ++i) {
+        // a: a table of pairs of words, as many as the first argument says.
+        if (kinds[i] == 'a') {
+            const uint32_t* const table = reinterpret_cast<const uint32_t*>(static_cast<std::uintptr_t>(args[i]));
+            for (uint32_t j = 0; j < args[0] * 2; ++j)
+                Mix(table[j]);
+            continue;
+        }
         PhMixArg(kinds[i], args[i]);
+    }
     ++self->calls;
     return (slot * 0x10001u) ^ (self->calls << 8);
 }
@@ -11112,23 +11123,31 @@ uint32_t __fastcall PhSlot4(PhControl* self, void*, uint32_t a, uint32_t b, uint
     return PhRecord(self, Slot, args);
 }
 
+template <std::size_t Slot>
+uint32_t __fastcall PhSlot5(PhControl* self, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
+{
+    const uint32_t args[] = {a, b, c, d, e};
+    return PhRecord(self, Slot, args);
+}
+
 constexpr std::size_t kPhSlots = 90;
 
 template <std::size_t... I>
-std::array<std::array<void*, kPhSlots>, 5> PhSlotTables(std::index_sequence<I...>)
+std::array<std::array<void*, kPhSlots>, 6> PhSlotTables(std::index_sequence<I...>)
 {
     return {{{reinterpret_cast<void*>(&PhSlot0<I>)...},
              {reinterpret_cast<void*>(&PhSlot1<I>)...},
              {reinterpret_cast<void*>(&PhSlot2<I>)...},
              {reinterpret_cast<void*>(&PhSlot3<I>)...},
-             {reinterpret_cast<void*>(&PhSlot4<I>)...}}};
+             {reinterpret_cast<void*>(&PhSlot4<I>)...},
+             {reinterpret_cast<void*>(&PhSlot5<I>)...}}};
 }
 
 void** PhControlTable(const PhInterface& face)
 {
     static const auto slots = PhSlotTables(std::make_index_sequence<kPhSlots>{});
-    static std::vector<std::array<void*, kPhSlots>> tables(PhInterfaces().size());
-    std::array<void*, kPhSlots>& table = tables[&face - PhInterfaces().data()];
+    static std::map<const PhInterface*, std::array<void*, kPhSlots>> tables;
+    std::array<void*, kPhSlots>& table = tables[&face];
     table[1] = reinterpret_cast<void*>(&PhControlAddRef);
     table[2] = reinterpret_cast<void*>(&PhControlRelease);
     for (const PhSlot& slot : face.slots)
@@ -11233,12 +11252,12 @@ const std::uintptr_t kPhHandlers[] = {
 // One handler on one vector and pass: EBX, ESI, EDI and EBP checked kept;
 // the argument slots after (the window's: whether it is still the window,
 // else its top and low bytes, the window being 256-aligned, or the word).
-void PhRun(std::size_t handler, PhWindow& window, PhVector& properties, uint32_t pass)
+void PhRun(std::uintptr_t handler, PhWindow& window, PhVector& properties, uint32_t pass)
 {
     const uint32_t window32 = PrArg(&window);
     PmRegs regs = PmRegsOf(0x13572468u, kPmEsi, kPmEdi, window32, PrArg(properties.vector));
     regs.args[2] = 0xABCDEF00u | pass;
-    PmCall(kPhHandlers[handler], regs);
+    PmCall(handler, regs);
     const uint32_t slot = regs.args[0];
     if (slot == window32)
         Mix(0x5A5Au);
@@ -11333,11 +11352,11 @@ void DrivePhHandlers()
     for (std::size_t h = 0; h < std::size(kPhHandlers); ++h) {
         PhControl control = {PhControlTable(faces[h]), &faces[h], 0, 0};
         PhWindow window = {PhWindowTable(), &control, false};
-        PhRun(h, window, full, 1);
+        PhRun(kPhHandlers[h], window, full, 1);
         window.give = true;
         for (PhVector* properties : {&full, &other, &odd, &empty}) {
             for (uint32_t pass : {0u, 1u})
-                PhRun(h, window, *properties, pass);
+                PhRun(kPhHandlers[h], window, *properties, pass);
         }
         log::Write("autotest: prophandle: %08X %08X", faces[h].iid, g_phHash);
     }
@@ -11378,6 +11397,174 @@ void PhFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kPhFingerprint{"prophandle", 4, &PhFingerprint};
 const DayHook kPhDrive{"prophandle", 4, &DrivePropHandleDay};
+
+// ====================================================================================
+// Part u12, slice 4: the property handlers that never run in the game
+// (OPENSC4_TEST_PROPHANDLE2). The six handlers called by address as slice
+// 3's are, with its windows, controls, values, images and held object, on
+// vectors of their own: every read good, the other branches, malformed
+// texts and values that are not numbers (none where a handler scans a text
+// unchecked into locals the game leaves unset: the folders' image, the
+// ticker's and the outline's first texts, the line input's gutters), more
+// outline pairs than its table holds, and none; each pass byte 0, 1,
+// 0xFFFFFF01 and 0x100. Every result goes into the hash; addresses never
+// do.
+
+bool g_p2On = false;
+uint32_t g_p2Hash = 2166136261u;
+
+void P2Stage(const char* name) { log::Write("autotest: prophandle2: %s %08X", name, g_p2Hash); }
+
+const std::uintptr_t kP2Handlers[] = {
+    addr::cGZUIScriptProps_Handle032F0B3C, addr::cGZUIScriptProps_HandleA13351B8,
+    addr::cGZUIScriptProps_Handle412CE496, addr::cGZUIScriptProps_Handle61325A2D,
+    addr::cGZUIScriptProps_Handle21335C59, addr::cGZUIScriptProps_HandleE303E5AE,
+};
+
+// The six controls' slots (as slice 3's; a: the outline's table of pairs).
+const std::vector<PhInterface>& P2Interfaces()
+{
+    static const std::vector<PhInterface> interfaces = {
+        {0x032F0B3C, {{8, "w"}, {9, "w"}, {7, "p"}, {3, "swwww"}}},
+        {0xA13351B8, {{7, ""}, {4, "sw"}, {10, "p"}, {11, "i"}}},
+        {0x412CE496,
+         {{12, "ww"}, {16, "w"}, {22, "w"}, {35, "w"}, {21, "w"}, {27, "sw"}, {28, "ww"}, {11, "p"}, {33, "ir"},
+          {37, "w"}, {39, "ww"}}},
+        {0x61325A2D, {{5, "w"}, {7, "ww"}, {9, "w"}, {11, "w"}, {13, "w"}, {15, "ww"}, {17, "riw"}}},
+        {0x21335C59,
+         {{25, "w"}, {28, "w"}, {29, "w"}, {31, "ww"}, {4, "p"}, {5, "ww"}, {14, "ww"}, {17, "w"}, {19, "w"},
+          {9, "w"}, {11, "w"}, {33, "wwww"}}},
+        {0xE303E5AE, {{3, "w"}, {5, "wbbb"}, {13, "waww"}}},
+    };
+    return interfaces;
+}
+
+void DriveP2Handlers()
+{
+    // The held object of the UI script loader: slice 3's for the stage.
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    if (!holder) {
+        P2Stage("handle");
+        return;
+    }
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {PhHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    for (uint32_t i = 0; i < 4; ++i)
+        g_phImages[i] = {PhImageTable(), i + 1, 0, {int32_t(i), int32_t(i) * 3, 90 + int32_t(i), 40 - int32_t(i)}};
+
+    // Every read succeeds; the ticker's texts before, between and after
+    // its colours (a short colour after a good one keeps the rest).
+    PhVector full = {
+        {0x1200, 'n', 0x12, nullptr},   {0x1201, 'n', 0x34, nullptr},   {0xF000, 'n', 7, nullptr},
+        {0x1202, 't', 0, "before"},     {0xF002, 't', 0, "(10,20,30)"}, {0x1202, 't', 0, "after f002"},
+        {0xF001, 't', 0, "(40,50,60)"}, {0x1202, 't', 0, "after both"}, {0x1202, '0', 0, nullptr},
+        {0xF001, 'n', 5, nullptr},      {0xF002, 't', 0, "(1,2)"},      {0x1202, 'x', 0, nullptr},
+        {0x1202, 't', 0, "partial"},    {0x502, 't', 0, "item one"},    {0x502, 't', 0, "item two"},
+        {0x502, 'x', 0, nullptr},       {0xF016, 't', 0, "{ab,7}"},     {0xF00F, 't', 0, "(1,1,1)"},
+        {0xF010, 't', 0, "(2,2,2)"},    {0xF011, 't', 0, "(3,3,3)"},    {0x408, 't', 0, "(8,8,8)"},
+        {0x40B, 't', 0, "(9,9,9)"},     {0x802, 't', 0, "(12,13,14)"},  {0x400, 'n', 1, nullptr},
+        {0x501, 'n', 3, nullptr},       {0x800, 't', 0, "{12,5}"},      {0x801, 't', 0, "(1,2,3,4)"},
+        {0x803, 'n', 0x83, nullptr},    {0xF004, 't', 0, "(3,4)"},      {0x40A, 'n', 0x4A, nullptr},
+        {0xC00, 't', 0, "(9,3)"},       {0xC01, 'n', 0xC03, nullptr},   {0xD00, 'n', 0xD0, nullptr},
+        {0xD01, 'n', 0xD1, nullptr},    {0xD02, 't', 0, "(5,6)"},       {0xF018, 't', 0, "(5,6,7,8)"},
+        {0xE09, 'n', 0xE9, nullptr},    {0xE0A, 'n', 0xEA, nullptr},    {0xE0B, 't', 0, "(10,25)"},
+        {0xE03, 't', 0, "(30,31,32)"},  {0xE04, 't', 0, "(33,34,35)"},  {0xE05, 't', 0, "(36,37,38)"},
+        {0xE06, 't', 0, "(39,40,41)"},  {0xE07, 't', 0, "(42,43,44)"},  {0xE08, 'n', 300, nullptr},
+        {0xE00, 'n', 0, nullptr},       {0xF005, 'n', 0xE01, nullptr},  {0xF005, 'n', 0xF009, nullptr},
+        {0xF005, 'n', 0xF00D, nullptr}, {0xF005, 't', 0, "text"},       {0xF005, '0', 0, nullptr},
+        {0x1100, 't', 0, "(1,2,3)"},    {0x1101, 't', 0, "(4,5,6)"},    {0x1102, 't', 0, "(1,2)"},
+        {0x1102, 't', 0, "(3,4)"},      {0x1102, '0', 0, nullptr},      {0x1102, 'n', 9, nullptr},
+        {0x1102, 't', 0, "(9)"},
+    };
+    // The other branches.
+    PhVector other = {
+        {0xF002, 't', 0, "(70,80,90)"}, {0xF001, 't', 0, "(11,12,13)"}, {0x1202, 't', 0, "ticker"},
+        {0xF000, 't', 0, "a font"},     {0x502, 't', 0, "only item"},   {0xF016, 't', 0, "{cd,4}"},
+        {0xF011, 't', 0, "(30,31,32)"}, {0x400, 'n', 0, nullptr},       {0x800, 't', 0, "{12,4}"},
+        {0x803, 'n', 0, nullptr},       {0xC00, 't', 0, "(3,9)"},       {0xC01, 'n', 5, nullptr},
+        {0xF018, 't', 0, "(1,2)"},      {0xE0B, 't', 0, "(40,15)"},     {0xE08, 'n', 128, nullptr},
+        {0xE00, 'n', 2, nullptr},       {0xF005, 'n', 0xE02, nullptr},  {0xF004, 't', 0, "(1,2,3,4)"},
+        {0xF005, 'n', 0xF00B, nullptr}, {0xF005, 'n', 0xF00C, nullptr}, {0x1101, 't', 0, "(7,8,9)"},
+        {0x1102, 't', 0, "(5,6)"},      {0xE09, 'x', 0, nullptr},       {0x40A, 'x', 0, nullptr},
+    };
+    // Malformed texts and values that are not numbers; the default fonts.
+    PhVector odd = {
+        {0xF000, 'x', 0, nullptr},      {0x800, 't', 0, "{zz}"},        {0xF004, 't', 0, "(1,2,3)"},
+        {0xC00, 't', 0, "(5)"},         {0xE0B, 't', 0, "(5)"},         {0xF00F, 't', 0, "(1,2"},
+        {0x400, 'x', 0, nullptr},       {0xE08, 'n', 0, nullptr},       {0xF005, 'n', 0xF00A, nullptr},
+        {0x1100, 't', 0, "(1,2)"},      {0x1202, 't', 0, "no colours"}, {0xD02, 't', 0, "bad"},
+        {0xF005, 'n', 0x1234, nullptr}, {0xF016, 't', 0, "{ef}"},
+    };
+    // An empty gutters text and one without commas; images both ways.
+    PhVector gutters = {{0xF004, 't', 0, ""}, {0xF016, 't', 0, "{1,2}"}};
+    PhVector gutters2 = {{0xF004, 't', 0, "(7)"}, {0xF016, 't', 0, "{3,3}"}, {0xF018, 't', 0, "(4,4,4,4)"}};
+    // More outline pairs than its table holds.
+    std::vector<std::string> texts;
+    for (int i = 0; i < 34; ++i)
+        texts.push_back("(" + std::to_string(i) + "," + std::to_string(100 - i) + ")");
+    std::vector<PhVector::Item> items;
+    for (const std::string& text : texts)
+        items.push_back({0x1102, 't', 0, text.c_str()});
+    PhVector many(items);
+    PhVector empty = {};
+
+    const auto& faces = P2Interfaces();
+    for (std::size_t h = 0; h < std::size(kP2Handlers); ++h) {
+        PhControl control = {PhControlTable(faces[h]), &faces[h], 0, 0};
+        PhWindow window = {PhWindowTable(), &control, false};
+        PhRun(kP2Handlers[h], window, full, 1);
+        window.give = true;
+        for (PhVector* properties : {&full, &other, &odd, &gutters, &gutters2, &many, &empty}) {
+            // The folders scan their image unchecked: no malformed one.
+            if (h == 1 && properties == &odd)
+                continue;
+            for (uint32_t pass : {0u, 1u, 0xFFFFFF01u, 0x100u})
+                PhRun(kP2Handlers[h], window, *properties, pass);
+        }
+        log::Write("autotest: prophandle2: %08X %08X", faces[h].iid, g_p2Hash);
+    }
+    for (const PhImage& image : g_phImages)
+        Mix(image.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    Mix(held.count);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    P2Stage("handle");
+}
+
+// OPENSC4_TEST_PROPHANDLE2=<day>: part u12's fourth slice by address. Every
+// result goes into the fingerprint's `p2` part.
+void DrivePropHandle2Day(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_PROPHANDLE2") || !game::IsBuild641())
+        return;
+    g_p2On = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_p2Hash;
+    DriveP2Handlers();
+    g_into = saved;
+    log::Write("autotest: prophandle2 driven (hash %08X)", g_p2Hash);
+}
+
+void P2Fingerprint(cISC4City*, std::string& line)
+{
+    if (!g_p2On)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | p2 %08X", g_p2Hash);
+    line += text;
+}
+
+const FingerprintPart kP2Fingerprint{"prophandle2", 4, &P2Fingerprint};
+const DayHook kP2Drive{"prophandle2", 4, &DrivePropHandle2Day};
+
 
 
 // ====================================================================================

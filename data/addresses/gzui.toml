@@ -7115,3 +7115,60 @@ address = 0x00A9D8B0
 kind = "data"
 expect = "00 00 7F 43"
 source = "Name ours. 255.0f, the scale of the LineInput and BMP writers' alphas (the float times it, truncated by _ftol)."
+
+# Part u12, slice 4 (src/core/gzui_props.cpp, docs/gzui.md): the property handlers of six stock widgets no shipped
+# UI script makes (they never run in the game).
+
+[[entry]]
+name = "cGZUIScriptProps::Handle032F0B3C"
+address = 0x0094CE28
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 64 83 65"
+source = "Name ours. GZWinTextTicker's property handler (interface 0x032F0B3C, the window's slot 0 with an out; released at the end; put in the handler map by the text ticker's registration, part u13). Second pass only: 0x1200 and 0x1201 to slots 8 and 9, the font (a number through 0x00913C72's slot 5 and 0x0094C222, else a text through 0x0094C255, else the default \"main9\") to slot 7; then in order every 0xF002 and 0xF001 text an unchecked \"(%d,%d,%d)\" colour (defaults 0xFFFFFFFF and 0) and every 0x1202 text a new game string (operator new, unchecked) given to slot 3 with the two colours, 0 and 0. The window argument ends as the pair count. Never runs in the game (no shipped script makes a text ticker). Ours in framework.uiscript.prophandle2 (docs/gzui.md, part u12, slice 4)."
+
+[[entry]]
+name = "cGZUIScriptProps::HandleA13351B8"
+address = 0x0094D17E
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 38 53 56"
+source = "Name ours. GZWinFolders' property handler (interface 0xA13351B8). First pass: slot 7, then every 0x502 text (the value not checked set) to slot 4 (the text, 0). Second pass: the font (a number through 0x00913C72's slot 5 to slot 10 and 0x0094C222, else a text through 0x0094C255), the 0xF016 image (unchecked \"{%x,%x}\" into the window argument and a local; 0x0094C4E0) to slot 11, its two words as 8 bytes under 0xDAA3B860. Never runs in the game. Ours in framework.uiscript.prophandle2 (docs/gzui.md, part u12, slice 4)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle412CE496"
+address = 0x0094F36D
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 4C 83 65"
+source = "Name ours. GZWinCombo's property handler (interface 0x412CE496). First pass: six colours (0xF00F to 0xF011 to slot 12 by index, 0x408 slot 16, 0x40B slot 22, 0x802 slot 35), 0x400 at 1 to slot 21 (a bool over the EDX 0x0094C675 leaves), every 0x502 text to slot 27 (the text, -2), 0x501 to slot 28 (the word, 1). Second pass: the font to slot 11 (a number, else a text back), the 0x800 image (both words read) with the 0x801 rectangle or none to slot 33 and its words by 0x0094C1DA, 0x803 to slot 37, the 0xF004 pair to slot 39. Never runs in the game. Ours in framework.uiscript.prophandle2 (docs/gzui.md, part u12, slice 4)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle61325A2D"
+address = 0x009503AB
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 4C 8B 4D"
+source = "Name ours. GZWinScrollbar's property handler (interface 0x61325A2D; keeps the caller's ESI only around its own use). First pass: 0x40A through slot 75 (0x0094C6C7) to slot 5. Second pass: the 0xC00 pair (smaller first) to slot 7, 0xC01 (0xC03 as 2, else 1) to slot 9, 0xD00 slot 11, 0xD01 slot 13, the 0xD02 pair slot 15, the 0xF016 image (both words read) to slot 17 with the 0xF018 rectangle (else the image's slot 12 area) and 0, written back under 0x6B4BCBD4 (0x0094C1A4, 0x0094C1DA). Never runs in the game. Ours in framework.uiscript.prophandle2 (docs/gzui.md, part u12, slice 4)."
+
+[[entry]]
+name = "cGZUIScriptProps::Handle21335C59"
+address = 0x009505B6
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 83 EC 4C 83 65"
+source = "Name ours. GZWinLineInput's property handler (interface 0x21335C59). First pass: 0xE09 slot 25, 0x400 (a bool, not 0) slot 28, 0xE0A slot 29, the 0xE0B pair as (first, second less first) slot 31. Second pass: the font to slot 4 (a number, a text or the default \"main9\"), eight colours (0xF00F to 0xF011 slot 5, 0xE03 to 0xE06 slot 14, by index; 0xE07 slot 17), 0xE08 (at most 0xFF) times 1/255 as a float to slot 19, 0xE00 (a bool) slot 9, the 0xF005 style (0xE01 2, 0xE02 3, 0xF00A 1) slot 11, the 0xF004 gutters by the text's commas (one: \"(%d,%d)\" given twice; three: \"(%d,%d,%d,%d)\"; unchecked) to slot 33. The window argument the outs'. Never runs in the game. Ours in framework.uiscript.prophandle2 (docs/gzui.md, part u12, slice 4)."
+
+[[entry]]
+name = "cGZUIScriptProps::HandleE303E5AE"
+address = 0x00951084
+kind = "function"
+convention = "cdecl"
+signature = "void (void* window, void* vector, bool second)"
+expect = "55 8B EC 81 EC 20 01 00"
+source = "Name ours. GZWinOutline's property handler (interface 0xE303E5AE). Second pass only: flags (in the window argument) from every 0xF005 number pair (0xF009 1, 0xF00B 2, 0xF00C 4, 0xF00D 0x20) to slot 3 when any; the 0x1100 and 0x1101 bytes to slot 5 (1 and 2); every 0x1102 text read as an unchecked \"(%d,%d)\" into a stack table of at most 32 pairs, given to slot 13 (count, table, 1, 1) when any. The window argument ends as the loop index. Never runs in the game. Ours in framework.uiscript.prophandle2 (docs/gzui.md, part u12, slice 4)."
