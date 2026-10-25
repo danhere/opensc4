@@ -370,7 +370,7 @@ Slots 17 and 19 are four bytes each (`FLD`, `RET`), back to back, too short for 
 
 **Compare mode**: what only reads compares its result (HasStyle, SupportsEncoding, the line metrics, the glyph cache, the blitter's mode; the ramp's getters by their bits); what writes only the font or its caller's answers (QueryInterface, SetStyle, SetColours, SetMode, the encoding, the spacing, GetScale, GetExtra) keeps what ours wrote aside with the font's 0x15C bytes and the answers, puts them back, runs the game's and compares; GetFamily, GetPath and SetPath assign the same text twice and compare it. The three setters that rebuild or clear run the game's and compare the field it left with what ours would leave. The constructor runs the game's on the font and ours on a scratch font, compares every field but where pointers point (whether they are set), and takes the scratch down with the game's destructor. The rest (they free, release or call the blitter) run the game's alone. While the game's side runs, our detours inside it pass through to the game's.
 
-**`OPENSC4_TEST_FONTS=<day>`** has three more stages after the font system's (same file, same ` | ft` hash):
+**`OPENSC4_TEST_FONTS=<day>`** has three more stages after the font system's tables (same file, same ` | ft` hash):
 
 | Stage | What |
 |---|---|
@@ -384,11 +384,13 @@ Results, 2026-10-25:
 
 | Check | Result |
 |---|---|
-| Test runs, groups off (twice) vs on (the three), and with every font group on | every stage hash the same: the 14 before as with f2a (getfont E7A84ACB), fontobject E8435DED, fontprops 31C1F067, fontblitter BDD0D65D; `ft` BDD0D65D. All 38 reached |
+| Test runs, groups off (twice) vs on (the three), and with every font group on | every stage hash the same: the 18 before as with f2b (stl 28F25CD5), fontobject F81D0D6F, fontprops CC037FDD, fontblitter 7EEE16FF; `ft` 7EEE16FF. All 38 reached. (Before f2b's stage was added: E8435DED, 31C1F067, BDD0D65D, the same off and on) |
 | Compare mode, test | 0 divergences: glyphcache 210667 calls, blitmode 22890, textheight 2205, getpath 507, setmode 487, setstyle 413, construct 387, queryinterface 386, setencoding 382, setpath 381, getfamily 275, lineheight 156, setcolours 105, setspacing 88, setextra 74, hasstyle 72, baseline 55, getpower 28, getbias 28, setpower 15, setbias 13, getscale 12, getextra 12, belowbaseline 8, supportsencoding 6, getspacing 5, getencoding 4 |
 | Compare mode, 90 s of plain play (Making Money) | 0 divergences: glyphcache 1654756, blitmode 32987, baseline 16542, textheight 14006, lineheight 11933, setstyle 3316, setmode 115, setcolours 90, setspacing 83, setextra 60, construct 32, getfamily 32, queryinterface 32, setencoding 32, setpath 32 |
 | Screenshots (`run-shots.sh`, Making Money, the three groups on) vs the game | 20 of 20 within `--tolerance 32 --max-differing 1.2` |
-| Parity `ft5-r1`, 12 saves, 7 days, muted, own folder `p4env-ft5`, two jobs, A `determinism.dispatch_info`, B that and the three groups | 12 same |
+| Parity `ft5-r1`, 12 saves, 7 days, muted, own folder `p4env-ft5`, two jobs, A `determinism.dispatch_info`, B that and the three groups (before the rebase on f2b) | 12 same |
+| The same with `OPENSC4_TEST_FONTS=2` on the rebased build (`ft5-t1`) | 12 same (Rush Hour d0000 after a second pair, A itself giving two outcomes: the harness's noise); `ft` 0DF2E70F in all 130 runs, both sides. Under `determinism.fixed_ticks` (one of the parity's settings) fontobject hashes BC3BBF4F rather than F81D0D6F, off and on alike: the fonts the font system loads differ there, not the translations |
+| Compare mode, test, on the rebased build | 0 divergences in all 27 comparisons |
 
 **Reached** in plain play: the constructor, QueryInterface, SetPath, SetEncoding, SetStyle, SetMode, SetColours, SetSpacing, SetExtra, GetFamily, SetBlitter, Begin, End, the blitter's mode, the glyph cache of the mode (1.65 million times in 90 s), LineHeight, TextHeight, Baseline, the caches' three functions, and at exit Release, its last reference, Unload and the destructors. Not reached: HasStyle, the ramp's four, GetPath, GetEncoding, SupportsEncoding, GetScale, GetExtra, GetSpacing, BelowBaseline. The test reaches all 38.
 
