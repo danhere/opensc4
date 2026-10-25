@@ -244,13 +244,13 @@ expect = "81 EC 9C 00 00 00 B8 00"
 source = "Name ours. Slot 0x4C of the second effect class (vtable 0x00AA0C58), its step when it is not drawn: the box (+0x1A0) started again and widened by +0x274, and for each particle whose own effect (+0x44) answers its slot 0x14: a block of two bytes and thirteen floats from 0x005ACA30 (which also turns the particle, +0x48 to +0x50), one curve value (slot 0x30 with 3) and the block (slot 0x20, or a second block through slot 0x1C for flag 8 of the description's third word)."
 
 [[entry]]
-name = "SC4Effect::StepFlag2000"
+name = "SC4Effect::StartEdge"
 address = 0x005B7030
 kind = "function"
 convention = "thiscall"
-signature = "void (SC4Effect* this, int32_t zero)"
+signature = "void (SC4Effect* this, uint32_t which)"
 expect = "8B 41 24 8B 10 83 EC 0C"
-source = "Name ours, not analysed. Called by SC4Effect::Draw for descriptions with flag 0x2000 (0x005B85A5)."
+source = "Name ours. Puts the limits of where particles start (+0x200 to +0x214) on one edge of the map (+0x1F4, +0x1F8) by the word, which for flag 0x2000 grows by how the floats at +0x1E8's +8 and +0x10 stand to each other and to zero (jump table 0x005B715C). Called with 0 by SC4Effect::Draw for descriptions with flag 0x2000 (0x005B85A5) and by the effect's taking of a description for flags 0x1000 and 0x2000 (0x005B7E45). Ours in renderer.effects.start_edge (src/core/effects_life.h)."
 
 [[entry]]
 name = "SC4Effect::PathVelocity"
@@ -262,13 +262,13 @@ expect = "83 EC 6C 56 8B F1 8B 46"
 source = "Name ours, not analysed. Called by SC4Effect::Draw when the description has entries from +0x1A4 to +0x1A8 and its +0x1B0 is above 0 (0x005B85D0); else the three floats at +0x16C are cleared."
 
 [[entry]]
-name = "SC4Effect::StepFlag80000000"
+name = "SC4Effect::StartAtAges"
 address = 0x005B8410
 kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this)"
 expect = "83 EC 08 53 55 8B E9 8B"
-source = "Name ours, not analysed. Called by SC4Effect::Draw for descriptions with flag 0x80000000 (0x005B86A0)."
+source = "Name ours. For each running particle of the list at +0x14 and each entry of the description's table at +0x1CC (0x10 bytes: a suffix, an age at +0xC) whose age the particle reaches within the step (+0x108), SC4Effect::StartNamed with the suffix and the particle's place. Called by SC4Effect::Draw for descriptions with flag 0x80000000 (0x005B86A0). Ours in renderer.effects.age_starts (src/core/effects_life.h)."
 
 [[entry]]
 name = "SC4EffectBase::Finish"
@@ -972,7 +972,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, const char* suffix, const float* place)"
 expect = "A0 68 2D B2 00 83 EC 3C"
-source = "Name ours, not analysed. Starts another effect at a place, named by the effect and a suffix: SC4Effect::StepFlag100 calls it with \"_water\" (0x00AA0F2C, 0x005B8E4B) and \"_terrain\" (0x00AA0F20, 0x005B948B); also called from 0x005B8489."
+source = "Name ours, not analysed. Starts another effect at a place, named by the effect and a suffix: SC4Effect::StepFlag100 calls it with \"_water\" (0x00AA0F2C, 0x005B8E4B) and \"_terrain\" (0x00AA0F20, 0x005B948B); SC4Effect::StartAtAges from 0x005B8489 and SC4Effect::SpawnFromParticle from 0x005B8525."
 
 [[entry]]
 name = "SC4Effect::StepFlag100"
