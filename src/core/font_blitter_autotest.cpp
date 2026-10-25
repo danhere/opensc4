@@ -47,18 +47,27 @@
 // line metrics) over values at and past their limits, NaN and -0 among
 // them; the blitter's mode, SetBlitter with mock blitters, Begin and End
 // nested and past 0.
+//
+// Then the font's containers (f3b, docs/fonts.md, "f3b: the font's
+// containers are ours"), by address on buffers between margins and
+// containers of our own: the placed glyphs' copies, fills and vector
+// (resize, fill insert, erase, overflow), the UTF-16 text's vector and
+// find, both maps of characters, a glyph cache's table, a list of words, a
+// vector of pointers out of room and a holder taken down.
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
 
 #include <opensc4/addresses.h>
 
+#include <algorithm>
 #include <bit>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <limits>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -2555,16 +2564,418 @@ void DriveFontBlitter()
     FtStage("fontblitter");
 }
 
+// ====================================================================================
+// The font's containers (f3b)
+
+// Buffers between margins, vectors, maps, glyph tables and lists of our own,
+// changed by the 36 functions at their addresses (and the game's allocator,
+// balancing and growth). What goes into the hash is contents and places
+// (offsets into a buffer, a node's order), never an address.
+
+namespace containers {
+constexpr std::uintptr_t kPlacedFill = 0x00896BF6, kTextFind = 0x00896C19, kPlacedCopy = 0x00896C90,
+                         kPlacedConstruct = 0x00896CC2, kPlacedFillN = 0x00896CD8, kPlacedCopyBack = 0x00896CFD,
+                         kGlyphsEraseTree = 0x0089753F, kNamesEraseTree = 0x0089756C, kTextFindTagged = 0x00897599,
+                         kPlacedCopyTagged = 0x008975B4, kPlacedUninitCopy = 0x008975D1,
+                         kPlacedCopyBackTagged = 0x008975F7, kPlacedFillNTagged = 0x00897614, kMapFind = 0x0089762F,
+                         kGlyphValueConstruct = 0x0089766B, kPairConstruct = 0x0089768B, kGlyphsClear = 0x00897A1C,
+                         kNamesClear = 0x00897A45, kGlyphNode = 0x00897A6E, kMapNode = 0x00897A91,
+                         kTextInsert = 0x00897BDC, kGlyphsDestruct = 0x00897C5F, kNamesDestruct = 0x00897C76,
+                         kListInsert = 0x00897C8D, kGlyphInsertNoResize = 0x00897CB2,
+                         kPointersOverflow = 0x00897D22, kMapInsertAt = 0x00897DAC, kHolderDestruct = 0x00897E36,
+                         kPlacedErase = 0x00897E56, kMapInsert = 0x00897E7C, kPlacedOverflow = 0x00897F04,
+                         kTextAllocateCopy = 0x00897FC2, kGlyphInsert = 0x008986BF, kTextReserve = 0x008986E3,
+                         kPlacedFillInsert = 0x0089874D, kPlacedResize = 0x00899513;
+constexpr std::uintptr_t kHolderConstruct = 0x00897FED;
+} // namespace containers
+
+using CTwo = uint32_t(__cdecl*)(uint32_t, uint32_t);
+using CThree = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t);
+using CFour = uint32_t(__cdecl*)(uint32_t, uint32_t, uint32_t, uint32_t);
+
+uint32_t StlAllocate(uint32_t bytes) { return U(Game<void*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(bytes)); }
+void StlFree(uint32_t p) { Game<void(__cdecl*)(void*)>(addr::SC4_Free)(At32(p)); }
+
+// A place in a buffer: its offset, or a mark for null and for elsewhere.
+uint32_t PlaceIn(uint32_t base, uint32_t size, uint32_t p)
+{
+    if (!p)
+        return 0xFFFFFFFF;
+    return p >= base && p <= base + size ? p - base : 0xFFFFFFFE;
+}
+
+// A vector (begin, end, room): its size and room in bytes and its contents.
+void MixVector(const uint32_t (&v)[4])
+{
+    Mix(v[1] - v[0]);
+    Mix(v[2] - v[0]);
+    MixByte(v[0] ? 1 : 0);
+    if (v[1] > v[0])
+        MixBytes(At32(v[0]), v[1] - v[0]);
+}
+
+void DriveContainersHelpers()
+{
+    using namespace containers;
+    // Placed glyphs in a buffer of 16 between margins.
+    constexpr uint32_t kBytes = 0x24 * 16 + 64;
+    uint8_t buffer[kBytes];
+    const uint32_t base = U(buffer) + 32;
+    uint32_t value[9], other[9];
+    for (uint32_t i = 0; i < 9; ++i) {
+        value[i] = 0x01010101u * (i + 1);
+        other[i] = 0xF0E0D0C0u ^ (i * 0x1111);
+    }
+    const auto reset = [&] {
+        for (uint32_t i = 0; i < kBytes; ++i)
+            buffer[i] = static_cast<uint8_t>(i * 7 + 3);
+    };
+    const auto mixAll = [&](uint32_t result) {
+        Mix(PlaceIn(U(buffer), kBytes, result));
+        MixBytes(buffer, kBytes);
+    };
+    const auto at = [&](int32_t index) { return base + static_cast<uint32_t>(index * 0x24); };
+    for (const auto& [first, last] : {std::pair<int32_t, int32_t>{0, 0}, {0, 1}, {2, 5}, {3, 3}}) {
+        reset();
+        mixAll(Game<CThree>(kPlacedFill)(at(first), at(last), U(value)));
+    }
+    // Copies forwards and back, by counts of 0, 2 and 5, one that is not a
+    // whole number of glyphs, one backwards, and overlapping.
+    for (const auto& [first, last, to] : {std::tuple<int32_t, int32_t, int32_t>{0, 0, 4}, {0, 2, 6}, {1, 6, 8},
+                                          {5, 1, 0}, {0, 5, 2}, {3, 8, 1}}) {
+        reset();
+        mixAll(Game<CFour>(kPlacedCopy)(at(first), at(last), at(to), 0));
+        reset();
+        mixAll(Game<CThree>(kPlacedCopyTagged)(at(first), at(last), at(to)));
+        reset();
+        mixAll(Game<CFour>(kPlacedCopyBack)(at(first), at(last), at(to + last - first), 0));
+        reset();
+        mixAll(Game<CThree>(kPlacedCopyBackTagged)(at(first), at(last), at(to + last - first)));
+        if (last >= first) {
+            reset();
+            mixAll(Game<CFour>(kPlacedUninitCopy)(at(first), at(last), at(to), 0));
+        }
+    }
+    reset();
+    mixAll(Game<CFour>(kPlacedCopy)(at(0), at(1) + 0x10, at(3), 0));
+    reset();
+    Game<CTwo>(kPlacedConstruct)(0, U(value));
+    Game<CTwo>(kPlacedConstruct)(at(4), U(other));
+    mixAll(0);
+    for (const uint32_t count : {0u, 1u, 4u}) {
+        reset();
+        mixAll(Game<CFour>(kPlacedFillN)(at(2), count, U(other), 0));
+        reset();
+        mixAll(Game<CThree>(kPlacedFillNTagged)(at(1), count, U(value)));
+    }
+
+    // A glyph's value and a map's pair made, and not where null.
+    uint32_t glyph[9], pair[3];
+    std::memset(glyph, 0xA5, sizeof glyph);
+    std::memset(pair, 0x5A, sizeof pair);
+    Mix(Game<CTwo>(kGlyphValueConstruct)(U(glyph + 1), U(other)) == U(glyph + 1) ? 1 : 0);
+    Mix(Game<CTwo>(kGlyphValueConstruct)(0, U(other)));
+    MixBytes(reinterpret_cast<const uint8_t*>(glyph), sizeof glyph);
+    Mix(Game<CTwo>(kPairConstruct)(U(pair), U(value)) == U(pair) ? 1 : 0);
+    Mix(Game<CTwo>(kPairConstruct)(0, U(value)));
+    MixBytes(reinterpret_cast<const uint8_t*>(pair), sizeof pair);
+}
+
+void DriveContainersPlaced()
+{
+    using namespace containers;
+    uint32_t v[4] = {};
+    uint32_t glyph[9];
+    const auto make = [&](uint32_t seed) {
+        for (uint32_t i = 0; i < 9; ++i)
+            glyph[i] = seed * 0x9E3779B9u + i;
+        return U(glyph);
+    };
+    // Resized up from nothing, down, the same, up past its room.
+    for (const uint32_t count : {5u, 3u, 3u, 0u, 2u, 9u, 30u, 31u, 4u}) {
+        Game<STwo>(kPlacedResize)(v, nullptr, count, make(count));
+        MixVector(v);
+    }
+    // Copies put in at the front, the middle and the end, with more and
+    // fewer glyphs after the place than are put in, room left and none.
+    for (const auto& [place, count] : {std::pair<uint32_t, uint32_t>{0, 2}, {1, 1}, {3, 0}, {2, 5}, {6, 1}, {0, 9},
+                                       {5, 3}, {0, 40}, {7, 2}}) {
+        const uint32_t size = (v[1] - v[0]) / 0x24;
+        const uint32_t to = v[0] + std::min(place, size) * 0x24;
+        Game<SThree>(kPlacedFillInsert)(v, nullptr, to, count, make(place * 31 + count));
+        MixVector(v);
+    }
+    // Erased: a range from the middle, from the front, nothing, to the end.
+    for (const auto& [first, last] : {std::pair<uint32_t, uint32_t>{3, 7}, {0, 2}, {4, 4}, {10, 0xFFFFFFFF}}) {
+        const uint32_t size = (v[1] - v[0]) / 0x24;
+        const uint32_t a = v[0] + std::min(first, size) * 0x24;
+        const uint32_t b = last == 0xFFFFFFFF ? v[1] : v[0] + std::min(last, size) * 0x24;
+        Mix(Game<STwo>(kPlacedErase)(v, nullptr, a, b) == a ? 1 : 0);
+        MixVector(v);
+    }
+    // The overflow by itself: one copy and three, at the front and at the end.
+    uint8_t tag = 0;
+    for (const auto& [place, count, atEnd] : {std::tuple<uint32_t, uint32_t, uint32_t>{0, 1, 0}, {2, 3, 0},
+                                             {0xFFFFFFFF, 1, 1}, {0xFFFFFFFF, 4, 1}}) {
+        const uint32_t to = place == 0xFFFFFFFF ? v[1] : v[0] + place * 0x24;
+        Mix(Game<SFive>(kPlacedOverflow)(v, nullptr, to, make(count), U(&tag), count, atEnd) - v[0]);
+        MixVector(v);
+    }
+    if (v[0])
+        StlFree(v[0]);
+}
+
+void DriveContainersText()
+{
+    using namespace containers;
+    uint32_t t[4] = {};
+    // Reserve on nothing (no room asked, then some), words put in at the end,
+    // the front and the middle until there is no room, then past it.
+    Mix(Game<SOne>(kTextReserve)(t, nullptr, 0));
+    MixVector(t);
+    Game<SOne>(kTextReserve)(t, nullptr, 4);
+    MixVector(t);
+    for (uint32_t i = 0; i < 14; ++i) {
+        const uint16_t word = static_cast<uint16_t>(0x0E30 + i);
+        const uint32_t size = (t[1] - t[0]) / 2;
+        const uint32_t place = i % 3 == 0 ? size : i % 3 == 1 ? 0 : size / 2;
+        const uint32_t answer = Game<STwo>(kTextInsert)(t, nullptr, t[0] + place * 2, U(&word));
+        Mix((answer - t[0]) / 2);
+        MixVector(t);
+    }
+    // Reserve with words there: more (copied), less (nothing).
+    Game<SOne>(kTextReserve)(t, nullptr, 40);
+    MixVector(t);
+    Mix(Game<SOne>(kTextReserve)(t, nullptr, 10) == t[0] ? 1 : 0);
+    MixVector(t);
+    // A copy into a new block.
+    const uint32_t block = Game<SThree>(kTextAllocateCopy)(t, nullptr, 20, t[0] + 2, t[1] - 2);
+    MixBytes(At32(block), t[1] - t[0] - 4);
+    StlFree(block);
+
+    // The find, by both, over every length from 0 to 14 for words there,
+    // not there and with bits above the word, and over a range backwards.
+    for (const uint32_t value : {0x0E30u, 0x0E35u, 0x0E3Du, 0x0E99u, 0x10E31u}) {
+        for (uint32_t length = 0; length <= 14 && length <= (t[1] - t[0]) / 2; ++length) {
+            const uint32_t first = t[0], last = t[0] + length * 2;
+            Mix(PlaceIn(first, 64, Game<CFour>(kTextFind)(first, last, U(&value), 0)));
+            Mix(PlaceIn(first, 64, Game<CThree>(kTextFindTagged)(first, last, U(&value))));
+        }
+        Mix(PlaceIn(t[0], 64, Game<CFour>(kTextFind)(t[0] + 8, t[0], U(&value), 0)));
+    }
+    StlFree(t[0]);
+}
+
+// A map of characters (header, count): its count, then in order each node's
+// colour, the places of its parent and children (by their order) and its pair.
+void MixCharMap(const uint32_t (&map)[2])
+{
+    Mix(map[1]);
+    const uint32_t header = map[0];
+    std::vector<uint32_t> order;
+    for (uint32_t node = Field<uint32_t>(At32(header), 8); node != header; node = TreeNext(node))
+        order.push_back(node);
+    const auto place = [&](uint32_t node) -> uint32_t {
+        if (!node)
+            return 0xFFFFFFFF;
+        if (node == header)
+            return 0xFFFFFFFE;
+        for (std::size_t i = 0; i < order.size(); ++i)
+            if (order[i] == node)
+                return static_cast<uint32_t>(i);
+        return 0xFFFFFFFD;
+    };
+    Mix(static_cast<uint32_t>(order.size()));
+    Mix(place(Field<uint32_t>(At32(header), 4)));
+    Mix(place(Field<uint32_t>(At32(header), 0xC)));
+    for (const uint32_t node : order) {
+        const uint8_t* const n = At32(node);
+        MixByte(Field<uint8_t>(n, 0));
+        Mix(place(Field<uint32_t>(n, 4)));
+        Mix(place(Field<uint32_t>(n, 8)));
+        Mix(place(Field<uint32_t>(n, 0xC)));
+        Mix(Field<uint16_t>(n, 0x10));
+        Mix(Field<uint32_t>(n, 0x14));
+    }
+}
+
+void DriveContainersMap(Random& random, std::uintptr_t clear, std::uintptr_t destruct, std::uintptr_t eraseTree)
+{
+    using namespace containers;
+    uint32_t map[2] = {StlAllocate(0x18), 0};
+    const uint32_t header = map[0];
+    std::memset(At32(header), 0, 0x18);
+    std::memcpy(At32(header) + 8, &header, 4);
+    std::memcpy(At32(header) + 0xC, &header, 4);
+    const auto insert = [&](uint16_t key, uint32_t value) {
+        const uint32_t pair[2] = {key, value};
+        uint32_t result[2] = {0, 0xA5A5A5A5};
+        Mix(Game<STwo>(kMapInsert)(map, nullptr, U(result), U(pair)) == U(result) ? 1 : 0);
+        Mix(result[1]);
+        Mix(Field<uint16_t>(At32(result[0]), 0x10));
+        Mix(Field<uint32_t>(At32(result[0]), 0x14));
+    };
+    for (uint32_t i = 0; i < 70; ++i)
+        insert(static_cast<uint16_t>(random.Range(0, 60) * 0x123), i);
+    insert(0, 1);
+    insert(0xFFFF, 2);
+    insert(0, 3);
+    MixCharMap(map);
+    for (const uint16_t key : {0, 0x123, 0x124, 0x1FFF, 0x2A0F, 0x4374, 0xFFFF, 0xFFFE}) {
+        const uint32_t found = Game<SOne>(containers::kMapFind)(map, nullptr, U(&key));
+        Mix(found == header ? 0xFFFFFFFE : Field<uint16_t>(At32(found), 0x10));
+    }
+    // Under the last node on its right and under the first on its left with
+    // x set; a node made.
+    uint32_t result = 0;
+    const uint32_t last[2] = {0xFFFF, 77}, first[2] = {0, 88};
+    Game<SFive>(kMapInsertAt)(map, nullptr, U(&result), 0, Field<uint32_t>(At32(header), 0xC), U(last), 1);
+    Game<SFive>(kMapInsertAt)(map, nullptr, U(&result), 1, Field<uint32_t>(At32(header), 8), U(first), 0);
+    MixCharMap(map);
+    const uint32_t node = Game<SOne>(kMapNode)(map, nullptr, U(last));
+    Mix(Field<uint16_t>(At32(node), 0x10));
+    Mix(Field<uint32_t>(At32(node), 0x14));
+    StlFree(node);
+    // The root's right subtree erased by itself, then the map cleared, filled
+    // again and taken down.
+    const uint32_t root = Field<uint32_t>(At32(header), 4);
+    const uint32_t right = Field<uint32_t>(At32(root), 0xC);
+    Game<SOne>(eraseTree)(map, nullptr, right);
+    const uint32_t none = 0;
+    std::memcpy(At32(root) + 0xC, &none, 4);
+    Game<SThis>(clear)(map, nullptr);
+    MixCharMap(map);
+    Game<SThis>(clear)(map, nullptr);
+    for (uint32_t i = 0; i < 6; ++i)
+        insert(static_cast<uint16_t>(i * 3 % 4), i);
+    MixCharMap(map);
+    Game<SThis>(destruct)(map, nullptr);
+}
+
+void DriveContainersGlyphs(Random& random)
+{
+    using namespace containers;
+    uint8_t cache[kCacheBytes];
+    Game<SThis>(addr::GZFont_CacheConstruct)(cache, nullptr);
+    uint8_t* const table = cache + 0x18;
+    const auto mixTable = [&] {
+        const uint32_t begin = Field<uint32_t>(table, 4), end = Field<uint32_t>(table, 8);
+        Mix(Field<uint32_t>(table, 0x10));
+        Mix((end - begin) / 4);
+        for (uint32_t bucket = begin; bucket < end; bucket += 4) {
+            uint32_t count = 0;
+            for (uint32_t n = Field<uint32_t>(At32(bucket), 0); n; n = Field<uint32_t>(At32(n), 0), ++count)
+                MixBytes(At32(n) + 4, 0x1C);
+            Mix(count);
+        }
+    };
+    uint32_t value[7];
+    const auto insert = [&](std::uintptr_t fn, uint32_t key) {
+        value[0] = key;
+        for (uint32_t i = 1; i < 7; ++i)
+            value[i] = random.Next();
+        uint32_t result[3] = {0, 0, 0xC3C3C3C3};
+        Mix(Game<STwo>(fn)(table, nullptr, U(result), U(value)) == U(result) ? 1 : 0);
+        Mix(result[1] == U(table) ? 1 : 0);
+        Mix(result[2]);
+        Mix(Field<uint32_t>(At32(result[0]), 4));
+    };
+    for (uint32_t i = 0; i < 90; ++i)
+        insert(kGlyphInsert, random.Range(0x20, 0x7E) + (i % 7 == 0 ? 0x0E00u : 0u));
+    mixTable();
+    for (const uint32_t key : {0x41u, 0x10041u, 0xFFFFFFFFu, 0u})
+        insert(kGlyphInsertNoResize, key);
+    mixTable();
+    const uint32_t node = Game<SOne>(kGlyphNode)(table, nullptr, U(value));
+    Mix(Field<uint32_t>(At32(node), 0));
+    MixBytes(At32(node) + 4, 0x1C);
+    StlFree(node);
+    Game<SThis>(addr::GZFont_CacheDestroy)(cache, nullptr);
+}
+
+void DriveContainersRest()
+{
+    using namespace containers;
+    // A list of words: put in before its header, its first node and others.
+    uint32_t list = StlAllocate(0xC);
+    std::memcpy(At32(list), &list, 4);
+    std::memcpy(At32(list) + 4, &list, 4);
+    for (uint32_t i = 0; i < 8; ++i) {
+        uint32_t before = list;
+        for (uint32_t step = 0; step < i % 3; ++step)
+            before = Field<uint32_t>(At32(before), 0);
+        const uint32_t word = 0x1000 + i;
+        uint32_t result = 0;
+        Mix(Game<SThree>(kListInsert)(&list, nullptr, U(&result), before, U(&word)) == U(&result) ? 1 : 0);
+        Mix(Field<uint32_t>(At32(result), 8));
+    }
+    uint32_t previous = list, count = 0;
+    for (uint32_t e = Field<uint32_t>(At32(list), 0); e != list; ++count) {
+        Mix(Field<uint32_t>(At32(e), 8));
+        MixByte(Field<uint32_t>(At32(e), 4) == previous ? 1 : 0);
+        previous = e;
+        const uint32_t next = Field<uint32_t>(At32(e), 0);
+        StlFree(e);
+        e = next;
+    }
+    Mix(count);
+    StlFree(list);
+
+    // A vector of pointers out of room: from nothing, in the middle, none,
+    // one at the end.
+    uint32_t v[4] = {};
+    uint8_t tag = 0;
+    for (const auto& [place, n, atEnd] : {std::tuple<uint32_t, uint32_t, uint32_t>{0, 3, 1}, {1, 2, 0},
+                                         {0xFFFFFFFF, 0, 1}, {0xFFFFFFFF, 1, 1}, {0, 5, 0}}) {
+        const uint32_t to = place == 0xFFFFFFFF ? v[1] : v[0] + place * 4;
+        const uint32_t word = 0xABC00000 + n * 0x10 + place;
+        Mix(Game<SFive>(kPointersOverflow)(v, nullptr, to, U(&word), U(&tag), n, atEnd) - v[0]);
+        MixVector(v);
+    }
+    if (v[0])
+        StlFree(v[0]);
+
+    // A holder never opened, with characters in its map and a block, taken
+    // down.
+    const uint32_t holder = StlAllocate(0x34);
+    Game<SThis>(kHolderConstruct)(At32(holder), nullptr);
+    for (uint16_t key : {0x41, 0x20, 0x7A}) {
+        const uint32_t pair[2] = {key, key * 2u};
+        uint32_t result[2] = {};
+        Game<STwo>(kMapInsert)(At32(holder) + 0x28, nullptr, U(result), U(pair));
+    }
+    const uint32_t block = StlAllocate(16);
+    std::memcpy(At32(holder) + 0x14, &block, 4);
+    Game<SThis>(containers::kHolderDestruct)(At32(holder), nullptr);
+    Mix(Field<uint32_t>(At32(holder), 0x20));
+    StlFree(holder);
+}
+
+void DriveFontContainers()
+{
+    Random random{0x0F3B};
+    DriveContainersHelpers();
+    DriveContainersPlaced();
+    DriveContainersText();
+    DriveContainersMap(random, containers::kGlyphsClear, containers::kGlyphsDestruct, containers::kGlyphsEraseTree);
+    DriveContainersMap(random, containers::kNamesClear, containers::kNamesDestruct, containers::kNamesEraseTree);
+    DriveContainersGlyphs(random);
+    DriveContainersRest();
+    FtStage("fontcontainers");
+}
+
 void DriveFont()
 {
     DriveFontObject();
     DriveFontProperties();
     DriveFontBlitter();
+    DriveFontContainers();
 }
 
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,
 // then the holder, its stream and the director (f1 and f5), then the font
-// system (f2a), then the font's object, properties and blitter (f3a).
+// system (f2a), then the font's object, properties and blitter (f3a)
+// and its containers (f3b).
 // Every result goes into the fingerprint's `ft` part.
 void DriveFontsDay(const Day& day)
 {

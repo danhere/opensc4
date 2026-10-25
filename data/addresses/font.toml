@@ -1467,3 +1467,318 @@ convention = "thiscall"
 signature = "void* (void* this, void* result, const void* pair)"
 expect = "55 8B EC 51 53 56 8B D9"
 source = "Name ours. `ret 8`: as 0x008950A5 with 0x008951CB. Called by AddAlias. Ours in framework.font.system.tables (docs/fonts.md, f2b)."
+
+[[entry]]
+name = "GZFontPlaced::Fill"
+address = 0x00896BF6
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, const void* value)"
+expect = "8B 44 24 04 3B 44 24 08"
+source = "Name ours. Every 0x24-byte placed glyph of [first, last) set to value (nine words), a test before each; EAX ends at last. Called by the fill insert 0x0089874D. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontText::Find"
+address = 0x00896C19
+kind = "function"
+convention = "cdecl"
+signature = "uint16_t* (uint16_t* first, uint16_t* last, const uint32_t* value, void* tag)"
+expect = "55 8B EC 8B 4D 0C 8B 45"
+source = "Name ours. STLport's find over 16-bit words, four at a time then the last three: the first word equal to the double word at value, else last. Called by 0x00897599. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::Copy"
+address = 0x00896C90
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag, uint32_t unused)"
+expect = "55 8B EC 8B 45 0C 2B 45"
+source = "Name ours. STLport's copy of 0x24-byte placed glyphs, forwards by the count (signed); returns the end. Called by 0x008975B4. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::Construct"
+address = 0x00896CC2
+kind = "function"
+convention = "cdecl"
+signature = "void (void* at, const void* value)"
+expect = "57 8B 7C 24 08 85 FF 74"
+source = "Name ours. A copy of the 0x24-byte placed glyph at value constructed at at, unless at is null; EAX left as it came. Called by 0x00896CD8, 0x008975D1 and 0x00897F04. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::FillN"
+address = 0x00896CD8
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* at, uint32_t count, const void* value, void* tag)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. STLport's uninitialized_fill_n of placed glyphs by 0x00896CC2; returns the end. Called by 0x00897614 and 0x00897F04. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::CopyBack"
+address = 0x00896CFD
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag, uint32_t unused)"
+expect = "55 8B EC 8B 45 0C 2B 45"
+source = "Name ours. STLport's copy_backward of placed glyphs to end at to; returns the start. Called by 0x008975F7. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontGlyphMap::EraseTree"
+address = 0x0089753F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. `ret 4`: the subtree of a map of characters (0x18-byte nodes) freed, right subtrees first by itself, then down the left. Called by Clear 0x00897A1C. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontNameMap::EraseTree"
+address = 0x0089756C
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. `ret 4`: as 0x0089753F, the static names' map's own copy. Called by Clear 0x00897A45. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontText::FindTagged"
+address = 0x00897599
+kind = "function"
+convention = "cdecl"
+signature = "uint16_t* (uint16_t* first, uint16_t* last, const uint32_t* value)"
+expect = "55 8B EC 51 8D 45 FF 50"
+source = "Name ours. 0x00896C19 with a byte of its stack as the tag. Called by the Thai pass 0x00899665. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::CopyTagged"
+address = 0x008975B4
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to)"
+expect = "55 8B EC 51 6A 00 8D 45"
+source = "Name ours. 0x00896C90 with a tag and a 0. Called by the erase 0x00897E56. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::UninitCopy"
+address = 0x008975D1
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to, void* tag)"
+expect = "56 8B 74 24 10 57 8B 7C"
+source = "Name ours. STLport's uninitialized_copy of placed glyphs by 0x00896CC2, a test before each; returns the end. Called by 0x0089874D and 0x00897F04. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::CopyBackTagged"
+address = 0x008975F7
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to)"
+expect = "55 8B EC 51 6A 00 8D 45"
+source = "Name ours. 0x00896CFD with a tag and a 0. Called by 0x0089874D. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::FillNTagged"
+address = 0x00897614
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* at, uint32_t count, const void* value)"
+expect = "55 8B EC 51 8D 45 FF 50"
+source = "Name ours. 0x00896CD8 with a byte of its stack as the tag. Called by 0x0089874D. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontGlyphMap::Find"
+address = 0x0089762F
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const uint16_t* key)"
+expect = "8B 11 8B 4A 04 85 C9 57"
+source = "Name ours. `ret 4`: STLport's find in a map of characters (the holder's and the static names'): the node of the character, else the header. Called by GlyphByUnicodeName 0x00898EB2. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZGlyphTable::ValueConstruct"
+address = 0x0089766B
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* at, const void* value)"
+expect = "8B 44 24 04 85 C0 74 17"
+source = "Name ours. A glyph's value (the character and six words) copied to at unless null; returns at. Called by MakeNode 0x00897A6E. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontGlyphMap::PairConstruct"
+address = 0x0089768B
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* at, const void* pair)"
+expect = "8B 44 24 04 85 C0 74 10"
+source = "Name ours. A map's pair (a 16-bit character, a double word at +4) copied to at unless null; returns at. Called by MakeNode 0x00897A91. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontGlyphMap::Clear"
+address = 0x00897A1C
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. If not empty, every node freed (0x0089753F) and the header as a new map's. Called by Destruct 0x00897C5F. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontNameMap::Clear"
+address = 0x00897A45
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. As 0x00897A1C with 0x0089756C. Called by Destruct 0x00897C76. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZGlyphTable::MakeNode"
+address = 0x00897A6E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* value)"
+expect = "56 6A 20 E8 DE 54 07 00"
+source = "Name ours. `ret 4`, this unread: a glyph table's 0x20-byte node (0x0090CF54), its next cleared, the value after it (0x0089766B). Called by InsertNoResize 0x00897CB2. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontGlyphMap::MakeNode"
+address = 0x00897A91
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* pair)"
+expect = "56 6A 18 E8 BB 54 07 00"
+source = "Name ours. `ret 4`, this unread: a map of characters' 0x18-byte node with the pair at +0x10 (0x0089768B). Called by InsertAt 0x00897DAC. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontText::Insert"
+address = 0x00897BDC
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t* (void* this, uint16_t* at, const uint16_t* value)"
+expect = "55 8B EC 56 57 8B 7D 08"
+source = "Name ours. `ret 8`: STLport's insert of one 16-bit word into a vector: by the overflow 0x004658B0 without room, at the end, or the last word copied up, the rest moved (0x00413D00) and the word put at at; returns at by its place. Called by the Thai pass 0x00899665. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontGlyphMap::Destruct"
+address = 0x00897C5F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 B5 FD FF FF"
+source = "Name ours. The map cleared (0x00897A1C), its header freed. Called by the holder's destructor 0x00897E36 and f5's tests. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontNameMap::Destruct"
+address = 0x00897C76
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 C7 FD FF FF"
+source = "Name ours. As 0x00897C5F with 0x00897A45: the static map of glyph names 0x00B5C41C taken down at exit (0x00A7F360). Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZGlyphTable::InsertNoResize"
+address = 0x00897CB2
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, const void* value)"
+expect = "8B 44 24 08 53 56 57 8B"
+source = "Name ours. `ret 8`: STLport's insert_unique_noresize of a glyph table (buckets +4, count +0x10): the node of the character, else a new one at the front of its bucket; result gets the node, the table and whether it is new. Called by Insert 0x008986BF. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZPointerVector::InsertOverflow"
+address = 0x00897D22
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void** at, void* const* value, void* tag, uint32_t count, bool atEnd)"
+expect = "55 8B EC 51 53 56 8B F1"
+source = "Name ours. `ret 0x14`: STLport's insert overflow of a vector of pointers: new room for the size and the larger of size and count (0x009DB998), the pointers copied around count copies (0x00407A50, 0x004186F0), the old room freed. Called by 0x00997959. Ours in framework.font.font.shared (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontGlyphMap::InsertAt"
+address = 0x00897DAC
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** result, void* x, void* parent, const void* pair, void* right)"
+expect = "55 8B EC 8B 45 14 53 8B"
+source = "Name ours. `ret 0x14`: STLport's _M_insert of a map of characters: a node (0x00897A91) as the parent's left child if the parent is the header, else its right one if right, else the left one if x is set or the character is below the parent's; rebalanced (0x0040D5E0), one more. Called by Insert 0x00897E7C. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontFile::Destruct"
+address = 0x00897E36
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 66 F8 FF FF"
+source = "Name ours. The T2K holder's destructor: Close (0x008976A4), the map at +0x28 taken down (0x00897C5F), the block at +0x14 freed. Called by the font's destructor 0x0089893F and 0x00895564. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::Erase"
+address = 0x00897E56
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* first, void* last)"
+expect = "55 8B EC 56 8D 45 0B 50"
+source = "Name ours. `ret 8`: STLport's erase of [first, last) from the vector of placed glyphs, the rest copied down (0x008975B4); returns first. Called by Resize 0x00899513. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontGlyphMap::Insert"
+address = 0x00897E7C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, const void* pair)"
+expect = "55 8B EC 53 8B D9 8B 0B"
+source = "Name ours. `ret 8`: STLport's insert_unique of a map of characters (0x0040D500, InsertAt 0x00897DAC); result gets the node and whether it is new. Called by GlyphByUnicodeName 0x00898EB2 and BuildNameTable 0x008988F1. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::InsertOverflow"
+address = 0x00897F04
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const void* value, void* tag, uint32_t count, bool atEnd)"
+expect = "55 8B EC 51 51 53 56 8B"
+source = "Name ours. `ret 0x14`: STLport's insert overflow of the vector of placed glyphs: new room for the size and the larger of size and count (0x009B3553), the glyphs copied around the copies (0x008975D1, 0x00896CC2 or 0x00896CD8), the old room freed. Called by 0x0089874D. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontText::AllocateCopy"
+address = 0x00897FC2
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t* (void* this, uint32_t count, const uint16_t* first, const uint16_t* last)"
+expect = "55 8B EC 56 FF 75 08 83"
+source = "Name ours. `ret 0xC`: room for count 16-bit words (0x0049CAF0 on the allocator at +8), [first, last) copied in (0x004622A0); returns the room. Called by Reserve 0x008986E3. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZGlyphTable::Insert"
+address = 0x008986BF
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, const void* value)"
+expect = "56 8B F1 8B 46 10 40 50"
+source = "Name ours. `ret 8`: the glyph table grown for one more (0x009978AF), then InsertNoResize 0x00897CB2; returns result. Called twice by RenderGlyph 0x00898FDC. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontText::Reserve"
+address = 0x008986E3
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count)"
+expect = "55 8B EC 51 56 8B F1 8B"
+source = "Name ours. `ret 4`: STLport's reserve of a vector of 16-bit words: with less room, a new block (0x00897FC2 and the old one freed, or 0x0049CAF0 when there was none). Called by the Thai pass 0x00899665. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::FillInsert"
+address = 0x0089874D
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, uint32_t count, const void* value)"
+expect = "55 8B EC 83 EC 24 83 7D"
+source = "Name ours. `ret 0xC`: STLport's fill insert of count placed glyphs at at: the overflow 0x00897F04 when the room left is less, else the tail moved up and the gap filled (0x008975D1, 0x008975F7, 0x00897614, 0x00896BF6). Called by Resize 0x00899513. Ours in framework.font.font.containers (docs/fonts.md, f3b)."
+
+[[entry]]
+name = "GZFontPlaced::Resize"
+address = 0x00899513
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count, const void* value)"
+expect = "53 8B 59 04 56 57 8B 39"
+source = "Name ours. `ret 8`: STLport's resize of the vector of placed glyphs: erased past count (0x00897E56), else copies of value added (0x0089874D). Called by 0x00899A73 (DrawString's resize, which passes an uninitialised value from its stack and stays the game's). Ours in framework.font.font.containers (docs/fonts.md, f3b)."
