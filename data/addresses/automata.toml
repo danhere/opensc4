@@ -12387,3 +12387,138 @@ address = 0x00A9945C
 kind = "data"
 expect = "A0 CC 53 00 30 AF 4F 00"
 source = "cSC4MassTransitTrain's +0x38 vtable. Called by address from src/core/automata_trains.cpp (part tr1)."
+
+# Part tr2a: the trains' smaller frame code (src/core/automata_trains.cpp, docs/automata.md "Part tr").
+
+[[entry]]
+name = "cSC4TrainCar::EnterState"
+address = 0x00557410
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, void* state)"
+expect = "83 EC 10 53 56 57 8B 7C"
+source = "Name ours. The train car's slot 110, ret 4: cSC4Vehicle's 0x0055B6D0; with the state 0x14 and its +0x28 object: that object's slot 13 (0x10, &the car's slot 5 word, 1), again (0x11, &the train's slot 5 word, 1) when the train +0xB0 is in the state 0x14 and its controls (slot 56) have a +0x28; then, when slot 192 answers true, slot 65 (0, a point of 0x00B22964's). AL cSC4Vehicle's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::EnterState"
+address = 0x00557530
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, void* state)"
+expect = "51 53 57 8B 7C 24 10 57"
+source = "Name ours. The train's slot 110, ret 4: the car's 0x00557410; for the states 0x10 and 0x1E each car not in it (slot 59) pushes it (slot 52: the type, 0, -1.0, four zeros); for 0x10 the state's +0x30 zero and, with a template (slot 67), +0x34 its entry's +8 (+0x64, else 0x0046B4A0 on +0xC; 1.0 without one). AL the car's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::LeaveState"
+address = 0x00557620
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* state)"
+expect = "53 55 8B 6C 24 0C 85 ED"
+source = "Name ours. The train's slot 111, ret 4: for the state 0x1E each car in it (slot 59) pops it (slot 53); then the base's 0x005535D0 (its EAX). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::CanMeet"
+address = 0x00558DC0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, void* other)"
+expect = "56 57 8B F1 8B BE D4 02"
+source = "Name ours. The train's slot 73, ret 4: AL 0 when the other is one of its cars (SC4::FindPointer over +0x2D0); else the core's 0x005059C0 (its EAX). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::Steer"
+address = 0x005570C0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, void* state, float seconds)"
+expect = "8B 44 24 08 56 57 8B 7C"
+source = "Name ours. The train's slot 121, ret 8: the core's 0x00509070; with the template's entry the state's speed +0x28 up by seconds x 0.001 x the entry's +0x10 while +0x7C is 0 or more, else down by it x +0x14 while +0x80 is, else zero (both tests false for NaN). AL 0 without an entry, else 1. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::SpeedFactor"
+address = 0x00557830
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this)"
+expect = "51 56 8B F1 E8 77 E2 FA"
+source = "Name ours. The train's slot 125, in ST0: the core's rate 0x00505AB0 as a float; with an occupant and without the automata flag 0x40 the slope as cSC4Vehicle's slot 125 (asin of the heading's y x 0x00B21CFC / 0x00B21CF8, at most 0x00B21CFC, below 0 as 0; 1 less it uphill, 1 plus it downhill, times the rate, unrounded). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::Slot172"
+address = 0x00557170
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t a, uint32_t b, void* c, uint32_t d)"
+expect = "53 55 8B 6C 24 10 56 57"
+source = "Name ours. The train's slot 172, ret 0x10: with c, its slot 48's slot 3 in group 0x1300, 0x1302 or 0x1509 (slot 22) and slot 173 (a, b) true, the state 0x1E pushed (0, 5000.0, four zeros) and AL 1; else the base's 0x0054D830 (its EAX). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::Slot172"
+address = 0x0053C970
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t a, uint32_t b, void* c, uint32_t d)"
+expect = "53 55 8B 6C 24 10 56 57"
+source = "Name ours. The mass transit train's slot 172, ret 0x10: as the train's with the groups 0x1303 and 0x1307 and the sixth word 0x0C16DC50; else the train's 0x00557170 (its EAX). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::NextStep"
+address = 0x00558FA0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "83 EC 2C 53 55 8B E9 8B"
+source = "Name ours. The train's slot 165: the base's 0x00553AA0; with the wanted count +0x2C8 and steps in the +0x204 deque: when it was empty before, each element of it and of +0x27C has its occupant's cell (slot 59) entered (0x00B43D54's slot 38: this, the two words); else, with the service, the last step's (0x00533290). AL the base's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4MassTransitTrain::NextStep"
+address = 0x0053CA20
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "83 EC 0C 53 56 8B F1 E8"
+source = "Name ours. The mass transit train's slot 165: the train's 0x00558FA0; unless in the state 0x10 or with the automata flag 1, with the lot manager 0x00B43D08: the front point's (+0x264, +0x26C) cell (city slot 95) and the next by the byte +0x1F4 (0: x - 1, 1: z - 1, 2: x + 1, 3: z + 1); a lot at the cell and none at the next (slot 6) push the state 0x1E (0, 5000.0, 0, 0, 0x0C16DC50, 0). AL the train's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::Collide"
+address = 0x00558E00
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t a, uint32_t b)"
+expect = "83 EC 24 53 55 56 57 8B"
+source = "Name ours. The train's slot 65, ret 8 (a and b not read): the state 0x14 pushed unless in it (0, 20000.0, 1, three zeros; AL 0 on failure); a generator of its own (SC4Random::Construct, -1); per car (no null test) the speed +0x94 copied, a random unit vector (SC4::RandomUnitVector) with x and z scaled by 0.25 over its length and y dropped added to its heading, the heading normalised (1.0 0x00B0A090 over its length); a car in the state 0x14 already answers AL 1 at once, else it pushes it. Then slot 36 (0, 0). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4TrainCar::EnterOccupant"
+address = 0x00557320
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, uint32_t groups, void* path, uint32_t keep)"
+expect = "8B 44 24 10 8B 54 24 08"
+source = "Name ours. The train car's slot 132, ret 0x10: cSC4Vehicle's 0x0055D5A0; with the byte +0x2B8 and an occupant +0x1EC, its interface 0x4A10AFC2: slot 33 (1.0, 0.1) when its slot 99 (an out word in the keep argument's slot) answers 2, else (0, 0.6); the interface released. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "cSC4Train::EnterOccupant"
+address = 0x005574F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant, uint32_t groups, void* path, uint32_t keep)"
+expect = "56 8B F1 8B 06 33 C9 8A"
+source = "Name ours. The train's slot 132, ret 0x10: slot 181 with the deque +0x27C and the wanted count's low byte doubled (SHL CL), then the car's 0x00557320. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2a)."
+
+[[entry]]
+name = "SC4AutomatonDeque204::Back"
+address = 0x00533290
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* deque)"
+expect = "83 EC 10 83 C1 10 8B D1"
+source = "Name ours. The last 0xC-byte element of a +0x204 deque (the finish's current less 0xC, from the block before when at a block's first). Called by address from src/core/automata_trains.cpp (part tr2a)."
+
+[[entry]]
+name = "cSC4TrainCar::One"
+address = 0x00B0A090
+kind = "data"
+expect = "00 00 80 3F"
+source = "Name ours. float 1.0: the train's slot 65 normalises the cars' headings to it. Called by address from src/core/automata_trains.cpp (part tr2a)."

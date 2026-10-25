@@ -13,7 +13,8 @@
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.trains: the 31 detours in kObject (tr1) below.
+//   simulators.automata.trains: the 31 detours in kObject (tr1) and the 13
+//   in kFrame (tr2a) below.
 //
 // What it does. The car is 0x2C8 bytes from its own pool (0x00B0A09C, as
 // the vehicle pool: other sizes go to SC4::operator_new) and goes back there
@@ -63,6 +64,7 @@
 #include "core/automata_trains.h"
 
 #include "core/address_check.h"
+#include "core/fixed_seed.h"
 #include "core/game.h"
 #include "core/hook.h"
 #include "core/log.h"
@@ -72,10 +74,12 @@
 
 #include <windows.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 
 namespace opensc4::automata_trains {
 namespace {
@@ -126,6 +130,7 @@ void FirstCall(const char* name, bool& logged)
 constexpr std::size_t kAddRef = 0x04, kRelease = 0x08;
 constexpr std::size_t kVtable4 = 0x04, kSerializable = 0x08;
 constexpr std::uint32_t kOccupantIid = 0xA821EF94; // the train's occupant is read back as this
+constexpr std::uint32_t kNetworkIid = 0x4A10AFC2; // the car's slot 132 asks its occupant for it
 
 void Release(void* object) { Virtual<std::uint32_t>(object, kRelease); }
 
@@ -753,6 +758,499 @@ std::uint32_t __fastcall TrainWantedCars(char* self, void*)
 }
 
 // ====================================================================================
+// The frames (tr2a)
+
+float Zero() { return Global<float>(addr::SC4_FloatZero); }
+std::uint8_t Bool(std::uint32_t eax) { return static_cast<std::uint8_t>(eax); }
+
+// The template's entry (slot 67): its +0x64, else 0x0046B4A0 on its parent
+// +0xC; null without a template or an entry.
+char* TemplateEntry(char* self)
+{
+    char* const owner = Virtual<char*>(self, slot::kTemplate);
+    if (!owner)
+        return nullptr;
+    if (char* const entry = At<char*>(owner, 0x64))
+        return entry;
+    char* const parent = At<char*>(owner, 0xC);
+    return parent ? CallThis<char*>(addr::SC4AutomatonTemplate_FindInherited64, parent) : nullptr;
+}
+
+// Each car of the vector (the end re-read each step).
+template <typename Each>
+void ForEachCar(char* self, Each each)
+{
+    for (char** car = At<char**>(self, train::kCars); car != At<char**>(self, train::kCars + 4); ++car)
+        each(*car);
+}
+
+// 0x00557410, the car's slot 110 (state), ret 4: cSC4Vehicle's (0x0055B6D0)
+// first. With the state 0x14 and its +0x28 object: that object's slot 13
+// (0x10, &the car's slot 5 word, 1); when the train (+0xB0) is in the state
+// 0x14 too and its controls (slot 56) have a +0x28, slot 13 again (0x11,
+// &the train's slot 5 word, 1) on the car's state's object. Then, when slot
+// 192 answers true (a train), slot 65 (0, a point of 0x00B22964's). AL
+// cSC4Vehicle's.
+std::uint32_t __fastcall CarEnterState(char* self, void*, char* entered)
+{
+    static bool logged;
+    FirstCall("CarEnterState", logged);
+    const std::uint8_t ok = Bool(CallThis<std::uint32_t>(addr::cSC4Vehicle_EnterState, self, entered));
+    if (!entered || At<std::uint32_t>(entered, 4) != 0x14u || !At<void*>(entered, 0x28))
+        return ok;
+    std::uint32_t id = Virtual<std::uint32_t>(self, slot::kId);
+    Virtual<void>(At<void*>(entered, 0x28), slot::kRecordSlot13, 0x10u, &id, 1u);
+    if (char* const train = At<char*>(self, field::kObjectB0))
+        if (Virtual<std::uint32_t>(train, slot::kStateType) == 0x14u)
+            if (char* const controls = Virtual<char*>(train, slot::kControls))
+                if (At<void*>(controls, 0x28)) {
+                    std::uint32_t trainId = Virtual<std::uint32_t>(train, slot::kId);
+                    Virtual<void>(At<void*>(entered, 0x28), slot::kRecordSlot13, 0x11u, &trainId, 1u);
+                }
+    if (Bool(Virtual<std::uint32_t>(self, slot::kIsTrain))) {
+        const std::uint32_t fill = Global<std::uint32_t>(addr::cSC4TrainCar_DefaultFloat);
+        std::uint32_t point[3] = {fill, fill, fill};
+        Virtual<std::uint32_t>(self, slot::kCollide, 0u, static_cast<void*>(point));
+    }
+    return ok;
+}
+
+// 0x00557530, the train's slot 110 (state), ret 4: the car's first. For the
+// states 0x10 and 0x1E each car not in that state already (slot 59) pushes
+// it (slot 52: the type, 0, -1.0, four zeros). For 0x10 the state's +0x30
+// zero and, with a template, +0x34 its entry's +8 (1.0 without an entry).
+// AL the car's.
+std::uint32_t __fastcall TrainEnterState(char* self, void*, char* entered)
+{
+    static bool logged;
+    FirstCall("TrainEnterState", logged);
+    const std::uint8_t ok = Bool(CallThis<std::uint32_t>(addr::cSC4TrainCar_EnterState, self, entered));
+    if (!entered)
+        return ok;
+    const std::uint32_t type = At<std::uint32_t>(entered, 4);
+    if (type == 0x10u || type == 0x1Eu)
+        ForEachCar(self, [&](char* car) {
+            if (!car)
+                return;
+            const std::uint32_t now = At<std::uint32_t>(entered, 4);
+            if (Virtual<std::uint32_t>(car, slot::kStateType) != now)
+                Virtual<std::uint32_t>(car, slot::kPushState, now, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+        });
+    if (At<std::uint32_t>(entered, 4) != 0x10u)
+        return ok;
+    At<std::uint32_t>(entered, 0x30) = 0;
+    char* const owner = Virtual<char*>(self, slot::kTemplate);
+    if (!owner)
+        return ok;
+    char* entry = At<char*>(owner, 0x64);
+    if (!entry)
+        if (char* const parent = At<char*>(owner, 0xC))
+            entry = CallThis<char*>(addr::SC4AutomatonTemplate_FindInherited64, parent);
+    At<std::uint32_t>(entered, 0x34) = entry ? At<std::uint32_t>(entry, 8) : 0x3F800000u;
+    return ok;
+}
+
+// 0x00557620, the train's slot 111 (state), ret 4: for the state 0x1E each
+// car in it (slot 59) pops it (slot 53); then the base's slot 111
+// (0x005535D0), its EAX.
+std::uint32_t __fastcall TrainLeaveState(char* self, void*, char* left)
+{
+    static bool logged;
+    FirstCall("TrainLeaveState", logged);
+    if (left && At<std::uint32_t>(left, 4) == 0x1Eu)
+        ForEachCar(self, [&](char* car) {
+            if (car && Virtual<std::uint32_t>(car, slot::kStateType) == At<std::uint32_t>(left, 4))
+                Virtual<std::uint32_t>(car, slot::kPopState);
+        });
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_LeaveState, self, left);
+}
+
+// 0x00558DC0, the train's slot 73 (other), ret 4: AL 0 when the other is
+// one of its cars (SC4::FindPointer); else the core's slot 73 (0x005059C0),
+// its EAX.
+std::uint32_t __fastcall TrainCanMeet(char* self, void*, void* other)
+{
+    static bool logged;
+    FirstCall("TrainCanMeet", logged);
+    void** const end = At<void**>(self, train::kCars + 4);
+    // Both pointer arguments are the other's stack slot, as the game's.
+    void** const found = CallCdecl<void**>(addr::SC4_FindPointer, At<void**>(self, train::kCars), end,
+                                           static_cast<void*>(&other), static_cast<void*>(&other));
+    if (found != end)
+        return 0;
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_CanMeet, self, other);
+}
+
+// 0x005570C0, the train's slot 121 (state, seconds), ret 8: the core's
+// (0x00509070) first; with the template's entry the state's speed +0x28
+// up by seconds x 0.001 x the entry's +0x10 while +0x7C is 0 or more, else
+// down by it x the entry's +0x14 while +0x80 is, else zero. AL 0 without an
+// entry, else 1.
+std::uint32_t __fastcall TrainSteer(char* self, void*, char* state, float seconds)
+{
+    static bool logged;
+    FirstCall("TrainSteer", logged);
+    CallThis<std::uint32_t>(addr::cSC4AutomatonCore_Steer, self, state, seconds);
+    const float scaled = static_cast<float>(static_cast<double>(seconds) *
+                                            static_cast<double>(Global<float>(addr::cSC4AutomatonBase_ArriveDistance)));
+    char* const entry = TemplateEntry(self);
+    if (!entry)
+        return 0;
+    float& speed = At<float>(state, 0x28);
+    // FCOMP and TEST AH,1: below or unordered goes on to the next test.
+    if (At<float>(state, 0x7C) >= Zero())
+        speed = static_cast<float>(static_cast<double>(scaled) * At<float>(entry, 0x10) + speed);
+    else if (At<float>(state, 0x80) >= Zero())
+        speed = static_cast<float>(speed - static_cast<double>(scaled) * At<float>(entry, 0x14));
+    else
+        At<std::uint32_t>(state, 0x28) = 0;
+    return 1;
+}
+
+// The slope part of 0x00557830 (from 0x0055785C), in x87 as the game's: the
+// game keeps asin(y) x most / divisor and the result at the FPU's precision
+// and rounds once, where doubles round each step (a last-bit difference on
+// some headings). `y` is the heading's y (re-read after the asin, as the
+// game does), `factor` the rate as a float; the answer in ST0. The globals:
+// 0x00A81054 zero, 0x00A81228 one, 0x00B21CFC the most, 0x00B21CF8 the
+// divisor; 0x009F03B0 __CIasin.
+__declspec(naked) double __cdecl X87Slope(const float* y, const float* factor)
+{
+    __asm {
+        mov eax, [esp + 4]
+        fld dword ptr [eax]
+        mov eax, 0x009F03B0
+        call eax
+        mov eax, [esp + 4]
+        mov edx, 0x00A81054
+        fld dword ptr [eax]
+        fcomp dword ptr [edx]
+        fnstsw ax
+        test ah, 0x41
+        jnz not_up
+        mov edx, 0x00B21CFC
+        fmul dword ptr [edx]
+        mov edx, 0x00B21CF8
+        fdiv dword ptr [edx]
+        mov edx, 0x00A81054
+        fcom dword ptr [edx]
+        fnstsw ax
+        test ah, 5
+        jp up_clamp
+        fstp st(0)
+        fld dword ptr [edx]
+        mov edx, 0x00A81228
+        fsubr dword ptr [edx]
+        mov ecx, [esp + 8]
+        fmul dword ptr [ecx]
+        ret
+    up_clamp:
+        mov edx, 0x00B21CFC
+        fcom dword ptr [edx]
+        fnstsw ax
+        test ah, 0x41
+        jnz up_keep
+        fstp st(0)
+        fld dword ptr [edx]
+    up_keep:
+        mov edx, 0x00A81228
+        fsubr dword ptr [edx]
+        mov ecx, [esp + 8]
+        fmul dword ptr [ecx]
+        ret
+    not_up:
+        mov eax, [esp + 4]
+        mov edx, 0x00A81054
+        fld dword ptr [eax]
+        fcomp dword ptr [edx]
+        fnstsw ax
+        test ah, 5
+        jp flat
+        mov edx, 0x00B21CFC
+        fmul dword ptr [edx]
+        mov edx, 0x00B21CF8
+        fdiv dword ptr [edx]
+        mov edx, 0x00A81054
+        fcom dword ptr [edx]
+        fnstsw ax
+        test ah, 5
+        jp down_clamp
+        fstp st(0)
+        fld dword ptr [edx]
+        mov edx, 0x00A81228
+        fadd dword ptr [edx]
+        mov ecx, [esp + 8]
+        fmul dword ptr [ecx]
+        ret
+    down_clamp:
+        mov edx, 0x00B21CFC
+        fcom dword ptr [edx]
+        fnstsw ax
+        test ah, 0x41
+        jnz down_keep
+        fstp st(0)
+        fld dword ptr [edx]
+    down_keep:
+        mov edx, 0x00A81228
+        fadd dword ptr [edx]
+        mov ecx, [esp + 8]
+        fmul dword ptr [ecx]
+        ret
+    flat:
+        fstp st(0)
+        mov ecx, [esp + 8]
+        fld dword ptr [ecx]
+        ret
+    }
+}
+
+// 0x00557830, the train's slot 125, a double in ST0: the core's rate
+// (0x00505AB0) as a float; with an occupant and without the automata flag
+// 0x40 the slope as cSC4Vehicle's slot 125 (X87Slope): asin of the
+// heading's y x 0x00B21CFC / 0x00B21CF8 (at most 0x00B21CFC, below 0 as 0),
+// 1 less it uphill, 1 plus it downhill, times the rate unrounded.
+double __fastcall TrainSpeedFactor(char* self, void*)
+{
+    static bool logged;
+    FirstCall("TrainSpeedFactor", logged);
+    const float factor = static_cast<float>(CallThis<double>(addr::cSC4AutomatonCore_StateRate, self));
+    if (!At<void*>(self, field::kOccupant) || Bool(Virtual<std::uint32_t>(self, slot::kCheckFlag, 0x40u)))
+        return factor;
+    return X87Slope(&At<float>(self, field::kHeading + 4), &factor);
+}
+
+// The train's and the mass transit train's slot 172 (a, b, c, d), ret 0x10:
+// with c, c's slot 48, that one's slot 3 in one of the groups (slot 22) and
+// slot 173 (a, b) true, the state 0x1E pushed (slot 52: 0x1E, 0, 5000.0,
+// zero, zero, the word given, zero) and AL 1; else `fallback`.
+std::uint32_t StopAt(char* self, std::uint32_t a, std::uint32_t b, void* c, std::uint32_t d,
+                     std::initializer_list<std::uint32_t> groups, std::uint32_t word, std::uintptr_t fallback)
+{
+    if (c)
+        if (void* const next = Virtual<void*>(c, slot::kNextAutomaton)) {
+            void* const part = Virtual<void*>(next, 0x0C);
+            bool in = false;
+            for (const std::uint32_t group : groups)
+                if (Bool(Virtual<std::uint32_t>(part, slot::kInGroup, group))) {
+                    in = true;
+                    break;
+                }
+            if (in && Bool(Virtual<std::uint32_t>(self, slot::kSlot173, a, b))) {
+                Virtual<std::uint32_t>(self, slot::kPushState, 0x1Eu, 0u, 0x459C4000u, 0u, 0u, word, 0u);
+                return 1;
+            }
+        }
+    return CallThis<std::uint32_t>(fallback, self, a, b, c, d);
+}
+
+// 0x00557170, the train's: the groups 0x1300, 0x1302, 0x1509; the base's
+// slot 172 (0x0054D830) else.
+std::uint32_t __fastcall TrainSlot172(char* self, void*, std::uint32_t a, std::uint32_t b, void* c, std::uint32_t d)
+{
+    static bool logged;
+    FirstCall("TrainSlot172", logged);
+    return StopAt(self, a, b, c, d, {0x1300u, 0x1302u, 0x1509u}, 0u, addr::cSC4AutomatonBase_Slot172);
+}
+
+// 0x0053C970, the mass transit train's: the groups 0x1303, 0x1307, the word
+// 0x0C16DC50; the train's slot 172 else.
+std::uint32_t __fastcall MassTransitSlot172(char* self, void*, std::uint32_t a, std::uint32_t b, void* c,
+                                            std::uint32_t d)
+{
+    static bool logged;
+    FirstCall("MassTransitSlot172", logged);
+    return StopAt(self, a, b, c, d, {0x1303u, 0x1307u}, 0x0C16DC50u, addr::cSC4Train_Slot172);
+}
+
+// The cells of a deque's elements told to the network service (slot 38) as
+// LeaveCells tells slot 39 (the finish re-read each step).
+void EnterCells(char* self, char* deque, std::size_t size, std::size_t block)
+{
+    char* current = At<char*>(deque, 0);
+    char* last = At<char*>(deque, 8);
+    char** node = At<char**>(deque, 0xC);
+    while (current != At<char*>(deque, 0x10)) {
+        if (void* const service = Global<void*>(addr::SC4_Service43D54)) {
+            std::int32_t first = 0;
+            std::int32_t second = 0;
+            Virtual<void>(At<void*>(current, 0), slot::kCell, &first, &second);
+            Virtual<void>(service, slot::kEnterCell, static_cast<void*>(self), first, second);
+        }
+        current += size;
+        if (current == last) {
+            ++node;
+            current = *node;
+            last = current + block;
+        }
+    }
+}
+
+// 0x00558FA0, the train's slot 165: the base's (0x00553AA0) first. With a
+// wanted count and steps left in the +0x204 deque: when it was empty before,
+// the cells of both deques' occupants entered (EnterCells, the network
+// service's slot 38); else, with the service, that of the +0x204 deque's
+// last step (0x00533290). AL the base's.
+std::uint32_t __fastcall TrainNextStep(char* self, void*)
+{
+    static bool logged;
+    FirstCall("TrainNextStep", logged);
+    char* const steps = self + field::kDeque204;
+    const bool wasEmpty = At<char*>(steps, 0x10) == At<char*>(steps, 0);
+    const std::uint8_t ok = Bool(CallThis<std::uint32_t>(addr::cSC4AutomatonBase_NextStep, self));
+    if (!At<std::uint32_t>(self, train::kWanted) || At<char*>(steps, 0x10) == At<char*>(steps, 0))
+        return ok;
+    if (wasEmpty) {
+        EnterCells(self, steps, 0xC, 0x78);
+        EnterCells(self, self + field::kDeque27C, 8, 0x80);
+        return ok;
+    }
+    if (void* const service = Global<void*>(addr::SC4_Service43D54)) {
+        char* const element = CallThis<char*>(addr::SC4AutomatonDeque204_Back, steps);
+        std::int32_t first = 0;
+        std::int32_t second = 0;
+        Virtual<void>(At<void*>(element, 0), slot::kCell, &first, &second);
+        Virtual<void>(service, slot::kEnterCell, static_cast<void*>(self), first, second);
+    }
+    return ok;
+}
+
+// 0x0053CA20, the mass transit train's slot 165: the train's first; unless
+// in the state 0x10 or with the automata flag 1 (slot 31), with the lot
+// manager 0x00B43D08: the front point's (+0x264, +0x26C) cell (city slot
+// 95) and the next one by the direction byte +0x1F4 (0: x - 1, 1: z - 1, 2:
+// x + 1, 3: z + 1, else the same); a lot at the cell (slot 6) and none at
+// the next push the state 0x1E (0, 5000.0, zero, zero, 0x0C16DC50, zero).
+// AL the train's.
+std::uint32_t __fastcall MassTransitNextStep(char* self, void*)
+{
+    static bool logged;
+    FirstCall("MassTransitNextStep", logged);
+    const std::uint8_t ok = Bool(CallThis<std::uint32_t>(addr::cSC4Train_NextStep, self));
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x10u || Bool(Virtual<std::uint32_t>(self, slot::kCheckFlag, 1u)))
+        return ok;
+    void* const lots = Global<void*>(addr::SC4_LotManager);
+    if (!lots)
+        return ok;
+    std::int32_t x = 0;
+    std::int32_t z = 0;
+    Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), slot::kCellOf, At<float>(self, field::kFront),
+                           At<float>(self, field::kFront + 8), &x, &z);
+    std::int32_t nx = x;
+    std::int32_t nz = z;
+    switch (At<std::uint8_t>(self, field::kDirection)) {
+    case 0:
+        nx = x - 1;
+        break;
+    case 1:
+        nz = z - 1;
+        break;
+    case 2:
+        nx = x + 1;
+        break;
+    case 3:
+        nz = z + 1;
+        break;
+    default:
+        break;
+    }
+    if (Virtual<void*>(lots, slot::kGetLot, x, z, 0u) && !Virtual<void*>(lots, slot::kGetLot, nx, nz, 0u))
+        Virtual<std::uint32_t>(self, slot::kPushState, 0x1Eu, 0u, 0x459C4000u, 0u, 0u, 0x0C16DC50u, 0u);
+    return ok;
+}
+
+// 0x00558E00, the train's slot 65 (a, b; neither read), ret 8: the state
+// 0x14 pushed unless in it (slot 52: 0x14, 0, 20000.0, 1, three zeros; AL 0
+// when that fails). A generator of its own (SC4Random::Construct, -1); per
+// car (no null test): the train's speed +0x94 copied, a random unit vector
+// (SC4::RandomUnitVector) with its x and z scaled by 0.25 over its length
+// when that is above 0 and its y dropped, added to the car's heading, the
+// heading normalised (1.0 over its length, no zero test); a car already in
+// the state 0x14 answers AL 1 at once, else it pushes it (a failure makes
+// AL 0). Then slot 36 (0, 0). AL 1 unless a push failed.
+std::uint32_t __fastcall TrainCollide(char* self, void*, std::uint32_t, std::uint32_t)
+{
+    static bool logged;
+    FirstCall("TrainCollide", logged);
+    std::uint8_t ok = 1;
+    if (Virtual<std::uint32_t>(self, slot::kStateType) != 0x14u &&
+        !Bool(Virtual<std::uint32_t>(self, slot::kPushState, 0x14u, 0u, 0x469C4000u, 1u, 0u, 0u, 0u)))
+        ok = 0;
+    alignas(8) char generator[0x18] = {};
+    {
+        // The clock seed is counted under the original's call site (the
+        // return address after its cRZRandom call), not ours.
+        const fixed_seed::SiteOverride site(0x00558E44);
+        CallThis<void>(addr::SC4Random_Construct, generator, 0xFFFFFFFFu);
+    }
+    for (char** at = At<char**>(self, train::kCars); at != At<char**>(self, train::kCars + 4); ++at) {
+        char* const car = *at;
+        At<std::uint32_t>(car, field::kSpeed) = At<std::uint32_t>(self, field::kSpeed);
+        float v[3];
+        CallCdecl<void*>(addr::SC4_RandomUnitVector, static_cast<void*>(v), static_cast<void*>(generator));
+        const double square = (static_cast<double>(v[2]) * v[2] + static_cast<double>(v[1]) * v[1]) +
+                              static_cast<double>(v[0]) * v[0];
+        if (square > Zero()) {
+            const double k = Global<float>(addr::cSC4AutomatonBase_Quarter) / std::sqrt(square);
+            v[0] = static_cast<float>(v[0] * k);
+            v[2] = static_cast<float>(v[2] * k);
+        }
+        v[1] = 0.0f;
+        float* const heading = &At<float>(car, field::kHeading);
+        heading[0] = static_cast<float>(static_cast<double>(v[0]) + heading[0]);
+        heading[1] = static_cast<float>(static_cast<double>(v[1]) + heading[1]);
+        heading[2] = static_cast<float>(static_cast<double>(v[2]) + heading[2]);
+        const double x = heading[0], y = heading[1], z = heading[2];
+        const double k = Global<float>(addr::cSC4TrainCar_One) / std::sqrt((x * x + y * y) + z * z);
+        heading[0] = static_cast<float>(k * heading[0]);
+        heading[1] = static_cast<float>(k * heading[1]);
+        heading[2] = static_cast<float>(k * heading[2]);
+        if (Virtual<std::uint32_t>(car, slot::kStateType) == 0x14u)
+            return 1;
+        if (!Bool(Virtual<std::uint32_t>(car, slot::kPushState, 0x14u, 0u, 0x469C4000u, 1u, 0u, 0u, 0u)))
+            ok = 0;
+    }
+    Virtual<std::uint32_t>(self, slot::kSetSpeed, 0.0f, 0.0f);
+    return ok;
+}
+
+// 0x00557320, the car's slot 132 (occupant, groups, path, keep), ret 0x10:
+// cSC4Vehicle's (0x0055D5A0); with the byte +0x2B8 and an occupant there,
+// its interface 0x4A10AFC2 (QueryInterface): slot 33 (1.0, 0.1) when its
+// slot 99 (an out word) answers 2, else (0, 0.6); the interface released.
+void __fastcall CarEnterOccupant(char* self, void*, void* occupant, std::uint32_t groups, void* path,
+                                 std::uint32_t keep)
+{
+    static bool logged;
+    FirstCall("CarEnterOccupant", logged);
+    CallThis<void>(addr::cSC4Vehicle_EnterOccupant, self, occupant, groups, path, keep);
+    void* const now = At<void*>(self, field::kOccupant);
+    if (!At<std::uint8_t>(self, car::kGroupByte) || !now)
+        return;
+    void* network = nullptr;
+    if (!Bool(Virtual<std::uint32_t>(now, 0x00, kNetworkIid, &network)))
+        return;
+    std::uint32_t out = keep; // the game's out is the keep argument's stack slot
+    if (Virtual<std::uint32_t>(network, slot::kNetworkKind, &out) == 2u)
+        Virtual<std::uint32_t>(self, slot::kFade, 1.0f, 0.1f);
+    else
+        Virtual<std::uint32_t>(self, slot::kFade, 0.0f, 0.6f);
+    Release(network);
+}
+
+// 0x005574F0, the train's slot 132: slot 181 with the deque +0x27C and twice
+// the wanted count (the low byte doubled, as SHL CL), then the car's slot
+// 132 (0x00557320).
+void __fastcall TrainEnterOccupant(char* self, void*, void* occupant, std::uint32_t groups, void* path,
+                                   std::uint32_t keep)
+{
+    static bool logged;
+    FirstCall("TrainEnterOccupant", logged);
+    const std::uint32_t count = (At<std::uint8_t>(self, train::kWanted) << 1) & 0xFFu;
+    Virtual<std::uint32_t>(self, slot::kRemember, self + field::kDeque27C, count);
+    CallThis<void>(addr::cSC4TrainCar_EnterOccupant, self, occupant, groups, path, keep);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -830,11 +1328,29 @@ const Detour kObject[] = {
     OPENSC4_DETOUR(addr::cSC4Train_WantedCars, TrainWantedCars),
 };
 
+// Part tr2a.
+const Detour kFrame[] = {
+    OPENSC4_DETOUR(addr::cSC4TrainCar_EnterState, CarEnterState),
+    OPENSC4_DETOUR(addr::cSC4Train_EnterState, TrainEnterState),
+    OPENSC4_DETOUR(addr::cSC4Train_LeaveState, TrainLeaveState),
+    OPENSC4_DETOUR(addr::cSC4Train_CanMeet, TrainCanMeet),
+    OPENSC4_DETOUR(addr::cSC4Train_Steer, TrainSteer),
+    OPENSC4_DETOUR(addr::cSC4Train_SpeedFactor, TrainSpeedFactor),
+    OPENSC4_DETOUR(addr::cSC4Train_Slot172, TrainSlot172),
+    OPENSC4_DETOUR(addr::cSC4MassTransitTrain_Slot172, MassTransitSlot172),
+    OPENSC4_DETOUR(addr::cSC4Train_NextStep, TrainNextStep),
+    OPENSC4_DETOUR(addr::cSC4MassTransitTrain_NextStep, MassTransitNextStep),
+    OPENSC4_DETOUR(addr::cSC4Train_Collide, TrainCollide),
+    OPENSC4_DETOUR(addr::cSC4TrainCar_EnterOccupant, CarEnterOccupant),
+    OPENSC4_DETOUR(addr::cSC4Train_EnterOccupant, TrainEnterOccupant),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
-    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object");
+    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
+           InstallList(kFrame, sizeof kFrame / sizeof kFrame[0], "frame");
 }
 
 const bool g_registered[] = {
@@ -845,7 +1361,9 @@ const bool g_registered[] = {
                         "the train's destructor body, the two QueryInterfaces and the three GetGZCLSIDs; the train's "
                         "and the mass transit train's Writes and Reads; the car's and the train's Inits and the "
                         "train's Shutdown; the car's slots 50, 65 and 120 and the train's 175 and 193 to 196 (31 "
-                        "detours, part tr1; src/core/automata_trains.cpp)",
+                        "detours, part tr1); the frames: the car's slots 110 and 132, the train's 65, 73, 110, 111, "
+                        "121, 125, 132, 165 and 172, the mass transit train's 165 and 172 (13 detours, part tr2a; "
+                        "src/core/automata_trains.cpp)",
                         false, InstallObject}),
 };
 
