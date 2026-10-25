@@ -10119,6 +10119,734 @@ void TvFingerprint(cISC4City*, std::string& line)
 const FingerprintPart kTvFingerprint{"treeview", 4, &TvFingerprint};
 const DayHook kTvDrive{"treeview", 4, &DriveTreeViewDay};
 
+// ====================================================================================
+// Part u16b: GZWinGrid's registration, text helper and property handler,
+// GZWinCustom's class code and the LEGACY reader's constructor
+// (OPENSC4_TEST_GRID). All called by address (registers checked kept
+// after): the registration with part u13's variable table of our own;
+// the text helper with strings of the game's; the handler on windows and
+// an interface of our own (every slot it calls hashes its number and what
+// it gets; the window's slot 114 keeps the three maps' values until the
+// call is over, then hashes the maps, read by the game's tree code, and
+// destroys them), part u13's values (with a slot 75), the held object of
+// part u15 and the game's font and colour services, both passes;
+// GZWinCustom on windows of the game's; the constructor with a table of
+// our own and with none (the game's COM makes one, which the reader's
+// destructor releases). The inputs keep clear of what the game reads from
+// its stack: the colours' bytes are hashed by their low bytes, every
+// vector with cells has a flag word before them, and a vector whose flag
+// word has 0x40000 has only cells that need no key. Addresses never go
+// into the hash.
+
+bool g_gdOn = false;
+uint32_t g_gdHash = 2166136261u;
+
+void GdStage(const char* name) { log::Write("autotest: grid: %s %08X", name, g_gdHash); }
+
+void DriveGdRegister()
+{
+    void** const tableAt = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *tableAt;
+    Mix(old ? 1u : 0u);
+    void* table[1] = {WrTableTable()};
+    *tableAt = table;
+    const uint32_t before = g_wrAdds;
+    // EAX is the game's free's: not hashed.
+    PmRegs regs = PmRegsOf(0x16161616u, kPmEsi, kPmEdi, 0xA0A0A0A0u, 0xA1A1A1A1u);
+    PmCall(addr::cGZUIScriptWidgets_RegisterGrid, regs);
+    Mix(g_wrAdds - before);
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Handlers, 0xDAA6B9BE));
+    Mix(WrMapFind(addr::cGZUIScriptWidgets_Interfaces, 0xDAA6B9BF));
+    *tableAt = old;
+    GdStage("reg");
+}
+
+// A call with EAX, EBX, ESI and EDI set and ten stack arguments (the text
+// helper's); EAX and the four registers back in the block.
+struct GdRegs {
+    uint32_t eax, ebx, esi, edi;
+    uint32_t args[10];
+    uint32_t outEax, outEbx, outEsi, outEdi, outEbp;
+    std::uintptr_t address;
+};
+
+__declspec(naked) void __cdecl GdCallRaw(GdRegs*)
+{
+    __asm push ebx
+    __asm push esi
+    __asm push edi
+    __asm push ebp
+    __asm mov ebp, [esp + 20]
+    __asm push ebp
+    __asm push dword ptr [ebp + 52]
+    __asm push dword ptr [ebp + 48]
+    __asm push dword ptr [ebp + 44]
+    __asm push dword ptr [ebp + 40]
+    __asm push dword ptr [ebp + 36]
+    __asm push dword ptr [ebp + 32]
+    __asm push dword ptr [ebp + 28]
+    __asm push dword ptr [ebp + 24]
+    __asm push dword ptr [ebp + 20]
+    __asm push dword ptr [ebp + 16]
+    __asm mov eax, [ebp + 0]
+    __asm mov ebx, [ebp + 4]
+    __asm mov esi, [ebp + 8]
+    __asm mov edi, [ebp + 12]
+    __asm call dword ptr [ebp + 76]
+    __asm add esp, 40
+    __asm push eax
+    __asm mov eax, [esp + 4]
+    __asm mov [eax + 60], ebx
+    __asm mov [eax + 64], esi
+    __asm mov [eax + 68], edi
+    __asm mov [eax + 72], ebp
+    __asm pop dword ptr [eax + 56]
+    __asm add esp, 4
+    __asm pop ebp
+    __asm pop edi
+    __asm pop esi
+    __asm pop ebx
+    __asm ret
+}
+
+uint32_t GdCall(std::uintptr_t address, GdRegs& regs)
+{
+    regs.address = address;
+    GdCallRaw(&regs);
+    const bool kept = regs.outEbx == regs.ebx && regs.outEsi == regs.esi && regs.outEdi == regs.edi &&
+                      regs.outEbp == PrArg(&regs);
+    Mix(kept ? 0x4B1u : 0xBAD0u);
+    return regs.outEax;
+}
+
+// A game string (SC4String) with the text.
+void GdString(char* string, const char* text)
+{
+    CallThis<void*>(addr::SC4String_SC4String, string);
+    Virtual<uint32_t>(string, 0xC, text, static_cast<uint32_t>(std::strlen(text)));
+}
+
+void GdEndString(char* string)
+{
+    if (char* const begin = At<char*>(string, 4))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(begin);
+    At<std::uintptr_t>(string, 0) = addr::SC4String_Vtable;
+}
+
+void DriveGdText()
+{
+    const char* const texts[] = {
+        "1,2,0",
+        "3,4,0,1a2b,3c4d",
+        "5,6,40000,literal text",
+        "7,8,1000,k1,k2,Arial,1,2,3,4,5",
+        "9,10,41000,lit,Times,9,8,7,6,5",
+        "11,12,c0000,a,b",
+        " 13 , 14 ,0, a , b ",
+        "1,2,0,a,b,c,d,e,f,g,h,i,j,k",
+        "15,16,101000,x,y,Courier,4294967295,0,255,256,7",
+        "ff,-3,zz,a,b",
+    };
+    for (const char* text : texts) {
+        alignas(4) char cell[0x14];
+        GdString(cell, text);
+        alignas(4) char out[0x14];
+        GdString(out, "old");
+        uint32_t words[9];
+        for (uint32_t i = 0; i < 9; ++i)
+            words[i] = 0xA5A50000u + i;
+        GdRegs regs = {};
+        regs.eax = PrArg(cell);
+        regs.ebx = kPmEbx;
+        regs.esi = kPmEsi;
+        regs.edi = kPmEdi;
+        regs.args[0] = PrArg(&words[0]);
+        regs.args[1] = PrArg(&words[1]);
+        regs.args[2] = PrArg(&words[2]);
+        regs.args[3] = PrArg(out);
+        for (uint32_t i = 4; i < 10; ++i)
+            regs.args[i] = PrArg(&words[i - 1]);
+        MixByte(GdCall(addr::cGZUIScriptWidgets_GridText, regs));
+        for (uint32_t i = 0; i < 9; ++i) {
+            if (i == 3)
+                TvMixFontWord(words[i]);
+            else
+                Mix(words[i]);
+        }
+        PrMixText(out);
+        PrMixText(cell);
+        GdEndString(out);
+        GdEndString(cell);
+    }
+    GdStage("text");
+}
+
+// The values: part u13's slots with slot 75 (the word +8 again).
+__declspec(naked) void GdValue75()
+{
+    __asm lea eax, [ecx + 8]
+    __asm ret
+}
+
+void** GdValueTable()
+{
+    static void* table[76] = {};
+    table[3] = reinterpret_cast<void*>(&WrValueKind);
+    table[55] = reinterpret_cast<void*>(&WrValueText);
+    table[73] = reinterpret_cast<void*>(&WrValue73);
+    table[75] = reinterpret_cast<void*>(&GdValue75);
+    return table;
+}
+
+WrValue GdNumber(uint32_t word) { return {GdValueTable(), 6, word, ""}; }
+WrValue GdText(const char* text) { return {GdValueTable(), 0x800E, 0x7E7E7E7Eu, text}; }
+
+// The interface's window (slot 5): slot 92 and slot 108 (a colour of the
+// three bytes' low bytes; the rest of each is the game's stack's or the
+// window's argument slot's).
+uint32_t __fastcall GdWinSlot92(void*, void*)
+{
+    Mix(0x7E00005Cu);
+    return 0x00E0005Cu;
+}
+
+uint32_t __fastcall GdWinColour(void*, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    Mix(0x7E00006Cu);
+    const uint32_t colour = (a & 0xFF) | (b & 0xFF) << 8 | (c & 0xFF) << 16;
+    Mix(colour);
+    return 0xC0000000u | colour;
+}
+
+void** GdWinTable()
+{
+    static void* table[109] = {};
+    table[92] = reinterpret_cast<void*>(&GdWinSlot92);
+    table[108] = reinterpret_cast<void*>(&GdWinColour);
+    return table;
+}
+
+struct GdWin {
+    void** vtable;
+} g_gdWin{GdWinTable()};
+
+// The interface (IGZWinGrid): AddRef, Release and the slots the handler
+// calls.
+void* __fastcall GdFaceWindow(TvFace*, void*)
+{
+    Mix(0x7F000005u);
+    return &g_gdWin;
+}
+
+uint32_t __fastcall GdFaceFont(TvFace*, void*, void* font)
+{
+    Mix(0x7F00000Fu);
+    TvMixFont(font);
+    return 0x00F0000Fu;
+}
+
+uint32_t __fastcall GdFaceGutters(TvFace*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
+{
+    Mix(0x7F000018u);
+    Mix(a);
+    Mix(b);
+    Mix(c);
+    Mix(d);
+    return 0x00F00018u;
+}
+
+uint32_t __fastcall GdFaceStyle(TvFace*, void*, uint32_t row, uint32_t column, char* style)
+{
+    Mix(0x7F000055u);
+    Mix(row);
+    Mix(column);
+    TvMixFont(At<void*>(style, 0));
+    for (std::size_t offset = 4; offset < 0x24; offset += 4)
+        Mix(At<uint32_t>(style, offset));
+    return 0x00F00055u;
+}
+
+uint32_t __fastcall GdFaceText(TvFace*, void*, uint32_t row, uint32_t column, const char* text, uint32_t length,
+                               uint32_t one, uint32_t flag)
+{
+    Mix(0x7F000070u);
+    Mix(row);
+    Mix(column);
+    Mix(length);
+    for (uint32_t i = 0; text && i < length && i < 64; ++i)
+        Mix(static_cast<uint8_t>(text[i]));
+    Mix(one);
+    Mix(flag);
+    return 0x00F00070u;
+}
+
+uint32_t __fastcall GdFaceImage(TvFace*, void*, uint32_t row, uint32_t column, WrImage* image, uint32_t one)
+{
+    Mix(0x7F000072u);
+    Mix(row);
+    Mix(column);
+    Mix(image ? image->tag : 0xDEADu);
+    Mix(one);
+    return 0x00F00072u;
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall GdSet0(TvFace*, void*)
+{
+    Mix(0x7F000000u | Slot);
+    return 0x00F00000u | Slot;
+}
+
+void** GdFaceTable()
+{
+    static void* table[115] = {};
+    table[1] = reinterpret_cast<void*>(&TvFaceAddRef);
+    table[2] = reinterpret_cast<void*>(&TvFaceRelease);
+    table[5] = reinterpret_cast<void*>(&GdFaceWindow);
+    table[10] = reinterpret_cast<void*>(&TvSet1<10>);
+    table[12] = reinterpret_cast<void*>(&TvSet1<12>);
+    table[15] = reinterpret_cast<void*>(&GdFaceFont);
+    table[17] = reinterpret_cast<void*>(&TvSet1<17>);
+    table[21] = reinterpret_cast<void*>(&TvSet1<21>);
+    table[24] = reinterpret_cast<void*>(&GdFaceGutters);
+    table[27] = reinterpret_cast<void*>(&TvSet2<27>);
+    table[39] = reinterpret_cast<void*>(&TvSet2<39>);
+    table[58] = reinterpret_cast<void*>(&TvSet2<58>);
+    table[60] = reinterpret_cast<void*>(&TvSet1<60>);
+    table[64] = reinterpret_cast<void*>(&TvSet1<64>);
+    table[65] = reinterpret_cast<void*>(&TvSet3<65>);
+    table[66] = reinterpret_cast<void*>(&TvSet1<66>);
+    table[67] = reinterpret_cast<void*>(&TvSet3<67>);
+    table[74] = reinterpret_cast<void*>(&TvSet2<74>);
+    table[76] = reinterpret_cast<void*>(&TvSet2<76>);
+    table[85] = reinterpret_cast<void*>(&GdFaceStyle);
+    table[112] = reinterpret_cast<void*>(&GdFaceText);
+    table[114] = reinterpret_cast<void*>(&GdFaceImage);
+    return table;
+}
+
+// The window's slot 114: the three maps' values kept (the handler goes on
+// using the maps) until the call is over; others part u12's.
+struct GdPut {
+    uint32_t key;
+    char* value;
+};
+
+GdPut g_gdPuts[8] = {};
+uint32_t g_gdPutCount = 0;
+
+uint32_t __fastcall GdWinPut(WrWindow* self, void* edx, uint32_t key, char* value)
+{
+    Mix(self->mode);
+    if (key == 0x287A7136u || key == 0xC88CCB6Du || key == 0xC88CCB6Eu) {
+        Mix(0x114B00u);
+        Mix(key);
+        if (value && g_gdPutCount < std::size(g_gdPuts))
+            g_gdPuts[g_gdPutCount++] = {key, value};
+        else
+            Mix(0xDEADu);
+        return 0x00C114B0u;
+    }
+    return PmWindowPut(self, edx, key, value);
+}
+
+void** GdWindowTable()
+{
+    static void* table[115] = {};
+    table[0] = reinterpret_cast<void*>(&WrWindowQuery);
+    table[114] = reinterpret_cast<void*>(&GdWinPut);
+    return table;
+}
+
+// A grid map (0x24 bytes): its count +0xC, its bounds and byte, then the
+// outer tree (a node's key +0x10, a word +0x14, the inner map +0x18) and
+// each inner tree (a node's key +0x10, the value +0x18: a cell's record or
+// three words).
+void GdMixMap(char* map, bool cells)
+{
+    Mix(map ? 1u : 0u);
+    if (!map)
+        return;
+    for (std::size_t offset = 0xC; offset < 0x20; offset += 4)
+        Mix(At<uint32_t>(map, offset));
+    Mix(At<uint8_t>(map, 0x20));
+    char* const header = At<char*>(map, 0);
+    uint32_t outer = 0;
+    for (char* node = At<char*>(header, 8); node != header && outer < 64; node = TreeNext(node), ++outer) {
+        Mix(At<uint32_t>(node, 0x10));
+        Mix(At<uint32_t>(node, 0x14));
+        char* const inner = At<char*>(node, 0x18);
+        uint32_t count = 0;
+        for (char* leaf = At<char*>(inner, 8); leaf != inner && count < 64; leaf = TreeNext(leaf), ++count) {
+            Mix(At<uint32_t>(leaf, 0x10));
+            char* const value = leaf + 0x18;
+            if (cells) {
+                for (std::size_t offset = 0; offset < 0xC; offset += 4)
+                    Mix(At<uint32_t>(value, offset));
+                PrMixText(value + 0xC);
+                for (std::size_t offset = 0x20; offset < 0x38; offset += 4)
+                    Mix(At<uint32_t>(value, offset));
+            } else {
+                for (std::size_t offset = 0; offset < 0xC; offset += 4)
+                    Mix(At<uint32_t>(value, offset));
+            }
+        }
+        Mix(count);
+    }
+    Mix(outer);
+}
+
+// The kept values: each a number holding the holder (kind 0x10, the
+// holder at +4: its vtable, count and byte, its map); destroyed (slot 127),
+// which releases the holder and with it the map.
+void GdFlushPuts()
+{
+    const std::uintptr_t vtables[3] = {addr::cGZUIScriptWidgets_GridCellsVtable, addr::cGZUIScriptWidgets_GridColumnsVtable,
+                                       addr::cGZUIScriptWidgets_GridRowsVtable};
+    for (uint32_t i = 0; i < g_gdPutCount; ++i) {
+        char* const value = g_gdPuts[i].value;
+        Mix(g_gdPuts[i].key);
+        Mix(At<uint16_t>(value, 0xE));
+        char* const holder = At<uint16_t>(value, 0xE) == 0x10 ? At<char*>(value, 4) : nullptr;
+        Mix(holder ? 1u : 0u);
+        if (holder) {
+            uint32_t which = 0xFF;
+            for (uint32_t v = 0; v < 3; ++v) {
+                if (At<std::uintptr_t>(holder, 0) == vtables[v])
+                    which = v;
+            }
+            Mix(which);
+            Mix(At<uint32_t>(holder, 8));
+            Mix(At<uint8_t>(holder, 0xC));
+            GdMixMap(At<char*>(holder, 4), which == 0);
+        }
+        Virtual<void>(value, 0x1FC, 1u);
+    }
+    g_gdPutCount = 0;
+}
+
+// One call of the handler: its EAX and argument slots after (the raw pass
+// clears the first's low byte and writes it), then the kept maps. The
+// game's set pass with a text colour 0x1601 found returns with EBX, ESI
+// and EDI not kept (its window's slot 108 is pushed a fourth argument it
+// does not pop, which its pops then take; ours keeps them): for those
+// calls whether they were kept is not hashed.
+void GdRead(WrWindow& window, WrPair* pairs, std::size_t count, uint32_t set, bool colour = false)
+{
+    char* vector[3] = {reinterpret_cast<char*>(pairs), reinterpret_cast<char*>(pairs + count), nullptr};
+    PmRegs regs = PmRegsOf(0x2B2B2B2Bu, kPmEsi, kPmEdi, PrArg(&window), PrArg(vector));
+    regs.args[2] = set;
+    if (colour && (set & 0xFF) && window.mode == 1) {
+        regs.address = addr::cGZUIScriptWidgets_GridRead;
+        PmCallRaw(&regs);
+        Mix(regs.outEbp == PrArg(&regs) ? 0x4B2u : 0xBAD2u);
+        Mix(regs.outEax);
+    } else {
+        Mix(PmCall(addr::cGZUIScriptWidgets_GridRead, regs));
+    }
+    if (set & 0xFF) {
+        Mix(regs.args[0] == PrArg(&window) ? 0x77DDu : 0xBAD0u);
+    } else {
+        Mix((regs.args[0] & ~0xFFu) == (PrArg(&window) & ~0xFFu) ? 0x77DCu : 0xBAD0u);
+        MixByte(regs.args[0]);
+    }
+    Mix(regs.args[1] == PrArg(vector) ? 0x77DEu : 0xBAD1u);
+    Mix(regs.args[2]);
+    GdFlushPuts();
+}
+
+void DriveGdRead()
+{
+    void* holder = nullptr;
+    CallThis<void*>(addr::SC4RefPtr_UIScriptLoader, &holder);
+    Mix(holder ? 1u : 0u);
+    void* const fonts = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C72)();
+    void* const colours = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C1A)();
+    Mix(fonts ? 1u : 0u);
+    Mix(colours ? 1u : 0u);
+    if (!holder || !fonts || !colours) {
+        GdStage("read");
+        return;
+    }
+    for (uint32_t i = 0; i < 3; ++i)
+        g_fbFonts[i] = Virtual<void*>(fonts, 0x14, kFbFontWords[i]);
+    void* const old = Virtual<void*>(holder, 0x24);
+    if (old)
+        Virtual<uint32_t>(old, 4);
+    PmHeld held = {OgHeldTable(), 0};
+    Virtual<uint32_t>(holder, 0x28, static_cast<void*>(&held));
+    g_wrImages[0] = {WrImageTable(), 0xE0, 0};
+    g_wrImages[1] = {WrImageTable(), 0xE1, 0};
+
+    TvFace face = {GdFaceTable(), 1, 0, 0};
+    WrWindow windows[3] = {{GdWindowTable(), 0, &face}, {GdWindowTable(), 1, &face}, {GdWindowTable(), 2, &face}};
+
+    WrValue n0 = GdNumber(0), n1 = GdNumber(1), n2 = GdNumber(2), n5 = GdNumber(5), n7 = GdNumber(7),
+            n40 = GdNumber(40), nBig = GdNumber(0xFFFFFFFFu), nKey = GdNumber(0x40000), nFont0 = GdNumber(kFbFontWords[0]),
+            other = {GdValueTable(), 9, 1, "(1,2,3)"};
+    WrValue c1 = GdText("(1,2,3)"), c2 = GdText("(255,128,0)"), c3 = GdText("(300,-1,256)"), cShort = GdText("(4,5)"),
+            rect = GdText("(1,2,3,4)"), rectShort = GdText("(1,2)"), fontText = GdText("Some Font");
+    // Cells: a key, an image (even instance) and none (odd), a text (odd
+    // instance) and none (even), literals, styles, a short one, a repeat.
+    WrValue k1 = GdText("1,2,0,0000a1a2,0000b1b2"), k2 = GdText("2,3,2000,0000d0d0,00000002"),
+            k3 = GdText("2,4,2000,0000d0d0,00000003"), k4 = GdText("3,4,10000,00001234,00000005"),
+            k5 = GdText("3,5,90000,00001234,00000006"), k6 = GdText("4,5,c0000,Literal"),
+            k7 = GdText("5,6,101000,00000001,00000002,Arial,0,7,8,9,10"),
+            k8 = GdText("6,7,1000,00000001,00000002,Courier,1,255,256,3,4"), k9 = GdText("bad"),
+            k10 = GdText("1,2,0,00000003,00000004"), k11 = GdText("7,0,42000,Lit,Times,2,3,4,5,6");
+    WrValue col1 = GdText("1,30,4"), col2 = GdText("2,40"), col3 = GdText("x"), col4 = GdText("-1,-2,-3"),
+            row1 = GdText("0,3,20"), row2 = GdText("5,5,7"), row3 = GdText("2,1,5");
+    WrPair full[] = {
+        {0x1601, &c1},    {0xF000, &nFont0}, {0x1602, &n2},   {0x1603, &n1},    {0xF004, &rect},  {0x1605, &n1},
+        {0x1606, &n5},    {0x1616, &n1},     {0x1604, &c2},   {0x1607, &n40},   {0x1608, &n7},    {0x1609, &n1},
+        {0x160A, &n5},    {0x160B, &n7},     {0x160C, &n1},   {0x160F, &n0},    {0x1610, &n1},    {0x161F, &n0},
+        {0x1622, &n1},    {0x1625, &k1},     {0x1625, &k2},   {0x1625, &k3},    {0x1625, &k4},    {0x1625, &k5},
+        {0x1625, &k6},    {0x1625, &k7},     {0x1625, &k8},   {0x1625, &k9},    {0x1625, &n1},    {0x1625, &k10},
+        {0x1626, &col1},  {0x1626, &col2},   {0x1626, &col3}, {0x1626, &col4},  {0x1627, &row1},  {0x1627, &row2},
+        {0x1601, &other},
+    };
+    WrPair second[] = {
+        {0xF000, &fontText}, {0x1603, &n0},  {0xF004, &rectShort}, {0x1609, &n2},   {0x1616, &n2},  {0x1604, &c3},
+        {0x1621, &n1},       {0x1622, &nKey}, {0x1625, &k6},       {0x1625, &k11},  {0x1625, &k9},  {0x1627, &row3},
+        {0x1606, &nBig},     {0x1601, &cShort},
+    };
+    WrPair third[] = {{0x1609, &n7}, {0x160F, &n1}, {0x1602, &other}, {0x1626, &col1}};
+    // Every flag key, on and off by turns (0x160F off in the first).
+    WrPair flags[23];
+    WrPair flagsOff[23];
+    for (uint32_t i = 0; i < 23; ++i) {
+        flags[i] = {0x160Cu + i, (i & 1) ? &n0 : &n1};
+        flagsOff[i] = {0x160Cu + i, (i & 1) ? &n1 : &n0};
+    }
+    WrPair raw[] = {{0x1623, &c1}, {0x1624, &c3}, {0x1625, &k1}};
+    WrPair rawSecond[] = {{0x1624, &c2}, {0x1623, &cShort}};
+
+    for (WrWindow& window : windows) {
+        for (uint32_t set : {1u, 0xFFFFFF01u}) {
+            GdRead(window, full, std::size(full), set, true);
+            GdRead(window, second, std::size(second), set, true);
+            GdRead(window, third, std::size(third), set);
+            GdRead(window, flags, std::size(flags), set);
+            GdRead(window, flagsOff, std::size(flagsOff), set);
+            GdRead(window, full, 0, set);
+        }
+        for (uint32_t set : {0u, 0x100u}) {
+            GdRead(window, raw, std::size(raw), set);
+            GdRead(window, rawSecond, std::size(rawSecond), set);
+            GdRead(window, raw, 0, set);
+        }
+    }
+    Mix(face.count);
+    Mix(g_wrImages[0].count);
+    Mix(g_wrImages[1].count);
+    Mix(held.count);
+
+    Virtual<uint32_t>(holder, 0x28, old);
+    if (old)
+        Virtual<uint32_t>(old, 8);
+    CallThis<uint32_t>(addr::SC4RefPtr_Destruct, &holder);
+    GdStage("read");
+}
+
+// GZWinCustom: a message target and a drawing surface of our own (the
+// window's +0x48 and +0x6C set for the calls and put back after).
+uint32_t __fastcall GdTargetMessage(void*, void*, const uint32_t* message)
+{
+    Mix(0x7A03u);
+    Mix(message[0]);
+    Mix(message[1]);
+    Mix(message[2]);
+    return 0x00AB0001u;
+}
+
+uint32_t __fastcall GdSurface21(void*, void*, uint32_t value)
+{
+    Mix(0x5F15u);
+    Mix(value);
+    return 0x00AB0015u;
+}
+
+char* g_gdCustom = nullptr;
+
+uint32_t __fastcall GdSurface35(void*, void*, char* area)
+{
+    Mix(0x5F23u);
+    Mix(area == g_gdCustom + 0x24 ? 0x24u : 0xBADu);
+    return 0x00AB0023u;
+}
+
+void** GdOtherTable()
+{
+    static void* table[36] = {};
+    table[3] = reinterpret_cast<void*>(&GdTargetMessage);
+    table[21] = reinterpret_cast<void*>(&GdSurface21);
+    table[35] = reinterpret_cast<void*>(&GdSurface35);
+    return table;
+}
+
+void GdMixCustom(char* window)
+{
+    Mix(At<std::uintptr_t>(window, 0) == addr::cGZUIScript478D1E6F_Vtable ? 0xC1u : 0xC0u);
+    Mix(At<std::uintptr_t>(window, 0xD8) == addr::cGZUIScript478D1E6F_FaceVtable ? 0xF1u : 0xF0u);
+}
+
+void DriveGdCustom()
+{
+    struct {
+        void** vtable;
+    } other{GdOtherTable()};
+    char* const window = static_cast<char*>(New(0xDC));
+    g_gdCustom = window;
+    MixIs(CallThis<char*>(addr::cGZUIScript478D1E6F_Construct, window), window);
+    GdMixCustom(window);
+    Mix(Virtual<uint32_t>(window, 4));
+    // QueryInterface: IGZWinCustom without and with an out, IGZWin, another.
+    Mix(CallThis<uint32_t>(addr::cGZUIScript478D1E6F_QueryInterface, window, 0x678D1E84u, static_cast<void**>(nullptr)));
+    void* out = nullptr;
+    Mix(CallThis<uint32_t>(addr::cGZUIScript478D1E6F_QueryInterface, window, 0x678D1E84u, &out));
+    MixIs(out, window + 0xD8);
+    Mix(Virtual<uint32_t>(window, 8));
+    out = nullptr;
+    MixByte(CallThis<uint32_t>(addr::cGZUIScript478D1E6F_QueryInterface, window, 0x22BA0121u, &out));
+    MixIs(out, window);
+    if (out)
+        Mix(Virtual<uint32_t>(window, 8));
+    out = nullptr;
+    MixByte(CallThis<uint32_t>(addr::cGZUIScript478D1E6F_QueryInterface, window, 0x7E57A11Bu, &out));
+    MixIs(out, nullptr);
+    // Messages, without a target and with ours, the window's slots 43 and
+    // 44 (+0xA8 and +0xAC) set for them and put back after.
+    const uint32_t place[2] = {At<uint32_t>(window, 0xA8), At<uint32_t>(window, 0xAC)};
+    At<uint32_t>(window, 0xA8) = 17;
+    At<uint32_t>(window, 0xAC) = 0x2300;
+    void* const target = At<void*>(window, 0x48);
+    Mix(target ? 1u : 0u);
+    for (uint32_t pass = 0; pass < 2; ++pass) {
+        if (pass)
+            At<void*>(window, 0x48) = &other;
+        for (uint32_t kind : {7u, 0xAu, 0xDu, 3u, 8u}) {
+            uint32_t message[4] = {kind, 100, 200, 0x55};
+            Mix(CallThis<uint32_t>(addr::cGZUIScript478D1E6F_OnMessage, window, static_cast<void*>(message)));
+            Mix(message[1]);
+            Mix(message[2]);
+            Mix(message[3]);
+        }
+    }
+    At<void*>(window, 0x48) = target;
+    At<uint32_t>(window, 0xA8) = place[0];
+    At<uint32_t>(window, 0xAC) = place[1];
+    // Draw, with our surface.
+    void* const surface = At<void*>(window, 0x6C);
+    At<void*>(window, 0x6C) = &other;
+    Mix(CallThis<uint32_t>(addr::cGZUIScript478D1E6F_Draw, window));
+    At<void*>(window, 0x6C) = surface;
+    // The destructor (then freed), the deleting destructor with 0 and 1.
+    CallThis<uint32_t>(addr::cGZUIScript478D1E6F_Destruct, window);
+    GdMixCustom(window);
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(window);
+    char* const second = static_cast<char*>(New(0xDC));
+    CallThis<char*>(addr::cGZUIScript478D1E6F_Construct, second);
+    MixIs(CallThis<char*>(addr::cGZUIScript478D1E6F_DeletingDestructor, second, 0u), second);
+    GdMixCustom(second);
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(second);
+    char* const third = static_cast<char*>(New(0xDC));
+    CallThis<char*>(addr::cGZUIScript478D1E6F_Construct, third);
+    MixIs(CallThis<char*>(addr::cGZUIScript478D1E6F_DeletingDestructor, third, 1u), third);
+    g_gdCustom = nullptr;
+    GdStage("custom");
+}
+
+// The LEGACY reader's constructor: with a table of our own (held), then
+// with none (the game's COM makes one and the registrations fill it; the
+// reader's destructor releases it, which forgets it).
+uint32_t g_gdTableCount = 0;
+
+uint32_t __fastcall GdTableAddRef(void*, void*)
+{
+    Mix(0x7AB1u);
+    return ++g_gdTableCount;
+}
+
+uint32_t __fastcall GdTableRelease(void*, void*)
+{
+    Mix(0x7AB2u);
+    return --g_gdTableCount;
+}
+
+void** GdTableTable()
+{
+    static void* table[3] = {};
+    table[1] = reinterpret_cast<void*>(&GdTableAddRef);
+    table[2] = reinterpret_cast<void*>(&GdTableRelease);
+    return table;
+}
+
+void GdMixReader(char* reader)
+{
+    Mix(At<std::uintptr_t>(reader, 0) == addr::cGZUIScriptLegacy_Vtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(reader, 4) == addr::cGZUIScriptLegacy_ChildVtable ? 1u : 0u);
+    Mix(At<std::uintptr_t>(reader, 8) == addr::cGZUIScriptLegacy_WindowVtable ? 1u : 0u);
+    for (std::size_t offset = 0xC; offset < 0x1C; offset += 4)
+        Mix(At<uint32_t>(reader, offset));
+    Mix(At<uint8_t>(reader, 0x1C));
+}
+
+void DriveGdLegacy()
+{
+    void** const tableAt = reinterpret_cast<void**>(addr::cGZUIScriptLegacy_Table);
+    void* const old = *tableAt;
+    Mix(old ? 1u : 0u);
+    struct {
+        void** vtable;
+    } table{GdTableTable()};
+    *tableAt = &table;
+    alignas(4) char reader[0x20];
+    std::memset(reader, 0xCD, sizeof reader);
+    MixIs(CallThis<char*>(addr::cGZUIScriptLegacy_Construct, reader), reader);
+    GdMixReader(reader);
+    Mix(g_gdTableCount);
+    MixIs(*tableAt, &table);
+    *tableAt = nullptr;
+    std::memset(reader, 0xCD, sizeof reader);
+    MixIs(CallThis<char*>(addr::cGZUIScriptLegacy_Construct, reader), reader);
+    GdMixReader(reader);
+    Mix(*tableAt ? 1u : 0u);
+    CallThis<uint32_t>(addr::cGZUIScriptLegacy_Destruct, reader);
+    Mix(*tableAt ? 1u : 0u);
+    *tableAt = old;
+    GdStage("ctor");
+}
+
+// OPENSC4_TEST_GRID=<day>: part u16b by address. Every result goes into
+// the fingerprint's `gd` part.
+void DriveGridDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_GRID") || !game::IsBuild641())
+        return;
+    g_gdOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_gdHash;
+    DriveGdRegister();
+    DriveGdText();
+    DriveGdRead();
+    DriveGdCustom();
+    DriveGdLegacy();
+    g_into = saved;
+    log::Write("autotest: grid driven (hash %08X)", g_gdHash);
+}
+
+void GdFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_gdOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | gd %08X", g_gdHash);
+    line += text;
+}
+
+const FingerprintPart kGdFingerprint{"grid", 4, &GdFingerprint};
+const DayHook kGdDrive{"grid", 4, &DriveGridDay};
+
 
 
 // Part u12, slice 3: the property handlers and the variable table's words

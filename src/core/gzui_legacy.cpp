@@ -17,6 +17,8 @@
 //                                Release, destructors, the variable table's
 //                                getter, the setters and the calls it
 //                                passes to its window
+//   framework.uiscript.legacyctor  the LEGACY reader's constructor 0x0095B8C4
+//                                (part u16b)
 //
 // Still the game's: the adjustors 0x0094C0DC, 0x0094C0E4 and 0x0094C4B8 to
 // 0x0094C4D8 (each a jump into one of ours), the root holder's interim
@@ -426,6 +428,57 @@ uint32_t __fastcall LgWindow47(char* face, void*, uint32_t argument)
 }
 
 // ====================================================================================
+// The LEGACY reader's constructor (part u16b)
+
+// The words and the widget classes' registrations the first reader's
+// constructor calls once it has made the variable table, in its order.
+const std::uintptr_t kLgRegistrations[] = {
+    addr::cGZUIScriptProps_AddWords,              addr::cGZUIScriptWidgets_RegisterFlatRect,
+    addr::cGZUIScriptWidgets_RegisterText,        addr::cGZUIScriptWidgets_RegisterTextEdit,
+    addr::cGZUIScriptWidgets_RegisterListBox,     addr::cGZUIScriptWidgets_RegisterCombo,
+    addr::cGZUIScriptWidgets_RegisterBtn,         addr::cGZUIScriptWidgets_RegisterBMP,
+    addr::cGZUIScriptWidgets_RegisterSlider,      addr::cGZUIScriptWidgets_RegisterScrollbar,
+    addr::cGZUIScriptWidgets_RegisterLineInput,   addr::cGZUIScriptWidgets_RegisterOptGrp,
+    addr::cGZUIScriptWidgets_RegisterSpinner,     addr::cGZUIScriptWidgets_RegisterOutline,
+    addr::cGZUIScriptWidgets_RegisterTextTicker,  addr::cGZUIScriptWidgets_RegisterFileBrowser,
+    addr::cGZUIScriptWidgets_RegisterTreeView,    addr::cGZUIScriptWidgets_RegisterFolders,
+    addr::cGZUIScriptWidgets_RegisterGrid,        addr::cGZUIScriptWidgets_RegisterCustom,
+    addr::cGZUIScriptWidgets_RegisterGen,
+};
+
+// The game's 0x0095B8C4 (the factory 0x0094AF90 jumps to it): the interim
+// face vtables 0x00AD53B0 and 0x00AD53CC, then the reader's three, the
+// fields zero. With a variable table it is held (slot 1); without, the
+// COM's slot 3 makes one (0xBA2E7954, 0x1A2BDEBB) into 0x00B63588 and,
+// when it did, the 21 calls (by address; ours when their groups are on)
+// put the words and classes in. `this` answered.
+void* __fastcall LgConstruct(char* self, void*)
+{
+    OPENSC4_FIRST("LgConstruct");
+    At<std::uintptr_t>(self, 4) = addr::cGZUIScriptLegacy_InterimChildVtable;
+    At<std::uintptr_t>(self, 8) = addr::cGZUIScriptLegacy_InterimWindowVtable;
+    At<std::uintptr_t>(self, 0) = addr::cGZUIScriptLegacy_Vtable;
+    At<std::uintptr_t>(self, 4) = addr::cGZUIScriptLegacy_ChildVtable;
+    At<std::uintptr_t>(self, 8) = addr::cGZUIScriptLegacy_WindowVtable;
+    At<uint32_t>(self, kLgCount) = 0;
+    At<void*>(self, kLgWindow) = nullptr;
+    At<void*>(self, kLgValue) = nullptr;
+    At<void*>(self, kLgObject) = nullptr;
+    At<uint8_t>(self, kLgFlag) = 0;
+    if (void* const table = LgTable()) {
+        AddRef(table);
+        return self;
+    }
+    void* const com = CallCdecl<void*>(addr::RZGetCOM);
+    Virtual<uint32_t>(com, 0xC, 0xBA2E7954u, 0x1A2BDEBBu, &LgTable());
+    if (LgTable()) {
+        for (const std::uintptr_t registration : kLgRegistrations)
+            CallCdecl<uint32_t>(registration);
+    }
+    return self;
+}
+
+// ====================================================================================
 // Install
 
 OPENSC4_THUNK(VectorPushThunk, VectorPush, 4)
@@ -449,6 +502,7 @@ OPENSC4_THUNK(LgWindow63Thunk, LgWindow63, 0)
 OPENSC4_THUNK(LgWindow64Thunk, LgWindow64, 4)
 OPENSC4_THUNK(LgWindow54Thunk, LgWindow54, 4)
 OPENSC4_THUNK(LgWindow47Thunk, LgWindow47, 4)
+OPENSC4_THUNK(LgConstructThunk, LgConstruct, 0)
 
 struct Detour {
     std::uintptr_t address;
@@ -504,6 +558,14 @@ bool InstallLegacy(registry::Mode)
     return InstallAll(detours);
 }
 
+bool InstallLegacyConstruct(registry::Mode)
+{
+    const Detour detours[] = {
+        {addr::cGZUIScriptLegacy_Construct, &LgConstructThunk},
+    };
+    return InstallAll(detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"framework.uiscript.rootlife", "framework/uiscript", registry::Kind::Detour,
                         registry::Phase::Attach, addr::cGZUIScriptRoot_Add,
@@ -516,6 +578,12 @@ const bool g_registered[] = {
                         "table's getter, the setters and the calls to its window (14 detours; part u11, "
                         "docs/gzui.md)",
                         false, InstallLegacy}),
+    registry::Register({"framework.uiscript.legacyctor", "framework/uiscript", registry::Kind::Detour,
+                        registry::Phase::Attach, addr::cGZUIScriptLegacy_Construct,
+                        "Our LEGACY reader 0xFA450242's constructor: its vtables and fields, the shared variable "
+                        "table held or made, with the words and the 20 widget classes' registrations put in (1 "
+                        "detour; part u16b, docs/gzui.md)",
+                        false, InstallLegacyConstruct}),
 };
 
 } // namespace

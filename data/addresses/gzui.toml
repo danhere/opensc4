@@ -4622,7 +4622,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "53 33 DB 56 8B F1 C7 46"
-source = "Name ours. The constructor of the LEGACY reader 0xFA450242 (0x20 bytes): once, the variable table 0xBA2E7954 at 0x00B63588 made and every widget reader's words added (21 calls). Stays the game's; called by ours."
+source = "Name ours. The constructor of the LEGACY reader 0xFA450242 (0x20 bytes): once, the variable table 0xBA2E7954 at 0x00B63588 made and every widget reader's words added (21 calls: the words 0x0094D641 and 20 classes' registrations). Ours in framework.uiscript.legacyctor (docs/gzui.md, part u16b)."
 
 [[entry]]
 name = "cGZUIScript478D1E6F::Construct"
@@ -4631,7 +4631,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "56 8B F1 E8 7D 1E 04 00"
-source = "Name ours. The constructor of the class 0x478D1E6F (0xDC bytes). Stays the game's; called by ours."
+source = "Name ours. The constructor of GZWinCustom 0x478D1E6F (0xDC bytes): GZWin::Construct, the interim interface vtable 0x00AD6CFC then 0x00AD6A8C at +0xD8, the vtable 0x00AD6AA0. Ours in framework.uiscript.custom (docs/gzui.md, part u16b)."
 
 [[entry]]
 name = "SC4PtrList::PopFront"
@@ -6337,3 +6337,390 @@ address = 0x00AD6700
 kind = "data"
 expect = "52 6F 6F 74 00"
 source = "Name ours. Root, the name GZWinTreeView's handler 0x009586B0 builds its tree from (node 0)."
+
+# Part u16b (src/core/gzui_widgets2.cpp, src/core/gzui_legacy.cpp, docs/gzui.md): GZWinGrid's registration,
+# property handler and text helper, GZWinCustom's class code, the LEGACY reader's constructor's vtables, the
+# STLport code of the grid's maps (the game's) and the words the handler reads.
+
+[[entry]]
+name = "cGZUIScriptWidgets::RegisterGrid"
+address = 0x0095B021
+kind = "function"
+convention = "cdecl"
+signature = "void ()"
+expect = "55 8B EC 83 EC 24 A1 88"
+source = "Name ours. Called (void) by the LEGACY reader's constructor 0x0095B8C4 when it makes the shared variable table: GZWinGrid and IGZWinGrid into the table (its slot 3 with a string from SC4String::FromText), the class's handler 0x0095A250 under its interface 0xDAA6B9BE (0x0094950A into 0x00B6358C) and its interface under the class 0xDAA6B9BF (0x004FB6C0 into 0x00B63598), then its 39 property words (0x1601 fontcolor to 0x1624 rowgridclr, then wingridcell 0x1625, wingridrow 0x1627, wingridcol 0x1626). Ours in framework.uiscript.grid (docs/gzui.md, part u16b)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridRead"
+address = 0x0095A250
+kind = "function"
+convention = "cdecl"
+signature = "void (cIGZWin* window, void* properties, bool set)"
+expect = "55 8D 6C 24 94 81 EC F8"
+source = "Name ours. GZWinGrid's property handler (0x00B6358C under 0xDAA6B9BE; the dispatcher 0x00957A9B calls it with the byte 1, then 0). The window's IGZWinGrid (QueryInterface 0xDAA6B9BE). With the byte set: the text colour 0x1601 (the window's slot 108 for slot 17), the font 0xF000 (a number: slot 15 and 0x0094C222; a text: 0x0094C255; else slot 15 with font 0x68963C4C), 0x1602 (slot 60), 0x1603 (slot 21), the rectangle 0xF004 (slot 24, else zeros), 0x1605/0x1606 (slot 39; 2 and 1), the outline 0x1616 and 0x1604 (slot 27), 0x1607 (slot 64; 100), 0x1608 (slot 66; 20), the headers 0x1609 (slot 74), 0x160A/0x160B (slot 76), 23 flags 0x160C to 0x1622 (slot 10 on, 12 off; masks 0, 1, 2 to 0x80000, 0x19BFF, -1; 0x160F off also the window's slot 92); then the cells 0x1625 (the text helper 0x00956464; a map 0x009ABB63 put under 0x287A7136; slots 112, 114 and 85; 0x0095A0F3), the columns 0x1626 (%d,%d,%d: 0x009583C5, slot 65; map under 0xC88CCB6D) and the rows 0x1627 (0x009584E0, slot 67; map under 0xC88CCB6E). With it clear: the colours 0x1623 and 0x1624 (the window's slot 108, the window's argument slot the third byte's place) for slot 58. The interface released, its EAX answered. Ours in framework.uiscript.gridread (docs/gzui.md, part u16b)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridText"
+address = 0x00956464
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t* row, uint32_t* column, uint32_t* flags, SC4String* text, uint32_t* font, uint32_t* a, uint32_t* b, uint32_t* c, uint32_t* d, uint32_t* e)"
+expect = "55 8B EC 81 EC E0 00 00"
+source = "Name ours. cdecl with the cell's text (a string) in EAX. The text split at commas into 11 strings (SC4::SplitText); with 4 or more: the row and column (TextToUint32), the flags (TextToInt); with the flags' 0x40000 the fourth part assigned to the string, else the fourth and fifth printed into it as %s,%s; with 0x1000 the next part a font's word by name (the font service's slot 38) and the five after it numbers. AL 1 over the strings' destroy (0x0041D3C0); AL 0 with fewer than 4. Ours in framework.uiscript.gridread (docs/gzui.md, part u16b)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellConstruct"
+address = 0x0094D490
+kind = "function"
+convention = "thiscall"
+signature = "void* ()"
+expect = "53 56 8B F1 33 DB 8D 4E"
+source = "Name ours. A grid cell's record (0x38 bytes): three words, a string at +0xC, six words from +0x20, all zero. Called by GZWinGrid's handler 0x0095A250; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridMapConstruct"
+address = 0x009ABB63
+kind = "function"
+convention = "thiscall"
+signature = "void* ()"
+expect = "56 8B F1 E8 27 FE FF FF"
+source = "Name ours. A grid's map (0x24 bytes: the tree 0x009AB992, the count +0xC, the bounds +0x10 to +0x1C 0x80000001/0x7FFFFFFF, a byte +0x20). Called by GZWinGrid's handler 0x0095A250; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridStyleConstruct"
+address = 0x009A5BF2
+kind = "function"
+convention = "thiscall"
+signature = "void* ()"
+expect = "8B C1 33 C9 89 08 88 48"
+source = "Name ours. A grid cell's style (0x24 bytes: the font +0 zero, six words 0x40000000, the bytes +0x1C 0xFF and +0x1D to +0x1F zero, +0x20 0x40000000). Called by GZWinGrid's handler 0x0095A250; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridColumnSet"
+address = 0x009583C5
+kind = "function"
+convention = "thiscall"
+signature = "bool (int32_t first, int32_t second, const void* value, void* old)"
+expect = "55 8B EC 83 EC 48 53 56"
+source = "Name ours. `ret 0x10`: a 12-byte value set in a grid's map under (second, first) within its bounds (the old one copied out when asked). Called for the columns 0x1626 as (column, 0). Called by GZWinGrid's handler 0x0095A250; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridRowSet"
+address = 0x009584E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (int32_t first, int32_t second, const void* value, void* old)"
+expect = "55 8B EC 83 EC 48 53 56"
+source = "Name ours. `ret 0x10`: as 0x009583C5, called for the rows 0x1627 as (0, row). Called by GZWinGrid's handler 0x0095A250; stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellSet"
+address = 0x0095A0F3
+kind = "function"
+convention = "thiscall"
+signature = "bool (int32_t row, int32_t column, const void* cell, void* old)"
+expect = "55 8D 6C 24 98 81 EC A0"
+source = "Name ours. `ret 0x10`: a cell's record (0x38 bytes) set in the cells' map under (column, row) within its bounds, the count up for a new one. Called by GZWinGrid's handler 0x0095A250; stays the game's."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::Destruct"
+address = 0x0095B9A1
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "56 8B F1 C7 06 A0 6A AD"
+source = "Name ours. GZWinCustom's destructor: the vtables 0x00AD6AA0 and 0x00AD6A8C (+0xD8), 0x0099D2FE, a tail jump to GZWin::Destruct. Ours in framework.uiscript.custom (docs/gzui.md, part u16b)."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::QueryInterface"
+address = 0x0095B9C1
+kind = "function"
+convention = "thiscall"
+signature = "bool (uint32_t iid, void** out)"
+expect = "81 7C 24 04 84 1E 8D 67"
+source = "Name ours. GZWinCustom's slot 0 (also through 0x0095BA76), `ret 8`: IGZWinCustom 0x678D1E84 gives +0xD8 (0 for null; AL 0 and EAX 0 for no out), AddRef, AL 1 over its EAX; else a tail jump to SC4Win::QueryInterface. Ours in framework.uiscript.custom (docs/gzui.md, part u16b)."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::OnMessage"
+address = 0x0095B9F8
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* message)"
+expect = "56 8B 74 24 08 8B 06 83"
+source = "Name ours. GZWinCustom's slot 3, `ret 4`: for messages 7, 0xA and 0xD the window's slots 43 and 44 added to the message's +4 and +8; then the target +0x48's slot 3 with the message (AL 0 without one). Ours in framework.uiscript.custom (docs/gzui.md, part u16b)."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::Draw"
+address = 0x0095BA43
+kind = "function"
+convention = "thiscall"
+signature = "bool ()"
+expect = "56 8B F1 8B 46 6C 57 8B"
+source = "Name ours. GZWinCustom's slot 88: the surface +0x6C's slot 21 with the window's slot 126, then its slot 35 with +0x24; AL 1. Ours in framework.uiscript.custom (docs/gzui.md, part u16b)."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::DeletingDestructor"
+address = 0x0095BA97
+kind = "function"
+convention = "thiscall"
+signature = "void* (uint32_t flags)"
+expect = "56 8B F1 E8 02 FF FF FF"
+source = "Name ours. GZWinCustom's deleting destructor, `ret 4`: 0x0095B9A1, freed (SC4::operator_delete) with flag 1; `this` answered. Ours in framework.uiscript.custom (docs/gzui.md, part u16b)."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::WindowOfFace"
+address = 0x0095BA6F
+kind = "function"
+convention = "thiscall"
+signature = "void* ()"
+expect = "8D 81 28 FF FF FF C3 81"
+source = "Name ours. The window of GZWinCustom's interface (this - 0xD8). Stays the game's."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::FaceQueryInterface"
+address = 0x0095BA76
+kind = "function"
+convention = "thiscall"
+signature = "bool (uint32_t iid, void** out)"
+expect = "81 E9 D8 00 00 00 E9 40"
+source = "Name ours. The interface's QueryInterface: a jump to 0x0095B9C1 on the window. Stays the game's."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::FaceAddRef"
+address = 0x0095BA81
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t ()"
+expect = "81 E9 D8 00 00 00 E9 9D"
+source = "Name ours. The interface's AddRef: a jump to 0x008FB729 on the window. Stays the game's."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::FaceRelease"
+address = 0x0095BA8C
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t ()"
+expect = "81 E9 D8 00 00 00 E9 97"
+source = "Name ours. The interface's Release: a jump to 0x008FB72E on the window. Stays the game's."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellMapClear"
+address = 0x009599A9
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. The cells' outer map emptied (0x00958679 on its root, the header linked to itself, the count 0). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridColumnsRelease"
+address = 0x00959E31
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t ()"
+expect = "56 8B F1 8B 46 08 83 F8"
+source = "Name ours. Slot 2 of the columns' holder 0x00AD5398: the count down, at 1 the holder destroyed (0x00959E54) and freed. Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridColumnsDestruct"
+address = 0x00959E54
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "80 79 0C 00 C7 01 98 53"
+source = "Name ours. The columns' holder's destructor: with its byte its map cleared (0x00959E83), destroyed and freed. Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridColumnDataClear"
+address = 0x00959E83
+kind = "function"
+convention = "thiscall"
+signature = "bool ()"
+expect = "56 8B F1 80 7E 20 00 74"
+source = "Name ours. The columns' map cleared (0x0095524F) when its byte +0x20 is set; AL 1. Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridRowsRelease"
+address = 0x00959E9D
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t ()"
+expect = "56 8B F1 8B 46 08 83 F8"
+source = "Name ours. Slot 2 of the rows' holder 0x00AD53A4 (as 0x00959E31). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridRowsDestruct"
+address = 0x00959EC0
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "80 79 0C 00 C7 01 A4 53"
+source = "Name ours. The rows' holder's destructor (as 0x00959E54, with 0x00959EEF). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridRowDataClear"
+address = 0x00959EEF
+kind = "function"
+convention = "thiscall"
+signature = "bool ()"
+expect = "56 8B F1 80 7E 20 00 74"
+source = "Name ours. The rows' map cleared (0x00955278) when its byte +0x20 is set; AL 1. Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellMapDestruct"
+address = 0x00959F09
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "56 8B F1 E8 98 FA FF FF"
+source = "Name ours. The cells' outer map's destructor (0x009599A9, the header freed). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellRowCopy"
+address = 0x00959F20
+kind = "function"
+convention = "thiscall"
+signature = "void* (const void* pair)"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. `ret 4`: a (key, inner map) pair's copy (the map by 0x009585FB). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellNodeCopy"
+address = 0x00959F3D
+kind = "function"
+convention = "thiscall"
+signature = "void* (const void* pair)"
+expect = "8B 44 24 04 56 8B F1 8B"
+source = "Name ours. `ret 4`: the outer map's value copy (the word, then 0x00959F20). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellNodeMake"
+address = 0x00959F5A
+kind = "function"
+convention = "stdcall"
+signature = "void* (const void* value)"
+expect = "56 6A 24 E8 F2 2F FB FF"
+source = "Name ours. `ret 4`: an outer map's node (0x24 bytes, 0x0090CF54) with the value copied at +0x10. Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellTreeInsert"
+address = 0x00959F7B
+kind = "function"
+convention = "thiscall"
+signature = "void* (void** result, void* left, void* parent, const void* value, void* where)"
+expect = "55 8B EC 8B 45 14 53 8B"
+source = "Name ours. `ret 0x14`: the outer map's node insert under a parent (left or right by the key), the header's leftmost and rightmost kept, then rebalanced. Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellInsert"
+address = 0x0095A003
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* result, const void* value)"
+expect = "55 8B EC 53 8B D9 8B 0B"
+source = "Name ours. `ret 8`: the outer map's insert of a unique key (0x00959F7B). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellsRelease"
+address = 0x0095A087
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t ()"
+expect = "56 8B F1 8B 46 08 83 F8"
+source = "Name ours. Slot 2 of the cells' holder 0x00AD538C (as 0x00959E31, with 0x0095A0AA). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellsDestruct"
+address = 0x0095A0AA
+kind = "function"
+convention = "thiscall"
+signature = "void ()"
+expect = "80 79 0C 00 C7 01 8C 53"
+source = "Name ours. The cells' holder's destructor (as 0x00959E54, with 0x0095A0D9 and 0x00959F09). Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellDataClear"
+address = 0x0095A0D9
+kind = "function"
+convention = "thiscall"
+signature = "bool ()"
+expect = "56 8B F1 80 7E 20 00 74"
+source = "Name ours. The cells' map cleared (0x009599A9) when its byte +0x20 is set; AL 1. Stays the game's (part u16b's STLport code; not called by ours)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridCellsVtable"
+address = 0x00AD538C
+kind = "data"
+expect = "C6 57 94 00 B1 C4 94 00 87 A0 95 00"
+source = "Name ours. The vtable of the holder (0x10 bytes: the map +4, a count +8, a byte +0xC) GZWinGrid's handler puts its cells' map in: 0x009457C6, AddRef 0x0094C4B1, Release 0x0095A087."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridColumnsVtable"
+address = 0x00AD5398
+kind = "data"
+expect = "C6 57 94 00 B1 C4 94 00 31 9E 95 00"
+source = "Name ours. The vtable of the columns' holder: 0x009457C6, AddRef 0x0094C4B1, Release 0x00959E31."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridRowsVtable"
+address = 0x00AD53A4
+kind = "data"
+expect = "C6 57 94 00 B1 C4 94 00 9D 9E 95 00"
+source = "Name ours. The vtable of the rows' holder: 0x009457C6, AddRef 0x0094C4B1, Release 0x00959E9D."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridKeyFormat"
+address = 0x00AD6890
+kind = "data"
+expect = "25 30 38 78 2C 25 30 38 78 00"
+source = "Name ours. %08x,%08x, a cell's key (group, instance)."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridSpanFormat"
+address = 0x00AD6884
+kind = "data"
+expect = "25 64 2C 25 64 2C 25 64 00"
+source = "Name ours. %d,%d,%d, a column's or row's numbers."
+
+[[entry]]
+name = "cGZUIScriptWidgets::GridPairFormat"
+address = 0x00AD6574
+kind = "data"
+expect = "25 73 2C 25 73 00"
+source = "Name ours. %s,%s, a cell's two parts printed by 0x00956464."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::Vtable"
+address = 0x00AD6AA0
+kind = "data"
+expect = "C1 B9 95 00 29 B7 8F 00"
+source = "Name ours. GZWinCustom's vtable (QueryInterface 0x0095B9C1, slot 3 0x0095B9F8, slot 88 0x0095BA43, slot 148 the deleting destructor 0x0095BA97)."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::FaceVtable"
+address = 0x00AD6A8C
+kind = "data"
+expect = "76 BA 95 00 81 BA 95 00"
+source = "Name ours. The vtable of GZWinCustom's interface IGZWinCustom at +0xD8 (0x0095BA76, 0x0095BA81, 0x0095BA8C, 0x0095BA6F)."
+
+[[entry]]
+name = "cGZUIScript478D1E6F::InterimFaceVtable"
+address = 0x00AD6CFC
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the constructor writes at +0xD8 before 0x00AD6A8C."
+
+[[entry]]
+name = "cGZUIScriptLegacy::InterimChildVtable"
+address = 0x00AD53B0
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the LEGACY reader's constructor writes at +4 before 0x00AD5344."
+
+[[entry]]
+name = "cGZUIScriptLegacy::InterimWindowVtable"
+address = 0x00AD53CC
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The vtable the LEGACY reader's constructor writes at +8 before 0x00AD5324."
