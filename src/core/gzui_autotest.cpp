@@ -11379,5 +11379,2218 @@ void PhFingerprint(cISC4City*, std::string& line)
 const FingerprintPart kPhFingerprint{"prophandle", 4, &PhFingerprint};
 const DayHook kPhDrive{"prophandle", 4, &DrivePropHandleDay};
 
+
+// ====================================================================================
+// Part u17: the UI script writers (OPENSC4_TEST_WRITERS). All called by
+// address (registers checked kept after): the printers on out strings of
+// the game's, with names and values of our own; the property helpers on
+// windows of our own (slot 113 gives script values of our own, whose
+// slots hash what they get); each class's writer on an interface of our
+// own (every slot it calls hashes its number and what it gets, and gives
+// the case's answers), its window one of ours, the game's font and colour
+// services. After each call the out string's text is hashed. Addresses
+// never go into the hash.
+
+bool g_wtOn = false;
+uint32_t g_wtHash = 2166136261u;
+
+void WtStage(const char* name) { log::Write("autotest: writers: %s %08X", name, g_wtHash); }
+
+// A call with EAX, ECX, EBX, ESI and EDI set and fourteen stack arguments
+// (the callee pops none); EAX and the four kept registers back in the
+// block.
+struct WtRegs {
+    uint32_t eax, ecx, ebx, esi, edi;
+    uint32_t args[14];
+    uint32_t outEax, outEbx, outEsi, outEdi, outEbp;
+    std::uintptr_t address;
+};
+
+__declspec(naked) void __cdecl WtCallRaw(WtRegs*)
+{
+    __asm push ebx
+    __asm push esi
+    __asm push edi
+    __asm push ebp
+    __asm mov ebp, [esp + 20]
+    __asm push ebp
+    __asm push dword ptr [ebp + 72]
+    __asm push dword ptr [ebp + 68]
+    __asm push dword ptr [ebp + 64]
+    __asm push dword ptr [ebp + 60]
+    __asm push dword ptr [ebp + 56]
+    __asm push dword ptr [ebp + 52]
+    __asm push dword ptr [ebp + 48]
+    __asm push dword ptr [ebp + 44]
+    __asm push dword ptr [ebp + 40]
+    __asm push dword ptr [ebp + 36]
+    __asm push dword ptr [ebp + 32]
+    __asm push dword ptr [ebp + 28]
+    __asm push dword ptr [ebp + 24]
+    __asm push dword ptr [ebp + 20]
+    __asm mov eax, [ebp + 0]
+    __asm mov ecx, [ebp + 4]
+    __asm mov ebx, [ebp + 8]
+    __asm mov esi, [ebp + 12]
+    __asm mov edi, [ebp + 16]
+    __asm call dword ptr [ebp + 96]
+    __asm add esp, 56
+    __asm push eax
+    __asm mov eax, [esp + 4]
+    __asm mov [eax + 80], ebx
+    __asm mov [eax + 84], esi
+    __asm mov [eax + 88], edi
+    __asm mov [eax + 92], ebp
+    __asm pop dword ptr [eax + 76]
+    __asm add esp, 4
+    __asm pop ebp
+    __asm pop edi
+    __asm pop esi
+    __asm pop ebx
+    __asm ret
+}
+
+// Registers the callee does not read are marks.
+WtRegs WtRegsOf()
+{
+    WtRegs regs = {};
+    regs.eax = 0xEAEAEAE1u;
+    regs.ecx = 0xC1C1C1C2u;
+    regs.ebx = kPmEbx;
+    regs.esi = kPmEsi;
+    regs.edi = kPmEdi;
+    return regs;
+}
+
+uint32_t WtCall(std::uintptr_t address, WtRegs& regs)
+{
+    regs.address = address;
+    WtCallRaw(&regs);
+    const bool kept = regs.outEbx == regs.ebx && regs.outEsi == regs.esi && regs.outEdi == regs.edi &&
+                      regs.outEbp == PrArg(&regs);
+    Mix(kept ? 0x4B1u : 0xBAD0u);
+    return regs.outEax;
+}
+
+// A game string (SC4String) on our stack: empty, or with a text; its text
+// hashed, then destroyed.
+struct WtString {
+    alignas(4) char bytes[0x14];
+    WtString() { CallThis<void*>(addr::SC4String_SC4String, bytes); }
+    explicit WtString(const char* text) { GdString(bytes, text); }
+    ~WtString() { GdEndString(bytes); }
+    WtString(const WtString&) = delete;
+    WtString& operator=(const WtString&) = delete;
+    uint32_t Arg() { return PrArg(bytes); }
+    void MixText() { PrMixText(bytes); }
+};
+
+// A script value of our own (what a window's slot 113 gives): its kind
+// (slot 3), type (slot 4), text (slot 55 assigns it to the string given),
+// 12 bytes (slot 57), word (slot 73) and pair (slot 103) from `words`;
+// each slot hashes its number and what it gets; Release (slot 2) counts.
+struct WtValue {
+    void** vtable;
+    uint32_t kind;
+    uint32_t type;
+    uint32_t words[3];
+    const char* text;
+    uint32_t releases;
+};
+
+uint32_t __fastcall WtValueRelease(WtValue* self, void*)
+{
+    Mix(0x7E000002u);
+    ++self->releases;
+    return 0x52520000u | self->releases;
+}
+
+uint32_t __fastcall WtValueKind(WtValue* self, void*)
+{
+    Mix(0x7E000003u);
+    return self->kind;
+}
+
+uint32_t __fastcall WtValueType(WtValue* self, void*)
+{
+    Mix(0x7E000004u);
+    return self->type;
+}
+
+uint32_t __fastcall WtValueText(WtValue* self, void*, char* string)
+{
+    Mix(0x7E000037u);
+    return Virtual<uint32_t>(string, 0xC, self->text, static_cast<uint32_t>(std::strlen(self->text)));
+}
+
+uint32_t __fastcall WtValueBytes(WtValue* self, void*, uint32_t* out, const uint32_t* count)
+{
+    Mix(0x7E000039u);
+    Mix(*count);
+    for (uint32_t i = 0; i < 3; ++i)
+        out[i] = self->words[i];
+    return 0x39390001u;
+}
+
+uint32_t* __fastcall WtValueWord(WtValue* self, void*)
+{
+    Mix(0x7E000049u);
+    return self->words;
+}
+
+uint32_t* __fastcall WtValuePair(WtValue* self, void*)
+{
+    Mix(0x7E000067u);
+    return self->words;
+}
+
+void** WtValueTable()
+{
+    static void* table[104] = {};
+    table[2] = reinterpret_cast<void*>(&WtValueRelease);
+    table[3] = reinterpret_cast<void*>(&WtValueKind);
+    table[4] = reinterpret_cast<void*>(&WtValueType);
+    table[55] = reinterpret_cast<void*>(&WtValueText);
+    table[57] = reinterpret_cast<void*>(&WtValueBytes);
+    table[73] = reinterpret_cast<void*>(&WtValueWord);
+    table[103] = reinterpret_cast<void*>(&WtValuePair);
+    return table;
+}
+
+WtValue WtNumber(uint32_t word) { return {WtValueTable(), 6, 6, {word, 0, 0}, "", 0}; }
+WtValue WtTextValue(const char* text) { return {WtValueTable(), 0x800E, 0x800E, {0, 0, 0}, text, 0}; }
+WtValue WtBytes(uint32_t a, uint32_t b, uint32_t c) { return {WtValueTable(), 0xC, 0xC, {a, b, c}, "", 0}; }
+WtValue WtPairValue(uint32_t a, uint32_t b) { return {WtValueTable(), 0x8007, 0x8007, {a, b, 0}, "", 0}; }
+
+// A window of our own: slot 113 finds the key among its properties (the
+// value given, AL 1) or not (AL 0, the out left as it was); it hashes the
+// key. A writer that calls other window slots builds its own table from
+// this one (WtWindowSlots) and adds them.
+struct WtProp {
+    uint32_t key;
+    WtValue* value;
+};
+
+struct WtWindow {
+    void** vtable;
+    const WtProp* props;
+    std::size_t count;
+};
+
+uint32_t __fastcall WtWindowProperty(WtWindow* self, void*, uint32_t key, WtValue** out)
+{
+    Mix(0x7E000071u);
+    Mix(key);
+    for (std::size_t i = 0; i < self->count; ++i) {
+        if (self->props[i].key == key) {
+            *out = self->props[i].value;
+            return 0x71710001u;
+        }
+    }
+    return 0x71710000u;
+}
+
+void WtWindowSlots(void** table) { table[113] = reinterpret_cast<void*>(&WtWindowProperty); }
+
+void** WtWindowTable()
+{
+    static void* table[114] = {};
+    WtWindowSlots(table);
+    return table;
+}
+
+// ------------------------------------------------------------------------------------
+// The printers
+
+void DriveWtLines()
+{
+    WtString name("nm");
+    WtString value("val ue");
+    WtString empty;
+    {
+        // The colours: the bytes' upper bytes set (only the low ones print).
+        WtString out("pre ");
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = out.Arg();
+        regs.args[1] = name.Arg();
+        for (uint32_t i = 0; i < 12; ++i)
+            regs.args[2 + i] = 0xABCDEF00u + i * 23u;
+        WtCall(addr::cGZUIScriptWriters_LineColour, regs);
+        WtCall(addr::cGZUIScriptWriters_LineColours2, regs);
+        out.MixText();
+    }
+    {
+        WtString out;
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = out.Arg();
+        regs.args[1] = name.Arg();
+        for (uint32_t i = 0; i < 12; ++i)
+            regs.args[2 + i] = 0x12345600u + i * 37u;
+        WtCall(addr::cGZUIScriptWriters_LineColours4, regs);
+        out.MixText();
+    }
+    const uint32_t numbers[][4] = {
+        {0, 0, 0, 0}, {1, 0xFFFFFFFFu, 0x7FFFFFFFu, 0x80000000u}, {0xDEADBEEFu, 12345, 0xFFFFFF00u, 7}};
+    for (const auto& n : numbers) {
+        WtString out("x");
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = out.Arg();
+        regs.args[1] = name.Arg();
+        for (uint32_t i = 0; i < 4; ++i)
+            regs.args[2 + i] = n[i];
+        WtCall(addr::cGZUIScriptWriters_LineInt, regs);
+        WtCall(addr::cGZUIScriptWriters_LineHex, regs);
+        WtCall(addr::cGZUIScriptWriters_LineKey, regs);
+        WtCall(addr::cGZUIScriptWriters_LinePair, regs);
+        WtCall(addr::cGZUIScriptWriters_LineRect, regs);
+        WtCall(addr::cGZUIScriptWriters_LineMove, regs);
+        // The bool's low byte only.
+        WtCall(addr::cGZUIScriptWriters_LineBool, regs);
+        out.MixText();
+    }
+    for (WtString* v : {&value, &empty}) {
+        WtString out;
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = out.Arg();
+        regs.args[1] = name.Arg();
+        regs.args[2] = v->Arg();
+        WtCall(addr::cGZUIScriptWriters_LineWord, regs);
+        WtCall(addr::cGZUIScriptWriters_LineQuoted, regs);
+        regs.args[1] = empty.Arg();
+        WtCall(addr::cGZUIScriptWriters_LineWord, regs);
+        out.MixText();
+        // The append: EAX the string, ECX the out string.
+        WtRegs append = WtRegsOf();
+        append.eax = v->Arg();
+        append.ecx = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_LineAppend, append);
+        out.MixText();
+    }
+    {
+        // The option: EDI the name, ESI the text; with and without a key.
+        const uint32_t keys[][2] = {{0, 0}, {1, 0}, {0, 2}, {0x11112222u, 0x33334444u}};
+        for (const auto& key : keys) {
+            WtString out;
+            WtRegs regs = WtRegsOf();
+            regs.edi = name.Arg();
+            regs.esi = value.Arg();
+            regs.args[0] = out.Arg();
+            regs.args[1] = 17;
+            regs.args[2] = 0xFFFFFFF0u;
+            regs.args[3] = key[0];
+            regs.args[4] = key[1];
+            regs.args[5] = 0xFFFFFFFFu;
+            regs.args[6] = 3;
+            regs.args[7] = 640;
+            regs.args[8] = 0x80000000u;
+            WtCall(addr::cGZUIScriptWriters_LineOption, regs);
+            out.MixText();
+        }
+    }
+    {
+        // The flag table: rows that differ, rows always written, an
+        // empty table.
+        struct Row {
+            uint32_t mask;
+            const char* name;
+            uint32_t always;
+        };
+        static const Row rows[] = {{1, "one", 0},          {2, "two", 0xFFFFFF00u}, {4, "four", 1},
+                                   {0x18, "multi", 0},     {0x80000000u, "top", 0}, {0, "zero", 0x101u},
+                                   {0, nullptr, 0}};
+        const uint32_t masks[][2] = {{0, 0}, {0xFFFFFFFFu, 0}, {5, 0x80000008u}, {0x10, 0x10}};
+        for (const auto& m : masks) {
+            WtString out;
+            WtRegs regs = WtRegsOf();
+            regs.eax = PrArg(rows);
+            regs.args[0] = out.Arg();
+            regs.args[1] = m[0];
+            regs.args[2] = m[1];
+            WtCall(addr::cGZUIScriptWriters_LineFlags, regs);
+            out.MixText();
+        }
+        WtString out;
+        WtRegs regs = WtRegsOf();
+        regs.eax = PrArg(&rows[6]);
+        regs.args[0] = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_LineFlags, regs);
+        out.MixText();
+    }
+    {
+        // A font: the known words, the default and an unknown one; AL.
+        const uint32_t fonts[] = {kFbFontWords[0], kFbFontWords[1], kFbFontWords[2], 0x68963C4Cu, 0x12345678u, 0};
+        for (uint32_t font : fonts) {
+            WtString out("f");
+            WtRegs regs = WtRegsOf();
+            regs.esi = out.Arg();
+            regs.args[0] = font;
+            MixByte(WtCall(addr::cGZUIScriptWriters_LineFont, regs));
+            out.MixText();
+        }
+    }
+    {
+        // The key compare (thiscall).
+        const uint32_t a[3] = {1, 2, 3};
+        const uint32_t b[3] = {9, 2, 3};
+        const uint32_t c[3] = {1, 2, 4};
+        const uint32_t d[3] = {1, 5, 3};
+        Mix(CallThis<uint32_t>(addr::cGZUIScriptWriters_KeyEquals, const_cast<uint32_t*>(a), b));
+        Mix(CallThis<uint32_t>(addr::cGZUIScriptWriters_KeyEquals, const_cast<uint32_t*>(a), c));
+        Mix(CallThis<uint32_t>(addr::cGZUIScriptWriters_KeyEquals, const_cast<uint32_t*>(a), d));
+    }
+    WtStage("lines");
+}
+
+// ------------------------------------------------------------------------------------
+// The property helpers
+
+void DriveWtProps()
+{
+    WtValue bytes = WtBytes(0x11223344u, 0x55667788u, 0x99AABBCCu);
+    WtValue notBytes = WtNumber(5);
+    WtValue pair = WtPairValue(0xFFFFFFFEu, 77);
+    WtValue noPair = WtNumber(8);
+    WtValue font0 = WtNumber(kFbFontWords[0]);
+    WtValue font2 = WtNumber(kFbFontWords[2]);
+    WtValue number = WtNumber(0xFFFFFF85u);
+    WtValue text = WtTextValue("Some Text");
+    WtValue other = WtBytes(1, 2, 3);
+    const WtProp props[] = {
+        {0x1000, &bytes},          {0x1001, &notBytes},       {0xDAA3B860u + 3, &pair},
+        {0xDAA3B860u, &noPair},    {0xFAA3BE85u, &font0},     {0xFAA3BE85u + 1, &font2},
+        {0xFAA3BE85u + 2, &number}, {0xFAA3BE85u + 3, &text}, {0xFAA3BE85u + 4, &other},
+    };
+    WtWindow window = {WtWindowTable(), props, sizeof props / sizeof props[0]};
+    // 12 bytes: found, the wrong type, missing, and no window.
+    for (uint32_t key : {0x1000u, 0x1001u, 0x1002u}) {
+        uint32_t out[4] = {0xA0, 0xA1, 0xA2, 0xA3};
+        WtRegs regs = WtRegsOf();
+        regs.ecx = PrArg(&window);
+        regs.args[0] = key;
+        regs.args[1] = PrArg(out);
+        Mix(WtCall(addr::cGZUIScriptWriters_PropertyBytes, regs));
+        for (uint32_t w : out)
+            Mix(w);
+    }
+    {
+        WtRegs regs = WtRegsOf();
+        regs.ecx = 0;
+        regs.eax = 0x0E0E0E77u;
+        regs.args[0] = 0x1000;
+        Mix(WtCall(addr::cGZUIScriptWriters_PropertyBytes, regs));
+    }
+    // A pair: found, the wrong kind, missing.
+    for (uint32_t index : {3u, 0u, 9u}) {
+        uint32_t first = 0xF1, second = 0xF2;
+        WtRegs regs = WtRegsOf();
+        regs.ecx = PrArg(&window);
+        regs.args[0] = PrArg(&first);
+        regs.args[1] = PrArg(&second);
+        regs.args[2] = index;
+        Mix(WtCall(addr::cGZUIScriptWriters_PropertyPair, regs));
+        Mix(first);
+        Mix(second);
+    }
+    // A font or a text: two fonts, a number, a text, another kind, missing.
+    for (uint32_t index = 0; index < 6; ++index) {
+        WtString out("old");
+        WtRegs regs = WtRegsOf();
+        regs.ecx = PrArg(&window);
+        regs.edi = out.Arg();
+        regs.args[0] = index;
+        Mix(WtCall(addr::cGZUIScriptWriters_PropertyFont, regs));
+        out.MixText();
+    }
+    for (WtValue* v : {&bytes, &notBytes, &pair, &noPair, &font0, &font2, &number, &text, &other})
+        Mix(v->releases);
+    WtStage("props");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinFlatRect's writer (EAX the interface, EBX the out string)
+
+struct WtFlatRectFace {
+    void** vtable;
+    uint32_t style;
+    uint32_t skip; // sides (bits) whose colour the slot leaves unwritten
+};
+
+uint32_t __fastcall WtFlatRectColour(WtFlatRectFace* self, void*, uint32_t side, uint8_t* r, uint8_t* g, uint8_t* b)
+{
+    Mix(0x7E00000Bu);
+    Mix(side);
+    if (!(self->skip & (1u << side))) {
+        *r = static_cast<uint8_t>(0x10 + side * 40 + self->style);
+        *g = static_cast<uint8_t>(0xFF - side);
+        *b = static_cast<uint8_t>(side * 3);
+    }
+    return 0x0B0B0000u | side;
+}
+
+uint32_t __fastcall WtFlatRectStyle(WtFlatRectFace* self, void*)
+{
+    Mix(0x7E00000Du);
+    return 0xD0D0D000u | self->style;
+}
+
+void** WtFlatRectTable()
+{
+    static void* table[14] = {};
+    table[11] = reinterpret_cast<void*>(&WtFlatRectColour);
+    table[13] = reinterpret_cast<void*>(&WtFlatRectStyle);
+    return table;
+}
+
+void DriveWtFlatRect()
+{
+    // The first side always written (the game's places are never set
+    // before); later sides skipped keep the last colour.
+    const WtFlatRectFace faces[] = {
+        {WtFlatRectTable(), 0x00, 0x0}, {WtFlatRectTable(), 0x7F, 0x0}, {WtFlatRectTable(), 0x95, 0xA},
+        {WtFlatRectTable(), 0x2A, 0xE}, {WtFlatRectTable(), 0xC0, 0x4}, {WtFlatRectTable(), 0x41, 0x0},
+    };
+    for (const WtFlatRectFace& face : faces) {
+        WtString out("<");
+        WtRegs regs = WtRegsOf();
+        regs.eax = PrArg(&face);
+        regs.ebx = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_FlatRect, regs);
+        out.MixText();
+    }
+    WtStage("flatrect");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinText's writer
+
+// The autofit value: part u17's script value with a slot 63 (a pointer to
+// its byte, the low byte of its first word).
+uint8_t* __fastcall WtTextAutofitByte(WtValue* self, void*)
+{
+    Mix(0x7E00003Fu);
+    return reinterpret_cast<uint8_t*>(self->words);
+}
+
+void** WtTextValueTable()
+{
+    static void* table[104] = {};
+    void** const base = WtValueTable();
+    for (std::size_t i = 0; i < 104; ++i)
+        table[i] = base[i];
+    table[63] = reinterpret_cast<void*>(&WtTextAutofitByte);
+    return table;
+}
+
+// An interface of our own: the case number picks every answer.
+struct WtTextFace {
+    void** vtable;
+    uint32_t c;
+    WtWindow* window;
+};
+
+const uint32_t kWtTextFonts[6] = {kFbFontWords[0], kFbFontWords[1], kFbFontWords[2], 0x68963C4Cu, 0x12345678u, 0};
+
+WtWindow* __fastcall WtTextWindow(WtTextFace* self, void*)
+{
+    Mix(0x7E540003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtTextFlag(WtTextFace* self, void*, uint32_t mask)
+{
+    Mix(0x7E540006u);
+    Mix(mask);
+    return 0x06060600u | ((self->c & mask) ? 1u : 0u);
+}
+
+uint32_t __fastcall WtTextColour(WtTextFace* self, void*, uint32_t index, uint32_t* colour)
+{
+    Mix(0x7E54000Cu);
+    Mix(index);
+    const bool yes = index == 0 ? self->c % 3 != 2 : self->c % 3 != 1;
+    if (yes)
+        *colour = self->c * 0x0F0E0Du + index * 0x40u + 0x00102030u;
+    return 0x0C0C0C00u | (yes ? 1u : 0u);
+}
+
+uint32_t __fastcall WtTextFont(WtTextFace* self, void*, uint32_t* font)
+{
+    Mix(0x7E540014u);
+    const uint32_t pick = self->c % 6;
+    if (pick == 5)
+        return 0x14141400u;
+    *font = kWtTextFonts[pick];
+    return 0x14141401u;
+}
+
+uint32_t __fastcall WtTextAlign(WtTextFace* self, void*, uint32_t* align)
+{
+    Mix(0x7E540016u);
+    if (self->c == 11)
+        return 0x16161600u;
+    *align = self->c == 10 ? 0xFFFFFFFFu : self->c;
+    return 0x16161601u;
+}
+
+uint32_t __fastcall WtTextGutters(WtTextFace* self, void*, int8_t* first, int8_t* second)
+{
+    Mix(0x7E540018u);
+    if (self->c % 2)
+        return 0x18181800u;
+    *first = static_cast<int8_t>(self->c * 23 - 100);
+    *second = static_cast<int8_t>(0u - self->c);
+    return 0x18181801u;
+}
+
+uint32_t __fastcall WtTextOffsets(WtTextFace* self, void*, int8_t* first, int8_t* second)
+{
+    Mix(0x7E54001Au);
+    if (self->c % 4 == 1)
+        return 0x1A1A1A00u;
+    *first = static_cast<int8_t>(self->c * 50);
+    *second = static_cast<int8_t>(127 - self->c);
+    return 0x1A1A1A01u;
+}
+
+void** WtTextTable()
+{
+    static void* table[27] = {};
+    table[3] = reinterpret_cast<void*>(&WtTextWindow);
+    table[6] = reinterpret_cast<void*>(&WtTextFlag);
+    table[12] = reinterpret_cast<void*>(&WtTextColour);
+    table[20] = reinterpret_cast<void*>(&WtTextFont);
+    table[22] = reinterpret_cast<void*>(&WtTextAlign);
+    table[24] = reinterpret_cast<void*>(&WtTextGutters);
+    table[26] = reinterpret_cast<void*>(&WtTextOffsets);
+    return table;
+}
+
+void DriveWtText()
+{
+    for (uint32_t c = 0; c < 12; ++c) {
+        // Autofit: no property, a 0 byte, a 1 byte.
+        WtValue autofit = WtNumber(c % 3 == 2 ? 0xFFFFFF01u : 0xFFFFFF00u);
+        autofit.vtable = WtTextValueTable();
+        const WtProp props[] = {{0xDACF8F9Cu, &autofit}};
+        WtWindow window = {WtWindowTable(), props, c % 3 == 0 ? 0u : 1u};
+        WtTextFace face = {WtTextTable(), c, &window};
+        WtString out("<");
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = PrArg(&face);
+        regs.args[1] = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_Text, regs);
+        out.MixText();
+        Mix(autofit.releases);
+    }
+    WtStage("text");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinTextEdit's writer (uses WtTextValueTable and kWtTextFonts of the
+// Text stage)
+
+struct WtTextEditFace {
+    void** vtable;
+    uint32_t c;
+    WtWindow* window;
+};
+
+WtWindow* __fastcall WtTextEditWindow(WtTextEditFace* self, void*)
+{
+    Mix(0x7E550005u);
+    return self->window;
+}
+
+uint32_t __fastcall WtTextEditFont(WtTextEditFace* self, void*, uint32_t* font)
+{
+    Mix(0x7E55000Bu);
+    const uint32_t pick = self->c % 6;
+    if (pick == 5)
+        return 0x0B0B0B00u;
+    *font = kWtTextFonts[pick];
+    return 0x0B0B0B01u;
+}
+
+uint32_t __fastcall WtTextEditColour(WtTextEditFace* self, void*, uint32_t state, uint32_t* colour)
+{
+    Mix(0x7E55000Eu);
+    Mix(state);
+    if ((self->c + state) % 3 == 0)
+        return 0x0E0E0E00u;
+    *colour = self->c * 0x010203u + state * 0x111u;
+    return 0x0E0E0E01u;
+}
+
+uint32_t __fastcall WtTextEditCaretColour(WtTextEditFace* self, void*, uint32_t* colour)
+{
+    Mix(0x7E550013u);
+    if (!(self->c & 1))
+        return 0x13131300u;
+    *colour = 0x00FF00FFu - self->c;
+    return 0x13131301u;
+}
+
+uint32_t __fastcall WtTextEditHighlight(WtTextEditFace* self, void*)
+{
+    Mix(0x7E550016u);
+    return self->c * 0x30201u;
+}
+
+uint32_t __fastcall WtTextEditMaxText(WtTextEditFace* self, void*)
+{
+    Mix(0x7E550020u);
+    return self->c * 1000u - 1u;
+}
+
+uint32_t __fastcall WtTextEditOutline(WtTextEditFace* self, void*, uint8_t* on, uint32_t* colour)
+{
+    Mix(0x7E550026u);
+    *on = self->c % 3 == 0 ? 0 : static_cast<uint8_t>(self->c);
+    *colour = 0x00ABCDEFu ^ self->c;
+    return 0x26262600u;
+}
+
+uint32_t __fastcall WtTextEditGutterX(WtTextEditFace* self, void*)
+{
+    Mix(0x7E550027u);
+    return self->c;
+}
+
+uint32_t __fastcall WtTextEditGutterY(WtTextEditFace* self, void*)
+{
+    Mix(0x7E550029u);
+    return 0u - self->c;
+}
+
+const char* __fastcall WtTextEditText(WtTextEditFace* self, void*)
+{
+    Mix(0x7E55002Eu);
+    static const char* const texts[3] = {"hello world", "", "with \"quote\" inside"};
+    return texts[self->c % 3];
+}
+
+uint32_t __fastcall WtTextEditInsertMode(WtTextEditFace* self, void*)
+{
+    Mix(0x7E550041u);
+    return 0xFFFFFF00u | (self->c & 1);
+}
+
+uint32_t __fastcall WtTextEditInsertIndex(WtTextEditFace* self, void*, uint32_t* index)
+{
+    Mix(0x7E550043u);
+    if (self->c % 3 == 2)
+        return 0x43434300u;
+    *index = self->c * 7u;
+    return 0x43434301u;
+}
+
+uint32_t __fastcall WtTextEditInsertPos(WtTextEditFace* self, void*, uint32_t* x, uint32_t* y)
+{
+    Mix(0x7E550045u);
+    if (self->c % 2)
+        return 0x45454500u;
+    *x = self->c * 11u;
+    *y = 0u - self->c;
+    return 0x45454501u;
+}
+
+uint32_t __fastcall WtTextEditCaretPeriod(WtTextEditFace* self, void*, uint32_t* period)
+{
+    Mix(0x7E550049u);
+    if (self->c % 4 == 3)
+        return 0x49494900u;
+    *period = 500u + self->c;
+    return 0x49494901u;
+}
+
+uint32_t __fastcall WtTextEditFlags(WtTextEditFace* self, void*)
+{
+    Mix(0x7E550050u);
+    static const uint32_t flags[5] = {0x11FFu, 0, 0xFFFFFFFFu, 0x2A55u, 0x9C00u};
+    return flags[self->c % 5];
+}
+
+uint32_t __fastcall WtTextEditMaxUndo(WtTextEditFace* self, void*)
+{
+    Mix(0x7E550052u);
+    return 0x80000000u + self->c;
+}
+
+uint32_t WtTextEditRect(WtTextEditFace* self, uint32_t* place, uint32_t* rect, bool yes, uint32_t salt)
+{
+    if (!yes)
+        return 0x55555500u;
+    for (uint32_t i = 0; i < 4; ++i)
+        place[i] = 0xDDDD0000u + i;
+    rect[0] = self->c + salt;
+    rect[1] = self->c + 1;
+    rect[2] = 0u - self->c;
+    rect[3] = 0x7FFFFFFFu - salt;
+    return 0x55555501u;
+}
+
+uint32_t __fastcall WtTextEditVRect(WtTextEditFace* self, void*, uint32_t* place, uint32_t* rect)
+{
+    Mix(0x7E550055u);
+    return WtTextEditRect(self, place, rect, self->c % 2 == 1, 100);
+}
+
+uint32_t __fastcall WtTextEditHRect(WtTextEditFace* self, void*, uint32_t* place, uint32_t* rect)
+{
+    Mix(0x7E550056u);
+    return WtTextEditRect(self, place, rect, self->c % 3 != 0, 200);
+}
+
+void** WtTextEditTable()
+{
+    static void* table[87] = {};
+    table[5] = reinterpret_cast<void*>(&WtTextEditWindow);
+    table[11] = reinterpret_cast<void*>(&WtTextEditFont);
+    table[14] = reinterpret_cast<void*>(&WtTextEditColour);
+    table[19] = reinterpret_cast<void*>(&WtTextEditCaretColour);
+    table[22] = reinterpret_cast<void*>(&WtTextEditHighlight);
+    table[32] = reinterpret_cast<void*>(&WtTextEditMaxText);
+    table[38] = reinterpret_cast<void*>(&WtTextEditOutline);
+    table[39] = reinterpret_cast<void*>(&WtTextEditGutterX);
+    table[41] = reinterpret_cast<void*>(&WtTextEditGutterY);
+    table[46] = reinterpret_cast<void*>(&WtTextEditText);
+    table[65] = reinterpret_cast<void*>(&WtTextEditInsertMode);
+    table[67] = reinterpret_cast<void*>(&WtTextEditInsertIndex);
+    table[69] = reinterpret_cast<void*>(&WtTextEditInsertPos);
+    table[73] = reinterpret_cast<void*>(&WtTextEditCaretPeriod);
+    table[80] = reinterpret_cast<void*>(&WtTextEditFlags);
+    table[82] = reinterpret_cast<void*>(&WtTextEditMaxUndo);
+    table[85] = reinterpret_cast<void*>(&WtTextEditVRect);
+    table[86] = reinterpret_cast<void*>(&WtTextEditHRect);
+    return table;
+}
+
+void DriveWtTextEdit()
+{
+    for (uint32_t c = 0; c < 12; ++c) {
+        // The scroll images: none, the h one, the v one with autofit set,
+        // both with the h one of another type and autofit 0.
+        WtValue h = c % 4 == 3 ? WtNumber(4) : WtBytes(0xAAAA0000u + c, 0x11112222u, 0x33334444u + c);
+        WtValue v = WtBytes(0xBBBB0000u + c, 0x55556666u ^ c, 0x77778888u);
+        WtValue autofit = WtNumber(c % 4 == 2 ? 0x01u : 0x100u);
+        autofit.vtable = WtTextValueTable();
+        WtProp props[3];
+        std::size_t count = 0;
+        if (c % 4 == 1 || c % 4 == 3)
+            props[count++] = {0x8B4BFEFCu, &h};
+        if (c % 4 >= 2) {
+            props[count++] = {0x8B4BFEFDu, &v};
+            props[count++] = {0xDACF8F9Cu, &autofit};
+        }
+        WtWindow window = {WtWindowTable(), props, count};
+        WtTextEditFace face = {WtTextEditTable(), c, &window};
+        WtString out;
+        WtRegs regs = WtRegsOf();
+        regs.ebx = PrArg(&face);
+        regs.args[0] = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_TextEdit, regs);
+        out.MixText();
+        Mix(h.releases);
+        Mix(v.releases);
+        Mix(autofit.releases);
+    }
+    WtStage("textedit");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinListBox's writer
+
+// A script value with slot 63 too (the bool's place: the low byte of
+// `words[0]`), for the window's autofit property.
+const char* __fastcall WtListBoxValueBool(WtValue* self, void*)
+{
+    Mix(0x7E00003Fu);
+    return reinterpret_cast<const char*>(self->words);
+}
+
+void** WtListBoxValueTable()
+{
+    static void* table[104] = {};
+    if (!table[2]) {
+        void** const base = WtValueTable();
+        for (std::size_t i = 0; i < 104; ++i)
+            table[i] = base[i];
+        table[63] = reinterpret_cast<void*>(&WtListBoxValueBool);
+    }
+    return table;
+}
+
+WtValue WtListBoxBool(uint32_t on) { return {WtListBoxValueTable(), 1, 1, {on, 0, 0}, "", 0}; }
+
+// The interface: each case says which getters answer and what they give.
+// A getter that answers always writes its places (the game would print
+// its stack otherwise).
+struct WtListBoxCase {
+    uint32_t answers; // bit per getter (below)
+    uint8_t vertical, horizontal;
+    uint32_t colours[3];
+    uint32_t highlight;
+    uint32_t outline[2];
+    int8_t barGutters[2];
+    int8_t gutters[2];
+    uint32_t selection;
+    int32_t count;
+    uint32_t elementFails; // bit per index that does not answer
+};
+
+enum : uint32_t {
+    kWtLbScroll = 1,
+    kWtLbColour0 = 2,
+    kWtLbColour1 = 4,
+    kWtLbColour2 = 8,
+    kWtLbHighlight = 0x10,
+    kWtLbOutlineColours = 0x20,
+    kWtLbSunken = 0x40,
+    kWtLbOutline = 0x80,
+    kWtLbBarGutters = 0x100,
+    kWtLbGutters = 0x200,
+    kWtLbSort = 0x400,
+    kWtLbDrop = 0x800,
+};
+
+struct WtListBoxFace {
+    void** vtable;
+    const WtListBoxCase* c;
+    WtWindow* window;
+};
+
+uint32_t WtListBoxAnswer(const WtListBoxFace* self, uint32_t bit) { return (self->c->answers & bit) ? 0x5A5A0001u : 0x5A5A0000u; }
+
+void* __fastcall WtListBoxWindow(WtListBoxFace* self, void*)
+{
+    Mix(0x7B000003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtListBoxSelection(WtListBoxFace* self, void*)
+{
+    Mix(0x7B00000Cu);
+    return self->c->selection;
+}
+
+uint32_t __fastcall WtListBoxSort(WtListBoxFace* self, void*)
+{
+    Mix(0x7B00000Fu);
+    return WtListBoxAnswer(self, kWtLbSort);
+}
+
+uint32_t __fastcall WtListBoxDrop(WtListBoxFace* self, void*)
+{
+    Mix(0x7B000012u);
+    return WtListBoxAnswer(self, kWtLbDrop);
+}
+
+uint32_t __fastcall WtListBoxCount(WtListBoxFace* self, void*)
+{
+    Mix(0x7B00001Eu);
+    return static_cast<uint32_t>(self->c->count);
+}
+
+uint32_t __fastcall WtListBoxScrollbars(WtListBoxFace* self, void*, uint8_t* vertical, uint8_t* horizontal)
+{
+    Mix(0x7B000024u);
+    if (!(self->c->answers & kWtLbScroll))
+        return WtListBoxAnswer(self, kWtLbScroll);
+    *vertical = self->c->vertical;
+    *horizontal = self->c->horizontal;
+    return WtListBoxAnswer(self, kWtLbScroll);
+}
+
+uint32_t __fastcall WtListBoxFontColour(WtListBoxFace* self, void*, uint32_t which, uint32_t* colour)
+{
+    Mix(0x7B000028u);
+    Mix(which);
+    const uint32_t bit = which == 0 ? kWtLbColour0 : which == 1 ? kWtLbColour1 : kWtLbColour2;
+    if (which < 3 && (self->c->answers & bit))
+        *colour = self->c->colours[which];
+    return which < 3 ? WtListBoxAnswer(self, bit) : 0x5A5A0000u;
+}
+
+uint32_t __fastcall WtListBoxHighlight(WtListBoxFace* self, void*, uint32_t* colour)
+{
+    Mix(0x7B00002Bu);
+    if (self->c->answers & kWtLbHighlight)
+        *colour = self->c->highlight;
+    return WtListBoxAnswer(self, kWtLbHighlight);
+}
+
+uint32_t __fastcall WtListBoxElement(WtListBoxFace* self, void*, uint32_t index, char* string)
+{
+    Mix(0x7B000031u);
+    Mix(index);
+    if (index < 32 && (self->c->elementFails & (1u << index)))
+        return 0x5A5A0000u;
+    static const char* const kTexts[] = {"first item", "", "third: \"q\"", "x"};
+    const char* const text = kTexts[index % 4];
+    Virtual<uint32_t>(string, 0xC, text, static_cast<uint32_t>(std::strlen(text)));
+    return 0x5A5A0001u;
+}
+
+uint32_t __fastcall WtListBoxOutline(WtListBoxFace* self, void*)
+{
+    Mix(0x7B000034u);
+    return WtListBoxAnswer(self, kWtLbOutline);
+}
+
+uint32_t __fastcall WtListBoxSunken(WtListBoxFace* self, void*)
+{
+    Mix(0x7B000036u);
+    return WtListBoxAnswer(self, kWtLbSunken);
+}
+
+uint32_t __fastcall WtListBoxOutlineColours(WtListBoxFace* self, void*, uint32_t* first, uint32_t* second)
+{
+    Mix(0x7B000038u);
+    if (self->c->answers & kWtLbOutlineColours) {
+        *first = self->c->outline[0];
+        *second = self->c->outline[1];
+    }
+    return WtListBoxAnswer(self, kWtLbOutlineColours);
+}
+
+uint32_t __fastcall WtListBoxBarGutters(WtListBoxFace* self, void*, int8_t* a, int8_t* b)
+{
+    Mix(0x7B00003Au);
+    if (self->c->answers & kWtLbBarGutters) {
+        *a = self->c->barGutters[0];
+        *b = self->c->barGutters[1];
+    }
+    return WtListBoxAnswer(self, kWtLbBarGutters);
+}
+
+uint32_t __fastcall WtListBoxGutters(WtListBoxFace* self, void*, int8_t* a, int8_t* b)
+{
+    Mix(0x7B00003Cu);
+    if (self->c->answers & kWtLbGutters) {
+        *a = self->c->gutters[0];
+        *b = self->c->gutters[1];
+    }
+    return WtListBoxAnswer(self, kWtLbGutters);
+}
+
+void** WtListBoxTable()
+{
+    static void* table[61] = {};
+    table[3] = reinterpret_cast<void*>(&WtListBoxWindow);
+    table[12] = reinterpret_cast<void*>(&WtListBoxSelection);
+    table[15] = reinterpret_cast<void*>(&WtListBoxSort);
+    table[18] = reinterpret_cast<void*>(&WtListBoxDrop);
+    table[30] = reinterpret_cast<void*>(&WtListBoxCount);
+    table[36] = reinterpret_cast<void*>(&WtListBoxScrollbars);
+    table[40] = reinterpret_cast<void*>(&WtListBoxFontColour);
+    table[43] = reinterpret_cast<void*>(&WtListBoxHighlight);
+    table[49] = reinterpret_cast<void*>(&WtListBoxElement);
+    table[52] = reinterpret_cast<void*>(&WtListBoxOutline);
+    table[54] = reinterpret_cast<void*>(&WtListBoxSunken);
+    table[56] = reinterpret_cast<void*>(&WtListBoxOutlineColours);
+    table[58] = reinterpret_cast<void*>(&WtListBoxBarGutters);
+    table[60] = reinterpret_cast<void*>(&WtListBoxGutters);
+    return table;
+}
+
+void DriveWtListBox()
+{
+    const WtListBoxCase cases[] = {
+        // Everything answers; three elements, the second failing.
+        {0xFFF, 1, 0, {0x00FF8040u, 0x00102030u, 0xFFFFFFFFu}, 0x00A0B0C0u, {0x00010203u, 0x00F0E0D0u}, {-3, 4},
+         {127, -128}, 7, 3, 2},
+        // Nothing answers; no elements.
+        {0, 1, 1, {1, 2, 3}, 4, {5, 6}, {1, 1}, {2, 2}, 0xFFFFFFFFu, 0, 0},
+        // Every other getter; a negative count.
+        {0x555, 0, 1, {0x00123456u, 0, 0}, 0, {0, 0x00654321u}, {0, -1}, {-1, 0}, 0x80000000u, -2, 0},
+        // The others; five elements, all but the first answering.
+        {0xAAA, 0xFF, 0x80, {0, 0x00ABCDEFu, 0}, 0x00FEDCBAu, {0x7F7F7F7Fu, 0x01010101u}, {12, 34}, {-56, 78}, 0,
+         5, 0x1E},
+    };
+    WtValue fontKnown = WtNumber(kFbFontWords[0]);
+    WtValue fontOther = WtNumber(kFbFontWords[2]);
+    WtValue fontUnknown = WtNumber(0x00012345u);
+    WtValue fontText = WtTextValue("Arial Narrow");
+    WtValue fontBytes = WtBytes(1, 2, 3);
+    WtValue autofitOn = WtListBoxBool(1);
+    WtValue autofitOff = WtListBoxBool(0x100);
+    const WtProp props0[] = {{0xFAA3BE85u, &fontKnown}, {0xDACF8F9Cu, &autofitOn}};
+    const WtProp props1[] = {{0xFAA3BE86u, &fontOther}};
+    const WtProp props2[] = {{0xFAA3BE85u, &fontText}, {0xDACF8F9Cu, &autofitOff}};
+    const WtProp props3[] = {{0xFAA3BE85u, &fontUnknown}, {0xDACF8F9Cu, &autofitOn}};
+    const WtProp props4[] = {{0xFAA3BE85u, &fontBytes}, {0xDACF8F9Cu, &autofitOff}};
+    WtWindow windows[] = {
+        {WtWindowTable(), props0, 2}, {WtWindowTable(), props1, 1}, {WtWindowTable(), props2, 2},
+        {WtWindowTable(), props3, 2}, {WtWindowTable(), props4, 2},
+    };
+    for (std::size_t i = 0; i < 5; ++i) {
+        WtListBoxFace face = {WtListBoxTable(), &cases[i % 4], &windows[i]};
+        WtString out("<LEGACY ");
+        WtRegs regs = WtRegsOf();
+        regs.ebx = out.Arg();
+        regs.args[0] = PrArg(&face);
+        WtCall(addr::cGZUIScriptWriters_ListBox, regs);
+        out.MixText();
+    }
+    for (WtValue* v : {&fontKnown, &fontOther, &fontUnknown, &fontText, &fontBytes, &autofitOn, &autofitOff})
+        Mix(v->releases);
+    WtStage("listbox");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinLineInput's writer
+
+// The interface: each case says which getters answer and what they give.
+// The gutters, the style and the alpha are read without an answer, so
+// those three always write; a getter that answers always writes too.
+struct WtLineInputCase {
+    uint32_t answers; // bit per getter (below)
+    uint32_t fontColours[3];
+    uint32_t colours[4];
+    uint32_t fill;
+    int8_t gutters[4];
+    uint32_t style;
+    float alpha;
+    uint32_t caret;
+    uint32_t limit;
+    uint32_t start, length;
+};
+
+enum : uint32_t {
+    kWtLiFont0 = 1,
+    kWtLiFont1 = 2,
+    kWtLiFont2 = 4,
+    kWtLiColour0 = 8,
+    kWtLiColour1 = 0x10,
+    kWtLiColour2 = 0x20,
+    kWtLiColour3 = 0x40,
+    kWtLiFill = 0x80,
+    kWtLiFilled = 0x100,
+    kWtLiEditable = 0x200,
+    kWtLiCaret = 0x400,
+    kWtLiLimit = 0x800,
+    kWtLiSelection = 0x1000,
+};
+
+struct WtLineInputFace {
+    void** vtable;
+    const WtLineInputCase* c;
+    WtWindow* window;
+};
+
+uint32_t WtLineInputAnswer(const WtLineInputFace* self, uint32_t bit)
+{
+    return (self->c->answers & bit) ? 0x6B6B0001u : 0x6B6B0000u;
+}
+
+void* __fastcall WtLineInputWindow(WtLineInputFace* self, void*)
+{
+    Mix(0x7C000003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtLineInputFontColour(WtLineInputFace* self, void*, uint32_t which, uint32_t* colour)
+{
+    Mix(0x7C000007u);
+    Mix(which);
+    const uint32_t bit = kWtLiFont0 << (which % 3);
+    if (self->c->answers & bit)
+        *colour = self->c->fontColours[which % 3];
+    return WtLineInputAnswer(self, bit);
+}
+
+uint32_t __fastcall WtLineInputFilled(WtLineInputFace* self, void*)
+{
+    Mix(0x7C00000Au);
+    return WtLineInputAnswer(self, kWtLiFilled);
+}
+
+uint32_t __fastcall WtLineInputStyle(WtLineInputFace* self, void*, uint32_t* style)
+{
+    Mix(0x7C00000Cu);
+    *style = self->c->style;
+    return 0x6B6B00C0u;
+}
+
+uint32_t __fastcall WtLineInputColour(WtLineInputFace* self, void*, uint32_t which, uint32_t* colour)
+{
+    Mix(0x7C00000Fu);
+    Mix(which);
+    const uint32_t bit = kWtLiColour0 << (which % 4);
+    if (self->c->answers & bit)
+        *colour = self->c->colours[which % 4];
+    return WtLineInputAnswer(self, bit);
+}
+
+uint32_t __fastcall WtLineInputFill(WtLineInputFace* self, void*, uint32_t* colour)
+{
+    Mix(0x7C000012u);
+    if (self->c->answers & kWtLiFill)
+        *colour = self->c->fill;
+    return WtLineInputAnswer(self, kWtLiFill);
+}
+
+uint32_t __fastcall WtLineInputAlpha(WtLineInputFace* self, void*, float* alpha)
+{
+    Mix(0x7C000014u);
+    *alpha = self->c->alpha;
+    return 0x6B6B0014u;
+}
+
+uint32_t __fastcall WtLineInputCaret(WtLineInputFace* self, void*, uint32_t* word)
+{
+    Mix(0x7C00001Au);
+    if (self->c->answers & kWtLiCaret)
+        *word = self->c->caret;
+    return WtLineInputAnswer(self, kWtLiCaret);
+}
+
+uint32_t __fastcall WtLineInputEditable(WtLineInputFace* self, void*)
+{
+    Mix(0x7C00001Bu);
+    return WtLineInputAnswer(self, kWtLiEditable);
+}
+
+uint32_t __fastcall WtLineInputLimit(WtLineInputFace* self, void*, uint32_t* word)
+{
+    Mix(0x7C00001Eu);
+    if (self->c->answers & kWtLiLimit)
+        *word = self->c->limit;
+    return WtLineInputAnswer(self, kWtLiLimit);
+}
+
+uint32_t __fastcall WtLineInputSelection(WtLineInputFace* self, void*, uint32_t* start, uint32_t* length)
+{
+    Mix(0x7C000020u);
+    if (self->c->answers & kWtLiSelection) {
+        *start = self->c->start;
+        *length = self->c->length;
+    }
+    return WtLineInputAnswer(self, kWtLiSelection);
+}
+
+uint32_t __fastcall WtLineInputGutters(WtLineInputFace* self, void*, int8_t* a, int8_t* b, int8_t* c, int8_t* d)
+{
+    Mix(0x7C000022u);
+    *a = self->c->gutters[0];
+    *b = self->c->gutters[1];
+    *c = self->c->gutters[2];
+    *d = self->c->gutters[3];
+    return 0x6B6B0022u;
+}
+
+void** WtLineInputTable()
+{
+    static void* table[35] = {};
+    table[3] = reinterpret_cast<void*>(&WtLineInputWindow);
+    table[7] = reinterpret_cast<void*>(&WtLineInputFontColour);
+    table[10] = reinterpret_cast<void*>(&WtLineInputFilled);
+    table[12] = reinterpret_cast<void*>(&WtLineInputStyle);
+    table[15] = reinterpret_cast<void*>(&WtLineInputColour);
+    table[18] = reinterpret_cast<void*>(&WtLineInputFill);
+    table[20] = reinterpret_cast<void*>(&WtLineInputAlpha);
+    table[26] = reinterpret_cast<void*>(&WtLineInputCaret);
+    table[27] = reinterpret_cast<void*>(&WtLineInputEditable);
+    table[30] = reinterpret_cast<void*>(&WtLineInputLimit);
+    table[32] = reinterpret_cast<void*>(&WtLineInputSelection);
+    table[34] = reinterpret_cast<void*>(&WtLineInputGutters);
+    return table;
+}
+
+void DriveWtLineInput()
+{
+    // The alphas: 0, 1, a half, a value that rounds down, negative, large.
+    const WtLineInputCase cases[] = {
+        {0x1FFF, {0x00FF0000u, 0x0000FF00u, 0x000000FFu}, {1, 2, 3, 0xFFFFFFFFu}, 0x00808080u, {-1, 2, -128, 127}, 1,
+         1.0f, 5, 255, 3, 4},
+        {0, {0, 0, 0}, {0, 0, 0, 0}, 0, {0, 0, 0, 0}, 0, 0.0f, 0, 0, 0, 0},
+        {0x0AAA, {7, 0x00ABCDEFu, 9}, {0x00102030u, 0, 0x00405060u, 0}, 0, {10, -20, 30, -40}, 2, 0.5f, 0, 80, 0, 0},
+        {0x1555, {0x00654321u, 0, 0x00FFFFFFu}, {0, 0x00708090u, 0, 0x00A0B0C0u}, 0x00010101u, {0, 0, 0, 1}, 3,
+         0.3333333f, 0xFFFFFFFFu, 0, 0xFFFFFFF0u, 0x20},
+        {0x1C00, {0, 0, 0}, {0, 0, 0, 0}, 0, {5, 5, 5, 5}, 4, -0.75f, 0x7FFFFFFFu, 12, 0x7FFFFFFFu, 1},
+        {0x0300, {0, 0, 0}, {0, 0, 0, 0}, 0, {0, 1, 0, 1}, 0xFFFFFFFFu, 1000.25f, 0, 0, 0, 0},
+    };
+    WtValue fontKnown = WtNumber(kFbFontWords[1]);
+    WtValue fontUnknown = WtNumber(0xFFFFFFF6u);
+    WtValue fontText = WtTextValue("Courier");
+    WtValue fontOther = WtPairValue(1, 2);
+    const WtProp props0[] = {{0xFAA3BE85u, &fontKnown}};
+    const WtProp props1[] = {{0x12345678u, &fontKnown}};
+    const WtProp props2[] = {{0xFAA3BE85u, &fontText}};
+    const WtProp props3[] = {{0xFAA3BE85u, &fontUnknown}};
+    const WtProp props4[] = {{0xFAA3BE85u, &fontOther}};
+    WtWindow windows[] = {
+        {WtWindowTable(), props0, 1}, {WtWindowTable(), props1, 1}, {WtWindowTable(), props2, 1},
+        {WtWindowTable(), props3, 1}, {WtWindowTable(), props4, 1}, {WtWindowTable(), props0, 0},
+    };
+    for (std::size_t i = 0; i < 6; ++i) {
+        WtLineInputFace face = {WtLineInputTable(), &cases[i], &windows[i]};
+        WtString out;
+        WtRegs regs = WtRegsOf();
+        regs.ebx = out.Arg();
+        regs.args[0] = PrArg(&face);
+        WtCall(addr::cGZUIScriptWriters_LineInput, regs);
+        out.MixText();
+    }
+    for (WtValue* v : {&fontKnown, &fontUnknown, &fontText, &fontOther})
+        Mix(v->releases);
+    WtStage("lineinput");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinCombo's writer: an interface of our own (slots 3, 13, 17, 20, 23,
+// 30, 31, 34, 36, 38 and 40; each hashes its number and what it gets, and
+// answers by the case), its window one of ours with a font property
+// (0xFAA3BE85) and a key pair (0xDAA3B860); colours made by the game's
+// colour service. A getter that answers yes always writes.
+
+struct WtComboFace {
+    void** vtable;
+    uint32_t c;
+    WtWindow* window;
+    uint32_t colours[3];
+};
+
+void* __fastcall WtComboWindow(WtComboFace* self, void*)
+{
+    Mix(0x7C000003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtComboFontColour(WtComboFace* self, void*, uint32_t index, uint32_t* colour)
+{
+    Mix(0x7C00000Du);
+    Mix(index);
+    if ((self->c + index) % 3 == 2)
+        return 0x0D0D0000u;
+    *colour = self->colours[index % 3];
+    return 0x0D0D0001u;
+}
+
+uint32_t WtComboColourSlot(WtComboFace* self, uint32_t slot, uint32_t* colour)
+{
+    Mix(0x7C000000u | slot);
+    if ((self->c + slot) % 2)
+        return 0x11110000u;
+    *colour = self->colours[(self->c + slot) % 3];
+    return 0x11110001u;
+}
+
+uint32_t __fastcall WtComboHighlight(WtComboFace* self, void*, uint32_t* colour) { return WtComboColourSlot(self, 17, colour); }
+uint32_t __fastcall WtComboOutline(WtComboFace* self, void*, uint32_t* colour) { return WtComboColourSlot(self, 23, colour); }
+uint32_t __fastcall WtComboArrowColour(WtComboFace* self, void*, uint32_t* colour) { return WtComboColourSlot(self, 36, colour); }
+
+uint32_t __fastcall WtComboEditable(WtComboFace* self, void*)
+{
+    Mix(0x7C000014u);
+    return 0x14140000u | (self->c & 1);
+}
+
+uint32_t __fastcall WtComboSelection(WtComboFace* self, void*)
+{
+    Mix(0x7C00001Eu);
+    return self->c * 7u - 3u;
+}
+
+uint32_t __fastcall WtComboItem(WtComboFace* self, void*, uint32_t index, char* string)
+{
+    Mix(0x7C00001Fu);
+    Mix(index);
+    if (index >= self->c % 4)
+        return 0x1F1F0000u;
+    // The second item an empty text.
+    char text[32] = {};
+    if (index != 1)
+        std::snprintf(text, sizeof text, "item %u of %u", index, self->c);
+    Virtual<uint32_t>(string, 0xC, static_cast<const char*>(text), static_cast<uint32_t>(std::strlen(text)));
+    return 0x1F1F0001u;
+}
+
+uint32_t __fastcall WtComboArrowRect(WtComboFace* self, void*, uint32_t* word, int32_t* rect)
+{
+    Mix(0x7C000022u);
+    Mix(*word);
+    if (!(self->c % 2))
+        return 0x22220000u;
+    rect[0] = static_cast<int32_t>(self->c);
+    rect[1] = -static_cast<int32_t>(self->c);
+    rect[2] = 100;
+    rect[3] = 0x7FFFFFFF;
+    return 0x22220001u;
+}
+
+uint32_t __fastcall WtComboGutter(WtComboFace* self, void*, int8_t* gutter)
+{
+    Mix(0x7C000026u);
+    if (self->c % 3 == 1)
+        return 0x26260000u;
+    *gutter = static_cast<int8_t>(self->c * 50u - 100u);
+    return 0x26260001u;
+}
+
+uint32_t __fastcall WtComboGutters(WtComboFace* self, void*, int8_t* a, int8_t* b)
+{
+    Mix(0x7C000028u);
+    if (self->c % 2)
+        return 0x28280000u;
+    *a = static_cast<int8_t>(self->c - 5u);
+    *b = 120;
+    return 0x28280001u;
+}
+
+void** WtComboTable()
+{
+    static void* table[41] = {};
+    table[3] = reinterpret_cast<void*>(&WtComboWindow);
+    table[13] = reinterpret_cast<void*>(&WtComboFontColour);
+    table[17] = reinterpret_cast<void*>(&WtComboHighlight);
+    table[20] = reinterpret_cast<void*>(&WtComboEditable);
+    table[23] = reinterpret_cast<void*>(&WtComboOutline);
+    table[30] = reinterpret_cast<void*>(&WtComboSelection);
+    table[31] = reinterpret_cast<void*>(&WtComboItem);
+    table[34] = reinterpret_cast<void*>(&WtComboArrowRect);
+    table[36] = reinterpret_cast<void*>(&WtComboArrowColour);
+    table[38] = reinterpret_cast<void*>(&WtComboGutter);
+    table[40] = reinterpret_cast<void*>(&WtComboGutters);
+    return table;
+}
+
+void DriveWtCombo()
+{
+    void* const fonts = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C72)();
+    void* const colours = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C1A)();
+    Mix(fonts ? 1u : 0u);
+    Mix(colours ? 1u : 0u);
+    if (!fonts || !colours) {
+        WtStage("combo");
+        return;
+    }
+    // The faces of the known font words made (as part u15's test does).
+    for (uint32_t word : kFbFontWords)
+        Virtual<void*>(fonts, 0x14, word);
+    const uint32_t made[3] = {Virtual<uint32_t>(colours, 0x88, 0x12u, 0x34u, 0x56u),
+                              Virtual<uint32_t>(colours, 0x88, 0xFFu, 0u, 0x80u),
+                              Virtual<uint32_t>(colours, 0x88, 0u, 0u, 0u)};
+    for (uint32_t c = 0; c < 6; ++c) {
+        // The font: none, a known font, an unknown number, a text, another
+        // kind; the key: a pair, a number (no pair kind), none.
+        WtValue font0 = WtNumber(kFbFontWords[c % 3]);
+        WtValue unknown = WtNumber(12);
+        WtValue text = WtTextValue("Combo Face");
+        WtValue other = WtBytes(1, 2, 3);
+        WtValue pair = WtPairValue(0x11112222u + c, 0x33334444u);
+        WtValue number = WtNumber(9);
+        WtValue* const fontValues[6] = {nullptr, &font0, &unknown, &text, &other, &font0};
+        WtValue* const keyValues[3] = {&pair, &number, nullptr};
+        WtProp props[2];
+        std::size_t count = 0;
+        if (fontValues[c])
+            props[count++] = {0xFAA3BE85u, fontValues[c]};
+        if (keyValues[c % 3])
+            props[count++] = {0xDAA3B860u, keyValues[c % 3]};
+        WtWindow window = {WtWindowTable(), props, count};
+        WtComboFace face = {WtComboTable(), c, &window, {made[0], made[1], made[2]}};
+        WtString out("<");
+        WtRegs regs = WtRegsOf();
+        regs.ebx = out.Arg();
+        regs.args[0] = PrArg(&face);
+        WtCall(addr::cGZUIScriptWriters_Combo, regs);
+        out.MixText();
+        for (WtValue* v : {&font0, &unknown, &text, &other, &pair, &number})
+            Mix(v->releases);
+    }
+    WtStage("combo");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinBtn's writer: an interface of our own (slots 3, 4, 11, 21, 25, 28,
+// 31, 36, 39 and 41; each hashes its number and what it gets, and answers
+// by the case), its window one of ours with the image and tip keys
+// (0x2B343BEC, 0x2B340FFE, 12 bytes) and the two sounds (0x0A5BE39D,
+// 0x4A5BE2F8, pairs); colours made by the game's colour service. A getter
+// that answers yes always writes, and slot 31 (whose answer the writer
+// does not read) always writes.
+
+struct WtBtnFace {
+    void** vtable;
+    uint32_t c;
+    WtWindow* window;
+    uint32_t colours[3];
+};
+
+void* __fastcall WtBtnWindow(WtBtnFace* self, void*)
+{
+    Mix(0x7B000003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtBtnFlag(WtBtnFace* self, void*, uint32_t mask)
+{
+    Mix(0x7B000004u);
+    Mix(mask);
+    return 0x04040000u | (((self->c * 0x135u + 0xA3u) & mask) ? 1u : 0u);
+}
+
+uint32_t __fastcall WtBtnStyle(WtBtnFace* self, void*)
+{
+    Mix(0x7B00000Bu);
+    return self->c % 6;
+}
+
+uint32_t __fastcall WtBtnFont(WtBtnFace* self, void*, uint32_t* font)
+{
+    Mix(0x7B000015u);
+    switch (self->c % 4) {
+    case 0:
+        return 0x15150000u;
+    case 1:
+        *font = kFbFontWords[self->c % 3];
+        break;
+    case 2:
+        *font = 0x68963C4Cu;
+        break;
+    default:
+        *font = 0x1234ABCDu;
+        break;
+    }
+    return 0x15150001u;
+}
+
+uint32_t __fastcall WtBtnColour(WtBtnFace* self, void*, uint32_t index, uint32_t* colour)
+{
+    Mix(0x7B000019u);
+    Mix(index);
+    if ((self->c + index) % 4 == 3)
+        return 0x19190000u;
+    *colour = self->colours[(index + self->c) % 3];
+    return 0x19190001u;
+}
+
+uint32_t __fastcall WtBtnAlign(WtBtnFace* self, void*, uint32_t* align)
+{
+    Mix(0x7B00001Cu);
+    if (self->c % 5 == 4)
+        return 0x1C1C0000u;
+    *align = self->c % 5 == 3 ? 7u : self->c % 5;
+    return 0x1C1C0001u;
+}
+
+uint32_t __fastcall WtBtnGutters(WtBtnFace* self, void*, int32_t* a, int32_t* b, int32_t* c, int32_t* d)
+{
+    Mix(0x7B00001Fu);
+    *a = static_cast<int32_t>(self->c);
+    *b = -1;
+    *c = 1000;
+    *d = -3 * static_cast<int32_t>(self->c);
+    // The answer: the writer does not read it.
+    return 0x1F1F0000u | (self->c & 1);
+}
+
+uint32_t __fastcall WtBtnTipText(WtBtnFace* self, void*, char* string)
+{
+    Mix(0x7B000024u);
+    if (!(self->c % 2))
+        return 0x24240000u;
+    char text[32];
+    std::snprintf(text, sizeof text, "Tip text %u", self->c);
+    Virtual<uint32_t>(string, 0xC, static_cast<const char*>(text), static_cast<uint32_t>(std::strlen(text)));
+    return 0x24240001u;
+}
+
+uint32_t __fastcall WtBtnTipFlag(WtBtnFace* self, void*, uint32_t* flag)
+{
+    Mix(0x7B000027u);
+    if (self->c % 3 == 0)
+        return 0x27270000u;
+    *flag = 0x80000000u | self->c;
+    return 0x27270001u;
+}
+
+uint32_t __fastcall WtBtnTipOffsets(WtBtnFace* self, void*, int32_t* a, int32_t* b)
+{
+    Mix(0x7B000029u);
+    if (self->c % 3 == 1)
+        return 0x29290000u;
+    *a = static_cast<int32_t>(self->c) - 2;
+    *b = 7;
+    return 0x29290001u;
+}
+
+void** WtBtnTable()
+{
+    static void* table[42] = {};
+    table[3] = reinterpret_cast<void*>(&WtBtnWindow);
+    table[4] = reinterpret_cast<void*>(&WtBtnFlag);
+    table[11] = reinterpret_cast<void*>(&WtBtnStyle);
+    table[21] = reinterpret_cast<void*>(&WtBtnFont);
+    table[25] = reinterpret_cast<void*>(&WtBtnColour);
+    table[28] = reinterpret_cast<void*>(&WtBtnAlign);
+    table[31] = reinterpret_cast<void*>(&WtBtnGutters);
+    table[36] = reinterpret_cast<void*>(&WtBtnTipText);
+    table[39] = reinterpret_cast<void*>(&WtBtnTipFlag);
+    table[41] = reinterpret_cast<void*>(&WtBtnTipOffsets);
+    return table;
+}
+
+void DriveWtBtn()
+{
+    void* const fonts = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C72)();
+    void* const colours = reinterpret_cast<void*(__cdecl*)()>(addr::SC4_Singleton913C1A)();
+    Mix(fonts ? 1u : 0u);
+    Mix(colours ? 1u : 0u);
+    if (!fonts || !colours) {
+        WtStage("btn");
+        return;
+    }
+    for (uint32_t word : kFbFontWords)
+        Virtual<void*>(fonts, 0x14, word);
+    const uint32_t made[3] = {Virtual<uint32_t>(colours, 0x88, 0xC0u, 0x40u, 0x20u),
+                              Virtual<uint32_t>(colours, 0x88, 0x01u, 0xFEu, 0x7Fu),
+                              Virtual<uint32_t>(colours, 0x88, 0xFFu, 0xFFu, 0xFFu)};
+    for (uint32_t c = 0; c < 8; ++c) {
+        // The image: a key, the wrong type, none. The tip key: both words
+        // 0, the instance only, the group only, none (the image's left in
+        // the place). The click sound: a pair, a pair of zeros, a number,
+        // none; the up sound: a pair with one zero, none.
+        WtValue image = WtBytes(1, 0x22220000u + c, 0x33330000u);
+        WtValue imageWrong = WtNumber(4);
+        WtValue tips[3] = {WtBytes(9, 0, 0), WtBytes(9, 0, 5), WtBytes(0, 7, 0)};
+        WtValue click = WtPairValue(0xAAAA0000u + c, 0xBBBBu);
+        WtValue clickZero = WtPairValue(0, 0);
+        WtValue clickNumber = WtNumber(3);
+        WtValue up = WtPairValue(0, 0x1234u);
+        WtProp props[4];
+        std::size_t count = 0;
+        if (c % 3 == 0)
+            props[count++] = {0x2B343BECu, &image};
+        else if (c % 3 == 1)
+            props[count++] = {0x2B343BECu, &imageWrong};
+        if (c % 4 != 3)
+            props[count++] = {0x2B340FFEu, &tips[c % 4]};
+        WtValue* const clicks[4] = {&click, &clickZero, &clickNumber, nullptr};
+        if (clicks[c % 4])
+            props[count++] = {0x0A5BE39Du, clicks[c % 4]};
+        if (c % 2 == 0)
+            props[count++] = {0x4A5BE2F8u, &up};
+        WtWindow window = {WtWindowTable(), props, count};
+        WtBtnFace face = {WtBtnTable(), c, &window, {made[0], made[1], made[2]}};
+        WtString out(">");
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = PrArg(&face);
+        regs.args[1] = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_Btn, regs);
+        out.MixText();
+        for (WtValue* v : {&image, &imageWrong, &tips[0], &tips[1], &tips[2], &click, &clickZero, &clickNumber, &up})
+            Mix(v->releases);
+    }
+    WtStage("btn");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinBMP's writer (cdecl: the interface, the out string)
+
+struct WtBmpFace {
+    void** vtable;
+    WtWindow* window;
+    uint32_t flags; // the mask bits slot 10 answers yes for
+    uint8_t alphaOn;
+    float alpha;
+    int32_t rect[4];
+};
+
+void* __fastcall WtBmpWindow(WtBmpFace* self, void*)
+{
+    Mix(0x7F000003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtBmpAlpha(WtBmpFace* self, void*, uint8_t* on, float* alpha)
+{
+    Mix(0x7F000007u);
+    *on = self->alphaOn;
+    *alpha = self->alpha;
+    return 0x07070000u;
+}
+
+uint32_t __fastcall WtBmpRect(WtBmpFace* self, void*, int32_t* rect)
+{
+    Mix(0x7F000009u);
+    for (uint32_t i = 0; i < 4; ++i)
+        rect[i] = self->rect[i];
+    return 0x09090000u;
+}
+
+uint32_t __fastcall WtBmpFlag(WtBmpFace* self, void*, uint32_t mask)
+{
+    Mix(0x7F00000Au);
+    Mix(mask);
+    return 0x0A0A0A00u | ((self->flags & mask) ? 1u : 0u);
+}
+
+void** WtBmpTable()
+{
+    static void* table[11] = {};
+    table[3] = reinterpret_cast<void*>(&WtBmpWindow);
+    table[7] = reinterpret_cast<void*>(&WtBmpAlpha);
+    table[9] = reinterpret_cast<void*>(&WtBmpRect);
+    table[10] = reinterpret_cast<void*>(&WtBmpFlag);
+    return table;
+}
+
+void DriveWtBMP()
+{
+    WtValue image = WtBytes(0xDEADBEEFu, 0x856DDBACu, 0x12345678u);
+    WtValue notImage = WtNumber(0x55);
+    const WtProp withImage[] = {{0xAB428C5Du, &image}};
+    const WtProp wrongType[] = {{0xAB428C5Du, &notImage}};
+    WtWindow windows[] = {
+        {WtWindowTable(), withImage, 1},
+        {WtWindowTable(), wrongType, 1},
+        {WtWindowTable(), nullptr, 0},
+    };
+    // The alpha's float through the x87 and _ftol: 0, a half, 1, just
+    // under 1, above 1 (the low byte), negative.
+    const float alphas[] = {0.0f, 0.5f, 1.0f, 0.999f, 1.5f, -0.2f, 0.33333334f};
+    const uint32_t flags[] = {0x1B, 0x00, 0x10, 0x03, 0x08, 0xFFFFFFEFu, 0x12};
+    for (uint32_t i = 0; i < 7; ++i) {
+        WtBmpFace face = {WtBmpTable(), &windows[i % 3], flags[i], static_cast<uint8_t>(i % 2 ? 0 : 1 + i),
+                          alphas[i], {static_cast<int32_t>(i), -5, 640 + static_cast<int32_t>(i), -1}};
+        WtString out("<");
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = PrArg(&face);
+        regs.args[1] = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_BMP, regs);
+        out.MixText();
+    }
+    // Every alpha with the alpha on.
+    for (float alpha : alphas) {
+        WtBmpFace face = {WtBmpTable(), &windows[2], 0, 1, alpha, {0, 0, 0, 0}};
+        WtString out;
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = PrArg(&face);
+        regs.args[1] = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_BMP, regs);
+        out.MixText();
+    }
+    Mix(image.releases);
+    Mix(notImage.releases);
+    WtStage("bmp");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinSlider's writer (EDI the interface, EBX the out string)
+
+struct WtSliderFace {
+    void** vtable;
+    WtWindow* window;
+    uint32_t minimum, maximum, direction, value;
+};
+
+void* __fastcall WtSliderWindow(WtSliderFace* self, void*)
+{
+    Mix(0x7F010003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtSliderValue(WtSliderFace* self, void*)
+{
+    Mix(0x7F010004u);
+    return self->value;
+}
+
+uint32_t __fastcall WtSliderMinimum(WtSliderFace* self, void*)
+{
+    Mix(0x7F010007u);
+    return self->minimum;
+}
+
+uint32_t __fastcall WtSliderMaximum(WtSliderFace* self, void*)
+{
+    Mix(0x7F010009u);
+    return self->maximum;
+}
+
+uint32_t __fastcall WtSliderDirection(WtSliderFace* self, void*, uint32_t* direction)
+{
+    Mix(0x7F01000Bu);
+    *direction = self->direction;
+    return 0x0B0B0000u;
+}
+
+void** WtSliderTable()
+{
+    static void* table[12] = {};
+    table[3] = reinterpret_cast<void*>(&WtSliderWindow);
+    table[4] = reinterpret_cast<void*>(&WtSliderValue);
+    table[7] = reinterpret_cast<void*>(&WtSliderMinimum);
+    table[9] = reinterpret_cast<void*>(&WtSliderMaximum);
+    table[11] = reinterpret_cast<void*>(&WtSliderDirection);
+    return table;
+}
+
+void DriveWtSlider()
+{
+    WtValue image = WtBytes(0x0C0C0C0Cu, 0x856DDBACu, 0xABCDEF01u);
+    WtValue notImage = WtTextValue("x");
+    const WtProp withImage[] = {{0x6B4BCBD4u, &image}};
+    const WtProp wrongType[] = {{0x6B4BCBD4u, &notImage}};
+    WtWindow windows[] = {
+        {WtWindowTable(), withImage, 1},
+        {WtWindowTable(), wrongType, 1},
+        {WtWindowTable(), nullptr, 0},
+    };
+    const WtSliderFace faces[] = {
+        {WtSliderTable(), &windows[0], 0, 100, 2, 50},
+        {WtSliderTable(), &windows[1], 0xFFFFFFF6u, 10, 1, 0xFFFFFFFFu},
+        {WtSliderTable(), &windows[2], 5, 5, 0, 5},
+        {WtSliderTable(), &windows[0], 0x80000000u, 0x7FFFFFFFu, 3, 0},
+        {WtSliderTable(), &windows[2], 1, 2, 0x102, 3},
+    };
+    for (const WtSliderFace& face : faces) {
+        WtString out("<");
+        WtRegs regs = WtRegsOf();
+        regs.edi = PrArg(&face);
+        regs.ebx = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_Slider, regs);
+        out.MixText();
+    }
+    Mix(image.releases);
+    Mix(notImage.releases);
+    WtStage("slider");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinScrollbar's writer (EDI the interface, EBX the out string)
+
+struct WtScrollbarFace {
+    void** vtable;
+    WtWindow* window;
+    uint32_t rangeOk, minimum, maximum, direction, page, line, lines, pages, value;
+};
+
+void* __fastcall WtScrollbarWindow(WtScrollbarFace* self, void*)
+{
+    Mix(0x7F020003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtScrollbarValue(WtScrollbarFace* self, void*)
+{
+    Mix(0x7F020006u);
+    return self->value;
+}
+
+// The range: written only when it answers yes (the game reads it only
+// then).
+uint32_t __fastcall WtScrollbarRange(WtScrollbarFace* self, void*, uint32_t* minimum, uint32_t* maximum)
+{
+    Mix(0x7F020008u);
+    if (!self->rangeOk)
+        return 0x08080800u;
+    *minimum = self->minimum;
+    *maximum = self->maximum;
+    return 0x08080801u;
+}
+
+uint32_t __fastcall WtScrollbarDirection(WtScrollbarFace* self, void*)
+{
+    Mix(0x7F02000Au);
+    return self->direction;
+}
+
+uint32_t __fastcall WtScrollbarPage(WtScrollbarFace* self, void*)
+{
+    Mix(0x7F02000Cu);
+    return self->page;
+}
+
+uint32_t __fastcall WtScrollbarLine(WtScrollbarFace* self, void*)
+{
+    Mix(0x7F02000Eu);
+    return self->line;
+}
+
+uint32_t __fastcall WtScrollbarCounts(WtScrollbarFace* self, void*, uint32_t* lines, uint32_t* pages)
+{
+    Mix(0x7F020010u);
+    *lines = self->lines;
+    *pages = self->pages;
+    return 0x10100000u;
+}
+
+void** WtScrollbarTable()
+{
+    static void* table[17] = {};
+    table[3] = reinterpret_cast<void*>(&WtScrollbarWindow);
+    table[6] = reinterpret_cast<void*>(&WtScrollbarValue);
+    table[8] = reinterpret_cast<void*>(&WtScrollbarRange);
+    table[10] = reinterpret_cast<void*>(&WtScrollbarDirection);
+    table[12] = reinterpret_cast<void*>(&WtScrollbarPage);
+    table[14] = reinterpret_cast<void*>(&WtScrollbarLine);
+    table[16] = reinterpret_cast<void*>(&WtScrollbarCounts);
+    return table;
+}
+
+void DriveWtScrollbar()
+{
+    WtValue image = WtBytes(0x0C0C0C0Cu, 0x11111111u, 0x22222222u);
+    WtValue notImage = WtPairValue(3, 4);
+    const WtProp withImage[] = {{0x6B4BCBD4u, &image}};
+    const WtProp wrongType[] = {{0x6B4BCBD4u, &notImage}};
+    WtWindow windows[] = {
+        {WtWindowTable(), withImage, 1},
+        {WtWindowTable(), wrongType, 1},
+        {WtWindowTable(), nullptr, 0},
+    };
+    const WtScrollbarFace faces[] = {
+        {WtScrollbarTable(), &windows[0], 1, 0, 1000, 2, 100, 10, 3, 4, 500},
+        {WtScrollbarTable(), &windows[1], 0, 7, 8, 1, 0xFFFFFFFFu, 0, 0, 0, 0xFFFFFF9Cu},
+        {WtScrollbarTable(), &windows[2], 0x100, 0xFFFFFFF0u, 16, 0, 1, 1, 0xFFFFFFFFu, 2, 1},
+        {WtScrollbarTable(), &windows[0], 0xFF, 5, 5, 0x10002, 0, 0x7FFFFFFFu, 9, 0x80000000u, 5},
+        {WtScrollbarTable(), &windows[2], 1, 0x80000000u, 0x7FFFFFFFu, 3, 2, 3, 4, 5, 6},
+    };
+    for (const WtScrollbarFace& face : faces) {
+        WtString out("<");
+        WtRegs regs = WtRegsOf();
+        regs.edi = PrArg(&face);
+        regs.ebx = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_Scrollbar, regs);
+        out.MixText();
+    }
+    Mix(image.releases);
+    Mix(notImage.releases);
+    WtStage("scrollbar");
+}
+
+// ------------------------------------------------------------------------------------
+// GZWinOptGrp's writer (cdecl: the interface, the out string) and its
+// options' callback (cdecl: the window, the id, the IGZWinBtn, the out
+// string)
+
+// A script value with slot 63 too (a bool's place: the first word's low
+// byte), for the autofit property.
+uint8_t* __fastcall WtOptGrpValueBool(WtValue* self, void*)
+{
+    Mix(0x7E00003Fu);
+    return reinterpret_cast<uint8_t*>(&self->words[0]);
+}
+
+void** WtOptGrpValueTable()
+{
+    static void* table[104] = {};
+    void** const base = WtValueTable();
+    for (std::size_t i = 0; i < 104; ++i)
+        table[i] = base[i];
+    table[63] = reinterpret_cast<void*>(&WtOptGrpValueBool);
+    return table;
+}
+
+// A window of our own with slot 113 (WtWindowProperty, so the first three
+// fields are WtWindow's), slot 32 (each button handed to the callback by
+// its address with the window, its id and the out string; the callback's
+// AL hashed) and slot 47 (its area).
+struct WtOptGrpButton;
+
+struct WtOptGrpWindow {
+    void** vtable;
+    const WtProp* props;
+    std::size_t count;
+    WtOptGrpButton* const* buttons;
+    std::size_t buttonCount;
+    int32_t area[4];
+};
+
+uint32_t __fastcall WtOptGrpChildren(WtOptGrpWindow* self, void*, uint32_t iid, std::uintptr_t callback, void* out);
+
+uint32_t __fastcall WtOptGrpArea(WtOptGrpWindow* self, void*, int32_t* area)
+{
+    Mix(0x7E00002Fu);
+    for (uint32_t i = 0; i < 4; ++i)
+        area[i] = self->area[i];
+    return 0x2F2F0000u;
+}
+
+void** WtOptGrpWindowTable()
+{
+    static void* table[114] = {};
+    WtWindowSlots(table);
+    table[32] = reinterpret_cast<void*>(&WtOptGrpChildren);
+    table[47] = reinterpret_cast<void*>(&WtOptGrpArea);
+    return table;
+}
+
+// An option (IGZWinBtn): slot 3 its window, slot 16 the image's
+// rectangle, slot 50 its caption (a game string, which is a cIGZString).
+struct WtOptGrpButton {
+    void** vtable;
+    WtOptGrpWindow* window;
+    uint32_t id;
+    int32_t rect[4];
+    WtString* caption;
+};
+
+void* __fastcall WtOptGrpButtonWindow(WtOptGrpButton* self, void*)
+{
+    Mix(0x7F030103u);
+    return self->window;
+}
+
+uint32_t __fastcall WtOptGrpButtonRect(WtOptGrpButton* self, void*, int32_t* rect)
+{
+    Mix(0x7F030110u);
+    for (uint32_t i = 0; i < 4; ++i)
+        rect[i] = self->rect[i];
+    return 0x10100000u;
+}
+
+void* __fastcall WtOptGrpButtonCaption(WtOptGrpButton* self, void*)
+{
+    Mix(0x7F030132u);
+    return self->caption->bytes;
+}
+
+void** WtOptGrpButtonTable()
+{
+    static void* table[51] = {};
+    table[3] = reinterpret_cast<void*>(&WtOptGrpButtonWindow);
+    table[16] = reinterpret_cast<void*>(&WtOptGrpButtonRect);
+    table[50] = reinterpret_cast<void*>(&WtOptGrpButtonCaption);
+    return table;
+}
+
+uint32_t __fastcall WtOptGrpChildren(WtOptGrpWindow* self, void*, uint32_t iid, std::uintptr_t callback, void* out)
+{
+    Mix(0x7E000020u);
+    Mix(iid);
+    Mix(callback == addr::cGZUIScriptWriters_OptGrpOption ? 1u : 0u);
+    using Callback = uint32_t(__cdecl*)(void*, uint32_t, void*, void*);
+    for (std::size_t i = 0; i < self->buttonCount; ++i) {
+        WtOptGrpButton* const button = self->buttons[i];
+        MixByte(reinterpret_cast<Callback>(callback)(self, button ? button->id : 0xFFFFu, button, out));
+    }
+    return 0x20200001u;
+}
+
+// IGZWinOptGrp of our own.
+struct WtOptGrpFace {
+    void** vtable;
+    WtOptGrpWindow* window;
+    uint32_t flags;          // slot 4's yes bits
+    int32_t gutters[2];      // slot 7
+    uint32_t colourOk;       // slot 11's yes indices (bits)
+    uint32_t colours[5];     // slot 11
+    uint32_t outlineOk;      // slot 22
+    uint32_t outline[4];     // slot 22
+    uint32_t selection;      // slot 13
+    uint32_t autofillOk;     // slot 29
+    uint32_t manual, size;   // slot 29
+};
+
+void* __fastcall WtOptGrpFaceWindow(WtOptGrpFace* self, void*)
+{
+    Mix(0x7F030003u);
+    return self->window;
+}
+
+uint32_t __fastcall WtOptGrpFaceFlag(WtOptGrpFace* self, void*, uint32_t mask)
+{
+    Mix(0x7F030004u);
+    Mix(mask);
+    return 0x04040400u | ((self->flags & mask) ? 1u : 0u);
+}
+
+uint32_t __fastcall WtOptGrpFaceGutters(WtOptGrpFace* self, void*, int32_t* a, int32_t* b)
+{
+    Mix(0x7F030007u);
+    *a = self->gutters[0];
+    *b = self->gutters[1];
+    return 0x07070000u;
+}
+
+// A colour: written only when it answers yes.
+uint32_t __fastcall WtOptGrpFaceColour(WtOptGrpFace* self, void*, uint32_t index, uint32_t* colour)
+{
+    Mix(0x7F03000Bu);
+    Mix(index);
+    if (!(self->colourOk & (1u << (index & 31))))
+        return 0x0B0B0B00u;
+    *colour = self->colours[index % 5];
+    return 0x0B0B0B01u;
+}
+
+uint32_t __fastcall WtOptGrpFaceSelection(WtOptGrpFace* self, void*)
+{
+    Mix(0x7F03000Du);
+    return self->selection;
+}
+
+uint32_t __fastcall WtOptGrpFaceOutline(WtOptGrpFace* self, void*, uint32_t* a, uint32_t* b, uint32_t* c,
+                                        uint32_t* d)
+{
+    Mix(0x7F030016u);
+    if (!self->outlineOk)
+        return 0x16161600u;
+    *a = self->outline[0];
+    *b = self->outline[1];
+    *c = self->outline[2];
+    *d = self->outline[3];
+    return 0x16161601u;
+}
+
+uint32_t __fastcall WtOptGrpFaceAutofill(WtOptGrpFace* self, void*, uint32_t* manual, uint32_t* size)
+{
+    Mix(0x7F03001Du);
+    if (!self->autofillOk)
+        return 0x1D1D1D00u;
+    *manual = self->manual;
+    *size = self->size;
+    return 0x1D1D1D01u;
+}
+
+void** WtOptGrpFaceTable()
+{
+    static void* table[30] = {};
+    table[3] = reinterpret_cast<void*>(&WtOptGrpFaceWindow);
+    table[4] = reinterpret_cast<void*>(&WtOptGrpFaceFlag);
+    table[7] = reinterpret_cast<void*>(&WtOptGrpFaceGutters);
+    table[11] = reinterpret_cast<void*>(&WtOptGrpFaceColour);
+    table[13] = reinterpret_cast<void*>(&WtOptGrpFaceSelection);
+    table[22] = reinterpret_cast<void*>(&WtOptGrpFaceOutline);
+    table[29] = reinterpret_cast<void*>(&WtOptGrpFaceAutofill);
+    return table;
+}
+
+void DriveWtOptGrp()
+{
+    // The options' windows (their image key under 0xDAA3B860, their area)
+    // and captions.
+    WtValue optionImage = WtPairValue(0x856DDBACu, 0x00ABCDEFu);
+    WtValue optionNoKey = WtPairValue(0, 0);
+    const WtProp optionProps[] = {{0xDAA3B860u, &optionImage}};
+    const WtProp optionZeroProps[] = {{0xDAA3B860u, &optionNoKey}};
+    WtOptGrpWindow optionWindows[] = {
+        {WtOptGrpWindowTable(), optionProps, 1, nullptr, 0, {10, 20, 110, 45}},
+        {WtOptGrpWindowTable(), nullptr, 0, nullptr, 0, {-5, 0, 5, 0}},
+        {WtOptGrpWindowTable(), optionZeroProps, 1, nullptr, 0, {0, 0, 0, 0}},
+        {WtOptGrpWindowTable(), optionProps, 1, nullptr, 0, {7, 300, 3, 200}},
+    };
+    WtString caption0("First");
+    WtString caption1("");
+    WtString caption2("Third option");
+    WtString caption3("x:y");
+    WtOptGrpButton buttons[] = {
+        {WtOptGrpButtonTable(), &optionWindows[0], 1, {0, 0, 32, 32}, &caption0},
+        {WtOptGrpButtonTable(), &optionWindows[1], 0xFFFFFFFFu, {1, 2, 3, 4}, &caption1},
+        {WtOptGrpButtonTable(), &optionWindows[2], 77, {-1, -2, -3, -4}, &caption2},
+        {WtOptGrpButtonTable(), &optionWindows[3], 0x80000000u, {5, 6, 7, 8}, &caption3},
+    };
+    WtOptGrpButton* const someButtons[] = {&buttons[0], &buttons[1], nullptr, &buttons[2], &buttons[3]};
+
+    // The group's windows: fonts (two known, a number, a text, missing),
+    // the caption's key (a pair, a zero pair, another kind, missing), the
+    // back image (a pair, another kind, missing), autofit (on, off,
+    // missing).
+    WtValue font0 = WtNumber(kFbFontWords[0]);
+    WtValue font1 = WtNumber(kFbFontWords[1]);
+    WtValue fontNumber = WtNumber(0x1234u);
+    WtValue fontText = WtTextValue("Tahoma");
+    WtValue captionKey = WtPairValue(0x2026960Bu, 0x00000017u);
+    WtValue captionZero = WtPairValue(0, 0);
+    WtValue captionHalf = WtPairValue(0, 9);
+    WtValue captionNumber = WtNumber(4);
+    WtValue backImage = WtPairValue(0x856DDBACu, 0x55555555u);
+    WtValue backNumber = WtNumber(3);
+    WtValue autofitOn = {WtOptGrpValueTable(), 6, 6, {0xFFFFFF01u, 0, 0}, "", 0};
+    WtValue autofitOff = {WtOptGrpValueTable(), 6, 6, {0x100u, 0, 0}, "", 0};
+    const WtProp props0[] = {{0xFAA3BE85u, &font0},       {0xFAA3BE86u, &font1},     {0x4A4AF4ACu, &captionKey},
+                             {0xDAA3B860u, &backImage},   {0xDACF8F9Cu, &autofitOn}};
+    const WtProp props1[] = {{0xFAA3BE85u, &fontNumber},  {0x4A4AF4ACu, &captionZero}, {0xDAA3B860u, &backNumber},
+                             {0xDACF8F9Cu, &autofitOff}};
+    const WtProp props2[] = {{0xFAA3BE86u, &fontText},    {0x4A4AF4ACu, &captionHalf}};
+    const WtProp props3[] = {{0xFAA3BE85u, &fontText},    {0xFAA3BE86u, &fontNumber}, {0x4A4AF4ACu, &captionNumber},
+                             {0xDACF8F9Cu, &autofitOn}};
+    WtOptGrpWindow windows[] = {
+        {WtOptGrpWindowTable(), props0, 5, someButtons, 5, {0, 0, 0, 0}},
+        {WtOptGrpWindowTable(), props1, 4, someButtons, 2, {0, 0, 0, 0}},
+        {WtOptGrpWindowTable(), props2, 2, nullptr, 0, {0, 0, 0, 0}},
+        {WtOptGrpWindowTable(), props3, 4, someButtons + 3, 2, {0, 0, 0, 0}},
+    };
+    const WtOptGrpFace faces[] = {
+        {WtOptGrpFaceTable(), &windows[0], 0xF, {2, 3}, 0x1F, {0xFF000000u, 0xFFFFFFFFu, 0xFF102030u, 0x80FF00FFu,
+                                                               0x00123456u},
+         1, {0xFFFF0000u, 0xFF00FF00u, 0xFF0000FFu, 0xFFFFFFFFu}, 2, 1, 0, 12},
+        {WtOptGrpFaceTable(), &windows[1], 0x0, {-1, 0x7FFFFFFF}, 0x15, {0xFF010203u, 0, 0xFFFEFDFCu, 0, 0x7F7F7F7Fu},
+         0, {0, 0, 0, 0}, 0xFFFFFFFFu, 1, 3, 9},
+        {WtOptGrpFaceTable(), &windows[2], 0x5, {0, 0}, 0x0, {0, 0, 0, 0, 0},
+         1, {0xFF808080u, 0xFF000001u, 0xFF010000u, 0xFF000100u}, 0, 0, 0, 0},
+        {WtOptGrpFaceTable(), &windows[3], 0xA, {100, -100}, 0x2, {0, 0xFFABCDEFu, 0, 0, 0},
+         0, {0, 0, 0, 0}, 7, 1, 1, 0xFFFFFFFFu},
+    };
+    for (const WtOptGrpFace& face : faces) {
+        WtString out("<");
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = PrArg(&face);
+        regs.args[1] = out.Arg();
+        WtCall(addr::cGZUIScriptWriters_OptGrp, regs);
+        out.MixText();
+    }
+    // The callback by address: each option, and none (AL 1, nothing
+    // written).
+    for (WtOptGrpButton* button : someButtons) {
+        WtString out("[");
+        WtRegs regs = WtRegsOf();
+        regs.args[0] = PrArg(&windows[0]);
+        regs.args[1] = button ? button->id : 42u;
+        regs.args[2] = PrArg(button);
+        regs.args[3] = out.Arg();
+        MixByte(WtCall(addr::cGZUIScriptWriters_OptGrpOption, regs));
+        out.MixText();
+    }
+    for (WtValue* v : {&optionImage, &optionNoKey, &font0, &font1, &fontNumber, &fontText, &captionKey,
+                       &captionZero, &captionHalf, &captionNumber, &backImage, &backNumber, &autofitOn,
+                       &autofitOff})
+        Mix(v->releases);
+    WtStage("optgrp");
+}
+
+
+// OPENSC4_TEST_WRITERS=<day>: part u17 by address. Every result goes into
+// the fingerprint's `wt` part.
+void DriveWritersDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_WRITERS") || !game::IsBuild641())
+        return;
+    g_wtOn = true;
+    uint32_t* const saved = g_into;
+    g_into = &g_wtHash;
+    DriveWtLines();
+    DriveWtProps();
+    DriveWtFlatRect();
+    DriveWtText();
+    DriveWtTextEdit();
+    DriveWtListBox();
+    DriveWtLineInput();
+    DriveWtCombo();
+    DriveWtBtn();
+    DriveWtBMP();
+    DriveWtSlider();
+    DriveWtScrollbar();
+    DriveWtOptGrp();
+    g_into = saved;
+    log::Write("autotest: writers driven (hash %08X)", g_wtHash);
+}
+
+void WtFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_wtOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | wt %08X", g_wtHash);
+    line += text;
+}
+
+const FingerprintPart kWtFingerprint{"writers", 4, &WtFingerprint};
+const DayHook kWtDrive{"writers", 4, &DriveWritersDay};
+
 } // namespace
 } // namespace opensc4::autotest
