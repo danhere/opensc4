@@ -1,4 +1,4 @@
-// The layout of the emergency vehicles, parts em1 and em2a (build 641; functions, vtables and data in
+// The layout of the emergency vehicles, parts em1, em2a and em2b (build 641; functions, vtables and data in
 // data/addresses/automata.toml, the survey in docs/automata.md, "Part em").
 //
 // A base on cSC4Vehicle (src/core/automata_vehicle.h) and three classes on
@@ -101,6 +101,27 @@ inline constexpr std::size_t kOccupantsAt = 0x38;   // 0x00B43D54's 14: (cell x,
 inline constexpr std::size_t kIsType = 0x24;        // a node's object's 9: (type), ret 4, a bool
 inline constexpr std::size_t kUDriveOn = 0x14;      // the U-Drive service's 5: (0xB), ret 4
 inline constexpr std::size_t kUDriveOff = 0x18;     // its 6: (0xB), ret 4
+// Part em2b's, of the automaton unless noted.
+inline constexpr std::size_t kGetPosition = 0x1C;   // 7: (float* out), ret 4
+inline constexpr std::size_t kPopState = 0xD4;      // 53
+inline constexpr std::size_t kSlot85 = 0x154;       // 85: a bool
+inline constexpr std::size_t kSlot87 = 0x15C;       // 87: a bool (the end of the way)
+inline constexpr std::size_t kSlot88 = 0x160;       // 88: a bool
+inline constexpr std::size_t kEnterOccupant = 0x210; // 132: (occupant, groups, path, keep), ret 0x10
+inline constexpr std::size_t kSlot147 = 0x24C;      // 147: (occupant, byte), ret 8
+inline constexpr std::size_t kSlot148 = 0x250;      // 148: an object
+inline constexpr std::size_t kSlot165 = 0x294;      // 165: a bool
+inline constexpr std::size_t kSlot192 = 0x300;      // 192: a word
+inline constexpr std::size_t kTargetPosition = 0x20; // the target's 8: (float* out), ret 4
+inline constexpr std::size_t kTrafficNetwork = 0xA0; // the city's 40: the traffic network map
+inline constexpr std::size_t kCityPathFinder = 0xAC; // the city's 43: the path finder
+inline constexpr std::size_t kOccupantAt = 0x2C;    // the map's 11: (cell x, cell z), ret 8
+inline constexpr std::size_t kFindPath = 0x44;      // the path finder's 17: (automaton, from, to, a, b), ret 0x14
+inline constexpr std::size_t kMessageType = 0x14;   // a cGZMessage's 5: (type), ret 4
+inline constexpr std::size_t kMessageData1 = 0x2C;  // its 11: (word), ret 4
+inline constexpr std::size_t kMessageData2 = 0x40;  // its 16: (word), ret 4
+inline constexpr std::size_t kMessageObject = 0x84; // its 33: (object), ret 4
+inline constexpr std::size_t kPost = 0x10;          // the message server's 4: (message, 0), ret 8
 } // namespace slot
 
 // A state record's type (the core's states).
