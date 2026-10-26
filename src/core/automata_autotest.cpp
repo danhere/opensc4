@@ -437,6 +437,24 @@
 //   slot 44 (eflags 0x20 without a city); then one of each class released
 //   with its fields set. The test's slots' calls are mixed into eobject and
 //   elife. Log line: "em1 eobject".
+//   Part em2a (the base's states and mission) adds `,<estates>` before
+//   eflags (46 fields): on each class's object, a vtable copy (em1's with
+//   slots 30, 33, 51, 56, 99, 102, 106, 143, 146 and 195 to 198 the test's
+//   too, the occupant part's slot 22 the test's), the sound service, the
+//   message server and 0x00B43D54 of the test's and the city's vtable
+//   swapped for a copy with slots 47 (a sounds' service with a siren of the
+//   test's) and 95 the test's: the +0x204 deque's count with 0, 3 and 12
+//   elements and slot 73 with each (the flags 0x80 and 0x20 on the other,
+//   itself, null); slot 146 over five points and three node lists (a NaN
+//   point too); slot 79 by the flag 0x80, three missions and the point;
+//   slot 109 with no states, no current state and the types 0x64 to 0x67
+//   (a stack of the test's); slots 110 and 111 over the states 0x34,
+//   0x67 and 7 (cSC4Vehicle's and the automaton base's run on zeroed
+//   records), 111 with none; slot 194 over six words; slot 25 over eleven
+//   missions (the groups 0x4228, 0x4202 or none, a stacked state 0x10 once,
+//   no sound service once); slot 93's text after cSC4Vehicle's by four
+//   missions and the flag 0x200. eflags 0x40 when it ran, 0x80 when a
+//   factory failed, 0x100 without a city. Log line: "em2a estates".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -24882,6 +24900,478 @@ void EmergencyDrive(Hash& eobject, Hash& esave, Hash& elife, uint32_t& eflags)
     g_em = EmAnswers{};
 }
 
+// ---- Part em2a: the base's states and mission (src/core/automata_emergency.cpp).
+
+// What the em2a test's slots and services answer.
+struct Em2Answers {
+    char* self = nullptr;     // the object under test (its address is not mixed)
+    char* current = nullptr;  // slot 56
+    float point[3] = {};      // slot 143
+    uint8_t atPoint = 0;      // slot 146
+    char* fill = nullptr;     // slot 99 stores this
+    uint8_t groups = 0;       // the occupant part's slot 22: 1 for 0x4228, 2 for 0x4202
+    char* nodes = nullptr;    // 0x00B43D54's slot 14
+    uint32_t posts = 0;       // the message server's posts
+};
+Em2Answers g_em2;
+
+// A word for the hash: the object as 0x5E1F, pointers of the test's by name.
+uint32_t Em2Word(uint32_t w)
+{
+    return w == static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(g_em2.self)) ? 0x5E1Fu : w;
+}
+
+void __fastcall Em2SetFlag(char*, void*, uint32_t flag, uint32_t on)
+{
+    g_em.calls.Mix(30);
+    g_em.calls.Mix(flag);
+    g_em.calls.Mix(on);
+}
+void __fastcall Em2Fade(char*, void*, uint32_t a, uint32_t b)
+{
+    g_em.calls.Mix(33);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(b);
+}
+void __fastcall Em2SetState(char*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f,
+                            uint32_t g)
+{
+    g_em.calls.Mix(51);
+    for (const uint32_t w : {a, b, c, d, e, f, g})
+        g_em.calls.Mix(w);
+}
+char* __fastcall Em2Current(char*, void*)
+{
+    g_em.calls.Mix(56);
+    return g_em2.current;
+}
+void __fastcall Em2Slot99(char* o, void*, uint32_t a, char** at)
+{
+    g_em.calls.Mix(99);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(at == reinterpret_cast<char**>(o + em::base::kHeld) ? 1u : 2u);
+    *at = g_em2.fill;
+}
+void __fastcall Em2Slot102(char*, void*, uint32_t a, uint32_t b)
+{
+    g_em.calls.Mix(102);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(b);
+}
+float* __fastcall Em2Point(char*, void*)
+{
+    g_em.calls.Mix(143);
+    return g_em2.point;
+}
+uint8_t __fastcall Em2AtPoint(char*, void*)
+{
+    g_em.calls.Mix(146);
+    return g_em2.atPoint;
+}
+template <uint32_t N>
+uint8_t __fastcall Em2Frame(char*, void*, uint32_t seconds)
+{
+    g_em.calls.Mix(N);
+    g_em.calls.Mix(seconds);
+    return static_cast<uint8_t>(0x40 + N - 195);
+}
+void __fastcall Em2Slot106(char*, void*) { g_em.calls.Mix(106); }
+uint8_t __fastcall Em2InGroup(char*, void*, uint32_t group)
+{
+    g_em.calls.Mix(22);
+    g_em.calls.Mix(group);
+    return static_cast<uint8_t>((group == 0x4228u && (g_em2.groups & 1)) || (group == 0x4202u && (g_em2.groups & 2)));
+}
+
+// The sound service 0x00B43CB8 (slot 11, five words), the message server
+// 0x00B43CCC (slot 4: counts, mixes the message's type) and 0x00B43D54
+// (slot 14: the nodes).
+void __fastcall Em2Sound(void*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e)
+{
+    g_em.calls.Mix(0xB8);
+    for (const uint32_t w : {a, b, c, d, e})
+        g_em.calls.Mix(Em2Word(w));
+}
+uint32_t __fastcall Em2Post(void*, void*, void* message, uint32_t word)
+{
+    ++g_em2.posts;
+    g_em.calls.Mix(0xCC);
+    g_em.calls.Mix(message ? 1u : 0u);
+    g_em.calls.Mix(word);
+    return 1;
+}
+char* __fastcall Em2OccupantsAt(void*, void*, int32_t x, int32_t z)
+{
+    g_em.calls.Mix(0x38);
+    g_em.calls.Mix(static_cast<uint32_t>(x));
+    g_em.calls.Mix(static_cast<uint32_t>(z));
+    return g_em2.nodes;
+}
+
+// The nodes 0x00B43D54 lists (the object at +0, the next at +0x54) and
+// their objects (slot 9).
+struct Em2Typed {
+    void** vtable;
+    uint8_t answer;
+};
+uint8_t __fastcall Em2IsType(Em2Typed* t, void*, uint32_t type)
+{
+    g_em.calls.Mix(0x24);
+    g_em.calls.Mix(type);
+    return t->answer;
+}
+struct Em2Node {
+    Em2Typed* object;
+    char pad[0x50];
+    Em2Node* next;
+};
+
+// The siren sound of the test's (AddRef, Release, slots 4 and 18) and the
+// city's slot 47 service (slots 5 and 7).
+struct Em2Siren {
+    void** vtable;
+    int32_t references;
+};
+uint32_t __fastcall Em2SirenAddRef(Em2Siren* s, void*) { return static_cast<uint32_t>(++s->references); }
+uint32_t __fastcall Em2SirenRelease(Em2Siren* s, void*) { return static_cast<uint32_t>(--s->references); }
+uint32_t __fastcall Em2SirenSlot4(Em2Siren*, void*)
+{
+    g_em.calls.Mix(0x5104);
+    return 0;
+}
+uint32_t __fastcall Em2SirenStop(Em2Siren*, void*, uint32_t w)
+{
+    g_em.calls.Mix(0x5118);
+    g_em.calls.Mix(w);
+    return 0;
+}
+Em2Siren g_em2Siren;
+void* __fastcall Em2EffectsMake(void*, void*, char* part, void* name, uint32_t zero)
+{
+    g_em.calls.Mix(0xE5);
+    g_em.calls.Mix(part == g_em2.self + 4 ? 1u : 2u);
+    const auto* const text = static_cast<const char* const*>(name);
+    g_em.calls.Mix(static_cast<uint32_t>(text[2] - text[1]));
+    g_em.calls.MixBytes(text[1], static_cast<std::size_t>(text[2] - text[1]));
+    g_em.calls.Mix(zero);
+    return &g_em2Siren;
+}
+uint32_t __fastcall Em2EffectsRemove(void*, void*, void* sound)
+{
+    g_em.calls.Mix(0xE7);
+    g_em.calls.Mix(sound == &g_em2Siren ? 1u : 2u);
+    return 0;
+}
+void* __fastcall Em2CityEffects(void*, void*)
+{
+    g_em.calls.Mix(0x2F);
+    static void* table[8] = {};
+    table[em::slot::kEffectsMake / 4] = reinterpret_cast<void*>(&Em2EffectsMake);
+    table[em::slot::kEffectsRemove / 4] = reinterpret_cast<void*>(&Em2EffectsRemove);
+    static void** effects = table;
+    return &effects;
+}
+uint32_t __fastcall Em2CellOf(void*, void*, float x, float z, int32_t* a, int32_t* b)
+{
+    g_em.calls.Mix(95);
+    g_em.calls.Mix(Bits(x));
+    g_em.calls.Mix(Bits(z));
+    g_em.calls.Mix(static_cast<uint32_t>(*b)); // the bound (the third is the game's unset local)
+    *a = 7;
+    *b = 9;
+    return 1;
+}
+
+// The em1 vtable copy with the em2a slots the test's too: 30, 33, 51, 56,
+// 99, 102, 106, 143, 146 and 195 to 198 (194 and 25 stay the test's, the
+// functions under test are called at their addresses).
+void** Em2Table(int which, char* o)
+{
+    static void* tables[3][202];
+    void** const t = tables[which];
+    void** const base = EmTable(which, o);
+    for (int i = 0; i < kEmClasses[which].slots; ++i)
+        t[i] = base[i];
+    t[em::slot::kSetFlag / 4] = reinterpret_cast<void*>(&Em2SetFlag);
+    t[em::slot::kFade / 4] = reinterpret_cast<void*>(&Em2Fade);
+    t[em::slot::kSetState / 4] = reinterpret_cast<void*>(&Em2SetState);
+    t[em::slot::kCurrentState / 4] = reinterpret_cast<void*>(&Em2Current);
+    t[em::slot::kSlot99 / 4] = reinterpret_cast<void*>(&Em2Slot99);
+    t[em::slot::kSlot102 / 4] = reinterpret_cast<void*>(&Em2Slot102);
+    t[106] = reinterpret_cast<void*>(&Em2Slot106);
+    t[em::slot::kPoint / 4] = reinterpret_cast<void*>(&Em2Point);
+    t[em::slot::kAtPoint / 4] = reinterpret_cast<void*>(&Em2AtPoint);
+    t[em::slot::kSlot195 / 4] = reinterpret_cast<void*>(&Em2Frame<195>);
+    t[em::slot::kSlot196 / 4] = reinterpret_cast<void*>(&Em2Frame<196>);
+    t[em::slot::kSlot197 / 4] = reinterpret_cast<void*>(&Em2Frame<197>);
+    t[em::slot::kSlot198 / 4] = reinterpret_cast<void*>(&Em2Frame<198>);
+    return t;
+}
+
+void EmStatesDrive(Hash& estates, uint32_t& eflags)
+{
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    char* made[3] = {};
+    for (int i = 0; i < 3; ++i)
+        made[i] = MakeEm(i, eflags);
+    for (char* o : made)
+        if (!o) {
+            eflags |= 0x80;
+            for (char* m : made)
+                ReleaseEm(m);
+            log::Write("autotest: automata: vehicle: em2a: a factory failed");
+            return;
+        }
+    void* const city = Global<void*>(addr::SC4_City);
+    if (!city) {
+        eflags |= 0x100;
+        for (char* m : made)
+            ReleaseEm(m);
+        return;
+    }
+    // The services of the test's.
+    static void* soundTable[16] = {};
+    soundTable[em::slot::kSoundStop / 4] = reinterpret_cast<void*>(&Em2Sound);
+    void** sound = soundTable;
+    static void* postTable[8] = {};
+    postTable[4] = reinterpret_cast<void*>(&Em2Post);
+    void** server = postTable;
+    static void* gridTable[24] = {};
+    gridTable[em::slot::kOccupantsAt / 4] = reinterpret_cast<void*>(&Em2OccupantsAt);
+    void** grid = gridTable;
+    static void* typedTable[16] = {};
+    typedTable[em::slot::kIsType / 4] = reinterpret_cast<void*>(&Em2IsType);
+    static void* sirenTable[24] = {};
+    sirenTable[1] = reinterpret_cast<void*>(&Em2SirenAddRef);
+    sirenTable[2] = reinterpret_cast<void*>(&Em2SirenRelease);
+    sirenTable[em::slot::kSirenSlot4 / 4] = reinterpret_cast<void*>(&Em2SirenSlot4);
+    sirenTable[em::slot::kSirenStop / 4] = reinterpret_cast<void*>(&Em2SirenStop);
+    g_em2Siren = Em2Siren{sirenTable, 1};
+    static void* cityTable[256];
+    void** const realCity = At<void**>(city, 0);
+    for (int i = 0; i < 256; ++i)
+        cityTable[i] = realCity[i];
+    cityTable[em::slot::kCityEffects / 4] = reinterpret_cast<void*>(&Em2CityEffects);
+    cityTable[em::slot::kCellOf / 4] = reinterpret_cast<void*>(&Em2CellOf);
+    RfSwap swapSound(addr::SC4_Sound43CB8, &sound);
+    RfSwap swapServer(addr::SC4_MessageServer, &server);
+    RfSwap swapGrid(addr::SC4_Service43D54, &grid);
+    At<void**>(city, 0) = cityTable;
+
+    // States of the test's: zeroed 0x240-byte records of the types.
+    alignas(4) static char states[6][0x240];
+    const uint32_t types[6] = {0x34, 0x67, 7, 0x64, 0x65, 0x66};
+    for (int i = 0; i < 6; ++i) {
+        std::memset(states[i], 0, sizeof states[i]);
+        At<uint32_t>(states[i], 4) = types[i];
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        char* const o = made[i];
+        g_em2.self = o;
+        void** const real = At<void**>(o, 0);
+        At<void**>(o, 0) = Em2Table(i, o);
+        static void* partTable[34];
+        void** const realPart = At<void**>(o, av::field::kVtable4);
+        for (int k = 0; k < 34; ++k)
+            partTable[k] = realPart[k];
+        partTable[em::slot::kInGroup / 4] = reinterpret_cast<void*>(&Em2InGroup);
+        At<void**>(o, av::field::kVtable4) = partTable;
+        uint32_t& flags = At<uint32_t>(o, av::field::kAutomataFlags);
+        const uint32_t savedFlags = flags;
+        auto withFlags = [&](uint32_t set, uint32_t clear) { flags = (savedFlags | set) & ~clear; };
+
+        // The +0x204 deque's count, empty and with 3 and 12 elements.
+        {
+            Counted held{CountedVtable(), 100, 0x204, 0};
+            for (const int count : {0, 3, 12}) {
+                for (int k = 0; k < count; ++k) {
+                    alignas(4) char element[0xC] = {};
+                    At<Counted*>(element, 0) = &held;
+                    At<uint32_t>(element, 4) = static_cast<uint32_t>(k);
+                    This<void>(addr::SC4AutomatonDeque204_PushBack, o + av::field::kDeque204,
+                               static_cast<void*>(element));
+                }
+                estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_Deque204Size, o + av::field::kDeque204));
+                // Slot 73 with the deque so: the flag 0x80 on both, the other
+                // without 0x20.
+                char* const other = made[(i + 1) % 3];
+                uint32_t& otherFlags = At<uint32_t>(other, av::field::kAutomataFlags);
+                const uint32_t savedOther = otherFlags;
+                for (const uint32_t otherSet : {0u, 0x80u, 0xA0u}) {
+                    otherFlags = (savedOther & ~0xA0u) | otherSet;
+                    for (const bool flag : {false, true}) {
+                        withFlags(flag ? 0x80u : 0u, flag ? 0u : 0x80u);
+                        estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_CanMeet, o, other) & 0xFF);
+                        estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_CanMeet, o, o) & 0xFF);
+                        estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_CanMeet, o, static_cast<char*>(nullptr)) &
+                                    0xFF);
+                    }
+                }
+                otherFlags = savedOther;
+                if (count)
+                    This<void>(addr::cSC4AutomatonBase_ReleaseDeque204, o);
+            }
+            estates.Mix(static_cast<uint32_t>(held.references));
+        }
+
+        // Slot 146 over distances and the nodes at the cell.
+        {
+            Em2Typed yes{typedTable, 1}, no{typedTable, 0};
+            static Em2Node nodes[3];
+            nodes[0] = {&no, {}, &nodes[1]};
+            nodes[1] = {&yes, {}, nullptr};
+            nodes[2] = {&no, {}, nullptr};
+            SetPoint(o, av::field::kPosition, 100.0f, 5.0f, 200.0f);
+            const float offsets[][3] = {{0, 0, 0}, {3, 1, -2}, {40, 0, 0}, {0, 0, 300}, {1e30f, 0, 0}};
+            for (const auto& d : offsets)
+                for (int list = 0; list < 3; ++list) {
+                    g_em2.point[0] = 100.0f + d[0];
+                    g_em2.point[1] = 5.0f + d[1];
+                    g_em2.point[2] = 200.0f + d[2];
+                    g_em2.nodes = list == 0 ? nullptr : reinterpret_cast<char*>(list == 1 ? &nodes[2] : &nodes[0]);
+                    estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_AtPoint, o) & 0xFF);
+                }
+            g_em2.point[0] = std::numeric_limits<float>::quiet_NaN();
+            estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_AtPoint, o) & 0xFF);
+            g_em2.nodes = nullptr;
+        }
+
+        // Slot 79 by the flag, the mission and the point.
+        for (const bool flag : {false, true})
+            for (const uint32_t mission : {1u, 2u, 3u})
+                for (const uint8_t at : {uint8_t{0}, uint8_t{1}}) {
+                    withFlags(flag ? 0x80u : 0u, flag ? 0u : 0x80u);
+                    At<uint32_t>(o, em::base::kMission) = mission;
+                    At<uint8_t>(o, em::base::kByte) = 9;
+                    g_em2.atPoint = at;
+                    const uint32_t answer = This<uint32_t>(addr::cSC4EmergencyVehicle_Blocked, o);
+                    estates.Mix(flag && mission == 1 ? answer : (answer & 0xFF));
+                    estates.Mix(At<uint8_t>(o, em::base::kByte));
+                }
+        withFlags(0, 0);
+        At<uint32_t>(o, em::base::kMission) = 0;
+
+        // Slot 109: no states, no current state, the types 0x64 to 0x67 and 7
+        // (cSC4Vehicle's; the stack a vector of the test's with the state).
+        {
+            char** const stack = &At<char*>(o, av::field::kVectorB4);
+            char* const savedStack[2] = {stack[0], stack[1]};
+            alignas(4) static char* top[1];
+            estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_StateFrame, o, Bits(0.25f)) & 0xFF);
+            for (int k = -1; k < 6; ++k) {
+                if (k >= 0 && k <= 2)
+                    continue; // 0x34, 0x67 and 7 would go on to the core's frame code
+                char* const s = k < 0 ? nullptr : states[k];
+                top[0] = s ? s : states[2];
+                stack[0] = reinterpret_cast<char*>(top);
+                stack[1] = reinterpret_cast<char*>(top + 1);
+                g_em2.current = s;
+                estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_StateFrame, o, Bits(0.5f)) & 0xFF);
+            }
+            {
+                // The type 0x67 too, as a frame state of slot 198.
+                At<uint32_t>(states[1], 4) = 0x67;
+                top[0] = states[1];
+                stack[0] = reinterpret_cast<char*>(top);
+                stack[1] = reinterpret_cast<char*>(top + 1);
+                g_em2.current = states[1];
+                estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_StateFrame, o, Bits(0.75f)) & 0xFF);
+            }
+            g_em2.current = nullptr;
+            stack[0] = savedStack[0];
+            stack[1] = savedStack[1];
+        }
+
+        // Slots 110 and 111 over the states 0x34, 0x67 and 7 (cSC4Vehicle's
+        // and the automaton base's run on them; the flags put back), slot 111
+        // with none.
+        for (int k = 0; k < 3; ++k) {
+            const uint32_t before = flags;
+            estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_EnterState, o, states[k]) & 0xFF);
+            estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_LeaveState, o, states[k]) & 0xFF);
+            estates.Mix(flags ^ before);
+            flags = before;
+        }
+        estates.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_LeaveState, o, static_cast<char*>(nullptr)) & 0xFF);
+        flags = savedFlags;
+
+        // Slot 194: on and off, with and without the old sound, +0x2D0 of
+        // the test's filled by slot 99; the low byte only.
+        {
+            Held held{};
+            MakeHeld(held, 0x2D0);
+            held.counted.references = 1;
+            g_em2.fill = reinterpret_cast<char*>(&held);
+            g_em2Siren.references = 1;
+            for (const uint32_t on : {0u, 1u, 0x101u, 0x100u, 1u, 0u}) {
+                g_em.stateType = 7;
+                This<void>(addr::cSC4EmergencyVehicle_SetSiren, o, on);
+                estates.Mix(At<void*>(o, em::base::kHeld) == &held ? 1u : At<void*>(o, em::base::kHeld) ? 2u : 0u);
+                estates.Mix(At<void*>(o, em::base::kSiren) == &g_em2Siren ? 1u : At<void*>(o, em::base::kSiren) ? 2u : 0u);
+                estates.Mix(static_cast<uint32_t>(held.counted.references));
+                estates.Mix(static_cast<uint32_t>(g_em2Siren.references));
+            }
+            g_em.stateType = 0;
+            g_em2.fill = nullptr;
+            At<void*>(o, em::base::kHeld) = nullptr;
+            At<void*>(o, em::base::kSiren) = nullptr;
+        }
+
+        // Slot 25 over the missions, with the groups and without, a stacked
+        // state 0x10 once, the sound service and none.
+        {
+            Counted stacked{CountedVtable(), 1, 0x10, 0};
+            const uint32_t missions[] = {3, 3, 6, 1, 0, 2, 4, 5, 3, 7, 6};
+            int run = 0;
+            for (const uint32_t mission : missions) {
+                g_em2.groups = static_cast<uint8_t>(run % 3 == 2 ? 0 : run % 3 == 0 ? 1 : 2);
+                g_em.inState = run == 4 ? static_cast<void*>(&stacked) : nullptr;
+                if (run == 8)
+                    *reinterpret_cast<void**>(addr::SC4_Sound43CB8) = nullptr;
+                This<void>(addr::cSC4EmergencyVehicle_SetMission, o, mission);
+                *reinterpret_cast<void**>(addr::SC4_Sound43CB8) = &sound;
+                estates.Mix(At<uint32_t>(o, em::base::kMission));
+                ++run;
+            }
+            g_em.inState = nullptr;
+            estates.Mix(g_em2.posts);
+        }
+
+        // Slot 93: what follows cSC4Vehicle's text, by the mission and the
+        // flag 0x200.
+        for (const uint32_t mission : {0u, 3u, 6u, 9u})
+            for (const bool flag : {false, true}) {
+                At<uint32_t>(o, em::base::kMission) = mission;
+                At<uint8_t>(o, em::base::kByte) = static_cast<uint8_t>(mission + 2);
+                withFlags(flag ? 0x200u : 0u, flag ? 0u : 0x200u);
+                char* const vehicleText = This<char*>(addr::cSC4Vehicle_DebugText, o);
+                const std::string prefix(At<char*>(vehicleText, 4), At<char*>(vehicleText, 8));
+                char* const text = This<char*>(addr::cSC4EmergencyVehicle_DebugText, o);
+                const std::string all(At<char*>(text, 4), At<char*>(text, 8));
+                estates.Mix(all.compare(0, prefix.size(), prefix) == 0 ? 1u : 0u);
+                estates.Mix(static_cast<uint32_t>(all.size() - prefix.size()));
+                if (all.size() >= prefix.size())
+                    estates.MixBytes(all.data() + prefix.size(), all.size() - prefix.size());
+            }
+        flags = savedFlags;
+        At<uint32_t>(o, em::base::kMission) = 0;
+        At<uint8_t>(o, em::base::kByte) = 0;
+        At<void**>(o, av::field::kVtable4) = realPart;
+        At<void**>(o, 0) = real;
+    }
+    At<void**>(city, 0) = realCity;
+    estates.Mix(g_em.calls.h);
+    eflags |= 0x40;
+    for (char* o : made)
+        ReleaseEm(o);
+    log::Write("autotest: automata: vehicle: em2a estates %08X calls %08X posts %u", estates.h, g_em.calls.h,
+               g_em2.posts);
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -25186,6 +25676,10 @@ void VehicleDrive(cISC4City* city)
     uint32_t eflags = 0;
     EmergencyDrive(eobject, esave, elife, eflags);
 
+    // ---- Part em2a.
+    Hash estates;
+    EmStatesDrive(estates, eflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -25242,12 +25736,12 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
-                  eobject.h, esave.h, elife.h, eflags);
+                  eobject.h, esave.h, elife.h, estates.h, eflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

@@ -3491,7 +3491,7 @@ What each overrides:
 122 functions of the group's own, 19,936 bytes (the estimate above counted 101 by neighbours; the difference is the route deque's template code):
 
 - **em1 (37, 2,305 bytes, done):** the objects, the save, the life cycle and the queries. Below.
-- **em2 (16, 3,606 bytes):** the base's states and frames: 25 0x0052FF60 (set the mission), 72 0x0052F3F0 (the frame), 73 0x005304B0 with 0x00530130, 79 0x0052F210, 93 0x00532290 (the debug text), 109 0x0052F490, 110 0x0052F7C0, 111 0x0052F1C0, 146 0x0052F9A0, 194 0x00530AF0 (the siren), 195 0x0052FD50, 196 0x0052FE50, 198 0x0052F570, and the helpers 0x0052F870 and 0x0052F910.
+- **em2 (16, 3,606 bytes):** split in two: **em2a (10, done)** slots 25, 73 with 0x00530130, 79, 93, 109 to 111, 146 and 194, below; **em2b (6)** the frame 72, 195, 196, 198 and the helpers 0x0052F870 and 0x0052F910. The base's states and frames: 25 0x0052FF60 (set the mission), 72 0x0052F3F0 (the frame), 73 0x005304B0 with 0x00530130, 79 0x0052F210, 93 0x00532290 (the debug text), 109 0x0052F490, 110 0x0052F7C0, 111 0x0052F1C0, 146 0x0052F9A0, 194 0x00530AF0 (the siren), 195 0x0052FD50, 196 0x0052FE50, 198 0x0052F570, and the helpers 0x0052F870 and 0x0052F910.
 - **em3 (24, 4,217 bytes):** the fire truck's and the patrol car's frames: the fire truck's 25 0x005336C0, 60 0x00532D80, 111 0x00532E60, 121 0x00533090, 165 0x005332C0 (with 0x00533030 and 0x00533290, which the train's 165 also calls), 193 0x00532BF0, 197 0x005335F0, 199 0x00533060 and its helpers 0x00532AE0, 0x00532C40 (sends the fire crew), 0x00532D30, 0x00533410; the patrol car's 25 0x00543F60, 109 0x00543B40, 110 0x00543E80, 111 0x00543B80, 193 0x00543BC0, 197 0x00543C10, 199 0x00543F10, 200 0x00544060 and its helpers 0x00543C70 (sends the riot police), 0x00543D60. Could split by class.
 - **em4 (2, 1,127 bytes):** the base's slot 80 0x005329B0 and its helper 0x00532660, which walks the route deque.
 - **Stay the game's (43):** 16 adjustor thunks, three plain jumps (0x0052F1B0, 0x00532AD0, 0x00543B30) and 24 functions of the route deque's template code (0x0052FB80 to 0x00532430: copies and assignment; 0x00532430 is SC4RouteDeque::Assign, which the trailer's 0x005559D0 calls too).
@@ -3551,3 +3551,64 @@ A trial with twelve planted changes (Init's rate, the Read's mission local, the 
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run reached all 37, and its em1 fields equalled the A run's (eobject 0xB029EA96, esave 0xE92792AA, elife 0x7D378761, eflags 0xF). Before the test day the game itself reaches only the ambulance's slot 192, in five of the fourteen saves.
+
+### What is ours (em2a)
+
+10 more functions in `simulators.automata.emergency` (list kStates in [automata_emergency.cpp](../src/core/automata_emergency.cpp)), the base's states and mission:
+
+- **The mission (2):** slot 25 0x0052FF60 (set the mission) and slot 79 0x0052F210 (blocked: what a vehicle with the flag 0x80 does when its way is blocked).
+- **The states (3):** slots 109 0x0052F490 (the frame of a state: 0x64 to 0x67 go to slots 195 to 198), 110 0x0052F7C0 (entering) and 111 0x0052F1C0 (leaving).
+- **The queries (3):** slot 73 0x005304B0 (may it meet another) with its count of the +0x204 deque 0x00530130, and slot 146 0x0052F9A0 (at the point).
+- **The siren (1):** slot 194 0x00530AF0.
+- **The debug text (1):** slot 93 0x00532290.
+
+What they do:
+
+- The missions are 0 at station, 1 route blocked, 2 done, 3 en route, 4 no resources, 5 handling event and 6 returning home (the debug text's names). Setting the mission (unless a state 0x10 is stacked) tells slot 102 (7, mission) and stops the vehicle's sound. En route sets the state 0x64, the automata flags 0x80, 0x10000, 0x800 and 0x1000 and the siren, and plays the sound 0x29DE9021 (group 0x4228) or 0x09DC5728 (group 0x4202). Returning home sets the state 0 and clears the flags and the siren again. Route blocked posts the message 0xCA8DCDB4 (0x0052F910, part em2b).
+- Blocked, for a vehicle en route: at the point (slot 146) it starts handling the event (the state 0x66, the mission 5); away from it the route is blocked (the mission 1, the states 0x65 and a wait 7 of 0x00B21CB4 x 1000).
+- At the point means within 16 x the byte 0x00B21CB8 of it, with no occupant at its cell (0x00B43D54's list) answering its slot 9 for 0x304.
+- The siren is +0x2D0 (filled by slot 99 with 2) with a sound "automata_pullover" from the city's slot 47 service in +0x2D4; off takes +0x2D0 off the models. Entering the state 0x34 turns it on, entering 0x10 or leaving 0x10 or 0x34 off.
+- Two vehicles with the flag 0x80 may meet when the other lacks the flag 0x20, or when this one has no route and fewer than three in its +0x204 deque.
+
+Left the game's: the automaton base's LeaveState, cSC4Vehicle's EnterState and StateFrame, the core's CanMeet, slot 79 (0x00505820) and RemoveModel, the U-Drive service, the string helpers, 0x0052F910 and the other slots (em2b to em4).
+
+Oddities kept:
+
+- **Slot 146** reads the cell into an unset local and into the int that held its bound, and gives 0x00B43D54's slot 14 both. A NaN point is never at the point.
+- **Slot 194** compares the low byte of its argument with whether +0x2D0 is set, so 0x100 turns the siren off.
+- **Slot 25** reads the sound service once, after slot 102.
+- **Slot 79** answers EAX 0 for the mission 1 and the last call's otherwise.
+- **The +0x204 deque's count** is nodes x 10 plus both ends' counts less 10, with truncating divisions; slot 73 compares it unsigned.
+- **Slot 194 on** releases +0x2D0 before slot 99 fills it, but +0x2D0 is always null there (set means on already): dead code.
+- **AL only in the game:** slots 109 and 73's own answers, 146. Ours zero-extends.
+
+### Test (em2a)
+
+The ` V` token gains `,<estates>` before eflags (46 fields; eflags 0x40 when it ran, 0x80 when a factory failed, 0x100 without a city). The log line is "em2a estates".
+
+On each class's object, a vtable copy (em1's, with slots 30, 33, 51, 56, 99, 102, 106, 143, 146 and 195 to 198 the test's too, and the occupant part's slot 22), the sound service, the message server and 0x00B43D54 of the test's, and the city's vtable swapped for a copy with slots 47 (a sounds' service with a siren of the test's) and 95 the test's:
+
+- the +0x204 deque's count with 0, 3 and 12 elements, and slot 73 with each (the other with the flags 0x80 and 0x20 or not, itself, null; the core's without the flag 0x80);
+- slot 146 over five points and three node lists, and a NaN point;
+- slot 79 by the flag 0x80, three missions and the point;
+- slot 109 with no states, no current state and the types 0x64 to 0x67 on a stack of the test's (other types would go on to the core's frame code: a gap);
+- slots 110 and 111 over zeroed records of the types 0x34, 0x67 and 7 (cSC4Vehicle's and the automaton base's code runs on them), 111 with none (the type 0x10 is a gap);
+- slot 194 over six words (on, off, 0x101, 0x100);
+- slot 25 over eleven missions (the groups 0x4228, 0x4202 or none, a stacked state 0x10 once, no sound service once; the posts counted);
+- slot 93's text after cSC4Vehicle's, by four missions and the flag 0x200.
+
+The first trial found ours giving slot 146's two out ints to the city's slot 95 the other way round (the calls differed, the answers did not); fixed before the trial below.
+
+A trial with fourteen planted changes (leaving 0x34, the wait state's type, slot 109's 0x66 case, entering 0x67's fade, the deque count, slot 73's bound, slot 146's bound and type, the en route sound, returning home's flag, slot 194's dead release, the debug text's last mission, slot 194's byte, slot 79's mission 1) changed the token for thirteen; the fourteenth is the dead release above.
+
+### Parity (em2a)
+
+2026-10-26. As for em1. Env p4env-em1, snapshot em1-p2:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached all 47 (em1 and em2a), and its em1 and em2a fields equalled the A run's (estates 0x2A9051D0).
