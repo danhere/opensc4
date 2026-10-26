@@ -82,6 +82,10 @@ Driver* g_output = nullptr; // the driver whose window is up
 // Above 0 while a PhysicalTextures object lives (the interface pictures'
 // tiles being made): CreateTexture makes them at the physical size.
 int g_physicalTextures = 0;
+
+// Called with each scaled tile's filtered pixels before they are uploaded
+// (SetScaledUploadHook).
+ScaledUploadHook g_scaledUploadHook = nullptr;
 bool g_capturing = false, g_captureDraws = true; // BeginCapture
 std::vector<uint32_t> g_captured;
 
@@ -579,34 +583,9 @@ public:
         const auto bottom = static_cast<uint32_t>(std::min<double>(t.physicalHeight, std::ceil((y + h) * sy) + 1));
         const uint32_t across = right - left, down = bottom - top;
         filtered_.resize(static_cast<size_t>(across) * down * 4);
-        for (uint32_t py = 0; py < down; ++py) {
-            const double y0 = (top + py) / sy, y1 = (top + py + 1) / sy;
-            const auto ty0 = static_cast<uint32_t>(y0);
-            const uint32_t ty1 = std::min(t.height - 1, static_cast<uint32_t>(std::ceil(y1)) - 1);
-            for (uint32_t px = 0; px < across; ++px) {
-                const double x0 = (left + px) / sx, x1 = (left + px + 1) / sx;
-                const auto tx0 = static_cast<uint32_t>(x0);
-                const uint32_t tx1 = std::min(t.width - 1, static_cast<uint32_t>(std::ceil(x1)) - 1);
-                double sum[4] = {}, weights = 0;
-                for (uint32_t ty = ty0; ty <= ty1; ++ty) {
-                    const double wy = std::min<double>(y1, ty + 1) - std::max<double>(y0, ty);
-                    for (uint32_t tx = tx0; tx <= tx1; ++tx) {
-                        const double wxy = (std::min<double>(x1, tx + 1) - std::max<double>(x0, tx)) * wy;
-                        const uint8_t* c = t.pixels.data() + (static_cast<size_t>(ty) * t.width + tx) * 4;
-                        const double a = wxy * c[3];
-                        sum[0] += a * c[0];
-                        sum[1] += a * c[1];
-                        sum[2] += a * c[2];
-                        sum[3] += a;
-                        weights += wxy;
-                    }
-                }
-                uint8_t* out = filtered_.data() + (static_cast<size_t>(py) * across + px) * 4;
-                for (int k = 0; k < 3; ++k)
-                    out[k] = sum[3] > 0 ? static_cast<uint8_t>(std::lround(sum[k] / sum[3])) : 0;
-                out[3] = weights > 0 ? static_cast<uint8_t>(std::lround(sum[3] / weights)) : 0;
-            }
-        }
+        FilterUp(t.pixels.data(), t.width, t.height, 0, 0, sx, sy, left, top, across, down, filtered_.data());
+        if (g_scaledUploadHook)
+            g_scaledUploadHook(texture, left, top, across, down, filtered_.data(), sx, sy);
         backend_->UploadTexture(texture, 0, static_cast<int32_t>(left), static_cast<int32_t>(top),
                                 static_cast<int32_t>(across), static_cast<int32_t>(down), BGRA, UnsignedByte, across,
                                 filtered_.data());
@@ -1901,6 +1880,46 @@ float CityZoomDivisor() { return g_cityZoomDivisor; }
 
 PhysicalTextures::PhysicalTextures() { ++g_physicalTextures; }
 PhysicalTextures::~PhysicalTextures() { --g_physicalTextures; }
+
+void SetScaledUploadHook(ScaledUploadHook hook) { g_scaledUploadHook = hook; }
+
+float RenderScale() { return g_output ? g_output->Scale() : 1.0f; }
+
+void FilterUp(const uint8_t* source, uint32_t width, uint32_t height, int32_t sourceX, int32_t sourceY, double sx,
+              double sy, int32_t left, int32_t top, uint32_t across, uint32_t down, uint8_t* out)
+{
+    for (uint32_t py = 0; py < down; ++py) {
+        // The game pixels the physical row covers, in the source's frame.
+        const double y0 = (top + static_cast<int32_t>(py)) / sy - sourceY;
+        const double y1 = (top + static_cast<int32_t>(py) + 1) / sy - sourceY;
+        const auto ty0 = static_cast<int32_t>(std::max(0.0, std::floor(y0)));
+        const int32_t ty1 = std::min(static_cast<int32_t>(height) - 1, static_cast<int32_t>(std::ceil(y1)) - 1);
+        for (uint32_t px = 0; px < across; ++px) {
+            const double x0 = (left + static_cast<int32_t>(px)) / sx - sourceX;
+            const double x1 = (left + static_cast<int32_t>(px) + 1) / sx - sourceX;
+            const auto tx0 = static_cast<int32_t>(std::max(0.0, std::floor(x0)));
+            const int32_t tx1 = std::min(static_cast<int32_t>(width) - 1, static_cast<int32_t>(std::ceil(x1)) - 1);
+            double sum[4] = {}, weights = 0;
+            for (int32_t ty = ty0; ty <= ty1; ++ty) {
+                const double wy = std::min<double>(y1, ty + 1) - std::max<double>(y0, ty);
+                for (int32_t tx = tx0; tx <= tx1; ++tx) {
+                    const double wxy = (std::min<double>(x1, tx + 1) - std::max<double>(x0, tx)) * wy;
+                    const uint8_t* c = source + (static_cast<size_t>(ty) * width + tx) * 4;
+                    const double a = wxy * c[3];
+                    sum[0] += a * c[0];
+                    sum[1] += a * c[1];
+                    sum[2] += a * c[2];
+                    sum[3] += a;
+                    weights += wxy;
+                }
+            }
+            uint8_t* o = out + (static_cast<size_t>(py) * across + px) * 4;
+            for (int k = 0; k < 3; ++k)
+                o[k] = sum[3] > 0 ? static_cast<uint8_t>(std::lround(sum[k] / sum[3])) : 0;
+            o[3] = weights > 0 ? static_cast<uint8_t>(std::lround(sum[3] / weights)) : 0;
+        }
+    }
+}
 
 void BeginCapture(bool draw)
 {

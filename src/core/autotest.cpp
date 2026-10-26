@@ -403,6 +403,13 @@ private:
         const ULONGLONG hold = static_cast<ULONGLONG>(std::atoi(Env("OPENSC4_TEST_REGION_HOLD").c_str()));
         if (regionHooksRun_ && now - regionHoldStart_ < hold)
             return;
+        // OPENSC4_TEST_REGION_FULL=<file>: the region view saved at its full
+        // (physical) resolution when the hold ends (D3D11 driver).
+        if (regionHooksRun_ && !Env("OPENSC4_TEST_REGION_FULL").empty()) {
+            const std::string file = Env("OPENSC4_TEST_REGION_FULL");
+            log::Write("autotest: region view -> %s %s", file.c_str(),
+                       photo_mode::SaveFrame(std::wstring(file.begin(), file.end())) ? "ok" : "FAILED");
+        }
 
         app->EnableFullGamePauseOnAppFocusLoss(false);
         app->SetPopupDialogsEnabled(false);

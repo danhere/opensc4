@@ -45,6 +45,7 @@
 #include "core/log.h"
 #include "core/registry.h"
 #include "core/thunk.h"
+#include "core/ui_sharp_text.h"
 
 #include <opensc4/addresses.h>
 
@@ -53,6 +54,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -328,6 +330,12 @@ uint32_t DrawString(void* self, Address picture, int32_t x, int32_t y, Address t
         This<void>(kResize, Ptr(vector), count);
     const Address list = Load<Address>(vector);
     uint32_t placed = 0;
+    const Address colourAt = mode == 2 ? Load<Address>(f + font::kRampNow) : At(colours);
+    // renderer.interface.sharp_text: the line again at the physical size.
+    std::optional<sharptext::Line> sharp;
+    if (picture && sharptext::Wanted(Ptr(picture)))
+        sharp.emplace(self, Ptr(picture), clip ? static_cast<const int32_t*>(Ptr(clip)) : nullptr, Kind(mode),
+                      static_cast<const uint32_t*>(Ptr(colourAt)));
     for (uint32_t i = 0; i < count; ++i)
         Virtual<Address>(self, slot::kGetGlyph, uint32_t{Load<uint16_t>(u + i * 2)});
     Address e = list;
@@ -364,13 +372,18 @@ uint32_t DrawString(void* self, Address picture, int32_t x, int32_t y, Address t
             Store(e + 0x1C, h);
             Store(e + 0x20, c);
             e += kGlyphBytes;
+            if (sharp)
+                sharp->Glyph(penX, penY, c, left, top, right, bottom);
         }
         penX = static_cast<int32_t>(static_cast<uint32_t>(penX) + static_cast<uint32_t>(Load<int16_t>(g + 0x14)) +
                                     Load<uint32_t>(f + font::kSpacing));
     }
     if (picture && placed) {
-        const Address colourAt = mode == 2 ? Load<Address>(f + font::kRampNow) : At(colours);
+        if (sharp)
+            sharp->Before();
         Virtual<uint32_t>(Blitter(self), blit::kDraw, self, picture, list, placed, Kind(mode), colourAt, clip);
+        if (sharp)
+            sharp->After();
     }
     if (pen) {
         Store(pen, penX);

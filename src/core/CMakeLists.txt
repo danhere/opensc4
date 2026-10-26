@@ -365,6 +365,7 @@ add_library(opensc4_core SHARED
   font_glyph.cpp
   font_measure.cpp
   font_draw.cpp
+  ui_sharp_text.cpp
   ui_sharp_tiles.cpp
   gzbuffer_blit_autotest.cpp
   camera_control.cpp
@@ -671,5 +672,5 @@ add_library(opensc4_core SHARED
   ui_mysim_panel_3.cpp
   ui_mysim_panel_4.cpp
   multi_instance.cpp)
-target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_dbpf opensc4_gzcom user32)
+target_link_libraries(opensc4_core PRIVATE opensc4_core_support opensc4_dbpf opensc4_gzcom opensc4_freetype user32)
 set_target_properties(opensc4_core PROPERTIES OUTPUT_NAME core)
