@@ -385,6 +385,19 @@
 //   entry's +0x4C, no template, no entry) and cars (none, one to three, a
 //   null one), then 256 drawn rocks (a fixed LCG). tflags 0x800 when it
 //   ran, 0x1000 when the factory failed. Log line: "tr3a trock".
+//   Part tr3b (the train's cars placed) adds `,<tplace>` before tflags (40
+//   fields): a train of the factory with tr2b's vtable copy and slot 32 the
+//   test's, cars of tr2b's kind with slots 33, 83 and 137 the test's, the
+//   city's traffic network the test's (slot 39): slot 198 over no cars, no
+//   path (the direction's fallbacks: +0x270 set, unset or short), the
+//   train's path, the walk into the +0x27C deque (connected paths, a bare
+//   lane, a part without a path, a far path, 18 elements over two blocks),
+//   slot 32 against 1.0 with and without the flag 1 (and a NaN), a zero
+//   radius, the last car's occupant left, then 256 drawn placements (a
+//   fixed LCG). Paths of fewer than 2 points are not tried (the game counts
+//   down from near 2^32). tflags 0x2000 when it ran, 0x4000 when the
+//   factory failed, 0x8000 when the city's other slots were called. Log
+//   line: "tr3b tplace".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -23485,6 +23498,352 @@ void TrainRockDrive(Hash& trock, uint32_t& tflags)
     g_probe = savedProbe;
 }
 
+// ---- Part tr3b: the train's cars placed (src/core/automata_trains.cpp).
+
+// The train's slot 32 (a float) the tr3b test answers.
+double g_tpFade = 1.0;
+double __fastcall TpFadeNow(char*, void*)
+{
+    g_probe->calls.Mix(32);
+    return g_tpFade;
+}
+
+// A car of the tr3b train: tr2b's (TmCar) with slots 33 and 83 mixed and
+// slot 137 answering its own +0x1EC.
+uint32_t __fastcall TpCarFade(TmCar* c, void*, float to, float rate)
+{
+    g_probe->calls.Mix(0x8033);
+    g_probe->calls.Mix(g_probe->Id(c));
+    g_probe->calls.Mix(Bits(to));
+    g_probe->calls.Mix(Bits(rate));
+    return 1;
+}
+uint32_t __fastcall TpCarSlot83(TmCar* c, void*, float seconds)
+{
+    g_probe->calls.Mix(0x8083);
+    g_probe->calls.Mix(g_probe->Id(c));
+    g_probe->calls.Mix(Bits(seconds));
+    return 0;
+}
+void* __fastcall TpCarOccupant(TmCar* c, void*)
+{
+    g_probe->calls.Mix(0x8137);
+    g_probe->calls.Mix(g_probe->Id(c));
+    return At<void*>(c, av::field::kOccupant);
+}
+void** TpCarVtable()
+{
+    static void* t[200] = {};
+    void** const base = TmCarVtable();
+    for (int i = 0; i < 200; ++i)
+        t[i] = base[i];
+    t[33] = reinterpret_cast<void*>(&TpCarFade);
+    t[83] = reinterpret_cast<void*>(&TpCarSlot83);
+    t[137] = reinterpret_cast<void*>(&TpCarOccupant);
+    return t;
+}
+
+// The city's traffic network (city slot 40) as slot 198 sees it: slot 39
+// (the cell left) mixed.
+struct TpNetwork {
+    void** vtable;
+    Hash calls;
+    uint32_t left = 0;
+};
+void __fastcall TpLeaveCell(TpNetwork* n, void*, char* automaton, int32_t a, int32_t b)
+{
+    ++n->left;
+    n->calls.Mix(39);
+    n->calls.Mix(g_probe->Id(automaton));
+    n->calls.Mix(static_cast<uint32_t>(a));
+    n->calls.Mix(static_cast<uint32_t>(b));
+}
+void** TpNetworkVtable()
+{
+    static void* t[64] = {};
+    t[tn::slot::kLeaveCell / 4] = reinterpret_cast<void*>(&TpLeaveCell);
+    return t;
+}
+
+void TrainPlaceDrive(Hash& tplace, uint32_t& tflags)
+{
+    Probe probe;
+    Probe* const savedProbe = g_probe;
+    g_probe = &probe;
+    g_rf = RfAnswers{};
+    g_tf = TfAnswers{};
+    g_tm = TmAnswers{};
+    g_tpFade = 1.0;
+    uint32_t madeFlags = 0;
+    char* const train = MakeTrain(1, madeFlags);
+    if (madeFlags || !train) {
+        ReleaseTrain(train);
+        tflags |= 0x4000;
+        g_probe = savedProbe;
+        log::Write("autotest: automata: vehicle: tr3b: the factory failed");
+        return;
+    }
+
+    // The train: its vtable a copy (TmTable with slot 32 the test's), the
+    // fields slot 198 reads set per case and put back after.
+    static void* table[200];
+    void** const realTable = At<void**>(train, 0);
+    At<void**>(train, 0) = TmTable(table, kTrainClasses[1].tables[0], 200);
+    table[32] = reinterpret_cast<void*>(&TpFadeNow);
+    At<float>(train, av::field::kRadius) = 2.0f;
+
+    // The paths: the train's along +z ending at (10, 0, 30), two behind it
+    // the deque's elements lead to (keys 1 and 2), one far off (key 3).
+    static float trainPoints[6][3] = {{10, 0, 0}, {10, 0, 10}, {10, 0, 20}, {10, 0, 30}};
+    static float behind1[3][3] = {{10, 0, -20}, {10, 0, -10}, {10, 0, 0}};
+    static float behind2[3][3] = {{0, 0, -30}, {5, 0, -25}, {10, 0, -20}};
+    static float farPoints[2][3] = {{500, 0, 500}, {501, 0, 500}};
+    static float shortPoints[2][3] = {{10, 0, 26}, {10, 0, 30}};
+    Path trainPath{&trainPoints[0][0], &trainPoints[0][0] + 12};
+    Path shortPath{&shortPoints[0][0], &shortPoints[0][0] + 6};
+    Path path1{&behind1[0][0], &behind1[0][0] + 9};
+    Path path2{&behind2[0][0], &behind2[0][0] + 9};
+    Path farPath{&farPoints[0][0], &farPoints[0][0] + 6};
+    Part part{PartVtable(), 1, &farPath, 0, 0, 0, {}, {}};
+    part.paths[1] = &path1;
+    part.paths[2] = &path2;
+    part.paths[3] = &farPath;
+    Part empty{PartVtable(), 1, nullptr, 0, 0, 0, {}, {}};
+    Lane lane{LaneVtable(), 1, &part, 0, 0xF, {}};
+    Lane bare{LaneVtable(), 1, nullptr, 0, 0xF, {}};
+    Lane nowhere{LaneVtable(), 1, &empty, 0, 0xF, {}};
+    static TmCar cars[4];
+    static Counted occupants[3];
+    for (int i = 0; i < 3; ++i)
+        occupants[i] = {CountedVtable(), 1, 90 + i, 0};
+    TpNetwork network{TpNetworkVtable(), {}};
+    FakeCity fakeCity{FakeCityVtable(), reinterpret_cast<FakeMap*>(&network), 0, nullptr};
+    RfSwap swapCity(addr::SC4_City, &fakeCity);
+    probe.known = {train, &trainPath, &shortPath, &path1, &path2, &farPath, &part, &empty, &lane, &bare, &nowhere};
+    for (const TmCar& c : cars)
+        probe.known.push_back(&c);
+    for (const Counted& c : occupants)
+        probe.known.push_back(&c);
+
+    char* const deque = train + av::field::kDeque27C;
+    auto push = [&](Lane* occupant, uint32_t key) {
+        alignas(4) char element[8] = {};
+        At<Lane*>(element, 0) = occupant;
+        At<uint32_t>(element, 4) = key;
+        This<void>(addr::SC4VehicleDeque27C_PushBack, deque, static_cast<void*>(element));
+    };
+    auto setCars = [&](uint32_t n) {
+        uint32_t words[4] = {};
+        for (uint32_t i = 0; i < n; ++i)
+            words[i] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&cars[i]));
+        if (char* const old = At<char*>(train, tn::train::kCars))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(old);
+        if (n)
+            SetGameVector(train, tn::train::kCars, words, n, n);
+        else
+            std::memset(train + tn::train::kCars, 0, 12);
+    };
+    auto mixCars = [&](Hash& h) {
+        for (const TmCar& c : cars) {
+            const char* const o = reinterpret_cast<const char*>(&c);
+            h.MixBytes(o + tn::field::kFront, 12);
+            h.MixBytes(o + tn::car::kFloats, 12);
+            h.MixBytes(o + tn::field::kTravel, 12);
+        }
+        h.Mix(network.calls.h);
+        h.Mix(probe.calls.h);
+    };
+    using PlaceFn = void(__thiscall*)(void*, float);
+    const auto place = reinterpret_cast<PlaceFn>(addr::cSC4Train_PlaceCars);
+    const float* const unset = reinterpret_cast<const float*>(addr::cSC4AutomatonCore_DefaultPoint);
+    uint32_t runs = 0;
+
+    // ---- Fixed cases: no cars; no path (the front from out unset, the rear
+    // along the heading, the direction's fallbacks); the train's path only;
+    // the walk into the deque (connected, a bare lane, a part without a
+    // path, the far path, a long deque over its blocks); slot 32 and the
+    // flag 1; the last car's occupant left (wanted or not).
+    struct Case {
+        int cars;
+        int path;        // 0 none, 1 the train's, 2 short
+        int deque;       // 0 empty, 1 key 1, 2 keys 2 then 1, 3 bare, 4 no path, 5 far then 1, 6 long
+        float radius;    // the cars' (+0.5 each)
+        float heading;   // the cars' heading scale (0: none)
+        int travel;      // 0 set, 1 unset, 2 short
+        double fade;
+        uint32_t flags;
+        int wanted;      // -1: the car count
+        int occupant;    // the cars' slot 137: -1 none, 3 the train's, else an occupant
+    };
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const Case cases[] = {
+        {0, 1, 0, 2.0f, 1.0f, 0, 1.0, 0, -1, -1},
+        {1, 0, 0, 2.0f, 1.0f, 0, 1.0, 0, -1, -1},
+        {2, 0, 0, 2.0f, 0.0f, 0, 1.0, 0, -1, -1},
+        {2, 0, 0, 2.0f, 0.0f, 1, 1.0, 0, -1, -1},
+        {2, 0, 0, 2.0f, 0.0f, 2, 1.0, 0, -1, -1},
+        {1, 1, 0, 2.0f, 1.0f, 0, 1.0, 0, -1, -1},
+        {3, 1, 0, 2.0f, 1.0f, 0, 1.0, 0, -1, 0},
+        {3, 1, 1, 3.0f, 1.0f, 0, 1.0, 0, -1, 1},
+        {4, 1, 2, 4.0f, 1.0f, 0, 1.0, 0, -1, 3},
+        {4, 1, 2, 6.0f, 1.0f, 0, 1.0, 0, 3, 1},
+        {4, 2, 2, 5.0f, 1.0f, 0, 1.0, 0, -1, 2},
+        {3, 1, 3, 8.0f, 1.0f, 0, 1.0, 0, -1, 0},
+        {3, 1, 4, 8.0f, 1.0f, 0, 1.0, 0, -1, 0},
+        {3, 2, 5, 3.0f, 1.0f, 0, 1.0, 0, -1, 0},
+        {4, 2, 6, 3.0f, 1.0f, 0, 1.0, 0, -1, 0},
+        {2, 1, 1, 2.0f, 1.0f, 0, 0.5, 1, -1, -1},
+        {2, 1, 1, 2.0f, 1.0f, 0, 0.5, 0, -1, -1},
+        {2, 1, 1, 2.0f, 1.0f, 0, 0.99999994, 1, -1, -1},
+        {2, 1, 1, 2.0f, 1.0f, 0, static_cast<double>(nan), 1, -1, -1},
+        {2, 1, 1, 0.0f, 1.0f, 0, 1.0, 0, -1, -1},
+        {3, 1, 2, 30.0f, 1.0f, 0, 1.0, 0, -1, 0},
+    };
+    auto setDeque = [&](int kind) {
+        This<void>(addr::SC4VehicleDeque27C_Clear, deque);
+        switch (kind) {
+        case 1: push(&lane, 1); break;
+        case 2: push(&lane, 2); push(&lane, 1); break;
+        case 3: push(&lane, 2); push(&bare, 1); break;
+        case 4: push(&lane, 2); push(&nowhere, 1); break;
+        case 5: push(&lane, 1); push(&lane, 3); break;
+        case 6:
+            // 23 pushed, 5 taken from the front: the start mid-block, the
+            // walk over two blocks to the connected lane at the front.
+            for (int i = 0; i < 5; ++i)
+                push(&lane, 3);
+            push(&lane, 2);
+            push(&lane, 1);
+            for (int i = 0; i < 16; ++i)
+                push(&lane, 3);
+            for (int i = 0; i < 5; ++i)
+                This<void>(addr::SC4VehicleDeque27C_PopFront, deque);
+            break;
+        default: break;
+        }
+    };
+    auto resetCars = [&](uint32_t seed, float radius, float heading, int travel) {
+        for (int i = 0; i < 4; ++i) {
+            MakeTmCar(cars[i], 1u, radius + 0.5f * i, 9.0f + i, 3.0f * seed);
+            cars[i].vtable = TpCarVtable();
+            char* const o = reinterpret_cast<char*>(&cars[i]);
+            SetPoint(o, av::field::kHeading, 0.0f, 0.0f, heading);
+            SetPoint(o, tn::field::kFront, 10.0f, 0.0f, 20.0f - 4.0f * i);
+            if (travel == 1)
+                std::memcpy(o + tn::field::kTravel, unset, 12);
+            else if (travel == 2)
+                SetPoint(o, tn::field::kTravel, 1e-6f, 0.0f, 0.0f);
+            else
+                SetPoint(o, tn::field::kTravel, 0.6f, 0.0f, -0.8f);
+        }
+    };
+    for (const Case& c : cases) {
+        resetCars(runs, c.radius, c.heading, c.travel);
+        setCars(static_cast<uint32_t>(c.cars));
+        At<Path*>(train, av::field::kPath) = c.path == 1 ? &trainPath : c.path == 2 ? &shortPath : nullptr;
+        setDeque(c.deque);
+        At<Counted*>(train, av::field::kOccupant) = &occupants[2];
+        At<uint32_t>(train, tn::field::kDirection) = 0x0102u + runs;
+        SetPoint(train, tn::car::kFloats, 10.0f, 0.0f, 28.0f);
+        SetPoint(train, av::field::kHeading, 0.0f, 0.0f, runs % 2 ? 1.0f : 0.0f);
+        At<uint32_t>(train, av::field::kAutomataFlags) = c.flags | 0x100000u;
+        At<uint32_t>(train, tn::train::kWanted) = c.wanted < 0 ? static_cast<uint32_t>(c.cars) : c.wanted;
+        for (TmCar& car : cars)
+            At<void*>(&car, av::field::kOccupant) =
+                c.occupant < 0 ? nullptr : c.occupant == 3 ? static_cast<void*>(&occupants[2])
+                                                           : static_cast<void*>(&occupants[c.occupant]);
+        g_tpFade = c.fade;
+        place(train, 0.125f + 0.0625f * (runs % 4));
+        mixCars(tplace);
+        ++runs;
+    }
+
+    // ---- 256 drawn placements (a fixed LCG): the train's path (2 to 6
+    // points backwards from its rear), its rear, the deque (none, one or two
+    // of the behind paths, by the keys), one to four cars, their radii,
+    // headings, fronts and travel, slot 32, the flag 1 and the wanted count.
+    uint32_t draw = 0x3B1C0FD7u;
+    auto next = [&](float least, float most) {
+        draw = draw * 1664525u + 1013904223u;
+        return least + (most - least) * static_cast<float>(draw >> 8) * (1.0f / 16777216.0f);
+    };
+    Hash drawn;
+    for (uint32_t i = 0; i < 256; ++i) {
+        const int count = 2 + static_cast<int>(i % 5);
+        float x = next(-2.0f, 2.0f), z = 30.0f;
+        for (int p = count - 1; p >= 0; --p) {
+            trainPoints[p][0] = x;
+            trainPoints[p][1] = next(-0.5f, 0.5f);
+            trainPoints[p][2] = z;
+            x -= next(-3.0f, 3.0f);
+            z -= next(1.0f, 9.0f);
+        }
+        trainPath.end = &trainPoints[0][0] + 3 * count;
+        // The first behind path leads into the train's first point.
+        for (int p = 2; p >= 0; --p) {
+            behind1[p][0] = p == 2 ? trainPoints[0][0] : behind1[p + 1][0] - next(-2.0f, 2.0f);
+            behind1[p][1] = next(-0.5f, 0.5f);
+            behind1[p][2] = p == 2 ? trainPoints[0][2] : behind1[p + 1][2] - next(2.0f, 8.0f);
+        }
+        At<Path*>(train, av::field::kPath) = i % 17 == 5 ? nullptr : &trainPath;
+        setDeque(static_cast<int>(i % 3));
+        const uint32_t n = 1 + (i / 3) % 4;
+        for (uint32_t k = 0; k < 4; ++k) {
+            MakeTmCar(cars[k], 1u, next(0.25f, 6.0f), next(0.0f, 20.0f), next(-20.0f, 30.0f));
+            cars[k].vtable = TpCarVtable();
+            char* const o = reinterpret_cast<char*>(&cars[k]);
+            SetPoint(o, av::field::kHeading, next(-1.0f, 1.0f), next(-0.1f, 0.1f), next(-1.0f, 1.0f));
+            SetPoint(o, tn::field::kFront, next(0.0f, 20.0f), next(-1.0f, 1.0f), next(-20.0f, 30.0f));
+            SetPoint(o, tn::field::kTravel, next(-1.0f, 1.0f), 0.0f, next(-1.0f, 1.0f));
+            At<void*>(o, av::field::kOccupant) = (i + k) % 4 == 3 ? nullptr : &occupants[(i + k) % 3];
+        }
+        setCars(n);
+        SetPoint(train, tn::car::kFloats, trainPoints[count - 1][0] + next(-1.0f, 1.0f), next(-0.5f, 0.5f),
+                 trainPoints[count - 1][2] - next(0.0f, 4.0f));
+        SetPoint(train, av::field::kHeading, next(-1.0f, 1.0f), 0.0f, next(-1.0f, 1.0f));
+        At<float>(train, av::field::kRadius) = next(0.5f, 4.0f);
+        At<Counted*>(train, av::field::kOccupant) = &occupants[i % 3];
+        At<uint32_t>(train, av::field::kAutomataFlags) = (i % 5 == 1 ? 1u : 0u) | 0x100000u;
+        At<uint32_t>(train, tn::train::kWanted) = i % 2 ? n : n + 1;
+        g_tpFade = next(0.5f, 1.5f);
+        place(train, next(0.05f, 1.0f));
+        mixCars(drawn);
+    }
+    tplace.Mix(drawn.h);
+
+    // ---- Put back.
+    This<void>(addr::SC4VehicleDeque27C_Clear, deque);
+    setCars(0);
+    At<void*>(train, av::field::kPath) = nullptr;
+    At<void*>(train, av::field::kOccupant) = nullptr;
+    At<uint32_t>(train, tn::field::kDirection) = 0;
+    At<uint32_t>(train, av::field::kAutomataFlags) = 0;
+    At<uint32_t>(train, tn::train::kWanted) = 0;
+    At<void**>(train, 0) = realTable;
+    for (const TmCar& c : cars)
+        tplace.Mix(static_cast<uint32_t>(c.references));
+    for (const Counted& c : occupants)
+        tplace.Mix(static_cast<uint32_t>(c.references) ^ (c.keys << 8));
+    for (const int32_t r : {lane.references, bare.references, nowhere.references, part.references})
+        tplace.Mix(static_cast<uint32_t>(r));
+    tplace.Mix(part.calls.h);
+    tplace.Mix(network.calls.h);
+    tplace.Mix(probe.calls.h);
+    tplace.Mix(runs);
+    if (fakeCity.traps)
+        tflags |= 0x8000;
+    if (runs)
+        tflags |= 0x2000;
+    ReleaseTrain(train);
+    log::Write("autotest: automata: vehicle: tr3b tplace %08X calls %08X drawn %08X runs %u left %u traps %u", tplace.h,
+               probe.calls.h, drawn.h, runs, network.left, fakeCity.traps);
+    g_tm = TmAnswers{};
+    g_tf = TfAnswers{};
+    g_rf = RfAnswers{};
+    g_tpFade = 1.0;
+    g_probe = savedProbe;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -23776,6 +24135,10 @@ void VehicleDrive(cISC4City* city)
     Hash trock;
     TrainRockDrive(trock, tflags);
 
+    // ---- Part tr3b.
+    Hash tplace;
+    TrainPlaceDrive(tplace, tflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -23831,11 +24194,11 @@ void VehicleDrive(cISC4City* city)
     char text[400];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
-                  rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tflags);
+                  rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
