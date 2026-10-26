@@ -220,6 +220,13 @@ void Zoom(float step)
     SetFineZoom(control, factor);
 }
 
+bool SaveFrame(const std::wstring& path)
+{
+    std::vector<uint8_t> pixels;
+    uint32_t width = 0, height = 0;
+    return gd::ReadFrame(pixels, width, height) && WritePng(path, pixels, width, height);
+}
+
 std::wstring Capture()
 {
     std::vector<uint8_t> pixels;

@@ -365,6 +365,7 @@ add_library(opensc4_core SHARED
   font_glyph.cpp
   font_measure.cpp
   font_draw.cpp
+  ui_sharp_tiles.cpp
   gzbuffer_blit_autotest.cpp
   camera_control.cpp
   photo_mode.cpp

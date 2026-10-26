@@ -76,6 +76,19 @@ public:
 // enlarged with the interface or the D3D11 driver is off).
 float CityZoomDivisor();
 
+// While one lives, the D3D11 driver makes the textures it is asked for at
+// the physical size when there is a render scale ([renderer] scale): the
+// interface pictures' tiles (renderer.interface.sharp_tiles), which the game
+// draws with coordinates over the size it asked for, so the larger texture
+// fills the same place. Their uploads stay game-sized: the driver keeps a
+// copy and fills the physical pixels from it.
+struct PhysicalTextures {
+    PhysicalTextures();
+    ~PhysicalTextures();
+    PhysicalTextures(const PhysicalTextures&) = delete;
+    PhysicalTextures& operator=(const PhysicalTextures&) = delete;
+};
+
 // The last frame shown in the game's window at its full (physical)
 // resolution, as BGRA rows; false without the D3D11 driver's window.
 bool ReadFrame(std::vector<uint8_t>& pixels, uint32_t& width, uint32_t& height);
