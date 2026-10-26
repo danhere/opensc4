@@ -413,6 +413,30 @@
 //   U-Drive service is the game's (its slot 9 given 0 after). tflags
 //   0x10000 when it ran, 0x20000 when the factory failed, 0x40000 without
 //   the U-Drive service. Log line: "tr3c tdrive".
+//   Part em1 (the emergency vehicles, src/core/automata_emergency.cpp) adds
+//   `,<eobject>,<esave>,<elife>,<eflags>` after tflags (45 fields): one
+//   fire truck, patrol car and ambulance from their factories (eflags 1,
+//   0x10 when a factory failed): their fields (the fire truck's two
+//   filters' vtables and counts), GetGZCLSID through +8 and at its address,
+//   the base's slots 23, 24, 26 and 143 and the ambulance's 192 and 193
+//   through the vtable and at their addresses; on vtable copies (slots 13,
+//   25, 36, 52, 57, 59, 79, 97 and 194 the test's, 31 for the flag 0x80) slot 135 by the automata flag
+//   0x80, slot 29 by three missions and a stacked state or none, slot 105
+//   over five cases (the flag, the state type 0x34, +0x98 of the test's or
+//   null; the core's slot 105 with the flag 0x4000 so it answers at once),
+//   slot 60 over five events and flag words with +0x2D0 null and set
+//   (eflags 8). esave (eflags 2): each class written by its Write and
+//   cSC4Vehicle's, read back as written, with each version word 3, cut by
+//   four and five bytes and empty, into objects holding a target and a crew
+//   of the test's; the base's Write and Read at their addresses. elife
+//   (eflags 4): for each class two objects (slot 97 true, so cSC4Vehicle's
+//   Init succeeds; the flags 0x4000 and 0x2000; slot 31's answer for the
+//   flag 0x80 false and true) initialised twice and shut down through slot 4 with a target, +0x2D0
+//   and (the second) a crew of the test's, the sound service 0x00B43CB8 of
+//   the test's and the city's vtable swapped for a copy with the test's
+//   slot 44 (eflags 0x20 without a city); then one of each class released
+//   with its fields set. The test's slots' calls are mixed into eobject and
+//   elife. Log line: "em1 eobject".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -785,6 +809,7 @@
 #include "core/automata_ctlmgr.h"
 #include "core/automata_scripts.h"
 #include "core/automata_situations.h"
+#include "core/automata_emergency.h"
 #include "core/automata_trains.h"
 #include "core/automata_vehicle.h"
 #include "core/automata_vehmgr.h"
@@ -24313,6 +24338,550 @@ void TrainDriveDrive(Hash& tdrive, uint32_t& tflags)
     g_probe = savedProbe;
 }
 
+// ---- Part em1: the emergency vehicles (src/core/automata_emergency.cpp).
+
+namespace em = automata_emergency;
+
+// What the em1 test's slots answer and record.
+struct EmAnswers {
+    uint32_t stateType = 0;  // slot 59
+    void* inState = nullptr; // slot 57
+    uint32_t siren = 0;      // the last word slot 194 was given
+    int32_t flag80 = -1;     // slot 31's answer for the flag 0x80 (-1: the core's)
+    void* check = nullptr;   // the core's slot 31
+    Hash calls;              // every call of the test's slots and objects
+};
+EmAnswers g_em;
+
+// Slot 31 (flag): the core's, but for the flag 0x80 while flag80 is set.
+uint8_t __fastcall EmCheckFlag(char* o, void*, uint32_t flag)
+{
+    if (flag == 0x80 && g_em.flag80 >= 0) {
+        g_em.calls.Mix(31);
+        return static_cast<uint8_t>(g_em.flag80);
+    }
+    return reinterpret_cast<uint8_t(__thiscall*)(void*, uint32_t)>(g_em.check)(o, flag);
+}
+
+uint32_t __fastcall EmRemove(char*, void*, uint32_t b)
+{
+    g_em.calls.Mix(13);
+    g_em.calls.Mix(b);
+    return 0x13;
+}
+void __fastcall EmSetMission(char*, void*, uint32_t mission)
+{
+    g_em.calls.Mix(25);
+    g_em.calls.Mix(mission);
+}
+void __fastcall EmSetSpeed(char*, void*, float target, float rate)
+{
+    g_em.calls.Mix(36);
+    g_em.calls.Mix(Bits(target));
+    g_em.calls.Mix(Bits(rate));
+}
+void __fastcall EmPushState(char*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f,
+                            uint32_t g)
+{
+    g_em.calls.Mix(52);
+    for (const uint32_t w : {a, b, c, d, e, f, g})
+        g_em.calls.Mix(w);
+}
+void* __fastcall EmInState(char*, void*, uint32_t type)
+{
+    g_em.calls.Mix(57);
+    g_em.calls.Mix(type);
+    return g_em.inState;
+}
+uint32_t __fastcall EmStateType(char*, void*)
+{
+    g_em.calls.Mix(59);
+    return g_em.stateType;
+}
+// Slot 97, the core's Init asks it whether the object is ready: true (the
+// object has no models, so the core's 0x0050EBB0 then does nothing).
+uint8_t __fastcall EmReady(char*, void*)
+{
+    g_em.calls.Mix(97);
+    return 1;
+}
+uint32_t __fastcall EmSlot79(char*, void*)
+{
+    g_em.calls.Mix(79);
+    return 0x79;
+}
+void __fastcall EmSetSiren(char*, void*, uint32_t word)
+{
+    g_em.calls.Mix(194);
+    g_em.calls.Mix(word & 0xFF);
+    g_em.siren = word;
+}
+
+// The sound service 0x00B43CB8 of the test's: slot 11 records the message,
+// whether the source is the object and the three words.
+struct EmService {
+    void** vtable;
+    char* self;
+    uint32_t calls;
+};
+void __fastcall EmSoundStop(EmService* s, void*, uint32_t message, char* source, uint32_t a, uint32_t b, uint32_t c)
+{
+    ++s->calls;
+    g_em.calls.Mix(0xB8);
+    g_em.calls.Mix(message);
+    g_em.calls.Mix(source == s->self ? 1u : 2u);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(b);
+    g_em.calls.Mix(c);
+}
+// The city's slot 44 object of the test's: slot 8 records whether it is
+// told of the crew and the word.
+void __fastcall EmCrewDone(EmService* s, void*, void* crew, uint32_t word)
+{
+    ++s->calls;
+    g_em.calls.Mix(0x44);
+    g_em.calls.Mix(crew == static_cast<void*>(s->self) ? 1u : crew ? 2u : 0u);
+    g_em.calls.Mix(word);
+}
+EmService g_emCrew;
+void* __fastcall EmCityCrew(void*, void*)
+{
+    g_em.calls.Mix(0x2C);
+    return &g_emCrew;
+}
+
+// The classes, in the order of the token.
+struct EmClass {
+    std::uintptr_t create;
+    std::uintptr_t tables[6];
+    uint32_t clsid;
+    std::uintptr_t clsidAt;
+    std::uintptr_t write;
+    std::uintptr_t read;
+    std::uintptr_t shutdown;
+    std::size_t crew; // 0: none
+    int slots;
+};
+
+const EmClass kEmClasses[3] = {
+    {addr::cSC4FireTruck_Create,
+     {addr::cSC4FireTruck_Vtable, addr::cSC4FireTruck_Vtable4, addr::cSC4FireTruck_Vtable8,
+      addr::cSC4FireTruck_VtableC, addr::cSC4FireTruck_Vtable20, addr::cSC4FireTruck_Vtable38},
+     em::kFireTruckClassId,
+     addr::cSC4FireTruck_GetGZCLSID,
+     addr::cSC4FireTruck_Write,
+     addr::cSC4FireTruck_Read,
+     addr::cSC4FireTruck_Shutdown,
+     em::fire::kCrew,
+     200},
+    {addr::cSC4PatrolCar_Create,
+     {addr::cSC4PatrolCar_Vtable, addr::cSC4PatrolCar_Vtable4, addr::cSC4PatrolCar_Vtable8,
+      addr::cSC4PatrolCar_VtableC, addr::cSC4PatrolCar_Vtable20, addr::cSC4PatrolCar_Vtable38},
+     em::kPatrolCarClassId,
+     addr::cSC4PatrolCar_GetGZCLSID,
+     addr::cSC4PatrolCar_Write,
+     addr::cSC4PatrolCar_Read,
+     addr::cSC4PatrolCar_Shutdown,
+     em::patrol::kCrew,
+     201},
+    {addr::cSC4Ambulance_Create,
+     {addr::cSC4Ambulance_Vtable, addr::cSC4Ambulance_Vtable4, addr::cSC4Ambulance_Vtable8,
+      addr::cSC4Ambulance_VtableC, addr::cSC4Ambulance_Vtable20, addr::cSC4Ambulance_Vtable38},
+     em::kAmbulanceClassId,
+     addr::cSC4Ambulance_GetGZCLSID,
+     addr::cSC4Ambulance_Write,
+     addr::cSC4Ambulance_Read,
+     addr::cSC4EmergencyVehicle_Shutdown,
+     0,
+     199},
+};
+
+char* MakeEm(int which, uint32_t& eflags)
+{
+    char* const o = reinterpret_cast<char* (*)()>(kEmClasses[which].create)();
+    if (!o) {
+        eflags |= 0x10;
+        return nullptr;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    return o;
+}
+
+void ReleaseEm(char* o)
+{
+    if (!o)
+        return;
+    At<void*>(o, av::field::kObjectB0) = nullptr;
+    At<void*>(o, av::field::kOccupant) = nullptr;
+    At<void*>(o, av::field::kNetwork) = nullptr;
+    At<void*>(o, em::base::kTarget) = nullptr; // not released by the destructors
+    Virtual<uint32_t>(o, av::slot::kRelease);
+}
+
+// The class's main vtable copied with the test's slots 13, 25, 36, 52, 57,
+// 59, 79, 97 and 194, and slot 31 the core's but for the flag 0x80 while the
+// test sets its answer (the rest the class's).
+void** EmTable(int which, char* o)
+{
+    static void* tables[3][202];
+    void** const real = At<void**>(o, 0);
+    void** const t = tables[which];
+    for (int i = 0; i < kEmClasses[which].slots; ++i)
+        t[i] = real[i];
+    t[em::slot::kRemove / 4] = reinterpret_cast<void*>(&EmRemove);
+    t[em::slot::kSetMission / 4] = reinterpret_cast<void*>(&EmSetMission);
+    t[em::slot::kSetSpeed / 4] = reinterpret_cast<void*>(&EmSetSpeed);
+    t[em::slot::kPushState / 4] = reinterpret_cast<void*>(&EmPushState);
+    t[em::slot::kInState / 4] = reinterpret_cast<void*>(&EmInState);
+    t[em::slot::kStateType / 4] = reinterpret_cast<void*>(&EmStateType);
+    t[em::slot::kSlot79 / 4] = reinterpret_cast<void*>(&EmSlot79);
+    t[em::slot::kSetSiren / 4] = reinterpret_cast<void*>(&EmSetSiren);
+    t[0x184 / 4] = reinterpret_cast<void*>(&EmReady);
+    g_em.check = real[em::slot::kCheckFlag / 4];
+    t[em::slot::kCheckFlag / 4] = reinterpret_cast<void*>(&EmCheckFlag);
+    return t;
+}
+
+// A field that may hold the part's own address mixed as 0xAAAA when it does.
+uint32_t EmWord(uint32_t value, const void* part)
+{
+    return value == static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(part)) ? 0xAAAAu : value;
+}
+
+// The fields of the base and the class (pointers as null or not, the test's
+// objects by name).
+void MixEmFields(Hash& h, int which, char* o, const void* known)
+{
+    h.MixBytes(o + em::base::kPoint, 12);
+    h.Mix(At<void*>(o, em::base::kTarget) == known ? 1u : At<void*>(o, em::base::kTarget) ? 2u : 0u);
+    h.Mix(At<uint8_t>(o, em::base::kByte));
+    h.Mix(At<uint16_t>(o, em::base::kWord));
+    h.Mix(EmWord(At<uint32_t>(o, em::base::kMission), o + av::field::kSerializable));
+    h.Mix(At<void*>(o, em::base::kHeld) ? 1u : 0u);
+    h.Mix(At<void*>(o, em::base::kSiren) ? 1u : 0u);
+    if (which == 0) {
+        const std::uintptr_t expected[2][2] = {{addr::SC4OccupantFilter43_vftable, addr::SC4OccupantFilter43_vftable2},
+                                               {addr::cSC4FireTruck_FilterVtable, addr::cSC4FireTruck_FilterVtable2}};
+        for (int i = 0; i < 2; ++i) {
+            char* const filter = At<char*>(o, i == 0 ? em::fire::kFilter : em::fire::kFilter2);
+            h.Mix(filter ? 1u : 0u);
+            if (!filter)
+                continue;
+            h.Mix(At<std::uintptr_t>(filter, 0) == expected[i][0] ? 1u : 0u);
+            h.Mix(At<std::uintptr_t>(filter, 4) == expected[i][1] ? 1u : 0u);
+            h.Mix(At<uint32_t>(filter, 8));
+        }
+    }
+    if (const std::size_t crew = kEmClasses[which].crew)
+        h.Mix(At<void*>(o, crew) == known ? 1u : At<void*>(o, crew) ? 2u : 0u);
+}
+
+void EmergencyDrive(Hash& eobject, Hash& esave, Hash& elife, uint32_t& eflags)
+{
+    g_em = EmAnswers{};
+    char* made[3] = {};
+    for (int i = 0; i < 3; ++i)
+        made[i] = MakeEm(i, eflags);
+    for (char* o : made)
+        if (!o) {
+            for (char* m : made)
+                ReleaseEm(m);
+            log::Write("autotest: automata: vehicle: em1: a factory failed");
+            return;
+        }
+    eflags |= 1;
+
+    // ---- The objects: the fields, GetGZCLSID through +8 and at its
+    // address, the base's accessors (slots 23, 24, 26, 143) and the
+    // ambulance's slots 192 and 193 through the vtable and at their
+    // addresses.
+    for (int i = 0; i < 3; ++i) {
+        char* const o = made[i];
+        MixFields(eobject, o, kEmClasses[i].tables, true);
+        MixEmFields(eobject, i, o, nullptr);
+        eobject.Mix(Virtual<uint32_t>(o + av::field::kSerializable, 0x14));
+        eobject.Mix(This<uint32_t>(kEmClasses[i].clsidAt, o + av::field::kSerializable));
+        eobject.Mix(Virtual<uint32_t>(o, 26 * 4));
+        eobject.Mix(Virtual<char*>(o, 143 * 4) == o + em::base::kPoint ? 1u : 0u);
+        Virtual<void>(o, 24 * 4, 0x12345u + static_cast<uint32_t>(i));
+        eobject.Mix(Virtual<uint32_t>(o, 23 * 4) & 0xFFFF);
+        This<void>(addr::cSC4EmergencyVehicle_SetWord, o, 0xFFFF8001u);
+        eobject.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_Word, o) & 0xFFFF);
+        eobject.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_Mission, o));
+        eobject.Mix(This<char*>(addr::cSC4EmergencyVehicle_Point, o) == o + em::base::kPoint ? 1u : 0u);
+    }
+    {
+        char* const amb = made[2];
+        eobject.Mix(Virtual<uint32_t>(amb, 192 * 4));
+        eobject.Mix(This<uint32_t>(addr::cSC4Ambulance_Slot192, amb));
+        eobject.Mix(Bits64(Virtual<double>(amb, 193 * 4)));
+        eobject.Mix(Bits64(This<double>(addr::cSC4Ambulance_Slot193, amb)));
+    }
+
+    // ---- The base's queries on the classes' vtable copies: slot 135 by the
+    // flag 0x80, slot 29 by the mission and a stacked state, slot 105 by the
+    // flag, the state type and +0x98, slot 60 by the event, the flag's byte
+    // and +0x2D0.
+    for (int i = 0; i < 3; ++i) {
+        char* const o = made[i];
+        void** const real = At<void**>(o, 0);
+        At<void**>(o, 0) = EmTable(i, o);
+        uint32_t& flags = At<uint32_t>(o, av::field::kAutomataFlags);
+        const uint32_t savedFlags = flags;
+        for (const bool flag : {false, true}) {
+            flags = flag ? (savedFlags | 0x80u) : (savedFlags & ~0x80u);
+            const uint32_t answer = This<uint32_t>(addr::cSC4EmergencyVehicle_Slot135, o);
+            eobject.Mix(flag ? answer : (answer & 0xFF));
+            eobject.Mix(Virtual<uint32_t>(o, 135 * 4) & 0xFF);
+        }
+        flags = savedFlags & ~0x80u;
+        Counted state{CountedVtable(), 1, 0x10, 0};
+        for (const uint32_t mission : {6u, 0u, 2u})
+            for (const bool stacked : {true, false}) {
+                At<uint32_t>(o, em::base::kMission) = mission;
+                g_em.inState = stacked ? static_cast<void*>(&state) : nullptr;
+                This<void>(addr::cSC4EmergencyVehicle_GoHome, o);
+                Virtual<void>(o, 29 * 4);
+            }
+        g_em.inState = nullptr;
+        At<uint32_t>(o, em::base::kMission) = 0;
+        Counted held98{CountedVtable(), 3, 0x98, 0};
+        struct Case105 {
+            bool flag;
+            uint32_t type;
+            bool held;
+        };
+        // The core's slot 105 (the last case) runs with the automata flag
+        // 0x4000, so it answers at once.
+        const Case105 cases[] = {{true, 7, true},      {true, 7, false}, {false, 0x34, true},
+                                 {false, 0x34, false}, {false, 7, false}};
+        for (const Case105& c : cases) {
+            flags = c.flag ? (savedFlags | 0x80u) : (savedFlags & ~0x80u);
+            if (!c.flag && c.type != 0x34)
+                flags |= 0x4000u;
+            g_em.stateType = c.type;
+            At<void*>(o, av::field::k98) = c.held ? static_cast<void*>(&held98) : nullptr;
+            const uint32_t answer = This<uint32_t>(addr::cSC4EmergencyVehicle_Slot105, o);
+            eobject.Mix(c.flag ? (answer & 0xFF) : c.type == 0x34 ? answer : (answer & 0xFF));
+            eobject.Mix(At<void*>(o, av::field::k98) == &held98 ? 1u : At<void*>(o, av::field::k98) ? 2u : 0u);
+            eobject.Mix(static_cast<uint32_t>(held98.references));
+            At<void*>(o, av::field::k98) = nullptr;
+        }
+        g_em.stateType = 0;
+        flags = savedFlags;
+        Held held{};
+        MakeHeld(held, 0x2D0);
+        const uint32_t events[][2] = {{9, 0}, {9, 0x100}, {9, 1}, {3, 0}, {8, 0x200}};
+        for (const bool withHeld : {false, true})
+            for (const auto& e : events) {
+                At<void*>(o, em::base::kHeld) = withHeld ? static_cast<void*>(&held) : nullptr;
+                g_em.siren = 0xFFFFFFFFu;
+                eobject.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_OnEvent, o, e[0], e[1]) & 0xFF);
+                const uint32_t word = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&held));
+                eobject.Mix(g_em.siren == 0xFFFFFFFFu ? 0xFFu
+                            : (g_em.siren & 0xFF) | (withHeld ? ((g_em.siren >> 8) == (word >> 8) ? 0x100u : 0x200u)
+                                                              : (g_em.siren >> 8) << 8));
+            }
+        At<void*>(o, em::base::kHeld) = nullptr;
+        eobject.Mix(static_cast<uint32_t>(held.counted.references));
+        eobject.Mix(static_cast<uint32_t>(state.references));
+        At<void**>(o, 0) = real;
+    }
+    eflags |= 8;
+
+    // ---- The save: each class written by its Write and cSC4Vehicle's,
+    // read back as written, with each version word 3, cut by the mission, by
+    // five bytes, and empty. The read objects hold a target and a crew of the
+    // test's first (a failed reference read leaves the target and clears the
+    // crew).
+    {
+        const uint32_t missions[3] = {4, 5, 3};
+        for (int i = 0; i < 3; ++i) {
+            char* const o = made[i];
+            SetPoint(o, em::base::kPoint, 1.5f, -2.0f, 3.25f + static_cast<float>(i));
+            At<uint8_t>(o, em::base::kByte) = static_cast<uint8_t>(0x5A + i);
+            At<uint16_t>(o, em::base::kWord) = static_cast<uint16_t>(0xBEE0 + i);
+            At<uint32_t>(o, em::base::kMission) = missions[i];
+            using Serialize = uint32_t(__thiscall*)(void*, void*);
+            ByteOStream out;
+            const uint32_t wrote = reinterpret_cast<Serialize>(kEmClasses[i].write)(o + av::field::kSerializable,
+                                                                                    static_cast<cIGZOStream*>(&out));
+            ByteOStream vehicle;
+            reinterpret_cast<Serialize>(addr::cSC4Vehicle_Write)(o + av::field::kSerializable,
+                                                                 static_cast<cIGZOStream*>(&vehicle));
+            esave.Mix(wrote & 0xFF);
+            const std::vector<uint8_t>& w = out.bytes;
+            const std::vector<uint8_t>& v = vehicle.bytes;
+            constexpr std::size_t header = 4;
+            const bool fits = w.size() >= header + v.size();
+            esave.Mix(static_cast<uint32_t>(fits ? w.size() - header - v.size() : 0xFFFFu));
+            if (fits) {
+                esave.MixBytes(w.data(), header);
+                esave.Mix(std::equal(v.begin(), v.end(), w.begin() + header) ? 1u : 0u);
+                esave.MixBytes(w.data() + header + v.size(), w.size() - header - v.size());
+            }
+            std::vector<std::vector<uint8_t>> variants = {w};
+            for (std::size_t at = 0; at < header; at += 2)
+                variants.push_back(WithWord(w, at, 3));
+            for (const std::size_t cut : {std::size_t{4}, std::size_t{5}})
+                if (w.size() > header + cut)
+                    variants.emplace_back(w.begin(), w.end() - static_cast<std::ptrdiff_t>(cut));
+            variants.emplace_back();
+            for (const std::vector<uint8_t>& bytes : variants) {
+                char* const read = MakeEm(i, eflags);
+                if (!read)
+                    continue;
+                Counted target{CountedVtable(), 1, 0x2C4, 0};
+                Counted crew{CountedVtable(), 2, 0x2E0, 0};
+                At<void*>(read, em::base::kTarget) = &target;
+                if (kEmClasses[i].crew)
+                    At<void*>(read, kEmClasses[i].crew) = &crew;
+                ByteIStream in(bytes);
+                const uint32_t answer = reinterpret_cast<Serialize>(kEmClasses[i].read)(
+                    read + av::field::kSerializable, static_cast<cIGZIStream*>(&in));
+                esave.Mix(answer & 0xFF);
+                esave.Mix(static_cast<uint32_t>(in.at));
+                esave.Mix(static_cast<uint32_t>(in.error));
+                MixEmFields(esave, i, read, &target);
+                if (kEmClasses[i].crew)
+                    esave.Mix(At<void*>(read, kEmClasses[i].crew) == &crew ? 1u : 0u);
+                if (kEmClasses[i].crew)
+                    At<void*>(read, kEmClasses[i].crew) = nullptr;
+                ReleaseEm(read);
+                esave.Mix(static_cast<uint32_t>(target.references));
+                esave.Mix(static_cast<uint32_t>(crew.references));
+            }
+        }
+        // The base's Write and Read at their addresses on the ambulance (no
+        // header of its own).
+        {
+            using Serialize = uint32_t(__thiscall*)(void*, void*);
+            ByteOStream out;
+            esave.Mix(reinterpret_cast<Serialize>(addr::cSC4EmergencyVehicle_Write)(
+                          made[2] + av::field::kSerializable, static_cast<cIGZOStream*>(&out)) &
+                      0xFF);
+            esave.Mix(static_cast<uint32_t>(out.bytes.size()));
+            char* const read = MakeEm(2, eflags);
+            if (read) {
+                ByteIStream in(out.bytes);
+                esave.Mix(reinterpret_cast<Serialize>(addr::cSC4EmergencyVehicle_Read)(
+                              read + av::field::kSerializable, static_cast<cIGZIStream*>(&in)) &
+                          0xFF);
+                MixEmFields(esave, 2, read, nullptr);
+                ReleaseEm(read);
+            }
+        }
+        eflags |= 2;
+    }
+
+    // ---- The life cycle: for each class two objects (the flag 0x80 clear
+    // and set) on vtable copies, Init twice; Shutdown through slot 4 with a
+    // target, +0x2D0 and (the second) a crew of the test's, the sound service
+    // of the test's and the city's vtable swapped for a copy with the test's
+    // slot 44; then objects released with their fields set (the destructors).
+    {
+        EmService sound{nullptr, nullptr, 0};
+        static void* soundTable[16] = {};
+        soundTable[em::slot::kSoundStop / 4] = reinterpret_cast<void*>(&EmSoundStop);
+        sound.vtable = soundTable;
+        static void* crewTable[16] = {};
+        crewTable[em::slot::kCrewDone / 4] = reinterpret_cast<void*>(&EmCrewDone);
+        g_emCrew = EmService{crewTable, nullptr, 0};
+        void* const city = Global<void*>(addr::SC4_City);
+        static void* cityTable[256];
+        void** const realCity = city ? At<void**>(city, 0) : nullptr;
+        if (realCity) {
+            for (int i = 0; i < 256; ++i)
+                cityTable[i] = realCity[i];
+            cityTable[em::slot::kCityCrewService / 4] = reinterpret_cast<void*>(&EmCityCrew);
+        } else {
+            eflags |= 0x20;
+        }
+        for (int i = 0; i < 3; ++i)
+            for (const bool flag : {false, true}) {
+                char* const o = MakeEm(i, eflags);
+                if (!o)
+                    continue;
+                void** const real = At<void**>(o, 0);
+                At<void**>(o, 0) = EmTable(i, o);
+                uint32_t& flags = At<uint32_t>(o, av::field::kAutomataFlags);
+                // The flags 0x4000 and 0x2000 keep the base's Init from slots
+                // 105 and 134.
+                flags |= 0x6000u;
+                const uint32_t before = flags;
+                g_em.flag80 = flag ? 1 : 0; // cSC4Vehicle's Init leaves the flag as it finds it or not
+                elife.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_Init, o) & 0xFF);
+                elife.Mix(Virtual<uint32_t>(o, 3 * 4) & 0xFF); // initialised
+                g_em.flag80 = -1;
+                elife.Mix(flags ^ before);
+                elife.Mix(Bits(At<float>(o, av::field::kDraw)));
+
+                Counted target{CountedVtable(), 1, 0x2C4, 0};
+                Counted crew{CountedVtable(), 1, 0x2E0, 0};
+                Held held{};
+                MakeHeld(held, 0x2D0);
+                held.counted.references = 1;
+                At<void*>(o, em::base::kTarget) = &target;
+                At<void*>(o, em::base::kHeld) = &held;
+                const bool withCrew = flag && kEmClasses[i].crew && realCity;
+                if (withCrew)
+                    At<void*>(o, kEmClasses[i].crew) = &crew;
+                sound.self = o;
+                g_emCrew.self = reinterpret_cast<char*>(&crew);
+                {
+                    RfSwap swapSound(addr::SC4_Sound43CB8, &sound);
+                    if (withCrew)
+                        At<void**>(city, 0) = cityTable;
+                    const uint32_t done = Virtual<uint32_t>(o, 4 * 4);
+                    if (withCrew)
+                        At<void**>(city, 0) = realCity;
+                    elife.Mix(done & 0xFF);
+                }
+                MixEmFields(elife, i, o, &target);
+                for (const int32_t r : {target.references, crew.references, held.counted.references})
+                    elife.Mix(static_cast<uint32_t>(r));
+                At<void**>(o, 0) = real;
+                ReleaseEm(o);
+            }
+        elife.Mix(sound.calls);
+        elife.Mix(g_emCrew.calls);
+
+        // The destructors with the fields set: the target is not released,
+        // the crew, the siren and +0x2D0 are (the fire truck's filters too).
+        for (int i = 0; i < 3; ++i) {
+            char* const o = MakeEm(i, eflags);
+            if (!o)
+                continue;
+            Counted target{CountedVtable(), 5, 0x2C4, 0};
+            Counted crew{CountedVtable(), 5, 0x2E0, 0};
+            Counted siren{CountedVtable(), 5, 0x2D4, 0};
+            Held held{};
+            MakeHeld(held, 0x2D0);
+            held.counted.references = 5;
+            At<void*>(o, em::base::kTarget) = &target;
+            At<void*>(o, em::base::kSiren) = &siren;
+            At<void*>(o, em::base::kHeld) = &held;
+            if (kEmClasses[i].crew)
+                At<void*>(o, kEmClasses[i].crew) = &crew;
+            At<void*>(o, av::field::kObjectB0) = nullptr;
+            At<void*>(o, av::field::kOccupant) = nullptr;
+            At<void*>(o, av::field::kNetwork) = nullptr;
+            Virtual<uint32_t>(o, av::slot::kRelease);
+            for (const int32_t r : {target.references, crew.references, siren.references, held.counted.references})
+                elife.Mix(static_cast<uint32_t>(r));
+        }
+        eflags |= 4;
+    }
+    elife.Mix(g_em.calls.h);
+    eobject.Mix(g_em.calls.h);
+
+    for (char* o : made)
+        ReleaseEm(o);
+    log::Write("autotest: automata: vehicle: em1 eobject %08X esave %08X elife %08X eflags %X calls %08X", eobject.h,
+               esave.h, elife.h, eflags, g_em.calls.h);
+    g_em = EmAnswers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -24612,6 +25181,11 @@ void VehicleDrive(cISC4City* city)
     Hash tdrive;
     TrainDriveDrive(tdrive, tflags);
 
+    // ---- Part em1.
+    Hash eobject, esave, elife;
+    uint32_t eflags = 0;
+    EmergencyDrive(eobject, esave, elife, eflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -24664,14 +25238,16 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[448];
+    char text[512];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
+                  "%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
-                  rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags);
+                  rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
+                  eobject.h, esave.h, elife.h, eflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
