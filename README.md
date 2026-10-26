@@ -100,6 +100,7 @@ Bugs in the original game that OpenSC4 fixes. The fixes are part of the game: al
 | [docs/uncharted-code.md](docs/uncharted-code.md) | What the exe's unmapped address ranges hold, and how many of its functions are Maxis code to translate |
 | [docs/research.md](docs/research.md) | Feasibility research, existing projects, legal context, community etiquette |
 | [docs/dev-environment.md](docs/dev-environment.md) | Windows / CachyOS / macOS roles and toolchain |
+| [docs/macos.md](docs/macos.md) | What running on a Mac would take: Wine today, a native build after P9 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | What may go in the repository, how replacement code is written, credits for other mods |
 
 ## Why option B (incremental) over a rewrite
