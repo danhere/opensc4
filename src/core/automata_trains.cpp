@@ -13,8 +13,8 @@
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.trains: the 31 detours in kObject (tr1) and the 13
-//   in kFrame (tr2a) below.
+//   simulators.automata.trains: the 31 detours in kObject (tr1), the 13 in
+//   kFrame (tr2a) and the 5 in kMove (tr2b) below.
 //
 // What it does. The car is 0x2C8 bytes from its own pool (0x00B0A09C, as
 // the vehicle pool: other sizes go to SC4::operator_new) and goes back there
@@ -1253,6 +1253,513 @@ void __fastcall TrainEnterOccupant(char* self, void*, void* occupant, std::uint3
 }
 
 // ====================================================================================
+// The movement (tr2b)
+
+void* City() { return Global<void*>(addr::SC4_City); }
+double One() { return Global<float>(addr::cSC4TrainCar_One); }
+double Half() { return Global<float>(addr::SC4_FloatHalf); }
+void CopyWords(void* to, const void* from) { std::memcpy(to, from, 12); }
+
+std::uint32_t Fill() { return Global<std::uint32_t>(addr::cSC4TrainCar_DefaultFloat); }
+
+// The points of a path (begin, end; 12 bytes each), the count as the game
+// divides it.
+std::int32_t PointCount(char** path) { return static_cast<std::int32_t>(path[1] - path[0]) / 12; }
+
+void SetFlag(char* self, std::uint32_t flag, std::uint32_t on) { Virtual<void>(self, slot::kSetFlag, flag, on); }
+bool CheckFlag(char* self, std::uint32_t flag) { return Bool(Virtual<std::uint32_t>(self, slot::kCheckFlag, flag)) != 0; }
+
+// A NaN as the game tests a word: the exponent all ones and a mantissa.
+bool IsNan(const float* f)
+{
+    std::uint32_t word;
+    std::memcpy(&word, f, 4);
+    return (word & 0x7F800000u) == 0x7F800000u && (word & 0x7FFFFFu) != 0;
+}
+
+// The destination +0x4C half of `d` behind `point`: x unrounded, y and z
+// through floats.
+void HalfBehind(char* self, const float* point, const float* d)
+{
+    const double hx = d[0] * Half();
+    const float hy = static_cast<float>(d[1] * Half());
+    const float hz = static_cast<float>(d[2] * Half());
+    float* const destination = &At<float>(self, field::kDestination);
+    destination[2] = static_cast<float>(static_cast<double>(point[2]) - hz);
+    destination[0] = static_cast<float>(point[0] - hx);
+    destination[1] = static_cast<float>(static_cast<double>(point[1]) - hy);
+}
+
+// 0x00558510, the train's slot 129 (frame seconds), ret 4: the step (slot
+// 125 x the smoothed speed x seconds) and +0x94 the smoothed speed. With slot
+// 88, an empty route and the automata flag 0x20 slot 79 and true. Else slot
+// 161, the room ahead (slot 151; below 16 with +0xB0 SetSpeed to +0xB0's
+// speed at 0.5) caps the step; at a step not above 0 the flag 0x20 set, +0x94
+// zero and, when minus the radius is above the step and the flag 0x40 is off,
+// Remove(false) and false. Else the front point +0x264 (the position when a
+// coordinate is below 0) along the path (slot 133) into a new point: when
+// that fails the flag 4 and slot 102 (4, 0); else the rear +0x2BC from slot
+// 182 (the new point, the radius, +0x27C) and the direction the front point
+// less the rear; below 1e-5 +0x270, true at once when that is the core's
+// default point (within 1e-4) or below 1e-5 too. The destination half of it
+// behind the new point, slot 16 with its unit vector; +0x270 that, +0x264
+// the new point, the flag 0x20 cleared. AL only.
+std::uint8_t __fastcall TrainMoveOnPath(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("TrainMoveOnPath", logged);
+    Virtual<void*>(City(), slot::kTrafficNetwork);
+    const float speed = static_cast<float>(Virtual<double>(self, slot::kSmoothedNow));
+    const double factor = Virtual<double>(self, slot::kSlot125);
+    At<float>(self, field::kSpeed) = speed;
+    float step = static_cast<float>((factor * speed) * seconds);
+    if (Bool(Virtual<std::uint32_t>(self, slot::kSlot88)) &&
+        At<char*>(self, field::kRouteFinish) == At<char*>(self, field::kRoute) && CheckFlag(self, 0x20u)) {
+        Virtual<std::uint32_t>(self, slot::kSlot79);
+        return 1;
+    }
+    Virtual<std::uint32_t>(self, slot::kSlot161);
+    const float clear = static_cast<float>(Virtual<double>(self, slot::kClearAhead));
+    if (void* const ahead = At<void*>(self, field::kObjectB0))
+        if (clear < Global<float>(addr::SC4_FloatSixteen)) {
+            const float target = static_cast<float>(Virtual<double>(ahead, slot::kSmoothedNow));
+            Virtual<std::uint32_t>(self, slot::kSetSpeed, target, 0.5f);
+        }
+    if (!(step < clear))
+        step = clear;
+    if (!(step > Zero())) {
+        SetFlag(self, 0x20u, 1u);
+        At<std::uint32_t>(self, field::kSpeed) = 0;
+        const double radius = Virtual<double>(self, slot::kGetRadius);
+        if (-radius > step && !CheckFlag(self, 0x40u)) {
+            Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+            return 0;
+        }
+        return 1;
+    }
+    float* const front = &At<float>(self, field::kFront);
+    if (front[0] < Zero() || front[1] < Zero() || front[2] < Zero())
+        CopyWords(front, &At<float>(self, field::kPosition));
+    std::uint32_t words[3] = {Fill(), Fill(), Fill()};
+    float* const next = reinterpret_cast<float*>(words);
+    if (!Bool(Virtual<std::uint32_t>(self, slot::kAdvanceOnPath, step, static_cast<const float*>(front), next,
+                                     &At<std::int32_t>(self, field::kPathIndex), At<char**>(self, field::kPath),
+                                     &At<float>(self, field::kFloat260)))) {
+        SetFlag(self, 4u, 1u);
+        Virtual<std::uint32_t>(self, slot::kSlot102, 4u, 0u);
+        return 1;
+    }
+    const float* const rear = &At<float>(self, car::kFloats);
+    Virtual<std::uint32_t>(self, slot::kTrail, static_cast<const float*>(next), &At<float>(self, car::kFloats),
+                           At<float>(self, field::kRadius), self + field::kDeque27C);
+    // The x87 keeps x and z unrounded; y goes through a float.
+    double dx = static_cast<double>(front[0]) - rear[0];
+    float dy = static_cast<float>(static_cast<double>(front[1]) - rear[1]);
+    double dz = static_cast<double>(front[2]) - rear[2];
+    double length = std::sqrt((dz * dz + static_cast<double>(dy) * dy) + dx * dx);
+    const float epsilon = Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon);
+    if (length < epsilon) {
+        const float* const travel = &At<float>(self, field::kTravel);
+        const float* const unset = reinterpret_cast<const float*>(addr::cSC4AutomatonCore_DefaultPoint);
+        const float within = Global<float>(addr::cSC4Train_Near);
+        dx = travel[0];
+        dy = travel[1];
+        dz = travel[2];
+        if (std::fabs(dx - unset[0]) < within && std::fabs(static_cast<double>(dy) - unset[1]) < within &&
+            std::fabs(dz - unset[2]) < within)
+            return 1;
+        length = std::sqrt((dz * dz + static_cast<double>(dy) * dy) + dx * dx);
+        if (length < epsilon)
+            return 1;
+    }
+    const double hx = dx * Half();
+    const float hy = static_cast<float>(static_cast<double>(dy) * Half());
+    const float hz = static_cast<float>(dz * Half());
+    float* const destination = &At<float>(self, field::kDestination);
+    destination[2] = static_cast<float>(static_cast<double>(next[2]) - hz);
+    destination[0] = static_cast<float>(next[0] - hx);
+    destination[1] = static_cast<float>(static_cast<double>(next[1]) - hy);
+    const double inverse = One() / length;
+    float heading[3];
+    heading[0] = static_cast<float>(inverse * dx);
+    heading[1] = static_cast<float>(static_cast<double>(dy) * inverse);
+    heading[2] = static_cast<float>(dz * inverse);
+    Virtual<std::uint32_t>(self, slot::kPlace, static_cast<const float*>(destination),
+                           static_cast<const float*>(heading));
+    CopyWords(&At<float>(self, field::kTravel), heading);
+    CopyWords(front, next);
+    SetFlag(self, 0x20u, 0u);
+    return 1;
+}
+
+// 0x005588D0, the train's slot 131 (occupant, key, exact), ret 0xC: with
+// 0x00B43DA8's slot 17 true for the occupant's cell (slot 59, no null tests)
+// the vehicle manager's records given the event (SC4::ApplyTrafficEvent: +4,
+// 2, 20000) and, with the message server, a message 0x0C05E4CD with the
+// cell posted (the message's new not tested). Then the base's (0x0054E920);
+// with it true, a path and no automata flag 0x2000: not exact, the front
+// point +0x264 the path's last and +0x1FC the count less 2; exact, with
+// +0x260 above 0 +0x260 capped by the room ahead (slot 151) and the path's
+// first point advanced by it (slot 133, its answer dropped), else the
+// network part's index of the front point (slot 19, dropped). The rear
+// (slot 182: the front point, the radius, +0x27C); the direction the front
+// point less the rear, or with a NaN in the rear the radius times the unit
+// vector (a float inverse) of the path's first point to its last (false
+// without a path; the front point then the last); the destination half of
+// it behind the front point; slot 16 with its unit vector (null at 1e-5 or
+// less); +0x270 that; the flag 0x20 cleared. AL the base's.
+std::uint8_t __fastcall TrainPathTo(char* self, void*, void* occupant, std::uint32_t key, std::uint32_t exact)
+{
+    static bool logged;
+    FirstCall("TrainPathTo", logged);
+    std::int32_t first = 0; // stack garbage in the game; slot 59 sets them
+    std::int32_t second = 0;
+    Virtual<void>(occupant, slot::kCell, &first, &second);
+    if (Bool(Virtual<std::uint32_t>(Global<void*>(addr::SC4_Service43DA8), slot::kEventAt, first, second))) {
+        void* const manager = Virtual<void*>(self, slot::kManager);
+        CallThis<void>(addr::SC4_ApplyTrafficEvent, manager, static_cast<void*>(self + kVtable4), 2u, 0x4E20u);
+        if (void* const server = Global<void*>(addr::SC4_MessageServer)) {
+            void* const memory = CallCdecl<void*>(addr::RZ_operator_new, std::size_t{0x2C});
+            void* const message = memory ? CallThis<void*>(addr::cGZMessage_cGZMessage, memory) : nullptr;
+            if (message)
+                Virtual<std::uint32_t>(message, kAddRef);
+            Virtual<std::uint32_t>(message, slot::kSetType, 0x0C05E4CDu);
+            Virtual<std::uint32_t>(message, slot::kSetData1, first);
+            Virtual<std::uint32_t>(message, slot::kSetData2, second);
+            Virtual<std::uint32_t>(server, slot::kPost, message, 0u);
+            Release(message);
+        }
+    }
+    const std::uint8_t answer = CallThis<std::uint8_t>(addr::cSC4AutomatonBase_PathTo, self, occupant, key, exact);
+    if (!answer || !At<char**>(self, field::kPath) || CheckFlag(self, 0x2000u))
+        return answer;
+    float* const front = &At<float>(self, field::kFront);
+    float& leftover = At<float>(self, field::kFloat260);
+    if (!static_cast<std::uint8_t>(exact)) {
+        char** const path = At<char**>(self, field::kPath);
+        const std::int32_t count = PointCount(path);
+        At<std::int32_t>(self, field::kPathIndex) = count - 2;
+        CopyWords(front, path[0] + 12 * count - 12);
+    } else if (!(leftover > Zero())) {
+        Virtual<std::int32_t>(At<void*>(self, field::kNetwork), slot::kIndexOf, front, At<char**>(self, field::kPath));
+    } else {
+        const double clear = Virtual<double>(self, slot::kClearAhead);
+        const float step = leftover < clear ? leftover : static_cast<float>(clear);
+        leftover = step;
+        char** const path = At<char**>(self, field::kPath);
+        std::uint32_t from[3];
+        CopyWords(from, path[0]);
+        Virtual<std::uint32_t>(self, slot::kAdvanceOnPath, step, reinterpret_cast<const float*>(from), front,
+                               &At<std::int32_t>(self, field::kPathIndex), path, &leftover);
+    }
+    float* const rear = &At<float>(self, car::kFloats);
+    Virtual<std::uint32_t>(self, slot::kTrail, static_cast<const float*>(front), rear, At<float>(self, field::kRadius),
+                           self + field::kDeque27C);
+    std::uint32_t words[3] = {Fill(), Fill(), Fill()};
+    float* const d = reinterpret_cast<float*>(words);
+    if (IsNan(rear) || IsNan(rear + 1) || IsNan(rear + 2)) {
+        char** const path = At<char**>(self, field::kPath);
+        if (!path)
+            return answer;
+        CopyWords(front, path[1] - 12);
+        const float* const start = reinterpret_cast<const float*>(At<char**>(self, field::kPath)[0]);
+        const double dx = static_cast<double>(front[0]) - start[0];
+        const double dy = static_cast<double>(front[1]) - start[1];
+        const double dz = static_cast<double>(front[2]) - start[2];
+        const float dzf = static_cast<float>(dz);
+        const float inverse = static_cast<float>(One() / std::sqrt((dz * dzf + dy * dy) + dx * dx));
+        const float ux = static_cast<float>(dx * inverse);
+        const float uy = static_cast<float>(dy * inverse);
+        const double uz = static_cast<double>(dzf) * inverse;
+        const double radius = At<float>(self, field::kRadius);
+        d[0] = static_cast<float>(radius * ux);
+        d[1] = static_cast<float>(uy * radius);
+        d[2] = static_cast<float>(uz * radius);
+    } else {
+        d[0] = static_cast<float>(static_cast<double>(front[0]) - rear[0]);
+        d[1] = static_cast<float>(static_cast<double>(front[1]) - rear[1]);
+        d[2] = static_cast<float>(static_cast<double>(front[2]) - rear[2]);
+    }
+    HalfBehind(self, front, d);
+    const double length = std::sqrt((static_cast<double>(d[2]) * d[2] + static_cast<double>(d[1]) * d[1]) +
+                                    static_cast<double>(d[0]) * d[0]);
+    float* const destination = &At<float>(self, field::kDestination);
+    if (!(length > Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon))) {
+        Virtual<std::uint32_t>(self, slot::kPlace, static_cast<const float*>(destination),
+                               static_cast<const float*>(nullptr));
+    } else {
+        const double inverse = One() / length;
+        d[0] = static_cast<float>(d[0] * inverse);
+        d[1] = static_cast<float>(d[1] * inverse);
+        d[2] = static_cast<float>(d[2] * inverse);
+        Virtual<std::uint32_t>(self, slot::kPlace, static_cast<const float*>(destination), static_cast<const float*>(d));
+    }
+    CopyWords(&At<float>(self, field::kTravel), d);
+    SetFlag(self, 0x20u, 0u);
+    return answer;
+}
+
+// 0x0055AD00, the train's slot 134: false without the traffic network map's
+// occupant at the position's cell (city slot 95, map slot 11) or its network
+// part (slot 49); slot 174 called, its answer not read. The kind 4 with the
+// byte +0x2B8, else 6 in the group 0x422D or 0x422C, 7 in 0x422F or 0x422E,
+// else 3; without the automata flag 0x4000, with +0x98 and +0xA4 longer than
+// 1e-5, +0xA4 normalised and its best side (slot 171). The part's path
+// (slot 5: the kind, 0xFF, the side, the position, an out word, 0; false
+// without one); slot 132 (occupant, the out word, path,
+// 1); the +0x27C deque cleared; +0x1FC the last point's index, the front
+// point +0x264 the last point, the heading +0x58 the last less the first.
+// The rear (slot 182); with it, slot 16 with the point half the front less
+// the rear behind the front and that direction's unit vector (x by the
+// inverse unrounded, y and z by it as a float); without, the unit vector (a
+// float inverse) from the point before, the rear the radius behind along it
+// and slot 16 with the point half the radius behind and the unit vector.
+// True.
+std::uint8_t __fastcall TrainPlaceOnNetwork(char* self, void*)
+{
+    static bool logged;
+    FirstCall("TrainPlaceOnNetwork", logged);
+    void* const map = Virtual<void*>(City(), slot::kTrafficNetwork);
+    Virtual<void*>(self, slot::kManager);
+    float* const position = &At<float>(self, field::kPosition);
+    std::int32_t cellX = 0; // stack garbage in the game; city slot 95 sets them
+    std::int32_t cellZ = 0;
+    Virtual<std::uint32_t>(City(), slot::kCellOf, position[0], position[2], &cellX, &cellZ);
+    void* const occupant = Virtual<void*>(map, slot::kOccupantAt, cellX, cellZ);
+    if (!occupant)
+        return 0;
+    void* const network = Virtual<void*>(occupant, slot::kSetLeader);
+    if (!network)
+        return 0;
+    std::uint32_t kind = 3;
+    if (At<std::uint8_t>(self, car::kGroupByte))
+        kind = 4;
+    else if (InGroup(self, 0x422Du) || InGroup(self, 0x422Cu))
+        kind = 6;
+    else if (InGroup(self, 0x422Fu) || InGroup(self, 0x422Eu))
+        kind = 7;
+    std::uint32_t side = 0xFFu; // a byte with three bytes of the game's stack above it
+    if (!CheckFlag(self, 0x4000u) && At<std::uint32_t>(self, field::k98)) {
+        float* const v = &At<float>(self, field::kVectorA4);
+        const double x = v[0], y = v[1], z = v[2];
+        if (std::sqrt((x * x + y * y) + z * z) > Global<float>(addr::SC4_FloatHundredThousandth)) {
+            const double inverse = One() / std::sqrt((x * x + y * y) + z * z);
+            v[0] = static_cast<float>(inverse * v[0]);
+            v[1] = static_cast<float>(inverse * v[1]);
+            v[2] = static_cast<float>(inverse * v[2]);
+            Virtual<std::uint32_t>(self, slot::kBestDirection, occupant, static_cast<const float*>(v),
+                                   reinterpret_cast<std::uint8_t*>(&side), 1u);
+        }
+    }
+    std::uint32_t out = 0; // stack garbage in the game; the part's slot 5 sets it
+    char** const found = Virtual<char**>(network, slot::kFindPath, kind, 0xFFu, side,
+                                         static_cast<const float*>(position), &out, 0u);
+    if (!found)
+        return 0;
+    Virtual<std::uint32_t>(self, slot::kEnterOccupant, occupant, out, found, 1u);
+    CallThis<void>(addr::SC4VehicleDeque27C_Clear, self + field::kDeque27C);
+    std::uint32_t headingWords[3] = {Fill(), Fill(), Fill()};
+    std::uint32_t pointWords[3] = {Fill(), Fill(), Fill()};
+    float* const a = reinterpret_cast<float*>(headingWords);
+    float* const b = reinterpret_cast<float*>(pointWords);
+    char** const path = At<char**>(self, field::kPath);
+    const std::int32_t index = PointCount(path) - 1;
+    At<std::int32_t>(self, field::kPathIndex) = index;
+    float* const front = &At<float>(self, field::kFront);
+    CopyWords(front, path[0] + 12 * index);
+    const float* const start = reinterpret_cast<const float*>(At<char**>(self, field::kPath)[0]);
+    float* const heading = &At<float>(self, field::kHeading);
+    heading[2] = static_cast<float>(static_cast<double>(front[2]) - start[2]);
+    heading[0] = static_cast<float>(static_cast<double>(front[0]) - start[0]);
+    heading[1] = static_cast<float>(static_cast<double>(front[1]) - start[1]);
+    float* const rear = &At<float>(self, car::kFloats);
+    if (!Bool(Virtual<std::uint32_t>(self, slot::kTrail, static_cast<const float*>(front), rear,
+                                     At<float>(self, field::kRadius), self + field::kDeque27C))) {
+        const float* const before = reinterpret_cast<const float*>(At<char**>(self, field::kPath)[0]) +
+                                    3 * At<std::int32_t>(self, field::kPathIndex) - 3;
+        const double dx = static_cast<double>(front[0]) - before[0];
+        const double dy = static_cast<double>(front[1]) - before[1];
+        const double dz = static_cast<double>(front[2]) - before[2];
+        const float dzf = static_cast<float>(dz);
+        const float inverse = static_cast<float>(One() / std::sqrt((dz * dzf + dy * dy) + dx * dx));
+        a[0] = static_cast<float>(dx * inverse);
+        a[1] = static_cast<float>(dy * inverse);
+        a[2] = static_cast<float>(static_cast<double>(dzf) * inverse);
+        const double radius = At<float>(self, field::kRadius);
+        const float ax = static_cast<float>(a[0] * radius);
+        const float ay = static_cast<float>(a[1] * radius);
+        const double az = radius * a[2];
+        rear[2] = static_cast<float>(front[2] - az);
+        rear[0] = static_cast<float>(static_cast<double>(front[0]) - ax);
+        rear[1] = static_cast<float>(static_cast<double>(front[1]) - ay);
+        const double hx = (a[0] * radius) * Half();
+        const float hy = static_cast<float>(static_cast<float>(a[1] * radius) * Half());
+        const float hz = static_cast<float>(static_cast<float>(a[2] * radius) * Half());
+        b[2] = static_cast<float>(static_cast<double>(front[2]) - hz);
+        b[0] = static_cast<float>(front[0] - hx);
+        b[1] = static_cast<float>(static_cast<double>(front[1]) - hy);
+    } else {
+        const double dx = static_cast<double>(front[0]) - rear[0];
+        const double dy = static_cast<double>(front[1]) - rear[1];
+        const float dzf = static_cast<float>(static_cast<double>(front[2]) - rear[2]);
+        const double hx = dx * Half();
+        const float hy = static_cast<float>(dy * Half());
+        const float hz = static_cast<float>(static_cast<double>(dzf) * Half());
+        b[2] = static_cast<float>(static_cast<double>(front[2]) - hz);
+        b[0] = static_cast<float>(front[0] - hx);
+        b[1] = static_cast<float>(static_cast<double>(front[1]) - hy);
+        const double inverse = One() / std::sqrt((static_cast<double>(dzf) * dzf + dy * dy) + dx * dx);
+        const float rounded = static_cast<float>(inverse);
+        a[0] = static_cast<float>(inverse * dx);
+        a[1] = static_cast<float>(dy * rounded);
+        a[2] = static_cast<float>(static_cast<double>(dzf) * rounded);
+    }
+    Virtual<std::uint32_t>(self, slot::kPlace, static_cast<const float*>(b), static_cast<const float*>(a));
+    return 1;
+}
+
+// 0x00559C30, the train's slot 197 (direction), ret 4: the next occupant
+// from 0x00B43D54's slot 15 (the occupant, the side +0x1F4, 0, +0x1F7 &
+// 0xF; no null test of the service; false without one); its network part
+// (slot 49) and slot 40's key (the occupant, the opposite side). With a key
+// and a path, the part's path for the key (slot 3) when the path's last
+// point is within 2 of its first (asked twice). Else the best side (slot 171
+// with the direction) and the keys (slot 6: the kind, the path's last
+// point, the opposite side, the side, 0.5): the path for the first, or with
+// none slot 5's (the kind, the opposite side, 0xFF, the last point, the
+// key's slot out, 0); the keys freed (SC4::Free). False without a path; else
+// slot 131 (the occupant, the key, 1), its cell entered (slot 59, the
+// service's slot 38) and that of the first occupant of the service's slot
+// 15 (the occupant, the key, 0, 0) when there is one. True. The sides are
+// bytes with three of the game's stack bytes above them (ours zero).
+std::uint8_t __fastcall TrainNextOccupant(char* self, void*, const float* direction)
+{
+    static bool logged;
+    FirstCall("TrainNextOccupant", logged);
+    void* const service = Global<void*>(addr::SC4_Service43D54);
+    const std::uint32_t side = At<std::uint8_t>(self, field::kDirection);
+    const std::uint32_t opposite = (side + 2) & 3;
+    const std::uint32_t kind = At<std::uint8_t>(self, field::kKind1F7) & 0xFu;
+    void** const next = Virtual<void**>(service, slot::kNeighbour, At<void*>(self, field::kOccupant), side, 0u, kind);
+    if (!next)
+        return 0;
+    void* const occupant = *next;
+    void* const network = Virtual<void*>(occupant, slot::kSetLeader);
+    std::uint32_t key = Virtual<std::uint32_t>(service, slot::kNeighbourKey, occupant, opposite);
+    char** path = nullptr;
+    bool nearby = false;
+    if (key && At<char**>(self, field::kPath))
+        if (char** const there = Virtual<char**>(network, slot::kPartPath, key, 0u)) {
+            const float* const a = reinterpret_cast<const float*>(there[0]);
+            const float* const b = reinterpret_cast<const float*>(At<char**>(self, field::kPath)[1]) - 3;
+            const double dx = static_cast<double>(a[0]) - b[0];
+            const double dy = static_cast<double>(a[1]) - b[1];
+            const double dz = static_cast<double>(a[2]) - b[2];
+            nearby = !(std::sqrt((dz * dz + dy * dy) + dx * dx) > Global<float>(addr::cSC4Vehicle_Two));
+        }
+    if (nearby) {
+        path = Virtual<char**>(network, slot::kPartPath, key, 0u);
+    } else {
+        std::uint32_t sideWord = side;
+        Virtual<std::uint32_t>(self, slot::kBestDirection, occupant, direction,
+                               reinterpret_cast<std::uint8_t*>(&sideWord), 1u);
+        std::uint32_t* keys[3] = {};
+        const float* const last = reinterpret_cast<const float*>(At<char**>(self, field::kPath)[1]) - 3;
+        Virtual<std::uint32_t>(network, slot::kKeys, static_cast<void*>(keys), kind, last, opposite, sideWord, 0.5f);
+        if (keys[0] != keys[1]) {
+            key = *keys[0];
+            path = Virtual<char**>(network, slot::kPartPath, key, 0u);
+        } else {
+            path = Virtual<char**>(network, slot::kFindPath, kind, opposite, 0xFFu, last, &key, 0u);
+        }
+        if (keys[0])
+            CallCdecl<void>(addr::SC4_Free, static_cast<void*>(keys[0]));
+    }
+    if (!path)
+        return 0;
+    Virtual<std::uint32_t>(self, slot::kPathTo, occupant, key, 1u);
+    std::int32_t first = 0; // stack slots in the game; slot 59 sets them
+    std::int32_t second = 0;
+    Virtual<void>(occupant, slot::kCell, &first, &second);
+    Virtual<void>(service, slot::kEnterCell, static_cast<void*>(self), first, second);
+    void** const after = Virtual<void**>(service, slot::kNeighbour, occupant, key, 0u, 0u);
+    if (after && *after) {
+        Virtual<void>(*after, slot::kCell, &first, &second);
+        Virtual<void>(service, slot::kEnterCell, static_cast<void*>(self), first, second);
+    }
+    return 1;
+}
+
+// 0x0055A8B0, the train's slot 199: the last car (the train without cars;
+// no null test) and its radius (slot 17); when twice the radius is no more
+// than the distance of its rear +0x2BC to the train's point +0x2DC less half
+// the radius (x through a float), and with the vehicle manager (slot 174)
+// and a car group: the manager's slot 15 (the group, 0x421A for 0x4203 when
+// one car short of the wanted count; the point, +0x84, a zeroed vector of
+// the caller's not freed, 0, the byte +0x90, 0) and the car interface
+// (0x4A416254) of what it makes. With one: the automata flag 2 cleared, its
+// leader (slot 49) the last car, slot 16 (the point, the last car's heading
+// +0x58), slot 132 (+0x2E8, +0x2EC, 0, 1), pushed on the cars
+// (SC4PtrVector::PushBack, then AddRef) and the state 0x10 pushed (0, -1.0,
+// four zeros) when the train is in it; the interface released. AL whether
+// one was made.
+std::uint8_t __fastcall TrainAddCar(char* self, void*)
+{
+    static bool logged;
+    FirstCall("TrainAddCar", logged);
+    void* car = nullptr;
+    char** const cars = &At<char*>(self, train::kCars);
+    char* const last = cars[0] == cars[1] ? self : At<char**>(self, train::kCars + 4)[-1];
+    const double radius = Virtual<double>(last, slot::kGetRadius);
+    const float* const rear = &At<float>(last, car::kFloats);
+    float* const point = &At<float>(self, train::kPoint);
+    const float dx = static_cast<float>(static_cast<double>(rear[0]) - point[0]);
+    const double dy = static_cast<double>(rear[1]) - point[1];
+    const double dz = static_cast<double>(rear[2]) - point[2];
+    const double length = std::sqrt((dz * dz + dy * dy) + static_cast<double>(dx) * dx);
+    if (radius + radius <= length - radius * Half()) {
+        void* const vehicles = Virtual<void*>(self, slot::kManager);
+        std::uint32_t group = At<std::uint32_t>(self, train::kCarGroup);
+        if (vehicles && group) {
+            if (group == 0x4203u && CarCount(self) == At<std::uint32_t>(self, train::kWanted) - 1)
+                group = 0x421Au;
+            std::uint32_t list[3] = {0, 0, 0};
+            void* const made = Virtual<void*>(vehicles, slot::kMakeCar, group, point,
+                                              At<std::uint32_t>(self, field::kAutomataFlags), static_cast<void*>(list),
+                                              0u, static_cast<std::uint32_t>(At<std::uint8_t>(self, field::kByte90)), 0u);
+            if (made) {
+                if (void* const held = car) {
+                    car = nullptr;
+                    Release(held);
+                }
+                if (!Bool(Virtual<std::uint32_t>(made, 0x00, kCarClassId, &car)))
+                    if (void* const held = car) {
+                        car = nullptr;
+                        Release(held);
+                    }
+            }
+            if (car) {
+                Virtual<void>(car, slot::kSetFlag, 2u, 0u);
+                Virtual<std::uint32_t>(car, slot::kSetLeader, static_cast<void*>(last));
+                Virtual<std::uint32_t>(car, slot::kPlace, static_cast<const float*>(point),
+                                       static_cast<const float*>(&At<float>(last, field::kHeading)));
+                Virtual<std::uint32_t>(car, slot::kEnterOccupant, At<void*>(self, train::kOccupant),
+                                       At<std::uint32_t>(self, train::kWord), 0u, 1u);
+                void* value = car;
+                CallThis<void>(addr::SC4PtrVector_PushBack, self + train::kCars, &value);
+                Virtual<std::uint32_t>(car, kAddRef);
+                if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x10u)
+                    Virtual<std::uint32_t>(car, slot::kPushState, 0x10u, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+            }
+        }
+    }
+    const std::uint8_t answer = car ? 1 : 0;
+    if (car)
+        Release(car);
+    return answer;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1347,12 +1854,22 @@ const Detour kFrame[] = {
     OPENSC4_DETOUR(addr::cSC4Train_EnterOccupant, TrainEnterOccupant),
 };
 
+// Part tr2b.
+const Detour kMove[] = {
+    OPENSC4_DETOUR(addr::cSC4Train_MoveOnPath, TrainMoveOnPath),
+    OPENSC4_DETOUR(addr::cSC4Train_PathTo, TrainPathTo),
+    OPENSC4_DETOUR(addr::cSC4Train_PlaceOnNetwork, TrainPlaceOnNetwork),
+    OPENSC4_DETOUR(addr::cSC4Train_NextOccupant, TrainNextOccupant),
+    OPENSC4_DETOUR(addr::cSC4Train_AddCar, TrainAddCar),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
-           InstallList(kFrame, sizeof kFrame / sizeof kFrame[0], "frame");
+           InstallList(kFrame, sizeof kFrame / sizeof kFrame[0], "frame") &&
+           InstallList(kMove, sizeof kMove / sizeof kMove[0], "move");
 }
 
 const bool g_registered[] = {
@@ -1364,7 +1881,8 @@ const bool g_registered[] = {
                         "and the mass transit train's Writes and Reads; the car's and the train's Inits and the "
                         "train's Shutdown; the car's slots 50, 65 and 120 and the train's 175 and 193 to 196 (31 "
                         "detours, part tr1); the frames: the car's slots 110 and 132, the train's 65, 73, 110, 111, "
-                        "121, 125, 132, 165 and 172, the mass transit train's 165 and 172 (13 detours, part tr2a; "
+                        "121, 125, 132, 165 and 172, the mass transit train's 165 and 172 (13 detours, part tr2a); "
+                        "the movement: the train's slots 129, 131, 134, 197 and 199 (5 detours, part tr2b; "
                         "src/core/automata_trains.cpp)",
                         false, InstallObject}),
 };
