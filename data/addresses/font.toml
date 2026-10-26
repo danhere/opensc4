@@ -745,7 +745,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint32_t (void* this, const void* text, uint32_t length, uint32_t max_width, uint32_t* width, uint32_t mode)"
 expect = "55 8B EC 83 EC 18 56 57"
-source = "Name ours, not hooked. Slot 41 (+0xA4); `ret 0x14`. How many characters of the text fit in max_width, stopping at a line break; mode 1 backs up to a word end, mode 2 to a character. The line breaker of DrawStringInRect (docs/fonts.md, f3)."
+source = "Name ours. Slot 41 (+0xA4); `ret 0x14`. How many units of the text fit in max_width: words (0x0091227B) while their trimmed width (slot 49) fits, to a line break; when none fits, mode 1 the first word anyway, mode 2 characters; a breaking space after goes with them. The line breaker of DrawStringInRect. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
 
 [[entry]]
 name = "GZFont::MeasureString"
@@ -754,7 +754,7 @@ kind = "function"
 convention = "thiscall"
 signature = "int32_t (void* this, const void* text, uint32_t length)"
 expect = "55 8B EC 51 51 33 C0 39"
-source = "Name ours, not hooked. Slot 48 (+0xC0); `ret 8`. Width in pixels: the text converted to UTF-16, then each character's advance (slot 40) summed (docs/fonts.md, f3)."
+source = "Name ours. Slot 48 (+0xC0); `ret 8`. Width in pixels: the text converted to UTF-16 (vector 4), then each cluster's (0x00912588) first character's advance (slot 40) summed. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
 
 [[entry]]
 name = "GZFont::MeasureTrimmed"
@@ -763,7 +763,7 @@ kind = "function"
 convention = "thiscall"
 signature = "int32_t (void* this, const void* text, uint32_t length, uint32_t* out_length)"
 expect = "55 8B EC 51 51 8B 45 10"
-source = "Name ours, not hooked. Slot 49 (+0xC4); `ret 0xC`. MeasureString without trailing spaces; the length used comes back in out_length (docs/fonts.md, f3)."
+source = "Name ours. Slot 49 (+0xC4); `ret 0xC`. MeasureString without trailing breaking spaces (0x00896254, vector 3); out_length the words measured in UTF-16 and ASCII, else 0 (0x00910855 of its own 0). Ours in framework.font.font.measure (docs/fonts.md, f3f)."
 
 [[entry]]
 name = "GZFont::DrawString"
@@ -845,6 +845,141 @@ convention = "thiscall"
 signature = "uint32_t (void* this)"
 expect = "8B 41 38 83 F8 18 73 04"
 source = "Name ours. Plain ret: the strike-through's thickness by the size (+0x38): 1 below 24, 2 below 48, 3 below 72, else 4. Called by StoreGlyph 0x00897748. Ours in framework.font.font.glyphs (docs/fonts.md, f3e)."
+
+[[entry]]
+name = "GZFont::IsSpace"
+address = 0x00896254
+kind = "function"
+convention = "custom"
+signature = "bool (uint32_t character /* EAX */)"
+expect = "83 F8 20 74 11 3D 02 20"
+source = "Name ours. The character in EAX, plain ret, only EAX changed: 1 for the space and 0x2002 to 0x200B, else 0. Called by FitString 0x00899D81 and MeasureTrimmed 0x00899FF4, which keep pointers in ECX and EDX across it. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::Decode"
+address = 0x0089671F
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* text, uint32_t count, uint32_t* units)"
+expect = "55 8B EC 83 7D 0C 00 56"
+source = "Name ours. `ret 0xC`: the first character of a text in the font's encoding (+0x7C) and its units. 0 for no text. UTF-16: the word, 2; a byte below 0x80: itself, 1; ASCII above: 0x00910E18 of one byte, 1; others: the character's units (0x009106A9) converted, units what 0x00910E18 answers. The word converted into is the upper half of the text's argument (a conversion that writes nothing answers it). Called by slots 36, 58, 40 and 0x0089738F. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::FitCount"
+address = 0x00896808
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* text, uint32_t count, uint32_t width, uint32_t* out_width)"
+expect = "55 8B EC 51 51 33 C0 56"
+source = "Name ours. Slot 42 (+0xA8); `ret 0x10`. How many units fit the width, a character (0x009106A9) at a time measured by slot 48; one past is given back. out_width the width kept. Called by the shortener 0x00896A2D. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::Lines"
+address = 0x00896886
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* text, uint32_t count, uint32_t width)"
+expect = "55 8B EC 51 83 65 FC 00"
+source = "Name ours. Slot 43 (+0xAC); `ret 0xC`. The lines FitString (slot 41, mode 2) breaks the text into at the width (0 taken as 1). Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::WidthFor"
+address = 0x008968EB
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* text, uint32_t count, uint32_t height)"
+expect = "55 8B EC 51 53 56 57 8B"
+source = "Name ours. Slot 44 (+0xB0); `ret 0xC`. Binary search, in tens from 20 to 4000, for the narrowest width at which the text takes no more lines (slot 43) than the height over the line height (slot 35) holds; 0 when none. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::FitRect"
+address = 0x008973D4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* text, uint32_t count, int32_t* rect, int32_t narrowest, int32_t widest, int32_t height)"
+expect = "55 8B EC 51 51 53 56 57"
+source = "Name ours. Slot 45 (+0xB4); `ret 0x18`. A rectangle for the text from rect's corner: one line, two at the width they need (slot 44) or more lines, within the widest and the height; -1 widths from the width of 'a' (slot 36). AL. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::MeasureRect"
+address = 0x00896957
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text, uint32_t count, int32_t* rect, bool wrapped, bool fixed_width)"
+expect = "55 8B EC 53 56 33 C0 39"
+source = "Name ours. Slot 46 (+0xB8); `ret 0x14`. rect's right and bottom for the text: MeasureString and a line, or wrapped the width for its height (slot 44) or the lines at its width (slot 43). Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::LineRect"
+address = 0x008969F2
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* text, uint32_t count, int32_t* rect)"
+expect = "53 56 57 33 DB 8B F9 8B"
+source = "Name ours. Slot 47 (+0xBC); `ret 0xC`. One line's rectangle at 0, 0: slot 37's height (+0x3C), MeasureString across. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::Shorten"
+address = 0x00896A2D
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, cIGZString* string, cIGZString const* suffix, const int32_t* rect, bool keep)"
+expect = "55 8B EC 51 53 56 8B 75"
+source = "Name ours. Slot 50 (+0xC8); `ret 0x10`. Unless keep, a string object cut to what fits rect's width (slot 42) beside the suffix, trailing spaces dropped, the suffix appended (emptied when the suffix alone does not fit). Answers the length it had. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::GlyphWidth"
+address = 0x008972BD
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* text, uint32_t count)"
+expect = "56 8B F1 80 7E 04 00 74"
+source = "Name ours. Slot 36 (+0x90); `ret 8`. The first character's glyph box width (slot 60); 0 when not loaded or without a glyph. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::Bearing"
+address = 0x00897304
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const void* text, uint32_t count)"
+expect = "56 8B F1 80 7E 04 00 74"
+source = "Name ours. Slot 58 (+0xE8); `ret 8`. The first character's glyph's left bearing (slot 60). Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::Advance"
+address = 0x00897348
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const void* text, uint32_t count)"
+expect = "56 8B F1 80 7E 04 00 74"
+source = "Name ours. Slot 40 (+0xA0); `ret 8`. The first character's glyph's advance (slot 60) plus the spacing +0x74. What MeasureString sums. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::Find"
+address = 0x0089738F
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const void* text, uint32_t count, uint32_t character)"
+expect = "55 8B EC 51 8B 45 0C 53"
+source = "Name ours. `ret 0xC`: where the character is in the text (0x0089671F a character at a time; the end is count bytes on, whatever the encoding), or -1. Called by FitRect 0x008973D4 for a line break. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::HasGlyphs"
+address = 0x00899CA7
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* text, uint32_t count)"
+expect = "55 8B EC 83 EC 0C 33 C0"
+source = "Name ours. Slot 27 (+0x6C); `ret 8`. Whether T2K (0x0089F538) has a glyph for every word of the text made UTF-16 (0x00899BCA, vector 0). AL. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::Preload"
+address = 0x00899D2A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* text, uint32_t count)"
+expect = "55 8B EC 51 56 8B F1 8A"
+source = "Name ours. Slot 28 (+0x70); `ret 8`. When loaded, every word of the text made UTF-16 (vector 0) got from the glyph cache (slot 60). AL whether loaded. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
 
 [[entry]]
 name = "GZFontBlitter::Construct"
