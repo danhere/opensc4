@@ -71,4 +71,4 @@ Each entry records what was decided and why. When a decision changes, replace th
 | Renderer backend | D3D11 vs Vulkan vs both | D3D11 first |
 | When to contact other modders | At P0 vs after P1 | At P0. The patch census needs them, and their trust gates P7. |
 | Save compatibility | Read/write original saves forever vs read-only after some phase | Read/write parity through P9 |
-| Native macOS/Linux build | Never vs after P9 | Keep Win32 calls behind a platform layer from the start; it's cheap now and expensive later |
+| Native macOS/Linux build | Never vs after P9 | Keep Win32 calls behind a platform layer from the start; it's cheap now and expensive later. Mac steps: [macos.md](macos.md) |
