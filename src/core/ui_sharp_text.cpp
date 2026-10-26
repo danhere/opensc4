@@ -215,12 +215,16 @@ struct Copy {
     std::vector<uint8_t> bgra;
 };
 
-std::map<void*, std::vector<Copy>> g_copies;
+// Kept by the picture's pixel memory, not the object: a panel draws its
+// text into a buffer with a drawing context (vtable 0x00AC1550), which
+// keeps its pixels in a plain buffer of its own (vtable 0x00AC1400), and
+// the textures object is made for that one.
+std::map<Address, std::vector<Copy>> g_copies;
 constexpr size_t kCopiesPerPicture = 256;
 
-void Keep(void* picture, Copy copy)
+void Keep(Address bits, Copy copy)
 {
-    auto& list = g_copies[picture];
+    auto& list = g_copies[bits];
     list.erase(std::remove_if(list.begin(), list.end(),
                               [&](const Copy& c) {
                                   return c.text.left >= copy.text.left && c.text.top >= copy.text.top &&
@@ -251,8 +255,11 @@ void OnScaledUpload(uint32_t texture, uint32_t left, uint32_t top, uint32_t acro
         return;
     const Address obj = At(g_uploading);
     void* const picture = Ptr(Load<Address>(obj + textures::kPicture));
-    const auto found = g_copies.find(picture);
-    if (!picture || found == g_copies.end() || found->second.empty())
+    if (!picture)
+        return;
+    const Picture p = PictureOf(picture);
+    const auto found = g_copies.find(p.bits);
+    if (!p.bits || found == g_copies.end() || found->second.empty())
         return;
     // The tile of this texture and where it lies in the picture.
     const Address tiles = Load<Address>(obj + textures::kTiles);
@@ -272,9 +279,6 @@ void OnScaledUpload(uint32_t texture, uint32_t left, uint32_t top, uint32_t acro
     const auto physicalY = static_cast<int32_t>(std::lround(originY * sy));
     const Rect region{physicalX + static_cast<int32_t>(left), physicalY + static_cast<int32_t>(top),
                       physicalX + static_cast<int32_t>(left + across), physicalY + static_cast<int32_t>(top + down)};
-    const Picture p = PictureOf(picture);
-    if (!p.bits)
-        return;
     auto& list = found->second;
     for (size_t i = 0; i < list.size();) {
         Copy& c = list[i];
@@ -490,7 +494,7 @@ void Line::After()
             }
         }
     }
-    Keep(picture_, std::move(copy));
+    Keep(p.bits, std::move(copy));
 }
 
 } // namespace opensc4::sharptext
