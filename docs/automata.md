@@ -3539,3 +3539,15 @@ The ` V` token gains `,<eobject>,<esave>,<elife>,<eflags>` (45 fields). eflags: 
 - The calls of the test's slots and objects are mixed into eobject and elife.
 
 A trial with twelve planted changes (Init's rate, the Read's mission local, the crew's AddRef, the sound message, the pushed state, slot 60's word, slot 105's answer, a destructor releasing the target, the ambulance's version, slot 135's answer, the fire truck's filters at Shutdown, slot 23's upper word) changed the token for eleven. The twelfth is not compared: slot 23 answers AX only. Init's siren path first went unreached (cSC4Vehicle's Init is false on a bare object, slot 97); the test now answers slot 97.
+
+### Parity (em1)
+
+2026-10-26. B = `simulators.automata.vehicle`, `simulators.automata.roadveh`, `simulators.automata.trains` and `simulators.automata.emergency` against the original, as for tr3c. Two jobs, `OPENSC4_MUTE=1`, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. Env p4env-em1, snapshot em1-p1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached all 37, and its em1 fields equalled the A run's (eobject 0xB029EA96, esave 0xE92792AA, elife 0x7D378761, eflags 0xF). Before the test day the game itself reaches only the ambulance's slot 192, in five of the fourteen saves.
