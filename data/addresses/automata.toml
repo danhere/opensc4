@@ -12694,3 +12694,570 @@ name = "cSC4Train::DerailWord"
 address = 0x00B22960
 kind = "data"
 source = "Name ours. word (bss; nothing writes it): 0x00557680 tells the U-Drive service's slot 9 it. Called by address from src/core/automata_trains.cpp (part tr3c)."
+
+# Part em1: the emergency vehicles (fire truck, patrol car, ambulance and their base), the objects, the save, the life cycle and the queries (src/core/automata_emergency.cpp, docs/automata.md "Part em").
+
+[[entry]]
+name = "cSC4FireTruck::Create"
+address = 0x00514660
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 E4 02 00 00 E8 76 0F"
+source = "The fire truck's GZCOM factory: 0x2E4 bytes from SC4::operator_new, a tail jump to the constructor 0x005337E0; null when the block is. Registered by 0x00514A00 for class 0xAA222B83. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Create"
+address = 0x00514680
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 DC 02 00 00 E8 56 0F"
+source = "The patrol car's GZCOM factory: 0x2DC bytes from SC4::operator_new, a tail jump to the constructor 0x00544240; null when the block is. Registered by 0x00514A00 for class 0x4A222B98. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Create"
+address = 0x00514740
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 D8 02 00 00 E8 96 0E"
+source = "The ambulance's GZCOM factory: 0x2D8 bytes from SC4::operator_new, a tail jump to the constructor 0x00504F30; null when the block is. Registered by 0x00514A00 for class 0x6C1ACDE1. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Construct"
+address = 0x00532190
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 83 EC 0C 8B C4 33"
+source = "Name ours. The emergency vehicles' base constructor: cSC4Vehicle's with four zero words, the six vtables 0x00A981E0.., the point +0x2B8 three copies of the float 0x00B22814, +0x2C4, the byte +0x2C8, the word +0x2CA, the mission +0x2CC, +0x2D0 and +0x2D4 zero (then a dead release of +0x2D0, just zeroed). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Construct"
+address = 0x005337E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 57 8B F1 E8 A6 E9"
+source = "Name ours. The fire truck's constructor: the base's, the six vtables 0x00A986F8.., +0x2D8, +0x2DC and +0x2E0 zero; two 12-byte occupant filters (SC4::OccupantFilterBase on a block of SC4::operator_new; vtables 0x00A949B8/0x00A949A0 into +0x2D8, 0x00A985B0/0x00A98598 into +0x2DC), each held (AddRef) and the old one released. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Construct"
+address = 0x00544240
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 48 DF FE FF"
+source = "Name ours. The patrol car's constructor: the base's, the six vtables 0x00A9A0C0.., +0x2D8 zero. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Construct"
+address = 0x00504F30
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 58 D2 02 00"
+source = "Name ours. The ambulance's constructor: the base's, the six vtables 0x00A94FB0... Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Destroy"
+address = 0x00504EF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8B 8E D4 02 00"
+source = "Name ours. The base's destructor body (also the ambulance's and, after its own +0x2D8, the patrol car's): the siren +0x2D4 released and +0x2D0 released through its virtual base (neither cleared), then cSC4Vehicle's 0x00504E70 (a tail jump). +0x2C4 is left as it is. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::DeletingDestructor"
+address = 0x00532270
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 78 2C FD FF"
+source = "Name ours. The base's and the ambulance's deleting destructor (+0xC slot 22 through 0x005050D0), ret 4: the body 0x00504EF0, then with flag 1 SC4::operator_delete (no null test); answers this. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Destroy"
+address = 0x00533950
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8B 8E E0 02 00"
+source = "Name ours. The fire truck's destructor body: +0x2E0, +0x2DC, +0x2D8 and the siren +0x2D4 released and +0x2D0 through its virtual base (none cleared), then cSC4Vehicle's 0x00504E70 (a tail jump; the base's body is inlined). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::DeletingDestructor"
+address = 0x00533930
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. The fire truck's deleting destructor (+0xC slot 22 through 0x005338F0), ret 4: the body 0x00533950, then with flag 1 SC4::operator_delete; answers this. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::DeletingDestructor"
+address = 0x005442D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 8B 8E D8 02 00"
+source = "Name ours. The patrol car's deleting destructor (+0xC slot 22 through 0x00544290), ret 4: +0x2D8 released (not cleared), the base's body 0x00504EF0, then with flag 1 SC4::operator_delete; answers this. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::GetGZCLSID"
+address = 0x005338E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 83 2B 22 AA C3"
+source = "Name ours. The fire truck's +8 slot 5: 0xAA222B83. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::GetGZCLSID"
+address = 0x00544280
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 98 2B 22 4A C3"
+source = "Name ours. The patrol car's +8 slot 5: 0x4A222B98. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::GetGZCLSID"
+address = 0x00505060
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 E1 CD 1A 6C C3"
+source = "Name ours. The ambulance's +8 slot 5: 0x6C1ACDE1. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Write"
+address = 0x0052FA60
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* part, void* stream)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. The base's +8 slot 3 (this = the object + 8), ret 4: version 2 (uint16), cSC4Vehicle's Write 0x0055F640; when true the point +0x2B8 (SC4Stream::WriteVector3), +0x2C4 (a reference), the byte +0x2C8, the word +0x2CA and the mission +0x2CC. AL cSC4Vehicle's. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Read"
+address = 0x0052FAE0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* part, void* stream)"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. The base's +8 slot 4, ret 4: the version (uint16) into the stream argument's own slot; AL 0 unless 2; cSC4Vehicle's Read 0x0055BCF0; when true the point (SC4Stream::ReadVector3), +0x2C4 read as 0x26BB767E (not released first), the byte, the word, and the mission through a local that holds this (the part) when the read fails. AL cSC4Vehicle's. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Write"
+address = 0x00532EE0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* part, void* stream)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. The fire truck's +8 slot 3, ret 4: version 2 (uint16), the base's Write 0x0052FA60; when true +0x2E0 (a reference). AL the base's. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Read"
+address = 0x00532F20
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* part, void* stream)"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. The fire truck's +8 slot 4, ret 4: the version into the stream argument's own slot; AL 0 unless 2; the base's Read 0x0052FAE0; when true a reference read as 0xA9B40F05 into a zeroed local, held (AddRef) into +0x2E0 when it differs and the old one released. AL the base's. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Write"
+address = 0x00543DB0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* part, void* stream)"
+expect = "53 56 8B 74 24 0C 8B 06"
+source = "Name ours. The patrol car's +8 slot 3, ret 4: version 2, the base's Write; when true +0x2D8 (a reference). AL the base's. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Read"
+address = 0x00543DF0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* part, void* stream)"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. The patrol car's +8 slot 4, ret 4: as the fire truck's, into +0x2D8. AL the base's. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Write"
+address = 0x00504BF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The ambulance's +8 slot 3, ret 4: version 1 (uint16), then the base's Write 0x0052FA60 (its EAX). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Read"
+address = 0x00504C10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The ambulance's +8 slot 4, ret 4: the version into the stream argument's own slot; AL 0 unless 1; else the base's Read 0x0052FAE0 (its EAX). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Init"
+address = 0x0052F130
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "51 56 8B F1 8B 46 04 8D"
+source = "Name ours. The base's slot 3 (all three classes'): AL 1 when initialised (the occupant part's slot 5); AL 0 when cSC4Vehicle's Init 0x0055B9B0 is false; with the automata flag 0x80 (slot 31) the siren on (slot 194, 1) and the word 0x00B21CBC (unsigned, x87) times the float 0x00A98094 into +0x80 and given to slot 36 with the rate 1. AL 1. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Shutdown"
+address = 0x0052F380
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 8E C4 02 00"
+source = "Name ours. The base's slot 4 (the ambulance's): +0x2C4 released then cleared, +0x2D0 cleared then released through its virtual base; the sound service 0x00B43CB8's slot 11 (0x6A451908, this, 0, 0, 0) when set; then cSC4Vehicle's Shutdown 0x005602F0 (a tail jump, its EAX). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Shutdown"
+address = 0x00532FB0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 86 E0 02 00"
+source = "Name ours. The fire truck's slot 4: with +0x2E0 the city's slot 44 object's slot 8 (+0x2E0, 0) (no null test), +0x2E0 cleared and released; +0x2D8 and +0x2DC cleared and released; then the base's Shutdown 0x0052F380 (a tail jump). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Shutdown"
+address = 0x00543EC0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 86 D8 02 00"
+source = "Name ours. The patrol car's slot 4: with +0x2D8 the city's slot 44 object's slot 8 (+0x2D8, 0), +0x2D8 cleared and released; then the base's Shutdown (a tail jump). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Word"
+address = 0x00505030
+kind = "function"
+convention = "thiscall"
+signature = "uint16_t (void* this)"
+expect = "66 8B 81 CA 02 00 00 C3"
+source = "Name ours. The base's slot 23: the word +0x2CA (AX only). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::SetWord"
+address = 0x00505040
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint16_t word)"
+expect = "66 8B 44 24 04 66"
+source = "Name ours. The base's slot 24, ret 4: the word +0x2CA. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Mission"
+address = 0x00505020
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 CC 02 00 00"
+source = "Name ours. The base's slot 26: the mission +0x2CC (slot 25 sets it). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Point"
+address = 0x00505050
+kind = "function"
+convention = "thiscall"
+signature = "float* (void* this)"
+expect = "8D 81 B8 02 00 00"
+source = "Name ours. The base's slot 143: the point's address (+0x2B8). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Slot192"
+address = 0x00505070
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 07 00 00 00 C3"
+source = "Name ours. The ambulance's slot 192: 7. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Slot193"
+address = 0x00504BE0
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "DB 05 34 99 B0 00"
+source = "Name ours. The ambulance's slot 193: the int 0x00B09934 in ST0 (FILD). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Slot135"
+address = 0x0052F300
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 06 68 80 00"
+source = "Name ours. The base's slot 135: with the automata flag 0x80 (slot 31) slot 79, else cSC4AutomatonBase::RemoveNow 0x0054D820 (both tail jumps). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::GoHome"
+address = 0x0052F330
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 06 FF 50 68"
+source = "Name ours. The base's slot 29: unless the mission (slot 26) is 6 or a state 0x10 is stacked (slot 57), slot 25 (6) and the state 0x67 pushed (slot 52: 0x67, 0, -1.0, 0, 0, 0, 0). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Slot105"
+address = 0x0052F730
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 06 68 80 00"
+source = "Name ours. The base's slot 105: unless the automata flag 0x80 (slot 31) or the state type 0x34 (slot 59), the core's 0x005096B0 (a tail jump); else +0x98 cleared and released (a tail jump to its Release; EAX the last call's when it is null). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::OnEvent"
+address = 0x0052F780
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t event, uint8_t flag)"
+expect = "8B 44 24 04 83 F8 09 8B"
+source = "Name ours. The base's slot 60, ret 8: the event 9 with the flag clear sets the siren (slot 194) to whether +0x2D0 is null and answers AL 1; else cSC4Vehicle's slot 60 0x0055B6C0 (a tail jump). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em1)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Slot105"
+address = 0x005096B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Name ours, not analysed. The core's slot 105 (no arguments), as cSC4Vehicle's vtable holds it. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4Vehicle::Slot60"
+address = 0x0055B6C0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t event, uint8_t flag)"
+expect = "E9 DB 9F FA FF"
+source = "Name ours. cSC4Vehicle's slot 60, ret 8: a jump to the core's 0x005056A0. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::DefaultFloat"
+address = 0x00B22814
+kind = "data"
+source = "Name ours. A float the base's constructor copies into the point +0x2B8..+0x2C0. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::SpeedWord"
+address = 0x00B21CBC
+kind = "data"
+source = "Name ours. A word of the tuning: the base's Init reads it unsigned, times the float 0x00A98094, as the speed it gives slot 36. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::SpeedScale"
+address = 0x00A98094
+kind = "data"
+expect = "B5 A2 91 39"
+source = "Name ours. A float: the base's Init multiplies 0x00B21CBC by it. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Slot193Int"
+address = 0x00B09934
+kind = "data"
+source = "Name ours. An int: the ambulance's slot 193 answers it as a float. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "SC4OccupantFilter43::vftable2"
+address = 0x00A949A0
+kind = "data"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The douse's occupant filter's second vtable (the first 0x00A949B8); the fire truck's constructor sets it in its filter +0x2D8. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::FilterVtable"
+address = 0x00A985B0
+kind = "data"
+expect = "D0 95 5E 00 00 DF 4B 00"
+source = "Name ours. The vtable of the fire truck's occupant filter +0x2DC (second vtable 0x00A98598). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::FilterVtable2"
+address = 0x00A98598
+kind = "data"
+expect = "E0 4E 42 00 00 05 5C 00"
+source = "Name ours. The second vtable of the fire truck's occupant filter +0x2DC. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Vtable"
+address = 0x00A981E0
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4EmergencyVehicle's main vtable (199 slots). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Vtable4"
+address = 0x00A98158
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4EmergencyVehicle's +4 vtable (the occupant part). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Vtable8"
+address = 0x00A9813C
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4EmergencyVehicle's +8 vtable (the serializable part). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::VtableC"
+address = 0x00A980D8
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4EmergencyVehicle's +0xC vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Vtable20"
+address = 0x00A980C4
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4EmergencyVehicle's +0x20 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Vtable38"
+address = 0x00A980B4
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4EmergencyVehicle's +0x38 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Vtable"
+address = 0x00A986F8
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4FireTruck's main vtable (200 slots). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Vtable4"
+address = 0x00A98670
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4FireTruck's +4 vtable (the occupant part). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Vtable8"
+address = 0x00A98654
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4FireTruck's +8 vtable (the serializable part). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::VtableC"
+address = 0x00A985F0
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4FireTruck's +0xC vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Vtable20"
+address = 0x00A985DC
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4FireTruck's +0x20 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4FireTruck::Vtable38"
+address = 0x00A985CC
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4FireTruck's +0x38 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Vtable"
+address = 0x00A9A0C0
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4PatrolCar's main vtable (201 slots). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Vtable4"
+address = 0x00A9A038
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4PatrolCar's +4 vtable (the occupant part). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Vtable8"
+address = 0x00A9A01C
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4PatrolCar's +8 vtable (the serializable part). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::VtableC"
+address = 0x00A99FB8
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4PatrolCar's +0xC vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Vtable20"
+address = 0x00A99FA0
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4PatrolCar's +0x20 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4PatrolCar::Vtable38"
+address = 0x00A99F90
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4PatrolCar's +0x38 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Vtable"
+address = 0x00A94FB0
+kind = "data"
+expect = "60 B6 55 00 F0 28 5E 00"
+source = "cSC4Ambulance's main vtable (199 slots). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Vtable4"
+address = 0x00A94F28
+kind = "data"
+expect = "80 50 50 00 B0 29 5E 00"
+source = "cSC4Ambulance's +4 vtable (the occupant part). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Vtable8"
+address = 0x00A94F0C
+kind = "data"
+expect = "B0 50 50 00 E0 29 5E 00"
+source = "cSC4Ambulance's +8 vtable (the serializable part). Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::VtableC"
+address = 0x00A94EA8
+kind = "data"
+expect = "C0 50 50 00 10 2A 5E 00"
+source = "cSC4Ambulance's +0xC vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Vtable20"
+address = 0x00A94E90
+kind = "data"
+expect = "E0 50 50 00 A0 06 5E 00"
+source = "cSC4Ambulance's +0x20 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+[[entry]]
+name = "cSC4Ambulance::Vtable38"
+address = 0x00A94E80
+kind = "data"
+expect = "F0 50 50 00 30 AF 4F 00"
+source = "cSC4Ambulance's +0x38 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."

@@ -37,7 +37,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
-| Emergency vehicles | 101 | 19,149 | 3 |
+| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2, em3, em4 (part em below counts 122) |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
@@ -3467,3 +3467,75 @@ One train from its factory, its main vtable tr2b's copy with slots 16 (setting t
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run reached both functions and its ` V` token equalled the A run's (tdrive 0x37C5AAAA, tflags 0x1292F), but in Rush Hour t0000, where only ad3's `chighlight` differed, as before. The game itself reaches neither before the test day in these saves (it needs a train driven in U-Drive). The first trial gave equal tokens at once.
+
+## Part em: the emergency vehicles
+
+### Survey
+
+A base on cSC4Vehicle and three classes on the base ([automata_emergency.h](../src/core/automata_emergency.h) has their fields). The read-only survey (%LOCALAPPDATA%\opensc4\analysis\emergency-survey; tools in %LOCALAPPDATA%\opensc4\net-tools\em0) found them as part tr's did: by their vtables against the one before, the constructors that write them, and the factories registered by 0x00514A00.
+
+| Class | ID | Factory | Constructor | Size | Main vtable |
+| --- | --- | --- | --- | --- | --- |
+| the base | none | none | 0x00532190 | (0x2D8) | 0x00A981E0 (199 slots) |
+| cSC4FireTruck | 0xAA222B83 | 0x00514660 | 0x005337E0 | 0x2E4, SC4::operator_new | 0x00A986F8 (200 slots) |
+| cSC4PatrolCar | 0x4A222B98 | 0x00514680 | 0x00544240 | 0x2DC | 0x00A9A0C0 (201 slots) |
+| cSC4Ambulance | 0x6C1ACDE1 | 0x00514740 | 0x00504F30 | 0x2D8 | 0x00A94FB0 (199 slots) |
+
+What each overrides:
+
+- **The base** (of cSC4Vehicle): slots 3 (Init), 4 (Shutdown), 23 and 24 (a word), 25 and 26 (the mission), 29, 60 (an event), 72 (the frame), 73, 79, 80, 93 (the debug text), 105, 109 to 111 (the states), 115 (a jump to cSC4Vehicle's driven frame), 135, 143 (its point), 146 and 177 (a fold); it adds 192 to 198 (194 the siren). Its +8 Write and Read have version 2 and its own fields after cSC4Vehicle's; it has no QueryInterface or GetGZCLSID of its own (cSC4Vehicle's).
+- **The fire truck:** 4, 25, 60, 79 (a jump to the base's), 111, 121, 165, 192 (a fold), 193, 197, and adds 199. Two occupant filters and a crew reference; its Write and Read (version 2) add the crew around the base's.
+- **The patrol car:** 4, 25, 79 (the jump), 109 to 111, 146 (a jump to the base's), 192 (a fold), 193, 197, and adds 199 and 200. A crew reference, saved as the fire truck's.
+- **The ambulance:** 192 (7) and 193 (an int as a float), a Write and Read of version 1 around the base's. Its Shutdown and destructor are the base's.
+
+122 functions of the group's own, 19,936 bytes (the estimate above counted 101 by neighbours; the difference is the route deque's template code):
+
+- **em1 (37, 2,305 bytes, done):** the objects, the save, the life cycle and the queries. Below.
+- **em2 (16, 3,606 bytes):** the base's states and frames: 25 0x0052FF60 (set the mission), 72 0x0052F3F0 (the frame), 73 0x005304B0 with 0x00530130, 79 0x0052F210, 93 0x00532290 (the debug text), 109 0x0052F490, 110 0x0052F7C0, 111 0x0052F1C0, 146 0x0052F9A0, 194 0x00530AF0 (the siren), 195 0x0052FD50, 196 0x0052FE50, 198 0x0052F570, and the helpers 0x0052F870 and 0x0052F910.
+- **em3 (24, 4,217 bytes):** the fire truck's and the patrol car's frames: the fire truck's 25 0x005336C0, 60 0x00532D80, 111 0x00532E60, 121 0x00533090, 165 0x005332C0 (with 0x00533030 and 0x00533290, which the train's 165 also calls), 193 0x00532BF0, 197 0x005335F0, 199 0x00533060 and its helpers 0x00532AE0, 0x00532C40 (sends the fire crew), 0x00532D30, 0x00533410; the patrol car's 25 0x00543F60, 109 0x00543B40, 110 0x00543E80, 111 0x00543B80, 193 0x00543BC0, 197 0x00543C10, 199 0x00543F10, 200 0x00544060 and its helpers 0x00543C70 (sends the riot police), 0x00543D60. Could split by class.
+- **em4 (2, 1,127 bytes):** the base's slot 80 0x005329B0 and its helper 0x00532660, which walks the route deque.
+- **Stay the game's (43):** 16 adjustor thunks, three plain jumps (0x0052F1B0, 0x00532AD0, 0x00543B30) and 24 functions of the route deque's template code (0x0052FB80 to 0x00532430: copies and assignment; 0x00532430 is SC4RouteDeque::Assign, which the trailer's 0x005559D0 calls too).
+
+Shared and not counted: cSC4Vehicle's GetGZCLSID 0x00532240 (part vb), the automaton base's slots 79, 80 and 105 that the base's call by address (0x00505820, 0x00505860, 0x005096B0), the folds 0x004FC900, 0x004E13E0, 0x005D4A10 and 0x008CD450, and four helpers the survey's closure reached that belong to the pedestrians (0x00546CB0, 0x00546F30 the riot police's dispatch, 0x00547EF0 the fire crew's, 0x00532E90). No NAM site and none of SC4UIScale's addresses is in the group.
+
+### What is ours (em1)
+
+37 functions in a new group, off by default: `simulators.automata.emergency` ([automata_emergency.cpp](../src/core/automata_emergency.cpp)).
+
+- **The objects (15):**
+  - The three factories 0x00514660, 0x00514680, 0x00514740 and the four constructors 0x00532190 (the base), 0x005337E0, 0x00544240, 0x00504F30.
+  - The destructor bodies of the base 0x00504EF0 and the fire truck 0x00533950; the deleting destructors of the base and the ambulance 0x00532270, the fire truck 0x00533930 and the patrol car 0x005442D0.
+  - The three GetGZCLSIDs 0x005338E0, 0x00544280, 0x00505060.
+- **The save (8):** Write and Read of the base (0x0052FA60, 0x0052FAE0), the fire truck (0x00532EE0, 0x00532F20), the patrol car (0x00543DB0, 0x00543DF0) and the ambulance (0x00504BF0, 0x00504C10).
+- **The life cycle (4):** the base's Init 0x0052F130 (all three classes'), the Shutdowns of the base 0x0052F380 (the ambulance's), the fire truck 0x00532FB0 and the patrol car 0x00543EC0.
+- **The queries (10):** the base's slots 23 0x00505030 and 24 0x00505040 (the word +0x2CA), 26 0x00505020 (the mission), 29 0x0052F330 (go home: the mission 6 and the state 0x67), 60 0x0052F780 (the event 9 sets the siren), 105 0x0052F730, 135 0x0052F300 and 143 0x00505050 (the point's address); the ambulance's 192 0x00505070 and 193 0x00504BE0.
+
+What they do:
+
+- The base's constructor runs cSC4Vehicle's with four zero words, sets its point to three copies of the float 0x00B22814 and its other fields to zero. The fire truck's makes two 12-byte occupant filters (SC4::OccupantFilterBase; vtables 0x00A949B8, the douse's, and 0x00A985B0) and holds them.
+- Init, with the automata flag 0x80, turns the siren on (slot 194) and sets the speed: the word 0x00B21CBC times 1/3600 into +0x80 and slot 36 with the rate 1.
+- Shutdown lets go of the target +0x2C4 and of +0x2D0, tells the sound service 0x00B43CB8 to stop this source (0x6A451908), then runs cSC4Vehicle's. The fire truck's and the patrol car's first tell the city's slot 44 object (its slot 8) that their crew is done with, and the fire truck lets go of its filters.
+- Slot 135 is slot 79 for a vehicle with the flag 0x80, else RemoveNow; slot 105 lets go of +0x98 for such a vehicle or one in the state 0x34, else is the core's.
+
+Left the game's: cSC4Vehicle's code (part vb), the core's slot 105 0x005096B0 and cSC4Vehicle's slot 60 0x0055B6C0, cSC4AutomatonBase::RemoveNow, the base's and the classes' other slots (em2 to em4), the jumps, thunks and folds above, the occupant filters' code, the stream helpers and the sound service.
+
+Oddities kept:
+
+- **The base's constructor** zeroes +0x2D0 and then tests it to release what was there (dead code).
+- **The destructors** release the siren and +0x2D0 but not the target +0x2C4 (Shutdown does); the fire truck's inlines the base's body. +0x2D0 is released through its virtual base (the second word of +4's table).
+- **The Reads** read their version into the stream argument's own stack slot. The base's reads +0x2C4 without releasing what was there, and the mission through a local that holds the part's address when the read fails. The fire truck's and the patrol car's hold the crew they read once more.
+- **The fire truck's and the patrol car's Shutdowns** test neither the city nor its slot 44 object for null.
+- **Slot 60** gives slot 194 the word +0x2D0 with its low byte replaced by whether it is null.
+- **Slot 105** answers the last call's EAX when +0x98 is null.
+- **AL only in the game:** Init, the Writes and Reads, slot 60; AX only: slot 23. Ours zero-extends. The ambulance's slot 193 leaves the int in ST0 as FILD does (ours a double, exact).
+
+### Test (em1)
+
+The ` V` token gains `,<eobject>,<esave>,<elife>,<eflags>` (45 fields). eflags: 1 objects made, 2 the save ran, 4 the life cycle ran, 8 the queries ran, 0x10 a factory failed, 0x20 no city for the crew. All on objects of the test's, with the generator seeded as for vb. The log line is "em1 eobject".
+
+- **eobject:** one object of each class from its factory: its fields (the fire truck's filters' vtables and counts), GetGZCLSID through +8 and at its address, the base's slots 23, 24, 26 and 143 and the ambulance's 192 and 193 through the vtable and at their addresses. On copies of the classes' vtables (slots 13, 25, 36, 52, 57, 59, 79, 97 and 194 the test's, 31 for the flag 0x80): slot 135 by the flag 0x80; slot 29 by three missions with a stacked state or none; slot 105 over five cases (the flag, the state type 0x34, +0x98 of the test's or null; the core's slot 105 with the flag 0x4000 so it answers at once); slot 60 over five events and flag words, with +0x2D0 null and set.
+- **esave:** each class written by its Write and by cSC4Vehicle's, read back as written, with each version word set to 3, cut by four and five bytes and empty, into objects holding a target and a crew of the test's (a failed reference read leaves the target and lets go of the crew); the base's Write and Read at their addresses.
+- **elife:** for each class two objects (slot 97 answering true so that cSC4Vehicle's Init succeeds, the flags 0x4000 and 0x2000 so that the base's Init skips slots 105 and 134, slot 31 answering false and true for the flag 0x80) initialised twice and shut down through slot 4 with a target, +0x2D0 and (the second) a crew of the test's; the sound service of the test's, and the city's vtable swapped for a copy with the test's slot 44 for the call. Then one of each class released with its fields set (the destructors).
+- The calls of the test's slots and objects are mixed into eobject and elife.
+
+A trial with twelve planted changes (Init's rate, the Read's mission local, the crew's AddRef, the sound message, the pushed state, slot 60's word, slot 105's answer, a destructor releasing the target, the ambulance's version, slot 135's answer, the fire truck's filters at Shutdown, slot 23's upper word) changed the token for eleven. The twelfth is not compared: slot 23 answers AX only. Init's siren path first went unreached (cSC4Vehicle's Init is false on a bare object, slot 97); the test now answers slot 97.
