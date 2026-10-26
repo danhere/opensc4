@@ -15483,6 +15483,58 @@ uint32_t __fastcall PlPlainByMode(char* self, void*, uint32_t context)
 }
 OPENSC4_THUNK(TDwSC4Effect_DrawParticles, PlPlainByMode, 4)
 
+// With OPENSC4_EFFECT_FORCE_DRAWS=1 the second class's compared draws are
+// made in turn with one of six changes too, put back after both runs:
+// none; the description's flag 1 (the colour's bit 4); its turn about y
+// (+0x104) 0.002; flag 2 of its third word (each particle asked whether it
+// is in view); a list of three colours (+0x94) in place of its own, so that
+// the colour is read between two; flags 8 and 0x10 of its third word (the
+// particle's own effect given the opacity and a placed block). Not forced:
+// the frames of a model of more than one (no test city has one; flags
+// 0x20 and 0x40 and +0x1DC count only there), and the part's start and
+// step (flags 4 and 0x100), as the game's step (0x005AC200) reads through
+// a null pointer for a part that was not made for them. Recorded as
+// effects.draw_b.forced.
+constexpr float kDbForcedColours[9] = {1.0f, 0.25f, 0.5f, 0.0f, 0.75f, 0.125f, 0.5f, 0.5f, 1.0f};
+
+template <typename Compare>
+uint32_t DbForced(char* self, Compare&& compare)
+{
+    static uint32_t turn = 0;
+    const uint32_t k = turn++ % 6;
+    char* const description = At<char*>(self, 0x24);
+    const uint32_t flags = At<uint32_t>(description, 0), third = At<uint32_t>(description, 8),
+                   spin = At<uint32_t>(description, 0x104), first = At<uint32_t>(description, 0x94),
+                   last = At<uint32_t>(description, 0x98);
+    switch (k) {
+    case 1:
+        At<uint32_t>(description, 0) = flags | 1u;
+        break;
+    case 2:
+        At<float>(description, 0x104) = 0.002f;
+        break;
+    case 3:
+        At<uint32_t>(description, 8) = third | 2u;
+        break;
+    case 4:
+        At<uint32_t>(description, 0x94) = Word(kDbForcedColours);
+        At<uint32_t>(description, 0x98) = Word(kDbForcedColours + 9);
+        break;
+    case 5:
+        At<uint32_t>(description, 8) = third | 0x18u;
+        break;
+    default:
+        break;
+    }
+    const uint32_t result = compare();
+    At<uint32_t>(description, 0) = flags;
+    At<uint32_t>(description, 8) = third;
+    At<uint32_t>(description, 0x104) = spin;
+    At<uint32_t>(description, 0x94) = first;
+    At<uint32_t>(description, 0x98) = last;
+    return result;
+}
+
 // An effect whose list is broken is not compared.
 uint32_t __fastcall DbDrawByMode(char* self, void*, uint32_t context)
 {
@@ -15511,6 +15563,13 @@ uint32_t __fastcall DbDrawByMode(char* self, void*, uint32_t context)
     BSwapRole(At<char*>(self, 0x224), kDbModel, {{0x28, reinterpret_cast<uint32_t>(&DbModelFrameStub)}});
     g_dbInView.clear();
     g_dbInViewAt = 0;
+    if (g_pdForce)
+        return DbForced(self, [&] {
+            return SdCompared("effects.draw_b.forced", SdRegions(self, particles), false, game, [&] {
+                DrawParticlesB(self, Ptr(context));
+                return 0u;
+            });
+        });
     return SdCompared("effects.draw_b", SdRegions(self, particles), false, game, [&] {
         DrawParticlesB(self, Ptr(context));
         return 0u;
@@ -15597,6 +15656,7 @@ bool InstallDrawB(registry::Mode mode)
           (g_PdPartStep || Detour(addr::SC4EffectPartB_Step, &TPdPartStep, &g_PdPartStep))))
         return false;
     g_dbMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    PdReadForce(mode);
     log::Write("water effects: the second class's particle draw %s",
                mode == registry::Mode::Compare ? "compared with the game's" : "ours");
     return true;
