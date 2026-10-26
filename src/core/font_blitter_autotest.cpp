@@ -3370,6 +3370,291 @@ void DriveFontText()
     FtStage("fonttext");
 }
 
+// The lines' thickness over sizes; boxes of every small size; sheets of our
+// own grown and stored into (1-bit and grey bitmaps, levels, every style,
+// bearings and advances, sheets that grow wider and taller); glyphs got and
+// rendered by loaded fonts in both modes, every style and extra scales
+// around 1.0 (0.98 and NaN among them), with and without the fallback, and
+// by a font with no face (boxes only).
+namespace fontglyph {
+using StoreFn = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, int32_t, uint32_t, uint32_t, uint32_t,
+                                      uint32_t, uint32_t, uint32_t);
+
+// The box function at its address: the width in ESI, the height in EBX.
+__declspec(naked) uint32_t __cdecl CallBox(std::uintptr_t /*fn*/, int32_t /*width*/, int32_t /*height*/)
+{
+    __asm {
+        push ebx
+        push esi
+        mov eax, dword ptr [esp + 12]
+        mov esi, dword ptr [esp + 16]
+        mov ebx, dword ptr [esp + 20]
+        call eax
+        pop esi
+        pop ebx
+        ret
+    }
+}
+
+// A sheet: as MixCache, where its pixels are in its block, and its rows.
+void MixSheet(const uint8_t* sheet)
+{
+    MixCache(sheet);
+    const uint32_t block = Field<uint32_t>(sheet, 0), pixels = Field<uint32_t>(sheet, 4);
+    Mix(pixels ? pixels - block : 0);
+    if (!pixels)
+        return;
+    const uint32_t width = Field<uint32_t>(sheet, 8), height = Field<uint32_t>(sheet, 0xC);
+    const uint32_t pitch = Field<uint32_t>(sheet, 0x10);
+    for (uint32_t row = 0; row < height; ++row)
+        MixBytes(At32(pixels + row * pitch), width);
+}
+
+// A glyph GetGlyph answered: its entry (the character, the box, three of
+// the four words; the last is whatever the game's stack held).
+void MixGlyph(uint32_t glyph)
+{
+    if (!glyph) {
+        Mix(0xFFFFFFFF);
+        return;
+    }
+    MixBytes(At32(glyph - 4), 0x1A);
+}
+
+void SetField(void* f, std::size_t offset, uint32_t value) { std::memcpy(static_cast<uint8_t*>(f) + offset, &value, 4); }
+
+void ClearCaches(void* f)
+{
+    Game<SThis>(addr::GZFont_CacheClear)(static_cast<uint8_t*>(f) + 0x104, nullptr);
+    Game<SThis>(addr::GZFont_CacheClear)(static_cast<uint8_t*>(f) + 0x130, nullptr);
+}
+} // namespace fontglyph
+
+void DriveFontGlyphs()
+{
+    using namespace fontglyph;
+    const auto underline = Game<SThis>(addr::GZFont_UnderlineRows);
+    const auto strike = Game<SThis>(addr::GZFont_StrikeRows);
+    const auto grow = Game<SThree>(addr::GZFont_GrowSheet);
+    const auto store = Game<StoreFn>(addr::GZFont_StoreGlyph);
+    const auto getGlyph = Game<SOne>(addr::GZFont_GetGlyph);
+    const auto render = Game<STwo>(addr::GZFont_RenderGlyph);
+    const auto operatorDelete = Game<void(__cdecl*)(void*)>(addr::SC4_operator_delete);
+
+    // The lines' thickness.
+    {
+        void* const f = NewFont();
+        for (uint32_t size = 0; size < 0x60; ++size) {
+            SetField(f, 0x38, size);
+            Mix(underline(f, nullptr));
+            Mix(strike(f, nullptr));
+        }
+        for (const uint32_t size : {0xFFu, 0x800u, 0x7FFFFFFFu, 0x80000000u, 0xFFFFFFFFu}) {
+            SetField(f, 0x38, size);
+            Mix(underline(f, nullptr));
+            Mix(strike(f, nullptr));
+        }
+        SetField(f, 0x38, 0);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+
+    // Boxes (a product that is not positive is never written).
+    for (int32_t w = -2; w <= 9; ++w) {
+        for (int32_t h = -2; h <= 9; ++h) {
+            if ((w < 0) != (h < 0) && w != 0 && h != 0)
+                continue;
+            const uint32_t block = CallBox(addr::GZFont_BoxGlyph, w, h);
+            if (w > 0 && h > 0)
+                MixBytes(At32(block), static_cast<std::size_t>(w * h));
+            operatorDelete(At32(block));
+        }
+    }
+    for (const auto& [w, h] : {std::pair<int32_t, int32_t>{32, 1}, {1, 40}, {64, 64}}) {
+        const uint32_t block = CallBox(addr::GZFont_BoxGlyph, w, h);
+        MixBytes(At32(block), static_cast<std::size_t>(w * h));
+        operatorDelete(At32(block));
+    }
+
+    // Sheets of our own, grown with their rows written in between.
+    {
+        uint8_t sheet[0x18] = {};
+        Random random{0x5EE7A11Cu};
+        const auto fill = [&] {
+            const uint32_t pixels = Field<uint32_t>(sheet, 4);
+            for (uint32_t row = 0; row < Field<uint32_t>(sheet, 0xC); ++row) {
+                for (uint32_t i = 0; i < Field<uint32_t>(sheet, 8); ++i)
+                    At32(pixels + row * Field<uint32_t>(sheet, 0x10))[i] = static_cast<uint8_t>(random.Range(0, 255));
+            }
+        };
+        for (const auto& [w, h] : {std::pair<uint32_t, uint32_t>{0, 0}, {5, 3}, {4, 2}, {5, 3}, {9, 3}, {9, 7},
+                                   {3, 10}, {12, 10}, {12, 11}, {40, 16}}) {
+            MixByte(static_cast<uint8_t>(grow(nullptr, nullptr, U(sheet), w, h)));
+            MixSheet(sheet);
+            if (Field<uint32_t>(sheet, 4))
+                fill();
+        }
+        operatorDelete(At32(Field<uint32_t>(sheet, 0)));
+    }
+
+    // StoreGlyph into sheets of our own.
+    {
+        Random random{0x51E0F00Du};
+        uint8_t bits[64 * 24];
+        for (uint8_t& b : bits)
+            b = static_cast<uint8_t>(random.Range(0, 255));
+        uint8_t levels[256];
+        for (uint32_t i = 0; i < 256; ++i)
+            levels[i] = static_cast<uint8_t>(255 - i / 2);
+        void* const f = NewFont();
+        const uint32_t savedLevels = Field<uint32_t>(f, 0x5C), savedEnd = Field<uint32_t>(f, 0x60);
+        for (const uint32_t style : {0u, 4u, 8u, 0xCu}) {
+            for (const uint32_t mode : {1u, 2u}) {
+                for (const bool table : {false, true}) {
+                    if (table && mode == 1)
+                        continue;
+                    SetField(f, 0x40, style);
+                    SetField(f, 0x4C, mode);
+                    SetField(f, 0x5C, table ? U(levels) : savedLevels);
+                    SetField(f, 0x60, table ? U(levels + 256) : savedLevels);
+                    for (const uint32_t lineHeight : {14u, 30u}) {
+                        SetField(f, 0x38, lineHeight - 2);
+                        SetField(f, 0x3C, lineHeight);
+                        SetField(f, 0x84, lineHeight * 3 / 4);
+                        uint8_t sheet[0x18] = {};
+                        int32_t x = 0;
+                        for (uint32_t k = 0; k < 24; ++k) {
+                            const uint32_t format = k % 3 == 0 ? 2u : 0x100u;
+                            const uint32_t width = static_cast<uint32_t>(random.Range(0, 13));
+                            const uint32_t height = static_cast<uint32_t>(random.Range(0, 12));
+                            const uint32_t pitch =
+                                (format == 2 ? (width + 7) / 8 : width) + static_cast<uint32_t>(random.Range(0, 3));
+                            const uint32_t y = k % 5 == 4 ? static_cast<uint32_t>(random.Range(0, 20)) : 0u;
+                            int32_t box[6] = {x, 0, x + static_cast<int32_t>(width), static_cast<int32_t>(height), 0,
+                                              0};
+                            const int16_t words[4] = {static_cast<int16_t>(random.Range(-3, 3)),
+                                                      static_cast<int16_t>(random.Range(-4, 20)),
+                                                      static_cast<int16_t>(random.Range(-2, 16)), 0};
+                            std::memcpy(&box[4], words, sizeof words);
+                            MixByte(static_cast<uint8_t>(
+                                store(f, nullptr, U(sheet), U(box), x, y, U(bits), width, height, pitch, format)));
+                            MixSheet(sheet);
+                            MixBytes(reinterpret_cast<const uint8_t*>(box), sizeof box);
+                            x = Field<int32_t>(sheet, 0x14);
+                        }
+                        // An empty glyph, and one at column 0.
+                        int32_t box[6] = {x, 0, x, 0, 0x00050002, 0};
+                        MixByte(static_cast<uint8_t>(store(f, nullptr, U(sheet), U(box), x, 0, 0, 0, 0, 0, 2)));
+                        MixSheet(sheet);
+                        MixBytes(reinterpret_cast<const uint8_t*>(box), sizeof box);
+                        int32_t first[6] = {0, 0, 5, 6, 0x00040001, 0x7};
+                        MixByte(static_cast<uint8_t>(
+                            store(f, nullptr, U(sheet), U(first), 0, 1, U(bits), 5, 6, 5, 0x100)));
+                        MixSheet(sheet);
+                        MixBytes(reinterpret_cast<const uint8_t*>(first), sizeof first);
+                        operatorDelete(At32(Field<uint32_t>(sheet, 0)));
+                    }
+                }
+            }
+        }
+        SetField(f, 0x40, 0);
+        SetField(f, 0x5C, savedLevels);
+        SetField(f, 0x60, savedEnd);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+
+    // Glyphs of loaded fonts.
+    std::vector<uint32_t> characters;
+    for (uint32_t c = 0x20; c < 0x7F; ++c)
+        characters.push_back(c);
+    for (const uint32_t c : {0u, 0x1Fu, 0xA0u, 0xE9u, 0x0E01u, 0x0E33u, 0x4E00u, 0x200Bu, 0xFEFFu, 0xF701u, 0xFFFFu,
+                             0x10041u, 0x41u})
+        characters.push_back(c);
+    const auto glyphs = [&](void* f) {
+        for (const uint32_t c : characters) {
+            MixGlyph(getGlyph(f, nullptr, c));
+            MixGlyph(getGlyph(f, nullptr, c));
+        }
+        MixSheet(static_cast<uint8_t*>(f) + 0x104);
+        MixSheet(static_cast<uint8_t*>(f) + 0x130);
+    };
+    const std::vector<std::string> paths = FontPaths();
+    for (const std::size_t i : {std::size_t{3}, std::size_t{5}, std::size_t{13}, std::size_t{19}, std::size_t{24}}) {
+        if (i >= paths.size())
+            continue;
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        Game<SOne>(addr::GZFont_SetSize)(f, nullptr, 16);
+        SetFontPath(f, paths[i]);
+        MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFont_Load)(f, nullptr)));
+        if (!Field<uint8_t>(f, 4)) {
+            Game<SThis>(addr::GZFont_Release)(f, nullptr);
+            continue;
+        }
+        const uint32_t extra = Field<uint32_t>(f, 0x70);
+        for (const uint32_t mode : {1u, 2u}) {
+            Game<SOne>(addr::GZFont_SetMode)(f, nullptr, mode);
+            for (const uint32_t style : {0u, 4u, 8u, 0xCu}) {
+                SetField(f, 0x40, style);
+                ClearCaches(f);
+                glyphs(f);
+            }
+            SetField(f, 0x40, 0);
+            for (const float scale : {0.99f, 0.98f, 0.9801f, 0.5f, 1.5f, 1.0f,
+                                      std::numeric_limits<float>::quiet_NaN()}) {
+                std::memcpy(static_cast<uint8_t*>(f) + 0x70, &scale, 4);
+                ClearCaches(f);
+                glyphs(f);
+            }
+            SetField(f, 0x70, extra);
+        }
+        // The space just under 1.0 at every size from 6 to 48 (advances
+        // with a fraction reach its pixel less).
+        for (uint32_t size = 6; size <= 48; ++size) {
+            for (const float scale : {0.99f, 0.999f, 0.985f}) {
+                ClearCaches(f);
+                Game<SOne>(addr::GZFont_SetSize)(f, nullptr, size);
+                std::memcpy(static_cast<uint8_t*>(f) + 0x70, &scale, 4);
+                MixGlyph(getGlyph(f, nullptr, 0x20));
+                MixGlyph(getGlyph(f, nullptr, 0x41));
+            }
+        }
+        SetField(f, 0x70, extra);
+        ClearCaches(f);
+        Game<SOne>(addr::GZFont_SetSize)(f, nullptr, 16);
+        // No fallback: characters without a glyph get the box.
+        SetField(f, 0xE8, 0);
+        ClearCaches(f);
+        glyphs(f);
+        // RenderGlyph again for characters the cache has (the table keeps
+        // the first) and into a cache of our own.
+        uint8_t* const cache = static_cast<uint8_t*>(f) + (Field<uint32_t>(f, 0x4C) == 1 ? 0x104 : 0x130);
+        for (const uint32_t c : {0x41u, 0x20u, 0xFFFFu})
+            MixGlyph(render(f, nullptr, c, U(cache)));
+        MixSheet(cache);
+        uint8_t own[kCacheBytes];
+        Game<SThis>(addr::GZFont_CacheConstruct)(own, nullptr);
+        for (const uint32_t c : {0x41u, 0x67u, 0x200Bu, 0xFFFFu})
+            MixGlyph(render(f, nullptr, c, U(own)));
+        MixSheet(own);
+        Game<SThis>(addr::GZFont_CacheDestroy)(own, nullptr);
+        ClearCaches(f);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    // A font with no face: every glyph is a box.
+    {
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        for (const uint32_t lineHeight : {0u, 1u, 13u}) {
+            SetField(f, 0x3C, lineHeight);
+            ClearCaches(f);
+            glyphs(f);
+        }
+        ClearCaches(f);
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    FtStage("fontglyphs");
+}
+
 void DriveFont()
 {
     DriveFontObject();
@@ -3378,6 +3663,7 @@ void DriveFont()
     DriveFontContainers();
     DriveFontLoad();
     DriveFontText();
+    DriveFontGlyphs();
 }
 
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,

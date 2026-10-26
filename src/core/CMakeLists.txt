@@ -361,6 +361,7 @@ add_library(opensc4_core SHARED
   font_system_tables.cpp
   font_t2k_holder.cpp
   font_text.cpp
+  font_glyph.cpp
   gzbuffer_blit_autotest.cpp
   camera_control.cpp
   photo_mode.cpp
