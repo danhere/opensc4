@@ -2230,14 +2230,65 @@ uint32_t __fastcall EffectBCtorByMode(char* self, void*)
 }
 OPENSC4_THUNK(TSC4EffectB_Construct, EffectBCtorByMode, 0)
 
-// The two effect classes' constructors have one detour each, which their
+// The third class's constructor (0x005A8ED0), written by hand: the base
+// class's, the class's own two tables of functions (0x00AA0B88,
+// 0x00AA0B40), the words from +0x220 to +0x228 cleared, the byte +0x22C
+// set, its three vectors (+0x230, +0x23C, +0x248) and the model (+0x254)
+// cleared, the byte +0x258 cleared, the point at +0x25C the float at
+// 0x00B22D40 three times, +0x278 cleared and +0x268 10.0. The words from
+// +0x26C to +0x274 are left as they were.
+constexpr std::size_t kEffectSizeC = 0x27C;
+
+uint32_t ConstructEffectC(char* self)
+{
+    CallThis<uint32_t>(addr::SC4Effect_Construct, self);
+    At<uint32_t>(self, 0) = 0x00AA0B88;
+    At<uint32_t>(self, 4) = 0x00AA0B40;
+    At<uint32_t>(self, 0x220) = 0;
+    At<uint32_t>(self, 0x224) = 0;
+    At<uint32_t>(self, 0x228) = 0;
+    At<uint8_t>(self, 0x22C) = 1;
+    for (uint32_t at = 0x230; at <= 0x254; at += 4)
+        At<uint32_t>(self, at) = 0;
+    At<uint8_t>(self, 0x258) = 0;
+    const uint32_t point = M<uint32_t>(0x00B22D40);
+    At<uint32_t>(self, 0x25C) = point;
+    At<uint32_t>(self, 0x260) = point;
+    At<uint32_t>(self, 0x264) = point;
+    At<uint32_t>(self, 0x278) = 0;
+    At<uint32_t>(self, 0x268) = 0x41200000;
+    return reinterpret_cast<uint32_t>(self);
+}
+
+Call0Fn g_SC4EffectC_Construct = nullptr;
+
+uint32_t EffectCCtorRun(char* self)
+{
+    if (g_ctorMode == StepMode::Original)
+        return g_SC4EffectC_Construct(self, nullptr);
+    if (g_ctorMode == StepMode::Ours)
+        return ConstructEffectC(self);
+    return CtorCompared("effects.ctor.c", self, kEffectSizeC, 0x14, g_SC4EffectC_Construct, &ConstructEffectC);
+}
+
+uint32_t __fastcall EffectCCtorByMode(char* self, void*)
+{
+    if (!MxNoting())
+        return EffectCCtorRun(self);
+    return MxConstructNoted(addr::SC4EffectC_Construct, self, [&] { return EffectCCtorRun(self); });
+}
+OPENSC4_THUNK(TSC4EffectC_Construct, EffectCCtorByMode, 0)
+
+// The three effect classes' constructors have one detour each, which their
 // own replacement and the makers' comparison share.
 bool HookEffectConstructors()
 {
     return (g_SC4Effect_Construct ||
             Detour(addr::SC4Effect_Construct, &TSC4Effect_Construct, &g_SC4Effect_Construct)) &&
            (g_SC4EffectB_Construct ||
-            Detour(addr::SC4EffectB_Construct, &TSC4EffectB_Construct, &g_SC4EffectB_Construct));
+            Detour(addr::SC4EffectB_Construct, &TSC4EffectB_Construct, &g_SC4EffectB_Construct)) &&
+           (g_SC4EffectC_Construct ||
+            Detour(addr::SC4EffectC_Construct, &TSC4EffectC_Construct, &g_SC4EffectC_Construct));
 }
 
 bool InstallCtor(registry::Mode mode)
@@ -2258,7 +2309,7 @@ const bool g_registeredCtor = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4Effect_Construct,
-    "The effects' constructors (the base class's, the second class's and the sub-object's): the "
+    "The effects' constructors (the base class's, the second and third classes' and the sub-object's): the "
     "tables of functions, an empty particle list and the fields' first values; compare mode runs ours and the "
     "game's on the same memory (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
@@ -2319,6 +2370,54 @@ void DestructEffectB(char* self)
         DtorRelease(model + 4 + At<int32_t>(At<char*>(model, 4), 4), 0x8);
     if (char* const instance = At<char*>(self, 0x220))
         DtorRelease(instance, 0x8);
+    DestructEffect(self);
+}
+
+// The third class's (0x005A90A0): the model at +0x254 released (slot 8),
+// each texture of the vector at +0x248 let go (0x008090E0) and the
+// vector's storage freed (SC4::Free), the storage of the vector at +0x23C
+// freed, each 0x40-byte batch of the vector at +0x230 destroyed (its slot
+// 0 with 0) and that storage freed, the storage at +0x220 freed, then the
+// base class's. Nothing is cleared. The textures' letting go is kept
+// apart as the texture at +0x6C is; a batch's destruction is noted under
+// kDtorBatchEnd.
+constexpr uint32_t kDtorBatchEnd = 0x3000;
+bool g_dtorFrees = false;
+std::vector<uint32_t> g_dtorFreed;
+std::vector<char*> g_dtorTexturesOurs;
+
+void DtorFree(char* storage)
+{
+    BOurs(addr::SC4_Free, reinterpret_cast<uint32_t>(storage), 0, 0, [&] {
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(storage);
+        return 0u;
+    });
+}
+
+void DestructEffectC(char* self)
+{
+    if (char* const model = At<char*>(self, 0x254))
+        DtorRelease(model, 0x8);
+    for (char** it = At<char**>(self, 0x248); it != At<char**>(self, 0x24C); ++it) {
+        if (char* const texture = *it) {
+            if (g_bReplay)
+                g_dtorTexturesOurs.push_back(texture);
+            else
+                CallThis<uint32_t>(0x008090E0, texture);
+        }
+    }
+    if (char* const storage = At<char*>(self, 0x248))
+        DtorFree(storage);
+    if (char* const storage = At<char*>(self, 0x23C))
+        DtorFree(storage);
+    for (char* batch = At<char*>(self, 0x230); batch != At<char*>(self, 0x234); batch += 0x40) {
+        BOurs(kDtorBatchEnd, reinterpret_cast<uint32_t>(batch), 0, 0,
+              [&] { return CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(batch, 0)), batch, 0u); });
+    }
+    if (char* const storage = At<char*>(self, 0x230))
+        DtorFree(storage);
+    if (char* const storage = At<char*>(self, 0x220))
+        DtorFree(storage);
     DestructEffect(self);
 }
 
@@ -2414,6 +2513,77 @@ uint32_t __fastcall EffectBDtorByMode(char* self, void*)
 }
 OPENSC4_THUNK(TSC4EffectB_Destruct, EffectBDtorByMode, 0)
 
+// The third class's is compared the same way, with three more things
+// seen: each batch's destruction through a copy of its table of functions
+// (slot 0), the frees of SC4::Free the destructor itself makes (noted
+// through the shared detour, and held back until ours has read the
+// vectors' storage), and the textures of +0x248, given one more holder
+// each for the game's run, which must have taken exactly one from each,
+// and let go for real after.
+Call0Fn g_SC4EffectC_Destruct = nullptr;
+Call1Fn g_SC4EffectC_Delete = nullptr;
+
+uint32_t __fastcall DtorBatchEnd(char* batch, void*, uint32_t flags)
+{
+    const uint32_t real = BRealSlot(batch, 0);
+    const auto run = [&] {
+        BGiveBack(batch, true);
+        return CallThis<uint32_t>(real, batch, flags);
+    };
+    if (!BNoting())
+        return run();
+    return BCallee(kDtorBatchEnd, reinterpret_cast<uint32_t>(batch), 0, 0, run);
+}
+
+uint32_t __fastcall EffectCDtorByMode(char* self, void*)
+{
+    if (DtorPassed())
+        return g_SC4EffectC_Destruct(self, nullptr);
+    if (g_dtorMode == StepMode::Ours) {
+        DestructEffectC(self);
+        return 0;
+    }
+    if (char* const model = At<char*>(self, 0x254))
+        BSwap(model, 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    for (char* batch = At<char*>(self, 0x230); batch != At<char*>(self, 0x234); batch += 0x40)
+        BSwap(batch, 0, reinterpret_cast<uint32_t>(&DtorBatchEnd));
+    std::vector<char*> textures;
+    std::map<char*, int32_t> holders;
+    for (char** it = At<char**>(self, 0x248); it != At<char**>(self, 0x24C); ++it) {
+        if (char* const texture = *it) {
+            textures.push_back(texture);
+            holders.emplace(texture, At<int32_t>(texture, 0xC));
+            ++At<int32_t>(texture, 0xC);
+        }
+    }
+    g_dtorTexturesOurs.clear();
+    g_dtorFreed.clear();
+    g_dtorFrees = true;
+    DtorCompared(
+        "effects.dtor.c", self, kEffectSizeC, [&] { g_SC4EffectC_Destruct(self, nullptr); },
+        [&] { DestructEffectC(self); });
+    g_dtorFrees = false;
+    for (const uint32_t storage : g_dtorFreed)
+        reinterpret_cast<void(__cdecl*)(uint32_t)>(addr::SC4_Free)(storage);
+    g_dtorFreed.clear();
+    if (!textures.empty()) {
+        bool counted = true;
+        for (const auto& [texture, count] : holders)
+            counted = counted && At<int32_t>(texture, 0xC) == count;
+        const bool same = counted && g_dtorTexturesOurs == textures;
+        char text[48];
+        std::snprintf(text, sizeof text, "%zu let go", textures.size());
+        const std::string game = text;
+        std::snprintf(text, sizeof text, "%zu let go%s", g_dtorTexturesOurs.size(), counted ? "" : ", counts differ");
+        compare::Record("effects.dtor.c.textures", same, same ? std::string() : game,
+                        same ? std::string() : std::string(text));
+        for (char* const texture : textures)
+            CallThis<uint32_t>(0x008090E0, texture);
+    }
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_Destruct, EffectCDtorByMode, 0)
+
 // The two destructors as the tables of functions have them (0x005B2FE0
 // and 0x005AC590, slot 0xC of the sub-object's through a thunk): the
 // destructor, then with bit 0 of the flags the memory freed (0x005E5620).
@@ -2438,6 +2608,18 @@ uint32_t __fastcall EffectBDeleteByMode(char* self, void*, uint32_t flags)
     return reinterpret_cast<uint32_t>(self);
 }
 OPENSC4_THUNK(TSC4EffectB_Delete, EffectBDeleteByMode, 4)
+
+// The third class's (0x005A9080, through the thunk at 0x005A8FD0).
+uint32_t __fastcall EffectCDeleteByMode(char* self, void*, uint32_t flags)
+{
+    if (g_dtorMode == StepMode::Original)
+        return g_SC4EffectC_Delete(self, nullptr, flags);
+    EffectCDtorByMode(self, nullptr);
+    if (flags & 1)
+        reinterpret_cast<void(__cdecl*)(void*)>(0x005E5620)(self);
+    return reinterpret_cast<uint32_t>(self);
+}
+OPENSC4_THUNK(TSC4EffectC_Delete, EffectCDeleteByMode, 4)
 
 // What every record-and-replay comparison needs: the frees held back
 // (HookFrees, below the other comparisons' notes it shares the detour
@@ -3691,11 +3873,14 @@ bool InstallDtor(registry::Mode mode)
         !(Detour(addr::SC4Effect_Destruct, &TSC4Effect_Destruct, &g_SC4Effect_Destruct) &&
           Detour(addr::SC4EffectB_Destruct, &TSC4EffectB_Destruct, &g_SC4EffectB_Destruct) &&
           Detour(addr::SC4Effect_Delete, &TSC4Effect_Delete, &g_SC4Effect_Delete) &&
-          Detour(addr::SC4EffectB_Delete, &TSC4EffectB_Delete, &g_SC4EffectB_Delete)))
+          Detour(addr::SC4EffectB_Delete, &TSC4EffectB_Delete, &g_SC4EffectB_Delete) &&
+          Detour(addr::SC4EffectC_Destruct, &TSC4EffectC_Destruct, &g_SC4EffectC_Destruct) &&
+          Detour(addr::SC4EffectC_Delete, &TSC4EffectC_Delete, &g_SC4EffectC_Delete)))
         return false;
     // The comparison notes what the game's destructors call.
     if (mode == registry::Mode::Compare &&
-        !(Detour(addr::SC4EffectBatch_Destruct, &TSC4EffectBatch_Destruct, &g_SC4EffectBatch_Destruct) &&
+        !(HookFrees() &&
+          Detour(addr::SC4EffectBatch_Destruct, &TSC4EffectBatch_Destruct, &g_SC4EffectBatch_Destruct) &&
           Detour(addr::SC4EffectBase_Destruct, &TSC4EffectBase_Destruct, &g_SC4EffectBase_Destruct) &&
           Detour(addr::SC4EffectPartB_Destruct, &TSC4EffectPartB_Destruct, &g_SC4EffectPartB_Destruct) &&
           (g_SC4EffectDescription_Release ||
@@ -3714,8 +3899,8 @@ const bool g_registeredDtor = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4Effect_Destruct,
-    "The two effect classes' destructors, alone and with the memory freed: what the effect holds released or let "
-    "go, its batch, part and sub-object destroyed; compare mode notes the game's calls and checks ours would make "
+    "The three effect classes' destructors, alone and with the memory freed: what the effect holds released or let "
+    "go, its batches, part, vectors and sub-object destroyed; compare mode notes the game's calls and checks ours would make "
     "the same (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallDtor,
@@ -6108,7 +6293,7 @@ const bool g_registeredMake = registry::Register({
 // compared. A making that would grow a vector is not compared.
 constexpr uint32_t kMxRole = 0x00590BC0, kMxSubRole = 0x00590BC4, kMxManagerRole = 0x00590A64;
 constexpr uint32_t kMxEffectInsert = 0x0058FF70; // (this = table, at, const value*, tag*, count, atEnd), ret 0x14
-constexpr std::size_t kMxListsAt = 0xB94, kMxListsSize = 0xC54 - 0xB94;
+constexpr std::size_t kMxListsAt = 0xB94, kMxListsSize = 0xC78 - 0xB94;
 
 // What one maker works on: its list, the size of a new one and its
 // constructor.
@@ -6119,6 +6304,7 @@ struct MxSpec {
 const MxSpec kMxSpecs[] = {
     {addr::SC4EffectsManager_NewEffect, 0xBE8, 0xBF4, 0xC00, 0x220, addr::SC4Effect_Construct},
     {addr::SC4EffectsManager_NewEffectB, 0xC30, 0xC3C, 0xC48, 0x280, addr::SC4EffectB_Construct},
+    {addr::SC4EffectsManager_NewEffectC, 0xC54, 0xC60, 0xC6C, 0x280, addr::SC4EffectC_Construct},
     {addr::SC4EffectsManager_NewDecal, 0xBC4, 0xBD0, 0xBDC, 0x124, addr::SC4EffectDecal_Construct},
     {addr::SC4EffectsManager_NewCompound, 0xB94, 0xBA0, 0xBB8, 0x14C, addr::SC4CompoundEffect_Construct},
 };
@@ -6600,7 +6786,8 @@ bool InstallMakers(registry::Mode mode)
 {
     if (!game::IsBuild641() ||
         !(HookMaker(addr::SC4EffectsManager_NewEffect) && HookMaker(addr::SC4EffectsManager_NewEffectB) &&
-          HookMaker(addr::SC4EffectsManager_NewDecal) && HookMaker(addr::SC4EffectsManager_NewCompound) &&
+          HookMaker(addr::SC4EffectsManager_NewEffectC) && HookMaker(addr::SC4EffectsManager_NewDecal) &&
+          HookMaker(addr::SC4EffectsManager_NewCompound) &&
           Detour(addr::SC4EffectDecal_Reset, &TSC4EffectDecal_Reset, &g_SC4EffectDecal_Reset)))
         return false;
     if (mode == registry::Mode::Compare &&
@@ -6621,7 +6808,7 @@ const bool g_registeredMakers = registry::Register({
     registry::Kind::Detour,
     registry::Phase::PostAppInit,
     addr::SC4EffectsManager_NewEffect,
-    "The effects manager's makers of effects of the first and second class, decals and compound effects: a free one "
+    "The effects manager's makers of effects of the three classes, decals and compound effects: a free one "
     "taken from the manager's list, or a new one allocated, constructed (the constructors are not part of it), set up "
     "and entered in the list; with the decal's reset; compare mode runs both on the lists for a free one, and for a new "
     "one the game's with its calls noted, ours replayed (docs/renderer.md, \"Water effects, sky and clouds\")",
@@ -8639,6 +8826,14 @@ std::vector<std::pair<uint32_t, uint32_t>>* g_stKept = nullptr;
 
 void __cdecl FreeNoted(uint32_t storage)
 {
+    // The third class's destructor's own frees, held back (renderer.effects.dtor).
+    if (g_dtorFrees && BNoting()) {
+        BCallee(addr::SC4_Free, storage, 0, 0, [&] {
+            g_dtorFreed.push_back(storage);
+            return 0u;
+        });
+        return;
+    }
     if (g_stKept && StNoting()) {
         g_stGame.push_back(StMake(addr::SC4_Free, Ptr(storage)));
         g_stKept->push_back({addr::SC4_Free, storage});
@@ -16954,9 +17149,12 @@ uint32_t DwManagerForced(char* self, char* context)
     return result;
 }
 
+void TcForce(char* self);
+
 uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
 {
     HrForce(self, Ptr(context));
+    TcForce(self);
     if (g_dwManagerMode == StepMode::Original || g_dwTrace != DwTrace::Off || g_depth > 0) {
         const uint32_t result = g_SC4EffectsManager_Draw(self, nullptr, context);
         // The flash and the shake are forced after the manager's draw (the
@@ -17477,6 +17675,367 @@ const bool g_registeredShake = registry::Register({
     "clouds\")",
     true,
     InstallShake,
+});
+
+// --- The third effect class ---------------------------------------------------------------
+
+#include "core/effects_third.h"
+
+// Its letting go, its giving back of a particle and its setting of a value
+// (renderer.effects.third; the maker, the constructor and the destructor
+// are in renderer.effects.makers, .ctor and .dtor). No test city makes an
+// effect of the class, so they are compared only when forced (below).
+//
+// The letting go is compared as the second class's is: the effect's draw's
+// record and replay, the model's release noted through a copy of its table
+// of functions, the field past the bytes the record keeps put back for
+// ours and checked. The giving back: ours on the list's head and the
+// particle's first word, put back, then the game's. The setting of a
+// value: the game's first, then ours on the effect's bytes as they were,
+// the two compared with the answer's low byte; the base class's function
+// (ids ours does not know) runs again for ours, and the call for id 9
+// (0x005AA700) is only noted, never made twice: ours must make that one
+// call with the value and the value + 0xC and change no byte.
+StepMode g_thirdMode = StepMode::Original;
+Call0Fn g_SC4EffectBaseC_LetGo = nullptr;
+Call1Fn g_SC4EffectBaseC_GiveBackParticle = nullptr;
+Call3Fn g_SC4EffectC_SetValue = nullptr;
+
+struct LetGoCReplay {
+    char* base;
+    char* model;
+    bool cleared;
+};
+
+uint32_t __fastcall LetGoCByMode(char* base, void*)
+{
+    if (g_thirdMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4EffectBaseC_LetGo(base, nullptr);
+    if (g_thirdMode == StepMode::Ours)
+        return LetGoEffectC(base);
+    g_heldGame.clear();
+    g_heldOurs.clear();
+    g_effectThread = GetCurrentThreadId();
+    LetGoCReplay replay{base, At<char*>(base, 0x250), false};
+    const bool used = At<uint8_t>(base, 4) != 0;
+    if (used)
+        SwapHeld(replay.model);
+    const uint32_t result = RecordAndReplay(
+        used ? "effects.letgo_c" : "effects.letgo_c.unused", base - 4, false,
+        [&] { return g_SC4EffectBaseC_LetGo(base, nullptr); },
+        [](void* r) {
+            LetGoCReplay& replay = *static_cast<LetGoCReplay*>(r);
+            char* const modelAfter = At<char*>(replay.base, 0x250);
+            At<char*>(replay.base, 0x250) = replay.model;
+            const uint32_t result = LetGoEffectC(replay.base);
+            replay.cleared = At<char*>(replay.base, 0x250) == modelAfter;
+            At<char*>(replay.base, 0x250) = modelAfter;
+            return result;
+        },
+        &replay);
+    for (const auto& [object, real] : g_heldReal)
+        At<uint32_t>(object, 0) = real;
+    g_heldReal.clear();
+    char text[64];
+    std::snprintf(text, sizeof text, "%zu released", g_heldGame.size());
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "%zu released, field %s", g_heldOurs.size(), replay.cleared ? "same" : "differs");
+    const bool same = g_heldGame == g_heldOurs && replay.cleared;
+    compare::Record(g_heldGame.empty() ? "effects.letgo_c.released.none" : "effects.letgo_c.released", same,
+                    same ? std::string() : game, same ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBaseC_LetGo(char* base, void*)
+{
+    return EffectRecorded(addr::SC4EffectBaseC_LetGo, &LetGoCByMode, base);
+}
+OPENSC4_THUNK(TSC4EffectBaseC_LetGo, DSC4EffectBaseC_LetGo, 0)
+
+uint32_t __fastcall GiveBackCByMode(char* base, void*, uint32_t particle)
+{
+    if (g_thirdMode == StepMode::Original || g_effectReplay || !particle)
+        return g_SC4EffectBaseC_GiveBackParticle(base, nullptr, particle);
+    if (g_thirdMode == StepMode::Ours)
+        return GiveBackParticleC(particle);
+    const uint32_t freeBefore = Global<uint32_t>(kParticleFreeC), linkBefore = M<uint32_t>(particle);
+    const uint32_t ourResult = GiveBackParticleC(particle);
+    const uint32_t ourFree = Global<uint32_t>(kParticleFreeC), ourLink = M<uint32_t>(particle);
+    Global<uint32_t>(kParticleFreeC) = freeBefore;
+    M<uint32_t>(particle) = linkBefore;
+    const uint32_t result = g_SC4EffectBaseC_GiveBackParticle(base, nullptr, particle);
+    char text[64];
+    std::snprintf(text, sizeof text, "free %08X, link %08X, answer %08X", Global<uint32_t>(kParticleFreeC),
+                  M<uint32_t>(particle), result);
+    const std::string game = text;
+    std::snprintf(text, sizeof text, "free %08X, link %08X, answer %08X", ourFree, ourLink, ourResult);
+    compare::Record("effects.giveback_c", game == text, game == text ? std::string() : game,
+                    game == text ? std::string() : std::string(text));
+    return result;
+}
+
+uint32_t __fastcall DSC4EffectBaseC_GiveBackParticle(char* base, void*, uint32_t particle)
+{
+    return EffectRecorded(addr::SC4EffectBaseC_GiveBackParticle, &GiveBackCByMode, base, particle);
+}
+OPENSC4_THUNK(TSC4EffectBaseC_GiveBackParticle, DSC4EffectBaseC_GiveBackParticle, 4)
+
+uint32_t SetValueCReal(char* self, uint32_t target, uint32_t a, uint32_t b, uint32_t c)
+{
+    return target == 0x005AA700u ? CallThis<uint32_t>(target, self, a, b) : CallThis<uint32_t>(target, self, a, b, c);
+}
+
+uint32_t __fastcall SetValueCByMode(char* self, void*, uint32_t id, uint32_t value, uint32_t third)
+{
+    if (g_thirdMode == StepMode::Original)
+        return g_SC4EffectC_SetValue(self, nullptr, id, value, third);
+    const auto real = [&](uint32_t target, uint32_t a, uint32_t b, uint32_t c) {
+        return SetValueCReal(self, target, a, b, c);
+    };
+    const uint32_t* const words = reinterpret_cast<const uint32_t*>(value);
+    if (g_thirdMode == StepMode::Ours)
+        return SetEffectValueC(self, static_cast<int32_t>(id), words, third, real);
+    const std::vector<char> before(self, self + kEffectSizeC);
+    const uint32_t result = g_SC4EffectC_SetValue(self, nullptr, id, value, third);
+    const std::vector<char> after(self, self + kEffectSizeC);
+    std::memcpy(self, before.data(), kEffectSizeC);
+    std::vector<std::array<uint32_t, 4>> noted;
+    const uint32_t mine = SetEffectValueC(self, static_cast<int32_t>(id), words, third,
+                                          [&](uint32_t target, uint32_t a, uint32_t b, uint32_t c) {
+                                              if (target == 0x005AA700u) {
+                                                  noted.push_back({target, a, b, 0});
+                                                  return 0u;
+                                              }
+                                              return real(target, a, b, c);
+                                          });
+    const std::vector<char> ours(self, self + kEffectSizeC);
+    std::memcpy(self, after.data(), kEffectSizeC);
+    const bool nine = id == 9;
+    const std::vector<std::array<uint32_t, 4>> expected =
+        nine ? std::vector<std::array<uint32_t, 4>>{{0x005AA700u, value, value + 0xC, 0}}
+             : std::vector<std::array<uint32_t, 4>>{};
+    const bool same = (result & 0xFF) == (mine & 0xFF) && noted == expected && (nine ? ours == before : ours == after);
+    char text[96];
+    std::string game, own;
+    if (!same) {
+        std::size_t at = 0;
+        const std::vector<char>& theirs = nine ? before : after;
+        while (at < kEffectSizeC && theirs[at] == ours[at])
+            ++at;
+        std::snprintf(text, sizeof text, "id %X, answer %u, %zu calls, bytes from +%zX", id, result & 0xFF,
+                      expected.size(), at);
+        game = text;
+        std::snprintf(text, sizeof text, "id %X, answer %u, %zu calls", id, mine & 0xFF, noted.size());
+        own = text;
+    }
+    compare::Record(nine ? "effects.set_value_c.9" : "effects.set_value_c", same, game, own);
+    return result;
+}
+OPENSC4_THUNK(TSC4EffectC_SetValue, SetValueCByMode, 12)
+
+// The forcing (compare mode only, OPENSC4_EFFECT_FORCE_THIRD=1): before
+// the manager's draw, one turn a frame of six, each on an effect of the
+// class made for it:
+// 0. one made by the manager's maker (0x00590EA0, so the makers'
+//    comparison sees the making; a new one the first time, one taken from
+//    the free ones after), its index moved at once from those in use back
+//    to the free ones, so that nothing else ever sees it;
+// 1. that one's values set (ids 8, 0x101, 0, 0x102 and 0x20 with made-up
+//    words), its bytes put back after;
+// 2. that one let go, in use (+8 set, a made-up model at +0x254) and not
+//    in use, its bytes put back after;
+// 3. a made-up particle given back to it, and a null one, the list's head
+//    put back after;
+// 4. a new one allocated, constructed and deleted (through its
+//    sub-object's slot 0xC, the thunk to 0x005A9080) as it is;
+// 5. the same with its vectors filled: a block at +0x220, a vector of
+//    words at +0x23C, two batches copied from its own (+0x28, 0x005EC750)
+//    at +0x230, at most two textures held by effects of the first class
+//    in the manager's table (each given a holder) at +0x248 and the
+//    made-up model at +0x254.
+// Id 9 of the values is not forced: its 0x005AA700 would run for real in
+// the game's run. The made-up model is an object whose table of functions
+// has a function doing nothing in every slot.
+bool g_tcForce = false;
+char* g_tcEffect = nullptr;
+uint32_t g_tcModelTable[512] = {};
+uint32_t g_tcModel[4] = {};
+
+uint32_t __fastcall TcNothing(void*, void*)
+{
+    return 0;
+}
+
+char* TcModel()
+{
+    if (!g_tcModel[0]) {
+        for (uint32_t& slot : g_tcModelTable)
+            slot = reinterpret_cast<uint32_t>(&TcNothing);
+        g_tcModel[0] = reinterpret_cast<uint32_t>(g_tcModelTable);
+    }
+    return reinterpret_cast<char*>(g_tcModel);
+}
+
+char* TcNew()
+{
+    char* const object = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x280));
+    return CallThis<char*>(addr::SC4EffectC_Construct, object);
+}
+
+void TcDelete(char* object)
+{
+    char* const sub = object + 4;
+    CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(sub, 0) + 0xC), sub, 1u);
+}
+
+void TcFill(char* manager, char* object)
+{
+    const auto allocate = [](std::size_t size) {
+        return reinterpret_cast<char*>(reinterpret_cast<uint32_t(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(size));
+    };
+    At<char*>(object, 0x220) = allocate(0x10);
+    char* const words = allocate(0x10);
+    At<char*>(object, 0x23C) = words;
+    At<char*>(object, 0x240) = words + 8;
+    At<char*>(object, 0x244) = words + 0x10;
+    char* const batches = allocate(0x80);
+    for (int i = 0; i < 2; ++i)
+        CallThis<uint32_t>(0x005EC750, batches + i * 0x40, object + 0x28);
+    At<char*>(object, 0x230) = batches;
+    At<char*>(object, 0x234) = batches + 0x80;
+    At<char*>(object, 0x238) = batches + 0x80;
+    std::vector<char*> textures;
+    for (char** it = At<char**>(manager, 0xBE8); it != At<char**>(manager, 0xBEC) && textures.size() < 2; ++it) {
+        char* const texture = *it ? At<char*>(*it, 0x6C) : nullptr;
+        if (texture && std::find(textures.begin(), textures.end(), texture) == textures.end())
+            textures.push_back(texture);
+    }
+    if (!textures.empty()) {
+        char* const storage = allocate(textures.size() * 4);
+        for (std::size_t i = 0; i < textures.size(); ++i) {
+            CallThis<uint32_t>(addr::SC4TextureBinding_AddRef, textures[i]);
+            At<char*>(storage, i * 4) = textures[i];
+        }
+        At<char*>(object, 0x248) = storage;
+        At<char*>(object, 0x24C) = storage + textures.size() * 4;
+        At<char*>(object, 0x250) = storage + textures.size() * 4;
+    }
+    At<char*>(object, 0x254) = TcModel();
+}
+
+void TcForce(char* self)
+{
+    if (!g_tcForce || g_dwTrace != DwTrace::Off || g_depth > 0)
+        return;
+    char* const manager = self - 4;
+    static uint32_t turn = 0;
+    const uint32_t k = turn++ % 6;
+    if (k == 0) {
+        char* const made = CallThis<char*>(addr::SC4EffectsManager_NewEffectC, manager);
+        uint32_t*& usedEnd = At<uint32_t*>(manager, 0xC64);
+        if (made && usedEnd != At<uint32_t*>(manager, 0xC60)) {
+            const uint32_t index = *--usedEnd;
+            MxPushIndex(manager + 0xC6C, index);
+            g_tcEffect = made;
+        }
+        return;
+    }
+    if (k == 4 || k == 5) {
+        char* const object = TcNew();
+        if (k == 5)
+            TcFill(manager, object);
+        TcDelete(object);
+        return;
+    }
+    // The manager's table may have been emptied since (a city loaded): the
+    // effect is used only while the table still holds it.
+    char* const effect = g_tcEffect;
+    if (!effect || std::find(At<char**>(manager, 0xC54), At<char**>(manager, 0xC58), effect) ==
+                       At<char**>(manager, 0xC58)) {
+        g_tcEffect = nullptr;
+        return;
+    }
+    const std::vector<char> before(effect, effect + kEffectSizeC);
+    if (k == 1) {
+        const uint32_t point[3] = {0x3F800000, 0x40000000, 0x40400000}, word[3] = {0x12345678, 0, 0},
+                       pair[2] = {0x3F000000, 0x3E800000}, kind[3] = {0x40A00000, 0, 0};
+        const std::pair<uint32_t, const uint32_t*> calls[] = {
+            {8, point}, {0x101, word}, {0, kind}, {0x102, pair}, {0x20, point}};
+        for (const auto& [id, value] : calls)
+            CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(effect, 0) + 0x14), effect, id, Word(value), 0u);
+    } else if (k == 2) {
+        char* const sub = effect + 4;
+        for (const uint8_t used : {uint8_t{1}, uint8_t{0}}) {
+            // The base class's letting go releases the objects at +0x1F0 and
+            // +0x1EC (the maker's block gives one): each is held once more
+            // first, as the bytes are put back after.
+            for (const std::size_t at : {std::size_t{0x1F0}, std::size_t{0x1EC}}) {
+                if (char* const object = At<char*>(effect, at); object && used)
+                    CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(object, 0) + 0x4), object);
+            }
+            At<uint8_t>(effect, 8) = used;
+            At<char*>(effect, 0x254) = TcModel();
+            CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(sub, 0) + 0x14), sub);
+            std::memcpy(effect, before.data(), kEffectSizeC);
+        }
+    } else if (k == 3) {
+        static uint32_t particle[0x20] = {};
+        const uint32_t head = Global<uint32_t>(kParticleFreeC);
+        char* const sub = effect + 4;
+        for (const uint32_t given : {Word(particle), 0u})
+            CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(sub, 0) + 0x40), sub, given);
+        Global<uint32_t>(kParticleFreeC) = head;
+    }
+    std::memcpy(effect, before.data(), kEffectSizeC);
+}
+
+bool InstallThird(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !((g_SC4EffectBaseC_LetGo ||
+           Detour(addr::SC4EffectBaseC_LetGo, &TSC4EffectBaseC_LetGo, &g_SC4EffectBaseC_LetGo)) &&
+          Detour(addr::SC4EffectBaseC_GiveBackParticle, &TSC4EffectBaseC_GiveBackParticle,
+                 &g_SC4EffectBaseC_GiveBackParticle) &&
+          Detour(addr::SC4EffectC_SetValue, &TSC4EffectC_SetValue, &g_SC4EffectC_SetValue)))
+        return false;
+    // The letting go's comparison is the other classes': the base class's
+    // and what it calls recorded (InstallLetGo's set).
+    if (mode == registry::Mode::Compare) {
+        if (!(HookPool() && HookFrees() &&
+              (g_SC4EffectBase_Stop ||
+               Detour(addr::SC4EffectBase_Stop, &TSC4EffectBase_Stop, &g_SC4EffectBase_Stop)) &&
+              (g_SC4EffectDescription_Release ||
+               Detour(addr::SC4EffectDescription_Release, &TSC4EffectDescription_Release,
+                      &g_SC4EffectDescription_Release))))
+            return false;
+        g_letGoHooked = true;
+        const char* v = std::getenv("OPENSC4_EFFECT_FORCE_THIRD");
+        if (v && *v == '1') {
+            if (!g_SC4EffectsManager_Draw &&
+                !Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
+                return false;
+            g_tcForce = true;
+            log::Write("water effects: the third effect class forced before the manager's draw");
+        }
+    }
+    g_thirdMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the third effect class's letting go, giving back and values %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return true;
+}
+
+const bool g_registeredThird = registry::Register({
+    "renderer.effects.third",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectC_SetValue,
+    "Three small functions of the third effect class, which no test city makes: letting go of its model, giving "
+    "back a particle and setting a value by id; compare mode compares them only when forced, "
+    "OPENSC4_EFFECT_FORCE_THIRD=1 making, setting, letting go, constructing and destroying effects of the class "
+    "before the manager's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallThird,
 });
 
 } // namespace
