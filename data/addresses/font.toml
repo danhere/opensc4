@@ -790,7 +790,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, uint32_t character)"
 expect = "56 8B F1 8B 06 57 FF 90"
-source = "Name ours, not hooked. Slot 60 (+0xF0); `ret 4`. The cached glyph of a UTF-16 character (map lookup 0x00968CD9; the entry's data at +8), rendering it with slot 61 on a miss. Null without a glyph sheet (slot 59) (docs/fonts.md, f3)."
+source = "Name ours. Slot 60 (+0xF0); `ret 4`. The cached glyph of a UTF-16 character: the glyph cache of the mode (slot 59; null without one), its table's find (0x00968CD9) and the node's data at +8 (the box and metrics), else RenderGlyph (slot 61). Ours in framework.font.font.glyphs (docs/fonts.md, f3e)."
 
 [[entry]]
 name = "GZFont::RenderGlyph"
@@ -799,7 +799,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, uint32_t character, void* sheet)"
 expect = "55 8B EC 83 EC 4C 53 8B"
-source = "Name ours, not hooked. Slot 61 (+0xF4); `ret 8`. Maps the character to a glyph (cmap 0x0089F4B2, or the `uniXXXX` name 0x00898EB2 for type 1 and 0x16 faces, else the fallback), renders it with T2K (0x0089F23B, monochrome or 8-bit grey by the mode at +0x4C), stores the bitmap and metrics in the glyph sheet (slot 62) and caches the entry. Characters without a glyph get a box (docs/fonts.md, f3)."
+source = "Name ours. Slot 61 (+0xF4); `ret 8`. Maps the character to a glyph (cmap 0x0089F4B2, or the `uniXXXX` name 0x00898EB2 for type 1 and 0x16 faces, else the fallback), renders it with T2K (0x0089F23B, monochrome or 8-bit grey by the mode at +0x4C), stores the bitmap and metrics in the glyph sheet (slot 62) and caches the entry. Characters without a glyph get a box (0x008962D7) half the line's height wide; 0x200B and 0xFEFF none and no advance. Ours in framework.font.font.glyphs (docs/fonts.md, f3e)."
 
 [[entry]]
 name = "GZFont::StoreGlyph"
@@ -808,7 +808,43 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* sheet, int32_t* box, int32_t x, uint32_t y, const void* bits, uint32_t width, uint32_t height, uint32_t pitch, uint32_t format)"
 expect = "55 8B EC 83 EC 10 8B 45"
-source = "Name ours, not hooked. Slot 62 (+0xF8); `ret 0x24`. Copies a rendered glyph into the font's glyph sheet (grown by slot 63, 0x0089632D), expanding 1-bit rows when format is 2 and remapping grey levels through the table at +0x5C; underline and strike-through rows are filled here (docs/fonts.md, f3)."
+source = "Name ours. Slot 62 (+0xF8); `ret 0x24`. Copies a rendered glyph into the font's glyph sheet (grown by slot 63, 0x0089632D), expanding 1-bit rows when format is 2 and remapping grey levels through the table at +0x5C; underline and strike-through rows (0x00896618, 0x00896636) are filled here. AL 1. Ours in framework.font.font.glyphs (docs/fonts.md, f3e)."
+
+[[entry]]
+name = "GZFont::GrowSheet"
+address = 0x0089632D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* sheet, uint32_t width, uint32_t height)"
+expect = "55 8B EC 51 53 8B 5D 0C"
+source = "Name ours. Slot 63 (+0xFC); `ret 0xC`, this unread. If width or height is above the sheet's, a block of (height + 4) x width bytes, zeroed, the pixels two rows in, the old rows copied (old width, old pitch) and the old block freed; the pitch becomes the width. AL 1. Ours in framework.font.font.glyphs (docs/fonts.md, f3e)."
+
+[[entry]]
+name = "GZFont::BoxGlyph"
+address = 0x008962D7
+kind = "function"
+convention = "custom"
+signature = "uint8_t* (int32_t width /* ESI */, int32_t height /* EBX */)"
+expect = "55 8B EC 51 8B C6 0F AF"
+source = "Name ours. Width in ESI, height in EBX, plain ret: a new block (operator new) of width x height bytes, 0xFF on the edge and 0 inside, rows width apart. Called by RenderGlyph 0x00898FDC for a character without a glyph. Ours in framework.font.font.glyphs (docs/fonts.md, f3e)."
+
+[[entry]]
+name = "GZFont::UnderlineRows"
+address = 0x00896618
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 38 83 F8 10 73 04"
+source = "Name ours. Plain ret: the underline's thickness by the size (+0x38): 1 below 16, 2 below 26, 3 below 36, else 4. Called by StoreGlyph 0x00897748. Ours in framework.font.font.glyphs (docs/fonts.md, f3e)."
+
+[[entry]]
+name = "GZFont::StrikeRows"
+address = 0x00896636
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 38 83 F8 18 73 04"
+source = "Name ours. Plain ret: the strike-through's thickness by the size (+0x38): 1 below 24, 2 below 48, 3 below 72, else 4. Called by StoreGlyph 0x00897748. Ours in framework.font.font.glyphs (docs/fonts.md, f3e)."
 
 [[entry]]
 name = "GZFontBlitter::Construct"
