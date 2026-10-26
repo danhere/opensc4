@@ -3948,6 +3948,311 @@ void DriveFontMeasure()
     FtStage("fontmeasure");
 }
 
+// Drawing: on two of the font system's fonts given our blitter (as the
+// strings stage does), in modes 1 and 2 and into 16 and 32-bit pictures:
+// DrawStringInRect over texts with line breaks, rectangles (one with no
+// width, one starting below its bottom), the four alignments, pens (none,
+// at the left, elsewhere), clips, the font's own colours, no picture and a
+// refused lock; DrawString with the font's own colours (and +0x50's mode),
+// no picture, a begin already made, a refused lock; the ramp over seven
+// pairs of colours (the list keeps four) and back; the placed glyphs
+// resized up and down.
+namespace fontdraw {
+// The ramps' list: its size, the current one's place in it and every
+// ramp's colours.
+void MixRamps(const void* font)
+{
+    const uint32_t header = Field<uint32_t>(font, 0x100);
+    const uint32_t now = Field<uint32_t>(font, 0xFC);
+    uint32_t count = 0, place = 0xFFFF;
+    for (uint32_t node = Field<uint32_t>(At32(header), 0); node != header; node = Field<uint32_t>(At32(node), 0)) {
+        const uint32_t ramp = Field<uint32_t>(At32(node), 8);
+        if (ramp == now)
+            place = count;
+        MixBytes(At32(ramp), 0x200);
+        ++count;
+    }
+    Mix(count);
+    Mix(place);
+}
+
+// A blitter that draws nothing and hashes what it is given: each begin
+// (answering as told), draw (every placed glyph, its pixels as a place in
+// the glyph cache, both colours or the ramp, the clip) and end.
+struct HashBlitter {
+    void** vtable;
+    uint32_t begin;
+    uint32_t picture;
+};
+
+uint32_t __fastcall HashBegin(HashBlitter* b, void*, void*, uint32_t picture, uint32_t kind)
+{
+    Mix(0xB0);
+    MixByte(picture == b->picture ? 1 : 0);
+    Mix(kind);
+    return b->begin;
+}
+
+uint32_t __fastcall HashEnd(HashBlitter* b, void*, void*, uint32_t picture, uint32_t kind)
+{
+    Mix(0xE0);
+    MixByte(picture == b->picture ? 1 : 0);
+    Mix(kind);
+    return 1;
+}
+
+uint32_t __fastcall HashDraw(HashBlitter* b, void*, void* font, uint32_t picture, uint32_t list, uint32_t count,
+                             uint32_t kind, uint32_t colours, uint32_t clip)
+{
+    Mix(0xD0);
+    MixByte(picture == b->picture ? 1 : 0);
+    Mix(count);
+    Mix(kind);
+    const uint32_t cache = Virtual<uint32_t>(font, 0xEC);
+    const uint32_t pixels = cache ? Field<uint32_t>(At32(cache), 4) : 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint8_t* const e = At32(list + i * 0x24);
+        MixBytes(e, 16);
+        Mix(Field<uint32_t>(e, 0x10) - pixels);
+        MixBytes(e + 0x14, 16);
+    }
+    if (colours == Field<uint32_t>(font, 0xFC)) {
+        Mix(1);
+        MixBytes(At32(colours), 0x200);
+    } else {
+        Mix(0);
+        MixBytes(At32(colours), 8);
+    }
+    MixByte(clip ? 1 : 0);
+    if (clip)
+        MixBytes(At32(clip), 16);
+    return 1;
+}
+} // namespace fontdraw
+
+void DriveFontDraw()
+{
+    using namespace fontdraw;
+    Random random{0xD5A3F00Du};
+    void* const fonts = Game<void*(__cdecl*)()>(addr::SC4_Singleton913D22)();
+    if (!fonts) {
+        Mix(0xF0F0F0F0);
+        FtStage("fontdraw");
+        return;
+    }
+    struct Face {
+        const char* name;
+        uint32_t size, style;
+    };
+    const Face faces[] = {{"Arial MT", 14, 0}, {"Times New Roman", 17, 2}};
+    const std::u16string texts[] = {
+        u"OpenSC4 draws this line, and then wraps it onto the next one",
+        u"one\ntwo\r\nthree\n\n",
+        u"Supercalifragilisticexpialidocious and more",
+        u"  spaced   out  ",
+        u"x",
+    };
+    const Rect rects[] = {{2, 2, 110, 30}, {5, 0, 60, 34}, {9, 3, 9, 20}, {10, 12, 80, 5}, {-5, -3, 40, 60}};
+    const Rect clip{7, 4, 70, 25};
+    uint32_t id = 900;
+    for (const Face& face : faces) {
+        GameString name{};
+        Game<void*(__fastcall*)(GameString*, void*, const char*)>(addr::SC4String_FromText)(&name, nullptr, face.name);
+        void* const font = Virtual<void*>(fonts, 0x2C, &name, uint32_t{0}, face.size, face.style, uint32_t{0});
+        name.vtable = addr::SC4String_Vtable;
+        if (name.begin)
+            Game<void(__cdecl*)(void*)>(addr::SC4_Free)(name.begin);
+        if (!font) {
+            Mix(0xF0F00000 | face.size);
+            continue;
+        }
+        auto* const bytes = static_cast<uint8_t*>(font);
+        float scaleX, scaleY;
+        std::memcpy(&scaleX, bytes + 0x68, 4);
+        std::memcpy(&scaleY, bytes + 0x6C, 4);
+        const uint32_t encoding = Field<uint32_t>(font, 0x7C);
+        void* const own = *reinterpret_cast<void**>(bytes + 0x8C);
+        if (own)
+            Virtual<uint32_t>(own, 0x4);
+        void* const blitter = Game<void*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(8);
+        Game<void*(__fastcall*)(void*, void*)>(addr::GZFontBlitter_Construct)(blitter, nullptr);
+        Virtual<void>(font, 0xD8, blitter);
+        // Mode 2's levels halved, as in the strings stage.
+        uint32_t levels[3];
+        std::memcpy(levels, bytes + 0x5C, sizeof levels);
+        static uint8_t half[256];
+        for (int i = 0; i < 256; ++i)
+            half[i] = static_cast<uint8_t>(i >> 1);
+        const uint32_t table[3] = {U(half), U(half + 256), U(half + 256)};
+        const uint32_t colourMode = Field<uint32_t>(font, 0x50);
+
+        for (const uint32_t mode : {1u, 2u}) {
+            std::memcpy(bytes + 0x5C, mode == 2 ? table : levels, sizeof levels);
+            Virtual<void>(font, 0x40, mode);
+            Virtual<void>(font, 0x78, scaleX, scaleY);
+            for (const uint32_t bpp : {16u, 32u}) {
+                Canvas canvas(++id, 120, 40, bpp, bpp == 16 ? 5u : 9u, 120 * (bpp / 8) + 4, random);
+                const auto colour = [&] { return bpp == 16 ? random.Next() & 0xFFFF : random.Next(); };
+                for (const std::u16string& t : texts) {
+                    const std::string narrow(t.begin(), t.end());
+                    const void* const chars = encoding == 0x10 ? static_cast<const void*>(t.c_str()) : narrow.c_str();
+                    const uint32_t length = static_cast<uint32_t>(t.size());
+                    for (const Rect& rect : rects) {
+                        for (uint32_t align = 0; align < 4; ++align) {
+                            const uint32_t pick = random.Next();
+                            int32_t pen[2] = {0x7777, 0x7777};
+                            const int32_t* penAt = nullptr;
+                            if (pick & 1) {
+                                pen[0] = pick & 2 ? rect.left : rect.left + 6;
+                                pen[1] = rect.top + 1;
+                                penAt = pen;
+                            }
+                            const uint32_t c1 = pick & 4 ? 0x08000000u : colour();
+                            const uint32_t c2 = pick & 8 ? 0x08000000u : colour();
+                            MixByte(Virtual<uint8_t>(font, 0xD0, &canvas.picture, &rect, chars, length, align, c1, c2,
+                                                     pick & 0x10 ? &clip : nullptr, penAt));
+                            // A pen no line set holds what the game's stack
+                            // held: only one some line set.
+                            const bool set = rect.right > rect.left && rect.top < rect.bottom && length != 0;
+                            if (penAt && set) {
+                                Mix(static_cast<uint32_t>(pen[0]));
+                                Mix(static_cast<uint32_t>(pen[1]));
+                            }
+                        }
+                    }
+                    canvas.Hash();
+                    // No picture: the pen alone.
+                    {
+                        int32_t pen[2] = {3, 4};
+                        MixByte(Virtual<uint8_t>(font, 0xD0, static_cast<void*>(nullptr), &rects[0], chars, length,
+                                                 uint32_t{1}, colour(), colour(), static_cast<const Rect*>(nullptr),
+                                                 pen));
+                        Mix(static_cast<uint32_t>(pen[0]));
+                        Mix(static_cast<uint32_t>(pen[1]));
+                        int32_t pen2[2] = {3, 4};
+                        MixByte(Virtual<uint8_t>(font, 0xCC, static_cast<void*>(nullptr), 5, 6, chars, length,
+                                                 colour(), colour(), static_cast<const Rect*>(nullptr), pen2));
+                        Mix(static_cast<uint32_t>(pen2[0]));
+                        Mix(static_cast<uint32_t>(pen2[1]));
+                    }
+                    // The font's own colours, the second asking for +0x50's
+                    // mode (2 and not).
+                    for (const uint32_t asked : {2u, 1u}) {
+                        bytes[0x50] = static_cast<uint8_t>(asked);
+                        for (const uint32_t c1 : {0x08000000u, 0u, colour()}) {
+                            int32_t pen[2] = {2, 3};
+                            MixByte(Virtual<uint8_t>(font, 0xCC, &canvas.picture, 4, 5, chars, length, c1,
+                                                     uint32_t{0x08000000}, &clip, pen));
+                            Mix(static_cast<uint32_t>(pen[0]));
+                            Mix(static_cast<uint32_t>(pen[1]));
+                        }
+                    }
+                    std::memcpy(bytes + 0x50, &colourMode, 4);
+                    // A begin already made (the font's slot 55): no begin and end of their own.
+                    MixByte(Virtual<uint8_t>(font, 0xDC, &canvas.picture));
+                    MixByte(Virtual<uint8_t>(font, 0xCC, &canvas.picture, 1, 1, chars, length, colour(), colour(),
+                                             static_cast<const Rect*>(nullptr), static_cast<int32_t*>(nullptr)));
+                    MixByte(Virtual<uint8_t>(font, 0xD0, &canvas.picture, &rects[1], chars, length, uint32_t{2},
+                                             colour(), colour(), static_cast<const Rect*>(nullptr),
+                                             static_cast<int32_t*>(nullptr)));
+                    MixByte(Virtual<uint8_t>(font, 0xE0, &canvas.picture));
+                    canvas.Hash();
+                }
+                // Lock refused.
+                canvas.picture.lockAnswer = 0;
+                const void* const four = encoding == 0x10 ? static_cast<const void*>(u"Open") : "Open";
+                int32_t pen[2] = {5, 5};
+                MixByte(Virtual<uint8_t>(font, 0xD0, &canvas.picture, &rects[0], four, uint32_t{4}, uint32_t{0},
+                                         uint32_t{0xFFFF}, uint32_t{0}, static_cast<const Rect*>(nullptr), pen));
+                Mix(static_cast<uint32_t>(pen[0]));
+                Mix(static_cast<uint32_t>(pen[1]));
+                MixByte(Virtual<uint8_t>(font, 0xCC, &canvas.picture, 1, 1, four, uint32_t{4}, uint32_t{0xFFFF},
+                                         uint32_t{0}, static_cast<const Rect*>(nullptr), pen));
+                Mix(static_cast<uint32_t>(pen[0]));
+                canvas.Hash();
+                Mix(Field<uint32_t>(font, 0x80));
+            }
+        }
+        // Through a blitter that hashes what it is given: both modes, the
+        // spacings off and on, begins that succeed and fail.
+        {
+            void* mockVtable[8] = {};
+            mockVtable[5] = reinterpret_cast<void*>(&HashBegin);
+            mockVtable[6] = reinterpret_cast<void*>(&HashEnd);
+            mockVtable[7] = reinterpret_cast<void*>(&HashDraw);
+            HashBlitter mock{mockVtable, 1, 0x5A5A0000};
+            const uint32_t ours = Field<uint32_t>(font, 0x8C);
+            const uint32_t mockAt = U(&mock);
+            std::memcpy(bytes + 0x8C, &mockAt, 4);
+            const uint32_t spacing = Field<uint32_t>(font, 0x74), lineSpacing = Field<uint32_t>(font, 0x78);
+            for (const uint32_t mode : {1u, 2u}) {
+                Virtual<void>(font, 0x40, mode);
+                for (const uint32_t extra : {0u, 3u}) {
+                    const uint32_t a = spacing + extra, b = lineSpacing + extra * 2;
+                    std::memcpy(bytes + 0x74, &a, 4);
+                    std::memcpy(bytes + 0x78, &b, 4);
+                    for (const uint32_t begin : {1u, 0u}) {
+                        mock.begin = begin;
+                        for (const std::u16string& t : texts) {
+                            const std::string narrow(t.begin(), t.end());
+                            const void* const chars =
+                                encoding == 0x10 ? static_cast<const void*>(t.c_str()) : narrow.c_str();
+                            const uint32_t length = static_cast<uint32_t>(t.size());
+                            int32_t pen[2] = {6, 7};
+                            MixByte(Virtual<uint8_t>(font, 0xCC, mock.picture, 3, 4, chars, length,
+                                                     uint32_t{0x1234}, uint32_t{0x00ABCDEF}, &clip, pen));
+                            Mix(static_cast<uint32_t>(pen[0]));
+                            Mix(static_cast<uint32_t>(pen[1]));
+                            for (uint32_t align = 0; align < 3; ++align) {
+                                int32_t pen2[2] = {rects[0].left + 2, 0};
+                                MixByte(Virtual<uint8_t>(font, 0xD0, mock.picture, &rects[align], chars, length, align,
+                                                         uint32_t{0x08000000}, uint32_t{0x00C0FFEE},
+                                                         static_cast<const Rect*>(nullptr), pen2));
+                                if (rects[align].right > rects[align].left && length != 0) {
+                                    Mix(static_cast<uint32_t>(pen2[0]));
+                                    Mix(static_cast<uint32_t>(pen2[1]));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            std::memcpy(bytes + 0x74, &spacing, 4);
+            std::memcpy(bytes + 0x78, &lineSpacing, 4);
+            std::memcpy(bytes + 0x8C, &ours, 4);
+        }
+        // The ramp: seven pairs (the list keeps four), then back to a kept
+        // one and an evicted one.
+        const auto ramp = Game<STwo>(addr::GZFont_Ramp);
+        const uint32_t pairs[][2] = {{0xFFFF, 0},      {0xF800, 0x001F}, {0x07E0, 0xFFFF}, {0x1234, 0x8765},
+                                     {0, 0xFFFF},      {0x7BEF, 0x7BEF}, {0x8410, 0x0821}, {0x07E0, 0xFFFF},
+                                     {0xFFFF, 0},      {0x8410, 0x0821}, {0x12345678, 0xABCD}};
+        for (const auto& p : pairs) {
+            ramp(font, nullptr, p[0], p[1]);
+            MixRamps(font);
+        }
+        // The placed glyphs resized up and down; what was written before a
+        // shrink is what is left.
+        const auto resize = Game<SOne>(addr::GZFont_GlyphsResize);
+        uint8_t* const vector = bytes + 0xF0;
+        for (const uint32_t count : {3u, 40u, 12u, 0u, 7u, 7u, 2u}) {
+            const uint32_t before = (Field<uint32_t>(vector, 4) - Field<uint32_t>(vector, 0)) / 0x24;
+            for (uint32_t i = 0; i < before * 0x24; ++i)
+                At32(Field<uint32_t>(vector, 0))[i] = static_cast<uint8_t>(i * 7 + count);
+            resize(vector, nullptr, count);
+            const uint32_t after = (Field<uint32_t>(vector, 4) - Field<uint32_t>(vector, 0)) / 0x24;
+            Mix(after);
+            MixBytes(At32(Field<uint32_t>(vector, 0)), (before < after ? before : after) * 0x24);
+        }
+        std::memcpy(bytes + 0x5C, levels, sizeof levels);
+        Virtual<void>(font, 0xD8, own);
+        if (own)
+            Virtual<uint32_t>(own, 0x8);
+        Virtual<uint32_t>(font, 0x8);
+    }
+    FtStage("fontdraw");
+}
+
 void DriveFont()
 {
     DriveFontObject();
@@ -3958,6 +4263,7 @@ void DriveFont()
     DriveFontText();
     DriveFontGlyphs();
     DriveFontMeasure();
+    DriveFontDraw();
 }
 
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,

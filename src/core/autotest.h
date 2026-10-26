@@ -26,6 +26,12 @@
 //                         that point (metres) first
 //   OPENSC4_TEST_SHOT_HIDE_UI "1": with OPENSC4_TEST_SHOTS, hide every window
 //                         but the city view
+//   OPENSC4_TEST_REGION_FULL <file>: with OPENSC4_TEST_REGION_HOLD, the region
+//                         view saved there at the full (physical) resolution
+//                         when the hold ends (D3D11 driver)
+//   OPENSC4_TEST_SHOT_FULL "1": with OPENSC4_TEST_SHOTS, also save each shot
+//                         at the full (physical) resolution, as
+//                         z<zoom>-r<rotation>-full.png (D3D11 driver)
 //   OPENSC4_TEST_DAYS     game days to run instead of real seconds: once the
 //                         simulation's day number reaches the start day plus
 //                         this, pause it (0: right after loading, before any

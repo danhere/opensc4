@@ -403,6 +403,13 @@ private:
         const ULONGLONG hold = static_cast<ULONGLONG>(std::atoi(Env("OPENSC4_TEST_REGION_HOLD").c_str()));
         if (regionHooksRun_ && now - regionHoldStart_ < hold)
             return;
+        // OPENSC4_TEST_REGION_FULL=<file>: the region view saved at its full
+        // (physical) resolution when the hold ends (D3D11 driver).
+        if (regionHooksRun_ && !Env("OPENSC4_TEST_REGION_FULL").empty()) {
+            const std::string file = Env("OPENSC4_TEST_REGION_FULL");
+            log::Write("autotest: region view -> %s %s", file.c_str(),
+                       photo_mode::SaveFrame(std::wstring(file.begin(), file.end())) ? "ok" : "FAILED");
+        }
 
         app->EnableFullGamePauseOnAppFocusLoss(false);
         app->SetPopupDialogsEnabled(false);
@@ -791,6 +798,14 @@ private:
             const bool taken = TakeSnapshotToFile(renderer, file, Env("OPENSC4_TEST_SHOT_FLAG") == "1");
             log::Write("autotest: shot zoom %d rotation %d -> %s %s", zoom, rotation, path.c_str(),
                        taken ? "ok" : "FAILED");
+            // OPENSC4_TEST_SHOT_FULL=1: the frame at its full (physical)
+            // resolution too, as z<zoom>-r<rotation>-full.png (D3D11 driver).
+            if (Env("OPENSC4_TEST_SHOT_FULL") == "1") {
+                std::snprintf(name, sizeof(name), "\\z%d-r%d-full.png", zoom, rotation);
+                const std::string full = shotDir_ + name;
+                const bool saved = photo_mode::SaveFrame(std::wstring(full.begin(), full.end()));
+                log::Write("autotest: full frame -> %s %s", full.c_str(), saved ? "ok" : "FAILED");
+            }
             if (gd::frame_trace::Active()) {
                 const gd::frame_trace::Frame frame = gd::frame_trace::FirstSinceMark();
                 log::Write("autotest: frame zoom %d rotation %d: draws %u hash %08X (frame %u)", zoom, rotation,

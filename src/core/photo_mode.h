@@ -21,5 +21,8 @@ void Exit();
 void Zoom(float step);
 // Saves the last shown frame as a PNG; returns its path ("" on failure).
 std::wstring Capture();
+// Saves the last shown frame at its full resolution to `path`; false
+// without the D3D11 driver's window or on a write error.
+bool SaveFrame(const std::wstring& path);
 
 } // namespace opensc4::photo_mode
