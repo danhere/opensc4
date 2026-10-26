@@ -7,9 +7,10 @@
 // the edges filter as the driver's do), filtered up with gd::FilterUp, and
 // the line's characters rendered by FreeType from the font's face (the
 // .mxf files' Type 1 data, unscrambled) at the font's size times the
-// scale, each at the line's pen for it times the scale on the baseline
-// (the pen's y plus the line spacing and the ascent), so the layout stays
-// the game's. The colours are composited as the blitter's kind does: 1
+// scale, thickened to the game's weight, each word from the line's pen for
+// it times the scale with its letters evenly spaced to the game's word
+// width, on the baseline (the pen's y plus the line spacing and the
+// ascent), so the layout stays the game's. The colours are composited as the blitter's kind does: 1
 // solid where the coverage is above half, 2 the ramp's colour of the
 // coverage, 3 the colour blended by the coverage.
 //
@@ -35,6 +36,8 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_ADVANCES_H
+#include FT_OUTLINE_H
 
 #include <windows.h>
 
@@ -83,9 +86,9 @@ constexpr std::size_t kWidth = 0x24, kHeight = 0x28, kBitsPerPixel = 0x40, kHasC
 }
 
 // The font: its path (a game string: Data 0x18, Length 0x1C), size,
-// spacing added to every line, ascent.
+// spacing added to every advance, spacing added to every line, ascent.
 namespace font {
-constexpr Address kPath = 0x0C, kSize = 0x38, kLineSpacing = 0x78, kAscent = 0x84;
+constexpr Address kPath = 0x0C, kSize = 0x38, kSpacing = 0x74, kLineSpacing = 0x78, kAscent = 0x84;
 }
 
 // The textures object: the picture, the tiles' textures (a vector of
@@ -203,6 +206,95 @@ FT_Face FaceOf(void* fontObject)
         log::Write("sharptext: FreeType could not open %s; its text stays as the game draws it", path.c_str());
     }
     return slot->face;
+}
+
+// ====================================================================================
+// The weight
+//
+// The game's glyphs are T2K's, hinted at the 1x size: their stems snap to
+// whole pixels, so its faces look heavier than FreeType's outline at the
+// larger size. Each size gets the outline thickened (FT_Outline_Embolden)
+// by the amount that makes its glyphs' ink (their coverage summed) the
+// game's glyphs' ink times the scale squared, measured on the characters
+// that size has drawn (worked out again as more are seen).
+
+// The glyph rendered with its outline thickened by `strength` and moved
+// right by `shift` (both 26.6), or null.
+FT_GlyphSlot Render(FT_Face face, FT_UInt index, FT_Pos strength, FT_Pos shift)
+{
+    if (FT_Load_Glyph(face, index, FT_LOAD_DEFAULT | FT_LOAD_TARGET_LIGHT | FT_LOAD_NO_BITMAP) != 0 ||
+        face->glyph->format != FT_GLYPH_FORMAT_OUTLINE)
+        return nullptr;
+    if (strength > 0)
+        FT_Outline_Embolden(&face->glyph->outline, strength);
+    if (shift != 0)
+        FT_Outline_Translate(&face->glyph->outline, shift, 0);
+    if (FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL) != 0)
+        return nullptr;
+    return face->glyph;
+}
+
+uint64_t InkOf(const FT_Bitmap& bm)
+{
+    uint64_t ink = 0;
+    for (uint32_t row = 0; row < bm.rows; ++row)
+        for (uint32_t col = 0; col < bm.width; ++col)
+            ink += bm.buffer[static_cast<ptrdiff_t>(row) * bm.pitch + col];
+    return ink;
+}
+
+struct Weight {
+    std::map<uint32_t, uint32_t> ink; // the game's, by character
+    size_t measured = 0;              // characters the strength was worked out from
+    FT_Pos strength = 0;
+};
+
+std::map<std::pair<FT_Face, uint32_t>, Weight> g_weights; // by face and physical size
+
+// The strength for the face at its current size (`pixels`), given the
+// game's ink of the characters a line drew.
+FT_Pos StrengthOf(FT_Face face, uint32_t pixels, double scale, const std::map<uint32_t, uint32_t>& seen)
+{
+    Weight& w = g_weights[{face, pixels}];
+    for (const auto& [c, ink] : seen)
+        w.ink.emplace(c, ink);
+    // Worked out at 1, 4, 16 and 64 characters.
+    size_t due = 1;
+    while (due * 4 <= w.ink.size() && due < 64)
+        due *= 4;
+    if (w.measured >= due)
+        return w.strength;
+    w.measured = due;
+    double target = 0;
+    std::vector<FT_UInt> indices;
+    for (const auto& [c, ink] : w.ink) {
+        const FT_UInt index = FT_Get_Char_Index(face, c);
+        if (!index)
+            continue;
+        indices.push_back(index);
+        target += ink * scale * scale;
+    }
+    auto inkAt = [&](FT_Pos strength) {
+        uint64_t total = 0;
+        for (FT_UInt index : indices)
+            if (FT_GlyphSlot g = Render(face, index, strength, 0))
+                total += InkOf(g->bitmap);
+        return static_cast<double>(total);
+    };
+    // Thickened by up to a fifth of the size, never thinned.
+    FT_Pos low = 0, high = std::max<FT_Pos>(16, static_cast<FT_Pos>(pixels) * 64 / 5);
+    if (indices.empty() || inkAt(0) >= target) {
+        w.strength = 0;
+    } else {
+        for (int i = 0; i < 8; ++i) {
+            const FT_Pos mid = (low + high) / 2;
+            (inkAt(mid) < target ? low : high) = mid;
+        }
+        w.strength = (low + high) / 2;
+    }
+    log::Write("sharptext: %u px, %zu characters: outline thickened by %.2f px", pixels, indices.size(),
+               w.strength / 64.0);
+    return w.strength;
 }
 
 // ====================================================================================
@@ -357,10 +449,16 @@ Line::Line(void* fontObject, void* picture, const int32_t* clip, uint32_t kind, 
     }
 }
 
-void Line::Glyph(int32_t penX, int32_t penY, uint32_t character, int32_t left, int32_t top, int32_t right,
-                 int32_t bottom)
+void Line::Glyph(int32_t penX, int32_t penY, int32_t next, uint32_t character, int32_t left, int32_t top,
+                 int32_t right, int32_t bottom, const uint8_t* coverage, uint32_t pitch)
 {
-    glyphs_.push_back({penX, penY, character});
+    const bool word = broken_ || glyphs_.empty() || glyphs_.back().penY != penY || glyphs_.back().next != penX;
+    broken_ = false;
+    uint32_t ink = 0;
+    for (int32_t y = 0; coverage && y < bottom - top; ++y)
+        for (int32_t x = 0; x < right - left; ++x)
+            ink += coverage[static_cast<size_t>(y) * pitch + x];
+    glyphs_.push_back({penX, penY, next, character, word, ink});
     if (!any_) {
         rect_[0] = left, rect_[1] = top, rect_[2] = right, rect_[3] = bottom;
         any_ = true;
@@ -371,6 +469,8 @@ void Line::Glyph(int32_t penX, int32_t penY, uint32_t character, int32_t left, i
     rect_[2] = std::max(rect_[2], right);
     rect_[3] = std::max(rect_[3], bottom);
 }
+
+void Line::Break() { broken_ = true; }
 
 namespace {
 
@@ -457,21 +557,68 @@ void Line::After()
                                       static_cast<int32_t>(std::ceil(clip_[3] * s))});
     const int32_t baselineExtra = static_cast<int32_t>(Load<uint32_t>(At(font_) + font::kLineSpacing) +
                                                        Load<uint32_t>(At(font_) + font::kAscent));
+    const auto pixels = static_cast<uint32_t>(std::lround(size * s));
+    std::map<uint32_t, uint32_t> seen;
+    for (const Placed& g : glyphs_)
+        seen.emplace(g.character, g.ink);
+    const FT_Pos strength = StrengthOf(face, pixels, s, seen);
+
+    // Where each glyph goes: a word starts on the game's pen for it times
+    // the scale, and its letters follow by FreeType's advances (unhinted, so
+    // fractional), spaced to end where the game's word ends times the
+    // scale. The game's pens are whole 1x pixels, and times the scale its
+    // gaps came out a pixel apart; this way the words keep the game's
+    // layout and the letters in them are evenly spaced.
+    std::vector<FT_UInt> indices(glyphs_.size());
+    for (size_t i = 0; i < glyphs_.size(); ++i) {
+        indices[i] = FT_Get_Char_Index(face, glyphs_[i].character);
+        if (indices[i] == 0 && glyphs_[i].character != 0x20 && glyphs_[i].character != 0xA0)
+            return; // a character the face lacks: the line stays as the game drew it
+    }
+    const double spacing = static_cast<int32_t>(Load<uint32_t>(At(font_) + font::kSpacing)) * s;
+    std::vector<double> xs(glyphs_.size());
+    for (size_t first = 0; first < glyphs_.size();) {
+        size_t end = first + 1;
+        while (end < glyphs_.size() && !glyphs_[end].word)
+            ++end;
+        std::vector<double> advances(end - first, 0.0);
+        double across = 0;
+        for (size_t i = first; i < end; ++i) {
+            FT_Fixed advance = 0;
+            if (indices[i] && FT_Get_Advance(face, indices[i], FT_LOAD_NO_HINTING, &advance) == 0)
+                advances[i - first] = advance / 65536.0 + spacing;
+            across += advances[i - first];
+        }
+        // T2K's hinted advances at the small size run wider than the
+        // outline's (by about a fifth on the region labels): the difference
+        // goes evenly between the letters, as tracking.
+        const double extra =
+            ((glyphs_[end - 1].next - glyphs_[first].penX) * s - across) / static_cast<double>(end - first);
+        const bool fits = across > 0 && std::abs(extra) < pixels * 0.25;
+        double x = glyphs_[first].penX * s;
+        for (size_t i = first; i < end; ++i) {
+            // A word FreeType sets far wider or narrower than the game: its
+            // letters on the game's pens.
+            xs[i] = fits ? x : glyphs_[i].penX * s;
+            x += advances[i - first] + extra;
+        }
+        first = end;
+    }
+
     uint8_t solid[4];
     std::memcpy(solid, colours_, 4);
-    for (const Placed& g : glyphs_) {
-        const FT_UInt index = FT_Get_Char_Index(face, g.character);
-        if (index == 0) {
-            if (g.character == 0x20 || g.character == 0xA0)
-                continue;
-            return; // a character the face lacks: the line stays as the game drew it
-        }
-        if (FT_Load_Glyph(face, index, FT_LOAD_DEFAULT | FT_LOAD_TARGET_LIGHT) != 0 ||
-            FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL) != 0)
+    for (size_t i = 0; i < glyphs_.size(); ++i) {
+        const Placed& g = glyphs_[i];
+        if (indices[i] == 0)
+            continue;
+        const double whole = std::floor(xs[i]);
+        const FT_GlyphSlot slot =
+            Render(face, indices[i], strength, static_cast<FT_Pos>(std::lround((xs[i] - whole) * 64)));
+        if (!slot)
             return;
-        const FT_Bitmap& bm = face->glyph->bitmap;
-        const int32_t x0 = static_cast<int32_t>(std::lround(g.penX * s)) + face->glyph->bitmap_left;
-        const int32_t y0 = static_cast<int32_t>(std::lround((g.penY + baselineExtra) * s)) - face->glyph->bitmap_top;
+        const FT_Bitmap& bm = slot->bitmap;
+        const int32_t x0 = static_cast<int32_t>(whole) + slot->bitmap_left;
+        const int32_t y0 = static_cast<int32_t>(std::lround((g.penY + baselineExtra) * s)) - slot->bitmap_top;
         for (uint32_t row = 0; row < bm.rows; ++row) {
             const int32_t y = y0 + static_cast<int32_t>(row);
             if (y < limit.top || y >= limit.bottom)

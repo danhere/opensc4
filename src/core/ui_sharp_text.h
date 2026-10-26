@@ -23,15 +23,22 @@ bool Wanted(void* picture);
 class Line {
 public:
     Line(void* font, void* picture, const int32_t* clip, uint32_t kind, const uint32_t* colours);
-    void Glyph(int32_t penX, int32_t penY, uint32_t character, int32_t left, int32_t top, int32_t right,
-               int32_t bottom);
+    // `next` is the pen after it; `coverage` its 8-bit coverage in the
+    // glyph sheet (`pitch` bytes a row), the size of its box.
+    void Glyph(int32_t penX, int32_t penY, int32_t next, uint32_t character, int32_t left, int32_t top,
+               int32_t right, int32_t bottom, const uint8_t* coverage, uint32_t pitch);
+    // A character DrawString moved the pen over without keeping a glyph (a
+    // space, one outside the clip): the next glyph starts a new word.
+    void Break();
     void Before();
     void After();
 
 private:
     struct Placed {
-        int32_t penX, penY;
+        int32_t penX, penY, next;
         uint32_t character;
+        bool word; // the first of a word
+        uint32_t ink; // the game's coverage summed
     };
     void* font_;
     void* picture_;
@@ -42,6 +49,7 @@ private:
     std::vector<Placed> glyphs_;
     int32_t rect_[4];
     bool any_ = false;
+    bool broken_ = true;
     std::vector<uint8_t> before_; // the rectangle's BGRA before the line
     bool keyed_ = false;
     uint32_t key_ = 0;
