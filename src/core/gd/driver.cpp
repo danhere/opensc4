@@ -14,6 +14,7 @@
 #include "core/gd/backend.h"
 #include "core/gd/frame_trace.h"
 #include "core/gd/gd.h"
+#include "core/gd/pixels.h"
 #include "core/gd/vertex_format.h"
 
 #include "core/address_check.h"
@@ -77,6 +78,14 @@ struct PhysicalSize {
 
 class Driver;
 Driver* g_output = nullptr; // the driver whose window is up
+
+// Above 0 while a PhysicalTextures object lives (the interface pictures'
+// tiles being made): CreateTexture makes them at the physical size.
+int g_physicalTextures = 0;
+
+// Called with each scaled tile's filtered pixels before they are uploaded
+// (SetScaledUploadHook).
+ScaledUploadHook g_scaledUploadHook = nullptr;
 bool g_capturing = false, g_captureDraws = true; // BeginCapture
 std::vector<uint32_t> g_captured;
 
@@ -374,6 +383,7 @@ public:
             if (backend_)
                 backend_->DeleteTexture(textures[i]);
             textures_.erase(textures[i]);
+            scaled_.erase(textures[i]);
         }
     }
     bool IsTexture(uint32_t texture) override { return textures_.count(texture) > 0; }
@@ -497,6 +507,24 @@ public:
 
     intptr_t CreateTexture(uint32_t format, uint32_t width, uint32_t height, uint32_t levels, uint32_t) override
     {
+        // An interface picture's tile at a render scale: made scale times
+        // larger, filled from a copy of its game-sized pixels (UploadScaled).
+        // The game draws a tile with coordinates over the size it asked for,
+        // so the larger texture fills the same place.
+        if (g_physicalTextures > 0 && scale_ != 1.0f && levels == 1 && !IsCompressed(format) && width && height) {
+            const auto physicalWidth = static_cast<uint32_t>(std::ceil(width * scale_));
+            const auto physicalHeight = static_cast<uint32_t>(std::ceil(height * scale_));
+            const uint32_t id = backend_ ? backend_->CreateTexture(format, physicalWidth, physicalHeight, 1) : 0;
+            if (id == 0) {
+                error_ = InvalidOperation;
+                return 0;
+            }
+            textures_.insert(id);
+            scaled_[id] = {width, height, physicalWidth, physicalHeight,
+                           std::vector<uint8_t>(static_cast<size_t>(width) * height * 4, 0)};
+            frame_trace::TextureCreated(id, format, width, height, levels);
+            return id;
+        }
         const uint32_t id = backend_ ? backend_->CreateTexture(format, width, height, levels) : 0;
         if (id == 0) {
             error_ = InvalidOperation;
@@ -512,9 +540,55 @@ public:
     {
         ++textureUploads_;
         frame_trace::TextureUploaded(texture, level, x, y, width, height, format, type, rowLength, pixels);
+        if (const auto it = scaled_.find(texture); it != scaled_.end()) {
+            UploadScaled(texture, it->second, level, x, y, width, height, format, type, rowLength, pixels);
+            return;
+        }
         if (backend_ && level >= 0)
             backend_->UploadTexture(texture, static_cast<uint32_t>(level), x, y, width, height, format, type,
                                     rowLength, pixels);
+    }
+
+    // A tile made at the physical size (CreateTexture): its game-sized
+    // pixels kept as BGRA, the rectangle given written there, and the
+    // physical pixels over it (and one around, which straddle its edge)
+    // filtered from them: each the average of the game pixels it covers,
+    // weighted by how much of it each covers and by their alpha (so
+    // transparent pixels lend no colour). A game pixel comes out a flat
+    // square with a blended edge, as the driver's sharp filtering draws a
+    // game-sized texture.
+    struct ScaledTexture {
+        uint32_t width, height, physicalWidth, physicalHeight;
+        std::vector<uint8_t> pixels; // BGRA, game-sized
+    };
+
+    void UploadScaled(uint32_t texture, ScaledTexture& t, int32_t level, int32_t x, int32_t y, int32_t width,
+                      int32_t height, uint32_t format, uint32_t type, uint32_t rowLength, void const* pixels)
+    {
+        if (!backend_ || level != 0 || !pixels || width <= 0 || height <= 0 || x < 0 || y < 0 ||
+            static_cast<uint32_t>(x) >= t.width || static_cast<uint32_t>(y) >= t.height)
+            return;
+        const uint32_t w = std::min(static_cast<uint32_t>(width), t.width - x);
+        const uint32_t h = std::min(static_cast<uint32_t>(height), t.height - y);
+        if (!ConvertToBGRA(format, type, pixels, w, h, rowLength ? rowLength : static_cast<uint32_t>(width),
+                           t.pixels.data() + (static_cast<size_t>(y) * t.width + x) * 4, t.width * 4)) {
+            Unimplemented("LoadTextureLevel of a scaled tile in this format");
+            return;
+        }
+        const double sx = static_cast<double>(t.physicalWidth) / t.width;
+        const double sy = static_cast<double>(t.physicalHeight) / t.height;
+        const auto left = static_cast<uint32_t>(std::max(0.0, std::floor(x * sx) - 1));
+        const auto top = static_cast<uint32_t>(std::max(0.0, std::floor(y * sy) - 1));
+        const auto right = static_cast<uint32_t>(std::min<double>(t.physicalWidth, std::ceil((x + w) * sx) + 1));
+        const auto bottom = static_cast<uint32_t>(std::min<double>(t.physicalHeight, std::ceil((y + h) * sy) + 1));
+        const uint32_t across = right - left, down = bottom - top;
+        filtered_.resize(static_cast<size_t>(across) * down * 4);
+        FilterUp(t.pixels.data(), t.width, t.height, 0, 0, sx, sy, left, top, across, down, filtered_.data());
+        if (g_scaledUploadHook)
+            g_scaledUploadHook(texture, left, top, across, down, filtered_.data(), sx, sy);
+        backend_->UploadTexture(texture, 0, static_cast<int32_t>(left), static_cast<int32_t>(top),
+                                static_cast<int32_t>(across), static_cast<int32_t>(down), BGRA, UnsignedByte, across,
+                                filtered_.data());
     }
 
     void SetCombiner(cGDCombiner const& combiner, uint32_t stage) override
@@ -1152,6 +1226,8 @@ private:
     uint32_t stage_ = 0;
     StageState stages_[kStages];
     std::set<uint32_t> textures_; // backend handles from CreateTexture
+    std::map<uint32_t, ScaledTexture> scaled_; // the tiles made at the physical size
+    std::vector<uint8_t> filtered_;
     uint32_t nextGenTexture_ = kGenTextureBase;
     int32_t unpackRowLength_ = 0;
 
@@ -1801,6 +1877,49 @@ const bool g_registered = registry::Register({
 } // namespace
 
 float CityZoomDivisor() { return g_cityZoomDivisor; }
+
+PhysicalTextures::PhysicalTextures() { ++g_physicalTextures; }
+PhysicalTextures::~PhysicalTextures() { --g_physicalTextures; }
+
+void SetScaledUploadHook(ScaledUploadHook hook) { g_scaledUploadHook = hook; }
+
+float RenderScale() { return g_output ? g_output->Scale() : 1.0f; }
+
+void FilterUp(const uint8_t* source, uint32_t width, uint32_t height, int32_t sourceX, int32_t sourceY, double sx,
+              double sy, int32_t left, int32_t top, uint32_t across, uint32_t down, uint8_t* out)
+{
+    for (uint32_t py = 0; py < down; ++py) {
+        // The game pixels the physical row covers, in the source's frame.
+        const double y0 = (top + static_cast<int32_t>(py)) / sy - sourceY;
+        const double y1 = (top + static_cast<int32_t>(py) + 1) / sy - sourceY;
+        const auto ty0 = static_cast<int32_t>(std::max(0.0, std::floor(y0)));
+        const int32_t ty1 = std::min(static_cast<int32_t>(height) - 1, static_cast<int32_t>(std::ceil(y1)) - 1);
+        for (uint32_t px = 0; px < across; ++px) {
+            const double x0 = (left + static_cast<int32_t>(px)) / sx - sourceX;
+            const double x1 = (left + static_cast<int32_t>(px) + 1) / sx - sourceX;
+            const auto tx0 = static_cast<int32_t>(std::max(0.0, std::floor(x0)));
+            const int32_t tx1 = std::min(static_cast<int32_t>(width) - 1, static_cast<int32_t>(std::ceil(x1)) - 1);
+            double sum[4] = {}, weights = 0;
+            for (int32_t ty = ty0; ty <= ty1; ++ty) {
+                const double wy = std::min<double>(y1, ty + 1) - std::max<double>(y0, ty);
+                for (int32_t tx = tx0; tx <= tx1; ++tx) {
+                    const double wxy = (std::min<double>(x1, tx + 1) - std::max<double>(x0, tx)) * wy;
+                    const uint8_t* c = source + (static_cast<size_t>(ty) * width + tx) * 4;
+                    const double a = wxy * c[3];
+                    sum[0] += a * c[0];
+                    sum[1] += a * c[1];
+                    sum[2] += a * c[2];
+                    sum[3] += a;
+                    weights += wxy;
+                }
+            }
+            uint8_t* o = out + (static_cast<size_t>(py) * across + px) * 4;
+            for (int k = 0; k < 3; ++k)
+                o[k] = sum[3] > 0 ? static_cast<uint8_t>(std::lround(sum[k] / sum[3])) : 0;
+            o[3] = weights > 0 ? static_cast<uint8_t>(std::lround(sum[3] / weights)) : 0;
+        }
+    }
+}
 
 void BeginCapture(bool draw)
 {

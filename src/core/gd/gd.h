@@ -76,6 +76,42 @@ public:
 // enlarged with the interface or the D3D11 driver is off).
 float CityZoomDivisor();
 
+// While one lives, the D3D11 driver makes the textures it is asked for at
+// the physical size when there is a render scale ([renderer] scale): the
+// interface pictures' tiles (renderer.interface.sharp_tiles), which the game
+// draws with coordinates over the size it asked for, so the larger texture
+// fills the same place. Their uploads stay game-sized: the driver keeps a
+// copy and fills the physical pixels from it.
+struct PhysicalTextures {
+    PhysicalTextures();
+    ~PhysicalTextures();
+    PhysicalTextures(const PhysicalTextures&) = delete;
+    PhysicalTextures& operator=(const PhysicalTextures&) = delete;
+};
+
+// Physical pixels per game pixel while the D3D11 driver's window is up
+// ([renderer] scale); 1 otherwise.
+float RenderScale();
+
+// Called with every upload of a tile made under PhysicalTextures, once the
+// driver has filled the physical pixels it will upload: the texture, the
+// physical rectangle (left, top, across, down, in the tile) and its BGRA
+// pixels, which the hook may change (renderer.interface.sharp_text puts
+// text drawn at the physical size there), and the tile's physical pixels
+// per game pixel. One hook; null to remove it.
+using ScaledUploadHook = void (*)(uint32_t texture, uint32_t left, uint32_t top, uint32_t across, uint32_t down,
+                                  uint8_t* bgra, double scaleX, double scaleY);
+void SetScaledUploadHook(ScaledUploadHook hook);
+
+// The filter the scaled tiles are filled with: the physical pixels (left,
+// top) to (left + across, top + down) of a picture, each the average of the
+// game pixels it covers, weighted by how much of it each covers and by their
+// alpha. `source` is width x height BGRA game pixels whose top left is the
+// game pixel (sourceX, sourceY); physical pixel x covers game x / sx to
+// (x + 1) / sx. Game pixels outside the source count for nothing.
+void FilterUp(const uint8_t* source, uint32_t width, uint32_t height, int32_t sourceX, int32_t sourceY, double sx,
+              double sy, int32_t left, int32_t top, uint32_t across, uint32_t down, uint8_t* out);
+
 // The last frame shown in the game's window at its full (physical)
 // resolution, as BGRA rows; false without the D3D11 driver's window.
 bool ReadFrame(std::vector<uint8_t>& pixels, uint32_t& width, uint32_t& height);

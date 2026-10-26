@@ -233,3 +233,21 @@ convention = "cdecl"
 signature = "bool (uint32_t pixelFormat, uint32_t dataType, uint32_t* red, uint32_t* blue, uint32_t* green, uint32_t* alpha)"
 expect = "8B 44 24 08 83 F8 0E 0F"
 source = "Name ours (docs/pixels.md, \"Format bits\"). The bits per channel of a LoadTextureLevel source (pixel format and data type, src/core/gd/gd_types.h): 8 bits for bytes, 565, 1555 or 4444 for the packed types, and 565, 555 plus 1 or 565 plus 4 for the DXT formats; AL 0 and nothing written for an unknown pair. The third pointer gets the 6 of 565; the first two are always equal. Called by 0x00809CD0 and 0x0080A110. Ours in renderer.pixels.format."
+
+[[entry]]
+name = "UIPictureTextures::Create"
+address = 0x00991440
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t argument)"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Name ours (docs/ui-scaling.md, \"Sharp interface tiles\"). Primary vtable slot 9 (0x00ADB2E0 + 0x24), `ret 4`: splits the CPU-drawn picture at +0x10 into tiles of 16 to 256 pixels (0x00A6CF00) and creates one texture each through the graphics driver (its slot 0xF0, format by the picture's type); the tiles' textures go in the vector at +0x14. Called by Upload 0x00990FF0 when it has none. Wrapped in renderer.interface.sharp_tiles."
+
+[[entry]]
+name = "UIPictureTextures::Upload"
+address = 0x00990FF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t argument)"
+expect = "83 EC 40 8B 44 24 44 53"
+source = "Name ours (docs/ui-scaling.md, \"Sharp interface tiles\"). Secondary vtable slot 0 (0x00ADB308), `ret 4`: the picture's changed pieces sent to its tiles' textures (the graphics driver's slot 0xF4, LoadTextureLevel): Create first when there are no tiles; straight from the picture's memory, or through the colour-key copies 0x008D0820/0x008D0860/0x008D08A0 into a block when the picture has a colour key (its slot 0x60), the whole tile then. Each tile's pieces come from 0x00A6CD10 on +0x24: the picture's x and y, the tile's x and y, the size. Noted by renderer.interface.sharp_text."
