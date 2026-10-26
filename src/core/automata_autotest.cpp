@@ -455,6 +455,21 @@
 //   no sound service once); slot 93's text after cSC4Vehicle's by four
 //   missions and the flag 0x200. eflags 0x40 when it ran, 0x80 when a
 //   factory failed, 0x100 without a city. Log line: "em2a estates".
+//   Part em2b (the base's frames) adds `,<eframes>` before eflags (47
+//   fields): on each class's object, em2a's vtable copy with slots 7, 53,
+//   85, 87, 88, 132, 147, 148, 165 and 192 the test's too, the sound service
+//   and the message server of the test's and the city's vtable swapped for
+//   a copy with slots 40 (a map of the test's), 43 (a path finder of the
+//   test's or none) and 95 the test's: 0x0052F870 with an occupant and
+//   without (entered or not); 0x0052F910 with two bytes; slot 72 by the
+//   flag 0x80, slot 85, the sound service and three positions (large, NaN);
+//   slot 195 over sixteen cases (slots 85, 87, 88, 165, the occupant found,
+//   a route, the flag 0x20, +0xB0 and its flag 0x20; no move); slot 196 over
+//   seven (the occupant, the count against 0x00B21CB9, the finder and its
+//   answer); slot 198 over four smoothed values and eight cases (slot 85,
+//   the target, the distance against the bound, the finder and its answer,
+//   a NaN). eflags 0x800 when it ran, 0x200 or 0x400 when a factory failed
+//   or there was no city. Log line: "em2b eframes".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -24997,6 +25012,15 @@ uint32_t __fastcall Em2Post(void*, void*, void* message, uint32_t word)
     ++g_em2.posts;
     g_em.calls.Mix(0xCC);
     g_em.calls.Mix(message ? 1u : 0u);
+    // Where the message holds what 0x0052F910 gave it (the type, slot 192's
+    // 0x192, the byte +0x2C8, the occupant part); its other words are the
+    // message's own (some are pointers).
+    for (std::size_t at = 4; message && at < 0x2C; at += 4) {
+        const uint32_t w = At<uint32_t>(message, at);
+        const uint32_t part = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(g_em2.self) + 4);
+        g_em.calls.Mix((w == 0xCA8DCDB4u ? 1u : 0u) | (w == 0x192u ? 2u : 0u) |
+                       (g_em2.self && w == At<uint8_t>(g_em2.self, em::base::kByte) ? 4u : 0u) | (w == part ? 8u : 0u));
+    }
     g_em.calls.Mix(word);
     return 1;
 }
@@ -25372,6 +25396,428 @@ void EmStatesDrive(Hash& estates, uint32_t& eflags)
     g_em2 = Em2Answers{};
 }
 
+// ---- Part em2b: the base's frames (src/core/automata_emergency.cpp).
+
+// What the em2b test's slots and services answer.
+struct Em3Answers {
+    uint8_t slot85 = 0, slot87 = 0, slot88 = 0, slot165 = 0;
+    float position[3] = {};   // slot 7 writes it
+    float there[3] = {};      // the target's slot 8 writes it
+    void* occupant = nullptr; // the traffic network map's slot 11
+    bool enterSets = true;    // slot 132 makes it the occupant (+0x1EC)
+    uint32_t found = 0;       // the path finder's slot 17
+    void* object148 = nullptr; // slot 148
+};
+Em3Answers g_em3;
+
+uint32_t __fastcall Em3GetPosition(char*, void*, float* out)
+{
+    g_em.calls.Mix(7);
+    for (int i = 0; i < 3; ++i)
+        out[i] = g_em3.position[i];
+    return 0;
+}
+uint32_t __fastcall Em3PopState(char*, void*)
+{
+    g_em.calls.Mix(53);
+    return 1;
+}
+uint8_t __fastcall Em3Slot85(char*, void*)
+{
+    g_em.calls.Mix(85);
+    return g_em3.slot85;
+}
+uint8_t __fastcall Em3Slot87(char*, void*)
+{
+    g_em.calls.Mix(87);
+    return g_em3.slot87;
+}
+uint8_t __fastcall Em3Slot88(char*, void*)
+{
+    g_em.calls.Mix(88);
+    return g_em3.slot88;
+}
+uint8_t __fastcall Em3Slot165(char*, void*)
+{
+    g_em.calls.Mix(165);
+    return g_em3.slot165;
+}
+uint32_t __fastcall Em3Enter(char* o, void*, void* occupant, uint32_t a, uint32_t b, uint32_t c)
+{
+    g_em.calls.Mix(132);
+    g_em.calls.Mix(occupant == g_em3.occupant ? 1u : occupant ? 2u : 0u);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(b);
+    g_em.calls.Mix(c);
+    if (g_em3.enterSets)
+        At<void*>(o, av::field::kOccupant) = occupant;
+    return 1;
+}
+uint32_t __fastcall Em3Slot147(char*, void*, void* occupant, uint32_t byte)
+{
+    g_em.calls.Mix(147);
+    g_em.calls.Mix(occupant ? 1u : 0u);
+    g_em.calls.Mix(byte);
+    return 0;
+}
+void* __fastcall Em3Slot148(char*, void*)
+{
+    g_em.calls.Mix(148);
+    return g_em3.object148;
+}
+uint32_t __fastcall Em3Slot192(char*, void*)
+{
+    g_em.calls.Mix(192);
+    return 0x192;
+}
+
+// The objects of the test's: a target (slot 8 writes its point), a +0xB0
+// object (slot 31 its flag 0x20), the map (slot 11), the path finder (slot
+// 17, five words: the ends mixed by their kind and words, the target by
+// name). All count references.
+struct Em3Object {
+    void** vtable;
+    int32_t references;
+    uint8_t flag20;
+};
+uint32_t __fastcall Em3AddRef(Em3Object* o, void*) { return static_cast<uint32_t>(++o->references); }
+uint32_t __fastcall Em3Release(Em3Object* o, void*) { return static_cast<uint32_t>(--o->references); }
+uint32_t __fastcall Em3TargetPosition(Em3Object*, void*, float* out)
+{
+    g_em.calls.Mix(0x7A8);
+    for (int i = 0; i < 3; ++i)
+        out[i] = g_em3.there[i];
+    return 0;
+}
+uint8_t __fastcall Em3CheckFlag(Em3Object* o, void*, uint32_t flag)
+{
+    g_em.calls.Mix(0xB31);
+    g_em.calls.Mix(flag);
+    return o->flag20;
+}
+void* __fastcall Em3OccupantAt(void*, void*, int32_t x, int32_t z)
+{
+    g_em.calls.Mix(0x11);
+    g_em.calls.Mix(static_cast<uint32_t>(x));
+    g_em.calls.Mix(static_cast<uint32_t>(z));
+    return g_em3.occupant;
+}
+Em3Object* g_em3Target = nullptr;
+void MixEnd(const uint32_t* end)
+{
+    g_em.calls.Mix(end[0]);
+    if (end[0] == 1) {
+        for (int i = 1; i < 4; ++i)
+            g_em.calls.Mix(end[i]);
+    } else {
+        g_em.calls.Mix(end[1] == static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(g_em3Target)) ? 1u
+                       : end[1]                                                                        ? 2u
+                                                                                                       : 0u);
+    }
+}
+uint32_t __fastcall Em3FindPath(void*, void*, char* automaton, const uint32_t* from, const uint32_t* to, uint32_t a,
+                                uint32_t b)
+{
+    g_em.calls.Mix(0x17);
+    g_em.calls.Mix(automaton == g_em2.self ? 1u : 2u);
+    MixEnd(from);
+    MixEnd(to);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(b);
+    return g_em3.found;
+}
+Em3Object g_em3Finder;
+void* g_em3FinderAt = nullptr; // what the city's slot 43 answers
+void* __fastcall Em3CityFinder(void*, void*)
+{
+    g_em.calls.Mix(0x43);
+    return g_em3FinderAt;
+}
+void* __fastcall Em3CityMap(void*, void*)
+{
+    g_em.calls.Mix(0x40);
+    static void* table[16] = {};
+    table[em::slot::kOccupantAt / 4] = reinterpret_cast<void*>(&Em3OccupantAt);
+    static void** map = table;
+    return &map;
+}
+
+// The city's slot 95 for 0x0052F870: both outs are the game's unset
+// locals, so only the point is mixed.
+uint32_t __fastcall Em3CellOf(void*, void*, float x, float z, int32_t* a, int32_t* b)
+{
+    g_em.calls.Mix(0x95);
+    g_em.calls.Mix(Bits(x));
+    g_em.calls.Mix(Bits(z));
+    *a = 11;
+    *b = 13;
+    return 1;
+}
+
+// Em2Table with the em2b slots the test's too: 7, 53, 85, 87, 88, 132,
+// 147, 148, 165 and 192.
+void** Em3Table(int which, char* o)
+{
+    static void* tables[3][202];
+    void** const t = tables[which];
+    void** const base = Em2Table(which, o);
+    for (int i = 0; i < kEmClasses[which].slots; ++i)
+        t[i] = base[i];
+    t[em::slot::kGetPosition / 4] = reinterpret_cast<void*>(&Em3GetPosition);
+    t[em::slot::kPopState / 4] = reinterpret_cast<void*>(&Em3PopState);
+    t[em::slot::kSlot85 / 4] = reinterpret_cast<void*>(&Em3Slot85);
+    t[em::slot::kSlot87 / 4] = reinterpret_cast<void*>(&Em3Slot87);
+    t[em::slot::kSlot88 / 4] = reinterpret_cast<void*>(&Em3Slot88);
+    t[em::slot::kEnterOccupant / 4] = reinterpret_cast<void*>(&Em3Enter);
+    t[em::slot::kSlot147 / 4] = reinterpret_cast<void*>(&Em3Slot147);
+    t[em::slot::kSlot148 / 4] = reinterpret_cast<void*>(&Em3Slot148);
+    t[em::slot::kSlot165 / 4] = reinterpret_cast<void*>(&Em3Slot165);
+    t[em::slot::kSlot192 / 4] = reinterpret_cast<void*>(&Em3Slot192);
+    return t;
+}
+
+void EmFramesDrive(Hash& eframes, uint32_t& eflags)
+{
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    g_em3 = Em3Answers{};
+    char* made[3] = {};
+    for (int i = 0; i < 3; ++i)
+        made[i] = MakeEm(i, eflags);
+    void* const city = Global<void*>(addr::SC4_City);
+    for (char* o : made)
+        if (!o || !city) {
+            eflags |= o ? 0x400 : 0x200;
+            for (char* m : made)
+                ReleaseEm(m);
+            log::Write("autotest: automata: vehicle: em2b: a factory failed or no city");
+            return;
+        }
+    static void* soundTable[16] = {};
+    soundTable[em::slot::kSoundStop / 4] = reinterpret_cast<void*>(&Em2Sound);
+    void** sound = soundTable;
+    static void* postTable[8] = {};
+    postTable[4] = reinterpret_cast<void*>(&Em2Post);
+    void** server = postTable;
+    static void* objectTable[40] = {};
+    objectTable[1] = reinterpret_cast<void*>(&Em3AddRef);
+    objectTable[2] = reinterpret_cast<void*>(&Em3Release);
+    objectTable[em::slot::kTargetPosition / 4] = reinterpret_cast<void*>(&Em3TargetPosition);
+    objectTable[em::slot::kCheckFlag / 4] = reinterpret_cast<void*>(&Em3CheckFlag);
+    static void* finderTable[24] = {};
+    finderTable[1] = reinterpret_cast<void*>(&Em3AddRef);
+    finderTable[2] = reinterpret_cast<void*>(&Em3Release);
+    finderTable[em::slot::kFindPath / 4] = reinterpret_cast<void*>(&Em3FindPath);
+    g_em3Finder = Em3Object{finderTable, 1, 0};
+    static void* cityTable[256];
+    void** const realCity = At<void**>(city, 0);
+    for (int i = 0; i < 256; ++i)
+        cityTable[i] = realCity[i];
+    cityTable[em::slot::kCellOf / 4] = reinterpret_cast<void*>(&Em3CellOf);
+    cityTable[em::slot::kTrafficNetwork / 4] = reinterpret_cast<void*>(&Em3CityMap);
+    cityTable[em::slot::kCityPathFinder / 4] = reinterpret_cast<void*>(&Em3CityFinder);
+    RfSwap swapSound(addr::SC4_Sound43CB8, &sound);
+    RfSwap swapServer(addr::SC4_MessageServer, &server);
+    At<void**>(city, 0) = cityTable;
+
+    for (int i = 0; i < 3; ++i) {
+        char* const o = made[i];
+        g_em2.self = o;
+        void** const real = At<void**>(o, 0);
+        At<void**>(o, 0) = Em3Table(i, o);
+        uint32_t& flags = At<uint32_t>(o, av::field::kAutomataFlags);
+        const uint32_t savedFlags = flags;
+        auto withFlags = [&](uint32_t set, uint32_t clear) { flags = (savedFlags | set) & ~clear; };
+        Em3Object occupant{objectTable, 1, 0};
+        Em3Object target{objectTable, 1, 0};
+        g_em3Target = &target;
+        g_em3.occupant = &occupant;
+
+        // 0x0052F870: with an occupant, without (entered or not).
+        for (const int k : {0, 1, 2}) {
+            At<void*>(o, av::field::kOccupant) = k == 0 ? static_cast<void*>(&occupant) : nullptr;
+            g_em3.enterSets = k == 1;
+            SetPoint(reinterpret_cast<char*>(g_em3.position), 0, 12.5f, 3.0f, -7.25f + static_cast<float>(i));
+            eframes.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_EnsureOccupant, o));
+            eframes.Mix(At<void*>(o, av::field::kOccupant) == &occupant ? 1u : 0u);
+        }
+        g_em3.enterSets = true;
+        At<void*>(o, av::field::kOccupant) = nullptr;
+
+        // 0x0052F910 directly, with two bytes.
+        for (const uint8_t byte : {uint8_t{0}, uint8_t{0xC3}}) {
+            At<uint8_t>(o, em::base::kByte) = byte;
+            eframes.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_PostMission, o) & 0xFF);
+        }
+
+        // Slot 72 by the flag 0x80, slot 85, the sound service and the
+        // position (cSC4Vehicle's frame runs first).
+        {
+            const float positions[][3] = {{10.9f, -3.7f, 2500.2f}, {3e9f, -3e9f, 1e20f},
+                                          {std::numeric_limits<float>::quiet_NaN(), 0.5f, -0.5f}};
+            int run = 0;
+            for (const bool flag : {false, true})
+                for (const uint8_t s85 : {uint8_t{0}, uint8_t{1}})
+                    for (const auto& p : positions) {
+                        withFlags(flag ? 0x80u : 0u, flag ? 0u : 0x80u);
+                        g_em3.slot85 = s85;
+                        SetPoint(o, av::field::kPosition, p[0], p[1], p[2]);
+                        if (run % 4 == 3)
+                            *reinterpret_cast<void**>(addr::SC4_Sound43CB8) = nullptr;
+                        eframes.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_Frame, o, Bits(0.25f), 0u) & 0xFF);
+                        *reinterpret_cast<void**>(addr::SC4_Sound43CB8) = &sound;
+                        ++run;
+                    }
+            g_em3.slot85 = 0;
+            withFlags(0, 0);
+            SetPoint(o, av::field::kPosition, 0.0f, 0.0f, 0.0f);
+        }
+
+        // Slot 195 by slots 85, 87, 88 and 165, the occupant found or not, a
+        // route and the flag 0x20, +0xB0 with its flag 0x20 or not (no move:
+        // the occupant is the test's only after 0x0052F870).
+        {
+            Em3Object b0{objectTable, 1, 0};
+            Em3Object given{objectTable, 1, 0};
+            g_em3.object148 = &given;
+            char** const routeFinish = &At<char*>(o, 0x23C); // the route deque's finish (+0x22C its start)
+            char* const savedFinish = *routeFinish;
+            int run = 0;
+            for (const uint8_t s87 : {uint8_t{0}, uint8_t{1}})
+                for (const uint8_t s85 : {uint8_t{0}, uint8_t{1}})
+                    for (const uint8_t s88 : {uint8_t{0}, uint8_t{1}})
+                        for (const bool found : {false, true}) {
+                            g_em3.slot87 = s87;
+                            g_em3.slot85 = s85;
+                            g_em3.slot88 = s88;
+                            g_em3.slot165 = static_cast<uint8_t>(run % 5 == 4);
+                            g_em3.enterSets = found;
+                            At<void*>(o, av::field::kOccupant) = nullptr;
+                            const bool route = run % 3 != 0;
+                            *routeFinish = route ? savedFinish + 3 : savedFinish;
+                            withFlags(run % 2 ? 0x20u : 0u, run % 2 ? 0u : 0x20u);
+                            b0.flag20 = static_cast<uint8_t>(run % 4 < 2);
+                            At<void*>(o, av::field::kObjectB0) = run % 7 == 0 ? nullptr : static_cast<void*>(&b0);
+                            eframes.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_EnRouteFrame, o, Bits(0.5f)) & 0xFF);
+                            *routeFinish = savedFinish;
+                            void* const now = At<void*>(o, av::field::kObjectB0);
+                            eframes.Mix(now == &given ? 1u : now == &b0 ? 2u : now ? 3u : 0u);
+                            if (now == &given) {
+                                // put back without the game's release
+                                At<void*>(o, av::field::kObjectB0) = nullptr;
+                                --given.references;
+                                ++b0.references;
+                            }
+                            ++run;
+                        }
+            At<void*>(o, av::field::kObjectB0) = nullptr;
+            At<void*>(o, av::field::kOccupant) = nullptr;
+            eframes.Mix(static_cast<uint32_t>(b0.references));
+            eframes.Mix(static_cast<uint32_t>(given.references));
+            g_em3 = Em3Answers{};
+            g_em3.occupant = &occupant;
+            withFlags(0, 0);
+        }
+
+        // Slot 196 by the occupant, the count, the finder and its answer.
+        {
+            const uint8_t most = Global<uint8_t>(addr::cSC4EmergencyVehicle_MostRepaths);
+            SetPoint(o, em::base::kPoint, 4.0f, 5.0f, 6.0f);
+            struct Case196 {
+                bool found;
+                uint8_t count;
+                bool finder;
+                uint32_t answer;
+            };
+            const Case196 cases[] = {{false, 1, true, 1}, {false, 0, true, 0}, {true, 0, true, 7},
+                                     {true, 0, false, 0}, {true, most, true, 0}, {true, static_cast<uint8_t>(most - 1), false, 0},
+                                     {true, 0xFF, true, 0}};
+            for (const Case196& c : cases) {
+                g_em3.enterSets = c.found;
+                At<void*>(o, av::field::kOccupant) = nullptr;
+                At<uint8_t>(o, em::base::kByte) = c.count;
+                g_em3FinderAt = c.finder ? static_cast<void*>(&g_em3Finder) : nullptr;
+                g_em3.found = c.answer;
+                eframes.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_BlockedFrame, o, Bits(0.5f)) & 0xFF);
+                eframes.Mix(At<uint8_t>(o, em::base::kByte));
+            }
+            At<void*>(o, av::field::kOccupant) = nullptr;
+            g_em3.enterSets = true;
+        }
+
+        // Slot 198 by the smoothed value, slot 85, the target, the distance,
+        // the finder and its answer.
+        {
+            char* const smoothed = o + av::field::kSmoothed + 0x10;
+            alignas(4) char savedSmoothed[0x10];
+            std::memcpy(savedSmoothed, smoothed, 0x10);
+            const float values[] = {0.9f, std::numeric_limits<float>::quiet_NaN(), 0.6f, 0.1f};
+            for (const float v : values) {
+                At<float>(smoothed, 0) = v;
+                At<float>(smoothed, 4) = v;
+                At<uint32_t>(smoothed, 8) = 0;
+                At<uint32_t>(smoothed, 0xC) = 0;
+                At<void*>(o, em::base::kTarget) = &target;
+                SetPoint(reinterpret_cast<char*>(g_em3.position), 0, 100.0f, 0.0f, 100.0f);
+                SetPoint(reinterpret_cast<char*>(g_em3.there), 0, 900.0f, 7.0f, 100.0f);
+                g_em3FinderAt = &g_em3Finder;
+                g_em3.found = 1;
+                eframes.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_HomeFrame, o, Bits(0.5f)) & 0xFF);
+            }
+            At<float>(smoothed, 0) = 0.1f;
+            At<float>(smoothed, 4) = 0.1f;
+            struct Case198 {
+                uint8_t s85;
+                bool target;
+                float dx, dz;
+                bool finder;
+                uint32_t answer;
+            };
+            const float bound = static_cast<float>(Global<uint8_t>(addr::cSC4AutomatonBase_NearCells) * 16);
+            const Case198 cases[] = {{1, true, 500, 0, true, 1},         {0, false, 500, 0, true, 1},
+                                     {0, true, 1, 1, true, 1},           {0, true, bound, 0, true, 1},
+                                     {0, true, 0.6f * bound, 0.8f * bound, true, 0x100},
+                                     {0, true, 500, 3, true, 0},         {0, true, 500, -3, false, 1},
+                                     {0, true, std::numeric_limits<float>::quiet_NaN(), 0, true, 1}};
+            for (const Case198& c : cases) {
+                g_em3.slot85 = c.s85;
+                At<void*>(o, em::base::kTarget) = c.target ? static_cast<void*>(&target) : nullptr;
+                SetPoint(reinterpret_cast<char*>(g_em3.position), 0, 100.0f + c.dx, 0.0f, 100.0f + c.dz);
+                SetPoint(reinterpret_cast<char*>(g_em3.there), 0, 100.0f, 0.0f, 100.0f);
+                g_em3FinderAt = c.finder ? static_cast<void*>(&g_em3Finder) : nullptr;
+                g_em3.found = c.answer;
+                At<uint8_t>(o, em::base::kByte) = 5;
+                eframes.Mix(This<uint32_t>(addr::cSC4EmergencyVehicle_HomeFrame, o, Bits(0.5f)) & 0xFF);
+                eframes.Mix(At<uint8_t>(o, em::base::kByte));
+            }
+            std::memcpy(smoothed, savedSmoothed, 0x10);
+            At<void*>(o, em::base::kTarget) = nullptr;
+            g_em3.slot85 = 0;
+        }
+        eframes.Mix(static_cast<uint32_t>(occupant.references));
+        eframes.Mix(static_cast<uint32_t>(target.references));
+        flags = savedFlags;
+        At<uint8_t>(o, em::base::kByte) = 0;
+        At<uint32_t>(o, em::base::kMission) = 0;
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        At<void**>(o, 0) = real;
+    }
+    At<void**>(city, 0) = realCity;
+    eframes.Mix(static_cast<uint32_t>(g_em3Finder.references));
+    eframes.Mix(g_em2.posts);
+    eframes.Mix(g_em.calls.h);
+    eflags |= 0x800;
+    for (char* o : made)
+        ReleaseEm(o);
+    log::Write("autotest: automata: vehicle: em2b eframes %08X calls %08X posts %u", eframes.h, g_em.calls.h,
+               g_em2.posts);
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    g_em3 = Em3Answers{};
+    g_em3FinderAt = nullptr;
+    g_em3Target = nullptr;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -25680,6 +26126,10 @@ void VehicleDrive(cISC4City* city)
     Hash estates;
     EmStatesDrive(estates, eflags);
 
+    // ---- Part em2b.
+    Hash eframes;
+    EmFramesDrive(eframes, eflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -25736,12 +26186,12 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
-                  eobject.h, esave.h, elife.h, estates.h, eflags);
+                  eobject.h, esave.h, elife.h, estates.h, eframes.h, eflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

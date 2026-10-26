@@ -13370,7 +13370,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "53 8B 1D CC 3C B4 00 55"
-source = "Name ours, part em2b. Posts the message 0xCA8DCDB4 (a 0x2C-byte cGZMessage: slot 192, the byte +0x2C8, slot 5) to the message server 0x00B43CCC. Called by address from src/core/automata_emergency.cpp (part em2a)."
+source = "Name ours. On the base: the message 0xCA8DCDB4 (a 0x2C-byte cGZMessage of RZ::operator_new and its constructor, no null test; AddRef, slot 5 the type) with slot 192's word (its slot 11), the byte +0x2C8 (slot 16) and the occupant part from slot 5 (slot 33) posted to the message server 0x00B43CCC (read first; its slot 4 (message, 0)), then the message's Release (a tail jump, its EAX). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2b)."
 
 [[entry]]
 name = "cSC4EmergencyVehicle::RetryWait"
@@ -13458,3 +13458,71 @@ address = 0x00A980A0
 kind = "data"
 expect = "61 75 74 6F"
 source = "Name ours. \"automata_pullover\": the siren sound's name. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+# Part em2b: the emergency vehicles' base, the frames (src/core/automata_emergency.cpp, docs/automata.md "Part em").
+
+[[entry]]
+name = "cSC4EmergencyVehicle::EnsureOccupant"
+address = 0x0052F870
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 EC 14 56 8B F1 8B 86"
+source = "Name ours. On the base: without an occupant +0x1EC the one at its cell entered (the position from slot 7 into three copies of 0x00B22814, the cell from the city's slot 95 into two unset locals, the occupant from the city's slot 40 map's slot 11, then slot 132 with it and three zeros). EAX whether it has one. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2b)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Frame"
+address = 0x0052F3F0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t a, uint32_t b)"
+expect = "8B 44 24 08 53 56 8B F1"
+source = "Name ours. The base's slot 72, ret 8: cSC4Vehicle::Frame 0x0055BA20; with the automata flag 0x80 and not slot 85, slot 147 (the occupant, the byte 0x00B21CC0) and the sound service 0x00B43CB8's slot 11 (0xCA45190F, this, the position x, y, z as __ftol2's low words) when set. AL the frame's. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2b)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::EnRouteFrame"
+address = 0x0052FD50
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, float seconds)"
+expect = "56 8B F1 8B 06 FF 90 5C"
+source = "Name ours. The base's slot 195 (seconds), ret 4, the state 0x64: unless slot 87, with an occupant cSC4AutomatonBase::MoveToDestination (the flag 0x2000) or cSC4Vehicle::MoveOnPath; with slot 87 and not slots 85 or 165, slot 79 with slot 88 else Remove(false); Remove(false) when 0x0052F870 finds no occupant; with a route (+0x23C not +0x22C) and the flag 0x20, +0xB0 with its own flag 0x20 given slot 148's object (SC4RefPtr::Assign). AL 1. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2b)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::BlockedFrame"
+address = 0x0052FE50
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, float seconds)"
+expect = "83 EC 28 56 8B F1 8B 0D"
+source = "Name ours. The base's slot 196 (seconds), ret 4, the state 0x65: the city's slot 43 path finder; Remove(false) when 0x0052F870 finds no occupant and the byte +0x2C8 is set. With the finder its slot 17 (this, {0, 0, unset}, {1, the point +0x2B8}, 0, 3): found, the mission 3 (slot 25), slot 53, the byte zero. Else the byte one more: above the byte 0x00B21CB9 Remove(false); else 0x0052F910 and the state 7 pushed for 0x00B21CB4 x 1000. AL 1. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2b)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::HomeFrame"
+address = 0x0052F570
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, float seconds)"
+expect = "83 EC 44 56 8B F1 8D 8E"
+source = "Name ours. The base's slot 198 (seconds), ret 4, the state 0x67: nothing while the smoothed value +0x1B0 (0x004FA960) is above 0.6 (0x00A9809C) or unordered, or slot 85; slot 33 (1.0, 0x00B21C84); Remove(false) without the target +0x2C4 or within 16 x the byte 0x00B21CB8 of it (its slot 8, this one's slot 7; dx and dy rounded to floats, dz multiplied unrounded by its float; FSQRT at 53 bits) or when unordered; else the mission 6 (slot 25), and with the city's slot 43 path finder (AddRef, Release) its slot 17 (this, {1, the position} from 0x00469740, {0, the target, unset}, 2, 2): found the byte zero and the state 0 set (slot 51), else Remove(false); without a finder Remove(false). AL 1. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2b)."
+
+[[entry]]
+name = "SC4PathEnd::FromPoint"
+address = 0x00469740
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const float* point)"
+expect = "8B C1 8B 4C 24 04 C7 00"
+source = "Name ours. Ret 4: this = {1, x, y, z} (a path end at a point); answers this. Called by address from src/core/automata_emergency.cpp (part em2b)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Slot147Byte"
+address = 0x00B21CC0
+kind = "data"
+source = "Name ours. A byte of the tuning the base's frame gives slot 147. Called by address from src/core/automata_emergency.cpp (part em2b)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::MostRepaths"
+address = 0x00B21CB9
+kind = "data"
+source = "Name ours. A byte: the most repaths (+0x2C8) slot 196 tries before Remove(false). Called by address from src/core/automata_emergency.cpp (part em2b)."

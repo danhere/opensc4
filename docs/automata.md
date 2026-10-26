@@ -37,7 +37,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
-| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2, em3, em4 (part em below counts 122) |
+| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3, em4 (part em below counts 122) |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
@@ -3491,7 +3491,7 @@ What each overrides:
 122 functions of the group's own, 19,936 bytes (the estimate above counted 101 by neighbours; the difference is the route deque's template code):
 
 - **em1 (37, 2,305 bytes, done):** the objects, the save, the life cycle and the queries. Below.
-- **em2 (16, 3,606 bytes):** split in two: **em2a (10, done)** slots 25, 73 with 0x00530130, 79, 93, 109 to 111, 146 and 194, below; **em2b (6)** the frame 72, 195, 196, 198 and the helpers 0x0052F870 and 0x0052F910. The base's states and frames: 25 0x0052FF60 (set the mission), 72 0x0052F3F0 (the frame), 73 0x005304B0 with 0x00530130, 79 0x0052F210, 93 0x00532290 (the debug text), 109 0x0052F490, 110 0x0052F7C0, 111 0x0052F1C0, 146 0x0052F9A0, 194 0x00530AF0 (the siren), 195 0x0052FD50, 196 0x0052FE50, 198 0x0052F570, and the helpers 0x0052F870 and 0x0052F910.
+- **em2 (16, 3,606 bytes):** split in two: **em2a (10, done)** slots 25, 73 with 0x00530130, 79, 93, 109 to 111, 146 and 194, below; **em2b (6, done)** the frame 72, 195, 196, 198 and the helpers 0x0052F870 and 0x0052F910, below. The base's states and frames: 25 0x0052FF60 (set the mission), 72 0x0052F3F0 (the frame), 73 0x005304B0 with 0x00530130, 79 0x0052F210, 93 0x00532290 (the debug text), 109 0x0052F490, 110 0x0052F7C0, 111 0x0052F1C0, 146 0x0052F9A0, 194 0x00530AF0 (the siren), 195 0x0052FD50, 196 0x0052FE50, 198 0x0052F570, and the helpers 0x0052F870 and 0x0052F910.
 - **em3 (24, 4,217 bytes):** the fire truck's and the patrol car's frames: the fire truck's 25 0x005336C0, 60 0x00532D80, 111 0x00532E60, 121 0x00533090, 165 0x005332C0 (with 0x00533030 and 0x00533290, which the train's 165 also calls), 193 0x00532BF0, 197 0x005335F0, 199 0x00533060 and its helpers 0x00532AE0, 0x00532C40 (sends the fire crew), 0x00532D30, 0x00533410; the patrol car's 25 0x00543F60, 109 0x00543B40, 110 0x00543E80, 111 0x00543B80, 193 0x00543BC0, 197 0x00543C10, 199 0x00543F10, 200 0x00544060 and its helpers 0x00543C70 (sends the riot police), 0x00543D60. Could split by class.
 - **em4 (2, 1,127 bytes):** the base's slot 80 0x005329B0 and its helper 0x00532660, which walks the route deque.
 - **Stay the game's (43):** 16 adjustor thunks, three plain jumps (0x0052F1B0, 0x00532AD0, 0x00543B30) and 24 functions of the route deque's template code (0x0052FB80 to 0x00532430: copies and assignment; 0x00532430 is SC4RouteDeque::Assign, which the trailer's 0x005559D0 calls too).
@@ -3612,3 +3612,56 @@ A trial with fourteen planted changes (leaving 0x34, the wait state's type, slot
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run reached all 47 (em1 and em2a), and its em1 and em2a fields equalled the A run's (estates 0x2A9051D0).
+
+### What is ours (em2b)
+
+6 more functions in `simulators.automata.emergency` (list kFrames in [automata_emergency.cpp](../src/core/automata_emergency.cpp)), the base's frames; part em2 is finished:
+
+- **The frame (1):** slot 72 0x0052F3F0.
+- **The state frames (3):** slot 195 0x0052FD50 (the state 0x64, en route), 196 0x0052FE50 (0x65, route blocked) and 198 0x0052F570 (0x67, returning home). Slot 197 (0x66) is a fold.
+- **The helpers (2):** 0x0052F870 (the occupant at its cell) and 0x0052F910 (the mission message 0xCA8DCDB4).
+
+What they do:
+
+- The frame runs cSC4Vehicle's, then for a vehicle with the flag 0x80 slot 147 (the occupant, the byte 0x00B21CC0) and tells the sound service its source moved (0xCA45190F with the position as integers).
+- En route: the move (MoveToDestination with the flag 0x2000, else MoveOnPath) while it has an occupant and is not at the end of its way (slot 87); at the end slot 79 (slot 88) or Remove. Without an occupant at its cell it is removed. On a route with the flag 0x20 it passes +0xB0 slot 148's object.
+- Route blocked: the city's path finder (slot 43) is asked again (slot 17, from no occupant to the point +0x2B8); found, en route again (the mission 3, the state popped); not, the repaths +0x2C8 counted up to the byte 0x00B21CB9 (then Remove), the message posted and the wait state 7 pushed.
+- Returning home: once the smoothed value +0x1B0 is down to 0.6, within 16 x 0x00B21CB8 of the target +0x2C4 it is removed; farther it asks the finder for a way from its position to the target (the mission 6); none, Remove.
+- The message 0xCA8DCDB4 carries slot 192's word, the byte +0x2C8 and the occupant part.
+
+Left the game's: cSC4Vehicle's frame and MoveOnPath, the automaton base's MoveToDestination, the core's smoothed value, SC4RefPtr::Assign, 0x00469740 (a path end at a point), cGZMessage and RZ::operator_new, and the services.
+
+Oddities kept:
+
+- **0x0052F870** reads the cell into two unset locals; **slot 196** passes its first path end with two unset words, **slot 198** its second.
+- **Slot 196** removes a vehicle with no occupant only when the repaths are counted; with none it asks the finder anyway.
+- **Slot 198** rounds dx and dy to floats but multiplies the unrounded dz by its rounded float; NaN distances remove the vehicle.
+- **0x0052F910** does not test the new message for null.
+- **The frame's sound position** is __ftol2's low word (0 for what does not fit 64 bits).
+- **AL only in the game:** the frames' answers. Ours zero-extends.
+
+### Test (em2b)
+
+The ` V` token gains `,<eframes>` before eflags (47 fields; eflags 0x800 when it ran, 0x200 or 0x400 when a factory failed or there was no city). The log line is "em2b eframes".
+
+On each class's object, em2a's vtable copy with slots 7, 53, 85, 87, 88, 132, 147, 148, 165 and 192 the test's too, the sound service and the message server of the test's (the message's fields found by value), and the city's vtable swapped for a copy with slots 40 (a map of the test's), 43 (a path finder of the test's or none) and 95:
+
+- 0x0052F870 with an occupant and without (entered or not); 0x0052F910 with two bytes;
+- slot 72 by the flag 0x80, slot 85, the sound service and three positions (large, NaN);
+- slot 195 over sixteen cases (slots 85, 87, 88, 165, the occupant found, a route, the flag 0x20, +0xB0 and its flag; the move itself is a gap);
+- slot 196 over seven (the occupant, the count against 0x00B21CB9, the finder and its answer);
+- slot 198 over four smoothed values and eight cases (slot 85, the target, the distance against the bound and at it, the finder and its answer, a NaN).
+
+A trial with fourteen planted changes changed the token for thirteen. The fourteenth, slot 198's dz squared from its float, shows only at the bound itself.
+
+### Parity (em2b)
+
+2026-10-26. As for em1. Env p4env-em1, snapshot em1-p3:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves (Making Money d0090 on a rerun) |
+
+Every B run reached all 53, and its em fields equalled the A run's (estates 0x4F1404D0, eframes 0xB0EA0DAE, eflags 0x84F). In the batch Making Money d0090 first came out "partly": its B side had two outcomes from the first day on, one of them shared with A, before the test runs or any emergency code but the ambulance's slot 192; the rerun of that save alone was the same on all 8 days.
