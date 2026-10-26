@@ -12608,3 +12608,14 @@ address = 0x00A9C7BC
 kind = "data"
 expect = "00 00 20 41"
 source = "Name ours. float 10.0: slot 72's timer +0x2F0 from which the train may be removed. Called by address from src/core/automata_trains.cpp (part tr3a)."
+
+# Part tr3b: the train's cars placed (src/core/automata_trains.cpp, docs/automata.md "Part tr").
+
+[[entry]]
+name = "cSC4Train::PlaceCars"
+address = 0x0055A050
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float seconds)"
+expect = "81 EC C8 00 00 00 55 56"
+source = "Name ours. The train's slot 198, ret 4: the cars placed behind the train along where it came from, two passes a car: the front +0x264 half the car's and half the one before's radius (slot 17) behind the point before (at first the train's rear +0x2BC), then the rear +0x2BC the car's radius behind it. The search goes on from where it stopped: the path's (+0x1F8) segments from the last backwards, then each +0x27C deque element's path from the back (slot 49, slot 3 (key, 0)), against the sphere of the distance (0x0055CFD0, least 0.1); without a crossing the front is out as it was and the rear the front less the distance along the car's heading. Each pass with slot 32 below 1.0 and the automata flag 1: the car's slot 33 (it, 0.01) and slot 83 (seconds). After the rear: on the last car with the cars as many as wanted its old occupant's cell left (slot 137, slot 59, the city's traffic network (city slot 40) slot 39); slot 132 (the search's occupant and key, the path, 1); slot 16 (the front less half the direction, the unit direction; the direction front less rear, else +0x270 unless unset, else the train's heading), +0x270 the unit direction, slot 49 (the car before). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr3b)."

@@ -1,4 +1,4 @@
-// The layout of the trains, parts tr1, tr2a, tr2b and tr3a (build 641; functions, vtables and data
+// The layout of the trains, parts tr1, tr2a, tr2b, tr3a and tr3b (build 641; functions, vtables and data
 // in data/addresses/automata.toml, the survey in docs/automata.md, "Part tr").
 //
 // Three classes, each on the one before, with their own six vtables (+0x00,
@@ -127,6 +127,9 @@ inline constexpr std::size_t kDirectionOf = 0x220;       // 136: +0x1F4
 inline constexpr std::size_t kOccupantOf = 0x224;        // 137: +0x1EC
 inline constexpr std::size_t kSlot198 = 0x318;           // the train's 198: (seconds), ret 4
 inline constexpr std::size_t kAddCar = 0x31C;            // the train's 199
+// Part tr3b's, of the automaton.
+inline constexpr std::size_t kFadeNow = 0x80;            // 32: a float in ST0
+inline constexpr std::size_t kSlot83 = 0x14C;            // 83: the core's 0x005091C0, (seconds), ret 4
 } // namespace slot
 
 // cSC4Vehicle's fields this part reads (src/core/automata_vehicle.h has them

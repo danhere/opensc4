@@ -36,7 +36,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
-| Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3 (3 left) (part tr below counts 79, 17,591 bytes) |
+| Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3 (2 left) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
@@ -3195,7 +3195,7 @@ What each class overrides:
 
 - **tr1 (31, 2,908 bytes, done):** the objects, the save, the life cycle and the queries. Below.
 - **tr2 (18, 6,992 bytes):** the smaller frame code. The train's 73 0x00558DC0, 65 0x00558E00, 110 0x00557530 (with the car's 110 0x00557410), 111 0x00557620, 121 0x005570C0, 125 0x00557830, 129 0x00558510, 131 0x005588D0, 132 0x005574F0 (with the car's 132 0x00557320), 134 0x0055AD00, 165 0x00558FA0, 172 0x00557170, 197 0x00559C30 and 199 0x0055A8B0; the mass transit train's 165 0x0053CA20 and 172 0x0053C970. Split by the train's movement: **tr2a (13, done)** the rest, below; **tr2b (5, done)** 129, 131, 134, 197 and 199, below.
-- **tr3 (4, 7,498 bytes):** the frame 72 0x00557BF0, slot 198 0x0055A050, the driven frame 115 0x005591A0 and its helper 0x00557680. A piece each: **tr3a (1, done)** the frame 72, below; slot 198, then 115 with its helper, still the game's.
+- **tr3 (4, 7,498 bytes):** the frame 72 0x00557BF0, slot 198 0x0055A050, the driven frame 115 0x005591A0 and its helper 0x00557680. A piece each: **tr3a (1, done)** the frame 72, below; **tr3b (1, done)** slot 198, below; 115 with its helper still the game's.
 - **Stay the game's (26):** 21 adjustor thunks and five plain jumps (0x0053C950, 0x0053C960, 0x0053CA10, 0x00557070, 0x0055B740).
 
 Shared and not counted: the bus's Write and Read and their thunks, the trailer's jump 0x00555A50, the base's 0x0053CC00, and the folds 0x00441A50, 0x00648F00, 0x004FC900 and 0x005DEB40. No NAM site and none of SC4UIScale's addresses is in the group.
@@ -3400,3 +3400,36 @@ One train from its factory, its main vtable tr2b's copy with slots 12 (a transfo
 Every B run reached slot 72 and its ` V` token equalled the A run's (trock 0xE9ABCF2D, tflags 0x92F), but in Rush Hour t0000, where only ad3's `chighlight` differed (0xB49EAE5C against 0x86FDBB8E, a live city vehicle's, as in tr1 to tr2b). The game itself reaches slot 72 on no train before the test day in these saves. The first trial gave equal tokens at once.
 
 An independent audit against the disassembly found no defect.
+
+### What is ours (tr3b)
+
+1 more function in `simulators.automata.trains` (list kTrainFrame in [automata_trains.cpp](../src/core/automata_trains.cpp)), the train's cars placed:
+
+- **Slot 198 0x0055A050 (the cars placed):** called by slot 72 each frame out of the state 0x14. The cars are placed one after the other behind the train along where it came from, each in two passes: the first finds the car's front +0x264 half its radius and half the radius of the one before (slot 17) behind the point before (at first the train's rear +0x2BC), the second its rear +0x2BC its radius behind the front. The search goes on from where it stopped: the train's path (+0x1F8) from its last segment backwards, then the path of each element of the +0x27C deque (the occupants the train was on, from the back: the occupant's network part, slot 49, and its path for the key, slot 3), each segment against the sphere of the distance around the point (cSC4Vehicle::CrossBehind, 0x0055CFD0, least 0.1). Without a crossing the rear is the front less the distance along the car's heading. Each pass, with slot 32 below 1.0 and the automata flag 1, the car's slots 33 (that value, 0.01) and 83 (the seconds). Once the rear is known: on the last car, with as many cars as wanted, the cell of its old occupant (slot 137) is left (the city's traffic network, slot 39) when the search is on another; then slot 132 (the search's occupant and key, the path, 1), slot 16 at the middle (the front less half the direction) with the unit direction, +0x270 that direction and slot 49 (the car before).
+
+Oddities kept:
+
+- **The front:** the first pass sets it from the crossing's out point whether or not it crossed, so without a crossing it is where the last crossing was, or the float 0x00B22964 on all three axes.
+- **The direction:** front less rear; under 1e-5 long, +0x270 unless it is within 1e-4 of the core's default point on each axis or itself under 1e-5 long, else the train's heading.
+- **The path for slot 132:** when a deque element's part has no path for its key the walk ends, and that null path is the one slot 132 gets for this car and every car after.
+- **Short paths:** with fewer than 2 points the index (the count less 2, unsigned) counts down from near 2^32 doing nothing but carry the later point; ours skips to below the count with the same result.
+- **Dead code:** when the walk ends the game measures the point's distance to the last earlier point and drops the answer.
+- **Calls twice a car:** slot 17, slots 33 and 83 (when they run) and the slot 32 test happen on each of a car's two passes.
+
+### Test (tr3b)
+
+The ` V` token gains `,<tplace>` before tflags (40 fields). tflags adds 0x2000 (it ran), 0x4000 (the factory failed) and 0x8000 (the city's other slots were called). The log line is "tr3b tplace" (with the count of cells left).
+
+One train from its factory, its main vtable tr2b's copy with slot 32 the test's; cars of tr2b's kind with slots 33, 83 and 137 the test's; the city and its traffic network (slot 39) the test's. 21 fixed runs over no cars, no path (the direction's fallbacks: +0x270 set, unset, short), the train's path alone, the walk into the deque (connected paths, a bare lane, a part with no path, a far path, 18 elements over two blocks with the start mid-block), slot 32 against 1.0 with and without the flag 1 (and a NaN), a zero radius and the last car's occupant left; then 256 drawn placements (a fixed LCG). Paths of fewer than 2 points are not tried: the game's count down would take seconds. Eleven planted changes (rounding of the first distance, the rear's x, the direction's y and the middle's x; the occupant and the null path of a found element; the point after the first pass; the slot 32 test; the unset +0x270; the last-car test; the later point carried) each changed tplace.
+
+### Parity (tr3b)
+
+2026-10-26. B = `simulators.automata.vehicle`, `simulators.automata.roadveh` and `simulators.automata.trains` against the original, as for tr3a. Two jobs, `OPENSC4_MUTE=1`, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. Env p4env-tr3b, snapshot tr3b-p1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same after 2 pairs on the rerun (tr3b-p1b); the first run had a third outcome on B only |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached slot 198 and its ` V` token equalled the A run's (tplace 0xA25320FA, tflags 0x292F), but in Rush Hour t0000, where only ad3's `chighlight` differed (0xB49EAE5C against 0xB7A37F8C, a live city vehicle's, as in tr1 to tr3a). The game itself reaches slot 198 on no train before the test day in these saves.
