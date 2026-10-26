@@ -772,7 +772,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* picture, int32_t x, int32_t y, const void* text, uint32_t length, uint32_t colour, uint32_t colour2, const int32_t* clip, int32_t* pen)"
 expect = "55 8B EC 83 EC 2C 53 56"
-source = "Name ours, not hooked. Slot 51 (+0xCC); `ret 0x24`. One line of text into a picture: the text converted to UTF-16 (0x00899BCA, with Thai composition 0x00899665), each glyph fetched from the cache (slot 60), placed from the pen (x, y, or *pen) and clipped to clip (left, top, right, bottom) if given, then the list handed to the blitter at +0x8C (its slot 7) between its begin and end (slots 5 and 6, the picture's lock 0x8080). Colour 0x08000000 means the font's own (+0x44). *pen gets the end position. Every text draw passes here; ran in all 17 coverage runs (docs/fonts.md, \"Crisp text hook points\")."
+source = "Name ours. Slot 51 (+0xCC); `ret 0x24`. One line of text into a picture: the text converted to UTF-16 (0x00899BCA, with Thai composition 0x00899665), each glyph fetched from the cache (slot 60), placed from the pen (x, y, or *pen) and clipped to clip (left, top, right, bottom) if given, then the list handed to the blitter at +0x8C (its slot 7) between its begin and end (slots 5 and 6, the picture's lock 0x8080). Colour 0x08000000 means the font's own (+0x44). *pen gets the end position. Every text draw passes here; ran in all 17 coverage runs (docs/fonts.md, \"Crisp text hook points\"). Ours in framework.font.font.draw (docs/fonts.md, f3g)."
 
 [[entry]]
 name = "GZFont::DrawStringInRect"
@@ -781,7 +781,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* picture, const int32_t* rect, const void* text, uint32_t length, uint32_t align, uint32_t colour, uint32_t colour2, const int32_t* clip, int32_t* pen)"
 expect = "55 8B EC 83 EC 28 53 56"
-source = "Name ours, not hooked. Slot 52 (+0xD0); `ret 0x24`. Wraps the text into rect (left, top, right, bottom) line by line with FitString, aligns each line (0 left, 1 centre, 2 right, by MeasureString), drops trailing line breaks and draws each with DrawString, line height apart (slot 35). Ran in all 17 coverage runs (docs/fonts.md)."
+source = "Name ours. Slot 52 (+0xD0); `ret 0x24`. Wraps the text into rect (left, top, right, bottom) line by line with FitString, aligns each line (0 left, 1 centre, 2 right, by MeasureString), drops trailing line breaks and draws each with DrawString, line height apart (slot 35). Ran in all 17 coverage runs. Ours in framework.font.font.draw (docs/fonts.md, f3g)."
 
 [[entry]]
 name = "GZFont::GetGlyph"
@@ -980,6 +980,24 @@ convention = "thiscall"
 signature = "bool (void* this, const void* text, uint32_t count)"
 expect = "55 8B EC 51 56 8B F1 8A"
 source = "Name ours. Slot 28 (+0x70); `ret 8`. When loaded, every word of the text made UTF-16 (vector 0) got from the glyph cache (slot 60). AL whether loaded. Ours in framework.font.font.measure (docs/fonts.md, f3f)."
+
+[[entry]]
+name = "GZFont::Ramp"
+address = 0x0089838C
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t colour, uint32_t colour2)"
+expect = "55 8B EC 83 EC 1C 53 8B"
+source = "Name ours. `ret 8`: DrawString's ramp of 128 colours from colour2 to colour made current (+0xFC): the current one, else one from the list +0x100 (moved to the front, 0x00949259 and 0x009D74D9), else a new one (operator new 0x200, zeroed): 8 of colour2, 15 rows of 8 between them (the colour converter 0x00913C1A, slots 0x90 and 0x8C), 8 of colour; the list keeps four (the last's node freed, the ramp not). Ours in framework.font.font.draw (docs/fonts.md, f3g)."
+
+[[entry]]
+name = "GZFont::GlyphsResize"
+address = 0x00899A73
+kind = "function"
+convention = "thiscall"
+signature = "void (void* glyphs_vector, uint32_t count)"
+expect = "55 8B EC 83 EC 24 8D 45"
+source = "Name ours. On the vector of placed glyphs (+0xF0) in ECX, `ret 4`: resized (0x00899513) to count, new glyphs copies of 0x24 bytes of the stack it never sets. Called by DrawString 0x0089A099. Ours in framework.font.font.draw (docs/fonts.md, f3g)."
 
 [[entry]]
 name = "GZFontBlitter::Construct"
