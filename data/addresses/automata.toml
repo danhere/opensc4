@@ -12522,3 +12522,57 @@ address = 0x00B0A090
 kind = "data"
 expect = "00 00 80 3F"
 source = "Name ours. float 1.0: the train's slot 65 normalises the cars' headings to it. Called by address from src/core/automata_trains.cpp (part tr2a)."
+
+# Part tr2b: the train's movement (src/core/automata_trains.cpp, docs/automata.md "Part tr").
+
+[[entry]]
+name = "cSC4Train::MoveOnPath"
+address = 0x00558510
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, float seconds)"
+expect = "83 EC 28 53 56 8B F1 8B"
+source = "Name ours. The train's slot 129, ret 4: as cSC4Vehicle's 0x0055CAF0 with +0x94 the smoothed speed (zero when the step is not above 0), the front point unset when any coordinate is below 0, and the rear: after the move along the path (slot 133) the rear point +0x2BC from slot 182 (the new point, the radius, +0x27C); the direction the front point less the rear (at 1e-5 or less +0x270, AL 1 at once when that is the core's default point within 1e-4 or no longer either), the destination +0x4C half of it behind the new point, slot 16 with the unit vector; +0x270 that, +0x264 the new point, the flag 0x20 cleared. AL 1 but 0 when removed. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2b)."
+
+[[entry]]
+name = "cSC4Train::PathTo"
+address = 0x005588D0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, void* occupant, uint32_t key, uint32_t exact)"
+expect = "83 EC 20 53 55 8B 6C 24"
+source = "Name ours. The train's slot 131, ret 0xC: with 0x00B43DA8's slot 17 true for the occupant's cell (slot 59) the vehicle manager's records given the event (SC4::ApplyTrafficEvent: +4, 2, 20000) and, with the message server, a message 0x0C05E4CD with the cell posted; the base's PathTo 0x0054E920. With it true, a path and no flag 0x2000: not exact, the front point the path's last and +0x1FC the count less 2; exact, +0x260 capped by the room ahead (slot 151) and the path's first point advanced by it (slot 133, its answer dropped), or without +0x260 the part's index (slot 19, dropped). Then the rear (slot 182); the direction front less rear, or with a NaN in the rear the radius times the unit vector of the path's first to its last (the front point then the last); the destination half of it behind the front; slot 16 with the unit vector (null at 1e-5 or less); +0x270 it; the flag 0x20 cleared. AL the base's. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2b)."
+
+[[entry]]
+name = "cSC4Train::PlaceOnNetwork"
+address = 0x0055AD00
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "83 EC 44 55 56 8B F1 8B"
+source = "Name ours. The train's slot 134: the traffic network map's occupant at the position's cell and its network part (false without either); the kind 4 with the byte +0x2B8, else 6 for the groups 0x422D or 0x422C, 7 for 0x422F or 0x422E, else 3; the best side of +0xA4 (normalised; slot 171) without the automata flag 0x4000, with +0x98 and +0xA4 longer than 1e-5; the part's path (slot 5: kind, 0xFF, side, position, an out word in the side's slot, 0; false without one); slot 132 (occupant, out, path, 1); the +0x27C deque cleared; +0x1FC the last point's index, +0x264 the last point, the heading +0x58 last less first; the rear (slot 182); slot 16 with the point half of the front less the rear behind the front and its unit vector, or (slot 182 false) half the radius behind along the unit vector from the point before (the rear the radius behind). True. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2b)."
+
+[[entry]]
+name = "cSC4Train::NextOccupant"
+address = 0x00559C30
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, const float* direction)"
+expect = "83 EC 1C 53 55 8B 2D 54"
+source = "Name ours. The train's slot 197, ret 4: 0x00B43D54's slot 15 (the occupant, the side +0x1F4, 0, +0x1F7 & 0xF); false without one. Its network part (slot 49) and slot 40's key (the occupant, the opposite side); the part's path for it (slot 3) when the path's last point is within 2 of that one's first; else the best side (slot 171 with the direction) and the keys (slot 6: the kind, the last point, the opposite side, the side, 0.5): the first's path, or with none slot 5's (the kind, the opposite side, 0xFF, the last point, the key out); the keys freed. False without a path; slot 131 (the occupant, the key, 1), the occupant's cell entered (slot 38), and the cell of 0x00B43D54's slot 15 (occupant, key, 0, 0) when it answers one. True. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2b)."
+
+[[entry]]
+name = "cSC4Train::AddCar"
+address = 0x0055A8B0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "83 EC 20 53 55 56 8B F1"
+source = "Name ours. The train's slot 199: the last car (or the train) and its radius (slot 17); when twice it is no more than the rear +0x2BC's distance to the point +0x2DC less half of it: the vehicle manager's (slot 174) slot 15 (the car group, 0x421A for 0x4203 when one car short, the point, +0x84, a zeroed vector, 0, the byte +0x90, 0); the car interface (0x4A416254) of what it makes: the flag 2 cleared, slot 49 the last car, slot 16 (the point, its heading), slot 132 (+0x2E8, +0x2EC, 0, 1), pushed on the cars (SC4PtrVector::PushBack, AddRef), the state 0x10 pushed when the train is in it. AL whether a car was made. Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr2b)."
+
+[[entry]]
+name = "cSC4Train::Near"
+address = 0x00A9C7C8
+kind = "data"
+expect = "17 B7 D1 38"
+source = "Name ours. float 1e-4: slot 129 takes +0x270 within it of the core's default point as unset. Called by address from src/core/automata_trains.cpp (part tr2b)."
