@@ -1,4 +1,4 @@
-// The layout of the trains, parts tr1 and tr2a (build 641; functions, vtables and data
+// The layout of the trains, parts tr1, tr2a and tr2b (build 641; functions, vtables and data
 // in data/addresses/automata.toml, the survey in docs/automata.md, "Part tr").
 //
 // Three classes, each on the one before, with their own six vtables (+0x00,
@@ -84,6 +84,38 @@ inline constexpr std::size_t kNetworkKind = 0x18C;  // the occupant's 0x4A10AFC2
 inline constexpr std::size_t kEnterCell = 0x98;     // 0x00B43D54's 38: (automaton, a, b), ret 0xC
 inline constexpr std::size_t kCellOf = 0x17C;       // the city's 95: (x, z, int*, int*), ret 0x10
 inline constexpr std::size_t kGetLot = 0x18;        // the lot manager's 6: (x, z, 0), ret 0xC
+// Part tr2b's, of the automaton unless noted.
+inline constexpr std::size_t kRemove = 0x34;          // 13: (bool), ret 4
+inline constexpr std::size_t kPlace = 0x40;           // 16: (point, heading), ret 8
+inline constexpr std::size_t kGetRadius = 0x44;       // 17: a float in ST0
+inline constexpr std::size_t kSmoothedNow = 0x88;     // 34: a float in ST0
+inline constexpr std::size_t kSetLeader = 0xC4;       // 49: (automaton), ret 4; an occupant's: its network part
+inline constexpr std::size_t kSlot79 = 0x13C;         // 79
+inline constexpr std::size_t kSlot88 = 0x160;         // 88: a bool
+inline constexpr std::size_t kSlot102 = 0x198;        // 102: (word, word), ret 8
+inline constexpr std::size_t kSlot125 = 0x1F4;        // 125: a float in ST0
+inline constexpr std::size_t kPathTo = 0x20C;         // 131: (occupant, key, exact), ret 0xC
+inline constexpr std::size_t kEnterOccupant = 0x210;  // 132: (occupant, groups, path, keep), ret 0x10
+inline constexpr std::size_t kAdvanceOnPath = 0x214;  // 133: six words, ret 0x18
+inline constexpr std::size_t kClearAhead = 0x25C;     // 151: a float in ST0
+inline constexpr std::size_t kSlot161 = 0x284;        // 161
+inline constexpr std::size_t kBestDirection = 0x2AC;  // 171: (occupant, direction, side*, 1), ret 0x10
+inline constexpr std::size_t kManager = 0x2B8;        // 174: the vehicle manager
+inline constexpr std::size_t kTrail = 0x2D8;          // 182: (point, out, distance, deque), ret 0x10, a bool
+inline constexpr std::size_t kTrafficNetwork = 0xA0;  // the city's 40
+inline constexpr std::size_t kOccupantAt = 0x2C;      // the traffic network map's 11: (cell x, cell z), ret 8
+inline constexpr std::size_t kPartPath = 0x0C;        // a network part's 3: (key, word), ret 8
+inline constexpr std::size_t kFindPath = 0x14;        // a network part's 5: six words, ret 0x18
+inline constexpr std::size_t kKeys = 0x18;            // a network part's 6: six words, ret 0x18
+inline constexpr std::size_t kIndexOf = 0x4C;         // a network part's 19: (point, path), ret 8
+inline constexpr std::size_t kNeighbour = 0x3C;       // 0x00B43D54's 15: (occupant, side, word, kind), ret 0x10
+inline constexpr std::size_t kNeighbourKey = 0xA0;    // 0x00B43D54's 40: (occupant, side), ret 8
+inline constexpr std::size_t kEventAt = 0x44;         // 0x00B43DA8's 17: (cell x, cell z), ret 8, a bool
+inline constexpr std::size_t kMakeCar = 0x3C;         // the vehicle manager's 15: seven words, ret 0x1C
+inline constexpr std::size_t kSetType = 0x14;         // a message's 5: (type), ret 4
+inline constexpr std::size_t kSetData1 = 0x2C;        // a message's 11: (word), ret 4
+inline constexpr std::size_t kSetData2 = 0x40;        // a message's 16: (word), ret 4
+inline constexpr std::size_t kPost = 0x10;            // the message server's 4: (message, 0), ret 8
 } // namespace slot
 
 // cSC4Vehicle's fields this part reads (src/core/automata_vehicle.h has them
@@ -92,6 +124,12 @@ namespace field {
 inline constexpr std::size_t kObjectB0 = 0xB0, kDraw = 0x80, kSmoothed = 0x1A0;
 inline constexpr std::size_t kHeading = 0x58, kSpeed = 0x94, kOccupant = 0x1EC, kDirection = 0x1F4, kFront = 0x264;
 inline constexpr std::size_t kDeque204 = 0x204, kDeque27C = 0x27C; // start (cur, first, last, node), finish
+// Part tr2b's.
+inline constexpr std::size_t kPosition = 0x40, kDestination = 0x4C, kRadius = 0x7C, kAutomataFlags = 0x84;
+inline constexpr std::size_t kByte90 = 0x90, k98 = 0x98, kVectorA4 = 0xA4, kNetwork = 0x1F0, kKind1F7 = 0x1F7;
+inline constexpr std::size_t kPath = 0x1F8, kPathIndex = 0x1FC, kRoute = 0x22C, kFloat260 = 0x260;
+inline constexpr std::size_t kTravel = 0x270; // the direction of travel (+0x264 the front point)
+inline constexpr std::size_t kRouteFinish = 0x23C; // the route deque's finish current (its start's at +0x22C)
 } // namespace field
 
 // The stream slots (cIGZOStream / cIGZIStream), each one argument.
