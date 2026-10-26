@@ -36,7 +36,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
-| Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3 (2 left) (part tr below counts 79, 17,591 bytes) |
+| Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
@@ -3195,7 +3195,7 @@ What each class overrides:
 
 - **tr1 (31, 2,908 bytes, done):** the objects, the save, the life cycle and the queries. Below.
 - **tr2 (18, 6,992 bytes):** the smaller frame code. The train's 73 0x00558DC0, 65 0x00558E00, 110 0x00557530 (with the car's 110 0x00557410), 111 0x00557620, 121 0x005570C0, 125 0x00557830, 129 0x00558510, 131 0x005588D0, 132 0x005574F0 (with the car's 132 0x00557320), 134 0x0055AD00, 165 0x00558FA0, 172 0x00557170, 197 0x00559C30 and 199 0x0055A8B0; the mass transit train's 165 0x0053CA20 and 172 0x0053C970. Split by the train's movement: **tr2a (13, done)** the rest, below; **tr2b (5, done)** 129, 131, 134, 197 and 199, below.
-- **tr3 (4, 7,498 bytes):** the frame 72 0x00557BF0, slot 198 0x0055A050, the driven frame 115 0x005591A0 and its helper 0x00557680. A piece each: **tr3a (1, done)** the frame 72, below; **tr3b (1, done)** slot 198, below; 115 with its helper still the game's.
+- **tr3 (4, 7,498 bytes):** the frame 72 0x00557BF0, slot 198 0x0055A050, the driven frame 115 0x005591A0 and its helper 0x00557680. A piece each: **tr3a (1, done)** the frame 72, below; **tr3b (1, done)** slot 198, below; **tr3c (2, done)** 115 with its helper, below. Part tr is finished.
 - **Stay the game's (26):** 21 adjustor thunks and five plain jumps (0x0053C950, 0x0053C960, 0x0053CA10, 0x00557070, 0x0055B740).
 
 Shared and not counted: the bus's Write and Read and their thunks, the trailer's jump 0x00555A50, the base's 0x0053CC00, and the folds 0x00441A50, 0x00648F00, 0x004FC900 and 0x005DEB40. No NAM site and none of SC4UIScale's addresses is in the group.
@@ -3433,3 +3433,37 @@ One train from its factory, its main vtable tr2b's copy with slot 32 the test's;
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every B run reached slot 198 and its ` V` token equalled the A run's (tplace 0xA25320FA, tflags 0x292F), but in Rush Hour t0000, where only ad3's `chighlight` differed (0xB49EAE5C against 0xB7A37F8C, a live city vehicle's, as in tr1 to tr3a). The game itself reaches slot 198 on no train before the test day in these saves.
+
+### What is ours (tr3c)
+
+2 more functions in `simulators.automata.trains` (list kTrainFrame in [automata_trains.cpp](../src/core/automata_trains.cpp)), the driven train's frame (U-Drive):
+
+- **Slot 115 0x005591A0 (the driven frame):** the keys' frame (0x00508C50) first; when it says no, only +0x94 is set and AL is 0. With the template's entry: a damage (the controls' +0x60) above its +0x5C answers 1 at once; the throttle (controls +0x2C) is the pedal +0x28 x seconds added to it, clamped to 0 .. the entry's top speed +8. Below top speed nothing rocks; at it the train rocks: +0x2F8 set, +0x2F4 gains the seconds and the throttle becomes the top speed less a tenth plus a draw (cRZRandom::Range) within plus or minus +0x2F4 / +0x4C x a bound kept once; the key +0x80 ends the rocking (the throttle from the top speed again). The U-Drive service's slot 9 is told +0x2F4 over half of +0x4C. Without rocking the smoothed speed is set (0x004FDF90) towards the throttle: up by the entry's +0x10 x seconds, down by +0x14. With the controls' horn byte +0xED, a walk ahead along the network (up to slot 175 = 6 occupants: the part's path, 0x00B43D54's cell list, the next part's keys) sounds the horn 0x8BE8D9AC at the first junction the service says to. Then 1 to 6 steps by the speed x seconds: slot 133 along the path or slot 197 onto the next occupant (else Remove and AL 1), the rear (slot 182), +0x4C half the direction behind the next point, slot 16, +0x270, the front, the flag 0x20 cleared, the controls' rear and direction; a collision (slot 190) gives 0x0055F7B0 and ends the steps. Then the controls' effect and sound source as cSC4Vehicle's (vb8), 0x00557680, and +0x94 the distance moved over the seconds.
+- **0x00557680 (the derailment check):** while rocking, the fifth car's (or the last of fewer) heading against the train's: below a dot of 0.05, at odds of 0.1 (SC4Random::Unit), the train derails (slot 65 with a zero point, the automata flag 0x8000000, slot 102 (0xB, 1)); with +0x2F4 above the entry's +0x4C the U-Drive service's slot 9 gets the word 0x00B22960 and the train derails.
+
+Oddities kept:
+
+- **The rocking bound** (0x00B22958) is a static set once, from whichever entry first rocks, with its flag 0x00B2295C; the word 0x00B22960 that 0x00557680 sends is written by nothing.
+- **Slowing down:** a speed above the throttle loses +0x14 x seconds; when that is still not below the throttle and above 0 it becomes 0 (below the throttle it becomes the throttle).
+- **The horn's walk:** with no keys it moves to the next cell of the list but asks the same part again; slot 175 is asked on each step.
+- **Early answers:** the damage, a failed step, and a front at the rear with +0x270 unset or under 1e-5 all answer 1 at once, without +0x94, the effect or 0x00557680.
+- **No null test** of the sound source's inner pointer or of the controls.
+- **AL** is the keys' frame's, or 1 on the early answers.
+
+### Test (tr3c)
+
+The ` V` token gains `,<tdrive>` before tflags (41 fields). tflags adds 0x10000 (it ran), 0x20000 (the factory failed) and 0x40000 (no U-Drive service). The log line is "tr3c tdrive" (with the rocking bound's bits).
+
+One train from its factory, its main vtable tr2b's copy with slots 16 (setting the position), 56, 65, 67, 121, 190 and 197 the test's; 0x00B43D54 (slots 15, 40, 42) and the occupant manager 0x00B43D0C the test's; lanes of vb3's kind with slot 48; the generator seeded. 37 fixed frames over the keys' frame saying no, no entry, the damage, the throttle's clamps, speeding up and slowing down, the rocking (growing, ended by the key, a NaN) with the fifth car turned, the horn's walk (one key on, a junction silent or sounding, no keys, no cell list, a null occupant, no path, no part), slots 133 and 197 failing, the rear at the front (+0x270 set, unset, short), collisions with and without an entry, the effect and source, zero and long frames; then 128 drawn frames (a fixed LCG). Of 13 planted changes 10 changed tdrive; the three that did not are the share told to the U-Drive service (the game's own service, not read back: a gap), the half of z (a float, so exact) and the order of the squares in +0x94 (below a float's rounding).
+
+### Parity (tr3c)
+
+2026-10-26. B = `simulators.automata.vehicle`, `simulators.automata.roadveh` and `simulators.automata.trains` against the original, as for tr3b. Two jobs, `OPENSC4_MUTE=1`, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. Env p4env-tr3b, snapshot tr3b-c1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same after 2 pairs |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached both functions and its ` V` token equalled the A run's (tdrive 0x37C5AAAA, tflags 0x1292F), but in Rush Hour t0000, where only ad3's `chighlight` differed, as before. The game itself reaches neither before the test day in these saves (it needs a train driven in U-Drive). The first trial gave equal tokens at once.
