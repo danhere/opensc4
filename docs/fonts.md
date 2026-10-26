@@ -2,7 +2,7 @@
 
 The text engine at 0x00893D2C to 0x008AE76D: a Maxis framework layer (a COM director, the font system, the font, a glyph blitter) on top of **T2K**, the font scaler Sampo Kaasila wrote and Bitstream sold as Font Fusion. It is the "Font engine" line of [uncharted-code.md](uncharted-code.md), which gave it as 0x00894000 to 0x008A7FFF; the code runs a little lower and higher than that.
 
-Everything here was read from the disassembly with Ghidra; the glyph blitter (f4), the director (f1), the T2K holder (f5), the font system's own functions (f2a), its tables (f2b) and the font's object and properties (f3a), its containers (f3b), its loading, size and scale (f3c), its encodings and Thai (f3d), its glyphs and glyph sheet (f3e) and its measuring and fitting (f3f) are ours and were checked in the game ("f4: the glyph blitter is ours", "f1 and f5", "f2a", "f2b", "f3a", "f3b", "f3c", "f3d", "f3e" and "f3f" below). Names are ours unless they come from T2K. The addresses the doc relies on are in [data/addresses/font.toml](../data/addresses/font.toml) (f1, f2a, f2b, f3a, f3b, f3c, f3d, f3e, f3f, f4 and f5 hooked) and [data/names-641.txt](../data/names-641.txt). "Ran" counts come from the 17 coverage files on TurboToaster ([dev-environment.md](dev-environment.md), "Coverage"); code that runs only while the game starts is never recorded there.
+Everything here was read from the disassembly with Ghidra; the glyph blitter (f4), the director (f1), the T2K holder (f5), the font system's own functions (f2a), its tables (f2b) and the font's object and properties (f3a), its containers (f3b), its loading, size and scale (f3c), its encodings and Thai (f3d), its glyphs and glyph sheet (f3e), its measuring and fitting (f3f) and its drawing (f3g) are ours and were checked in the game ("f4: the glyph blitter is ours", "f1 and f5", "f2a", "f2b", "f3a" to "f3g" below). Names are ours unless they come from T2K. The addresses the doc relies on are in [data/addresses/font.toml](../data/addresses/font.toml) (f1, f2a, f2b, f3a to f3g, f4 and f5 hooked) and [data/names-641.txt](../data/names-641.txt). "Ran" counts come from the 17 coverage files on TurboToaster ([dev-environment.md](dev-environment.md), "Coverage"); code that runs only while the game starts is never recorded there.
 
 ## Library or Maxis
 
@@ -52,7 +52,7 @@ Text comes in as the font's encoding and is turned into UTF-16 first (0x00899BCA
 |---|---|---:|---:|---|
 | f1 | 0x00895F36 to 0x0089604D, less 0x0089603D | 8 | 1 | The director, its three factories, the static getter, slot 4 (the 1 is the font factory). **Ours** (`framework.font.director`, below) |
 | f2 | 0x00893D2C to 0x00895F35 | 85 | 7 | The font system: folder scans, face table, aliases, GetFont, and the STLport map and list code for them. Most of it runs while the game starts, before the meter is armed; the 7 are QueryInterface, Release, GetFont, slot 10 and three helpers. **f2a**, the system's own 32, and **f2b**, the 51 STLport functions and two folded setters, are **ours** (`framework.font.system.*`, below) |
-| f3 | 0x00896254 to 0x0089A577, less f4 and f5 | 113 | 59 | The font: layout, measuring, line breaking, drawing, glyph cache and sheet, encodings, Thai, sample characters per language (slot 25). **f3a**, 38 of them (the object, its properties, the blitter's hand-over), **f3b**, 36 (its STLport containers), **f3c**, 5 (Load, SetSize, SetScale, the sample characters, the levels), **f3d**, 6 (the encodings and Thai), **f3e**, 7 (GetGlyph, RenderGlyph, the sheet), and **f3f**, 18 (measuring, fitting, the rectangles, the shortener), are **ours** (`framework.font.font.*`, below); the rest is the game's ("f3: what is left") |
+| f3 | 0x00896254 to 0x0089A577, less f4 and f5 | 113 | 59 | The font: layout, measuring, line breaking, drawing, glyph cache and sheet, encodings, Thai, sample characters per language (slot 25). **f3a**, 38 of them (the object, its properties, the blitter's hand-over), **f3b**, 36 (its STLport containers), **f3c**, 5 (Load, SetSize, SetScale, the sample characters, the levels), **f3d**, 6 (the encodings and Thai), **f3e**, 7 (GetGlyph, RenderGlyph, the sheet), **f3f**, 18 (measuring, fitting, the rectangles, the shortener), and **f3g**, 4 (DrawString, DrawStringInRect, the ramp, the resize): all of f3 is **ours** (`framework.font.font.*`, below) |
 | f4 | 0x00896053 to 0x00896243, 0x00896E63, 0x00897246, 0x00897722 | 11 | 4 | The glyph blitter and its blend tables. **Ours** (`framework.font.blitter.draw` and `.object`, below) |
 | f5 | 0x0089603D, 0x00896D2F, 0x00896DDD, 0x00896E4A, 0x008976A4, 0x00897FED, 0x0089801E, 0x0089883F, 0x008988F1, 0x00898C6B, 0x00898CD9, 0x00898EB2 | 12 | 11 | The T2K holder: open, close, the file stream and T2K's read callback, names and styles, glyph names. **Ours** (`framework.font.t2k.*`, below; the first map counted 13 over ranges that also held some of the font's functions) |
 | f6 | 0x0089A578 to 0x008AE76D | 321 | 142 | **T2K** (third-party) |
@@ -95,7 +95,7 @@ Slots 51 and 52 ran in all 17 coverage runs, far more often than these callers, 
 - **The blitter's DrawGlyphs (slot 7 of 0x00AC55B4, 0x00897246).** The last step before text is pixels: a list of placed glyphs (0x24 bytes each: box, sheet pixels, pitch, width, height, character) and the picture. A replacement blitter could send glyphs to the driver instead of the picture, which is also a vtable swap rather than a detour. Most fonts draw through the font system's blitter instead (vtable 0x00AC14D0, through a drawing context; "Two blitters" below), so a hook here alone misses most text; the font's SetBlitter (slot 54) is where either is handed over.
 - GetFont (0x00894ADF) is where fonts are made, if the larger font objects should be made alongside the game's.
 
-Of these, the f4 blitter, GetFont (f2a) and SetBlitter (f3a) are ours (as translations, not yet as crisp-text hooks); f1 and f5, which open the faces, are ours too but are not drawing.
+Of these, DrawString (f3g), SetSize and SetScale (f3c), the f4 blitter, GetFont (f2a) and SetBlitter (f3a) are ours (as translations, not yet as crisp-text hooks); f1 and f5, which open the faces, are ours too but are not drawing.
 
 ## f4: the glyph blitter is ours
 
@@ -660,6 +660,59 @@ Results, 2026-10-26:
 
 **Audit**: each translation was checked against the disassembly by the author (every call's address, convention, arguments and their order, each vector ToUnicode is given and whether it keeps the offsets, what is read once and what again, signed and unsigned compares and divisions, the AL answers, the thunks' byte counts, the expect bytes). No independent audit.
 
-## f3: what is left
+## f3g: the font's drawing is ours
 
-The other 4 functions of f3 stay the game's, the drawing: DrawString (slot 51, 0x0089A099) and DrawStringInRect (slot 52, 0x0089A35B), DrawString's resize of its placed glyphs (0x00899A73, a call of 0x00899513 with a frame of its own) and its colour ramp (0x0089838C). Ghidra now finds 114 functions in f3's range less f4 and f5 (the first map counted 113).
+The last four of f3's functions are translated by hand ([src/core/font_draw.cpp](../src/core/font_draw.cpp)), in one group, off by default and installed at Attach:
+
+| Group | Functions | What |
+|---|---:|---|
+| `framework.font.font.draw` | 4 | DrawString (slot 51, 0x0089A099), DrawStringInRect (slot 52, 0x0089A35B), DrawString's colour ramp (0x0089838C) and the resize of its placed glyphs (0x00899A73, on the vector in ECX) |
+
+All four are detours. ToUnicode (f3d), GetGlyph and the glyph cache (f3e), FitString and MeasureString (f3f), the blitter's begin, draw and end (its slots 5, 7 and 6), the blitter kind of a mode (0x00896B2C), the colour converter (0x00913C1A, its slots 0x90 and 0x8C), the ramps' list (erase 0x00949259, push_front 0x009D74D9), the vector's resize (0x00899513) and operator new stay the game's, called at their addresses, as do these four when they call one another. Addresses: [data/addresses/font.toml](../data/addresses/font.toml) (DrawString and DrawStringInRect were there, not hooked; the ramp and the resize are new).
+
+### What they do
+
+- **DrawString** (slot 51, `ret 0x24`: picture, x, y, text, count, colour, colour2, clip, pen): when loaded and given text, the text made UTF-16 (vector 1). In mode 2 the ramp is made current; with a second colour of 0x08000000 the mode is +0x50's, and when that is 2 too the second colour is 0 with a first colour and -1 without. A first colour of 0x08000000 is the font's (+0x44). With a picture and no begin yet (+0x80), the blitter's begin with the kind of the mode (0x00896B2C); AL 0 there answers 0. The pen, when given, replaces (x, y). The vector of placed glyphs (+0xF0, 0x24 bytes each) grows to the count; every character's glyph is got first; then each character's glyph (else the fallback character's, +0xE4; else nothing and no advance) is placed at the pen plus its bearing and top plus the line spacing (+0x78), kept when it has pixels and meets the clip, and the pen moves by its advance plus the spacing (+0x74). With a picture and glyphs kept, the blitter draws them with the ramp in mode 2, else the two colours (the second's top byte whether it began). Then the pen, and the end when it began. Answers +0x04's byte.
+- **DrawStringInRect** (slot 52, `ret 0x24`: picture, rectangle, text, count, align, colour, colour2, clip, pen): when loaded and given text, the text made UTF-16 (vector 0), the encoding 0x10 while it works, the begin as DrawString's (kind of +0x4C). With a width: lines from the rectangle's top, the first from the pen's x when that is not the left, each FitString's (mode 2) at the width, placed by `align` (0 left, 1 centred by halves rounded toward 0, 2 right, else where the last ended), drawn by DrawString without its trailing line breaks, a line height apart while inside the rectangle and text is left. Each line's DrawString gets a pen set to the line's start, which it moves to its end; the pen gets that. Then the end when it began, the encoding back.
+- **The ramp** (0x0089838C): 128 colours, 8 of the second colour, 15 rows of 8 between (each byte the second's plus the difference times the row over 16, through the colour converter), 8 of the first; the current one (+0xFC) if it is it, else one from the list of the four last used (+0x100, moved to the front), else a new one at the front and the last dropped (its node freed, the ramp not).
+- **The resize** (0x00899A73): the vector of placed glyphs resized to the count by 0x00899513, new glyphs copies of 0x24 bytes of the stack the game never sets (ours zeroed).
+
+### Quirks kept
+
+- DrawString's mode for the begin, the draw and the end is +0x50's whenever the second colour is 0x08000000 in mode 2, even when +0x50 is not 2 (the ramp is still made).
+- The colours the blitter is given outside mode 2 are DrawString's two arguments where they lie, so the second colour's top byte is whether DrawString began.
+- The ramp's list drops its last node but not the ramp in it (0x200 bytes each time a fifth pair is drawn); the third byte of the second colour starts as its argument's top byte (the converter writes over it).
+- A character whose glyph and fallback are both missing places nothing and does not advance; GetGlyph answers a glyph (or the box) whenever the font has a glyph cache, so this needs a font without one, which DrawString's callers never have (the test does not reach it).
+- DrawStringInRect's pen, when no line set it, gets what the game's stack held; ours writes it back as it was (compare mode and the test leave that case out).
+- AL answers: ours is 0 above it where the game leaves what EAX held.
+
+### Testing
+
+**Compare mode**: DrawString and DrawStringInRect run the game's first with the font's blitter behind a recorder (each begin, draw and end, with what the draw was given: the picture, the kind, the colours or the ramp's, the clip and every placed glyph; the font's own blitter does the work, with +0x8C its own again while it runs), then ours with a blitter that records the same and answers each begin as the game's did, and compare the records, the answer and the pen. Running both makes the Thai pass push twice on the offsets: what ours pushed is taken off again (as in f3f). The ramp and the resize run the game's alone and compare what it did with what ours works out from the state before: the list's order (each ramp by where it was, or new), the current ramp and a new ramp's colours; the vector's size and the glyphs it kept. While the game's side runs, our detours inside it pass through to the game's; while ours runs, ours.
+
+**`OPENSC4_TEST_FONTS=<day>`** has one more stage after the measuring (same file, same ` | ft` hash), and the strings stage (DrawString on the f4 blitter into mock pictures, since f4) reaches DrawString too:
+
+| Stage | What |
+|---|---|
+| fontdraw | Arial MT at 14 and Times New Roman at 17 from the font system, given our blitter as the strings stage does, in modes 1 and 2 (mode 2 with the levels halved, as there) into 16 and 32-bit pictures: DrawStringInRect over five texts (wrapping, line breaks of both kinds and trailing ones, a long word, spaces, one character) in five rectangles (one with no width, one starting below its bottom, one sticking out), the four alignments, pens (none, at the left, elsewhere), the clip, the font's own colours by chance; with no picture; DrawString with no picture, with the font's own colours (+0x50 2 and 1, the first colour 0x08000000, 0 and another), inside a begin of the font's own (slot 55), DrawStringInRect there too, and both with the lock refused; then through a blitter that hashes what it is given (every placed glyph, its pixels as a place in the glyph cache, the colours or the ramp, the clip) in both modes, with the spacings off and on and begins that succeed and fail; the ramp over eleven pairs (the list keeps four; back to kept and dropped ones); the placed glyphs resized up and down with what was kept checked |
+
+The pictures, answers, pens (but a DrawStringInRect pen no line set), ramps and the list go into the hash. A mutation check (the font's own first colour left out; the second colour's 0 and -1 swapped; +0x50's mode not taken; the second colour's top byte not set; the line spacing or the spacing left out; the clip's left edge met at equality; glyphs without pixels kept; the pen not written; centring and the right alignment a pixel off; only line feeds stripped; the pen's x not taken; lines a pixel further apart; five ramps kept; a found ramp not moved to the front; the ramp's rows over 15; the resize one larger; a refused begin answering 1; DrawStringInRect's refused begin leaving the encoding 0x10) changed the hash at fontdraw each time. Two did not, as expected: the fallback left out (above: not reachable) and the second colour's third byte not started from its argument (the converter always writes it). Four were first missed and the test was given a blitter that hashes what it is given and the spacings for them.
+
+Results, 2026-10-26:
+
+| Check | Result |
+|---|---|
+| Test runs, group off (two) vs on, and in compare mode | every stage hash the same: the 26 before as with f3f (fontmeasure 2605D3E2; strings 1CFB48AA), fontdraw 469241D2; `ft` the same. All 4 reached |
+| Compare mode, test | 0 divergences: drawstring 4191 calls, drawinrect 1136, ramp 22, resize 14 |
+| Compare mode, 90 s of plain play (Making Money) | 0 divergences: drawstring 1684, drawinrect 790 (the resize ran inside them; the ramp did not run: nothing the game drew was in mode 2) |
+| Screenshots (`run-shots.sh`, Making Money, the group on) vs the game | 20 of 20 within `--tolerance 32 --max-differing 1.2` |
+| Parity `ft11-t1`, 12 saves, 7 days, muted, `OPENSC4_TEST_FONTS=2`, own folder `p4env-ft11`, two jobs, A `determinism.dispatch_info`, B that and the group | 12 same at the first try; `ft` A5371B46 in all 120 daily fingerprints, both sides (run before the test's hashing blitter was added; the group's code is the same) |
+
+**Reached** in plain play: DrawString, DrawStringInRect and the resize. Not reached: the ramp. The test reaches all 4.
+
+**Audit**: each translation was checked against the disassembly by the author (every call's address, convention, arguments and their order, the blitter pointer read again at each use, the kind computed from the mode variable at each call, the colours' layout, the placed glyph's fields, signed compares of the clip and the rectangle, the halving toward 0, the ramp's byte arithmetic and the list's order, the thunks' byte counts, the expect bytes). No independent audit.
+
+## f3: nothing is left
+
+With f3g every function of f3 is ours (`framework.font.font.*`, off by default). Ghidra finds 114 functions in f3's range less f4 and f5 (the first map counted 113).
+
