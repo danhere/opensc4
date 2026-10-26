@@ -1,4 +1,4 @@
-// The layout of the emergency vehicles, parts em1, em2a and em2b (build 641; functions, vtables and data in
+// The layout of the emergency vehicles, parts em1, em2a, em2b and em3a (build 641; functions, vtables and data in
 // data/addresses/automata.toml, the survey in docs/automata.md, "Part em").
 //
 // A base on cSC4Vehicle (src/core/automata_vehicle.h) and three classes on
@@ -122,7 +122,40 @@ inline constexpr std::size_t kMessageData1 = 0x2C;  // its 11: (word), ret 4
 inline constexpr std::size_t kMessageData2 = 0x40;  // its 16: (word), ret 4
 inline constexpr std::size_t kMessageObject = 0x84; // its 33: (object), ret 4
 inline constexpr std::size_t kPost = 0x10;          // the message server's 4: (message, 0), ret 8
+// Part em3a's (the fire truck), of the automaton unless noted.
+inline constexpr std::size_t kSetDestination = 0x28; // 10: (point), ret 4
+inline constexpr std::size_t kGoHome = 0x74;        // 29
+inline constexpr std::size_t kGetSpeed = 0x98;      // 38: a float in ST0
+inline constexpr std::size_t kGroups = 0x220;       // 136: a word
+inline constexpr std::size_t kReach = 0x304;        // the fire truck's 193: a float in ST0
+inline constexpr std::size_t kCitySimulators = 0x120; // the city's 72: the simulators
+inline constexpr std::size_t kSimulatorById = 0x1C; // their 7: (class), ret 4
+inline constexpr std::size_t kCityTargets = 0xE4;   // the city's 57: a service of targets
+inline constexpr std::size_t kTargetKnown = 0x1C;   // its 7: (target), ret 4, a bool
+inline constexpr std::size_t kTargetReach = 0x60;   // its 24: (target), ret 4, a float in ST0
+inline constexpr std::size_t kCityWidth = 0x174;    // the city's 93: cells across
+inline constexpr std::size_t kCityDepth = 0x178;    // the city's 94: cells deep
+inline constexpr std::size_t kCityOccupants = 0x88; // the city's 34: the occupant manager
+inline constexpr std::size_t kOccupantsInBox = 0x90; // its 36: (list, low, high, filter, -1), ret 0x14
+inline constexpr std::size_t kListDone = 0xC0;      // its 48: (list), ret 4
+inline constexpr std::size_t kCrewAdd = 0x1C;       // the city's 44 object's 7: (crew), ret 4
+inline constexpr std::size_t kPick = 0xF0;          // 0x00B43DD0's 60: (x, y, float* out, 1, 1), ret 0x14
+inline constexpr std::size_t kNetworkPart = 0xC4;   // an occupant's 49: its network part
+inline constexpr std::size_t kPartReaches = 0x54;   // a network part's 21: (1, point, point, 0), ret 0x10
+inline constexpr std::size_t kFireCount = 0x14;     // the fire interface's 5: a count
+inline constexpr std::size_t kFiresIn = 0x10;       // its 4: (rect), ret 4: a count
+inline constexpr std::size_t kBurning = 0x2C;       // the 0x49B43F57 interface's 11: an object
+inline constexpr std::size_t kBurningCount = 0x40;  // that object's 16: a count
+inline constexpr std::size_t kServiceHas = 0x1C;    // 0x00B43D78's 7: (object), ret 4, a bool
+inline constexpr std::size_t kServiceWord = 0x28;   // its 10: (out, object), ret 8: a pointer to a word
 } // namespace slot
+
+// The fire truck's slot 121's argument (the driving controls): a float the
+// steering needs at or above zero, two words given to 0x00B43DD0's slot 60
+// and the point it writes.
+namespace controls {
+inline constexpr std::size_t kHeld = 0x9C, kScreen = 0x214, kAim = 0x21C;
+} // namespace controls
 
 // A state record's type (the core's states).
 namespace state {

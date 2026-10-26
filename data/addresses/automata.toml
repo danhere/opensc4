@@ -12514,7 +12514,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* deque)"
 expect = "83 EC 10 83 C1 10 8B D1"
-source = "Name ours. The last 0xC-byte element of a +0x204 deque (the finish's current less 0xC, from the block before when at a block's first). Called by address from src/core/automata_trains.cpp (part tr2a)."
+source = "Name ours. The last 0xC-byte element of a +0x204 deque (the finish's current less 0xC, from the block before when at a block's first). Called by address from src/core/automata_trains.cpp (part tr2a). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
 
 [[entry]]
 name = "cSC4TrainCar::One"
@@ -13526,3 +13526,182 @@ name = "cSC4EmergencyVehicle::MostRepaths"
 address = 0x00B21CB9
 kind = "data"
 source = "Name ours. A byte: the most repaths (+0x2C8) slot 196 tries before Remove(false). Called by address from src/core/automata_emergency.cpp (part em2b)."
+
+# Part em3a: the fire truck (src/core/automata_emergency.cpp, docs/automata.md "Part em").
+
+[[entry]]
+name = "cSC4FireTruck::FiresNear"
+address = 0x00532AE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t* total, int32_t* near)"
+expect = "83 EC 14 53 8B 5C 24 1C"
+source = "Name ours. Ret 8: both zero; the city's simulators (slot 72) slot 7 0xEBFB0404 as 0x4C1E8345: *total its slot 5; the cell under the position from the city's slot 95 into the arguments' own stack slots; *near its slot 4 over the cells x - r, z - r, x + r, z + r with r = slot 193 x 3 (0x00A85074) x 0.0625 (0x00A8E174) at 53 bits through __ftol2. The interface released when held. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::Reach"
+address = 0x00532BF0
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "51 56 57 8B F9 8B 0D EC"
+source = "Name ours. The fire truck's slot 193: the city's slot 57 service's slot 24 for the target +0x2C4 when its slot 7 knows it (the service not null-tested), else 16. In ST0. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::SendCrew"
+address = 0x00532C40
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 08 56 8B F1 8B 86"
+source = "Name ours. Without a crew +0x2E0: a 0x2C4-byte block of 0x00544890 given to cSC4SimFireCrew's constructor 0x0054A2A0 (this truck), held in +0x2E0; its word +0x274 (0x00546CB0) the float 0x00B09B18's bits or the service 0x00B43D78's slot 10 word for the target when its slot 7 knows it (the service held for the while, not null-tested); the city's slot 44 object's slot 7 with the crew; the crew sent (0x00547EF0). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::RecallCrew"
+address = 0x00532D30
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 86 E0 02 00"
+source = "Name ours. With a crew +0x2E0: the city's slot 44 object's slot 8 (the crew, 0), then +0x2E0 cleared and released (a tail jump). EAX the last call's. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::OnEvent"
+address = 0x00532D80
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t event, uint32_t flag)"
+expect = "53 55 8B 6C 24 0C 56 8B"
+source = "Name ours. The fire truck's slot 60, ret 8: with a crew the events 0 and 1 recall it (0x00532D30). The event 7 with the flag's low byte set: with a crew the mission field 2, slot 102 (7, slot 26) and the crew recalled; without, |the smoothed value +0x1A0 (0x004FA960)| below 0.001 (0x00A867A4, not unordered) gives the mission field 5, slot 102 (7, slot 26) and 0x00532C40. The event 8 without a crew the same by slot 38. Then the base's slot 60 0x0052F780, its EAX. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::LeaveState"
+address = 0x00532E60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* state)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. The fire truck's slot 111, ret 4: leaving the state 0x10 recalls the crew (0x00532D30); then the base's 0x0052F1C0, its EAX. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "SC4AutomatonStep::Copy"
+address = 0x00533030
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. Ret 4: a 12-byte route step copied (the object at +0 held, the word +4, the byte +8); answers this. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::Slot199"
+address = 0x00533060
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 06 FF 90 EC"
+source = "Name ours. The fire truck's slot 199: out of the state 0x10 (slot 59) the crew recalled (0x00532D30) and the mission 2 (slot 25). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::Steer"
+address = 0x00533090
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* controls, uint32_t word)"
+expect = "83 EC 28 56 8B 74 24 30"
+source = "Name ours. The fire truck's slot 121, ret 8: with the controls' float +0x9C at or above zero and 0x00B43DD0's slot 60 (+0x214, +0x218, a point of three 0x00B22818, 1, 1) true, the point kept on the map (x below 0 to 0, from 16 x the city's slot 93 on to that less 1 (0x00A81228) as a float; z so by slot 94 but unrounded; neither without a city) and within the float 0x00B21CDC of the position (differences as floats, z, y, x squared summed, FSQRT at 53 bits; past it brought back along the way by 0x00B09B1C over the float distance, x unrounded until stored, y and z through floats) is stored at +0x21C. Then cSC4Vehicle::Steer 0x0055C600 (controls, word), its EAX. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::Slot165"
+address = 0x005332C0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "83 EC 18 56 57 8B F1 8B"
+source = "Name ours. The fire truck's slot 165: with the automata flags 0x80 and 0x40, not 0x2000, an occupant +0x1EC, no route (+0x23C = +0x22C), steps in the +0x204 deque and slot 146: the last step copied (0x00533290, 0x00533030); when its object's network part (slot 49) slot 21 (1, slot 143, a point of three 0x00B22818, 0) is true, slot 132 (the object, slot 136, 0, 1), +0x1F8 zero, the flag 0x2000 on (slot 30), slot 10 with the point, the flag 4 off. The copy's object released (no null test); AL 1. Else cSC4AutomatonBase::NextStep 0x00553AA0, its EAX. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::DouseTargets"
+address = 0x00533410
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t* burning, int32_t* near)"
+expect = "83 EC 28 53 8B 5C 24 30"
+source = "Name ours. Ret 8: *burning the city's simulator 0x621CDA33 as 0x49B43F57: its slot 11's slot 16 (each released). *near the nodes the city's slot 34 occupant manager (held, not null-tested) slot 36 puts in a list (allocator 0x00B207E4, fetched from the framework when unset; the list's second word the bits of slot 193's float) for the box x and z within slot 193 of the position (slot 7 into three 0x00B22818; floats), y -FLT_MAX to FLT_MAX, the filter +0x2D8 and -1; then its slot 48 with the list. The list destroyed (0x00413FE0). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::SceneFrame"
+address = 0x005335F0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, float seconds)"
+expect = "83 EC 10 56 8B F1 8D 44"
+source = "Name ours. The fire truck's slot 197, ret 4 (the state 0x66): 0x00533410 and 0x00532AE0; the mission 2 without a crew and either near count above zero gives the mission 5 (slot 25); both near counts zero on the mission 5 out of the state 0x10 the mission 2; the mission 2 with both first counts zero slot 29. AL 1. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::SetMission"
+address = 0x005336C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t mission)"
+expect = "8B 44 24 04 83 EC 08 56"
+source = "Name ours. The fire truck's slot 25, ret 4: the base's 0x0052FF60; unless a state 0x10 is stacked (slot 57), by slot 26: 1 the crew recalled and a new one made (as 0x00532C40, no word), the city's slot 44 object's slot 7 and 0x00547EF0; 5 the crew recalled, 0x00533410 and 0x00532AE0, and with either near count above zero or the state 0x10 0x00532C40; else the crew recalled. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em3a)."
+
+[[entry]]
+name = "cSC4Pedestrian::New"
+address = 0x00544890
+kind = "function"
+convention = "cdecl"
+signature = "void* (uint32_t size)"
+expect = "8B 44 24 04 3D 70 02 00"
+source = "Name ours. The pedestrians' allocator: 0x270 bytes from the pool 0x00B0A018, any other size from SC4::operator_new (a tail jump). Called by address from src/core/automata_emergency.cpp (part em3a)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Construct"
+address = 0x0054A2A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* truck)"
+expect = "53 55 56 57 83 EC 0C 8B"
+source = "Name ours. The fire crew's constructor (ret 4): the pedestrian base's, then the crew's vtables and the truck at +0x270 (held). Called by address from src/core/automata_emergency.cpp (part em3a)."
+
+[[entry]]
+name = "cSC4SimFireCrew::SetWord274"
+address = 0x00546CB0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const uint32_t* word)"
+expect = "8B 44 24 04 8B 10 89 91"
+source = "Name ours. Ret 4: +0x274 = *word. Called by address from src/core/automata_emergency.cpp (part em3a)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Dispatch"
+address = 0x00547EF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "81 EC 2C 01 00 00 53 56"
+source = "Name ours, not analysed: sends the crew out from its truck (+0x270) by the truck's mission. Called by address from src/core/automata_emergency.cpp (part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::CrewWord"
+address = 0x00B09B18
+kind = "data"
+source = "Name ours. The float 1.0 whose bits 0x00532C40 gives the crew's +0x274 by default. Called by address from src/core/automata_emergency.cpp (part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::One"
+address = 0x00B09B1C
+kind = "data"
+source = "Name ours. The float 1.0 the fire truck's slot 121 divides by the distance. Called by address from src/core/automata_emergency.cpp (part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::HoseReach"
+address = 0x00B21CDC
+kind = "data"
+source = "Name ours. A float of the tuning: how far from the fire truck its slot 121 aims. Called by address from src/core/automata_emergency.cpp (part em3a)."
+
+[[entry]]
+name = "cSC4FireTruck::DefaultFloat"
+address = 0x00B22818
+kind = "data"
+source = "Name ours. The float the fire truck's points start as (three copies). Called by address from src/core/automata_emergency.cpp (part em3a)."

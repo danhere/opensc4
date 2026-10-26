@@ -37,7 +37,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
-| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3, em4 (part em below counts 122) |
+| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b, em4 (part em below counts 122) |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
@@ -3492,7 +3492,7 @@ What each overrides:
 
 - **em1 (37, 2,305 bytes, done):** the objects, the save, the life cycle and the queries. Below.
 - **em2 (16, 3,606 bytes):** split in two: **em2a (10, done)** slots 25, 73 with 0x00530130, 79, 93, 109 to 111, 146 and 194, below; **em2b (6, done)** the frame 72, 195, 196, 198 and the helpers 0x0052F870 and 0x0052F910, below. The base's states and frames: 25 0x0052FF60 (set the mission), 72 0x0052F3F0 (the frame), 73 0x005304B0 with 0x00530130, 79 0x0052F210, 93 0x00532290 (the debug text), 109 0x0052F490, 110 0x0052F7C0, 111 0x0052F1C0, 146 0x0052F9A0, 194 0x00530AF0 (the siren), 195 0x0052FD50, 196 0x0052FE50, 198 0x0052F570, and the helpers 0x0052F870 and 0x0052F910.
-- **em3 (24, 4,217 bytes):** the fire truck's and the patrol car's frames: the fire truck's 25 0x005336C0, 60 0x00532D80, 111 0x00532E60, 121 0x00533090, 165 0x005332C0 (with 0x00533030 and 0x00533290, which the train's 165 also calls), 193 0x00532BF0, 197 0x005335F0, 199 0x00533060 and its helpers 0x00532AE0, 0x00532C40 (sends the fire crew), 0x00532D30, 0x00533410; the patrol car's 25 0x00543F60, 109 0x00543B40, 110 0x00543E80, 111 0x00543B80, 193 0x00543BC0, 197 0x00543C10, 199 0x00543F10, 200 0x00544060 and its helpers 0x00543C70 (sends the riot police), 0x00543D60. Could split by class.
+- **em3 (24, 4,217 bytes):** split by class: **em3a (14, done)** the fire truck's, below; em3b (10) the patrol car's. The fire truck's and the patrol car's frames: the fire truck's 25 0x005336C0, 60 0x00532D80, 111 0x00532E60, 121 0x00533090, 165 0x005332C0 (with 0x00533030 and 0x00533290, which the train's 165 also calls), 193 0x00532BF0, 197 0x005335F0, 199 0x00533060 and its helpers 0x00532AE0, 0x00532C40 (sends the fire crew), 0x00532D30, 0x00533410; the patrol car's 25 0x00543F60, 109 0x00543B40, 110 0x00543E80, 111 0x00543B80, 193 0x00543BC0, 197 0x00543C10, 199 0x00543F10, 200 0x00544060 and its helpers 0x00543C70 (sends the riot police), 0x00543D60. Could split by class.
 - **em4 (2, 1,127 bytes):** the base's slot 80 0x005329B0 and its helper 0x00532660, which walks the route deque.
 - **Stay the game's (43):** 16 adjustor thunks, three plain jumps (0x0052F1B0, 0x00532AD0, 0x00543B30) and 24 functions of the route deque's template code (0x0052FB80 to 0x00532430: copies and assignment; 0x00532430 is SC4RouteDeque::Assign, which the trailer's 0x005559D0 calls too).
 
@@ -3665,3 +3665,60 @@ A trial with fourteen planted changes changed the token for thirteen. The fourte
 | The 12-save batch | 7 | 12 of 12 saves (Making Money d0090 on a rerun) |
 
 Every B run reached all 53, and its em fields equalled the A run's (estates 0x4F1404D0, eframes 0xB0EA0DAE, eflags 0x84F). In the batch Making Money d0090 first came out "partly": its B side had two outcomes from the first day on, one of them shared with A, before the test runs or any emergency code but the ambulance's slot 192; the rerun of that save alone was the same on all 8 days.
+
+### What is ours (em3a)
+
+14 more functions in `simulators.automata.emergency` (list kFireTruck in [automata_emergency.cpp](../src/core/automata_emergency.cpp)), the fire truck:
+
+- **Its slots (8):** 25 0x005336C0 (set the mission), 60 0x00532D80 (events), 111 0x00532E60 (leaving a state), 121 0x00533090 (the steering, aiming the hose), 165 0x005332C0 (the step at the point), 193 0x00532BF0 (the reach), 197 0x005335F0 (the state 0x66, on the scene) and 199 0x00533060.
+- **The crew (2):** 0x00532C40 sends a crew, 0x00532D30 recalls it.
+- **The counts near it (2):** 0x00532AE0 (the fire simulator 0xEBFB0404 as 0x4C1E8345: its total, and the fires in the cells within the reach) and 0x00533410 (the simulator 0x621CDA33 as 0x49B43F57: a count; and the occupants the douse filter +0x2D8 finds within the reach).
+- **The route steps (2):** 0x00533030 (a 12-byte step copied) and 0x00533290 (the +0x204 deque's last step, which the train's slot 165 also calls).
+
+What they do:
+
+- The reach is the city's slot 57 service's for the target +0x2C4 when it knows it, else 16. 0x00532AE0 uses it in cells (x 3 x 0.0625), 0x00533410 in metres.
+- On the scene (197): with the mission 2 (done) and no crew, anything near makes it 5 (handling the event); nothing near on 5 makes it 2 again; on 2 with nothing burning, home (slot 29).
+- Setting the mission runs the base's, then (unless in the state 0x10) recalls the crew; the mission 1 makes a new one at once and sends it, the mission 5 sends one when anything is near or in the state 0x10.
+- Sending a crew: a cSC4SimFireCrew (0x2C4 bytes of the pedestrians' allocator, constructed with the truck), its word +0x274 the service 0x00B43D78's for the target or the bits of 1.0, the city's slot 44 object told, then the crew's dispatch 0x00547EF0. Recalling: that object told it is done with, the crew released.
+- Events: with a crew the events 0 and 1 recall it; the event 7 (with its flag) recalls a crew and sets the mission field to 2, or without one, once the smoothed value +0x1A0 is about still (below 0.001), sets it to 5 and sends a crew; the event 8 does the latter by slot 38. Then the base's slot 60. Leaving the state 0x10 (111) and slot 199 out of it recall the crew; 199 sets the mission 2.
+- The steering (121): when the controls' +0x9C is not negative and 0x00B43DD0's slot 60 finds a point under the controls' words +0x214/+0x218, the point is kept on the map and within the float 0x00B21CDC (128 in the test saves) of the truck and stored at +0x21C (where the hose aims). Then cSC4Vehicle's.
+- The step (165): with the flags 0x80 and 0x40, not 0x2000, an occupant, no route and steps left, at the point (slot 146) the last step's object is entered when its network part reaches the point (slot 21), and the flag 0x2000 set; else the automaton base's NextStep.
+
+Left the game's: the fire crew's code (its constructor, 0x00546CB0 and the dispatch, the pedestrians'), 0x00544890, the base's SetMission, OnEvent and LeaveState (ours from em1 and em2a when on), cSC4Vehicle::Steer, the automaton base's NextStep, the list allocator and SC4List::Destroy2, and the services.
+
+Oddities kept:
+
+- **0x00532AE0** reads the cell into the stack slots of its own two arguments; what the city's slot 95 does not write stays the pointers.
+- **0x00533410** keeps its list on the stack with the second word the bits of slot 193's float; it calls the occupant manager without a null test (and releases it so), and the burning simulator's query answer is not read, only its out.
+- **0x00532C40** calls the service 0x00B43D78 without a null test once it has a target, and 0x00546CB0, slot 44 and the dispatch without testing the crew; **slot 193** does not test the city's slot 57 service.
+- **Slot 60** sets the mission field directly (not slot 25) and tells slot 102 itself; the event 7 takes |smoothed| but the event 8 slot 38 as it is.
+- **Slot 121:** x is clamped and stored as a float, z kept unrounded until it is stored; brought back to the reach x stays unrounded until stored, y and z go through floats twice. Neither is clamped without a city; NaN points pass.
+- **Slot 165** releases the copied step's object without a null test (it has called it already).
+- **Slot 193** answers in ST0; ours as a double.
+
+### Test (em3a)
+
+The ` V` token gains `,<efire>` before eflags (48 fields; eflags 0x1000 when it ran, 0x2000 or 0x4000 when the factory failed or there was no city, 0x8000 when the crew code could not be patched). The log line is "em3a efire".
+
+On a fire truck, em2b's vtable copy with slots 10, 29, 38, 67 (null, so cSC4Vehicle::Steer answers at once), 136, 174 (0, so the automaton base's NextStep answers at once) and 193 the test's too; the sound service, the message server, 0x00B43D54, 0x00B43DD0 and 0x00B43D78 of the test's; the city's vtable swapped for a copy with slots 34, 44, 47, 57, 72, 93, 94 and 95 the test's. The fire crew's constructor 0x0054A2A0 and dispatch 0x00547EF0 are patched for the test's while (a jump over their first five bytes, put back after), so crews are made in blocks of the game's allocator but never reach the pedestrians:
+
+- slot 193 by the target; 0x00532AE0 over ten cases (the simulators, the query, slot 193's reach with large, negative and NaN ones); 0x00533410 over eight (the simulator, its object, the box answer and nodes, the reach);
+- slot 197 over sixty (the mission, a crew, the four counts, the state type); 0x00532D30 and slot 199 with and without a crew; slot 111 by the state left (the state 0x10's record of the test's, the automata flag 1 on);
+- 0x00532C40 with a crew and over four cases (the service, the target, its answer); slot 60 over the events 0, 1, 7, 8, 9 and 3 with flags, a crew and five smoothed values; slot 25 over eleven cases;
+- slot 121 over the controls' float, the pick and twelve points against the hose's reach on two maps;
+- 0x00533030, 0x00533290 on two deque shapes and slot 165 over eleven cases.
+
+A trial with eighteen planted changes (the cell rectangle, the default reach, the crew's default word, the recall's word, the events that recall, the stillness bound, the state slot 111 recalls on, the step copy's byte, slot 121's x rounding, its float test and its z clamp, the deque's block end, slot 165's flag 4, the box's low y, the list's second word, slot 197's mission, slot 25's state test and slot 199's) changed the token for seventeen; the eighteenth (the deque's block end) crashed the test.
+
+### Parity (em3a)
+
+2026-10-26. As for em1. Env p4env-em1, snapshot em1-f5:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's efire was 0x612973ED on both sides (calls 0x150F209A), and every B run installed and reached all 14.
