@@ -13261,3 +13261,200 @@ address = 0x00A94E80
 kind = "data"
 expect = "F0 50 50 00 30 AF 4F 00"
 source = "cSC4Ambulance's +0x38 vtable. Called by address from src/core/automata_emergency.cpp (part em1)."
+
+# Part em2a: the emergency vehicles' base, the states and the mission (src/core/automata_emergency.cpp, docs/automata.md "Part em").
+
+[[entry]]
+name = "cSC4EmergencyVehicle::LeaveState"
+address = 0x0052F1C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* state)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. The base's slot 111 (state), ret 4: leaving the state 0x10 or 0x34 turns the siren off (slot 194, 0); then the automaton base's LeaveState 0x005535D0, its EAX. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Blocked"
+address = 0x0052F210
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 06 68 80 00"
+source = "Name ours. The base's slot 79: without the automata flag 0x80 the core's 0x00505820 (a tail jump). With it: the mission 1 nothing (EAX 0), a mission other than 3 the core's; the mission 3 slot 102 (5, 0), then at the point (slot 146) the flag 4 off, the byte +0x2C8 zero, slot 33 (1.0, 0), the state 0x66 set (slot 51), the flag 0x4000 on and the mission 5 (slot 25); away from it the mission 1, the byte zero, the state 0x65 pushed (slot 52) and the state 7 pushed for 0x00B21CB4 x 1000 (x87 at 53 bits, a float). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::StateFrame"
+address = 0x0052F490
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, float seconds)"
+expect = "56 8B F1 8B 86 B4 00 00"
+source = "Name ours. The base's slot 109 (seconds), ret 4: AL 0 with no states (+0xB4 = +0xB8) or no current state (slot 56); the states 0x64 to 0x67 to slots 195 to 198 (their AL); the rest to cSC4Vehicle::StateFrame 0x0055CA90: its AL when set, else whether the current state changed. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::EnterState"
+address = 0x0052F7C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* state)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. The base's slot 110 (state), ret 4: the state 0x10: cSC4Vehicle::EnterState 0x0055B6D0, the mission 3 (stored), slot 102 (7, slot 26), the siren off, the sound 0x00B43CB8 stopped (0x6A451908); AL 1. 0x34: the siren on, then cSC4Vehicle's. 0x67: slot 33 (0, the float 0x00B21C84), then cSC4Vehicle's. Others: cSC4Vehicle's (its EAX; it reads a null state). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::Deque204Size"
+address = 0x00530130
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* deque)"
+expect = "8B 41 1C 8B 51 10 56 2B"
+source = "Name ours. On the base's +0x204 deque (12-byte elements, ten to a block): its size, nodes x 10 + the last block's + the first block's - 10 (truncating divisions). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::CanMeet"
+address = 0x005304B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* other)"
+expect = "53 56 8B F1 8B 06 68 80"
+source = "Name ours. The base's slot 73 (other), ret 4: without the automata flag 0x80 the core's CanMeet 0x005059C0 (its EAX). With it: AL 0 for itself, null or another without 0x80; AL 1 for one without the flag 0x20; else AL 1 only with no route (+0x23C = +0x22C) and fewer than 3 (unsigned) in the +0x204 deque (0x00530130). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::AtPoint"
+address = 0x0052F9A0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "83 EC 08 56 8B F1 8B 06"
+source = "Name ours. The base's slot 146: AL 1 when the point (slot 143) is within 16 x the byte 0x00B21CB8 of the position +0x40 (FSQRT of dz^2 + dy^2 + dx^2 at 53 bits; unordered is not) and no node at its cell (the city's slot 95 into an unset int and the int that held the bound, then 0x00B43D54's slot 14 with both; next at +0x54) has an object whose slot 9 answers true for 0x304. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::SetMission"
+address = 0x0052FF60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t mission)"
+expect = "53 8B 5C 24 08 56 8B F1"
+source = "Name ours. The base's slot 25 (mission), ret 4: nothing when it is the mission or a state 0x10 is stacked (slot 57). Else stored, slot 102 (7, slot 26), the sound service 0x00B43CB8 read once; by the mission: 0, 2, 4, 5 the sound stopped (0x6A451908); 1 the sound stopped and 0x0052F910; 3 the state 0x64 set (slot 51), the flags 0x80, 0x10000, 0x800, 0x1000 on, the siren on, and in the group 0x4228 or 0x4202 (the occupant part's slot 22) the sound 0x29DE9021 or 0x09DC5728 played (0xEA451903, key, this, 0, 0); 6 the state 0 set, the flags 0x80, 0x800, 0x1000 off and 0x10000 on, the siren off, the sound stopped; above 6 nothing. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::SetSiren"
+address = 0x00530AF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t on)"
+expect = "83 EC 14 53 56 8B F1 8B"
+source = "Name ours. The base's slot 194 (on), ret 4: nothing when whether +0x2D0 is set equals the low byte. Else the old sound +0x2D4 (its slot 18 with 0, the city's slot 47 service's slot 7 with it, its slot 4) cleared and released. On: a sound from the service's slot 5 (the occupant part from slot 5, an SC4String of 0x00A980A0 \"automata_pullover\", 0) held into +0x2D4; +0x2D0 cleared and released through its virtual base; slot 99 (2, &+0x2D0). Off: +0x2D0 taken off the core's models (0x0050B400), cleared and released. Then in the state 0x10 the U-Drive service (0x00602640) slot 5 (on) or 6 (off) with 0xB. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::DebugText"
+address = 0x00532290
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "83 EC 18 53 56 8B F1 8A"
+source = "Name ours. The base's slot 93: the static string 0x00B227FC (guard 0x00B22810, destructor 0x00A7B460 to SC4::atexit) assigned cSC4Vehicle::DebugText's (SC4String::AssignRange unless the same) and appended the mission's text (0x00A98574.. by the mission 0 to 6) and with the automata flag 0x200 \" repath attempts: %d\" of the byte +0x2C8. Answers the string. Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em2a)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Slot79"
+address = 0x00505820
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 06 6A 01 6A"
+source = "Name ours. The core's slot 79: the flags 4 and 0x20 on (slot 30), slot 102 (5, 0), Remove(false) unless the flag 0x1000000. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::PostMission"
+address = 0x0052F910
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 8B 1D CC 3C B4 00 55"
+source = "Name ours, part em2b. Posts the message 0xCA8DCDB4 (a 0x2C-byte cGZMessage: slot 192, the byte +0x2C8, slot 5) to the message server 0x00B43CCC. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::RetryWait"
+address = 0x00B21CB4
+kind = "data"
+source = "Name ours. float (0.0 in the file): the seconds slot 79 waits (times 1000) when blocked. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::DebugTextString"
+address = 0x00B227FC
+kind = "data"
+source = "Name ours. The static string of the base's debug text (cRZBaseString's layout, 0x14 bytes). Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::DebugTextGuard"
+address = 0x00B22810
+kind = "data"
+source = "Name ours. Its guard (bit 1). Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::DebugTextAtExit"
+address = 0x00A7B460
+kind = "data"
+source = "Name ours. The static string's destructor the debug text gives SC4::atexit. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::MissionText0"
+address = 0x00A98574
+kind = "data"
+expect = "20 5B 61 74"
+source = "Name ours. \" [at station]\": the debug text of the mission 0. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::MissionText1"
+address = 0x00A98560
+kind = "data"
+expect = "20 5B 72 6F"
+source = "Name ours. \" [route blocked]\": the debug text of the mission 1. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::MissionText2"
+address = 0x00A98558
+kind = "data"
+expect = "20 5B 64 6F"
+source = "Name ours. \" [done]\": the debug text of the mission 2. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::MissionText3"
+address = 0x00A9854C
+kind = "data"
+expect = "20 5B 65 6E"
+source = "Name ours. \" [en route]\": the debug text of the mission 3. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::MissionText4"
+address = 0x00A9853C
+kind = "data"
+expect = "20 5B 6E 6F"
+source = "Name ours. \" [no resources]\": the debug text of the mission 4. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::MissionText5"
+address = 0x00A98528
+kind = "data"
+expect = "20 5B 68 61"
+source = "Name ours. \" [handling event]\": the debug text of the mission 5. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::MissionText6"
+address = 0x00A98514
+kind = "data"
+expect = "20 5B 72 65"
+source = "Name ours. \" [returning home]\": the debug text of the mission 6. Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::RepathFormat"
+address = 0x00A984FC
+kind = "data"
+expect = "20 72 65 70"
+source = "Name ours. \" repath attempts: %d\". Called by address from src/core/automata_emergency.cpp (part em2a)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::SirenName"
+address = 0x00A980A0
+kind = "data"
+expect = "61 75 74 6F"
+source = "Name ours. \"automata_pullover\": the siren sound's name. Called by address from src/core/automata_emergency.cpp (part em2a)."

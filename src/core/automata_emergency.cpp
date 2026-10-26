@@ -1,18 +1,20 @@
-// Our emergency vehicles, part em1 (build 641): a base on cSC4Vehicle
+// Our emergency vehicles, parts em1 and em2a (build 641): a base on cSC4Vehicle
 // (src/core/automata_vehicle.cpp) and cSC4FireTruck, cSC4PatrolCar and
 // cSC4Ambulance on it. em1: the objects (the three factories, the four
 // constructors, the base's and the fire truck's destructor bodies, the three
 // deleting destructors and the three GetGZCLSIDs), the save (the four Writes
 // and Reads), the life cycle (the base's Init, the base's, the fire truck's
 // and the patrol car's Shutdowns) and the queries (the base's slots 23, 24,
-// 26, 29, 60, 105, 135 and 143, the ambulance's 192 and 193). The layout is
-// in src/core/automata_emergency.h and the survey in docs/automata.md, "Part
+// 26, 29, 60, 105, 135 and 143, the ambulance's 192 and 193). em2a: the
+// base's states and mission (slots 25, 73 with its deque count, 79, 93, 109
+// to 111, 146 and 194). The layout is in src/core/automata_emergency.h and the survey in docs/automata.md, "Part
 // em". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.emergency: the 37 detours in kObject (em1) below.
+//   simulators.automata.emergency: the 37 detours in kObject (em1) and the
+//   10 in kStates (em2a) below.
 //
 // What it does. Each class is a block of SC4::operator_new (0x2E4, 0x2DC and
 // 0x2D8 bytes) and goes back through SC4::operator_delete. The base's
@@ -43,8 +45,8 @@
 // (ours a double, exact).
 //
 // Still the game's, at their addresses: cSC4Vehicle's code (part vb), the
-// base's other slots (em2 to em4: 25, 72, 73, 79, 80, 93, 109 to 111, 146,
-// 194 to 198) and the classes' (em3), the core's slot 105 0x005096B0 and
+// base's other slots (em2b and em4: 72, 80, 195 to 198 and 0x0052F910) and
+// the classes' (em3), the core's slot 105 0x005096B0 and
 // cSC4Vehicle's slot 60 0x0055B6C0, cSC4AutomatonBase::RemoveNow, the jumps
 // and adjustor thunks the vtables hold, the occupant filters' code, the
 // stream helpers and the sound service.
@@ -61,6 +63,7 @@
 
 #include <windows.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -116,6 +119,10 @@ constexpr std::size_t kAddRef = 0x04, kRelease = 0x08;
 constexpr std::size_t kVtable4 = 0x04, kSerializable = 0x08;
 constexpr std::size_t kDraw = 0x80, kObject98 = 0x98; // cSC4Vehicle's fields this part writes
 constexpr std::uint32_t kStopSound = 0x6A451908;     // the sound service's message that stops a source
+constexpr std::uint32_t kPlaySound = 0xEA451903;     // and the one that plays one (key, source, 0, 0)
+// cSC4Vehicle's fields em2a reads.
+constexpr std::size_t kPosition = 0x40, kStateStack = 0xB4, kDeque204 = 0x204, kRouteStart = 0x22C, kRouteFinish = 0x23C;
+constexpr std::size_t kNext = 0x54; // a node's next, in 0x00B43D54's cell lists
 
 std::uint32_t Release(void* object) { return Virtual<std::uint32_t>(object, kRelease); }
 
@@ -710,6 +717,376 @@ std::uint32_t __fastcall BaseOnEvent(char* self, void*, std::uint32_t event, std
 }
 
 // ====================================================================================
+// The states and the mission (em2a)
+
+// A string of the game's (cRZBaseString's layout, as cSC4Vehicle's debug text
+// uses it).
+struct GameString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    std::uint32_t word10;
+};
+
+// The game's construction of an empty string: an 8-byte buffer.
+void MakeString(GameString& text)
+{
+    text.begin = nullptr;
+    text.end = nullptr;
+    text.capacity = nullptr;
+    char* const buffer = CallCdecl<char*>(addr::SC4_stl_allocate, std::size_t{8});
+    text.begin = buffer;
+    text.end = buffer;
+    text.capacity = buffer + 8;
+    buffer[0] = 0;
+    text.vtable = addr::SC4String_Vtable;
+    text.word10 = 0;
+}
+
+void FreeString(GameString& text)
+{
+    text.vtable = addr::SC4String_Vtable;
+    if (text.begin)
+        CallCdecl<void>(addr::SC4_Free, text.begin);
+}
+
+// The sound service 0x00B43CB8 told to stop this source, when there is one.
+void StopSound(char* self)
+{
+    if (void* const sound = Global<void*>(addr::SC4_Sound43CB8))
+        Virtual<std::uint32_t>(sound, slot::kSoundStop, kStopSound, static_cast<void*>(self), 0u, 0u, 0u);
+}
+
+void SetFlag(char* self, std::uint32_t flag, std::uint32_t on) { Virtual<std::uint32_t>(self, slot::kSetFlag, flag, on); }
+
+// 0x0052F1C0, the base's slot 111 (state), ret 4: leaving the state 0x10 or
+// 0x34 turns the siren off (slot 194); then the automaton base's
+// (0x005535D0), its EAX.
+std::uint32_t __fastcall BaseLeaveState(char* self, void*, char* left)
+{
+    static bool logged;
+    FirstCall("BaseLeaveState", logged);
+    if (left) {
+        const std::uint32_t type = At<std::uint32_t>(left, state::kType);
+        if (type == 0x10 || type == 0x34)
+            Virtual<std::uint32_t>(self, slot::kSetSiren, 0u);
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_LeaveState, self, left);
+}
+
+// 0x0052F210, the base's slot 79: without the automata flag 0x80 the core's
+// (0x00505820, a tail jump). With it: the mission 1 nothing (EAX 0); a
+// mission other than 3 the core's; the mission 3 slot 102 (5, 0), then at
+// the point (slot 146) the flag 4 off, the byte +0x2C8 zero, slot 33 (1, 0),
+// the state 0x66 set (slot 51), the flag 0x4000 on and the mission 5 (slot
+// 25, its EAX); away from it the mission 1, the byte zero, the state 0x65
+// pushed and the state 7 for 0x00B21CB4 x 1000 (its EAX).
+std::uint32_t __fastcall BaseBlocked(char* self, void*)
+{
+    static bool logged;
+    FirstCall("BaseBlocked", logged);
+    if (!CheckFlag(self, 0x80u))
+        return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_Slot79, self);
+    const std::uint32_t mission = At<std::uint32_t>(self, base::kMission);
+    if (mission == 1)
+        return 0;
+    if (mission != 3)
+        return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_Slot79, self);
+    Virtual<std::uint32_t>(self, slot::kSlot102, 5u, 0u);
+    if (Virtual<std::uint8_t>(self, slot::kAtPoint)) {
+        SetFlag(self, 4u, 0u);
+        At<std::uint8_t>(self, base::kByte) = 0;
+        Virtual<std::uint32_t>(self, slot::kFade, 1.0f, 0u);
+        Virtual<std::uint32_t>(self, slot::kSetState, 0x66u, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+        SetFlag(self, 0x4000u, 1u);
+        return Virtual<std::uint32_t>(self, slot::kSetMission, 5u);
+    }
+    Virtual<std::uint32_t>(self, slot::kSetMission, 1u);
+    At<std::uint8_t>(self, base::kByte) = 0;
+    Virtual<std::uint32_t>(self, slot::kPushState, 0x65u, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+    // FLD, FMUL (53 bits), FSTP float.
+    const float wait = static_cast<float>(static_cast<double>(Global<float>(addr::cSC4EmergencyVehicle_RetryWait)) *
+                                          static_cast<double>(Global<float>(addr::cSC4AutomatonBase_Thousand)));
+    return Virtual<std::uint32_t>(self, slot::kPushState, 7u, 0u, wait, 0u, 0u, 0u, 0u);
+}
+
+// 0x0052F490, the base's slot 109 (frame seconds), ret 4: AL 0 with no
+// states (+0xB4 = +0xB8) or no current state (slot 56); the states 0x64 to
+// 0x67 go to slots 195 to 198 (their AL); the rest to cSC4Vehicle's
+// (0x0055CA90): its AL when set, else whether the current state changed.
+std::uint32_t __fastcall BaseStateFrame(char* self, void*, std::uint32_t seconds)
+{
+    static bool logged;
+    FirstCall("BaseStateFrame", logged);
+    if (At<char*>(self, kStateStack) == At<char*>(self, kStateStack + 4))
+        return 0;
+    char* const current = Virtual<char*>(self, slot::kCurrentState);
+    if (!current)
+        return 0;
+    switch (At<std::uint32_t>(current, state::kType)) {
+    case 0x64:
+        return Virtual<std::uint8_t>(self, slot::kSlot195, seconds);
+    case 0x65:
+        return Virtual<std::uint8_t>(self, slot::kSlot196, seconds);
+    case 0x66:
+        return Virtual<std::uint8_t>(self, slot::kSlot197, seconds);
+    case 0x67:
+        return Virtual<std::uint8_t>(self, slot::kSlot198, seconds);
+    default:
+        break;
+    }
+    const std::uint8_t done = CallThis<std::uint8_t>(addr::cSC4Vehicle_StateFrame, self, seconds);
+    if (done)
+        return done;
+    return Virtual<char*>(self, slot::kCurrentState) != current ? 1 : 0;
+}
+
+// 0x0052F7C0, the base's slot 110 (state), ret 4: the state 0x10:
+// cSC4Vehicle's (0x0055B6D0), the mission 3 (stored), slot 102 (7, slot 26),
+// the siren off, the sound stopped; AL 1. 0x34: the siren on, then
+// cSC4Vehicle's (its EAX). 0x67: slot 33 (0, the float 0x00B21C84), then
+// cSC4Vehicle's. Others (and null, which cSC4Vehicle's reads): cSC4Vehicle's.
+std::uint32_t __fastcall BaseEnterState(char* self, void*, char* entered)
+{
+    static bool logged;
+    FirstCall("BaseEnterState", logged);
+    if (entered) {
+        const std::uint32_t type = At<std::uint32_t>(entered, state::kType);
+        if (type == 0x10) {
+            CallThis<std::uint32_t>(addr::cSC4Vehicle_EnterState, self, entered);
+            At<std::uint32_t>(self, base::kMission) = 3;
+            Virtual<std::uint32_t>(self, slot::kSlot102, 7u, Virtual<std::uint32_t>(self, slot::kMission));
+            Virtual<std::uint32_t>(self, slot::kSetSiren, 0u);
+            StopSound(self);
+            return 1;
+        }
+        if (type == 0x34)
+            Virtual<std::uint32_t>(self, slot::kSetSiren, 1u);
+        else if (type == 0x67)
+            Virtual<std::uint32_t>(self, slot::kFade, 0u, Global<std::uint32_t>(addr::SC4AutomataTuning_Fade21C84));
+    }
+    return CallThis<std::uint32_t>(addr::cSC4Vehicle_EnterState, self, entered);
+}
+
+// 0x00530130, on the base's +0x204 deque (12-byte elements, ten to a block):
+// its size, as the game counts it (nodes x 10 + the last block's + the first
+// block's - 10, the divisions truncating).
+std::int32_t __fastcall Deque204Size(char* d, void*)
+{
+    static bool logged;
+    FirstCall("Deque204Size", logged);
+    const std::int32_t nodes = static_cast<std::int32_t>(At<char*>(d, 0x1C) - At<char*>(d, 0xC)) >> 2;
+    const std::int32_t back = static_cast<std::int32_t>(At<char*>(d, 0x10) - At<char*>(d, 0x14)) / 12;
+    const std::int32_t front = static_cast<std::int32_t>(At<char*>(d, 8) - At<char*>(d, 0)) / 12;
+    return back + nodes * 10 + front - 10;
+}
+
+// 0x005304B0, the base's slot 73 (other), ret 4: without the automata flag
+// 0x80 the core's (0x005059C0, its EAX). With it: AL 0 for itself, null or
+// another without 0x80; AL 1 for one without the flag 0x20; else AL 1 only
+// with no route (+0x23C = +0x22C) and fewer than 3 in the +0x204 deque.
+std::uint32_t __fastcall BaseCanMeet(char* self, void*, char* other)
+{
+    static bool logged;
+    FirstCall("BaseCanMeet", logged);
+    if (!CheckFlag(self, 0x80u))
+        return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_CanMeet, self, other);
+    if (other == self || !other || !CheckFlag(other, 0x80u))
+        return 0;
+    if (!CheckFlag(other, 0x20u))
+        return 1;
+    if (At<char*>(self, kRouteFinish) != At<char*>(self, kRouteStart))
+        return 0;
+    const std::int32_t count = CallThis<std::int32_t>(addr::cSC4EmergencyVehicle_Deque204Size, self + kDeque204);
+    return static_cast<std::uint32_t>(count) < 3u ? 1 : 0;
+}
+
+// 0x0052F9A0, the base's slot 146: AL 1 when the point (slot 143) is within
+// 16 x the byte 0x00B21CB8 of the position (FSQRT at 53 bits; unordered is
+// not within) and none of the occupants at its cell (the city's slot 95, then
+// 0x00B43D54's slot 14; the list by +0x54) answers its slot 9 for 0x304.
+std::uint32_t __fastcall BaseAtPoint(char* self, void*)
+{
+    static bool logged;
+    FirstCall("BaseAtPoint", logged);
+    const float* const point = Virtual<const float*>(self, slot::kPoint);
+    const double dx = static_cast<double>(point[0]) - static_cast<double>(At<float>(self, kPosition));
+    const double dy = static_cast<double>(point[1]) - static_cast<double>(At<float>(self, kPosition + 4));
+    const double dz = static_cast<double>(point[2]) - static_cast<double>(At<float>(self, kPosition + 8));
+    const double distance = std::sqrt(dz * dz + dy * dy + dx * dx);
+    std::int32_t bound = static_cast<std::int32_t>(Global<std::uint8_t>(addr::cSC4AutomatonBase_NearCells)) << 4;
+    if (!(static_cast<double>(bound) >= distance))
+        return 0;
+    // The cell into an unset local and the int that held the bound.
+    std::int32_t cellX = 0;
+    Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), slot::kCellOf, At<float>(self, kPosition),
+                           At<float>(self, kPosition + 8), &cellX, &bound);
+    char* node = Virtual<char*>(Global<void*>(addr::SC4_Service43D54), slot::kOccupantsAt, cellX, bound);
+    for (; node; node = At<char*>(node, kNext))
+        if (Virtual<std::uint8_t>(At<void*>(node, 0), slot::kIsType, 0x304u))
+            return 0;
+    return 1;
+}
+
+// 0x0052FF60, the base's slot 25 (mission), ret 4: nothing when it is the
+// mission or a state 0x10 is stacked (slot 57). Else stored, slot 102 (7,
+// slot 26), then by the mission: 0, 2, 4, 5 the sound stopped; 1 the sound
+// stopped and the message 0x0052F910 posted; 3 the state 0x64 set (slot 51),
+// the flags 0x80, 0x10000, 0x800, 0x1000 on, the siren on, and with the
+// group 0x4228 or 0x4202 (the occupant part's slot 22) the sound
+// 0x29DE9021 or 0x09DC5728 played (0xEA451903); 6 the state 0 set, the
+// flags 0x80, 0x800, 0x1000 off and 0x10000 on, the siren off, the sound
+// stopped. The sound service is read once, after slot 102.
+void __fastcall BaseSetMission(char* self, void*, std::uint32_t mission)
+{
+    static bool logged;
+    FirstCall("BaseSetMission", logged);
+    if (At<std::uint32_t>(self, base::kMission) == mission)
+        return;
+    if (Virtual<void*>(self, slot::kInState, 0x10u))
+        return;
+    At<std::uint32_t>(self, base::kMission) = mission;
+    Virtual<std::uint32_t>(self, slot::kSlot102, 7u, Virtual<std::uint32_t>(self, slot::kMission));
+    void* const sound = Global<void*>(addr::SC4_Sound43CB8);
+    auto stop = [&] {
+        if (sound)
+            Virtual<std::uint32_t>(sound, slot::kSoundStop, kStopSound, static_cast<void*>(self), 0u, 0u, 0u);
+    };
+    switch (mission) {
+    case 0:
+    case 2:
+    case 4:
+    case 5:
+        stop();
+        return;
+    case 1:
+        stop();
+        CallThis<void>(addr::cSC4EmergencyVehicle_PostMission, self);
+        return;
+    case 3: {
+        Virtual<std::uint32_t>(self, slot::kSetState, 0x64u, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+        SetFlag(self, 0x80u, 1u);
+        SetFlag(self, 0x10000u, 1u);
+        SetFlag(self, 0x800u, 1u);
+        SetFlag(self, 0x1000u, 1u);
+        Virtual<std::uint32_t>(self, slot::kSetSiren, 1u);
+        std::uint32_t key;
+        if (Virtual<std::uint8_t>(self + kVtable4, slot::kInGroup, 0x4228u))
+            key = 0x29DE9021u;
+        else if (Virtual<std::uint8_t>(self + kVtable4, slot::kInGroup, 0x4202u))
+            key = 0x09DC5728u;
+        else
+            return;
+        if (sound)
+            Virtual<std::uint32_t>(sound, slot::kSoundStop, kPlaySound, key, static_cast<void*>(self), 0u, 0u);
+        return;
+    }
+    case 6:
+        Virtual<std::uint32_t>(self, slot::kSetState, 0u, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+        SetFlag(self, 0x80u, 0u);
+        SetFlag(self, 0x10000u, 1u);
+        SetFlag(self, 0x800u, 0u);
+        SetFlag(self, 0x1000u, 0u);
+        Virtual<std::uint32_t>(self, slot::kSetSiren, 0u);
+        stop();
+        return;
+    default:
+        return;
+    }
+}
+
+// 0x00530AF0, the base's slot 194 (on), ret 4: nothing when whether +0x2D0
+// is set already is the low byte. Else the old siren sound +0x2D4 stopped
+// (its slot 18 with 0), taken off the city's slot 47 service (its slot 7)
+// and its slot 4, cleared and released. On: a new sound from the service's
+// slot 5 (the occupant part, slot 5; an SC4String "automata_pullover"; 0)
+// held into +0x2D4, +0x2D0 released (through its virtual
+// base) and slot 99 (2, &+0x2D0) fills it. Off: +0x2D0 taken off the core's
+// models (0x0050B400) and released. Then in the state 0x10 the U-Drive
+// service's slot 5 (on) or 6 (off) with 0xB.
+void __fastcall BaseSetSiren(char* self, void*, std::uint32_t on)
+{
+    static bool logged;
+    FirstCall("BaseSetSiren", logged);
+    const std::uint8_t want = static_cast<std::uint8_t>(on);
+    if (static_cast<std::uint8_t>(At<void*>(self, base::kHeld) != nullptr) == want)
+        return;
+    void* const effects = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityEffects);
+    if (At<void*>(self, base::kSiren)) {
+        Virtual<std::uint32_t>(At<void*>(self, base::kSiren), slot::kSirenStop, 0u);
+        Virtual<std::uint32_t>(effects, slot::kEffectsRemove, At<void*>(self, base::kSiren));
+        Virtual<std::uint32_t>(At<void*>(self, base::kSiren), slot::kSirenSlot4);
+        ClearAndRelease(self, base::kSiren);
+    }
+    if (want) {
+        GameString name;
+        CallThis<void*>(addr::SC4String_FromText, static_cast<void*>(&name),
+                        reinterpret_cast<const char*>(addr::cSC4EmergencyVehicle_SirenName));
+        void* const part = Virtual<void*>(self, slot::kAsOccupant);
+        Assign(self, base::kSiren, Virtual<void*>(effects, slot::kEffectsMake, part, static_cast<void*>(&name), 0u));
+        FreeString(name);
+        if (char* const held = At<char*>(self, base::kHeld)) {
+            At<char*>(self, base::kHeld) = nullptr;
+            ReleaseThroughBase(held);
+        }
+        Virtual<std::uint32_t>(self, slot::kSlot99, 2u, static_cast<void*>(self + base::kHeld));
+    } else {
+        CallThis<std::uint8_t>(addr::cSC4AutomatonCore_RemoveModel, self, At<char*>(self, base::kHeld));
+        if (char* const held = At<char*>(self, base::kHeld)) {
+            At<char*>(self, base::kHeld) = nullptr;
+            ReleaseThroughBase(held);
+        }
+    }
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x10) {
+        void* const udrive = CallCdecl<void*>(addr::SC4UDrive_GetService602640);
+        Virtual<std::uint32_t>(udrive, want ? slot::kUDriveOn : slot::kUDriveOff, 0xBu);
+    }
+}
+
+// 0x00532290, the base's slot 93: the static string 0x00B227FC (made on
+// first use, the guard 0x00B22810) assigned cSC4Vehicle's text (unless it is
+// the same string) and appended the mission's text (" [at station]" to
+// " [returning home]"; none above 6) and, with the automata flag 0x200,
+// " repath attempts: %d" with the byte +0x2C8. Answers the string.
+void* __fastcall BaseDebugText(char* self, void*)
+{
+    static bool logged;
+    FirstCall("BaseDebugText", logged);
+    auto* const text = reinterpret_cast<GameString*>(addr::cSC4EmergencyVehicle_DebugTextString);
+    if (!(Global<std::uint8_t>(addr::cSC4EmergencyVehicle_DebugTextGuard) & 1)) {
+        *reinterpret_cast<std::uint32_t*>(addr::cSC4EmergencyVehicle_DebugTextGuard) |= 1;
+        MakeString(*text);
+        CallCdecl<int>(addr::SC4_atexit, addr::cSC4EmergencyVehicle_DebugTextAtExit);
+    }
+    char* const vehicle = CallThis<char*>(addr::cSC4Vehicle_DebugText, self);
+    char* const inner = vehicle ? vehicle + 4 : nullptr;
+    char* const own = reinterpret_cast<char*>(text) + 4;
+    char allocator = 0; // the game passes a byte of its stack
+    if (inner != own)
+        CallThis<void>(addr::SC4String_AssignRange, own, At<char*>(inner, 0), At<char*>(inner, 4),
+                       static_cast<void*>(&allocator));
+    static constexpr std::uintptr_t kMissionTexts[7] = {
+        addr::cSC4EmergencyVehicle_MissionText0, addr::cSC4EmergencyVehicle_MissionText1,
+        addr::cSC4EmergencyVehicle_MissionText2, addr::cSC4EmergencyVehicle_MissionText3,
+        addr::cSC4EmergencyVehicle_MissionText4, addr::cSC4EmergencyVehicle_MissionText5,
+        addr::cSC4EmergencyVehicle_MissionText6};
+    const std::uint32_t mission = At<std::uint32_t>(self, base::kMission);
+    if (mission <= 6)
+        CallThis<void*>(addr::cSC4Advisor_F410F00, own, reinterpret_cast<const char*>(kMissionTexts[mission]));
+    if (CheckFlag(self, 0x200u)) {
+        GameString line;
+        MakeString(line);
+        CallCdecl<void>(addr::cRZBaseString_Sprintf, static_cast<void*>(&line),
+                        reinterpret_cast<const char*>(addr::cSC4EmergencyVehicle_RepathFormat),
+                        static_cast<std::uint32_t>(At<std::uint8_t>(self, base::kByte)));
+        CallThis<void>(addr::SC4String_AppendRange, own, line.begin, line.end, static_cast<void*>(&allocator));
+        FreeString(line);
+    }
+    return text;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -793,9 +1170,27 @@ const Detour kObject[] = {
     OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_OnEvent, BaseOnEvent),
 };
 
+// Part em2a.
+const Detour kStates[] = {
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_LeaveState, BaseLeaveState),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_Blocked, BaseBlocked),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_StateFrame, BaseStateFrame),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_EnterState, BaseEnterState),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_Deque204Size, Deque204Size),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_CanMeet, BaseCanMeet),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_AtPoint, BaseAtPoint),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_SetMission, BaseSetMission),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_SetSiren, BaseSetSiren),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_DebugText, BaseDebugText),
+};
+
 #undef OPENSC4_DETOUR
 
-bool InstallObject(registry::Mode) { return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object"); }
+bool InstallObject(registry::Mode)
+{
+    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
+           InstallList(kStates, sizeof kStates / sizeof kStates[0], "states");
+}
 
 const bool g_registered[] = {
     registry::Register({"simulators.automata.emergency", "simulators/automata", registry::Kind::Detour,
@@ -805,7 +1200,8 @@ const bool g_registered[] = {
                         "destructor bodies, the three deleting destructors and the three GetGZCLSIDs; the four Writes "
                         "and Reads; the base's Init and the base's, the fire truck's and the patrol car's Shutdowns; "
                         "the base's slots 23, 24, 26, 29, 60, 105, 135 and 143 and the ambulance's 192 and 193 (37 "
-                        "detours, part em1; src/core/automata_emergency.cpp)",
+                        "detours, part em1); the base's states and mission: slots 25, 73 with its deque count, 79, "
+                        "93, 109 to 111, 146 and 194 (10 detours, part em2a; src/core/automata_emergency.cpp)",
                         false, InstallObject}),
 };
 

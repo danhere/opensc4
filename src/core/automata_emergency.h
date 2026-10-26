@@ -1,4 +1,4 @@
-// The layout of the emergency vehicles, part em1 (build 641; functions, vtables and data in
+// The layout of the emergency vehicles, parts em1 and em2a (build 641; functions, vtables and data in
 // data/addresses/automata.toml, the survey in docs/automata.md, "Part em").
 //
 // A base on cSC4Vehicle (src/core/automata_vehicle.h) and three classes on
@@ -76,7 +76,37 @@ inline constexpr std::size_t kSetSiren = 0x308;     // the base's 194: (bool), r
 inline constexpr std::size_t kCityCrewService = 0xB0; // the city's 44
 inline constexpr std::size_t kCrewDone = 0x20;      // that object's 8: (object, 0), ret 8
 inline constexpr std::size_t kSoundStop = 0x2C;     // 0x00B43CB8's 11: five words, ret 0x14
+// Part em2a's, of the automaton unless noted.
+inline constexpr std::size_t kAsOccupant = 0x14;    // 5: the occupant part (this + 4)
+inline constexpr std::size_t kSetFlag = 0x78;       // 30: (flag, bool), ret 8
+inline constexpr std::size_t kFade = 0x84;          // 33: (float, float), ret 8
+inline constexpr std::size_t kSetState = 0xCC;      // 51: seven words, ret 0x1C
+inline constexpr std::size_t kCurrentState = 0xE0;  // 56: the current state
+inline constexpr std::size_t kSlot99 = 0x18C;       // 99: (2, &held), ret 8
+inline constexpr std::size_t kSlot102 = 0x198;      // 102: (a, b), ret 8
+inline constexpr std::size_t kPoint = 0x23C;        // 143: the point's address
+inline constexpr std::size_t kAtPoint = 0x248;      // the base's 146
+inline constexpr std::size_t kSlot195 = 0x30C;      // the base's 195 to 198: (seconds), ret 4
+inline constexpr std::size_t kSlot196 = 0x310;
+inline constexpr std::size_t kSlot197 = 0x314;
+inline constexpr std::size_t kSlot198 = 0x318;
+inline constexpr std::size_t kInGroup = 0x58;       // the occupant part's 22: (group), a bool
+inline constexpr std::size_t kCellOf = 0x17C;       // the city's 95: (x, z, int*, int*), ret 0x10
+inline constexpr std::size_t kCityEffects = 0xBC;   // the city's 47: the sounds' service
+inline constexpr std::size_t kEffectsMake = 0x14;   // that service's 5: (occupant, SC4String*, 0), ret 0xC: a sound
+inline constexpr std::size_t kEffectsRemove = 0x1C; // its 7: (sound), ret 4
+inline constexpr std::size_t kSirenStop = 0x48;     // the siren sound's 18: (0), ret 4
+inline constexpr std::size_t kSirenSlot4 = 0x10;    // the siren sound's 4
+inline constexpr std::size_t kOccupantsAt = 0x38;   // 0x00B43D54's 14: (cell x, cell z), ret 8: the first node
+inline constexpr std::size_t kIsType = 0x24;        // a node's object's 9: (type), ret 4, a bool
+inline constexpr std::size_t kUDriveOn = 0x14;      // the U-Drive service's 5: (0xB), ret 4
+inline constexpr std::size_t kUDriveOff = 0x18;     // its 6: (0xB), ret 4
 } // namespace slot
+
+// A state record's type (the core's states).
+namespace state {
+inline constexpr std::size_t kType = 0x4;
+} // namespace state
 
 // The stream slots (cIGZOStream / cIGZIStream), each one argument.
 namespace stream {
