@@ -36,7 +36,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
-| Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3 (4) (part tr below counts 79, 17,591 bytes) |
+| Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3 (3 left) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
@@ -3195,7 +3195,7 @@ What each class overrides:
 
 - **tr1 (31, 2,908 bytes, done):** the objects, the save, the life cycle and the queries. Below.
 - **tr2 (18, 6,992 bytes):** the smaller frame code. The train's 73 0x00558DC0, 65 0x00558E00, 110 0x00557530 (with the car's 110 0x00557410), 111 0x00557620, 121 0x005570C0, 125 0x00557830, 129 0x00558510, 131 0x005588D0, 132 0x005574F0 (with the car's 132 0x00557320), 134 0x0055AD00, 165 0x00558FA0, 172 0x00557170, 197 0x00559C30 and 199 0x0055A8B0; the mass transit train's 165 0x0053CA20 and 172 0x0053C970. Split by the train's movement: **tr2a (13, done)** the rest, below; **tr2b (5, done)** 129, 131, 134, 197 and 199, below.
-- **tr3 (4, 7,498 bytes):** the frame 72 0x00557BF0, slot 198 0x0055A050, the driven frame 115 0x005591A0 and its helper 0x00557680. Likely a piece each.
+- **tr3 (4, 7,498 bytes):** the frame 72 0x00557BF0, slot 198 0x0055A050, the driven frame 115 0x005591A0 and its helper 0x00557680. A piece each: **tr3a (1, done)** the frame 72, below; slot 198, then 115 with its helper, still the game's.
 - **Stay the game's (26):** 21 adjustor thunks and five plain jumps (0x0053C950, 0x0053C960, 0x0053CA10, 0x00557070, 0x0055B740).
 
 Shared and not counted: the bus's Write and Read and their thunks, the trailer's jump 0x00555A50, the base's 0x0053CC00, and the folds 0x00441A50, 0x00648F00, 0x004FC900 and 0x005DEB40. No NAM site and none of SC4UIScale's addresses is in the group.
@@ -3367,3 +3367,36 @@ Not reached: slot 131's event branch (0x00B43DA8 true), since SC4::ApplyTrafficE
 Every B run reached all 5, its ` V` token equalled the A run's (tmove 0x804338E5, tflags 0x12F), and the game itself reaches none of the 5 before the test day in these saves (snapshot tr2b-p1). tr2b-p2, the final build after the audit's fix, gave the same results; in its Rush Hour t0000 run only ad3's `chighlight` differed in the token (0xB7A37F8C against 0x86FDBB8E, a live city vehicle's, as in tr1 and tr2a), and the leg came out the same.
 
 The first trial differed in tmove: slot 197 passed the key to slots 6 and 5 where the game passes the kind byte (a stack offset misread), found by logging the hash per run and the part's arguments. An independent audit against the disassembly then found slot 134's out word for slot 5 to be a local of its own, not the side's slot (the same answer whenever slot 5 writes it); fixed. No other defect.
+
+### What is ours (tr3a)
+
+1 more function in `simulators.automata.trains` (list kTrainFrame in [automata_trains.cpp](../src/core/automata_trains.cpp)), the train's frame:
+
+- **Slot 72 0x00557BF0 (the frame):** cSC4Vehicle's frame (0x0055BA20) first. With the train's point +0x2DC unset (x or z below 0) the last car's (the train's own without cars) position (slot 7) goes there, its occupant (slot 137) into +0x2E8 (referenced, the old one released) and its +0x1F4 (slot 136) into +0x2EC. A car is added (slot 199) while there are fewer than wanted, and slot 198 runs out of the state 0x14. With the automata flag 0x20 and the speed factor (slot 125) above 0.01, the timer +0x2F0 gains a thousandth of the seconds and from 10 on the train is removed (slot 13) at even odds each frame; without the flag the timer is zeroed. In the state 0x10 (slot 57), with +0x2F4 nonzero and below the template entry's +0x4C, the train's models and then each car's are rocked: the first model's transform (slot 12) is turned about (0, 0, 1) by an angle drawn by cRZRandom::Range between minus and plus +0x2F4 / +0x4C x +0x50 degrees (a draw each), its count raised and its flag 4 set, and every model gets it (slot 75). Then slot 128.
+
+Oddities kept:
+
+- **The point:** unset by x or z only (y is not tested); the last car is read without a null test.
+- **The timer:** not reset when the train is removed or survives the draw (cRZRandomSuper::Next below 0x7FFFFFFF), so from 10 on every frame draws; a factor of exactly 0.01, or a NaN, leaves the timer as it is.
+- **The rocking:** the axis is 1 / sqrt(1.0) times 1.0 (the train's unrounded, the cars' from its float); with x and y of the quaternion zero most of the matrix's entries are zero, but the game computes all nine and the product of all nine rows. A car's transform starts from the identity again (the count raised once more) whenever the flags are set, which they always are after the train's slot 75 sets the flag 4, so a car never starts from the train's turn; a null car is skipped but the end of the cars is re-read each step.
+- **AL only in the game:** AL is the base frame's, the rest of EAX slot 128's.
+
+### Test (tr3a)
+
+The ` V` token gains `,<trock>` before tflags (39 fields). tflags adds 0x800 (it ran) and 0x1000 (the factory failed). The log line is "tr3a trock" (with the count of slot 75 calls).
+
+One train from its factory, its main vtable tr2b's copy with slots 12 (a transform a little apart on each call, or none), 57, 67, 75 (mixing the transform and clearing its flags when asked), 136, 137, 198 and 199 the test's; cars of the test's (position, transform slots, +0x1F4 word, occupant); the generator seeded. 33 fixed runs over the point (unset by x, by z, a NaN in x), the last car or the train, the held and answered occupants, the wanted count, the state 0x14, the flag 0x20 with slot 125 at, above and below 0.01 (and a NaN), the timer under and over 10, the rocking's ways out (the state 0x10, +0x2F4 zero, a NaN or not below +0x4C, no template, no entry) and cars (none, one to three, a null one); then 256 drawn rocks (a fixed LCG). A deliberate rounding change (2zz unrounded) changed trock.
+
+### Parity (tr3a)
+
+2026-10-26. B = `simulators.automata.vehicle`, `simulators.automata.roadveh` and `simulators.automata.trains` against the original, as for tr2b. Two jobs, `OPENSC4_MUTE=1`, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. Env p4env-tr3a, snapshot tr3a-p1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same over 3 pairs (3 shared outcomes) |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached slot 72 and its ` V` token equalled the A run's (trock 0xE9ABCF2D, tflags 0x92F), but in Rush Hour t0000, where only ad3's `chighlight` differed (0xB49EAE5C against 0x86FDBB8E, a live city vehicle's, as in tr1 to tr2b). The game itself reaches slot 72 on no train before the test day in these saves. The first trial gave equal tokens at once.
+
+An independent audit against the disassembly found no defect.

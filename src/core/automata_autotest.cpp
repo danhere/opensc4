@@ -372,6 +372,19 @@
 //   199 over cars of the test's, the distance, the manager, the group and
 //   the car made. tflags 0x100 when it ran, 0x200 when the factory failed,
 //   0x400 when the city's other slots were called. Log line: "tr2b tmove".
+//   Part tr3a (the train's frame) adds `,<trock>` before tflags (39
+//   fields): a train of the factory with tr2b's vtable copy and slots 12,
+//   57, 67, 75, 136, 137, 198 and 199 the test's (slot 12 a transform a
+//   little apart on each call or none, slot 75 mixing the transform and
+//   clearing its flags when asked), cars of the test's: slot 72 over the
+//   point (unset by x, by z, a NaN), the last car or the train, the held
+//   and answered occupants, the wanted count, the state 0x14, the flag
+//   0x20 with slot 125 at, above and below 0.01 (and a NaN), the timer
+//   +0x2F0 under and over 10 (the generator seeded), then the rocking's
+//   ways out (the state 0x10, +0x2F4 zero, a NaN or not below the
+//   entry's +0x4C, no template, no entry) and cars (none, one to three, a
+//   null one), then 256 drawn rocks (a fixed LCG). tflags 0x800 when it
+//   ran, 0x1000 when the factory failed. Log line: "tr3a trock".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -23085,6 +23098,393 @@ void TrainMoveDrive(Hash& tmove, uint32_t& tflags)
     g_probe = savedProbe;
 }
 
+// ---- Part tr3a: the train's frame (src/core/automata_trains.cpp).
+
+// A model transform as slots 12 and 75 take it (the game's stack bytes
+// +2 and +3 are not mixed).
+struct TqTransform {
+    uint8_t count, flags;
+    uint8_t unused[2];
+    float m[9];
+    float point[3];
+    float scale;
+};
+static_assert(sizeof(TqTransform) == 0x38, "slot 12's transform");
+
+// What the tr3a test's slots answer: slot 12 a transform (or none; each call
+// a little apart from the one before), slot 57 the state 0x10's word, slot
+// 67 the template, slot 75 the flags cleared when asked, slots 136 and 137
+// the train's direction word and occupant.
+struct TqAnswers {
+    uint32_t model = 1;
+    float m[9] = {0.8f, 0.0f, -0.6f, 0.0f, 1.0f, 0.0f, 0.6f, 0.0f, 0.8f};
+    float point[3] = {1.0f, 2.0f, 3.0f};
+    float scale = 1.0f;
+    uint32_t asked = 0;
+    uint32_t inState = 1;
+    void* tmpl = nullptr;
+    uint32_t clearFlags = 0;
+    void* occupant = nullptr;
+    uint32_t direction = 0;
+    uint32_t sets = 0; // slot 75 calls
+    float last = 0.0f; // the last m[1] slot 75 saw
+};
+TqAnswers g_tq;
+
+void MixTransform(Hash& h, const TqTransform* t)
+{
+    h.Mix(t->count);
+    h.Mix(t->flags);
+    h.MixBytes(t->m, sizeof t->m + sizeof t->point + sizeof t->scale);
+}
+uint32_t __fastcall TqGetTransform(char* self, void*, TqTransform* t)
+{
+    g_probe->calls.Mix(12);
+    g_probe->calls.Mix(g_probe->Id(self));
+    MixTransform(g_probe->calls, t);
+    if (!g_tq.model)
+        return 0;
+    const float k = 0.0625f * static_cast<float>(g_tq.asked++ % 5);
+    for (int i = 0; i < 9; ++i)
+        t->m[i] = g_tq.m[i] + k * static_cast<float>(i % 3);
+    std::memcpy(t->point, g_tq.point, 12);
+    t->scale = g_tq.scale;
+    return 1;
+}
+uint32_t __fastcall TqSetTransforms(char* self, void*, TqTransform* t)
+{
+    g_probe->calls.Mix(75);
+    g_probe->calls.Mix(g_probe->Id(self));
+    MixTransform(g_probe->calls, t);
+    ++g_tq.sets;
+    g_tq.last = t->m[1];
+    if (g_tq.clearFlags)
+        t->flags = 0;
+    return 0;
+}
+uint32_t __fastcall TqInState(char*, void*, uint32_t type)
+{
+    g_probe->calls.Mix(57);
+    g_probe->calls.Mix(type);
+    return g_tq.inState;
+}
+void* __fastcall TqTemplate(char*, void*)
+{
+    g_probe->calls.Mix(67);
+    return g_tq.tmpl;
+}
+uint32_t __fastcall TqDirection(char* self, void*)
+{
+    g_probe->calls.Mix(136);
+    g_probe->calls.Mix(g_probe->Id(self));
+    return g_tq.direction;
+}
+void* __fastcall TqOccupant(char* self, void*)
+{
+    g_probe->calls.Mix(137);
+    g_probe->calls.Mix(g_probe->Id(self));
+    return g_tq.occupant;
+}
+uint32_t __fastcall TqSlot198(char*, void*, float seconds)
+{
+    g_probe->calls.Mix(198);
+    g_probe->calls.Mix(Bits(seconds));
+    return 0;
+}
+uint32_t __fastcall TqAddCar(char*, void*)
+{
+    g_probe->calls.Mix(199);
+    return 0;
+}
+
+// A car of the tr3a train: its position (slot 7), transforms (12, 75), its
+// +0x1F4 word and occupant (136, 137: its own).
+struct TqCar {
+    void** vtable;
+    int32_t references;
+    float position[3];
+    uint32_t direction;
+    void* occupant;
+};
+uint32_t __fastcall TqCarAddRef(TqCar* c, void*) { return static_cast<uint32_t>(++c->references); }
+uint32_t __fastcall TqCarRelease(TqCar* c, void*) { return static_cast<uint32_t>(--c->references); }
+uint32_t __fastcall TqCarPosition(TqCar* c, void*, float* out)
+{
+    g_probe->calls.Mix(0x9007);
+    g_probe->calls.Mix(g_probe->Id(c));
+    std::memcpy(out, c->position, 12);
+    return 1;
+}
+uint32_t __fastcall TqCarDirection(TqCar* c, void*)
+{
+    g_probe->calls.Mix(0x9136);
+    return c->direction;
+}
+void* __fastcall TqCarOccupant(TqCar* c, void*)
+{
+    g_probe->calls.Mix(0x9137);
+    return c->occupant;
+}
+void** TqCarVtable()
+{
+    static void* t[200] = {};
+    t[1] = reinterpret_cast<void*>(&TqCarAddRef);
+    t[2] = reinterpret_cast<void*>(&TqCarRelease);
+    t[7] = reinterpret_cast<void*>(&TqCarPosition);
+    t[12] = reinterpret_cast<void*>(&TqGetTransform);
+    t[75] = reinterpret_cast<void*>(&TqSetTransforms);
+    t[136] = reinterpret_cast<void*>(&TqCarDirection);
+    t[137] = reinterpret_cast<void*>(&TqCarOccupant);
+    return t;
+}
+
+// The tr3a train's main vtable: tr2b's (TmTable) with the slots above.
+void** TqTable(void** t, std::uintptr_t real, std::size_t count)
+{
+    TmTable(t, real, count);
+    auto use = [&](std::size_t slot, auto fn) { t[slot] = reinterpret_cast<void*>(fn); };
+    use(12, &TqGetTransform);
+    use(57, &TqInState);
+    use(67, &TqTemplate);
+    use(75, &TqSetTransforms);
+    use(136, &TqDirection);
+    use(137, &TqOccupant);
+    use(198, &TqSlot198);
+    use(199, &TqAddCar);
+    return t;
+}
+
+void TrainRockDrive(Hash& trock, uint32_t& tflags)
+{
+    Probe probe;
+    Probe* const savedProbe = g_probe;
+    g_probe = &probe;
+    g_rf = RfAnswers{};
+    g_tf = TfAnswers{};
+    g_tm = TmAnswers{};
+    g_tq = TqAnswers{};
+    uint32_t madeFlags = 0;
+    char* const train = MakeTrain(1, madeFlags);
+    if (madeFlags || !train) {
+        ReleaseTrain(train);
+        tflags |= 0x1000;
+        g_probe = savedProbe;
+        log::Write("autotest: automata: vehicle: tr3a: the factory failed");
+        return;
+    }
+    This<void>(addr::cRZRandomSuper_Seed, reinterpret_cast<char*>(addr::cSC4AutomatonCore_Random), 24680u);
+
+    // The train: its vtable a copy (TqTable), the fields the base frame reads
+    // held and put back after (as the tank's frame test).
+    static void* table[200];
+    void** const realTable = At<void**>(train, 0);
+    At<void**>(train, 0) = TqTable(table, kTrainClasses[1].tables[0], 200);
+    const uint8_t byte33 = At<uint8_t>(train, av::field::kFlags33);
+    At<uint8_t>(train, av::field::kFlags33) = static_cast<uint8_t>(byte33 & ~7u);
+    At<uint8_t>(train, av::field::kByte3C) = 0;
+    std::memset(train + av::field::kSmoothed, 0, 0x10);
+    At<float>(train, av::field::kTimer254) = 0.0f;
+    At<float>(train, av::field::kRadius) = 2.0f;
+    SetPoint(train, av::field::kPosition, 30.0f, 1.0f, 60.0f);
+    SetPoint(train, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+    probe.answer[128] = 0x12800u;
+
+    static TqCar cars[4];
+    static Counted occupants[3];
+    for (int i = 0; i < 3; ++i)
+        occupants[i] = {CountedVtable(), 1, 80 + i, 0};
+    for (int i = 0; i < 4; ++i)
+        cars[i] = {TqCarVtable(), 1, {10.0f + i, 0.5f, 20.0f - i}, 0x0300u + i, &occupants[i % 3]};
+    static char templ[0x70];
+    static char entry[0x60];
+    std::memset(templ, 0, sizeof templ);
+    std::memset(entry, 0, sizeof entry);
+    probe.known = {train, &templ, &entry};
+    for (const TqCar& c : cars)
+        probe.known.push_back(&c);
+    for (const Counted& c : occupants)
+        probe.known.push_back(&c);
+
+    auto setCars = [&](std::initializer_list<void*> list) {
+        uint32_t words[5] = {};
+        uint32_t n = 0;
+        for (void* c : list)
+            words[n++] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(c));
+        if (char* const old = At<char*>(train, tn::train::kCars))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(old);
+        if (n)
+            SetGameVector(train, tn::train::kCars, words, n, n);
+        else
+            std::memset(train + tn::train::kCars, 0, 12);
+    };
+    auto mixTrain = [&] {
+        trock.MixBytes(train + tn::train::kPoint, 12);
+        trock.Mix(probe.Id(At<void*>(train, tn::train::kOccupant)));
+        trock.Mix(At<uint32_t>(train, tn::train::kWord));
+        trock.Mix(At<uint32_t>(train, tn::train::kWord2F0));
+        for (const Counted& c : occupants)
+            trock.Mix(static_cast<uint32_t>(c.references));
+    };
+    using FrameFn = uint32_t(__thiscall*)(void*, uint32_t, float);
+    const auto frame = reinterpret_cast<FrameFn>(addr::cSC4Train_Frame);
+    uint32_t runs = 0;
+
+    // ---- Fixed cases: the point and the last car, the wanted count, the
+    // state 0x14, the timer, then the rocking's ways out and the flags.
+    struct Case {
+        float point[3];
+        int cars;          // 0 to 3, 4 for (car 0, null, car 1)
+        int held;          // +0x2E8: -1 none, else an occupant
+        int answer;        // slot 137 of the train: -1 none, else an occupant
+        uint32_t wanted;
+        uint32_t state;
+        uint32_t flags;    // the automata flags (0x20)
+        double factor;     // slot 125
+        float timer;       // +0x2F0
+        float seconds;
+        uint32_t inState;
+        float rock;        // +0x2F4
+        int templ;         // 0 none, 1 no entry, 2 the entry
+        float most, degrees;
+        uint32_t clear;
+    };
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const Case cases[] = {
+        {{-1.0f, -1.0f, -1.0f}, 0, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{-1.0f, -1.0f, -1.0f}, 0, 0, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{-1.0f, -1.0f, -1.0f}, 0, 0, 1, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{-1.0f, -1.0f, -1.0f}, 0, 1, -1, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, -1.0f}, 2, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{-0.5f, 0.0f, 5.0f}, 3, 2, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, -9.0f, 5.0f}, 1, 0, 2, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{nan, 0.0f, 5.0f}, 1, 0, 2, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 1, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 2, -1, 0, 2, 0x14, 0, 1.0, 0.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 2, -1, 0, 3, 7, 0x20, 1.0, 3.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, 0.01, 3.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, 0.0100001, 3.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, 0.5, 9.999f, 0.5f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, 0.5, 9.999f, 2.0f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, 0.5, 12.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, 0.5, 12.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, 0.5, 12.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, 0.5, 12.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0x20, nan, 12.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0, 0.5, 12.0f, 0.25f, 0, 0.0f, 0, 0, 0, 0},
+        {{5.0f, 0.0f, 5.0f}, 2, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 0, 0.5f, 2, 2.0f, 6.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 2, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, 0.0f, 2, 2.0f, 6.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 2, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, 0.5f, 0, 2.0f, 6.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 2, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, 0.5f, 1, 2.0f, 6.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 2, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, 2.0f, 2, 2.0f, 6.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 2, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, nan, 2, 2.0f, 6.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 0, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, 0.5f, 2, 2.0f, 6.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 1, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, 1.5f, 2, 2.0f, 30.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 3, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, 0.25f, 2, 2.0f, 6.0f, 0},
+        {{5.0f, 0.0f, 5.0f}, 3, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, 0.25f, 2, 2.0f, 6.0f, 1},
+        {{5.0f, 0.0f, 5.0f}, 4, -1, 0, 0, 7, 0, 1.0, 0.0f, 0.25f, 1, -0.75f, 2, 2.0f, 90.0f, 1},
+        {{-1.0f, 0.0f, -1.0f}, 3, 0, 1, 4, 7, 0x20, 0.5, 9.9f, 100.0f, 1, 1.0f, 2, 1.5f, 12.0f, 0},
+    };
+    for (const Case& c : cases) {
+        std::memcpy(train + tn::train::kPoint, c.point, 12);
+        switch (c.cars) {
+        case 0: setCars({}); break;
+        case 1: setCars({&cars[0]}); break;
+        case 2: setCars({&cars[0], &cars[1]}); break;
+        case 3: setCars({&cars[0], &cars[1], &cars[2]}); break;
+        default: setCars({&cars[0], nullptr, &cars[1]}); break;
+        }
+        // The held occupant takes a reference of the test's, given back below.
+        if (c.held >= 0)
+            ++occupants[c.held].references;
+        At<void*>(train, tn::train::kOccupant) = c.held >= 0 ? &occupants[c.held] : nullptr;
+        g_tq.occupant = c.answer >= 0 ? &occupants[c.answer] : nullptr;
+        g_tq.direction = 0x0201u + runs;
+        At<uint32_t>(train, tn::train::kWanted) = c.wanted;
+        g_tf.trainState = c.state;
+        At<uint32_t>(train, av::field::kAutomataFlags) = c.flags | 0x100000u;
+        g_tm.factor = c.factor;
+        At<float>(train, tn::train::kWord2F0) = c.timer;
+        g_tq.inState = c.inState;
+        At<float>(train, tn::train::kWord2F4) = c.rock;
+        g_tq.tmpl = c.templ ? templ : nullptr;
+        At<char*>(templ, 0x64) = c.templ == 2 ? entry : nullptr;
+        At<float>(entry, 0x4C) = c.most;
+        At<float>(entry, 0x50) = c.degrees;
+        g_tq.clearFlags = c.clear;
+        g_tq.model = runs % 7 != 3;
+        probe.answer[128] = 0x12800u | (runs << 12);
+        trock.Mix(frame(train, 0xC0DEu, c.seconds));
+        mixTrain();
+        if (void* const held = At<void*>(train, tn::train::kOccupant)) {
+            --static_cast<Counted*>(held)->references;
+            At<void*>(train, tn::train::kOccupant) = nullptr;
+        }
+        ++runs;
+    }
+
+    // ---- 256 drawn rocks (a fixed LCG): the amount, the template's bounds,
+    // the transform and one to three cars, each eighth with the flags
+    // cleared by slot 75.
+    uint32_t draw = 0x7A3E5D11u;
+    auto next = [&](float least, float most) {
+        draw = draw * 1664525u + 1013904223u;
+        return least + (most - least) * static_cast<float>(draw >> 8) * (1.0f / 16777216.0f);
+    };
+    g_tq.tmpl = templ;
+    At<char*>(templ, 0x64) = entry;
+    g_tq.inState = 1;
+    g_tq.model = 1;
+    g_tf.trainState = 7;
+    At<uint32_t>(train, av::field::kAutomataFlags) = 0x100000u;
+    At<uint32_t>(train, tn::train::kWanted) = 0;
+    SetPoint(train, tn::train::kPoint, 5.0f, 0.0f, 5.0f);
+    Hash drawn;
+    for (uint32_t i = 0; i < 256; ++i) {
+        const uint32_t n = i % 4;
+        if (n == 0)
+            setCars({});
+        else if (n == 1)
+            setCars({&cars[0]});
+        else if (n == 2)
+            setCars({&cars[0], &cars[1]});
+        else
+            setCars({&cars[0], &cars[1], &cars[2]});
+        At<float>(entry, 0x4C) = next(0.5f, 4.0f);
+        At<float>(entry, 0x50) = next(0.0f, 45.0f);
+        At<float>(train, tn::train::kWord2F4) = next(-0.5f, 4.0f);
+        for (float& v : g_tq.m)
+            v = next(-1.0f, 1.0f);
+        g_tq.clearFlags = (i & 7) == 7;
+        drawn.Mix(frame(train, 0xC0DEu, 0.125f));
+        drawn.Mix(probe.calls.h);
+    }
+    trock.Mix(drawn.h);
+
+    // ---- Put back.
+    setCars({});
+    At<void*>(train, tn::train::kOccupant) = nullptr;
+    At<uint32_t>(train, tn::train::kWord) = 0;
+    At<uint32_t>(train, tn::train::kWord2F0) = 0;
+    At<uint32_t>(train, tn::train::kWord2F4) = 0;
+    At<uint8_t>(train, av::field::kFlags33) = byte33;
+    At<uint32_t>(train, av::field::kAutomataFlags) = 0;
+    At<void**>(train, 0) = realTable;
+    for (const TqCar& c : cars)
+        trock.Mix(static_cast<uint32_t>(c.references));
+    trock.Mix(probe.calls.h);
+    trock.Mix(runs);
+    if (runs)
+        tflags |= 0x800;
+    ReleaseTrain(train);
+    log::Write("autotest: automata: vehicle: tr3a trock %08X calls %08X drawn %08X runs %u sets %u last %08X", trock.h,
+               probe.calls.h, drawn.h, runs, g_tq.sets, Bits(g_tq.last));
+    g_tq = TqAnswers{};
+    g_tm = TmAnswers{};
+    g_tf = TfAnswers{};
+    g_rf = RfAnswers{};
+    g_probe = savedProbe;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -23372,6 +23772,10 @@ void VehicleDrive(cISC4City* city)
     Hash tmove;
     TrainMoveDrive(tmove, tflags);
 
+    // ---- Part tr3a.
+    Hash trock;
+    TrainRockDrive(trock, tflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -23427,11 +23831,11 @@ void VehicleDrive(cISC4City* city)
     char text[400];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
-                  rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, tflags);
+                  rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
