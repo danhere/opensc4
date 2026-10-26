@@ -3655,6 +3655,299 @@ void DriveFontGlyphs()
     FtStage("fontglyphs");
 }
 
+// Measuring and fitting: the breaking spaces over every character; on four
+// loaded fonts in four encodings (UTF-16, UTF-8, code page 874, ASCII) over
+// Latin, breaks, breaking spaces, long words, Thai with SARA AM, CJK and
+// random texts: the first character and its units at every unit, a
+// character found, the glyphs' width, bearing and advance, MeasureString
+// and its trimmed form over every prefix, FitString in four modes and the
+// count that fits at seven widths, the lines, the width for a height, the
+// rectangles (fit, measured three ways, one line), the glyph checks; the
+// shortener on string objects of our own; a font never loaded.
+namespace fontmeasure {
+using DecodeFn = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, uint32_t);
+
+// The breaking space at its address: the character in EAX.
+__declspec(naked) uint32_t __cdecl CallIsSpace(std::uintptr_t /*fn*/, uint32_t /*character*/)
+{
+    __asm {
+        mov eax, dword ptr [esp + 8]
+        call dword ptr [esp + 4]
+        ret
+    }
+}
+
+// A string object for the shortener: the four slots it uses.
+struct OwnString {
+    void** vtable;
+    std::string text;
+};
+
+uint32_t __fastcall OwnData(OwnString* s, void*) { return U(s->text.data()); }
+uint32_t __fastcall OwnSize(OwnString* s, void*) { return static_cast<uint32_t>(s->text.size()); }
+uint32_t __fastcall OwnResize(OwnString* s, void*, uint32_t size)
+{
+    s->text.resize(size);
+    return 1;
+}
+uint32_t __fastcall OwnAppend(OwnString* s, void*, uint32_t data, uint32_t size)
+{
+    s->text.append(reinterpret_cast<const char*>(At32(data)), size);
+    return 1;
+}
+
+std::vector<std::u16string> Texts()
+{
+    std::vector<std::u16string> texts = {
+        u"",
+        u"Hello world",
+        u"The quick brown fox jumps over the lazy dog",
+        u"  leading and trailing   ",
+        u"one\ntwo\r\nthree",
+        u"\nstarts with a break",
+        u"Supercalifragilisticexpialidocious",
+        u"a b c​d e f g h",
+        u"น้ำตาล สวัสดีครับ "
+        u"กำลัง",
+        u"ก้ำป้ำปำ",
+        u"ำกำ ก",
+        u"漢字のテキスト mixed 123",
+        u"tab\there, comma, period. (paren) café",
+        u"W",
+        u" ",
+        u"x\r",
+    };
+    Random random{0x3EA50E5Du};
+    for (uint32_t i = 0; i < 6; ++i) {
+        std::u16string t;
+        const int32_t length = random.Range(1, 60);
+        for (int32_t k = 0; k < length; ++k) {
+            const int32_t pick = random.Range(0, 9);
+            t += pick == 0 ? u' ' : pick == 1 && i % 2 ? u'\n' : static_cast<char16_t>(random.Range(0x61, 0x7A));
+        }
+        texts.push_back(t);
+    }
+    return texts;
+}
+
+// A text in the font's encoding: its units and their size.
+struct Encoded {
+    std::string bytes;
+    uint32_t unit;
+    uint32_t Data() const { return U(bytes.data()); }
+    uint32_t Count() const { return static_cast<uint32_t>(bytes.size()) / unit; }
+};
+
+Encoded Encode(const std::u16string& t, uint32_t encoding)
+{
+    if (encoding == 0x10)
+        return {std::string(reinterpret_cast<const char*>(t.data()), t.size() * 2), 2};
+    if (encoding == 0x36A)
+        return {fonttext::Cp874Of(t), 1};
+    return {fonttext::Utf8Of(t), 1};
+}
+
+// Where a character starts, in units, for the glyph metrics (never inside
+// a UTF-8 sequence, never a byte above 0x7F in ASCII).
+bool Starts(const Encoded& e, uint32_t encoding, uint32_t at)
+{
+    if (encoding == 0x10 || encoding == 0x36A)
+        return true;
+    const uint8_t b = static_cast<uint8_t>(e.bytes[at]);
+    if (encoding == 0)
+        return b < 0x80;
+    return (b & 0xC0) != 0x80;
+}
+
+void MixRect(const int32_t* r) { MixBytes(reinterpret_cast<const uint8_t*>(r), 16); }
+} // namespace fontmeasure
+
+void DriveFontMeasure()
+{
+    using namespace fontmeasure;
+    const auto decode = Game<DecodeFn>(addr::GZFont_Decode);
+    const auto find = Game<SThree>(addr::GZFont_Find);
+
+    {
+        uint32_t spaces = 2166136261u;
+        for (uint32_t c = 0; c < 0x10000; ++c)
+            spaces = (spaces ^ (CallIsSpace(addr::GZFont_IsSpace, c) & 0xFF)) * 16777619u;
+        Mix(spaces);
+        for (const uint32_t c : {0x10020u, 0xFFFF2002u, 0x80000000u, 0x200Cu, 0x2001u, 0xFFFFFFFFu})
+            Mix(CallIsSpace(addr::GZFont_IsSpace, c));
+    }
+
+    void* ownVtable[0x48 / 4 + 1] = {};
+    ownVtable[0x18 / 4] = reinterpret_cast<void*>(&OwnData);
+    ownVtable[0x1C / 4] = reinterpret_cast<void*>(&OwnSize);
+    ownVtable[0x3C / 4] = reinterpret_cast<void*>(&OwnResize);
+    ownVtable[0x44 / 4] = reinterpret_cast<void*>(&OwnAppend);
+
+    const std::vector<std::u16string> texts = Texts();
+    const std::vector<std::string> paths = FontPaths();
+    const uint32_t widths[] = {1, 7, 25, 60, 120, 400, 5000};
+    for (const std::size_t i : {std::size_t{3}, std::size_t{7}, std::size_t{13}, std::size_t{19}}) {
+        if (i >= paths.size())
+            continue;
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        Game<SOne>(addr::GZFont_SetSize)(f, nullptr, i == 13 ? 12 : 16);
+        SetFontPath(f, paths[i]);
+        MixByte(static_cast<uint8_t>(Game<SThis>(addr::GZFont_Load)(f, nullptr)));
+        if (!Field<uint8_t>(f, 4)) {
+            Game<SThis>(addr::GZFont_Release)(f, nullptr);
+            continue;
+        }
+        for (const uint32_t encoding : {0x10u, 8u, 0x36Au, 0u}) {
+            Game<SOne>(addr::GZFont_SetEncoding)(f, nullptr, encoding);
+            for (const std::u16string& t : texts) {
+                const Encoded e = Encode(t, encoding);
+                const uint32_t data = e.Data(), count = e.Count();
+                // The first character at every unit; a conversion that
+                // writes nothing answers the upper half of the text's
+                // address, which is the same either way but not run to run.
+                for (uint32_t at = 0; at <= count; ++at) {
+                    const uint32_t p = data + at * e.unit;
+                    uint32_t units = 0xBEEF;
+                    const uint32_t c = decode(f, nullptr, p, count - at, U(&units));
+                    Mix(c == p >> 16 ? 0xFFFF0001u : c);
+                    Mix(units);
+                    const uint32_t d = decode(f, nullptr, p, count - at, 0);
+                    Mix(d == p >> 16 ? 0xFFFF0001u : d);
+                    if (at < count && Starts(e, encoding, at)) {
+                        Mix(Virtual<uint32_t>(f, 0x90, p, count - at));
+                        Mix(Virtual<uint32_t>(f, 0xE8, p, count - at));
+                        Mix(Virtual<uint32_t>(f, 0xA0, p, count - at));
+                    }
+                }
+                for (const uint32_t c : {10u, 0x6Fu, 0x0E33u, 0x20u, 0xFFFFu})
+                    Mix(find(f, nullptr, data, count, c));
+                for (uint32_t n = 0; n <= count; ++n) {
+                    Mix(Virtual<uint32_t>(f, 0xC0, data, n));
+                    uint32_t length = 0xBEEF;
+                    Mix(Virtual<uint32_t>(f, 0xC4, data, n, U(&length)));
+                    Mix(length);
+                }
+                fonttext::MixTextVectors(f);
+                for (const uint32_t width : widths) {
+                    for (const uint32_t mode : {0u, 1u, 2u, 3u}) {
+                        uint32_t out = 0xBEEF;
+                        Mix(Virtual<uint32_t>(f, 0xA4, data, count, width, U(&out), mode));
+                        Mix(out);
+                    }
+                    uint32_t out = 0xBEEF;
+                    Mix(Virtual<uint32_t>(f, 0xA8, data, count, width, U(&out)));
+                    Mix(out);
+                    Mix(Virtual<uint32_t>(f, 0xA8, data, count, width, 0u));
+                }
+                Mix(Virtual<uint32_t>(f, 0xA4, data, count, 50u, 0u, 2u));
+                Mix(Virtual<uint32_t>(f, 0xA4, data, count, 0u, 0u, 2u));
+                fonttext::MixTextVectors(f);
+                for (const uint32_t width : {0u, 1u, 30u, 90u, 250u})
+                    Mix(Virtual<uint32_t>(f, 0xAC, data, count, width));
+                for (const uint32_t height : {0u, 16u, 40u, 100u, 400u})
+                    Mix(Virtual<uint32_t>(f, 0xB0, data, count, height));
+                // Widths of -1 come from the width of 'a', which in UTF-16
+                // is the character 0x61 with the lowest byte of the widest
+                // width above it (0xFF61 for -1): where that has no width
+                // the game divides by 0, so not there.
+                const char16_t halfwidth = u'｡';
+                const bool minus = encoding != 0x10 || Virtual<uint32_t>(f, 0x90, U(&halfwidth), 1u) != 0;
+                for (const auto& [narrowest, widest, height] :
+                     {std::tuple<int32_t, int32_t, int32_t>{-1, -1, -1}, {-1, -1, 0}, {50, -1, 100}, {-1, 200, 40},
+                      {100, 300, 200}, {20, 30, 16}, {-1, 0x161, 1000}, {-1, 0x100, 50}, {-1, 0x100, 300}}) {
+                    if (widest == -1 && !minus)
+                        continue;
+                    int32_t rect[4] = {3, 4, 3, 4};
+                    MixByte(static_cast<uint8_t>(
+                        Virtual<uint32_t>(f, 0xB4, data, count, U(rect), narrowest, widest, height)));
+                    MixRect(rect);
+                }
+                // Two lines that just fit the height.
+                const int32_t line = static_cast<int32_t>(Virtual<uint32_t>(f, 0x8C));
+                for (const int32_t narrowest : {4, 15, 40, 90}) {
+                    int32_t rect[4] = {3, 4, 3, 4};
+                    MixByte(static_cast<uint8_t>(
+                        Virtual<uint32_t>(f, 0xB4, data, count, U(rect), narrowest, 0x100, line * 2)));
+                    MixRect(rect);
+                }
+                for (const auto& [wrapped, fixed] : {std::pair<uint32_t, uint32_t>{0, 0}, {1, 0}, {1, 1}, {0, 1}}) {
+                    int32_t rect[4] = {5, 6, 105, 46};
+                    Virtual<void>(f, 0xB8, data, count, U(rect), wrapped, fixed);
+                    MixRect(rect);
+                }
+                {
+                    int32_t rect[4] = {5, 6, 105, 46};
+                    Virtual<void>(f, 0xB8, 0u, count, U(rect), 1u, 1u);
+                    MixRect(rect);
+                    Virtual<void>(f, 0xBC, data, count, U(rect));
+                    MixRect(rect);
+                }
+                // The two spacings: every advance's (+0x74) and every
+                // line's (+0x78, in the line height but not in slot 37's).
+                const uint32_t spacing = Field<uint32_t>(f, 0x74), lineSpacing = Field<uint32_t>(f, 0x78);
+                fontglyph::SetField(f, 0x74, spacing + 2);
+                fontglyph::SetField(f, 0x78, lineSpacing + 3);
+                Mix(Virtual<uint32_t>(f, 0xA0, data, count));
+                Mix(Virtual<uint32_t>(f, 0xC0, data, count));
+                {
+                    int32_t rect[4] = {5, 6, 105, 46};
+                    Virtual<void>(f, 0xBC, data, count, U(rect));
+                    MixRect(rect);
+                    Virtual<void>(f, 0xB8, data, count, U(rect), 0u, 0u);
+                    MixRect(rect);
+                }
+                fontglyph::SetField(f, 0x74, spacing);
+                fontglyph::SetField(f, 0x78, lineSpacing);
+                MixByte(static_cast<uint8_t>(Virtual<uint32_t>(f, 0x6C, data, count)));
+                MixByte(static_cast<uint8_t>(Virtual<uint32_t>(f, 0x70, data, count)));
+                fonttext::MixTextVectors(f);
+                // The shortener works on bytes: the byte encodings only.
+                if (encoding != 0x10) {
+                    for (const char* suffix : {"...", "", " (more than the width)"}) {
+                        OwnString tail{ownVtable, suffix};
+                        for (const int32_t width : {0, 10, 40, 100, 1000}) {
+                            for (const uint32_t keep : {0u, 1u}) {
+                                OwnString s{ownVtable, e.bytes};
+                                const int32_t rect[4] = {7, 1, 7 + width, 20};
+                                Mix(Virtual<uint32_t>(f, 0xC8, &s, &tail, U(rect), keep));
+                                Mix(static_cast<uint32_t>(s.text.size()));
+                                MixBytes(reinterpret_cast<const uint8_t*>(s.text.data()), s.text.size());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    // A font never loaded: no glyphs, nothing measures.
+    {
+        void* const f = NewFont();
+        Virtual<uint32_t>(f, 0x4);
+        Game<SOne>(addr::GZFont_SetEncoding)(f, nullptr, 0x10);
+        for (const std::u16string& t : texts) {
+            const uint32_t data = U(t.data()), count = static_cast<uint32_t>(t.size());
+            Mix(Virtual<uint32_t>(f, 0x90, data, count));
+            Mix(Virtual<uint32_t>(f, 0xE8, data, count));
+            Mix(Virtual<uint32_t>(f, 0xA0, data, count));
+            Mix(Virtual<uint32_t>(f, 0xC0, data, count));
+            uint32_t out = 0xBEEF;
+            Mix(Virtual<uint32_t>(f, 0xA4, data, count, 30u, U(&out), 2u));
+            Mix(out);
+            Mix(Virtual<uint32_t>(f, 0xAC, data, count, 30u));
+            MixByte(static_cast<uint8_t>(Virtual<uint32_t>(f, 0x70, data, count)));
+            int32_t rect[4] = {1, 2, 30, 40};
+            Virtual<void>(f, 0xB8, data, count, U(rect), 1u, 1u);
+            MixRect(rect);
+            Virtual<void>(f, 0xBC, data, count, U(rect));
+            MixRect(rect);
+        }
+        Game<SThis>(addr::GZFont_Release)(f, nullptr);
+    }
+    FtStage("fontmeasure");
+}
+
 void DriveFont()
 {
     DriveFontObject();
@@ -3664,6 +3957,7 @@ void DriveFont()
     DriveFontLoad();
     DriveFontText();
     DriveFontGlyphs();
+    DriveFontMeasure();
 }
 
 // OPENSC4_TEST_FONTS=<day>: the 11 by address and real fonts' strings,
