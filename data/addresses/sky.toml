@@ -955,6 +955,68 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "51 56 8B F1 8B 0E 85 C9"
 source = "Name ours. The destructor of the part the second effect class keeps at +0x228 (constructed by 0x00803060). The game's; renderer.effects.dtor notes its calls in compare mode."
+[[entry]]
+name = "SC4EffectC::Construct"
+address = 0x005A8ED0
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this)"
+expect = "51 56 8B F1 E8 77 9C 00"
+source = "Name ours. The third effect class's constructor (0x280 bytes, made by SC4EffectsManager::NewEffectC): SC4Effect::Construct, the tables of functions 0x00AA0B88 and 0x00AA0B40, its three vectors and pointers from +0x220 to +0x254 cleared, +0x22C set to 1, +0x258 cleared, the point +0x25C..+0x264 the float at 0x00B22D40 three times, +0x268 10.0 and +0x278 cleared. Ours in renderer.effects.ctor."
+
+[[entry]]
+name = "SC4EffectC::Destruct"
+address = 0x005A90A0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "57 8B F9 8B 8F 54 02 00"
+source = "Name ours. The third effect class's destructor: the model at +0x254 released (slot 8), the textures of the vector +0x248 let go (SC4TextureBinding::Release) and its storage freed (SC4::Free), the storage of the vector +0x23C freed, the 0x40-byte batches of the vector +0x230 destroyed (their slot 0 with 0) and its storage freed, the storage at +0x220 freed, then a jump to SC4Effect::Destruct. Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4EffectC::Delete"
+address = 0x005A9080
+kind = "function"
+convention = "thiscall"
+signature = "SC4Effect* (SC4Effect* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. ret 4: SC4EffectC::Destruct, then with bit 0 of flags the memory freed (0x005E5620); reached from the sub-object's table (0x00AA0B40 slot 0xC) through the thunk at 0x005A8FD0. Ours in renderer.effects.dtor."
+
+[[entry]]
+name = "SC4EffectBaseC::LetGo"
+address = 0x005A6310
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this)"
+expect = "56 8B F1 8A 46 04 84 C0"
+source = "Name ours. Slot 0x14 of the third effect class's sub-object (vtable 0x00AA0B40), for an effect in use (+4): the model at +0x250 (the effect's +0x254) released (slot 8), the field cleared first; then a jump to SC4EffectBase::LetGo. Ours in renderer.effects.third."
+
+[[entry]]
+name = "SC4EffectBaseC::GiveBackParticle"
+address = 0x005A6200
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4EffectBase* this, SC4Particle* particle)"
+expect = "8B 44 24 04 85 C0 74 0D"
+source = "Name ours. ret 4: slot 0x40 of the third effect class's sub-object: a particle (not null) pushed onto the list at 0x00B0A5A0, not the pool at 0x00B0A688 the base class's take (slot 0x3C, 0x005B7C20) takes from. Ours in renderer.effects.third."
+
+[[entry]]
+name = "SC4EffectC::SetValue"
+address = 0x005AAC90
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Effect* this, int32_t id, const void* value, uint32_t unused)"
+expect = "8B 54 24 04 8B C2 83 E8"
+source = "Name ours. ret 0xC: slot 0x14 of the third effect class: id 8 the point +0x25C..+0x264 from three words, id 9 0x005AA700 (value, value + 0xC), id 0x101 the word +0x278, answering true; any other id a jump to the base class's 0x005B2490. Ours in renderer.effects.third."
+
+[[entry]]
+name = "SC4Effect::SetValue"
+address = 0x005B2490
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Effect* this, int32_t id, const void* value, uint32_t unused)"
+expect = "8B 44 24 04 83 EC 18 83"
+source = "Name ours, not analysed. ret 0xC: slot 0x14 of the first and second effect classes: one of the effect's values set by id (0 to 0xF, 0x102); answers whether the id was known. The game's; renderer.effects.third's SetValue passes the ids it does not know on to it."
 
 [[entry]]
 name = "SC4EffectB::Construct"
@@ -1314,7 +1376,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (SC4EffectsManager* this)"
 expect = "83 EC 08 53 56 8B F1 8B"
-source = "Name ours, not analysed. this = the manager object. Makes an effect of particles of a third class (constructor 0x005A8ED0); no test city makes one: one of the free ones of its list or a new one, entered in the list. Called by MakeRecordEffect. The game's; noted by the comparison of renderer.effects.make."
+source = "Name ours. this = the manager object. Makes an effect of particles of the third class, as NewEffectB does: the last free index taken, or else a new one allocated (0x005E55E0, not tested for null), constructed (SC4EffectC::Construct) and set up; its list: the table at +0xC54, in use +0xC60, free +0xC6C; a new one is 0x280 bytes. No test city makes one. Called by MakeRecordEffect. Ours in renderer.effects.makers (src/core/effects_makers.h); noted by the comparison of renderer.effects.make."
 
 [[entry]]
 name = "SC4EffectsManager::NewEffect10"
