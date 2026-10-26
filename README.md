@@ -22,7 +22,7 @@ Early development. Working today, inside SC4 Deluxe build 1.1.641:
 - **Replaced game code:** 7,517 of the game's functions are ours (27% of the game's own code, measured 2026-10-23), each behind a toggle and checked against the original: nearly all simulators, terrain, the region view, scripts and the audio classes; the renderer is past half and networks about two thirds.
 - **Determinism and parity harness:** runs from the same save agree for a year; replacement simulators are compared exactly against the original.
 
-Not yet playable as a standalone game. Roughly 25-30% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
+Not yet playable as a standalone game. Roughly 30-35% of the way to a full rewrite; measured stats and per-area estimates are in [ROADMAP.md, "Progress"](ROADMAP.md#progress), refreshed weekly.
 
 ## Getting started on Windows
 
