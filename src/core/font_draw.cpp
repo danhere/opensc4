@@ -371,9 +371,16 @@ uint32_t DrawString(void* self, Address picture, int32_t x, int32_t y, Address t
             Store(e + 0x18, w);
             Store(e + 0x1C, h);
             Store(e + 0x20, c);
-            e += kGlyphBytes;
             if (sharp)
-                sharp->Glyph(penX, penY, c, left, top, right, bottom);
+                sharp->Glyph(penX, penY,
+                             static_cast<int32_t>(static_cast<uint32_t>(penX) +
+                                                  static_cast<uint32_t>(Load<int16_t>(g + 0x14)) +
+                                                  Load<uint32_t>(f + font::kSpacing)),
+                             c, left, top, right, bottom, static_cast<const uint8_t*>(Ptr(Load<Address>(e + 0x10))),
+                             pitch);
+            e += kGlyphBytes;
+        } else if (sharp) {
+            sharp->Break();
         }
         penX = static_cast<int32_t>(static_cast<uint32_t>(penX) + static_cast<uint32_t>(Load<int16_t>(g + 0x14)) +
                                     Load<uint32_t>(f + font::kSpacing));
