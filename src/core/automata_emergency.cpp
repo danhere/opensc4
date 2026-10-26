@@ -1,4 +1,4 @@
-// Our emergency vehicles, parts em1, em2a and em2b (build 641): a base on cSC4Vehicle
+// Our emergency vehicles, parts em1, em2a, em2b and em3a (build 641): a base on cSC4Vehicle
 // (src/core/automata_vehicle.cpp) and cSC4FireTruck, cSC4PatrolCar and
 // cSC4Ambulance on it. em1: the objects (the three factories, the four
 // constructors, the base's and the fire truck's destructor bodies, the three
@@ -8,14 +8,18 @@
 // 26, 29, 60, 105, 135 and 143, the ambulance's 192 and 193). em2a: the
 // base's states and mission (slots 25, 73 with its deque count, 79, 93, 109
 // to 111, 146 and 194). em2b: the base's frames (slots 72, 195, 196 and
-// 198, 0x0052F870 and 0x0052F910). The layout is in src/core/automata_emergency.h and the survey in docs/automata.md, "Part
+// 198, 0x0052F870 and 0x0052F910). em3a: the fire truck's slots 25, 60,
+// 111, 121, 165, 193, 197 and 199, the crew sent and recalled (0x00532C40,
+// 0x00532D30), the counts near it (0x00532AE0, 0x00533410) and the route
+// step helpers (0x00533030, 0x00533290, which the train's 165 also calls). The layout is in src/core/automata_emergency.h and the survey in docs/automata.md, "Part
 // em". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
 //   simulators.automata.emergency: the 37 detours in kObject (em1), the 10
-//   in kStates (em2a) and the 6 in kFrames (em2b) below.
+//   in kStates (em2a), the 6 in kFrames (em2b) and the 14 in kFireTruck
+//   (em3a) below.
 //
 // What it does. Each class is a block of SC4::operator_new (0x2E4, 0x2DC and
 // 0x2D8 bytes) and goes back through SC4::operator_delete. The base's
@@ -46,10 +50,10 @@
 // (ours a double, exact).
 //
 // Still the game's, at their addresses: cSC4Vehicle's code (part vb), the
-// base's other slots (em4: 80; 197 is a fold) and the classes' (em3), the core's slot 105 0x005096B0 and
+// base's other slots (em4: 80; 197 is a fold) and the patrol car's (em3b), the core's slot 105 0x005096B0 and
 // cSC4Vehicle's slot 60 0x0055B6C0, cSC4AutomatonBase::RemoveNow, the jumps
 // and adjustor thunks the vtables hold, the occupant filters' code, the
-// stream helpers and the sound service.
+// stream helpers and the sound service; the fire crew's code (the pedestrians').
 
 #include "core/automata_emergency.h"
 
@@ -1327,6 +1331,469 @@ std::uint32_t __fastcall HomeFrame(char* self, void*, std::uint32_t)
 }
 
 // ====================================================================================
+// The fire truck (em3a)
+
+constexpr std::size_t kSmoothed1A0 = 0x1A0, kWord1F8 = 0x1F8;
+constexpr std::uint32_t kFireSimulator = 0xEBFB0404, kFireInterface = 0x4C1E8345; // 0x00532AE0's
+constexpr std::uint32_t kBurnSimulator = 0x621CDA33, kBurnInterface = 0x49B43F57; // 0x00533410's
+
+// __ftol2's low 32 bits of a double (the x87's 0x8000000000000000 where it
+// does not fit, low half 0).
+std::uint32_t FtolWide(double value)
+{
+    if (!(std::fabs(value) < 9223372036854775808.0))
+        return 0;
+    return static_cast<std::uint32_t>(static_cast<std::int64_t>(value));
+}
+
+// A point of three copies of the float 0x00B22818 (the fire truck's locals).
+void FirePoint(float (&point)[3])
+{
+    for (float& f : point)
+        f = Global<float>(addr::cSC4FireTruck_DefaultFloat);
+}
+
+std::uint32_t Mission(char* self) { return Virtual<std::uint32_t>(self, slot::kMission); }
+
+// The interface `iid` of the city's simulator `id` (simulators slot 7, not
+// null-tested), into `out` (null when not given); whether its query said so.
+bool SimulatorInterface(std::uint32_t id, std::uint32_t iid, void** out)
+{
+    void* const simulators = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCitySimulators);
+    void* const simulator = Virtual<void*>(simulators, slot::kSimulatorById, id);
+    if (!simulator)
+        return false;
+    return Virtual<std::uint8_t>(simulator, 0x00, iid, static_cast<void*>(out)) != 0;
+}
+
+// 0x00532AE0 (int* total, int* near), ret 8: both zero; the city's simulator
+// 0xEBFB0404 as 0x4C1E8345: *total its slot 5, then the cell under the
+// position (the city's slot 95 into the arguments' own stack slots) and *near
+// its slot 4 over the cells within slot 193 x 3 x 0.0625 (53 bits, __ftol2) of
+// it (x - r, z - r, x + r, z + r). The interface released when held.
+void __fastcall FiresNear(char* self, void*, std::int32_t* total, std::int32_t* nearby)
+{
+    static bool logged;
+    FirstCall("FiresNear", logged);
+    *total = 0;
+    *nearby = 0;
+    void* fires = nullptr;
+    if (SimulatorInterface(kFireSimulator, kFireInterface, &fires)) {
+        *total = Virtual<std::int32_t>(fires, slot::kFireCount);
+        // The game's outs are the arguments' stack slots: what slot 95 does
+        // not write stays the pointers.
+        std::uint32_t cellX = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(total));
+        std::uint32_t cellZ = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(nearby));
+        Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), slot::kCellOf, At<float>(self, kPosition),
+                               At<float>(self, kPosition + 8), &cellX, &cellZ);
+        const double reach = Virtual<double>(self, slot::kReach) *
+                             static_cast<double>(Global<float>(addr::cSC4AutomatonBase_FrontGap)) *
+                             static_cast<double>(Global<float>(addr::SC4_FloatSixteenth));
+        const std::uint32_t r = FtolWide(reach);
+        std::uint32_t rect[4] = {cellX - r, cellZ - r, cellX + r, cellZ + r};
+        *nearby = Virtual<std::int32_t>(fires, slot::kFiresIn, static_cast<void*>(rect));
+    }
+    if (fires)
+        Release(fires);
+}
+
+// 0x00532BF0, the fire truck's slot 193: the city's slot 57 service's slot
+// 24 for the target +0x2C4 when it knows it (slot 7; the service not
+// null-tested), else 16. In ST0 (ours a double).
+double __fastcall Reach(char* self, void*)
+{
+    static bool logged;
+    FirstCall("Reach", logged);
+    void* const targets = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityTargets);
+    void* const target = At<void*>(self, base::kTarget);
+    if (target && Virtual<std::uint8_t>(targets, slot::kTargetKnown, target))
+        return Virtual<double>(targets, slot::kTargetReach, At<void*>(self, base::kTarget));
+    return 16.0;
+}
+
+// The crew made: a block of 0x2C4 bytes (0x00544890, the pedestrians'
+// allocator) given to cSC4SimFireCrew's constructor with this truck, into
+// +0x2E0 (held, the old one released).
+void MakeCrew(char* self)
+{
+    void* const block = CallCdecl<void*>(addr::cSC4Pedestrian_New, std::size_t{0x2C4});
+    void* const crew = block ? CallThis<void*>(addr::cSC4SimFireCrew_Construct, block, self) : nullptr;
+    Assign(self, fire::kCrew, crew);
+}
+
+// 0x00532C40: without a crew +0x2E0 one made; its word +0x274 the float
+// 0x00B09B18's bits, or the service 0x00B43D78's word for the target when it
+// knows it (slots 7 and 10; the service held for the while, its slots called
+// without a null test); the city's slot 44 object told of it (slot 7) and
+// the crew sent (0x00547EF0).
+void __fastcall SendCrew(char* self, void*)
+{
+    static bool logged;
+    FirstCall("SendCrew", logged);
+    if (At<void*>(self, fire::kCrew))
+        return;
+    MakeCrew(self);
+    void* const service = Global<void*>(addr::SC4_Service43D78);
+    std::uint32_t word = Global<std::uint32_t>(addr::cSC4FireTruck_CrewWord);
+    if (service)
+        Virtual<std::uint32_t>(service, kAddRef);
+    void* const target = At<void*>(self, base::kTarget);
+    if (target && Virtual<std::uint8_t>(service, slot::kServiceHas, target)) {
+        std::uint32_t out = 0;
+        word = *Virtual<std::uint32_t*>(service, slot::kServiceWord, &out, At<void*>(self, base::kTarget));
+    }
+    CallThis<void>(addr::cSC4SimFireCrew_SetWord274, At<void*>(self, fire::kCrew), &word);
+    void* const crews = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityCrewService);
+    Virtual<std::uint32_t>(crews, slot::kCrewAdd, At<void*>(self, fire::kCrew));
+    CallThis<void>(addr::cSC4SimFireCrew_Dispatch, At<void*>(self, fire::kCrew));
+    if (service)
+        Release(service);
+}
+
+// 0x00532D30: with a crew the city's slot 44 object told it is done with
+// (slot 8, the crew and 0), then +0x2E0 cleared and released (a tail jump).
+// EAX the last call's.
+std::uint32_t __fastcall RecallCrew(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RecallCrew", logged);
+    if (!At<void*>(self, fire::kCrew))
+        return 0;
+    void* const crews = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityCrewService);
+    const std::uint32_t told = Virtual<std::uint32_t>(crews, slot::kCrewDone, At<void*>(self, fire::kCrew), 0u);
+    void* const crew = At<void*>(self, fire::kCrew);
+    if (!crew)
+        return told;
+    At<void*>(self, fire::kCrew) = nullptr;
+    return Release(crew);
+}
+
+std::uint32_t Recall(char* self) { return CallThis<std::uint32_t>(addr::cSC4FireTruck_RecallCrew, self); }
+
+// The mission field set without slot 25, and slot 102 (7, slot 26).
+void MissionWithout25(char* self, std::uint32_t mission)
+{
+    At<std::uint32_t>(self, base::kMission) = mission;
+    Virtual<std::uint32_t>(self, slot::kSlot102, 7u, Mission(self));
+}
+
+// 0x00532D80, the fire truck's slot 60 (event, flag), ret 8: with a crew the
+// events 0 and 1 recall it (0x00532D30). The event 7 with the flag's low
+// byte set: with a crew the mission 2 (the field and slot 102 (7, slot 26))
+// and the crew recalled; without, when |the smoothed value +0x1A0| is below
+// 0.001 (0x00A867A4; not when unordered) the mission 5 so and the crew sent
+// (0x00532C40). The event 8 without a crew the same by slot 38. Then the
+// base's slot 60 (0x0052F780), its EAX.
+std::uint32_t __fastcall FireOnEvent(char* self, void*, std::uint32_t event, std::uint32_t flag)
+{
+    static bool logged;
+    FirstCall("FireOnEvent", logged);
+    if (At<void*>(self, fire::kCrew) && (event == 0 || event == 1))
+        Recall(self);
+    bool test = false;
+    double value = 0;
+    if (event == 7) {
+        if (flag & 0xFF) {
+            if (At<void*>(self, fire::kCrew)) {
+                MissionWithout25(self, 2u);
+                Recall(self);
+            } else {
+                value = std::fabs(CallThis<double>(addr::cSC4AutomatonCore_SmoothedValue, self + kSmoothed1A0));
+                test = true;
+            }
+        }
+    } else if (event == 8 && !At<void*>(self, fire::kCrew)) {
+        value = Virtual<double>(self, slot::kGetSpeed);
+        test = true;
+    }
+    if (test && value < static_cast<double>(Global<float>(addr::cSC4AutomatonBase_ArriveDistance))) {
+        MissionWithout25(self, 5u);
+        CallThis<void>(addr::cSC4FireTruck_SendCrew, self);
+    }
+    return CallThis<std::uint32_t>(addr::cSC4EmergencyVehicle_OnEvent, self, event, flag);
+}
+
+// 0x00532E60, the fire truck's slot 111 (state), ret 4: leaving the state
+// 0x10 recalls the crew; then the base's (0x0052F1C0), its EAX.
+std::uint32_t __fastcall FireLeaveState(char* self, void*, char* left)
+{
+    static bool logged;
+    FirstCall("FireLeaveState", logged);
+    if (left && At<std::uint32_t>(left, state::kType) == 0x10)
+        Recall(self);
+    return CallThis<std::uint32_t>(addr::cSC4EmergencyVehicle_LeaveState, self, left);
+}
+
+// 0x00533030 (from), ret 4: a 12-byte step copied (the object held, the
+// word, the byte); answers this.
+void* __fastcall StepCopy(char* self, void*, const char* from)
+{
+    static bool logged;
+    FirstCall("StepCopy", logged);
+    void* const object = At<void*>(const_cast<char*>(from), 0);
+    At<void*>(self, 0) = object;
+    if (object)
+        Virtual<std::uint32_t>(object, kAddRef);
+    At<std::uint32_t>(self, 4) = At<std::uint32_t>(const_cast<char*>(from), 4);
+    At<std::uint8_t>(self, 8) = At<std::uint8_t>(const_cast<char*>(from), 8);
+    return self;
+}
+
+// 0x00533060, the fire truck's slot 199: out of the state 0x10 the crew
+// recalled and the mission 2 (slot 25).
+void __fastcall FireSlot199(char* self, void*)
+{
+    static bool logged;
+    FirstCall("FireSlot199", logged);
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x10)
+        return;
+    Recall(self);
+    Virtual<void>(self, slot::kSetMission, 2u);
+}
+
+// 0x00533090, the fire truck's slot 121 (controls, word), ret 8: with the
+// controls' float +0x9C at or above zero and 0x00B43DD0's slot 60 finding a
+// point for the words +0x214/+0x218 (into three copies of 0x00B22818), the
+// point kept on the map (x below 0 to 0, from 16 x the city's slot 93 on to
+// that less 1, stored as floats; z the same by slot 94 but kept unrounded;
+// neither without a city) and within the float 0x00B21CDC of the position
+// (the differences as floats, summed z, y, x squared, FSQRT at 53 bits; past
+// the reach, along the way at the reach: x unrounded until stored, y and z
+// by floats) goes to +0x21C. Then cSC4Vehicle's 0x0055C600 (controls, word),
+// its EAX.
+std::uint32_t __fastcall FireSteer(char* self, void*, char* controls, std::uint32_t word)
+{
+    static bool logged;
+    FirstCall("FireSteer", logged);
+    if (At<float>(controls, controls::kHeld) >= Global<float>(addr::SC4_FloatZero)) {
+        float aim[3];
+        FirePoint(aim);
+        void* const view = Global<void*>(addr::SC4_View43DD0);
+        if (Virtual<std::uint8_t>(view, slot::kPick, At<std::uint32_t>(controls, controls::kScreen),
+                                  At<std::uint32_t>(controls, controls::kScreen + 4), static_cast<void*>(aim), 1u,
+                                  1u)) {
+            const double zero = Global<float>(addr::SC4_FloatZero);
+            const double one = Global<float>(addr::SC4_FloatOneA81228);
+            double z = aim[2];
+            if (void* const city = Global<void*>(addr::SC4_City)) {
+                const float width = static_cast<float>(
+                    static_cast<std::int32_t>(Virtual<std::uint32_t>(city, slot::kCityWidth) << 4));
+                const float depth = static_cast<float>(
+                    static_cast<std::int32_t>(Virtual<std::uint32_t>(city, slot::kCityDepth) << 4));
+                if (aim[0] < zero)
+                    aim[0] = 0.0f;
+                else if (aim[0] >= width) // not when unordered
+                    aim[0] = static_cast<float>(static_cast<double>(width) - one);
+                if (z < zero)
+                    z = zero;
+                else if (z >= depth)
+                    z = static_cast<double>(depth) - one;
+            }
+            const double reach = Global<float>(addr::cSC4FireTruck_HoseReach);
+            const float dx = static_cast<float>(static_cast<double>(aim[0]) - At<float>(self, kPosition));
+            float dy = static_cast<float>(static_cast<double>(aim[1]) - At<float>(self, kPosition + 4));
+            float dz = static_cast<float>(z - At<float>(self, kPosition + 8));
+            double sum = static_cast<double>(dz) * dz;
+            sum = sum + static_cast<double>(dy) * dy;
+            sum = sum + static_cast<double>(dx) * dx;
+            const double distance = std::sqrt(sum);
+            if (distance > reach) {
+                const double inverse = Global<float>(addr::cSC4FireTruck_One) / static_cast<double>(static_cast<float>(distance));
+                const double x = static_cast<double>(dx) * inverse;
+                dy = static_cast<float>(static_cast<double>(dy) * inverse);
+                dz = static_cast<float>(static_cast<double>(dz) * inverse);
+                const double nx = x * reach + At<float>(self, kPosition);
+                const float ty = static_cast<float>(static_cast<double>(dy) * reach);
+                const float tz = static_cast<float>(static_cast<double>(dz) * reach);
+                const double ny = static_cast<double>(ty) + At<float>(self, kPosition + 4);
+                z = static_cast<float>(static_cast<double>(tz) + At<float>(self, kPosition + 8));
+                aim[0] = static_cast<float>(nx);
+                aim[1] = static_cast<float>(ny);
+            }
+            At<float>(controls, controls::kAim + 8) = static_cast<float>(z);
+            At<float>(controls, controls::kAim) = aim[0];
+            At<float>(controls, controls::kAim + 4) = aim[1];
+        }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4Vehicle_Steer, self, controls, word);
+}
+
+// 0x00533290 (on the +0x204 deque), the last 12-byte step: the finish's
+// current less 0xC, from the end of the block before when at a block's first.
+void* __fastcall DequeBack(char* deque, void*)
+{
+    static bool logged;
+    FirstCall("DequeBack", logged);
+    char* current = At<char*>(deque, 0x10);
+    if (current == At<char*>(deque, 0x14))
+        current = At<char**>(deque, 0x1C)[-1] + 0x78;
+    return current - 0xC;
+}
+
+// 0x005332C0, the fire truck's slot 165: with the automata flags 0x80 and
+// 0x40, not 0x2000, an occupant, no route (+0x23C = +0x22C), steps in the
+// +0x204 deque and at the point (slot 146): the last step copied
+// (0x00533290, 0x00533030); when its object's network part (slot 49)
+// reaches (slot 21: 1, the point slot 143, a point of three 0x00B22818, 0)
+// the object entered (slot 132: it, slot 136, 0, 1), +0x1F8 zero, the flag
+// 0x2000 on, the point the destination (slot 10) and the flag 4 off. The
+// copy's object released (no null test); AL 1. Else the automaton base's
+// 0x00553AA0, its EAX.
+std::uint32_t __fastcall FireSlot165(char* self, void*)
+{
+    static bool logged;
+    FirstCall("FireSlot165", logged);
+    if (!CheckFlag(self, 0x80u) || !CheckFlag(self, 0x40u) || CheckFlag(self, 0x2000u) || !At<void*>(self, kOccupant) ||
+        At<char*>(self, kRouteFinish) != At<char*>(self, kRouteStart) ||
+        At<char*>(self, kDeque204 + 0x10) == At<char*>(self, kDeque204) || !Virtual<std::uint8_t>(self, slot::kAtPoint))
+        return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_NextStep, self);
+    char step[12];
+    CallThis<void*>(addr::SC4AutomatonStep_Copy, static_cast<void*>(step),
+                    CallThis<void*>(addr::SC4AutomatonDeque204_Back, self + kDeque204));
+    void* const object = At<void*>(step, 0);
+    float point[3];
+    FirePoint(point);
+    if (void* const part = Virtual<void*>(object, slot::kNetworkPart)) {
+        void* const at = Virtual<void*>(self, slot::kPoint);
+        if (Virtual<std::uint8_t>(part, slot::kPartReaches, 1u, at, static_cast<void*>(point), 0u)) {
+            const std::uint32_t groups = Virtual<std::uint32_t>(self, slot::kGroups);
+            Virtual<std::uint32_t>(self, slot::kEnterOccupant, object, groups, 0u, 1u);
+            At<std::uint32_t>(self, kWord1F8) = 0;
+            SetFlag(self, 0x2000u, 1u);
+            Virtual<std::uint32_t>(self, slot::kSetDestination, static_cast<void*>(point));
+            SetFlag(self, 4u, 0u);
+        }
+    }
+    Release(object);
+    return 1;
+}
+
+// A list of the allocator 0x00B207E4 as the game keeps it on the stack: the
+// sentinel and the next word (here the bits of slot 193's float).
+struct NodeList {
+    char* head;
+    std::uint32_t word;
+};
+
+// 0x00533410 (int* burning, int* near), ret 8: *burning the city's simulator
+// 0x621CDA33 as 0x49B43F57: its slot 11's slot 16 (released), the interface
+// released; *near the occupants (the city's slot 34, held for the while, its
+// slot 36 with the filter +0x2D8 and -1, not null-tested) in the box of
+// slot 193 (as a float) about the position (slot 7 into three 0x00B22818; x
+// and z less and plus it as floats, y the floats' extremes), counted through
+// the list (then its slot 48). The list made (the allocator fetched from the
+// framework when unset) and destroyed (0x00413FE0).
+void __fastcall DouseTargets(char* self, void*, std::int32_t* burning, std::int32_t* nearby)
+{
+    static bool logged;
+    FirstCall("DouseTargets", logged);
+    *burning = 0;
+    void* found = nullptr;
+    SimulatorInterface(kBurnSimulator, kBurnInterface, &found);
+    if (found) {
+        if (void* const object = Virtual<void*>(found, slot::kBurning)) {
+            *burning = Virtual<std::int32_t>(object, slot::kBurningCount);
+            Release(object);
+        }
+        Release(found);
+    }
+    *nearby = 0;
+    float position[3];
+    FirePoint(position);
+    if (!Global<void*>(addr::SC4List_NodeAllocator2)) {
+        void* allocator = nullptr;
+        if (void* const framework = CallCdecl<void*>(addr::RZGetFramework))
+            Virtual<std::uint8_t>(framework, 0x14, std::uint32_t{0x3AE4BEA3}, std::uint32_t{0x3AE4BEAB},
+                                  static_cast<void*>(&allocator));
+        *reinterpret_cast<void**>(addr::SC4List_NodeAllocator2) = allocator;
+        CallThis<void>(addr::SC4_ReleaseRef, static_cast<void*>(&allocator));
+    }
+    char* const head = Virtual<char*>(Global<void*>(addr::SC4List_NodeAllocator2), 0x0C, std::uint32_t{0xC});
+    At<char*>(head, 0) = head;
+    At<char*>(head, 4) = head;
+    NodeList list{head, 0};
+    const float reach = static_cast<float>(Virtual<double>(self, slot::kReach));
+    std::memcpy(&list.word, &reach, 4);
+    Virtual<std::uint32_t>(self, slot::kGetPosition, static_cast<void*>(position));
+    float low[3], high[3];
+    low[0] = static_cast<float>(static_cast<double>(position[0]) - reach);
+    high[1] = 3.40282347e38f;
+    low[1] = -3.40282347e38f;
+    low[2] = static_cast<float>(static_cast<double>(position[2]) - reach);
+    high[0] = static_cast<float>(static_cast<double>(position[0]) + reach);
+    high[2] = static_cast<float>(static_cast<double>(position[2]) + reach);
+    void* const occupants = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityOccupants);
+    if (occupants)
+        Virtual<std::uint32_t>(occupants, kAddRef);
+    if (Virtual<std::uint8_t>(occupants, slot::kOccupantsInBox, static_cast<void*>(&list), static_cast<void*>(low),
+                              static_cast<void*>(high), At<void*>(self, fire::kFilter), 0xFFFFFFFFu)) {
+        std::int32_t count = 0;
+        for (char* node = At<char*>(list.head, 0); node != list.head; node = At<char*>(node, 0))
+            ++count;
+        *nearby = count;
+        Virtual<std::uint32_t>(occupants, slot::kListDone, static_cast<void*>(&list));
+    }
+    Release(occupants);
+    CallThis<void>(addr::SC4List_Destroy2, static_cast<void*>(&list));
+}
+
+// 0x005335F0, the fire truck's slot 197 (seconds), ret 4, the state 0x66 (on
+// the scene): 0x00533410 and 0x00532AE0. On the mission 2 without a crew,
+// something near (either's second count above zero) the mission 5 (slot 25);
+// nothing near on the mission 5 out of the state 0x10 the mission 2; on the
+// mission 2 with neither first count, home (slot 29). AL 1.
+std::uint32_t __fastcall FireSceneFrame(char* self, void*, std::uint32_t)
+{
+    static bool logged;
+    FirstCall("FireSceneFrame", logged);
+    std::int32_t burning = 0, near1 = 0, fires = 0, near2 = 0;
+    CallThis<void>(addr::cSC4FireTruck_DouseTargets, self, &burning, &near1);
+    CallThis<void>(addr::cSC4FireTruck_FiresNear, self, &fires, &near2);
+    if (Mission(self) == 2 && !At<void*>(self, fire::kCrew) && (near1 > 0 || near2 > 0)) {
+        Virtual<void>(self, slot::kSetMission, 5u);
+        return 1;
+    }
+    if (near1 == 0 && near2 == 0 && Mission(self) == 5 && Virtual<std::uint32_t>(self, slot::kStateType) != 0x10) {
+        Virtual<void>(self, slot::kSetMission, 2u);
+        return 1;
+    }
+    if (Mission(self) == 2 && burning == 0 && fires == 0)
+        Virtual<void>(self, slot::kGoHome);
+    return 1;
+}
+
+// 0x005336C0, the fire truck's slot 25 (mission), ret 4: the base's
+// (0x0052FF60); then, unless a state 0x10 is stacked (slot 57), by slot 26:
+// 1 the crew recalled and a new one made, the city's slot 44 object told
+// (slot 7) and sent (0x00547EF0); 5 the crew recalled, then 0x00533410 and
+// 0x00532AE0, and with either second count above zero or in the state 0x10
+// the crew sent (0x00532C40); else the crew recalled.
+void __fastcall FireSetMission(char* self, void*, std::uint32_t mission)
+{
+    static bool logged;
+    FirstCall("FireSetMission", logged);
+    CallThis<void>(addr::cSC4EmergencyVehicle_SetMission, self, mission);
+    if (Virtual<void*>(self, slot::kInState, 0x10u))
+        return;
+    const std::uint32_t now = Mission(self);
+    Recall(self);
+    if (now == 1) {
+        MakeCrew(self);
+        void* const crews = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityCrewService);
+        Virtual<std::uint32_t>(crews, slot::kCrewAdd, At<void*>(self, fire::kCrew));
+        CallThis<void>(addr::cSC4SimFireCrew_Dispatch, At<void*>(self, fire::kCrew));
+        return;
+    }
+    if (now != 5)
+        return;
+    std::int32_t burning = 0, near1 = 0, fires = 0, near2 = 0;
+    CallThis<void>(addr::cSC4FireTruck_DouseTargets, self, &burning, &near1);
+    CallThis<void>(addr::cSC4FireTruck_FiresNear, self, &fires, &near2);
+    if (near1 > 0 || near2 > 0 || Virtual<std::uint32_t>(self, slot::kStateType) == 0x10)
+        CallThis<void>(addr::cSC4FireTruck_SendCrew, self);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1434,13 +1901,32 @@ const Detour kFrames[] = {
     OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_HomeFrame, HomeFrame),
 };
 
+// Part em3a.
+const Detour kFireTruck[] = {
+    OPENSC4_DETOUR(addr::cSC4FireTruck_FiresNear, FiresNear),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_Reach, Reach),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_SendCrew, SendCrew),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_RecallCrew, RecallCrew),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_OnEvent, FireOnEvent),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_LeaveState, FireLeaveState),
+    OPENSC4_DETOUR(addr::SC4AutomatonStep_Copy, StepCopy),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_Slot199, FireSlot199),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_Steer, FireSteer),
+    OPENSC4_DETOUR(addr::SC4AutomatonDeque204_Back, DequeBack),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_Slot165, FireSlot165),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_DouseTargets, DouseTargets),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_SceneFrame, FireSceneFrame),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_SetMission, FireSetMission),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kStates, sizeof kStates / sizeof kStates[0], "states") &&
-           InstallList(kFrames, sizeof kFrames / sizeof kFrames[0], "frames");
+           InstallList(kFrames, sizeof kFrames / sizeof kFrames[0], "frames") &&
+           InstallList(kFireTruck, sizeof kFireTruck / sizeof kFireTruck[0], "fire truck");
 }
 
 const bool g_registered[] = {
@@ -1453,8 +1939,9 @@ const bool g_registered[] = {
                         "the base's slots 23, 24, 26, 29, 60, 105, 135 and 143 and the ambulance's 192 and 193 (37 "
                         "detours, part em1); the base's states and mission: slots 25, 73 with its deque count, 79, "
                         "93, 109 to 111, 146 and 194 (10 detours, part em2a); the frames: slots 72, 195, 196 and 198, "
-                        "the occupant at the cell and the mission message (6 detours, part em2b; "
-                        "src/core/automata_emergency.cpp)",
+                        "the occupant at the cell and the mission message (6 detours, part em2b); the fire truck's "
+                        "slots 25, 60, 111, 121, 165, 193, 197 and 199, its crew and nearby counts and the last step "
+                        "(14 detours, part em3a; src/core/automata_emergency.cpp)",
                         false, InstallObject}),
 };
 

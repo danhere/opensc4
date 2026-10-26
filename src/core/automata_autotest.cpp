@@ -470,6 +470,29 @@
 //   the target, the distance against the bound, the finder and its answer,
 //   a NaN). eflags 0x800 when it ran, 0x200 or 0x400 when a factory failed
 //   or there was no city. Log line: "em2b eframes".
+//   Part em3a (the fire truck) adds `,<efire>` before eflags (48 fields): on
+//   a fire truck, em2b's vtable copy with slots 10, 29, 38, 67 (null, so
+//   cSC4Vehicle::Steer stops), 136, 174 (0, so the automaton base's
+//   NextStep stops) and 193 the test's too, the sound service, the message
+//   server, 0x00B43D54, 0x00B43DD0 and 0x00B43D78 of the test's, the city's
+//   vtable swapped for a copy with slots 34, 44, 47, 57, 72, 93, 94 and 95
+//   the test's, and cSC4SimFireCrew's constructor 0x0054A2A0 and dispatch
+//   0x00547EF0 patched for the while to the test's (the crews are blocks of
+//   the game's allocator, given back at the end): slot 193 by the target;
+//   0x00532AE0 over ten cases (the simulators, the query, slot 193's reach
+//   with large and NaN ones, the position); 0x00533410 over eight (the
+//   simulator, its object, the box answer and nodes, the reach); slot 197
+//   over sixty (the mission, a crew, the four counts, the state type);
+//   0x00532D30 and slot 199 with and without a crew; slot 111 by the state
+//   left; 0x00532C40 with a crew and over four cases (the service, the
+//   target, its answer); slot 60 over the events 0, 1, 7, 8, 9 and 3 with
+//   flags, a crew and five smoothed values (slot 38 their sign flipped by
+//   turns); slot 25 over eleven cases; slot 121 over the controls' float,
+//   the pick and twelve points against the hose's reach and two maps;
+//   0x00533030, 0x00533290 on two deque shapes and slot 165 over eleven
+//   cases. eflags 0x1000 when it ran, 0x2000 or 0x4000 when the factory
+//   failed or there was no city, 0x8000 when the code could not be
+//   patched. Log line: "em3a efire".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -25818,6 +25841,905 @@ void EmFramesDrive(Hash& eframes, uint32_t& eflags)
     g_em3Target = nullptr;
 }
 
+// ---- Part em3a: the fire truck (src/core/automata_emergency.cpp).
+
+// What the em3a test's slots and services answer.
+struct Em4Answers {
+    double reach = 0;          // slot 193 (the helpers call it)
+    double speed = 0;          // slot 38
+    float targetReach = 0;     // the city's slot 57 service's slot 24
+    uint8_t targetKnown = 0;   // its slot 7
+    uint8_t simulators = 0;    // bit 0 the fire simulator, bit 1 the burning one (the simulators' slot 7)
+    uint8_t queryWrites = 1;   // the simulators' QueryInterface writes the interface
+    uint8_t queryAnswer = 1;   //   and answers this
+    int32_t total = 0;         // the fire interface's slot 5
+    int32_t inRect = 0;        //   and slot 4
+    uint8_t burningObject = 1; // the burning interface's slot 11 answers its object
+    int32_t burning = 0;       //   whose slot 16 answers this
+    uint8_t boxAnswer = 0;     // the occupant manager's slot 36
+    uint32_t boxNodes = 0;     //   and the nodes it adds
+    uint32_t width = 64, depth = 64; // the city's slots 93 and 94
+    uint8_t pickAnswer = 0;    // 0x00B43DD0's slot 60
+    float pick[3] = {};        //   and the point it writes
+    uint8_t serviceHas = 0;    // 0x00B43D78's slot 7
+    uint32_t serviceWord = 0;  //   and slot 10's word
+    uint8_t partReaches = 0;   // the step's network part's slot 21
+    uint8_t hasPart = 1;       // the step's slot 49 answers the part
+    char* made[32] = {};       // the crews the patched constructor made
+    int madeCount = 0;
+};
+Em4Answers g_em4;
+
+// A crew pointer by name: none 0, the test's own 1, made 2.., else 9.
+struct Em4Crew {
+    void** vtable;
+    int32_t references;
+    int32_t id;
+};
+Em4Crew g_em4Crew;
+uint32_t Em4CrewId(const void* crew)
+{
+    if (!crew)
+        return 0;
+    if (crew == &g_em4Crew)
+        return 1;
+    for (int i = 0; i < g_em4.madeCount; ++i)
+        if (crew == g_em4.made[i])
+            return 2u + static_cast<uint32_t>(i);
+    return 9;
+}
+uint32_t __fastcall Em4CrewAddRef(Em4Crew* c, void*) { return static_cast<uint32_t>(++c->references); }
+uint32_t __fastcall Em4CrewRelease(Em4Crew* c, void*)
+{
+    g_em.calls.Mix(0xC2E);
+    g_em.calls.Mix(Em4CrewId(c));
+    return static_cast<uint32_t>(--c->references);
+}
+void** Em4CrewTable()
+{
+    static void* t[8] = {};
+    t[1] = reinterpret_cast<void*>(&Em4CrewAddRef);
+    t[2] = reinterpret_cast<void*>(&Em4CrewRelease);
+    return t;
+}
+
+// What the patched game code runs while the test calls: cSC4SimFireCrew's
+// constructor (the block of the game's allocator, kept to the end) and the
+// crew's dispatch.
+char* __fastcall Em4CrewConstruct(char* block, void*, char* truck)
+{
+    g_em.calls.Mix(0xC0C);
+    g_em.calls.Mix(truck == g_em2.self ? 1u : 2u);
+    auto* const crew = reinterpret_cast<Em4Crew*>(block);
+    crew->vtable = Em4CrewTable();
+    crew->references = 0;
+    crew->id = 0;
+    At<uint32_t>(block, 0x274) = 0xA5A5A5A5u;
+    if (g_em4.madeCount < 32)
+        g_em4.made[g_em4.madeCount++] = block;
+    return block;
+}
+void __fastcall Em4CrewDispatch(char* crew, void*)
+{
+    g_em.calls.Mix(0xD15);
+    g_em.calls.Mix(Em4CrewId(crew));
+    g_em.calls.Mix(crew && crew != reinterpret_cast<char*>(&g_em4Crew) ? At<uint32_t>(crew, 0x274) : 0u);
+    g_em.calls.Mix(g_em2.self ? Em4CrewId(At<void*>(g_em2.self, em::fire::kCrew)) : 0u);
+}
+
+// The three kernel32 calls Em4Jump needs (this file does not include
+// windows.h, whose macros clash with its names).
+extern "C" __declspec(dllimport) int __stdcall VirtualProtect(void*, unsigned long, unsigned long, unsigned long*);
+extern "C" __declspec(dllimport) int __stdcall FlushInstructionCache(void*, const void*, unsigned long);
+extern "C" __declspec(dllimport) void* __stdcall GetCurrentProcess();
+constexpr unsigned long kEm4Writable = 0x40; // PAGE_EXECUTE_READWRITE
+
+// A jump written over the game's code for the while (the five bytes put
+// back after).
+struct Em4Jump {
+    uint8_t* at;
+    uint8_t saved[5];
+    bool written = false;
+    Em4Jump(std::uintptr_t address, void* to) : at(reinterpret_cast<uint8_t*>(address))
+    {
+        unsigned long protection = 0;
+        if (!VirtualProtect(at, 5, kEm4Writable, &protection))
+            return;
+        std::memcpy(saved, at, 5);
+        at[0] = 0xE9;
+        const int32_t rel = static_cast<int32_t>(reinterpret_cast<std::uintptr_t>(to) - (address + 5));
+        std::memcpy(at + 1, &rel, 4);
+        VirtualProtect(at, 5, protection, &protection);
+        FlushInstructionCache(GetCurrentProcess(), at, 5);
+        written = true;
+    }
+    ~Em4Jump()
+    {
+        if (!written)
+            return;
+        unsigned long protection = 0;
+        VirtualProtect(at, 5, kEm4Writable, &protection);
+        std::memcpy(at, saved, 5);
+        VirtualProtect(at, 5, protection, &protection);
+        FlushInstructionCache(GetCurrentProcess(), at, 5);
+    }
+};
+
+// The slots of the test's.
+double __fastcall Em4Reach(char*, void*)
+{
+    g_em.calls.Mix(193);
+    return g_em4.reach;
+}
+double __fastcall Em4Speed(char*, void*)
+{
+    g_em.calls.Mix(38);
+    return g_em4.speed;
+}
+void __fastcall Em4GoHome(char*, void*) { g_em.calls.Mix(29); }
+uint32_t __fastcall Em4StateLeave(char*, void*, char* core)
+{
+    g_em.calls.Mix(0x1E0);
+    g_em.calls.Mix(core == g_em2.self ? 1u : 2u);
+    return 0;
+}
+uint32_t __fastcall Em4SetDestination(char*, void*, const float* point)
+{
+    g_em.calls.Mix(10);
+    g_em.calls.MixBytes(point, 12);
+    return 0;
+}
+uint32_t __fastcall Em4Groups(char*, void*)
+{
+    g_em.calls.Mix(136);
+    return 0x136;
+}
+void* __fastcall Em4Template(char*, void*)
+{
+    g_em.calls.Mix(67);
+    return nullptr; // cSC4Vehicle::Steer then answers false at once
+}
+uint8_t __fastcall Em4Slot174(char*, void*)
+{
+    g_em.calls.Mix(174);
+    return 0; // the automaton base's NextStep then answers AL 0 at once
+}
+
+// Objects of the test's that count references (a vtable of their own each).
+struct Em4Object {
+    void** vtable;
+    int32_t references;
+};
+uint32_t __fastcall Em4AddRef(Em4Object* o, void*) { return static_cast<uint32_t>(++o->references); }
+uint32_t __fastcall Em4Release(Em4Object* o, void*) { return static_cast<uint32_t>(--o->references); }
+template <int N>
+void** Em4Table16(std::initializer_list<std::pair<int, void*>> slots)
+{
+    static void* t[64] = {};
+    t[1] = reinterpret_cast<void*>(&Em4AddRef);
+    t[2] = reinterpret_cast<void*>(&Em4Release);
+    for (const auto& s : slots)
+        t[s.first] = s.second;
+    return t;
+}
+
+// The fire interface (slots 5 and 4) and the burning one (slot 11, its
+// object's slot 16).
+int32_t __fastcall Em4FireCount(Em4Object*, void*)
+{
+    g_em.calls.Mix(0xF05);
+    return g_em4.total;
+}
+int32_t __fastcall Em4FiresIn(Em4Object*, void*, const int32_t* rect)
+{
+    g_em.calls.Mix(0xF04);
+    g_em.calls.MixBytes(rect, 16);
+    return g_em4.inRect;
+}
+Em4Object g_em4Fires, g_em4Burn, g_em4BurnObject, g_em4FireSim, g_em4BurnSim;
+int32_t __fastcall Em4BurnCount(Em4Object*, void*)
+{
+    g_em.calls.Mix(0xB16);
+    return g_em4.burning;
+}
+void* __fastcall Em4BurnObject(Em4Object*, void*)
+{
+    g_em.calls.Mix(0xB11);
+    if (!g_em4.burningObject)
+        return nullptr;
+    ++g_em4BurnObject.references;
+    return &g_em4BurnObject;
+}
+// The simulators' QueryInterface: the fire simulator gives the fire
+// interface, the burning one the burning interface.
+uint32_t __fastcall Em4Query(Em4Object* s, void*, uint32_t iid, void** out)
+{
+    g_em.calls.Mix(0x51);
+    g_em.calls.Mix(iid);
+    if (g_em4.queryWrites) {
+        Em4Object* const i = s == &g_em4FireSim ? &g_em4Fires : &g_em4Burn;
+        ++i->references;
+        *out = i;
+    }
+    return g_em4.queryAnswer;
+}
+void* __fastcall Em4SimulatorById(void*, void*, uint32_t id)
+{
+    g_em.calls.Mix(0x5107);
+    g_em.calls.Mix(id);
+    if (id == 0xEBFB0404u && (g_em4.simulators & 1))
+        return &g_em4FireSim;
+    if (id == 0x621CDA33u && (g_em4.simulators & 2))
+        return &g_em4BurnSim;
+    return nullptr;
+}
+void* __fastcall Em4CitySimulators(void*, void*)
+{
+    g_em.calls.Mix(0x72);
+    static void* table[16] = {};
+    table[em::slot::kSimulatorById / 4] = reinterpret_cast<void*>(&Em4SimulatorById);
+    static void** simulators = table;
+    return &simulators;
+}
+
+// The city's slot 57 service (slots 7 and 24).
+Em4Object* g_em4Target = nullptr;
+uint8_t __fastcall Em4TargetKnown(void*, void*, void* target)
+{
+    g_em.calls.Mix(0x577);
+    g_em.calls.Mix(target == g_em4Target ? 1u : 2u);
+    return g_em4.targetKnown;
+}
+float __fastcall Em4TargetReach(void*, void*, void* target)
+{
+    g_em.calls.Mix(0x5724);
+    g_em.calls.Mix(target == g_em4Target ? 1u : 2u);
+    return g_em4.targetReach;
+}
+void* __fastcall Em4CityTargets(void*, void*)
+{
+    g_em.calls.Mix(0x57);
+    static void* table[32] = {};
+    table[em::slot::kTargetKnown / 4] = reinterpret_cast<void*>(&Em4TargetKnown);
+    table[em::slot::kTargetReach / 4] = reinterpret_cast<void*>(&Em4TargetReach);
+    static void** targets = table;
+    return &targets;
+}
+uint32_t __fastcall Em4Width(void*, void*)
+{
+    g_em.calls.Mix(93);
+    return g_em4.width;
+}
+uint32_t __fastcall Em4Depth(void*, void*)
+{
+    g_em.calls.Mix(94);
+    return g_em4.depth;
+}
+
+// The city's slot 95 for the fire helpers: the outs start as the game's
+// stack words (addresses), so only the point is mixed.
+uint32_t __fastcall Em4CellOf(void*, void*, float x, float z, int32_t* a, int32_t* b)
+{
+    g_em.calls.Mix(0x95);
+    g_em.calls.Mix(Bits(x));
+    g_em.calls.Mix(Bits(z));
+    *a = static_cast<int32_t>(x / 16.0f);
+    *b = static_cast<int32_t>(z / 16.0f);
+    return 1;
+}
+
+// The occupant manager (the city's slot 34): slot 36 mixes the box and the
+// filter and adds nodes of its own; slot 48 unlinks them.
+struct Em4Node {
+    Em4Node* next;
+    Em4Node* prev;
+    void* object;
+};
+Em4Node g_em4Nodes[4];
+Em4Object g_em4Occupants;
+uint8_t __fastcall Em4InBox(Em4Object*, void*, Em4Node** list, const float* low, const float* high, void* filter,
+                            uint32_t count)
+{
+    g_em.calls.Mix(0x336);
+    g_em.calls.MixBytes(low, 12);
+    g_em.calls.MixBytes(high, 12);
+    g_em.calls.Mix(filter == At<void*>(g_em2.self, em::fire::kFilter) ? 1u : 2u);
+    g_em.calls.Mix(count);
+    g_em.calls.Mix(reinterpret_cast<const uint32_t*>(list)[1]); // the list's second word: slot 193's float
+    if (!g_em4.boxAnswer)
+        return 0;
+    Em4Node* const head = *list;
+    for (uint32_t i = 0; i < g_em4.boxNodes && i < 4; ++i) {
+        Em4Node* const node = &g_em4Nodes[i];
+        node->object = nullptr;
+        node->next = head;
+        node->prev = head->prev;
+        head->prev->next = node;
+        head->prev = node;
+    }
+    return 1;
+}
+uint32_t __fastcall Em4ListDone(Em4Object*, void*, Em4Node** list)
+{
+    g_em.calls.Mix(0x348);
+    Em4Node* const head = *list;
+    head->next = head;
+    head->prev = head;
+    return 0;
+}
+void* __fastcall Em4CityOccupants(void*, void*)
+{
+    g_em.calls.Mix(0x34);
+    return &g_em4Occupants;
+}
+
+// The city's slot 44 object for the fire truck (slots 7 and 8).
+uint32_t __fastcall Em4CrewAdd(void*, void*, void* crew)
+{
+    g_em.calls.Mix(0x447);
+    g_em.calls.Mix(Em4CrewId(crew));
+    return 0;
+}
+uint32_t __fastcall Em4CrewDone(void*, void*, void* crew, uint32_t word)
+{
+    g_em.calls.Mix(0x448);
+    g_em.calls.Mix(Em4CrewId(crew));
+    g_em.calls.Mix(word);
+    return 0x48;
+}
+void* __fastcall Em4CityCrews(void*, void*)
+{
+    g_em.calls.Mix(0x2C);
+    static void* table[16] = {};
+    table[em::slot::kCrewAdd / 4] = reinterpret_cast<void*>(&Em4CrewAdd);
+    table[em::slot::kCrewDone / 4] = reinterpret_cast<void*>(&Em4CrewDone);
+    static void** crews = table;
+    return &crews;
+}
+
+// 0x00B43DD0 (slot 60) and 0x00B43D78 (AddRef, Release, slots 7 and 10).
+uint8_t __fastcall Em4Pick(void*, void*, uint32_t a, uint32_t b, float* out, uint32_t c, uint32_t d)
+{
+    g_em.calls.Mix(0xDD0);
+    for (const uint32_t w : {a, b, c, d})
+        g_em.calls.Mix(w);
+    if (g_em4.pickAnswer)
+        for (int i = 0; i < 3; ++i)
+            out[i] = g_em4.pick[i];
+    return g_em4.pickAnswer;
+}
+Em4Object g_em4Service;
+uint8_t __fastcall Em4ServiceHas(Em4Object*, void*, void* object)
+{
+    g_em.calls.Mix(0xD787);
+    g_em.calls.Mix(object == g_em4Target ? 1u : 2u);
+    return g_em4.serviceHas;
+}
+uint32_t* __fastcall Em4ServiceWord(Em4Object*, void*, uint32_t*, void* object)
+{
+    g_em.calls.Mix(0xD78A);
+    g_em.calls.Mix(object == g_em4Target ? 1u : 2u);
+    return &g_em4.serviceWord;
+}
+
+// The route step's object (slot 49 its network part) and the part (slot 21).
+Em4Object g_em4Part;
+uint8_t __fastcall Em4PartReaches(Em4Object*, void*, uint32_t a, const float* at, const float* point, uint32_t d)
+{
+    g_em.calls.Mix(0x21);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(at == g_em2.point ? 1u : 2u);
+    g_em.calls.MixBytes(point, 12);
+    g_em.calls.Mix(d);
+    return g_em4.partReaches;
+}
+void* __fastcall Em4StepPart(Em4Object* o, void*)
+{
+    g_em.calls.Mix(0x49);
+    g_em.calls.Mix(static_cast<uint32_t>(o->references));
+    return g_em4.hasPart ? &g_em4Part : nullptr;
+}
+
+// Em3Table (the fire truck's) with the em3a slots the test's too: 10, 29,
+// 38, 67, 136, 174 and 193.
+void** Em4Table(char* o)
+{
+    static void* t[202];
+    void** const base = Em3Table(0, o);
+    for (int i = 0; i < kEmClasses[0].slots; ++i)
+        t[i] = base[i];
+    t[em::slot::kSetDestination / 4] = reinterpret_cast<void*>(&Em4SetDestination);
+    t[em::slot::kGoHome / 4] = reinterpret_cast<void*>(&Em4GoHome);
+    t[em::slot::kGetSpeed / 4] = reinterpret_cast<void*>(&Em4Speed);
+    t[67] = reinterpret_cast<void*>(&Em4Template);
+    t[em::slot::kGroups / 4] = reinterpret_cast<void*>(&Em4Groups);
+    t[174] = reinterpret_cast<void*>(&Em4Slot174);
+    t[em::slot::kReach / 4] = reinterpret_cast<void*>(&Em4Reach);
+    return t;
+}
+
+void EmFireDrive(Hash& efire, uint32_t& eflags)
+{
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    g_em3 = Em3Answers{};
+    g_em4 = Em4Answers{};
+    char* const o = MakeEm(0, eflags);
+    void* const city = Global<void*>(addr::SC4_City);
+    if (!o || !city) {
+        eflags |= o ? 0x4000 : 0x2000;
+        ReleaseEm(o);
+        log::Write("autotest: automata: vehicle: em3a: the factory failed or no city");
+        return;
+    }
+    // The services and objects of the test's.
+    static void* soundTable[16] = {};
+    soundTable[em::slot::kSoundStop / 4] = reinterpret_cast<void*>(&Em2Sound);
+    void** sound = soundTable;
+    static void* postTable[8] = {};
+    postTable[4] = reinterpret_cast<void*>(&Em2Post);
+    void** server = postTable;
+    static void* gridTable[24] = {};
+    gridTable[em::slot::kOccupantsAt / 4] = reinterpret_cast<void*>(&Em2OccupantsAt);
+    void** grid = gridTable;
+    static void* viewTable[64] = {};
+    viewTable[em::slot::kPick / 4] = reinterpret_cast<void*>(&Em4Pick);
+    void** view = viewTable;
+    g_em4Fires = Em4Object{Em4Table16<1>({{em::slot::kFireCount / 4, reinterpret_cast<void*>(&Em4FireCount)},
+                                          {em::slot::kFiresIn / 4, reinterpret_cast<void*>(&Em4FiresIn)}}),
+                           1};
+    g_em4Burn = Em4Object{Em4Table16<2>({{em::slot::kBurning / 4, reinterpret_cast<void*>(&Em4BurnObject)}}), 1};
+    g_em4BurnObject =
+        Em4Object{Em4Table16<3>({{em::slot::kBurningCount / 4, reinterpret_cast<void*>(&Em4BurnCount)}}), 1};
+    g_em4FireSim = Em4Object{Em4Table16<4>({{0, reinterpret_cast<void*>(&Em4Query)}}), 1};
+    g_em4BurnSim = Em4Object{Em4Table16<4>({}), 1}; // the same table as the fire simulator's
+    g_em4Occupants = Em4Object{Em4Table16<5>({{em::slot::kOccupantsInBox / 4, reinterpret_cast<void*>(&Em4InBox)},
+                                              {em::slot::kListDone / 4, reinterpret_cast<void*>(&Em4ListDone)}}),
+                               1};
+    g_em4Service = Em4Object{Em4Table16<6>({{em::slot::kServiceHas / 4, reinterpret_cast<void*>(&Em4ServiceHas)},
+                                            {em::slot::kServiceWord / 4, reinterpret_cast<void*>(&Em4ServiceWord)}}),
+                             1};
+    g_em4Part = Em4Object{Em4Table16<7>({{em::slot::kPartReaches / 4, reinterpret_cast<void*>(&Em4PartReaches)}}), 1};
+    void** const stepTable = Em4Table16<8>({{em::slot::kNetworkPart / 4, reinterpret_cast<void*>(&Em4StepPart)}});
+    g_em4Crew = Em4Crew{Em4CrewTable(), 1, 1};
+    static void* cityTable[256];
+    void** const realCity = At<void**>(city, 0);
+    for (int i = 0; i < 256; ++i)
+        cityTable[i] = realCity[i];
+    cityTable[em::slot::kCellOf / 4] = reinterpret_cast<void*>(&Em4CellOf);
+    cityTable[em::slot::kCitySimulators / 4] = reinterpret_cast<void*>(&Em4CitySimulators);
+    cityTable[em::slot::kCityTargets / 4] = reinterpret_cast<void*>(&Em4CityTargets);
+    cityTable[em::slot::kCityWidth / 4] = reinterpret_cast<void*>(&Em4Width);
+    cityTable[em::slot::kCityDepth / 4] = reinterpret_cast<void*>(&Em4Depth);
+    cityTable[em::slot::kCityOccupants / 4] = reinterpret_cast<void*>(&Em4CityOccupants);
+    cityTable[em::slot::kCityCrewService / 4] = reinterpret_cast<void*>(&Em4CityCrews);
+    cityTable[em::slot::kCityEffects / 4] = reinterpret_cast<void*>(&Em2CityEffects);
+    RfSwap swapSound(addr::SC4_Sound43CB8, &sound);
+    RfSwap swapServer(addr::SC4_MessageServer, &server);
+    RfSwap swapGrid(addr::SC4_Service43D54, &grid);
+    RfSwap swapView(addr::SC4_View43DD0, &view);
+    RfSwap swapService(addr::SC4_Service43D78, &g_em4Service);
+    Em4Jump jumpConstruct(addr::cSC4SimFireCrew_Construct, reinterpret_cast<void*>(&Em4CrewConstruct));
+    Em4Jump jumpDispatch(addr::cSC4SimFireCrew_Dispatch, reinterpret_cast<void*>(&Em4CrewDispatch));
+    if (!jumpConstruct.written || !jumpDispatch.written) {
+        eflags |= 0x8000;
+        ReleaseEm(o);
+        log::Write("autotest: automata: vehicle: em3a: the crew code could not be patched");
+        return;
+    }
+    At<void**>(city, 0) = cityTable;
+
+    g_em2.self = o;
+    void** const real = At<void**>(o, 0);
+    At<void**>(o, 0) = Em4Table(o);
+    static void* partTable[34];
+    void** const realPart = At<void**>(o, av::field::kVtable4);
+    for (int k = 0; k < 34; ++k)
+        partTable[k] = realPart[k];
+    partTable[em::slot::kInGroup / 4] = reinterpret_cast<void*>(&Em2InGroup);
+    At<void**>(o, av::field::kVtable4) = partTable;
+    uint32_t& flags = At<uint32_t>(o, av::field::kAutomataFlags);
+    const uint32_t savedFlags = flags;
+    auto withFlags = [&](uint32_t set, uint32_t clear) { flags = (savedFlags | set) & ~clear; };
+    Em4Object target{Em4Table16<9>({}), 1};
+    g_em4Target = &target;
+    auto crewIs = [&] { return Em4CrewId(At<void*>(o, em::fire::kCrew)); };
+    auto setCrew = [&](bool on) {
+        if (At<void*>(o, em::fire::kCrew) == &g_em4Crew)
+            --g_em4Crew.references;
+        At<void*>(o, em::fire::kCrew) = nullptr;
+        if (on) {
+            ++g_em4Crew.references;
+            At<void*>(o, em::fire::kCrew) = &g_em4Crew;
+        }
+    };
+    const float hose = Global<float>(addr::cSC4FireTruck_HoseReach);
+
+    // Slot 193 at its address: no target, unknown, known (three reaches).
+    for (int k = 0; k < 5; ++k) {
+        At<void*>(o, em::base::kTarget) = k == 0 ? nullptr : static_cast<void*>(&target);
+        g_em4.targetKnown = static_cast<uint8_t>(k >= 2);
+        g_em4.targetReach = k == 2 ? 37.5f : k == 3 ? -0.1f : 1e30f;
+        efire.Mix(Bits64(This<double>(addr::cSC4FireTruck_Reach, o)));
+    }
+    At<void*>(o, em::base::kTarget) = nullptr;
+
+    // 0x00532AE0 over the simulators, the query and the reaches.
+    {
+        struct CaseNear {
+            uint8_t simulators, writes, answer;
+            double reach;
+            float x, z;
+        };
+        const CaseNear cases[] = {{0, 1, 1, 16, 100, 100},     {2, 1, 1, 16, 100, 100},  {1, 0, 0, 16, 100, 100},
+                                  {1, 1, 0, 16, 100, 100},     {1, 1, 1, 21.3, 37, 900}, {1, 1, 1, 64, 1000, 3},
+                                  {1, 1, 1, -10, 50, 50},      {1, 1, 1, 1e30, 50, 50},  {3, 1, 1, 5.33333, -40, 70},
+                                  {1, 1, 1, std::numeric_limits<double>::quiet_NaN(), 8, 8}};
+        int run = 0;
+        for (const CaseNear& c : cases) {
+            g_em4.simulators = c.simulators;
+            g_em4.queryWrites = c.writes;
+            g_em4.queryAnswer = c.answer;
+            g_em4.reach = c.reach;
+            g_em4.total = 7 + run;
+            g_em4.inRect = 2 * run - 3;
+            SetPoint(o, av::field::kPosition, c.x, 1.5f, c.z);
+            int32_t total = -5, nearby = -6;
+            This<void>(addr::cSC4FireTruck_FiresNear, o, &total, &nearby);
+            efire.Mix(static_cast<uint32_t>(total));
+            efire.Mix(static_cast<uint32_t>(nearby));
+            ++run;
+        }
+        efire.Mix(static_cast<uint32_t>(g_em4Fires.references));
+    }
+
+    // 0x00533410 over the simulator, its object, the box and the nodes.
+    {
+        struct CaseDouse {
+            uint8_t simulators, writes, object, box;
+            uint32_t nodes;
+            double reach;
+        };
+        const CaseDouse cases[] = {{0, 1, 1, 0, 0, 16}, {2, 0, 1, 1, 2, 16},  {2, 1, 0, 1, 0, 8.25},
+                                   {2, 1, 1, 0, 3, 16}, {2, 1, 1, 1, 3, 1e20}, {3, 1, 1, 1, 1, -4.75},
+                                   {2, 1, 1, 1, 4, 16.0000001}, {1, 1, 1, 1, 2, std::numeric_limits<double>::quiet_NaN()}};
+        int run = 0;
+        for (const CaseDouse& c : cases) {
+            g_em4.simulators = c.simulators;
+            g_em4.queryWrites = c.writes;
+            g_em4.queryAnswer = 1;
+            g_em4.burningObject = c.object;
+            g_em4.burning = 11 + run;
+            g_em4.boxAnswer = c.box;
+            g_em4.boxNodes = c.nodes;
+            g_em4.reach = c.reach;
+            SetPoint(reinterpret_cast<char*>(g_em3.position), 0, 333.3f + run, 4.0f, 77.7f - run);
+            int32_t burning = -5, nearby = -6;
+            This<void>(addr::cSC4FireTruck_DouseTargets, o, &burning, &nearby);
+            efire.Mix(static_cast<uint32_t>(burning));
+            efire.Mix(static_cast<uint32_t>(nearby));
+            ++run;
+        }
+        efire.Mix(static_cast<uint32_t>(g_em4Burn.references));
+        efire.Mix(static_cast<uint32_t>(g_em4BurnObject.references));
+        efire.Mix(static_cast<uint32_t>(g_em4Occupants.references));
+    }
+    g_em4.queryWrites = 1;
+    g_em4.queryAnswer = 1;
+    g_em4.burningObject = 1;
+    g_em4.reach = 16;
+
+    // Slot 197 by the mission, the crew, the four counts and the state type.
+    {
+        for (const uint32_t mission : {2u, 5u, 3u})
+            for (const bool crew : {false, true})
+                for (const int counts : {0, 1, 2, 3, 4})
+                    for (const uint32_t type : {7u, 0x10u}) {
+                        At<uint32_t>(o, em::base::kMission) = mission;
+                        setCrew(crew);
+                        g_em.stateType = type;
+                        g_em4.simulators = 3;
+                        g_em4.boxAnswer = 1;
+                        g_em4.boxNodes = counts == 1 ? 2u : 0u;
+                        g_em4.inRect = counts == 2 ? 1 : counts == 4 ? -2 : 0;
+                        g_em4.burning = counts == 3 ? 4 : 0;
+                        g_em4.total = counts == 4 ? 1 : 0;
+                        efire.Mix(This<uint32_t>(addr::cSC4FireTruck_SceneFrame, o, Bits(0.5f)) & 0xFF);
+                        efire.Mix(crewIs());
+                    }
+        g_em.stateType = 0;
+        setCrew(false);
+    }
+
+    // 0x00532D30 and slot 199: with and without a crew, slot 199 by the
+    // state type.
+    for (const bool crew : {false, true}) {
+        setCrew(crew);
+        efire.Mix(This<uint32_t>(addr::cSC4FireTruck_RecallCrew, o));
+        efire.Mix(crewIs());
+        for (const uint32_t type : {0x10u, 7u}) {
+            setCrew(crew);
+            g_em.stateType = type;
+            This<void>(addr::cSC4FireTruck_Slot199, o);
+            efire.Mix(crewIs());
+        }
+    }
+    g_em.stateType = 0;
+    efire.Mix(static_cast<uint32_t>(g_em4Crew.references));
+
+    // Slot 111 by the state left (the automata flag 1 on: the automaton
+    // base's leaves the state 0x10 to the core, which calls the record).
+    {
+        alignas(4) static char states[2][0x240];
+        for (int k = 0; k < 2; ++k) {
+            std::memset(states[k], 0, sizeof states[k]);
+            At<uint32_t>(states[k], 4) = k == 0 ? 0x10u : 7u;
+        }
+        // The state 0x10's record is left through its slot 0 (the core's).
+        static void* leaveTable[4] = {reinterpret_cast<void*>(&Em4StateLeave)};
+        At<void**>(states[0], 0) = leaveTable;
+        withFlags(1u, 0u);
+        for (char* left : {states[0], states[1], static_cast<char*>(nullptr)})
+            for (const bool crew : {false, true}) {
+                setCrew(crew);
+                efire.Mix(This<uint32_t>(addr::cSC4FireTruck_LeaveState, o, left) & 0xFF);
+                efire.Mix(crewIs());
+            }
+        withFlags(0, 0);
+    }
+
+    // 0x00532C40 with a crew, and without by the service, the target and
+    // its answers (each made crew sent by the patched dispatch).
+    {
+        setCrew(true);
+        This<void>(addr::cSC4FireTruck_SendCrew, o);
+        efire.Mix(crewIs());
+        struct CaseSend {
+            bool service, target;
+            uint8_t has;
+        };
+        const CaseSend cases[] = {{true, false, 1}, {true, true, 0}, {true, true, 1}, {false, false, 0}};
+        int run = 0;
+        for (const CaseSend& c : cases) {
+            setCrew(false);
+            At<void*>(o, em::base::kTarget) = c.target ? static_cast<void*>(&target) : nullptr;
+            g_em4.serviceHas = c.has;
+            g_em4.serviceWord = 0x5E0 + static_cast<uint32_t>(run);
+            if (!c.service)
+                *reinterpret_cast<void**>(addr::SC4_Service43D78) = nullptr;
+            This<void>(addr::cSC4FireTruck_SendCrew, o);
+            *reinterpret_cast<void**>(addr::SC4_Service43D78) = &g_em4Service;
+            efire.Mix(crewIs());
+            char* const made = At<char*>(o, em::fire::kCrew);
+            efire.Mix(made && made != reinterpret_cast<char*>(&g_em4Crew) ? At<uint32_t>(made, 0x274) : 0u);
+            efire.Mix(made && made != reinterpret_cast<char*>(&g_em4Crew) ? At<uint32_t>(made, 4) : 0u);
+            This<uint32_t>(addr::cSC4FireTruck_RecallCrew, o);
+            ++run;
+        }
+        At<void*>(o, em::base::kTarget) = nullptr;
+        efire.Mix(static_cast<uint32_t>(g_em4Service.references));
+    }
+
+    // Slot 60 by the event, the flag, the crew, the smoothed value and slot
+    // 38 (made crews recalled after).
+    {
+        char* const smoothed = o + av::field::kSmoothed;
+        alignas(4) char savedSmoothed[0x10];
+        std::memcpy(savedSmoothed, smoothed, 0x10);
+        const uint32_t events[][2] = {{0, 0}, {1, 1}, {7, 0}, {7, 1}, {7, 0x101}, {8, 0}, {9, 0}, {3, 1}};
+        const float values[] = {0.0005f, -0.0005f, 0.001f, 0.5f, std::numeric_limits<float>::quiet_NaN()};
+        int run = 0;
+        for (const auto& e : events)
+            for (const bool crew : {false, true})
+                for (const float v : values) {
+                    if (crew == false && (e[0] == 0 || e[0] == 1) && v != values[0])
+                        continue;
+                    setCrew(crew);
+                    At<float>(smoothed, 0) = v;
+                    At<float>(smoothed, 4) = v;
+                    At<uint32_t>(smoothed, 8) = 0;
+                    At<uint32_t>(smoothed, 0xC) = 0;
+                    g_em4.speed = run % 2 ? static_cast<double>(v) : -static_cast<double>(v);
+                    At<uint32_t>(o, em::base::kMission) = 3;
+                    g_em4.simulators = 0;
+                    efire.Mix(This<uint32_t>(addr::cSC4FireTruck_OnEvent, o, e[0], e[1]) & 0xFF);
+                    efire.Mix(At<uint32_t>(o, em::base::kMission));
+                    efire.Mix(crewIs());
+                    This<uint32_t>(addr::cSC4FireTruck_RecallCrew, o);
+                    ++run;
+                }
+        std::memcpy(smoothed, savedSmoothed, 0x10);
+        setCrew(false);
+    }
+
+    // Slot 25 over the missions, a stacked state 0x10, the counts and the
+    // state type (the base's runs first; the field set again before each).
+    {
+        Counted stacked{CountedVtable(), 1, 0x10, 0};
+        struct Case25 {
+            uint32_t from, mission;
+            bool stacked, crew;
+            int counts;
+            uint32_t type;
+        };
+        const Case25 cases[] = {{0, 1, false, false, 0, 7}, {0, 1, false, true, 0, 7},  {0, 1, true, true, 0, 7},
+                                {0, 5, false, true, 0, 7},  {0, 5, false, false, 1, 7}, {0, 5, false, false, 2, 7},
+                                {0, 5, false, false, 0, 0x10}, {0, 3, false, true, 1, 7}, {5, 5, false, true, 0, 7},
+                                {2, 6, false, true, 0, 7},  {0, 5, false, false, 3, 7}};
+        for (const Case25& c : cases) {
+            At<uint32_t>(o, em::base::kMission) = c.from;
+            setCrew(c.crew);
+            g_em.inState = c.stacked ? static_cast<void*>(&stacked) : nullptr;
+            g_em.stateType = c.type;
+            g_em4.simulators = 3;
+            g_em4.boxAnswer = 1;
+            g_em4.boxNodes = c.counts == 1 ? 1u : 0u;
+            g_em4.inRect = c.counts == 2 ? 3 : c.counts == 3 ? -1 : 0;
+            g_em4.burning = 0;
+            g_em4.total = 0;
+            This<void>(addr::cSC4FireTruck_SetMission, o, c.mission);
+            efire.Mix(At<uint32_t>(o, em::base::kMission));
+            efire.Mix(crewIs());
+            This<uint32_t>(addr::cSC4FireTruck_RecallCrew, o);
+        }
+        g_em.inState = nullptr;
+        g_em.stateType = 0;
+        setCrew(false);
+    }
+
+    // Slot 121 over the controls' float, the pick and its point (on and off
+    // the map, near and past the reach, NaN) and a small map.
+    {
+        alignas(4) static char controls[0x240];
+        SetPoint(o, av::field::kPosition, 200.0f, 10.0f, 300.0f);
+        const float far = hose > 0 && hose < 1e6f ? hose * 2.5f : 50.0f;
+        const float points[][3] = {{210, 10, 305},      {200 + far, 40, 300}, {-5, 10, 300},   {1500, 10, 300},
+                                   {200, 10, -20},      {200, 12, 1500},      {200, 10, 1024}, {1024, 10, 300},
+                                   {std::numeric_limits<float>::quiet_NaN(), 10, 300},
+                                   {200, 10, std::numeric_limits<float>::quiet_NaN()},
+                                   {200 - far, 10 - far, 300 + far / 3}, {1e30f, -1e30f, 5}};
+        int run = 0;
+        for (const float held : {1.0f, 0.0f, -0.25f, std::numeric_limits<float>::quiet_NaN()})
+            for (const auto& p : points) {
+                if (held != 1.0f && &p != &points[1])
+                    continue;
+                for (const uint8_t answer : {uint8_t{1}, uint8_t{0}}) {
+                    if (!answer && &p != &points[0])
+                        continue;
+                    std::memset(controls, 0, sizeof controls);
+                    At<float>(controls, em::controls::kHeld) = held;
+                    At<uint32_t>(controls, em::controls::kScreen) = 400u + static_cast<uint32_t>(run);
+                    At<uint32_t>(controls, em::controls::kScreen + 4) = 300u - static_cast<uint32_t>(run);
+                    SetPoint(controls, em::controls::kAim, 1.0f, 2.0f, 3.0f);
+                    g_em4.pickAnswer = answer;
+                    for (int i = 0; i < 3; ++i)
+                        g_em4.pick[i] = p[i];
+                    g_em4.width = run % 3 == 2 ? 2u : 64u;
+                    g_em4.depth = run % 3 == 2 ? 3u : 64u;
+                    efire.Mix(This<uint32_t>(addr::cSC4FireTruck_Steer, o, controls, Bits(0.25f)) & 0xFF);
+                    efire.MixBytes(controls + em::controls::kAim, 12);
+                    ++run;
+                }
+            }
+        g_em4.width = 64;
+        g_em4.depth = 64;
+        efire.Mix(Bits(hose));
+    }
+
+    // 0x00533030 and 0x00533290 directly, then slot 165 by the flags, the
+    // occupant, the route, the deque, slot 146, the step's part and its
+    // answer (the deque a block or two of the test's; slot 174 stops the
+    // automaton base's NextStep at once).
+    {
+        Em4Object steps[2] = {{stepTable, 1}, {stepTable, 1}};
+        alignas(4) static char blocks[2][0x78];
+        std::memset(blocks, 0, sizeof blocks);
+        At<void*>(blocks[0], 0x0C) = &steps[0];
+        At<uint32_t>(blocks[0], 0x10) = 0x1234;
+        At<uint8_t>(blocks[0], 0x14) = 7;
+        At<void*>(blocks[0], 0x6C) = &steps[1];
+        At<uint32_t>(blocks[0], 0x70) = 0x5678;
+        At<uint8_t>(blocks[0], 0x74) = 9;
+        char* map[2] = {blocks[0], blocks[1]};
+        alignas(4) char copy[12] = {};
+        This<void*>(addr::SC4AutomatonStep_Copy, copy, blocks[0] + 0x0C);
+        efire.Mix(At<void*>(copy, 0) == &steps[0] ? 1u : 0u);
+        efire.Mix(At<uint32_t>(copy, 4));
+        efire.Mix(At<uint8_t>(copy, 8));
+        --steps[0].references;
+        char* const deque = o + 0x204;
+        alignas(4) char savedDeque[0x28];
+        std::memcpy(savedDeque, deque, sizeof savedDeque);
+        auto setDeque = [&](int shape) {
+            std::memcpy(deque, savedDeque, sizeof savedDeque);
+            if (shape == 0)
+                return; // the object's own (empty)
+            At<char*>(deque, 0x00) = blocks[0];
+            if (shape == 1) { // two steps in the first block
+                At<char*>(deque, 0x10) = blocks[0] + 0x18;
+                At<char*>(deque, 0x14) = blocks[0];
+                At<char*>(deque, 0x18) = blocks[0] + 0x78;
+                At<char**>(deque, 0x1C) = &map[0];
+            } else { // the finish at the second block's first
+                At<char*>(deque, 0x10) = blocks[1];
+                At<char*>(deque, 0x14) = blocks[1];
+                At<char*>(deque, 0x18) = blocks[1] + 0x78;
+                At<char**>(deque, 0x1C) = &map[1];
+            }
+        };
+        for (const int shape : {1, 2}) {
+            setDeque(shape);
+            char* const back = This<char*>(addr::SC4AutomatonDeque204_Back, deque);
+            efire.Mix(static_cast<uint32_t>(back - blocks[0]));
+        }
+        char** const routeFinish = &At<char*>(o, 0x23C);
+        char* const savedFinish = *routeFinish;
+        Em3Object occupant{nullptr, 1, 0};
+        g_em3.enterSets = false;
+        struct Case165 {
+            uint32_t set, clear;
+            bool occupant, route;
+            int shape;
+            uint8_t atPoint, part, reaches;
+        };
+        const Case165 cases[] = {
+            {0xC0, 0x2000, true, false, 1, 1, 1, 1}, {0xC0, 0x2000, true, false, 2, 1, 1, 1},
+            {0xC0, 0x2000, true, false, 1, 1, 1, 0}, {0xC0, 0x2000, true, false, 2, 1, 0, 1},
+            {0x40, 0x2080, true, false, 1, 1, 1, 1}, {0x80, 0x2040, true, false, 1, 1, 1, 1},
+            {0x20C0, 0, true, false, 1, 1, 1, 1},    {0xC0, 0x2000, false, false, 1, 1, 1, 1},
+            {0xC0, 0x2000, true, true, 1, 1, 1, 1},  {0xC0, 0x2000, true, false, 0, 1, 1, 1},
+            {0xC0, 0x2000, true, false, 1, 0, 1, 1}};
+        for (const Case165& c : cases) {
+            withFlags(c.set, c.clear);
+            At<void*>(o, av::field::kOccupant) = c.occupant ? static_cast<void*>(&occupant) : nullptr;
+            *routeFinish = c.route ? savedFinish + 3 : savedFinish;
+            setDeque(c.shape);
+            g_em2.atPoint = c.atPoint;
+            g_em4.hasPart = c.part;
+            g_em4.partReaches = c.reaches;
+            At<uint32_t>(o, 0x1F8) = 0xF8F8F8F8u;
+            efire.Mix(This<uint32_t>(addr::cSC4FireTruck_Slot165, o) & 0xFF);
+            efire.Mix(At<uint32_t>(o, 0x1F8));
+            efire.Mix(static_cast<uint32_t>(steps[0].references));
+            efire.Mix(static_cast<uint32_t>(steps[1].references));
+        }
+        setDeque(0);
+        *routeFinish = savedFinish;
+        At<void*>(o, av::field::kOccupant) = nullptr;
+        At<uint32_t>(o, 0x1F8) = 0;
+        g_em2.atPoint = 0;
+        g_em3.enterSets = true;
+        withFlags(0, 0);
+    }
+
+    flags = savedFlags;
+    setCrew(false);
+    At<uint8_t>(o, em::base::kByte) = 0;
+    At<uint32_t>(o, em::base::kMission) = 0;
+    At<void**>(o, av::field::kVtable4) = realPart;
+    At<void**>(o, 0) = real;
+    At<void**>(city, 0) = realCity;
+    efire.Mix(static_cast<uint32_t>(target.references));
+    efire.Mix(static_cast<uint32_t>(g_em4.madeCount));
+    for (int i = 0; i < g_em4.madeCount; ++i)
+        efire.Mix(static_cast<uint32_t>(At<int32_t>(g_em4.made[i], 4)));
+    efire.Mix(g_em2.posts);
+    efire.Mix(g_em.calls.h);
+    eflags |= 0x1000;
+    ReleaseEm(o);
+    // The made crews' blocks (none is held now) back to the game.
+    using Delete = void(__cdecl*)(void*);
+    for (int i = 0; i < g_em4.madeCount; ++i)
+        reinterpret_cast<Delete>(addr::SC4_operator_delete)(g_em4.made[i]);
+    log::Write("autotest: automata: vehicle: em3a efire %08X calls %08X crews %d hose %08X", efire.h, g_em.calls.h,
+               g_em4.madeCount, Bits(hose));
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    g_em3 = Em3Answers{};
+    g_em4 = Em4Answers{};
+    g_em4Target = nullptr;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -26130,6 +27052,10 @@ void VehicleDrive(cISC4City* city)
     Hash eframes;
     EmFramesDrive(eframes, eflags);
 
+    // ---- Part em3a.
+    Hash efire;
+    EmFireDrive(efire, eflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -26186,12 +27112,12 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
-                  eobject.h, esave.h, elife.h, estates.h, eframes.h, eflags);
+                  eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, eflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
