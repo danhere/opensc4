@@ -3653,3 +3653,15 @@ On each class's object, em2a's vtable copy with slots 7, 53, 85, 87, 88, 132, 14
 - slot 198 over four smoothed values and eight cases (slot 85, the target, the distance against the bound and at it, the finder and its answer, a NaN).
 
 A trial with fourteen planted changes changed the token for thirteen. The fourteenth, slot 198's dz squared from its float, shows only at the bound itself.
+
+### Parity (em2b)
+
+2026-10-26. As for em1. Env p4env-em1, snapshot em1-p3:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves (Making Money d0090 on a rerun) |
+
+Every B run reached all 53, and its em fields equalled the A run's (estates 0x4F1404D0, eframes 0xB0EA0DAE, eflags 0x84F). In the batch Making Money d0090 first came out "partly": its B side had two outcomes from the first day on, one of them shared with A, before the test runs or any emergency code but the ambulance's slot 192; the rerun of that save alone was the same on all 8 days.
