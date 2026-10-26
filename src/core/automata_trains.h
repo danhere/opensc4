@@ -1,4 +1,4 @@
-// The layout of the trains, parts tr1, tr2a, tr2b, tr3a and tr3b (build 641; functions, vtables and data
+// The layout of the trains, parts tr1, tr2a, tr2b and tr3 (build 641; functions, vtables and data
 // in data/addresses/automata.toml, the survey in docs/automata.md, "Part tr").
 //
 // Three classes, each on the one before, with their own six vtables (+0x00,
@@ -130,6 +130,14 @@ inline constexpr std::size_t kAddCar = 0x31C;            // the train's 199
 // Part tr3b's, of the automaton.
 inline constexpr std::size_t kFadeNow = 0x80;            // 32: a float in ST0
 inline constexpr std::size_t kSlot83 = 0x14C;            // 83: the core's 0x005091C0, (seconds), ret 4
+// Part tr3c's, of the automaton unless noted.
+inline constexpr std::size_t kSlot175 = 0x2BC;           // 175: the train's answers 6
+inline constexpr std::size_t kSlot190 = 0x2F8;           // 190: (push out, share out), ret 8, a bool: a collision
+inline constexpr std::size_t kNextOccupant = 0x314;      // the train's 197: (direction), ret 4, a bool
+inline constexpr std::size_t kHorn = 0xA8;               // 0x00B43D54's 42: (occupant), ret 4, a bool
+inline constexpr std::size_t kOccupantObject = 0xC0;     // an occupant's 48: an object whose slot 8 gives a point
+inline constexpr std::size_t kPointOf = 0x20;            // that object's 8: (float* out), ret 4
+inline constexpr std::size_t kUDriveShare = 0x24;        // the U-Drive service's 9: (float), ret 4
 } // namespace slot
 
 // cSC4Vehicle's fields this part reads (src/core/automata_vehicle.h has them

@@ -398,6 +398,21 @@
 //   down from near 2^32). tflags 0x2000 when it ran, 0x4000 when the
 //   factory failed, 0x8000 when the city's other slots were called. Log
 //   line: "tr3b tplace".
+//   Part tr3c (the train's driven frame) adds `,<tdrive>` before tflags (41
+//   fields): a train of the factory with tr2b's vtable copy and slots 16
+//   (setting the position), 56, 65, 67, 121, 190 and 197 the test's,
+//   0x00B43D54 (slots 15, 40, 42) and the occupant manager 0x00B43D0C the
+//   test's, the generator seeded: slot 115 over the keys' frame saying no,
+//   no entry, the damage, the throttle's clamps, the speed up and down, the
+//   rocking (its growth, its end by the key, its NaN) with the fifth car
+//   turned for 0x00557680, the horn's walk (one key on, a junction silent
+//   or sounding, no keys, no cell list, a null occupant, no path, no part),
+//   slots 133 and 197 failing, the rear at the front (+0x270 set, unset,
+//   short), collisions with and without an entry, the effect and sound
+//   source, zero and long frames; then 128 drawn frames (a fixed LCG). The
+//   U-Drive service is the game's (its slot 9 given 0 after). tflags
+//   0x10000 when it ran, 0x20000 when the factory failed, 0x40000 without
+//   the U-Drive service. Log line: "tr3c tdrive".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -23844,6 +23859,460 @@ void TrainPlaceDrive(Hash& tplace, uint32_t& tflags)
     g_probe = savedProbe;
 }
 
+// ---- Part tr3c: the train's driven frame (src/core/automata_trains.cpp).
+
+// What the tr3c test's slots answer: slot 197 (the next occupant), slot 190
+// (a collision on the call `hit`).
+struct TcAnswers {
+    uint32_t next = 1;
+    uint32_t hit = 0;
+    uint32_t collisions = 0;
+};
+TcAnswers g_tc;
+
+// Slot 16: the point and heading mixed, the position and heading set (so
+// +0x94 sees a move).
+uint32_t __fastcall TcPlace(char* self, void*, const float* point, const float* heading)
+{
+    g_probe->calls.Mix(16);
+    g_probe->calls.MixBytes(point, 12);
+    g_probe->calls.MixBytes(heading, 12);
+    std::memcpy(self + av::field::kPosition, point, 12);
+    std::memcpy(self + av::field::kHeading, heading, 12);
+    return 1;
+}
+// Slot 65 (a, point): a by its id, the point's contents.
+uint32_t __fastcall TcCollide(char*, void*, void* a, const float* point)
+{
+    g_probe->calls.Mix(65);
+    g_probe->calls.Mix(g_probe->Id(a));
+    g_probe->calls.MixBytes(point, 12);
+    return 0;
+}
+uint32_t __fastcall TcNext(char*, void*, const float* direction)
+{
+    g_probe->calls.Mix(197);
+    g_probe->calls.MixBytes(direction, 12);
+    return g_tc.next;
+}
+uint32_t __fastcall TcHit(char*, void*, uint32_t* push, float* share)
+{
+    g_probe->calls.Mix(190);
+    g_probe->calls.MixBytes(push, 12);
+    g_probe->calls.Mix(Bits(*share));
+    if (++g_tc.collisions != g_tc.hit)
+        return 0;
+    const float p[3] = {0.5f, 0.0f, -0.25f};
+    std::memcpy(push, p, sizeof p);
+    *share = 1.5f;
+    return 1;
+}
+
+// An occupant of the horn's walk: vb3's lane with slot 48 an object whose
+// slot 8 gives a point.
+struct TcPointer {
+    void** vtable;
+};
+uint32_t __fastcall TcPointOf(TcPointer*, void*, float* out)
+{
+    g_probe->calls.Mix(0x7008);
+    out[0] = 3.0f;
+    out[1] = 0.5f;
+    out[2] = -7.0f;
+    return 1;
+}
+void** TcPointerVtable()
+{
+    static void* t[16] = {};
+    t[8] = reinterpret_cast<void*>(&TcPointOf);
+    return t;
+}
+TcPointer g_tcPointer{TcPointerVtable()};
+TcPointer* __fastcall TcLaneObject(Lane* l, void*)
+{
+    l->calls.Mix(48);
+    return &g_tcPointer;
+}
+void** TcLaneVtable()
+{
+    static void* t[64] = {};
+    std::memcpy(t, LaneVtable(), sizeof t);
+    t[tn::slot::kOccupantObject / 4] = reinterpret_cast<void*>(&TcLaneObject);
+    return t;
+}
+
+// 0x00B43D54 while slot 115 runs: slot 15 (the cell list for an occupant:
+// `list` or none), 40 (a key or none) and 42 (the horn).
+struct TcService {
+    void** vtable;
+    CellNode* list;
+    uint32_t key;
+    uint8_t horn;
+    Hash calls;
+};
+CellNode* __fastcall TcNeighbour(TcService* s, void*, void* occupant, uint32_t key, uint32_t a, uint32_t b)
+{
+    s->calls.Mix(15);
+    s->calls.Mix(g_probe->Id(occupant));
+    s->calls.Mix(key);
+    s->calls.Mix(a);
+    s->calls.Mix(b);
+    return s->list;
+}
+uint32_t __fastcall TcNeighbourKey(TcService* s, void*, void* occupant, uint32_t side)
+{
+    s->calls.Mix(40);
+    s->calls.Mix(g_probe->Id(occupant));
+    s->calls.Mix(side);
+    return s->key;
+}
+uint32_t __fastcall TcHorn(TcService* s, void*, void* occupant)
+{
+    s->calls.Mix(42);
+    s->calls.Mix(g_probe->Id(occupant));
+    return s->horn;
+}
+void** TcServiceVtable()
+{
+    static void* t[48] = {};
+    t[tn::slot::kNeighbour / 4] = reinterpret_cast<void*>(&TcNeighbour);
+    t[tn::slot::kNeighbourKey / 4] = reinterpret_cast<void*>(&TcNeighbourKey);
+    t[tn::slot::kHorn / 4] = reinterpret_cast<void*>(&TcHorn);
+    return t;
+}
+
+// Part tr3c on a train of the factory (tr2b's vtable copy with slots 16,
+// 56, 65, 67, 121, 190 and 197 the test's), with 0x00B43D54 and the
+// occupant manager 0x00B43D0C the test's while it runs: slot 115 driven at
+// its address. The U-Drive service is the game's (slot 9 given 0 after);
+// the horn's sound goes to the game's director.
+void TrainDriveDrive(Hash& tdrive, uint32_t& tflags)
+{
+    if (!reinterpret_cast<void*(__cdecl*)()>(addr::SC4UDrive_GetService602640)()) {
+        tflags |= 0x40000;
+        log::Write("autotest: automata: vehicle: tr3c no U-Drive service");
+        return;
+    }
+    Probe probe;
+    Probe* const savedProbe = g_probe;
+    g_probe = &probe;
+    g_rf = RfAnswers{};
+    g_tf = TfAnswers{};
+    g_tm = TmAnswers{};
+    g_tc = TcAnswers{};
+    uint32_t madeFlags = 0;
+    char* const train = MakeTrain(1, madeFlags);
+    if (madeFlags || !train) {
+        ReleaseTrain(train);
+        tflags |= 0x20000;
+        g_probe = savedProbe;
+        log::Write("autotest: automata: vehicle: tr3c: the factory failed");
+        return;
+    }
+    This<void>(addr::cRZRandomSuper_Seed, reinterpret_cast<char*>(addr::cSC4AutomatonCore_Random), 97531u);
+
+    static void* table[200];
+    void** const realTable = At<void**>(train, 0);
+    At<void**>(train, 0) = TmTable(table, kTrainClasses[1].tables[0], 200);
+    table[16] = reinterpret_cast<void*>(&TcPlace);
+    table[56] = reinterpret_cast<void*>(&Stub0<56>);
+    table[65] = reinterpret_cast<void*>(&TcCollide);
+    table[67] = reinterpret_cast<void*>(&Stub0<67>);
+    table[121] = reinterpret_cast<void*>(&Stub2<121>);
+    table[190] = reinterpret_cast<void*>(&TcHit);
+    table[197] = reinterpret_cast<void*>(&TcNext);
+    const uint8_t byte33 = At<uint8_t>(train, av::field::kFlags33);
+    At<uint8_t>(train, av::field::kFlags33) = static_cast<uint8_t>(byte33 & ~7u);
+
+    alignas(4) static char controls[0x280];
+    alignas(4) static char entry[0x60];
+    alignas(4) static char owner[0x70];
+    std::memset(owner, 0, sizeof owner);
+    std::memset(entry, 0, sizeof entry);
+    F8Occupants occupants{F8OccupantsVtable(), controls, {}};
+    FakeEffect held{QEffectVtable(), 1, {}};
+    float source[12] = {};
+    float* sourcePtr = source;
+    source[10] = 1.25f;
+    // The horn's walk: the train's lane, a lane after it (one key), a
+    // junction lane (two keys).
+    static float walkPoints[2][3] = {{0, 0, 0}, {0, 0, 40}};
+    Path walk{&walkPoints[0][0], &walkPoints[0][0] + 6};
+    const uint32_t oneKey[1] = {0x01000102u};
+    const uint32_t twoKeys[2] = {0x01000203u, 0x01000301u};
+    Part here{PartVtable(), 1, &walk, 0, 0, 0, {}, {}};
+    Part after{PartVtable(), 1, &walk, 0, 0, 0, {}, {}};
+    Lane laneHere{TcLaneVtable(), 1, &here, 0, 0xF, {}};
+    Lane laneAfter{TcLaneVtable(), 1, &after, 0, 0xF, {}};
+    CellNode nodes[2] = {};
+    nodes[0].occupant = &laneAfter;
+    nodes[0].next = &nodes[1];
+    nodes[1].occupant = &laneAfter;
+    TcService service{TcServiceVtable(), &nodes[0], 1, 0, {}};
+    static TmCar cars[6];
+    probe.known = {train,      controls, entry,    owner,     &held,     &walk,    &here,
+                   &after,     &laneHere, &laneAfter, &nodes[0], &nodes[1], train + av::field::kDeque27C,
+                   &g_tcPointer};
+    for (const TmCar& c : cars)
+        probe.known.push_back(&c);
+    RfSwap swapService(addr::SC4_Service43D54, &service);
+    RfSwap swapManager(addr::SC4_NetworkService, &occupants);
+    probe.answer[56] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(controls));
+    float trainPath[3][3] = {{20, 0.5f, 0}, {20, 0.5f, 30}, {21, 0.5f, 60}};
+    Path path{&trainPath[0][0], &trainPath[0][0] + 9};
+    probe.known.push_back(&path);
+    auto setCars = [&](uint32_t n, float hz) {
+        uint32_t words[6] = {};
+        for (uint32_t i = 0; i < n; ++i) {
+            MakeTmCar(cars[i], 1u, 2.0f, 20.0f, -5.0f * i);
+            SetPoint(reinterpret_cast<char*>(&cars[i]), av::field::kHeading, 0.0f, 0.0f, i == 4 ? hz : 1.0f);
+            words[i] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&cars[i]));
+        }
+        if (char* const old = At<char*>(train, tn::train::kCars))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(old);
+        if (n)
+            SetGameVector(train, tn::train::kCars, words, n, n);
+        else
+            std::memset(train + tn::train::kCars, 0, 12);
+    };
+    using FrameFn = uint8_t(__thiscall*)(void*, float);
+    const auto frame = reinterpret_cast<FrameFn>(addr::cSC4Train_DriveFrame);
+    uint32_t runs = 0;
+    auto mixAll = [&](Hash& h, uint8_t answer) {
+        h.Mix(answer);
+        for (std::size_t at : {av::field::kPosition, av::field::kDestination, av::field::kHeading, tn::field::kFront,
+                               tn::field::kTravel, tn::car::kFloats})
+            h.MixBytes(train + at, 12);
+        h.Mix(At<uint32_t>(train, av::field::kPathIndex));
+        h.Mix(F8Bits(At<float>(train, av::field::kFloat260)));
+        h.Mix(F8Bits(At<float>(train, av::field::kSpeed94)));
+        h.Mix(At<uint32_t>(train, av::field::kAutomataFlags));
+        h.Mix(F8Bits(At<float>(train, tn::train::kWord2F4)));
+        h.Mix(At<uint8_t>(train, tn::train::kByte2F8));
+        for (std::size_t at = 0x28; at < 0x60; at += 4)
+            h.Mix(F8Bits(At<float>(controls, at)));
+        for (std::size_t at = 0x7C; at < 0xB0; at += 4)
+            h.Mix(F8Bits(At<float>(controls, at)));
+        for (std::size_t at = 0; at < 0x10; at += 4)
+            h.Mix(F8Bits(At<float>(train, av::field::kSmoothed + at)));
+        h.MixBytes(source, sizeof source);
+        h.Mix(Bits(*reinterpret_cast<const float*>(addr::cSC4Train_RockBound)));
+        h.Mix(probe.calls.h);
+        h.Mix(service.calls.h);
+    };
+
+    // Each case: the seconds, the automata flags (1: the keys' frame says
+    // no), the entry (0 none, 1 no +0x64 but a parent-less owner, 2 the
+    // entry), the damage, the pedal, the throttle, the key +0x80, the
+    // smoothed speed, +0x2F4 and +0x2F8, the entry's +8 and +0x4C, the horn
+    // walk (0 off, 1 one key each time until slot 175's count, 2 a junction
+    // silent, 3 no keys on a two-cell list, 4 no cell list, 5 a null next
+    // occupant, 6 no path, 7 no part, 8 a junction sounding), slot 133 and 197, the rear (0 behind, 1 at the
+    // front with +0x270 set, 2 unset, 3 short), the collision call, the
+    // effect and source, the cars (0 none, 1 aligned, 2 the fifth turned).
+    struct Case {
+        float seconds;
+        uint32_t flags;
+        int entry;
+        uint32_t damage;
+        float pedal, throttle, key80, smoothed, rock;
+        uint8_t rocking;
+        float most, limit;
+        int horn;
+        uint32_t advance, next;
+        int rear;
+        uint32_t hit;
+        bool effect;
+        int cars;
+    };
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const Case cases[] = {
+        {0.25f, 1, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.25f, 0, 0, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.25f, 0, 1, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 0, true, 0},
+        {0.25f, 0, 2, 200000, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.25f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 0, true, 1},
+        {0.25f, 0, 2, 0, -40, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.25f, 0, 2, 0, 400, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 0, 2, -1, 8, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 0, 2, -1, 2, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 0, 12, -1, 0.5f, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 0, 0, -1, 0.0f, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 0, 30, -1, 25.0f, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 20, -1, 20.0f, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 2},
+        {0.5f, 0, 2, 0, 1, 20, -1, 20.0f, 0.5f, 1, 20, 8, 0, 1, 1, 0, 0, false, 2},
+        {0.5f, 0, 2, 0, 1, 20, -1, 20.0f, 7.9f, 1, 20, 8, 0, 1, 1, 0, 0, true, 2},
+        {0.5f, 0, 2, 0, 1, 20, 1, 20.0f, 3.0f, 1, 20, 8, 0, 1, 1, 0, 0, false, 2},
+        {0.5f, 0, 2, 0, 1, 20, 1, 5.0f, 0.0f, 1, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 20, -1, 20.0f, 9.0f, 1, 20, 8, 0, 1, 1, 0, 0, false, 2},
+        {0.5f, 0, 2, 0, 1, 20, -1, 20.0f, 3.0f, 1, 20, 0, 0, 1, 1, 0, 0, false, 1},
+        {0.5f, 0, 2, 0, 1, 20, -1, 20.0f, nan, 1, 20, 8, 0, 1, 1, 0, 0, false, 1},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 1, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 2, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 3, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 4, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 5, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 6, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 7, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 8, 1, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 0, 1, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 0, 0, 0, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 1, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 2, 0, false, 0},
+        {0.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 3, 0, false, 0},
+        {1.5f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 2, true, 0},
+        {1.5f, 0, 0, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 1, false, 0},
+        {0.0f, 0, 2, 0, 1, 5, -1, 4, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+        {3.0f, 0, 2, 0, 1, 5, -1, 12, 0, 0, 20, 8, 0, 1, 1, 0, 0, false, 0},
+    };
+    auto setUp = [&](const Case& c, float frontZ) {
+        std::memset(controls, 0, sizeof controls);
+        for (std::size_t at = 0x7C; at < 0xB0; at += 4)
+            At<float>(controls, at) = -1.0f;
+        At<float>(controls, 0x28) = c.pedal;
+        At<float>(controls, 0x2C) = c.throttle;
+        At<uint32_t>(controls, 0x60) = c.damage;
+        At<float>(controls, 0x80) = c.key80;
+        At<uint8_t>(controls, 0xED) = c.horn ? 1 : 0;
+        if (c.effect) {
+            ++held.references;
+            At<FakeEffect*>(controls, av::state::kObject74) = &held;
+            At<float**>(controls, av::state::kSource70) = &sourcePtr;
+        }
+        probe.answer[67] = c.entry ? static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(owner)) : 0u;
+        At<char*>(owner, 0x64) = c.entry == 2 ? entry : nullptr;
+        At<float>(entry, 8) = c.most;
+        At<float>(entry, 0x10) = 6.0f;
+        At<float>(entry, 0x14) = 9.0f;
+        At<float>(entry, 0x4C) = c.limit;
+        At<float>(entry, 0x5C) = 100000.0f;
+        At<uint32_t>(train, av::field::kAutomataFlags) = c.flags | 0x100000u;
+        SetSmoothed(train, c.smoothed);
+        At<float>(train, tn::train::kWord2F4) = c.rock;
+        At<uint8_t>(train, tn::train::kByte2F8) = c.rocking;
+        SetPoint(train, av::field::kPosition, 20.0f, 0.5f, frontZ - 2.0f);
+        SetPoint(train, av::field::kHeading, 0.0f, 0.0f, 1.0f);
+        SetPoint(train, tn::field::kFront, 20.0f, 0.5f, frontZ);
+        At<Path*>(train, av::field::kPath) = &path;
+        At<int32_t>(train, av::field::kPathIndex) = 0;
+        At<float>(train, av::field::kFloat260) = 0.0f;
+        At<float>(train, av::field::kRadius) = 4.0f;
+        // The horn's walk.
+        At<Lane*>(train, av::field::kOccupant) = c.horn == 7 ? nullptr : &laneHere;
+        At<Part*>(train, av::field::kNetwork) = c.horn == 7 ? nullptr : &here;
+        At<uint32_t>(train, av::field::kBytes1F4) = 0x01000002u;
+        here.path = c.horn == 6 ? nullptr : &walk;
+        here.keys = oneKey;
+        here.keyCount = 1;
+        after.path = &walk;
+        after.keys = c.horn == 3 ? nullptr : twoKeys;
+        after.keyCount = c.horn == 3 ? 0u : 2u;
+        laneAfter.part = c.horn == 1 ? &here : &after;
+        nodes[0].occupant = c.horn == 5 ? nullptr : &laneAfter;
+        service.list = c.horn == 4 ? nullptr : &nodes[0];
+        service.key = c.horn == 2 ? 0u : 1u;
+        service.horn = c.horn == 2 ? 0 : 1;
+        // Slots 133, 182 and 197.
+        g_tm = TmAnswers{};
+        g_tm.advanceOk = c.advance;
+        SetPoint(reinterpret_cast<char*>(g_tm.to) - 0, 0, 20.25f, 0.5f, frontZ + 0.75f);
+        const float* const front = &At<float>(train, tn::field::kFront);
+        if (c.rear == 0) {
+            g_tm.rear[0] = 20.0f;
+            g_tm.rear[1] = 0.5f;
+            g_tm.rear[2] = frontZ - 3.5f;
+        } else {
+            std::memcpy(g_tm.rear, front, 12);
+        }
+        if (c.rear == 2)
+            std::memcpy(train + tn::field::kTravel, reinterpret_cast<void*>(addr::cSC4AutomatonCore_DefaultPoint), 12);
+        else if (c.rear == 3)
+            SetPoint(train, tn::field::kTravel, 1e-6f, 0.0f, 0.0f);
+        else
+            SetPoint(train, tn::field::kTravel, 0.6f, 0.0f, 0.8f);
+        g_tc.next = c.next;
+        g_tc.hit = c.hit;
+        g_tc.collisions = 0;
+        setCars(c.cars ? 5u : 0u, c.cars == 2 ? -1.0f : 1.0f);
+    };
+    auto release = [&] {
+        if (FakeEffect* const e = At<FakeEffect*>(controls, av::state::kObject74)) {
+            At<void*>(controls, av::state::kObject74) = nullptr;
+            --e->references;
+        }
+        At<void*>(controls, av::state::kSource70) = nullptr;
+    };
+    for (const Case& c : cases) {
+        setUp(c, 12.0f);
+        const uint8_t answer = frame(train, c.seconds);
+        mixAll(tdrive, answer);
+        release();
+        ++runs;
+    }
+
+    // ---- 128 drawn frames (a fixed LCG): seconds, pedal, throttle, speeds,
+    // the rocking, the entry's bounds, the rear and the next point, the cars'
+    // headings, each with the horn walk cycling.
+    uint32_t draw = 0x51ED2701u;
+    auto next = [&](float least, float most) {
+        draw = draw * 1664525u + 1013904223u;
+        return least + (most - least) * static_cast<float>(draw >> 8) * (1.0f / 16777216.0f);
+    };
+    Hash drawn;
+    for (uint32_t i = 0; i < 128; ++i) {
+        Case c = {next(0.02f, 2.0f), 0, 2, 0, next(-5.0f, 30.0f), next(0.0f, 25.0f), next(-1.0f, 1.0f),
+                  next(0.0f, 25.0f), i % 3 == 0 ? next(0.0f, 9.0f) : 0.0f, static_cast<uint8_t>(i % 4 == 1 ? 1 : 0),
+                  next(5.0f, 25.0f), next(0.5f, 9.0f), static_cast<int>(i % 9), 1, 1, i % 11 == 7 ? 1 : 0,
+                  i % 13 == 5 ? 1u : 0u, i % 2 == 0, i % 5 == 2 ? 2 : 1};
+        setUp(c, next(5.0f, 40.0f));
+        SetPoint(reinterpret_cast<char*>(g_tm.to), 0, next(18.0f, 22.0f), next(0.0f, 1.0f), next(10.0f, 50.0f));
+        g_tm.rear[0] = next(17.0f, 23.0f);
+        g_tm.rear[1] = next(0.0f, 1.0f);
+        g_tm.rear[2] = next(-5.0f, 45.0f);
+        SetPoint(train, av::field::kHeading, next(-1.0f, 1.0f), 0.0f, next(-1.0f, 1.0f));
+        SetPoint(reinterpret_cast<char*>(&cars[4]), av::field::kHeading, next(-1.0f, 1.0f), 0.0f, next(-1.0f, 1.0f));
+        const uint8_t answer = frame(train, c.seconds);
+        mixAll(drawn, answer);
+        release();
+    }
+    tdrive.Mix(drawn.h);
+
+    // ---- Put back.
+    setCars(0, 1.0f);
+    At<void*>(train, av::field::kPath) = nullptr;
+    At<void*>(train, av::field::kOccupant) = nullptr;
+    At<void*>(train, av::field::kNetwork) = nullptr;
+    At<uint32_t>(train, av::field::kBytes1F4) = 0;
+    At<uint32_t>(train, av::field::kAutomataFlags) = 0;
+    At<uint32_t>(train, tn::train::kWord2F4) = 0;
+    At<uint8_t>(train, tn::train::kByte2F8) = 0;
+    At<uint8_t>(train, av::field::kFlags33) = byte33;
+    At<void**>(train, 0) = realTable;
+    Virtual<uint32_t>(reinterpret_cast<void*(__cdecl*)()>(addr::SC4UDrive_GetService602640)(),
+                      tn::slot::kUDriveShare, 0u);
+    for (const int32_t r : {held.references, laneHere.references, laneAfter.references, here.references,
+                            after.references})
+        tdrive.Mix(static_cast<uint32_t>(r));
+    tdrive.Mix(here.calls.h);
+    tdrive.Mix(after.calls.h);
+    tdrive.Mix(laneAfter.calls.h);
+    tdrive.Mix(held.calls.h);
+    tdrive.Mix(occupants.calls.h);
+    tdrive.Mix(service.calls.h);
+    tdrive.Mix(probe.calls.h);
+    tdrive.Mix(runs);
+    if (runs)
+        tflags |= 0x10000;
+    ReleaseTrain(train);
+    log::Write("autotest: automata: vehicle: tr3c tdrive %08X calls %08X drawn %08X runs %u bound %08X", tdrive.h,
+               probe.calls.h, drawn.h, runs, Bits(*reinterpret_cast<const float*>(addr::cSC4Train_RockBound)));
+    g_tm = TmAnswers{};
+    g_tf = TfAnswers{};
+    g_rf = RfAnswers{};
+    g_tc = TcAnswers{};
+    g_probe = savedProbe;
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -24139,6 +24608,10 @@ void VehicleDrive(cISC4City* city)
     Hash tplace;
     TrainPlaceDrive(tplace, tflags);
 
+    // ---- Part tr3c.
+    Hash tdrive;
+    TrainDriveDrive(tdrive, tflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -24191,14 +24664,14 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[400];
+    char text[448];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
-                  rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tflags);
+                  rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
