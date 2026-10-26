@@ -352,6 +352,8 @@ add_library(opensc4_core SHARED
   html_parser.cpp
   html_parser_autotest.cpp
   gzbuffer_blit.cpp
+  raster_spans.cpp
+  raster_autotest.cpp
   font_blitter.cpp
   font_blitter_autotest.cpp
   font_director.cpp

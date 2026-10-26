@@ -1,0 +1,83 @@
+# The GZ framework's software rasterizer, 0x0082B780 to 0x00864B5F (docs/uncharted-code.md, "Block 1"; docs/renderer.md, "The software rasterizer"). A drawing context (vtable 0x00AC16C8) keeps a state stack and hands every draw to a rasterizer (vtable 0x00AC17D0), which owns five span renderers, one per pixel format; only the 32-bit one runs. Ours in src/core/raster_spans.cpp, group renderer.raster.spans.
+
+[[entry]]
+name = "GZDrawContext::vftable"
+address = 0x00AC16C8
+kind = "vtable"
+expect = "90 BE 82 00 80 BE 82 00"
+source = "Name ours (docs/renderer.md, \"The software rasterizer\"). 48 slots; 0 QueryInterface 0x0082BE90 (1 and 0x2AE63219, the drawing context interface), 1 AddRef 0x0082BE80, 2 Release 0x0082CF10; 17 SetTarget 0x0082C830 (makes the rasterizer through the framework: class 0xEB2EA3CB, interface 0x4B2EA3B3), 38 Blt 0x0082C530 and 39 TiledBlt 0x0082C620. Made 200 bytes by 0x0082C9A0."
+
+[[entry]]
+name = "GZDrawContext::GZDrawContext"
+address = 0x0082C9A0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 33 C9 C7 00 C8 16"
+source = "Name ours. Sets the vtable 0x00AC16C8, zeroes the state, pen width 1.0f. Called by 0x0082B980 (docs/renderer.md, \"The software rasterizer\")."
+
+[[entry]]
+name = "GZRasterizerFactory::MakeContextBuffer"
+address = 0x0082B980
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t a, void** out, cIGZUnknown* buffer)"
+expect = "51 56 57 C7 44 24 08 00"
+source = "Name ours. Slot 5 of the vtable at 0x00AC1668 (interface 0x4B2EA3B3): makes a 0x4C-byte buffer with a drawing context (0x0082B780, vtable 0x00AC1550, the panels' buffer of docs/ui-scaling.md) and a drawing context (0x0082C9A0), sets the context's target and hands it to the buffer (its +0x0C vtable, slot 7). Inferred from the decompile; the meaning of the first argument is not settled."
+
+[[entry]]
+name = "GZRasterizer::vftable"
+address = 0x00AC17D0
+kind = "vtable"
+expect = "60 FD 82 00 F0 47 5F 00"
+source = "Name ours. The rasterizer a drawing context draws through (its +0x28), set by the constructor 0x008306C0; 0x00830710 makes its five span renderers (vtables 0x00AC182C, 0x00AC1844, 0x00AC185C, 0x00AC1874, 0x00AC188C, six slots each). Two more classes share its code (vtables 0x00ADB500 and 0x00AEFDE0, the companion at 0x00A64110)."
+
+[[entry]]
+name = "GZRaster32::vftable"
+address = 0x00AC1874
+kind = "vtable"
+expect = "00 FF 82 00 10 4E 85 00"
+source = "Name ours. The 32-bit span renderer, the only one of the five that ever ran: 0 destructor 0x0082FF00, 1 FillSpans 0x00854E10, 2 0x00854E60, 3 0x00854F70, 4 0x00855040, 5 CopySpans 0x008551D0. Set by 0x00830710."
+
+[[entry]]
+name = "GZRaster32::FillSpans"
+address = 0x00854E10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const uint32_t* spans, int32_t count, const uint32_t* target, uint32_t colour)"
+expect = "53 8B 5C 24 0C 55 8B 6C"
+source = "Name ours (docs/renderer.md, \"The software rasterizer\"). Span renderer slot 1. Spans are pairs of (y << 16 | x) start and end; each is filled with the colour, 4 bytes a pixel, at target[0] + target[1] * y + 4x (REP STOSD through 0x00910003). One of the four spans that ran. Ours in renderer.raster.spans."
+
+[[entry]]
+name = "GZRaster32::CopySpans"
+address = 0x008551D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const uint32_t* spans, int32_t count, const uint32_t* target, const uint32_t* source, const uint32_t* pattern, uint32_t op)"
+expect = "56 8B 74 24 18 0F B6 4E"
+source = "Name ours. Span renderer slot 5: picks the table GZRaster::CopyTables[pattern byte 0x1C + pattern[4] * 2] and calls its entry `op` (cdecl) with the spans, the count and copies of the target (6 words), source (6 words) and pattern (8 words). This is never read. Ours in renderer.raster.spans."
+
+[[entry]]
+name = "GZRaster32::CopyPlain"
+address = 0x0085B030
+kind = "function"
+convention = "cdecl"
+signature = "void (const uint32_t* spans, int32_t count, Surface target, Surface source, Pattern pattern)"
+expect = "53 8B 5C 24 08 55 8B 6C"
+source = "Name ours. Entry 0 of the copy table 0x00AC2228: each span copied a pixel (4 bytes) at a time, forward, from the source at the same x and y (source[0] + source[1] * y + 4x). Ours in renderer.raster.spans."
+
+[[entry]]
+name = "GZRaster32::CopyTiled"
+address = 0x0085B550
+kind = "function"
+convention = "cdecl"
+signature = "void (const uint32_t* spans, int32_t count, Surface target, Surface source, Pattern pattern)"
+expect = "53 55 8B 6C 24 0C 56 57"
+source = "Name ours. Entry 8 of the copy table 0x00AC2228: the source repeated: column (x + pattern[0]) mod source[2] and row (y + pattern[1]) mod source[3], unsigned, the column wrapping to 0 within the span. Ours in renderer.raster.spans."
+
+[[entry]]
+name = "GZRaster::CopyTables"
+address = 0x00AC23D8
+kind = "data"
+expect = "A8 23 AC 00 78 23 AC 00"
+source = "Name ours. Pointers to the 32-bit renderer's copy tables, 0x30 bytes (12 entries) each, indexed by CopySpans; index 8 is 0x00AC2228, the table of the two copies that ran."
