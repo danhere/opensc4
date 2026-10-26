@@ -1,4 +1,4 @@
-// The layout of the trains, parts tr1, tr2a and tr2b (build 641; functions, vtables and data
+// The layout of the trains, parts tr1, tr2a, tr2b and tr3a (build 641; functions, vtables and data
 // in data/addresses/automata.toml, the survey in docs/automata.md, "Part tr").
 //
 // Three classes, each on the one before, with their own six vtables (+0x00,
@@ -26,8 +26,9 @@
 //   +0x2DC a point (-1, -1, -1 at construction), +0x2E8 an occupant
 //          (referenced, read back as 0xA821EF94), +0x2EC a word (not set by
 //          the constructor); all saved
-//   +0x2F0 a word (zero at construction), +0x2F4 a word and +0x2F8 a byte
-//          (zero from Init)
+//   +0x2F0 a float (zero at construction; slot 72's removal timer), +0x2F4
+//          a float (slot 72 rocks the models by it) and +0x2F8 a byte (zero
+//          from Init)
 // The mass transit train adds none.
 #pragma once
 
@@ -116,6 +117,16 @@ inline constexpr std::size_t kSetType = 0x14;         // a message's 5: (type), 
 inline constexpr std::size_t kSetData1 = 0x2C;        // a message's 11: (word), ret 4
 inline constexpr std::size_t kSetData2 = 0x40;        // a message's 16: (word), ret 4
 inline constexpr std::size_t kPost = 0x10;            // the message server's 4: (message, 0), ret 8
+// Part tr3a's, of the automaton.
+inline constexpr std::size_t kGetPosition = 0x1C;        // 7: (float* out), ret 4
+inline constexpr std::size_t kModelTransform = 0x30;     // 12: (transform*), ret 4: the first model's, a bool
+inline constexpr std::size_t kInState = 0xE4;            // 57: (type), ret 4: the stacked state of the type, or null
+inline constexpr std::size_t kSetModelTransforms = 0x12C; // 75: (transform*), ret 4: every model's
+inline constexpr std::size_t kSlot128 = 0x200;           // 128: the core's 0x0050AFD0 (the highlight's update)
+inline constexpr std::size_t kDirectionOf = 0x220;       // 136: +0x1F4
+inline constexpr std::size_t kOccupantOf = 0x224;        // 137: +0x1EC
+inline constexpr std::size_t kSlot198 = 0x318;           // the train's 198: (seconds), ret 4
+inline constexpr std::size_t kAddCar = 0x31C;            // the train's 199
 } // namespace slot
 
 // cSC4Vehicle's fields this part reads (src/core/automata_vehicle.h has them

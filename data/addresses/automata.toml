@@ -12576,3 +12576,35 @@ address = 0x00A9C7C8
 kind = "data"
 expect = "17 B7 D1 38"
 source = "Name ours. float 1e-4: slot 129 takes +0x270 within it of the core's default point as unset. Called by address from src/core/automata_trains.cpp (part tr2b)."
+
+# Part tr3a: the train's frame (src/core/automata_trains.cpp, docs/automata.md "Part tr").
+
+[[entry]]
+name = "cSC4Train::Frame"
+address = 0x00557BF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t word, float seconds)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. The train's slot 72, ret 8: cSC4Vehicle's frame (0x0055BA20). With the point +0x2DC unset (x or z below 0) the last car's (or the train's) position (slot 7), occupant (slot 137, referenced into +0x2E8) and +0x1F4 (slot 136, into +0x2EC); a car added (slot 199) when fewer than wanted; slot 198 (seconds) out of the state 0x14. With the automata flag 0x20 and slot 125 above 0.01, the timer +0x2F0 gains seconds x 0.001 and from 10 on Remove(false) at even odds (cRZRandomSuper::Next below 0x7FFFFFFF); without the flag it is zeroed. In the state 0x10 (slot 57), with +0x2F4 nonzero and below the template entry's +0x4C: the train's and each car's models rocked (slot 12 read, slot 75 set) by a turn about (0, 0, 1) drawn by cRZRandom::Range within plus or minus +0x2F4 / +0x4C x +0x50 degrees, one draw each. Then slot 128. AL the base frame's (the rest of EAX slot 128's). Ours in simulators.automata.trains (src/core/automata_trains.cpp, part tr3a)."
+
+[[entry]]
+name = "cSC4Train::DegreesToRadians"
+address = 0x00A9C7D0
+kind = "data"
+expect = "35 FA 8E 3C"
+source = "Name ours. float pi/180: slot 72's rocking angle from the template entry's +0x50 degrees. Called by address from src/core/automata_trains.cpp (part tr3a)."
+
+[[entry]]
+name = "cSC4Train::MinusOne"
+address = 0x00A9C7AC
+kind = "data"
+expect = "00 00 80 BF"
+source = "Name ours. float -1.0: slot 72's lower bound of the rocking angle. Called by address from src/core/automata_trains.cpp (part tr3a)."
+
+[[entry]]
+name = "cSC4Train::RemoveAfter"
+address = 0x00A9C7BC
+kind = "data"
+expect = "00 00 20 41"
+source = "Name ours. float 10.0: slot 72's timer +0x2F0 from which the train may be removed. Called by address from src/core/automata_trains.cpp (part tr3a)."

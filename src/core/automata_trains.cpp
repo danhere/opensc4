@@ -14,7 +14,8 @@
 //
 // Group, off by default:
 //   simulators.automata.trains: the 31 detours in kObject (tr1), the 13 in
-//   kFrame (tr2a) and the 5 in kMove (tr2b) below.
+//   kFrame (tr2a), the 5 in kMove (tr2b) and the 1 in kTrainFrame (tr3a)
+//   below.
 //
 // What it does. The car is 0x2C8 bytes from its own pool (0x00B0A09C, as
 // the vehicle pool: other sizes go to SC4::operator_new) and goes back there
@@ -1760,6 +1761,225 @@ std::uint8_t __fastcall TrainAddCar(char* self, void*)
 }
 
 // ====================================================================================
+// The frame (tr3a)
+
+// An x87 value as the FPU keeps it, its ten bytes: FSIN and FCOS leave 64
+// bits of mantissa whatever the precision control, and slot 72 multiplies
+// them as they are (as the tank's frame, part ro3b).
+struct X87 {
+    unsigned char bytes[10];
+};
+
+// The sine and the cosine of `angle` (FSIN, FCOS).
+void X87SinCos(double angle, X87* sine, X87* cosine)
+{
+    __asm {
+        mov eax, sine
+        mov edx, cosine
+        fld qword ptr [angle]
+        fld st(0)
+        fcos
+        fstp tbyte ptr [edx]
+        fsin
+        fstp tbyte ptr [eax]
+    }
+}
+
+// `value` times `factor` (FMUL).
+double X87Times(const X87& value, double factor)
+{
+    double product = 0.0;
+    double* const out = &product;
+    const X87* const in = &value;
+    __asm {
+        mov eax, in
+        mov edx, out
+        fld tbyte ptr [eax]
+        fmul qword ptr [factor]
+        fstp qword ptr [edx]
+    }
+    return product;
+}
+
+// A model transform as slots 12 and 75 take it: a count and flags, a 3x3
+// matrix, a point and a scale.
+struct ModelTransform {
+    std::uint8_t count, flags;
+    std::uint8_t unused[2];
+    float m[9];
+    float point[3];
+    float scale;
+};
+static_assert(sizeof(ModelTransform) == 0x38, "slot 12's transform");
+
+void Identity(ModelTransform& s)
+{
+    static constexpr float kIdentity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    std::memcpy(s.m, kIdentity, sizeof kIdentity);
+    s.point[0] = s.point[1] = s.point[2] = 0;
+    s.scale = 1;
+}
+
+// The matrix turned by `angle` about (0, 0, z), z = `inverse` x 0x00B0A090
+// (the x and y of the axis 0x00A81054 times it): the quaternion's x and y
+// floats, z unrounded, the cosine at 64 bits; its matrix's nine entries
+// floats; each row of the product a float.
+void Rock(ModelTransform& t, float angle, double inverse)
+{
+    const double half = static_cast<double>(angle) * Global<float>(addr::SC4_FloatMinusHalf);
+    const double axis = inverse * One();
+    const float n0 = static_cast<float>(Zero() * axis);
+    const float n1 = n0;
+    const float n2 = static_cast<float>(axis);
+    X87 sine, cosine;
+    X87SinCos(half, &sine, &cosine);
+    const float x = static_cast<float>(X87Times(sine, n0));
+    const float y = static_cast<float>(X87Times(sine, n1));
+    const double z = X87Times(sine, n2);
+    const double one = Global<float>(addr::SC4_FloatOneA81228);
+    const double yy = static_cast<double>(y) * y;
+    const double yy2 = yy + yy;
+    const double xx = static_cast<double>(x) * x;
+    const double xx2 = xx + xx;
+    const double zz = z * z;
+    const float zz2 = static_cast<float>(zz + zz);
+    const double xx1 = one - xx2;
+    const float a = static_cast<float>(xx1 - yy2);
+    const float b = static_cast<float>(xx1 - zz2);
+    const float c = static_cast<float>((one - yy2) - zz2);
+    const double zx = z * x;
+    const float xz2 = static_cast<float>(zx + zx);
+    const double yx = static_cast<double>(y) * x;
+    const float xy2 = static_cast<float>(yx + yx);
+    const double xw = X87Times(cosine, x);
+    const float xw2 = static_cast<float>(xw + xw);
+    const double zy = z * y;
+    const float yz2 = static_cast<float>(zy + zy);
+    const double yw = X87Times(cosine, y);
+    const float yw2 = static_cast<float>(yw + yw);
+    const double zw = X87Times(cosine, z);
+    const double zw2 = zw + zw;
+    const float p = static_cast<float>(xy2 + zw2);
+    const float q = static_cast<float>(static_cast<double>(xz2) - yw2);
+    const float r = static_cast<float>(xy2 - zw2);
+    const float s = static_cast<float>(static_cast<double>(yz2) + xw2);
+    const float u = static_cast<float>(static_cast<double>(yw2) + xz2);
+    const float v = static_cast<float>(static_cast<double>(yz2) - xw2);
+    // The rows (m[6..8], m[3..5], m[0..2]), the sums in the game's order.
+    float* const m = t.m;
+    auto mul = [](float f, float g) { return static_cast<double>(f) * g; };
+    const float e3 = static_cast<float>((mul(s, m[7]) + mul(a, m[8])) + mul(q, m[6]));
+    const float e1 = static_cast<float>((mul(u, m[8]) + mul(r, m[7])) + mul(c, m[6]));
+    const float e2 = static_cast<float>((mul(v, m[8]) + mul(b, m[7])) + mul(p, m[6]));
+    const float g3 = static_cast<float>((mul(s, m[4]) + mul(a, m[5])) + mul(q, m[3]));
+    const float g1 = static_cast<float>((mul(u, m[5]) + mul(r, m[4])) + mul(c, m[3]));
+    const float g2 = static_cast<float>((mul(v, m[5]) + mul(b, m[4])) + mul(p, m[3]));
+    const float h1 = static_cast<float>((mul(m[2], u) + mul(m[1], r)) + mul(m[0], c));
+    const float h2 = static_cast<float>((mul(m[2], v) + mul(m[0], p)) + mul(m[1], b));
+    const float h3 = static_cast<float>((mul(m[1], s) + mul(m[0], q)) + mul(m[2], a));
+    m[0] = h1, m[1] = h2, m[2] = h3;
+    m[3] = g1, m[4] = g2, m[5] = g3;
+    m[6] = e1, m[7] = e2, m[8] = e3;
+}
+
+// 0x00557BF0, the train's slot 72 (word, seconds), ret 8: cSC4Vehicle's
+// frame (0x0055BA20). With the point +0x2DC unset (x or z below 0): the last
+// car's (the train's without cars) position (slot 7) into it, its occupant
+// (slot 137) referenced into +0x2E8 and its +0x1F4 (slot 136) into +0x2EC.
+// A car added (slot 199) while fewer than wanted; slot 198 (seconds) out of
+// the state 0x14. With the automata flag 0x20 and slot 125 above 0.01
+// (0x00A823A4) the timer +0x2F0 gains seconds x 0.001 (0x00A867A4) and from
+// 10 on (0x00A9C7BC) Remove(false) when cRZRandomSuper::Next is below
+// 0x7FFFFFFF; without the flag it is zeroed. In the state 0x10 (slot 57),
+// with +0x2F4 nonzero and below the template entry's +0x4C: the models of
+// the train and then of each car rocked, each by its own draw (cRZRandom::
+// Range from -A to A, A = +0x2F4 / +0x4C x +0x50 x pi/180): the first
+// model's transform (slot 12, from the identity) turned about (0, 0, 1),
+// its count up one and its flag 4 set, and every model's set (slot 75). A
+// car's transform starts from the identity again (the count up one) when
+// the flags are set, as they always are after the train's. Then slot 128.
+// AL the base frame's (the rest of EAX slot 128's).
+//
+// The x87 at 53 bits: the bounds doubles; the train's axis from the
+// unrounded 1 / sqrt(1.0), the cars' from its float.
+std::uint32_t __fastcall TrainFrame(char* self, void*, std::uint32_t word, float seconds)
+{
+    static bool logged;
+    FirstCall("TrainFrame", logged);
+    const std::uint8_t framed = Bool(CallThis<std::uint32_t>(addr::cSC4Vehicle_Frame, self, word, seconds));
+    float* const point = &At<float>(self, train::kPoint);
+    if (point[0] < Zero() || point[2] < Zero()) {
+        char** const cars = &At<char*>(self, train::kCars);
+        char* const last = cars[0] == cars[1] ? self : At<char**>(self, train::kCars + 4)[-1];
+        Virtual<std::uint32_t>(last, slot::kGetPosition, point);
+        void* const occupant = Virtual<void*>(last, slot::kOccupantOf);
+        void* const held = At<void*>(self, train::kOccupant);
+        if (occupant != held) {
+            if (occupant)
+                Virtual<std::uint32_t>(occupant, kAddRef);
+            At<void*>(self, train::kOccupant) = occupant;
+            if (held)
+                Release(held);
+        }
+        At<std::uint32_t>(self, train::kWord) = Virtual<std::uint32_t>(last, slot::kDirectionOf);
+    }
+    if (At<std::uint32_t>(self, train::kWanted) > CarCount(self))
+        Virtual<std::uint32_t>(self, slot::kAddCar);
+    if (Virtual<std::uint32_t>(self, slot::kStateType) != 0x14u)
+        Virtual<std::uint32_t>(self, slot::kSlot198, seconds);
+    if (CheckFlag(self, 0x20u)) {
+        if (Virtual<double>(self, slot::kSlot125) > Global<float>(addr::cSC4AutomatonBase_SideShare)) {
+            const double timer = static_cast<double>(seconds) * Global<float>(addr::cSC4CitySituationManager_Milli) +
+                                 At<float>(self, train::kWord2F0);
+            At<float>(self, train::kWord2F0) = static_cast<float>(timer);
+            if (timer >= Global<float>(addr::cSC4Train_RemoveAfter) &&
+                CallThis<std::uint32_t>(addr::cRZRandomSuper_Next,
+                                        reinterpret_cast<void*>(addr::cSC4AutomatonCore_Random)) < 0x7FFFFFFFu)
+                Virtual<std::uint32_t>(self, slot::kRemove, 0u);
+        }
+    } else {
+        At<std::uint32_t>(self, train::kWord2F0) = 0;
+    }
+    char* entry = nullptr;
+    if (Virtual<std::uint32_t>(self, slot::kInState, 0x10u) && At<float>(self, train::kWord2F4) != Zero())
+        entry = TemplateEntry(self);
+    const float rock = At<float>(self, train::kWord2F4);
+    if (entry && rock < At<float>(entry, 0x4C)) {
+        const double most = static_cast<double>(rock) / At<float>(entry, 0x4C) *
+                            (static_cast<double>(At<float>(entry, 0x50)) * Global<float>(addr::cSC4Train_DegreesToRadians));
+        const double least = most * Global<float>(addr::cSC4Train_MinusOne);
+        void* const generator = reinterpret_cast<void*>(addr::cSC4AutomatonCore_Random);
+        const float angle = static_cast<float>(CallThis<double>(addr::cRZRandom_Range, generator, least, most));
+        ModelTransform s{};
+        Identity(s);
+        Virtual<std::uint32_t>(self, slot::kModelTransform, &s);
+        const double inverse = Global<float>(addr::SC4_FloatOneA81228) / std::sqrt(Global<double>(addr::SC4_DoubleOne));
+        const float inverseF = static_cast<float>(inverse);
+        Rock(s, angle, inverse);
+        ++s.count;
+        s.flags |= 4;
+        Virtual<std::uint32_t>(self, slot::kSetModelTransforms, &s);
+        ForEachCar(self, [&](char* car) {
+            if (!car)
+                return;
+            const float turn = static_cast<float>(CallThis<double>(addr::cRZRandom_Range, generator, least, most));
+            if (s.flags) {
+                Identity(s);
+                s.flags = 0;
+                ++s.count;
+            }
+            Virtual<std::uint32_t>(car, slot::kModelTransform, &s);
+            Rock(s, turn, inverseF);
+            ++s.count;
+            s.flags |= 4;
+            Virtual<std::uint32_t>(car, slot::kSetModelTransforms, &s);
+        });
+    }
+    const std::uint32_t last = Virtual<std::uint32_t>(self, slot::kSlot128);
+    return (last & 0xFFFFFF00u) | framed;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1863,13 +2083,19 @@ const Detour kMove[] = {
     OPENSC4_DETOUR(addr::cSC4Train_AddCar, TrainAddCar),
 };
 
+// Part tr3a.
+const Detour kTrainFrame[] = {
+    OPENSC4_DETOUR(addr::cSC4Train_Frame, TrainFrame),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kFrame, sizeof kFrame / sizeof kFrame[0], "frame") &&
-           InstallList(kMove, sizeof kMove / sizeof kMove[0], "move");
+           InstallList(kMove, sizeof kMove / sizeof kMove[0], "move") &&
+           InstallList(kTrainFrame, sizeof kTrainFrame / sizeof kTrainFrame[0], "train frame");
 }
 
 const bool g_registered[] = {
@@ -1882,8 +2108,8 @@ const bool g_registered[] = {
                         "train's Shutdown; the car's slots 50, 65 and 120 and the train's 175 and 193 to 196 (31 "
                         "detours, part tr1); the frames: the car's slots 110 and 132, the train's 65, 73, 110, 111, "
                         "121, 125, 132, 165 and 172, the mass transit train's 165 and 172 (13 detours, part tr2a); "
-                        "the movement: the train's slots 129, 131, 134, 197 and 199 (5 detours, part tr2b; "
-                        "src/core/automata_trains.cpp)",
+                        "the movement: the train's slots 129, 131, 134, 197 and 199 (5 detours, part tr2b); the "
+                        "train's frame, slot 72 (1 detour, part tr3a; src/core/automata_trains.cpp)",
                         false, InstallObject}),
 };
 
