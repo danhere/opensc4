@@ -1505,8 +1505,8 @@ std::uint8_t __fastcall TrainPathTo(char* self, void*, void* occupant, std::uint
 // byte +0x2B8, else 6 in the group 0x422D or 0x422C, 7 in 0x422F or 0x422E,
 // else 3; without the automata flag 0x4000, with +0x98 and +0xA4 longer than
 // 1e-5, +0xA4 normalised and its best side (slot 171). The part's path
-// (slot 5: the kind, 0xFF, the side, the position, an out word in the side's
-// own slot, 0; false without one); slot 132 (occupant, the out word, path,
+// (slot 5: the kind, 0xFF, the side, the position, an out word, 0; false
+// without one); slot 132 (occupant, the out word, path,
 // 1); the +0x27C deque cleared; +0x1FC the last point's index, the front
 // point +0x264 the last point, the heading +0x58 the last less the first.
 // The rear (slot 182); with it, slot 16 with the point half the front less
@@ -1551,12 +1551,12 @@ std::uint8_t __fastcall TrainPlaceOnNetwork(char* self, void*)
                                    reinterpret_cast<std::uint8_t*>(&side), 1u);
         }
     }
-    // The side's slot is the out word too.
+    std::uint32_t out = 0; // stack garbage in the game; the part's slot 5 sets it
     char** const found = Virtual<char**>(network, slot::kFindPath, kind, 0xFFu, side,
-                                         static_cast<const float*>(position), &side, 0u);
+                                         static_cast<const float*>(position), &out, 0u);
     if (!found)
         return 0;
-    Virtual<std::uint32_t>(self, slot::kEnterOccupant, occupant, side, found, 1u);
+    Virtual<std::uint32_t>(self, slot::kEnterOccupant, occupant, out, found, 1u);
     CallThis<void>(addr::SC4VehicleDeque27C_Clear, self + field::kDeque27C);
     std::uint32_t headingWords[3] = {Fill(), Fill(), Fill()};
     std::uint32_t pointWords[3] = {Fill(), Fill(), Fill()};

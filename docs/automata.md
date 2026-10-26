@@ -36,7 +36,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Aircraft and watercraft managers and their base | 222 | 56,293 | aw1 (36, done), aw2 (25, done), aw3 to aw5 (part aw below counts 172) |
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
-| Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5), tr3 (4) (part tr below counts 79, 17,591 bytes) |
+| Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3 (4) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | 3 |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
@@ -3194,7 +3194,7 @@ What each class overrides:
 79 functions, 17,591 bytes:
 
 - **tr1 (31, 2,908 bytes, done):** the objects, the save, the life cycle and the queries. Below.
-- **tr2 (18, 6,992 bytes):** the smaller frame code. The train's 73 0x00558DC0, 65 0x00558E00, 110 0x00557530 (with the car's 110 0x00557410), 111 0x00557620, 121 0x005570C0, 125 0x00557830, 129 0x00558510, 131 0x005588D0, 132 0x005574F0 (with the car's 132 0x00557320), 134 0x0055AD00, 165 0x00558FA0, 172 0x00557170, 197 0x00559C30 and 199 0x0055A8B0; the mass transit train's 165 0x0053CA20 and 172 0x0053C970. Split by the train's movement: **tr2a (13, done)** the rest, below; **tr2b (5)** 129, 131, 134, 197 and 199.
+- **tr2 (18, 6,992 bytes):** the smaller frame code. The train's 73 0x00558DC0, 65 0x00558E00, 110 0x00557530 (with the car's 110 0x00557410), 111 0x00557620, 121 0x005570C0, 125 0x00557830, 129 0x00558510, 131 0x005588D0, 132 0x005574F0 (with the car's 132 0x00557320), 134 0x0055AD00, 165 0x00558FA0, 172 0x00557170, 197 0x00559C30 and 199 0x0055A8B0; the mass transit train's 165 0x0053CA20 and 172 0x0053C970. Split by the train's movement: **tr2a (13, done)** the rest, below; **tr2b (5, done)** 129, 131, 134, 197 and 199, below.
 - **tr3 (4, 7,498 bytes):** the frame 72 0x00557BF0, slot 198 0x0055A050, the driven frame 115 0x005591A0 and its helper 0x00557680. Likely a piece each.
 - **Stay the game's (26):** 21 adjustor thunks and five plain jumps (0x0053C950, 0x0053C960, 0x0053CA10, 0x00557070, 0x0055B740).
 
@@ -3319,3 +3319,51 @@ One object of each class from its factory, its main vtable a copy with ro2's pro
 Every B run reached all 13, its ` V` token equalled the A run's (tframe 0x05187170, tflags 0x2F), and the game itself reaches none of the 13 before the test day in these saves. The one exception to equal tokens is Rush Hour t0000's first pair in tr2a-p2, where only ad3's `chighlight` differed (0xB7A37F8C against 0xB49EAE5C, the two values it takes, as in tr1); the leg still came out the same.
 
 An independent audit against the disassembly found no defect in the 13. It led to re-reading the car's +0xB0 for each of the train's calls in the car's slot 110 (as the game does) and to two comment fixes.
+
+### What is ours (tr2b)
+
+5 more functions in `simulators.automata.trains` (list kMove in [automata_trains.cpp](../src/core/automata_trains.cpp)), the train's movement:
+
+- **Slot 129 0x00558510 (the move on frames):** as cSC4Vehicle's 0x0055CAF0 (the step from the speed factor, the smoothed speed and the seconds, capped by the room ahead, slot 102 when the move along the path fails), but with the train's rear. After slot 133 moves the front point, slot 182 gives the rear +0x2BC (the new point, the radius, the +0x27C deque); the direction is the front point less the rear, the destination +0x4C half of it behind the new point, and slot 16 gets its unit vector, which goes to +0x270.
+- **Slot 131 0x005588D0 (a path to an occupant):** with 0x00B43DA8's slot 17 true for the occupant's cell, the vehicle manager's records get a traffic event and the message server a message 0x0C05E4CD with the cell; then the base's 0x0054E920. Not exact, the front point is the path's last and +0x1FC the count less 2; exact, the path's first point is advanced by +0x260 capped by the room ahead. The rear and the destination then as slot 129.
+- **Slot 134 0x0055AD00 (placing on the network):** the occupant at the position's cell, the kind by the byte +0x2B8 and the groups (4, 6, 7, else 3), the best side of +0xA4, the part's path (slot 5) and slot 132; the front point the path's last point, the heading +0x58 last less first, and slot 16 from the rear (slot 182), or without one from the point before with the rear set the radius behind.
+- **Slot 197 0x00559C30 (the next occupant):** 0x00B43D54's slot 15 by the side +0x1F4 and the kind +0x1F7; the part's path for slot 40's key when it starts within 2 of the path's end, else by the keys of slot 6 or slot 5; slot 131 to it and the cells entered (slot 38).
+- **Slot 199 0x0055A8B0 (adding a car):** when the last car's rear is far enough from the train's point +0x2DC (twice the radius, plus half), the vehicle manager's slot 15 makes a car of the train's car group (0x421A for 0x4203 when one short); its leader is the last car, it is placed at the point and pushed on the cars, and gets the state 0x10 when the train is in it.
+
+Oddities kept:
+
+- **Slot 129:** +0x94 is the smoothed speed (zero when the step is not above 0), not cSC4Vehicle's distance moved; the front point counts as unset when any coordinate is below 0; slot 182's answer is dropped and the direction is from the old front point; with the front at the rear the move uses +0x270, and ends at once (AL 1, nothing moved) when +0x270 is at the core's default point (within 1e-4, 0x00A9C7C8) or below 1e-5.
+- **Slot 131:** neither 0x00B43DA8 nor the occupant is tested for null, and a failed new of the message is not tested either; slot 133's answer is dropped; with a NaN in the rear the direction is the radius times the unit vector of the whole path (a float inverse) and the front point moves to the path's last; at 1e-5 or less slot 16 gets a null heading and +0x270 the short direction unnormalised.
+- **Slot 134:** slot 174 is called and its answer not read; there is no slot 122 test (the base's has one); the heading +0x58 is not normalised; the two ways round the unit vector differently (x by the inverse unrounded, y and z by it as a float, or all by a float inverse).
+- **Slot 197:** the service is not tested for null and the path is read without a test where the keys are asked; slot 3 is asked twice for the near path; the second slot 15 call passes the key where the first passes the side; slots 6 and 5 take the kind byte, not the key.
+- **Slot 199:** the last car is not tested for null; the manager's out vector (three zeroed words of the caller's) is never freed.
+- **Bytes with stack above them:** the side and opposite side of slots 134 and 197 (ours zero-extended).
+- **AL only in the game:** all five. Ours zero-extends.
+
+### Test (tr2b)
+
+The ` V` token gains `,<tmove>` before tflags (38 fields). tflags adds 0x100 (it ran), 0x200 (the factory failed) and 0x400 (another slot of the test's city was called). The log line is "tr2b tmove".
+
+One train from its factory, its main vtable tr2a's copy with slots 34, 125, 132, 133, 151, 171 and 182 the test's (fixed answers and points; slot 132 sets the path and its part), its +4 vtable's slot 22 tr1's groups; the city, 0x00B43D54 (slots 15, 38, 40) and 0x00B43DA8 (slot 17 false) the test's; vb3's lanes, parts and paths. 832 calls in all:
+
+- Slot 129, 64 fixed runs (the early way out, the room ahead with and without +0xB0, steps not above 0 by the radius and the flag 0x40, the front point unset, the move failing, the rear near the front point with +0x270 at the default point, short or set) and 256 drawn (a fixed LCG).
+- Slot 131, 192 runs over a lane with a part and one without, three keys, exact by its low byte, the flag 0x2000, six leftovers, rears with a NaN (either sign), an infinity, at the front point or drawn.
+- Slot 134, 160 runs over the occupant, the part and its path, the kinds, +0xA4 (the flag 0x4000, +0x98, short), slot 182 true or false, drawn radii and rears.
+- Slot 197, 96 runs over the next lane given or not, the lane after (none, a null occupant, one), the key, three paths of the train's, the keys of slot 6 (two, one, none) and slot 5 with a path or none.
+- Slot 199, 64 runs over cars of the test's (the train itself last when none), the distance, the manager, the car group and what the manager makes (none, a car answering the interface, one not), the state 0x10.
+
+Not reached: slot 131's event branch (0x00B43DA8 true), since SC4::ApplyTrafficEvent needs a real vehicle manager.
+
+### Parity (tr2b)
+
+2026-10-26. B = `simulators.automata.vehicle`, `simulators.automata.roadveh` and `simulators.automata.trains` against the original, as for tr2a. Two jobs, `OPENSC4_MUTE=1`, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. Env p4env-tr2b:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run reached all 5, its ` V` token equalled the A run's (tmove 0x804338E5, tflags 0x12F), and the game itself reaches none of the 5 before the test day in these saves (snapshot tr2b-p1). tr2b-p2, the final build after the audit's fix, gave the same results; in its Rush Hour t0000 run only ad3's `chighlight` differed in the token (0xB7A37F8C against 0x86FDBB8E, a live city vehicle's, as in tr1 and tr2a), and the leg came out the same.
+
+The first trial differed in tmove: slot 197 passed the key to slots 6 and 5 where the game passes the kind byte (a stack offset misread), found by logging the hash per run and the part's arguments. An independent audit against the disassembly then found slot 134's out word for slot 5 to be a local of its own, not the side's slot (the same answer whenever slot 5 writes it); fixed. No other defect.
