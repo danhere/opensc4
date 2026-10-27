@@ -14351,3 +14351,200 @@ address = 0x00A9B358
 kind = "data"
 expect = "90 A4 54 00 A0 A4 54 00"
 source = "cSC4SimFireCrew's +0x38 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+# Part ped2a: the pedestrian's states and frame (src/core/automata_pedestrians.cpp, docs/automata.md "Part ped").
+
+[[entry]]
+name = "cSC4Pedestrian::Init"
+address = 0x005444F0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 46 04 8D 4E"
+source = "Name ours. The pedestrian's slot 3: slot 158 unless the occupant part's slot 5 says initialised, then the automaton base's Init 0x0054D790 (a tail jump). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::Frame"
+address = 0x00544580
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t word, float seconds)"
+expect = "51 53 56 8B F1 8B 06 6A"
+source = "Name ours. The pedestrian's slot 72, ret 8: the automaton base's frame 0x0054E050 between two looks at the automata flag 0x20; with the flag 2 (slot 86) the flag newly on gives slot 176, on before slot 19 (0). AL the base frame's. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::Animate"
+address = 0x00544C90
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "D9 44 24 04 56 8B F1 D8"
+source = "Name ours. The pedestrian's slot 103, ret 4: the timer +0x1C0 gains the seconds; AL 1 at once without the automata flags 0x2000 and 2 and with 0x20, or while the simulator 0x00B43D5C's slot 15 answers 1 and its slot 17 0; else +0x26C 0.01, each model given +0x26C (slot 14) and advanced (slot 15), the first model at its last frame gives slot 102 (1, 0). AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::StateFrame"
+address = 0x00546BC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "56 8B F1 8B 86 B4 00 00"
+source = "Name ours. The pedestrian's slot 109, ret 4: AL 0 with no states; else the automaton base's 0x00550090 and, when it answers AL 0, the current state's frame by its type (2 0x00546150, 3 0x00545B10, 4 0x00545690, 6 0x00544950, 8 0x00546220, 9 0x00546530, 0xC 0x00545280). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::EnterState"
+address = 0x00546A10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* state)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours. The pedestrian's slot 110, ret 4: the automaton base's 0x005546E0; when it answers AL 0 the automata flags by the state's type (1 to 9; others and none), slot 134 for 6 and others, the smoothed speed to 1/720 for 8 and 9, 0x00546220 (0, 1) for 8. AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::LeaveState"
+address = 0x005445F0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* state)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. The pedestrian's slot 111, ret 4: leaving the state 8 turns the automata flag 0x10000 off; then the automaton base's 0x005535D0, its EAX. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::Remove"
+address = 0x00544C40
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 8E EC 01 00"
+source = "Name ours. The pedestrian's slot 135: the occupant +0x1EC let go; in the state 8 or 9 nothing more (EAX the type), else the automaton base's RemoveNow 0x0054D820 (a tail jump). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::DirectionTo"
+address = 0x00545360
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* point, float* out)"
+expect = "83 EC 0C 8B 44 24 10 D9"
+source = "Name ours. The pedestrian's slot 155, ret 8: the unit vector from the position to the point in x and z ((0, 0, 1) at most 1e-5 away); the y difference is the position's y less itself. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::DrawFloat200"
+address = 0x00544620
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "D9 05 EC 1C B2 00 56 83"
+source = "Name ours. The pedestrian's slot 158: +0x200 a float from the automata's generator between the floats 0x00B21CE8 and 0x00B21CEC (cRZRandom::Range). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::NextStep"
+address = 0x00545160
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 EC 08 53 56 8B F1 E8"
+source = "Name ours. The pedestrian's slot 165: the automaton base's 0x00553AA0; when it answers AL 1 with +0x98, an occupant and the speed +0xA0 at least 20, +0xA4 normalised and its best side (slot 171); a side other than +0x1F4's takes the occupant's network part's path from the position (slot 5) and slot 131 (its EAX). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::Idle"
+address = 0x005457C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 18 53 56 8B F1 8B"
+source = "Name ours. The pedestrian's slot 176: slot 21 with a string of the text 0x00B0A008 points to (\"idle\"). AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::State4Frame"
+address = 0x00545690
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 2C 56 8B F1 8B 06"
+source = "Name ours. The state 4's frame (slot 109's), ret 4: the current state's object's slot 28, the move to the destination (0x00550190) and, arrived (the automata flag 0x20), the heading towards the object's point (its slot 11) and slot 21 with \"idle\"; slot 105. Without a state or object slot 53. AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::StateCFrame"
+address = 0x00545280
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "51 53 56 57 8B F9 8B B7"
+source = "Name ours. The state 0xC's frame (slot 109's), ret 4: the first state 0xC down the stack whose object's slot 6 answers a word gives it to the city's simulator 0x621CDA33 as 0x49B43F57 (slots 4 and 9 with 2); then the state set to 1 (slot 51). AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::State2Frame"
+address = 0x00546150
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 10 56 8B F1 D9 86"
+source = "Name ours, not analysed. The state 2's frame (slot 109's), ret 4 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::State3Frame"
+address = 0x00545B10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 30 53 56 8B F1 8B"
+source = "Name ours, not analysed. The state 3's frame (slot 109's), ret 4 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::State6Frame"
+address = 0x00544950
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "83 EC 4C 56 8B F1 8B 86"
+source = "Name ours, not analysed. The state 6's frame (slot 109's), ret 4 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::State8Frame"
+address = 0x00546220
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds, bool start)"
+expect = "83 EC 20 53 55 56 57 8B"
+source = "Name ours, not analysed. The state 8's frame (slot 109's with (seconds, 0); slot 110 calls it with (0, 1) on entering the state), ret 8 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::State9Frame"
+address = 0x00546530
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float seconds)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours, not analysed. The state 9's frame (slot 109's), ret 4 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::One"
+address = 0x00B0A00C
+kind = "data"
+expect = "00 00 80 3F"
+source = "Name ours. The float 1.0 the pedestrian's slots 155 and 165 and the state 4's frame divide by the length. Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::IdleName"
+address = 0x00B0A008
+kind = "data"
+expect = "48 53 A9 00"
+source = "Name ours. A pointer to the text \"idle\" (0x00A95348) the pedestrian's slot 176 and the state 4's frame give slot 21. Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::TurnSpeed"
+address = 0x00A9A3F4
+kind = "data"
+expect = "00 00 A0 41"
+source = "Name ours. The float 20 the speed +0xA0 must reach (in size) for the pedestrian's slot 165 to choose a side. Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::Float200Low"
+address = 0x00B21CE8
+kind = "data"
+source = "Name ours. A float, the low end of the draw of the pedestrian's slot 158 (filled at startup). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+[[entry]]
+name = "cSC4Pedestrian::Float200High"
+address = 0x00B21CEC
+kind = "data"
+source = "Name ours. A float, the high end of the draw of the pedestrian's slot 158 (filled at startup). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."

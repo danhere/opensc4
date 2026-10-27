@@ -6,13 +6,17 @@
 // destructor body, the four GetGZCLSIDs), the save (the pedestrian's, the
 // riot police's and the fire crew's Writes and Reads) and the small queries
 // (the pedestrian's slots 16, 17 and 174, the one-shot's 177 and 178 and the
-// crews' word +0x274). The layout is in src/core/automata_pedestrians.h and
-// the survey in docs/automata.md, "Part ped". Calls between functions of the
-// part go to the game's addresses, so each detour stands alone and
-// OPENSC4_AUTOMATA_SKIP (function addresses, hex, eight digits) bisects them.
+// crews' word +0x274). ped2a: the pedestrian's states and frame (its Init,
+// slot 72, the animation 103, the states 109 to 111, slots 135, 155, 158,
+// 165 and 176, and the frames of the states 4 and 0xC). The layout is in
+// src/core/automata_pedestrians.h and the survey in docs/automata.md, "Part
+// ped". Calls between functions of the part go to the game's addresses, so
+// each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
+// hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.pedestrians: the 34 detours in kObject (ped1) below.
+//   simulators.automata.pedestrians: the 34 detours in kObject (ped1) and
+//   the 13 in kStates (ped2a) below.
 //
 // What it does. A pedestrian is a 0x270-byte block of the pool 0x00B0A018
 // (0x00544890; the one-shot, the riot police and the fire crew, of other
@@ -45,11 +49,30 @@
 // float 0x00A9A3FC, stored as a float (at 53 bits, as cSC4Vehicle's); slot
 // 17 answers the float 0.5 0x00A84D2C in ST0.
 //
+// ped2a's oddities kept: slot 155 takes the y difference as the position's y
+// less itself and rounds the x difference to a float, while the state 4's
+// frame counts the y difference in the length (then sets y to 0) and keeps x
+// unrounded; slot 165 normalises +0xA4 without a zero test; the state 0xC's
+// frame null-tests neither the simulator nor the interface it asks for (and
+// holds and lets go of it once more around nothing); slot 135 answers the
+// state's type in the states 8 and 9; slot 103 sets +0x26C to 0.01 on every
+// frame it animates and does not null-test the first model. Stack garbage
+// the game passes on (ours zeros): slot 165's side byte (three bytes above
+// it) to the network part's slot 5, and its key when the part finds no path
+// (unread). AL only in the game: slots 72, 109 and 165 where they answer the
+// base's; ours zero-extends.
+//
+// Floats (53 bits): slot 103's timer is seconds + timer stored as a float;
+// slot 165 keeps 1 / length unrounded; slot 155's and the state 4's factor is
+// stored as a float.
+//
 // Still the game's, at their addresses: the automaton base's code (part vb),
 // the riot police's and the fire crew's jumps to the pedestrian's
 // QueryInterface and the adjustor thunks the vtables hold, the occupant
-// filters' code, the stream helpers, the pool's growth and release, and the
-// pedestrians' states, frames, Inits and Shutdowns (parts ped2 on).
+// filters' code, the stream helpers, the pool's growth and release, the
+// pedestrian's walks (the frames of the states 2, 3, 6, 8 and 9: part ped2b)
+// and the other classes' states, frames, Inits and Shutdowns (parts ped3 and
+// ped4).
 
 #include "core/automata_pedestrians.h"
 
@@ -63,6 +86,7 @@
 
 #include <windows.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -739,6 +763,434 @@ void __fastcall CrewSetWord(char* self, void*, const std::uint32_t* word)
 }
 
 // ====================================================================================
+// The states and the frame (ped2a)
+
+bool CheckFlag(char* self, std::uint32_t flag) { return Virtual<std::uint8_t>(self, pslot::kCheckFlag, flag) != 0; }
+
+void SetFlag(char* self, std::uint32_t flag, std::uint32_t on) { Virtual<std::uint32_t>(self, pslot::kSetFlag, flag, on); }
+
+// A string of the game's (cRZBaseString's layout).
+struct GameString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    std::uint32_t word10;
+};
+
+// Slot 21 given a string of the text 0x00B0A008 points to ("idle"), made by
+// `fromText` (SC4String::FromText) or else over the text's length
+// (SC4String::FromRange); the buffer freed after.
+void SayIdle(char* self, bool fromText)
+{
+    const char* const text = Global<const char*>(addr::cSC4Pedestrian_IdleName);
+    GameString name{};
+    if (fromText) {
+        CallThis<void*>(addr::SC4String_FromText, static_cast<void*>(&name), text);
+    } else {
+        char tag = 0;
+        CallThis<void>(addr::SC4String_FromRange, static_cast<void*>(&name.begin), text, text + std::strlen(text),
+                       static_cast<void*>(&tag));
+        name.vtable = addr::SC4String_Vtable;
+        name.word10 = 0;
+    }
+    Virtual<std::uint32_t>(self, pslot::kSlot21, static_cast<void*>(&name));
+    name.vtable = addr::SC4String_Vtable;
+    if (name.begin)
+        CallCdecl<void>(addr::SC4_Free, static_cast<void*>(name.begin));
+}
+
+// 0x005444F0, the pedestrian's slot 3: slot 158 unless the occupant part
+// (+4) says the object is initialised (its slot 5); then the automaton base's
+// Init 0x0054D790 (a tail jump), its EAX.
+std::uint32_t __fastcall PedestrianInit(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PedestrianInit", logged);
+    if (!Virtual<std::uint8_t>(self + 4, pslot::kIsInitialised))
+        Virtual<std::uint32_t>(self, pslot::kSlot158);
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_Init, self);
+}
+
+// 0x00544580, slot 72 (word, seconds), ret 8: the automaton base's frame
+// (0x0054E050) between two looks at the automata flag 0x20; with the flag 2
+// (slot 86), the flag newly on gives slot 176 and on before slot 19 (0). The
+// base frame's AL (AL only in the game; ours zero-extends).
+std::uint32_t __fastcall PedestrianFrame(char* self, void*, std::uint32_t word, float seconds)
+{
+    static bool logged;
+    FirstCall("PedestrianFrame", logged);
+    const bool before = CheckFlag(self, 0x20u);
+    const std::uint8_t moved = CallThis<std::uint8_t>(addr::cSC4AutomatonBase_Frame, self, word, seconds);
+    if (Virtual<std::uint8_t>(self, pslot::kFlag2)) {
+        if (CheckFlag(self, 0x20u) && !before)
+            Virtual<std::uint32_t>(self, pslot::kIdle);
+        else if (before)
+            Virtual<std::uint32_t>(self, pslot::kSwapStartModel, 0u);
+    }
+    return moved;
+}
+
+// 0x00544C90, slot 103 (seconds), ret 4: the animation. The timer +0x1C0
+// gains the seconds first; AL 1 at once without the automata flags 0x2000 and
+// 2 and with 0x20, and while the simulator 0x00B43D5C's slot 15 answers 1
+// and its slot 17 0. Else +0x26C set to 0.01, each model given +0x26C (slot
+// 14) and advanced (slot 15); with the list +0x188 not empty and models, the
+// first model (not null-tested) at its last frame (slot 11 against slot 12
+// less 1, signed) gives slot 102 (1, 0). AL 1.
+std::uint32_t __fastcall PedestrianAnimate(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("PedestrianAnimate", logged);
+    At<float>(self, base::kTimer1C0) =
+        static_cast<float>(static_cast<double>(seconds) + static_cast<double>(At<float>(self, base::kTimer1C0)));
+    if (!CheckFlag(self, 0x2000u) && !CheckFlag(self, 2u) && CheckFlag(self, 0x20u))
+        return 1;
+    if (Virtual<std::uint8_t>(Global<void*>(addr::SC4_SimulatorService), pslot::kSimulator3C) &&
+        !Virtual<std::uint8_t>(Global<void*>(addr::SC4_SimulatorService), pslot::kSimulator44))
+        return 1;
+    At<std::uint32_t>(self, ped::kFloat) = 0x3C23D70Au; // 0.01f
+    for (char** it = At<char**>(self, base::kModels); it != At<char**>(self, base::kModelsEnd); ++it)
+        if (char* const model = *it) {
+            Virtual<std::uint32_t>(model, pslot::kModelSlot14, At<std::uint32_t>(self, ped::kFloat));
+            Virtual<std::uint32_t>(model, pslot::kModelAdvance, seconds);
+        }
+    char* const list = At<char*>(self, base::kList188);
+    if (At<char*>(list, 0) != list && At<char**>(self, base::kModels) != At<char**>(self, base::kModelsEnd)) {
+        char* const first = *At<char**>(self, base::kModels);
+        const std::int32_t last = Virtual<std::int32_t>(first, pslot::kModelFrames) - 1;
+        if (Virtual<std::int32_t>(first, pslot::kModelFrame) >= last)
+            Virtual<std::uint32_t>(self, pslot::kSlot102, 1u, 0u);
+    }
+    return 1;
+}
+
+// 0x00546BC0, slot 109 (seconds), ret 4: AL 0 with no states (+0xB4 =
+// +0xB8); else the automaton base's (0x00550090), and when it answers AL 0 the
+// current state's (slot 56) frame by its type: 2 0x00546150, 3 0x00545B10, 4
+// 0x00545690, 6 0x00544950, 8 0x00546220 (seconds, 0), 9 0x00546530, 0xC
+// 0x00545280 (their AL); other types and none AL 0.
+std::uint32_t __fastcall PedestrianStateFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("PedestrianStateFrame", logged);
+    if (At<char*>(self, base::kStates) == At<char*>(self, base::kStatesEnd))
+        return 0;
+    const std::uint8_t done = CallThis<std::uint8_t>(addr::cSC4AutomatonBase_StateFrame, self, seconds);
+    if (done)
+        return done;
+    char* const current = Virtual<char*>(self, pslot::kCurrentState);
+    if (!current)
+        return 0;
+    switch (At<std::uint32_t>(current, state::kType)) {
+    case 2:
+        return CallThis<std::uint8_t>(addr::cSC4Pedestrian_State2Frame, self, seconds);
+    case 3:
+        return CallThis<std::uint8_t>(addr::cSC4Pedestrian_State3Frame, self, seconds);
+    case 4:
+        return CallThis<std::uint8_t>(addr::cSC4Pedestrian_State4Frame, self, seconds);
+    case 6:
+        return CallThis<std::uint8_t>(addr::cSC4Pedestrian_State6Frame, self, seconds);
+    case 8:
+        return CallThis<std::uint8_t>(addr::cSC4Pedestrian_State8Frame, self, seconds, 0u);
+    case 9:
+        return CallThis<std::uint8_t>(addr::cSC4Pedestrian_State9Frame, self, seconds);
+    case state::kBurn:
+        return CallThis<std::uint8_t>(addr::cSC4Pedestrian_StateCFrame, self, seconds);
+    default:
+        return 0;
+    }
+}
+
+// The smoothed speed (+0x1A0) towards 1/720 at once (SetSmoothedTarget,
+// duration 0).
+void SmoothToWalk(char* self)
+{
+    CallThis<void>(addr::cSC4AutomatonCore_SetSmoothedTarget, static_cast<void*>(self + base::kSmoothed), kSmoothTarget,
+                   0u);
+}
+
+// 0x00546A10, slot 110 (state), ret 4: the automaton base's (0x005546E0);
+// when it answers AL 0, the automata flags (slot 30) by the state's type: 1
+// 0x2000, 0x4000 and 0x20000 on; 2 and 3 0x2000 on, 0x4000 off; 4 the same
+// after 2 on; 6 2 on, 0x2000 off, slot 134; 7 nothing; 8 and 9 the smoothed
+// speed to 1/720, then as 4, and 8 also 0x10000, 0x1000000, 0x2000000 and
+// 0x10000000 on and 0x00546220 (0, 1); other types 0x4000 and 0x2000 off and
+// slot 134; no state 0x2000 and 0x4000 off. AL 1.
+std::uint32_t __fastcall PedestrianEnterState(char* self, void*, char* entered)
+{
+    static bool logged;
+    FirstCall("PedestrianEnterState", logged);
+    if (CallThis<std::uint8_t>(addr::cSC4AutomatonBase_EnterState, self, entered))
+        return 1;
+    if (!entered) {
+        SetFlag(self, 0x2000u, 0u);
+        SetFlag(self, 0x4000u, 0u);
+        return 1;
+    }
+    switch (At<std::uint32_t>(entered, state::kType)) {
+    case 1:
+        SetFlag(self, 0x2000u, 1u);
+        SetFlag(self, 0x4000u, 1u);
+        SetFlag(self, 0x20000u, 1u);
+        break;
+    case 2:
+    case 3:
+        SetFlag(self, 0x2000u, 1u);
+        SetFlag(self, 0x4000u, 0u);
+        break;
+    case 4:
+        SetFlag(self, 2u, 1u);
+        SetFlag(self, 0x2000u, 1u);
+        SetFlag(self, 0x4000u, 0u);
+        break;
+    case 6:
+        SetFlag(self, 2u, 1u);
+        SetFlag(self, 0x2000u, 0u);
+        Virtual<std::uint32_t>(self, pslot::kPlaceOnNetwork);
+        break;
+    case 7:
+        break;
+    case 8:
+        SmoothToWalk(self);
+        SetFlag(self, 2u, 1u);
+        SetFlag(self, 0x2000u, 1u);
+        SetFlag(self, 0x4000u, 0u);
+        SetFlag(self, 0x10000u, 1u);
+        SetFlag(self, 0x1000000u, 1u);
+        SetFlag(self, 0x2000000u, 1u);
+        SetFlag(self, 0x10000000u, 1u);
+        CallThis<std::uint32_t>(addr::cSC4Pedestrian_State8Frame, self, 0.0f, 1u);
+        break;
+    case 9:
+        SmoothToWalk(self);
+        SetFlag(self, 2u, 1u);
+        SetFlag(self, 0x2000u, 1u);
+        SetFlag(self, 0x4000u, 0u);
+        break;
+    default:
+        SetFlag(self, 0x4000u, 0u);
+        SetFlag(self, 0x2000u, 0u);
+        Virtual<std::uint32_t>(self, pslot::kPlaceOnNetwork);
+        break;
+    }
+    return 1;
+}
+
+// 0x005445F0, slot 111 (state), ret 4: leaving the state 8 turns the automata
+// flag 0x10000 off; then the automaton base's (0x005535D0), its EAX.
+std::uint32_t __fastcall PedestrianLeaveState(char* self, void*, char* left)
+{
+    static bool logged;
+    FirstCall("PedestrianLeaveState", logged);
+    if (left && At<std::uint32_t>(left, state::kType) == 8)
+        SetFlag(self, 0x10000u, 0u);
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_LeaveState, self, left);
+}
+
+// 0x00544C40, slot 135: the occupant +0x1EC let go (cleared, then released);
+// in the state 8 or 9 (slot 56) nothing more (EAX the type); else the
+// automaton base's RemoveNow 0x0054D820 (a tail jump), its EAX.
+std::uint32_t __fastcall PedestrianRemove(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PedestrianRemove", logged);
+    if (void* const occupant = At<void*>(self, base::kOccupant)) {
+        At<void*>(self, base::kOccupant) = nullptr;
+        Release(occupant);
+    }
+    if (char* const current = Virtual<char*>(self, pslot::kCurrentState)) {
+        const std::uint32_t type = At<std::uint32_t>(current, state::kType);
+        if (type == 8 || type == 9)
+            return type;
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonBase_RemoveNow, self);
+}
+
+// 0x00545360, slot 155 (point, out), ret 8: the unit vector from the
+// position to the point in x and z: (0, 0, 1) when the distance is at most
+// 1e-5 (0x00A9BCD8). The x difference is rounded to a float; the y
+// difference is the position's y less itself (0 but for infinities and NaN);
+// the length squares the unrounded z difference times its float copy; the
+// factor 1 / length (0x00B0A00C over it) is stored as a float.
+void __fastcall PedestrianDirectionTo(char* self, void*, const float* point, float* out)
+{
+    static bool logged;
+    FirstCall("PedestrianDirectionTo", logged);
+    const float* const position = &At<float>(self, base::kPosition);
+    const float dx = static_cast<float>(static_cast<double>(point[0]) - position[0]);
+    const float dy = static_cast<float>(static_cast<double>(position[1]) - position[1]);
+    const double dz = static_cast<double>(point[2]) - position[2];
+    const float dzf = static_cast<float>(dz);
+    const double length =
+        std::sqrt((dz * dzf + static_cast<double>(dy) * dy) + static_cast<double>(dx) * static_cast<double>(dx));
+    const double epsilon = Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon);
+    if (length < epsilon || length == epsilon) {
+        out[1] = 0.0f;
+        out[0] = 0.0f;
+        out[2] = 1.0f;
+        return;
+    }
+    const float factor = static_cast<float>(static_cast<double>(Global<float>(addr::cSC4Pedestrian_One)) / length);
+    out[0] = static_cast<float>(static_cast<double>(dx) * factor);
+    out[1] = static_cast<float>(static_cast<double>(dy) * factor);
+    out[2] = static_cast<float>(static_cast<double>(dzf) * factor);
+}
+
+// 0x00544620, slot 158: +0x200 a float from the automata's generator between
+// the floats 0x00B21CE8 and 0x00B21CEC (cRZRandom::Range, as doubles).
+void __fastcall PedestrianDrawFloat200(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PedestrianDrawFloat200", logged);
+    const double high = Global<float>(addr::cSC4Pedestrian_Float200High);
+    const double low = Global<float>(addr::cSC4Pedestrian_Float200Low);
+    At<float>(self, base::kFloat200) = static_cast<float>(
+        CallThis<double>(addr::cRZRandom_Range, reinterpret_cast<void*>(addr::cSC4AutomatonCore_Random), low, high));
+}
+
+// 0x00545160, slot 165: the automaton base's (0x00553AA0); when it answers AL
+// 1 with +0x98, an occupant (+0x1EC) and the speed +0xA0 at least 20
+// (0x00A9A3F4, not unordered): +0xA4 normalised in place (1 over the length
+// kept at 53 bits, no zero test) and its best side found (slot 171: the
+// occupant, checked); when that differs from +0x1F4's low byte (slot 136),
+// the occupant's network part's path from the position (its slot 5: 2, 0xFF,
+// the side, the position, the key out, 0) and with one slot 131 (the
+// occupant, the key, 1), its EAX. Else the base's AL (AL only in the game).
+std::uint32_t __fastcall PedestrianNextStep(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PedestrianNextStep", logged);
+    const std::uint8_t stepped = CallThis<std::uint8_t>(addr::cSC4AutomatonBase_NextStep, self);
+    if (!stepped || !At<void*>(self, base::k98) || !At<void*>(self, base::kOccupant))
+        return stepped;
+    if (!(std::fabs(static_cast<double>(At<float>(self, base::kFloatA0))) >=
+          static_cast<double>(Global<float>(addr::cSC4Pedestrian_TurnSpeed))))
+        return stepped;
+    float* const v = &At<float>(self, base::kVectorA4);
+    const double x = v[0], y = v[1], z = v[2];
+    const double inverse = static_cast<double>(Global<float>(addr::cSC4Pedestrian_One)) / std::sqrt((x * x + y * y) + z * z);
+    v[0] = static_cast<float>(inverse * v[0]);
+    v[1] = static_cast<float>(inverse * v[1]);
+    v[2] = static_cast<float>(inverse * v[2]);
+    // The side is a byte with three bytes of the game's stack above it, and
+    // the key a local the part's slot 5 writes when it finds a path; ours 0.
+    std::uint32_t side = 0;
+    Virtual<std::uint32_t>(self, pslot::kBestDirection, At<void*>(self, base::kOccupant), static_cast<const float*>(v),
+                           reinterpret_cast<std::uint8_t*>(&side), 1u);
+    if ((Virtual<std::uint32_t>(self, pslot::kGroups) & 0xFFu) == (side & 0xFFu))
+        return stepped;
+    void* const part = Virtual<void*>(At<void*>(self, base::kOccupant), pslot::kNetworkPart);
+    if (!part)
+        return stepped;
+    std::uint32_t key = 0;
+    if (!Virtual<void*>(part, pslot::kFindPath, 2u, 0xFFu, side,
+                        static_cast<const float*>(&At<float>(self, base::kPosition)), &key, 0u))
+        return stepped;
+    return Virtual<std::uint32_t>(self, pslot::kPathTo, At<void*>(self, base::kOccupant), key, 1u);
+}
+
+// 0x005457C0, slot 176: slot 21 with "idle" (SC4String::FromRange). AL 1.
+std::uint32_t __fastcall PedestrianIdle(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PedestrianIdle", logged);
+    SayIdle(self, false);
+    return 1;
+}
+
+// 0x00545690, the state 4's frame (seconds), ret 4: without a current state
+// (slot 56) holding an object (+8), slot 53. Else the object's slot 28 (this,
+// the type, seconds) and the move to the destination (0x00550190); when the
+// automata flag 0x20 is then on, the heading (slot 14) towards the object's
+// point (its slot 11 into three copies of the float 0x00B228DC) in x and z
+// (the length counts the unrounded y difference and squares the unrounded z
+// difference times its float copy; x unrounded and z's float copy times the
+// factor 1 / length stored as a float) and slot 21 with "idle"
+// (SC4String::FromText). Then slot 105. AL 1.
+std::uint32_t __fastcall PedestrianState4Frame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("PedestrianState4Frame", logged);
+    char* const current = Virtual<char*>(self, pslot::kCurrentState);
+    if (!current || !At<void*>(current, state::kObject)) {
+        Virtual<std::uint32_t>(self, pslot::kPopState);
+        return 1;
+    }
+    Virtual<std::uint32_t>(At<void*>(current, state::kObject), pslot::kStateObjectFrame, static_cast<void*>(self),
+                           At<std::uint32_t>(current, state::kType), seconds);
+    CallThis<std::uint32_t>(addr::cSC4AutomatonBase_MoveToDestination, self, seconds);
+    if (CheckFlag(self, 0x20u)) {
+        std::uint32_t point[3];
+        for (std::uint32_t& w : point)
+            w = Global<std::uint32_t>(addr::cSC4Pedestrian_DefaultFloat);
+        Virtual<std::uint32_t>(At<void*>(current, state::kObject), pslot::kStateObjectPoint, static_cast<void*>(point));
+        float to[3];
+        std::memcpy(to, point, sizeof to);
+        const float* const position = &At<float>(self, base::kPosition);
+        const double dx = static_cast<double>(to[0]) - position[0];
+        const double dy = static_cast<double>(to[1]) - position[1];
+        const double dz = static_cast<double>(to[2]) - position[2];
+        const float dzf = static_cast<float>(dz);
+        const double length = std::sqrt((dz * dzf + dy * dy) + dx * dx);
+        const float factor = static_cast<float>(static_cast<double>(Global<float>(addr::cSC4Pedestrian_One)) / length);
+        float heading[3];
+        heading[1] = 0.0f;
+        heading[0] = static_cast<float>(dx * factor);
+        heading[2] = static_cast<float>(static_cast<double>(dzf) * factor);
+        Virtual<std::uint32_t>(self, pslot::kSetHeading, static_cast<const float*>(heading));
+        SayIdle(self, true);
+    }
+    Virtual<std::uint32_t>(self, pslot::kSlot105);
+    return 1;
+}
+
+// 0x00545280, the state 0xC's frame (seconds), ret 4: down the state stack
+// from its top, the first state 0xC whose object (+8) answers a word (its
+// slot 6, not zero); with one, the city's simulator 0x621CDA33 (the city's
+// slot 72, then the simulators' slot 7, not null-tested) as 0x49B43F57 (the
+// answer not tested; the interface held and let go once more) told the word
+// (slot 4) and 2 (slot 9), then released. Then the state set to 1 (slot 51:
+// 1, 0, -1.0, 0, 0, 0, 0). AL 1.
+std::uint32_t __fastcall PedestrianStateCFrame(char* self, void*, float)
+{
+    static bool logged;
+    FirstCall("PedestrianStateCFrame", logged);
+    std::uint32_t word = 0;
+    const std::int32_t count =
+        static_cast<std::int32_t>(At<char*>(self, base::kStatesEnd) - At<char*>(self, base::kStates)) >> 2;
+    for (std::int32_t i = count - 1; i >= 0; --i) {
+        char* const s = At<char**>(self, base::kStates)[i];
+        if (At<std::uint32_t>(s, state::kType) != state::kBurn)
+            continue;
+        void* const object = At<void*>(s, state::kObject);
+        if (!object)
+            continue;
+        word = Virtual<std::uint32_t>(object, pslot::kStateObjectWord);
+        if (word)
+            break;
+    }
+    if (word) {
+        if (void* const simulators = Virtual<void*>(Global<void*>(addr::SC4_City), pslot::kCitySimulators)) {
+            void* const simulator = Virtual<void*>(simulators, pslot::kSimulatorById, kBurnSimulator);
+            void* burn = nullptr;
+            Virtual<std::uint8_t>(simulator, slot::kQueryInterface, kBurnInterface, static_cast<void*>(&burn));
+            void* const held = burn;
+            if (burn) {
+                Virtual<std::uint32_t>(burn, slot::kAddRef);
+                if (burn)
+                    Release(burn);
+            }
+            Virtual<std::uint32_t>(held, pslot::kBurnSet, word);
+            Virtual<std::uint32_t>(held, pslot::kBurnMode, 2u);
+            Release(held);
+        }
+    }
+    Virtual<std::uint32_t>(self, pslot::kSetState, 1u, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+    return 1;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -819,9 +1271,30 @@ const Detour kObject[] = {
     OPENSC4_DETOUR(addr::cSC4SimFireCrew_SetWord274, CrewSetWord),
 };
 
+// Part ped2a.
+const Detour kStates[] = {
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_Init, PedestrianInit),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_Frame, PedestrianFrame),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_Animate, PedestrianAnimate),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_StateFrame, PedestrianStateFrame),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_EnterState, PedestrianEnterState),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_LeaveState, PedestrianLeaveState),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_Remove, PedestrianRemove),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_DirectionTo, PedestrianDirectionTo),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_DrawFloat200, PedestrianDrawFloat200),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_NextStep, PedestrianNextStep),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_Idle, PedestrianIdle),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_State4Frame, PedestrianState4Frame),
+    OPENSC4_DETOUR(addr::cSC4Pedestrian_StateCFrame, PedestrianStateCFrame),
+};
+
 #undef OPENSC4_DETOUR
 
-bool InstallObject(registry::Mode) { return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object"); }
+bool InstallObject(registry::Mode)
+{
+    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
+           InstallList(kStates, sizeof kStates / sizeof kStates[0], "states");
+}
 
 const bool g_registered[] = {
     registry::Register({"simulators.automata.pedestrians", "simulators/automata", registry::Kind::Detour,
@@ -831,7 +1304,9 @@ const bool g_registered[] = {
                         "constructors, the two QueryInterfaces, the four deleting destructors, the fire crew's "
                         "destructor body and the four GetGZCLSIDs; the pedestrian's, the riot police's and the fire "
                         "crew's Writes and Reads; the pedestrian's slots 16, 17 and 174, the one-shot's 177 and 178 "
-                        "and the crews' word (34 detours, part ped1; src/core/automata_pedestrians.cpp)",
+                        "and the crews' word (34 detours, part ped1); the pedestrian's Init, frame, animation, "
+                        "states (slots 109 to 111), slots 135, 155, 158, 165 and 176 and the frames of the states 4 "
+                        "and 0xC (13 detours, part ped2a; src/core/automata_pedestrians.cpp)",
                         false, InstallObject}),
 };
 

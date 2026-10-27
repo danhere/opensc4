@@ -3837,7 +3837,7 @@ The pedestrian's allocator 0x00544890 gives 0x270 bytes from the pool and any ot
 111 functions of the group's own: 75 of Ghidra's list (22,187 bytes) and the pedestrian's slot 16 0x00544530 (not in the list), 34 adjustor thunks and two jumps (0x00544520 to the base's Shutdown, 0x00547920 to the pedestrian's QueryInterface); the thunks and jumps stay the game's.
 
 - **ped1 (34, done):** the objects, the save and the small queries. Below.
-- **ped2 (the pedestrian's states and frames, 20, about 6,400 bytes):** Init 0x005444F0, the frame 72 0x00544580, 103 0x00544C90, 109 0x00546BC0, 110 0x00546A10, 111 0x005445F0, 135 0x00544C40, 155 0x00545360, 158 0x00544620, 165 0x00545160, 176 0x005457C0, and the helpers 0x00544950, 0x00545280, 0x00545690, 0x00545840, 0x00545B10, 0x00545D60, 0x00546150, 0x00546220 and 0x00546530 (the walks). Could split in two.
+- **ped2 (the pedestrian's states and frames, 20, about 6,400 bytes):** Init 0x005444F0, the frame 72 0x00544580, 103 0x00544C90, 109 0x00546BC0, 110 0x00546A10, 111 0x005445F0, 135 0x00544C40, 155 0x00545360, 158 0x00544620, 165 0x00545160, 176 0x005457C0, and the helpers 0x00544950, 0x00545280, 0x00545690, 0x00545840, 0x00545B10, 0x00545D60, 0x00546150, 0x00546220 and 0x00546530 (the walks). Split in two: **ped2a (13, done)**, the states and the frame, below; **ped2b (7, about 4,200 bytes)**, the walks: the frames of the states 2 (0x00546150), 3 (0x00545B10), 6 (0x00544950), 8 (0x00546220) and 9 (0x00546530), and their helpers 0x00545840 and 0x00545D60.
 - **ped3 (the one-shot's and the riot police's, 9, about 3,100 bytes):** the one-shot's Init 0x00544DA0 and frame 0x00544E80; the riot police's Init 0x00547630, Shutdown 0x00546EF0, frame 0x00547530 and slot 74 0x00546CC0, the message helper 0x00546D20 (all three crews call it), the dispatch 0x00546F30 (1,530 bytes) and 0x00547930.
 - **ped4 (the fire crew's, 13, about 9,900 bytes):** Init 0x00549890 with 0x00548F10, Shutdown 0x00547D90, slots 9 0x00547A70 and 74 0x005479F0, the +0x38 slot 3 0x00548DC0, the frame 0x00549A50 with 0x00549000, 0x00548BD0, 0x00547AD0, 0x00547B50 and 0x00532E90, and the dispatch 0x00547EF0 (3,284 bytes). Could split: the dispatch alone, then the frame.
 
@@ -3887,3 +3887,53 @@ A trial with twenty planted changes (+0x268, +0x26C's float, the occupant type, 
 | The 12-save batch | 7 | 12 of 12 saves |
 
 In the batch, Rush Hour d1095 first came out partly the same: one B run of two differed in the advisors' token on day 5, two days after the test day; on a rerun of that save alone the first pair was the same over all 8 days. Every run's ped1 fields were the same on both sides (pobject 0x9035B9BE, psave 0xA0638074, pflags 0xF), and every B run installed and reached all 34. In Making Money d0000 the game itself reaches the pedestrian's factory, allocator, constructor, QueryInterface and Read before the test.
+
+### What is ours (ped2a)
+
+13 more functions in `simulators.automata.pedestrians` (list kStates in [automata_pedestrians.cpp](../src/core/automata_pedestrians.cpp)):
+
+- **The pedestrian's slots (11):** Init 0x005444F0, the frame 72 0x00544580, the animation 103 0x00544C90, the states 109 0x00546BC0, 110 0x00546A10 and 111 0x005445F0, 135 0x00544C40, 155 0x00545360, 158 0x00544620, 165 0x00545160 and 176 0x005457C0.
+- **Two of slot 109's frames:** the state 4's 0x00545690 and the state 0xC's 0x00545280.
+
+What they do:
+
+- **Init** draws +0x200 (slot 158) unless the occupant part says the object is initialised, then runs the automaton base's Init. Slot 158 draws it from the automata's generator between the floats 0x00B21CE8 and 0x00B21CEC.
+- **Slot 72** runs the automaton base's frame between two looks at the automata flag 0x20; with the flag 2, the flag 0x20 newly on gives slot 176 (slot 21 with the text "idle") and on before slot 19 (0).
+- **Slot 103** adds the seconds to the timer +0x1C0 first, then animates only with the flag 0x2000 or 2 on or 0x20 off and unless the simulator 0x00B43D5C holds the animation (its slot 15 true and 17 false): +0x26C set to 0.01, each model given +0x26C (slot 14) and advanced (slot 15), and the first model at its last frame gives slot 102 (1, 0).
+- **Slot 109** answers 0 with no states; else the base's state frame and, when that answers 0, the current state's frame by its type: 2 0x00546150, 3 0x00545B10, 4 0x00545690, 6 0x00544950, 8 0x00546220 (seconds, 0), 9 0x00546530 and 0xC 0x00545280.
+- **Slot 110**, when the base's EnterState answers 0, sets the automata flags by the state's type: 1 0x2000, 0x4000 and 0x20000 on; 2 and 3 0x2000 on and 0x4000 off; 4 the same with 2 on first; 6 2 on, 0x2000 off and slot 134; 7 nothing; 9 the smoothed speed (+0x1A0) to 1/720 (0x3AB60B61, duration 0) then as 4; 8 as 9 with 0x10000, 0x1000000, 0x2000000 and 0x10000000 on and its frame 0x00546220 (0, 1); any other type 0x4000 and 0x2000 off and slot 134; no state 0x2000 and 0x4000 off. **Slot 111** turns 0x10000 off leaving the state 8.
+- **Slot 135** lets go of the occupant +0x1EC; in the states 8 and 9 that is all, else the base's RemoveNow.
+- **Slot 155** is the unit vector from the position to the point in x and z ((0, 0, 1) within 1e-5).
+- **Slot 165**, after the base's NextStep and with +0x98, an occupant and the speed +0xA0 at least 20 either way, normalises +0xA4 and asks for its best side (slot 171); a side other than +0x1F4's low byte takes the occupant's network part's path from the position (its slot 5: 2, 0xFF, the side, the position, the key out, 0) and slot 131 (the occupant, the key, 1).
+- **The state 4's frame** calls the state's object's slot 28 (this, the type, seconds) and moves to the destination (0x00550190); arrived (the flag 0x20), it turns towards the object's point (its slot 11) in x and z (slot 14) and says "idle" (slot 21); then slot 105. Without a state or object, slot 53.
+- **The state 0xC's frame** walks the state stack down from its top to the first state 0xC whose object answers a word (its slot 6), gives that word to the city's simulator 0x621CDA33 as 0x49B43F57 (slot 4, then slot 9 with 2), and sets the state 1 (slot 51: 1, 0, -1.0, 0, 0, 0, 0).
+
+Left the game's: the walks (ped2b), the automaton base's code, SetSmoothedTarget, the string code.
+
+Oddities kept:
+
+- **Slot 155** takes the y difference as the position's y less itself (0 but for infinities and NaN) and rounds the x difference to a float before squaring it; the state 4's frame counts the unrounded y difference in the length, then sets y to 0, and keeps x unrounded. Both square the unrounded z difference times its float copy and store 1 / length as a float (slot 165 keeps it unrounded).
+- **Slot 165** normalises +0xA4 without a zero test (a zero vector becomes NaNs) and passes the side byte with three bytes of its stack above it (ours zeros) to the network part's slot 5.
+- **The state 0xC's frame** null-tests neither the simulator nor the interface once it has a word, and holds and lets go of the interface once more around nothing.
+- **Slot 135** answers the state's type in the states 8 and 9. **Slot 103** sets +0x26C to 0.01 on every frame it animates and does not null-test the first model when the list is not empty.
+- **AL only in the game:** slots 72, 109, 110, 165 and the frames; ours zero-extends.
+
+### Test (ped2a)
+
+The ` V` token gains `,<pstates>` before pflags (54 fields); pflags 0x40 when it ran, 0x80 without a city, the factory or the patches. The log line is "ped2a pstates".
+
+One pedestrian from its factory, on a copy of its vtable whose slots 14, 19, 21, 30, 31, 51, 53, 56, 86, 102, 105, 131, 134, 136, 158, 171 and 176 (and the occupant part's slot 5) are the test's. For the while the automaton base's Init, frame, state frame, EnterState, LeaveState, RemoveNow, NextStep and move to the destination and the five walks are jumped to the test's stubs (em3a's 5-byte jumps), so every call out of the 13 is recorded and answered by the test: Init over the part's answers; slot 72 over the flags 0x20 before and after the frame and the flag 2; slot 103 over six flag sets, the simulator service's four answers, the models (none, a null one first, one at and before its last frame, two) and the list; slot 109 over no states, the base's answer, no current state and the types 0 to 13 (the states 4 and 0xC stubbed too there); slots 110 and 111 over no state and the types 0 to 10 with the base answering 1 and 0 (the smoothed value mixed); slot 135 with and without an occupant over the types; slot 155 over twelve positions and points (equal, at and within the bound, far, an infinite and a NaN y, a NaN x); slot 158 three draws; slot 165 over its four gates, five speeds (19.99, -20, NaN), four vectors (one zero), the sides against +0x1F4, the part and the path; slot 176; the state 4's frame without a state, without an object and arriving or not at six points (one on the position, one whose x difference is not a float); the state 0xC's frame over seven stacks with the city's slot 72 the test's (one without simulators, one with the word below a state 0xC whose object answers 0).
+
+A trial with 32 planted changes (Init's test, slot 72's two cases and slot 19's word, slot 103's flag gate, simulator test, 0.01 and last frame, slot 109's state 8 word and state 3's frame, slot 110's state 4 flag 2, state 8 start word, default flag order and smoothing duration, slot 111's type, slot 135's state 9, slot 155's y, unrounded x and bound, slot 158's bounds swapped, slot 165's speed bound, side test, y normalising and exact word, the state 4's pop, y, x rounding and length, the state 0xC's search order, zero word, mode word, state and last release) changed the token for 31. The 32nd (slot 158's bounds swapped) is not seen because both bounds are -0.5 (0xBF000000) in the test saves; the log line prints them.
+
+### Parity (ped2a)
+
+2026-10-27. B = the five automata groups as for ped1 (env p4env-em1, snapshot ped2a-p2):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same on the shared outcome; differs only in ad3's chighlight (field 25), which has two outcomes on the original side too |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's ped fields were the same on both sides (pstates 0x309249D0, pflags 0x4F), and every B run installed and reached all 13. An earlier batch run alongside the planted-change trial's game runs had two saves partly the same (one B run in three each, ped fields equal); with the PC free the batch came out 12 of 12.

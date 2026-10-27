@@ -545,6 +545,22 @@
 //   ends inside it). Then (pflags 4) each class released with its
 //   references set and each deleting destructor at its address with flag 0
 //   and the block given back by 0x00545130. Log line: "ped1 pobject".
+//   Part ped2a (the pedestrian's states and frame) adds `,<pstates>` before
+//   pflags (54 fields): one pedestrian on a vtable copy whose slots 14, 19,
+//   21, 30, 31, 51, 53, 56, 86, 102, 105, 131, 134, 136, 158, 171 and 176
+//   (and its occupant part's slot 5) are the test's, with the automaton
+//   base's Init, frame, state frame, EnterState, LeaveState, RemoveNow,
+//   NextStep and move to the destination and the walks (the frames of the
+//   states 2, 3, 6, 8 and 9) jumped to the test's stubs for the while: Init,
+//   slot 72 over the flags 0x20 and 2, slot 103 over the flags, the
+//   simulator service's answers, the models and the list, slot 109 over no
+//   states, the base's answer and the types 0 to 13 (the states 4 and 0xC
+//   stubbed too), slots 110 and 111 over the types 0 to 10, slot 135, slot
+//   155 over twelve positions and points, slot 158, slot 165 over the gates,
+//   speeds, vectors, sides and paths, slot 176, the state 4's frame and the
+//   state 0xC's (the city's slot 72 the test's) over six stacks. pflags 0x40
+//   when it ran, 0x80 without a city, the factory or the patches. Log line:
+//   "ped2a pstates".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -28058,6 +28074,778 @@ void PedestrianDrive(Hash& pobject, Hash& psave, uint32_t& pflags)
     g_ped = PedAnswers{};
 }
 
+// ---- Part ped2a: the pedestrian's states and frame (src/core/automata_pedestrians.cpp).
+
+// What the ped2a test's slots and stubs answer and record.
+struct Ped2Answers {
+    char* self = nullptr;
+    Hash calls;                  // every call of the test's slots, stubs and objects
+    uint32_t flags = 0;          // slot 31 answers from it, slot 30 changes it
+    uint32_t flagsAfter = 0;     // the base frame's stub sets the flags to it (when frameSets)
+    bool frameSets = false;
+    uint8_t flag2 = 0;           // slot 86
+    char* current = nullptr;     // slot 56
+    uint32_t groups = 0;         // slot 136
+    uint8_t side = 0xFF;         // slot 171 writes it
+    uint8_t initialised[2] = {}; // the occupant part's slot 5: its first and later answers
+    int initCalls = 0;
+    uint8_t base = 0;            // the AL of the stubs of the base's Init, frames, EnterState and NextStep
+    bool arrive = false;         // the move to the destination's stub sets the flag 0x20
+    void* occupant = nullptr;    // the test's occupant (by name)
+    uint32_t key = 0;            // the network part's slot 5 writes it
+    bool path = false;           // and answers a path
+};
+Ped2Answers g_ped2;
+
+uint32_t Ped2Name(const void* p, const void* known) { return p == known && known ? 1u : p ? 2u : 0u; }
+
+uint32_t __fastcall Ped2SwapStart(char*, void*, uint32_t offset)
+{
+    g_ped2.calls.Mix(19);
+    g_ped2.calls.Mix(offset);
+    return 1;
+}
+uint32_t __fastcall Ped2SetHeading(char*, void*, const float* heading)
+{
+    g_ped2.calls.Mix(14);
+    g_ped2.calls.MixBytes(heading, 12);
+    return 0;
+}
+uint32_t __fastcall Ped2Slot21(char*, void*, char* text)
+{
+    g_ped2.calls.Mix(21);
+    g_ped2.calls.Mix(At<std::uintptr_t>(text, 0) == addr::SC4String_Vtable ? 1u : 0u);
+    const char* const begin = At<const char*>(text, 4);
+    const char* const end = At<const char*>(text, 8);
+    g_ped2.calls.Mix(static_cast<uint32_t>(end - begin));
+    if (begin && end > begin && end - begin < 64)
+        g_ped2.calls.MixBytes(begin, static_cast<std::size_t>(end - begin));
+    return 0;
+}
+uint32_t __fastcall Ped2SetFlag(char*, void*, uint32_t flag, uint32_t on)
+{
+    g_ped2.calls.Mix(30);
+    g_ped2.calls.Mix(flag);
+    g_ped2.calls.Mix(on & 0xFF);
+    g_ped2.flags = (on & 0xFF) ? (g_ped2.flags | flag) : (g_ped2.flags & ~flag);
+    return 0;
+}
+uint8_t __fastcall Ped2CheckFlag(char*, void*, uint32_t flag)
+{
+    g_ped2.calls.Mix(31);
+    g_ped2.calls.Mix(flag);
+    return (g_ped2.flags & flag) ? 1 : 0;
+}
+uint32_t __fastcall Ped2SetState(char*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f,
+                                 uint32_t g)
+{
+    g_ped2.calls.Mix(51);
+    for (const uint32_t w : {a, b, c, d, e, f, g})
+        g_ped2.calls.Mix(w);
+    return 1;
+}
+uint32_t __fastcall Ped2PopState(char*, void*)
+{
+    g_ped2.calls.Mix(53);
+    return 1;
+}
+char* __fastcall Ped2Current(char*, void*)
+{
+    g_ped2.calls.Mix(56);
+    return g_ped2.current;
+}
+uint8_t __fastcall Ped2Flag2(char*, void*)
+{
+    g_ped2.calls.Mix(86);
+    return g_ped2.flag2;
+}
+uint32_t __fastcall Ped2Slot102(char*, void*, uint32_t a, uint32_t b)
+{
+    g_ped2.calls.Mix(102);
+    g_ped2.calls.Mix(a);
+    g_ped2.calls.Mix(b);
+    return 0;
+}
+uint32_t __fastcall Ped2Slot105(char*, void*)
+{
+    g_ped2.calls.Mix(105);
+    return 0;
+}
+uint32_t __fastcall Ped2PathTo(char*, void*, void* occupant, uint32_t key, uint32_t exact)
+{
+    g_ped2.calls.Mix(131);
+    g_ped2.calls.Mix(Ped2Name(occupant, g_ped2.occupant));
+    g_ped2.calls.Mix(key);
+    g_ped2.calls.Mix(exact & 0xFF);
+    return 0x131;
+}
+uint32_t __fastcall Ped2Place(char*, void*)
+{
+    g_ped2.calls.Mix(134);
+    return 1;
+}
+uint32_t __fastcall Ped2Groups(char*, void*)
+{
+    g_ped2.calls.Mix(136);
+    return g_ped2.groups;
+}
+void __fastcall Ped2Slot158(char*, void*) { g_ped2.calls.Mix(158); }
+uint32_t __fastcall Ped2Best(char*, void*, void* network, const float* direction, uint8_t* out, uint32_t check)
+{
+    g_ped2.calls.Mix(171);
+    g_ped2.calls.Mix(Ped2Name(network, g_ped2.occupant));
+    g_ped2.calls.MixBytes(direction, 12);
+    g_ped2.calls.Mix(check & 0xFF);
+    *out = g_ped2.side;
+    return 1;
+}
+uint32_t __fastcall Ped2Idle(char*, void*)
+{
+    g_ped2.calls.Mix(176);
+    return 1;
+}
+uint8_t __fastcall Ped2Initialised(char*, void*)
+{
+    g_ped2.calls.Mix(5);
+    return g_ped2.initialised[g_ped2.initCalls++ == 0 ? 0 : 1];
+}
+
+// The stubs jumped to from the game's base functions and the walks.
+uint32_t __fastcall Ped2BaseInit(char*, void*)
+{
+    g_ped2.calls.Mix(0x790);
+    return g_ped2.base;
+}
+uint32_t __fastcall Ped2BaseFrame(char*, void*, uint32_t word, float seconds)
+{
+    g_ped2.calls.Mix(0x050);
+    g_ped2.calls.Mix(word);
+    g_ped2.calls.Mix(Bits(seconds));
+    if (g_ped2.frameSets)
+        g_ped2.flags = g_ped2.flagsAfter;
+    return g_ped2.base;
+}
+uint32_t __fastcall Ped2BaseStateFrame(char*, void*, float seconds)
+{
+    g_ped2.calls.Mix(0x090);
+    g_ped2.calls.Mix(Bits(seconds));
+    return g_ped2.base;
+}
+uint32_t __fastcall Ped2BaseEnter(char*, void*, char* entered)
+{
+    g_ped2.calls.Mix(0x6E0);
+    g_ped2.calls.Mix(entered ? At<uint32_t>(entered, ped::state::kType) : 0xFFFFu);
+    return g_ped2.base;
+}
+uint32_t __fastcall Ped2BaseLeave(char*, void*, char* left)
+{
+    g_ped2.calls.Mix(0x5D0);
+    g_ped2.calls.Mix(left ? At<uint32_t>(left, ped::state::kType) : 0xFFFFu);
+    return 0x5D0;
+}
+uint32_t __fastcall Ped2RemoveNow(char*, void*)
+{
+    g_ped2.calls.Mix(0x820);
+    return 0x820;
+}
+uint32_t __fastcall Ped2BaseNextStep(char*, void*)
+{
+    g_ped2.calls.Mix(0xAA0);
+    return g_ped2.base;
+}
+uint32_t __fastcall Ped2MoveTo(char*, void*, float seconds)
+{
+    g_ped2.calls.Mix(0x190);
+    g_ped2.calls.Mix(Bits(seconds));
+    if (g_ped2.arrive)
+        g_ped2.flags |= 0x20;
+    return 1;
+}
+template <uint32_t N>
+uint32_t __fastcall Ped2Walk(char*, void*, float seconds)
+{
+    g_ped2.calls.Mix(0xA000 + N);
+    g_ped2.calls.Mix(Bits(seconds));
+    return 0x10 + N;
+}
+uint32_t __fastcall Ped2Walk8(char*, void*, float seconds, uint32_t start)
+{
+    g_ped2.calls.Mix(0xA008);
+    g_ped2.calls.Mix(Bits(seconds));
+    g_ped2.calls.Mix(start & 0xFF);
+    return 0x18;
+}
+
+// The test's objects: a counted occupant (slot 49 its network part), the part
+// (slot 5), a state's object (slots 6, 11 and 28), a model (slots 11, 12, 14
+// and 15), the simulator service 0x00B43D5C (slots 15 and 17), the city's
+// simulators (slot 7), a simulator (QueryInterface) and the burn interface
+// (slots 4 and 9).
+struct Ped2Object {
+    void** vtable;
+    int32_t references;
+    uint32_t word;
+    float point[3];
+    int32_t frame, frames;
+    uint8_t answer3C, answer44;
+    void* inner;
+};
+Ped2Object Ped2Make(void** vtable, int32_t references = 1, uint32_t word = 0)
+{
+    Ped2Object o{};
+    o.vtable = vtable;
+    o.references = references;
+    o.word = word;
+    return o;
+}
+uint32_t __fastcall Ped2AddRef(Ped2Object* o, void*) { return static_cast<uint32_t>(++o->references); }
+uint32_t __fastcall Ped2Release(Ped2Object* o, void*) { return static_cast<uint32_t>(--o->references); }
+void* __fastcall Ped2NetworkPart(Ped2Object* o, void*)
+{
+    g_ped2.calls.Mix(0x49);
+    return o->inner;
+}
+void* __fastcall Ped2FindPath(Ped2Object*, void*, uint32_t a, uint32_t b, uint32_t side, const float* from,
+                              uint32_t* key, uint32_t z)
+{
+    g_ped2.calls.Mix(0x5A);
+    g_ped2.calls.Mix(a);
+    g_ped2.calls.Mix(b);
+    g_ped2.calls.Mix(side & 0xFF); // three bytes of the game's stack above it
+    g_ped2.calls.Mix(g_ped2.self && from == &At<float>(g_ped2.self, ped::base::kPosition) ? 1u : 2u);
+    g_ped2.calls.Mix(z);
+    *key = g_ped2.key;
+    static uint32_t path[4] = {};
+    return g_ped2.path ? path : nullptr;
+}
+uint32_t __fastcall Ped2ObjectWord(Ped2Object* o, void*)
+{
+    g_ped2.calls.Mix(0x6);
+    return o->word;
+}
+uint32_t __fastcall Ped2ObjectPoint(Ped2Object* o, void*, float* out)
+{
+    g_ped2.calls.Mix(0x2B);
+    g_ped2.calls.MixBytes(out, 12);
+    for (int i = 0; i < 3; ++i)
+        out[i] = o->point[i];
+    return 0;
+}
+uint32_t __fastcall Ped2ObjectFrame(Ped2Object*, void*, char* automaton, uint32_t type, float seconds)
+{
+    g_ped2.calls.Mix(0x28);
+    g_ped2.calls.Mix(Ped2Name(automaton, g_ped2.self));
+    g_ped2.calls.Mix(type);
+    g_ped2.calls.Mix(Bits(seconds));
+    return 0;
+}
+int32_t __fastcall Ped2ModelFrame(Ped2Object* o, void*)
+{
+    g_ped2.calls.Mix(0x11);
+    return o->frame;
+}
+int32_t __fastcall Ped2ModelFrames(Ped2Object* o, void*)
+{
+    g_ped2.calls.Mix(0x12);
+    return o->frames;
+}
+uint32_t __fastcall Ped2ModelSlot14(Ped2Object* o, void*, uint32_t w)
+{
+    g_ped2.calls.Mix(0x14);
+    g_ped2.calls.Mix(static_cast<uint32_t>(o->word));
+    g_ped2.calls.Mix(w);
+    return 0;
+}
+uint32_t __fastcall Ped2ModelAdvance(Ped2Object* o, void*, float seconds)
+{
+    g_ped2.calls.Mix(0x15);
+    g_ped2.calls.Mix(static_cast<uint32_t>(o->word));
+    g_ped2.calls.Mix(Bits(seconds));
+    return 0;
+}
+uint8_t __fastcall Ped2Service3C(Ped2Object* o, void*)
+{
+    g_ped2.calls.Mix(0x3C);
+    return o->answer3C;
+}
+uint8_t __fastcall Ped2Service44(Ped2Object* o, void*)
+{
+    g_ped2.calls.Mix(0x44);
+    return o->answer44;
+}
+void* __fastcall Ped2SimulatorById(Ped2Object* o, void*, uint32_t id)
+{
+    g_ped2.calls.Mix(0x77);
+    g_ped2.calls.Mix(id);
+    return o->inner;
+}
+uint32_t __fastcall Ped2Query(Ped2Object* o, void*, uint32_t iid, void** out)
+{
+    g_ped2.calls.Mix(0x70);
+    g_ped2.calls.Mix(iid);
+    *out = o->inner;
+    if (o->inner)
+        ++static_cast<Ped2Object*>(o->inner)->references;
+    return 1;
+}
+uint32_t __fastcall Ped2BurnSet(Ped2Object*, void*, uint32_t word)
+{
+    g_ped2.calls.Mix(0x74);
+    g_ped2.calls.Mix(word);
+    return 0;
+}
+uint32_t __fastcall Ped2BurnMode(Ped2Object*, void*, uint32_t word)
+{
+    g_ped2.calls.Mix(0x79);
+    g_ped2.calls.Mix(word);
+    return 0;
+}
+void** Ped2ObjectVtable()
+{
+    static void* t[64] = {};
+    t[0] = reinterpret_cast<void*>(&Ped2Query);
+    t[1] = reinterpret_cast<void*>(&Ped2AddRef);
+    t[2] = reinterpret_cast<void*>(&Ped2Release);
+    t[ped::pslot::kBurnSet / 4] = reinterpret_cast<void*>(&Ped2BurnSet);
+    t[ped::pslot::kStateObjectWord / 4] = reinterpret_cast<void*>(&Ped2ObjectWord);
+    t[ped::pslot::kSimulatorById / 4] = reinterpret_cast<void*>(&Ped2SimulatorById);
+    t[ped::pslot::kBurnMode / 4] = reinterpret_cast<void*>(&Ped2BurnMode);
+    t[ped::pslot::kStateObjectPoint / 4] = reinterpret_cast<void*>(&Ped2ObjectPoint);
+    t[ped::pslot::kStateObjectFrame / 4] = reinterpret_cast<void*>(&Ped2ObjectFrame);
+    t[ped::pslot::kNetworkPart / 4] = reinterpret_cast<void*>(&Ped2NetworkPart);
+    return t;
+}
+// Slots 5 (the path), 11, 12, 14 and 15 (a model), 15 and 17 (the service)
+// clash with the table above, so these have their own.
+void** Ped2PartVtable()
+{
+    static void* t[64] = {};
+    t[1] = reinterpret_cast<void*>(&Ped2AddRef);
+    t[2] = reinterpret_cast<void*>(&Ped2Release);
+    t[ped::pslot::kFindPath / 4] = reinterpret_cast<void*>(&Ped2FindPath);
+    return t;
+}
+void** Ped2ModelVtable()
+{
+    static void* t[64] = {};
+    t[1] = reinterpret_cast<void*>(&Ped2AddRef);
+    t[2] = reinterpret_cast<void*>(&Ped2Release);
+    t[ped::pslot::kModelFrame / 4] = reinterpret_cast<void*>(&Ped2ModelFrame);
+    t[ped::pslot::kModelFrames / 4] = reinterpret_cast<void*>(&Ped2ModelFrames);
+    t[ped::pslot::kModelSlot14 / 4] = reinterpret_cast<void*>(&Ped2ModelSlot14);
+    t[ped::pslot::kModelAdvance / 4] = reinterpret_cast<void*>(&Ped2ModelAdvance);
+    return t;
+}
+void** Ped2ServiceVtable()
+{
+    static void* t[64] = {};
+    t[ped::pslot::kSimulator3C / 4] = reinterpret_cast<void*>(&Ped2Service3C);
+    t[ped::pslot::kSimulator44 / 4] = reinterpret_cast<void*>(&Ped2Service44);
+    return t;
+}
+Ped2Object g_ped2Simulators{};
+void* __fastcall Ped2CitySimulators(void*, void*)
+{
+    g_ped2.calls.Mix(0x72);
+    return g_ped2Simulators.vtable ? &g_ped2Simulators : nullptr;
+}
+
+// The pedestrian's main vtable copied with the test's slots, and its
+// occupant part's (+4) with slot 5 the test's.
+void** Ped2Table(char* o)
+{
+    static void* t[200];
+    void** const real = At<void**>(o, 0);
+    for (int i = 0; i < 177; ++i)
+        t[i] = real[i];
+    namespace s = ped::pslot;
+    t[s::kSetHeading / 4] = reinterpret_cast<void*>(&Ped2SetHeading);
+    t[s::kSwapStartModel / 4] = reinterpret_cast<void*>(&Ped2SwapStart);
+    t[s::kSlot21 / 4] = reinterpret_cast<void*>(&Ped2Slot21);
+    t[s::kSetFlag / 4] = reinterpret_cast<void*>(&Ped2SetFlag);
+    t[s::kCheckFlag / 4] = reinterpret_cast<void*>(&Ped2CheckFlag);
+    t[s::kSetState / 4] = reinterpret_cast<void*>(&Ped2SetState);
+    t[s::kPopState / 4] = reinterpret_cast<void*>(&Ped2PopState);
+    t[s::kCurrentState / 4] = reinterpret_cast<void*>(&Ped2Current);
+    t[s::kFlag2 / 4] = reinterpret_cast<void*>(&Ped2Flag2);
+    t[s::kSlot102 / 4] = reinterpret_cast<void*>(&Ped2Slot102);
+    t[s::kSlot105 / 4] = reinterpret_cast<void*>(&Ped2Slot105);
+    t[s::kPathTo / 4] = reinterpret_cast<void*>(&Ped2PathTo);
+    t[s::kPlaceOnNetwork / 4] = reinterpret_cast<void*>(&Ped2Place);
+    t[s::kGroups / 4] = reinterpret_cast<void*>(&Ped2Groups);
+    t[s::kSlot158 / 4] = reinterpret_cast<void*>(&Ped2Slot158);
+    t[s::kBestDirection / 4] = reinterpret_cast<void*>(&Ped2Best);
+    t[s::kIdle / 4] = reinterpret_cast<void*>(&Ped2Idle);
+    return t;
+}
+void** Ped2PartTable(char* o)
+{
+    static void* t[34];
+    void** const real = At<void**>(o, 4);
+    for (int i = 0; i < 34; ++i)
+        t[i] = real[i];
+    t[ped::pslot::kIsInitialised / 4] = reinterpret_cast<void*>(&Ped2Initialised);
+    return t;
+}
+
+void PedStatesDrive(Hash& pstates, uint32_t& pflags)
+{
+    g_ped2 = Ped2Answers{};
+    void* const city = Global<void*>(addr::SC4_City);
+    char* const o = city ? MakePed(0, pflags) : nullptr;
+    if (!o) {
+        pflags |= 0x80;
+        log::Write("autotest: automata: vehicle: ped2a: no city or the factory failed");
+        return;
+    }
+    // The base's functions and the walks jumped to the test's stubs for the
+    // while; the state 4's and 0xC's frames only for slot 109's dispatch.
+    {
+        Em4Jump jumps[] = {
+            {addr::cSC4AutomatonBase_Init, reinterpret_cast<void*>(&Ped2BaseInit)},
+            {addr::cSC4AutomatonBase_Frame, reinterpret_cast<void*>(&Ped2BaseFrame)},
+            {addr::cSC4AutomatonBase_StateFrame, reinterpret_cast<void*>(&Ped2BaseStateFrame)},
+            {addr::cSC4AutomatonBase_EnterState, reinterpret_cast<void*>(&Ped2BaseEnter)},
+            {addr::cSC4AutomatonBase_LeaveState, reinterpret_cast<void*>(&Ped2BaseLeave)},
+            {addr::cSC4AutomatonBase_RemoveNow, reinterpret_cast<void*>(&Ped2RemoveNow)},
+            {addr::cSC4AutomatonBase_NextStep, reinterpret_cast<void*>(&Ped2BaseNextStep)},
+            {addr::cSC4AutomatonBase_MoveToDestination, reinterpret_cast<void*>(&Ped2MoveTo)},
+            {addr::cSC4Pedestrian_State2Frame, reinterpret_cast<void*>(&Ped2Walk<2>)},
+            {addr::cSC4Pedestrian_State3Frame, reinterpret_cast<void*>(&Ped2Walk<3>)},
+            {addr::cSC4Pedestrian_State6Frame, reinterpret_cast<void*>(&Ped2Walk<6>)},
+            {addr::cSC4Pedestrian_State8Frame, reinterpret_cast<void*>(&Ped2Walk8)},
+            {addr::cSC4Pedestrian_State9Frame, reinterpret_cast<void*>(&Ped2Walk<9>)},
+        };
+        for (const Em4Jump& j : jumps)
+            if (!j.written) {
+                pflags |= 0x80;
+                ReleasePed(o);
+                log::Write("autotest: automata: vehicle: ped2a: the game's code could not be patched");
+                return;
+            }
+        g_ped2.self = o;
+        void** const real = At<void**>(o, 0);
+        void** const realPart = At<void**>(o, 4);
+        void** const table = Ped2Table(o);
+        void** const partTable = Ped2PartTable(o);
+        At<void**>(o, 0) = table;
+        At<void**>(o, 4) = partTable;
+        namespace b = ped::base;
+        alignas(4) static char states[8][0x40];
+        auto typed = [](int i, uint32_t type, void* object) {
+            std::memset(states[i], 0, sizeof states[i]);
+            At<uint32_t>(states[i], ped::state::kType) = type;
+            At<void*>(states[i], ped::state::kObject) = object;
+            return states[i];
+        };
+
+        // Init: initialised, or not and then so; the base's answers.
+        for (const uint8_t first : {uint8_t{1}, uint8_t{0}})
+            for (const uint8_t answer : {uint8_t{0}, uint8_t{1}}) {
+                g_ped2.initialised[0] = first;
+                g_ped2.initialised[1] = 1;
+                g_ped2.initCalls = 0;
+                g_ped2.base = answer;
+                pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_Init, o) & 0xFF);
+            }
+
+        // Slot 72: the flag 0x20 before and after the base frame, the flag 2.
+        g_ped2.frameSets = true;
+        for (const uint8_t flag2 : {uint8_t{0}, uint8_t{1}})
+            for (const uint32_t before : {0u, 0x20u})
+                for (const uint32_t after : {0u, 0x20u, 0x22u}) {
+                    g_ped2.flag2 = flag2;
+                    g_ped2.flags = before | 0x1000u;
+                    g_ped2.flagsAfter = after;
+                    g_ped2.base = static_cast<uint8_t>(after == 0x22u ? 0 : 1);
+                    pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_Frame, o, 0x72u + before, 0.25f) & 0xFF);
+                    pstates.Mix(g_ped2.flags);
+                }
+        g_ped2.frameSets = false;
+        g_ped2.flag2 = 0;
+
+        // Slot 103: the flags, the simulator service's answers, the models
+        // (none, a null one, at and before the last frame) and the list.
+        {
+            Ped2Object service = Ped2Make(Ped2ServiceVtable(), 0);
+            RfSwap swapService(addr::SC4_SimulatorService, &service);
+            Ped2Object models[2] = {Ped2Make(Ped2ModelVtable(), 0, 1), Ped2Make(Ped2ModelVtable(), 0, 2)};
+            char* modelList[3] = {nullptr, reinterpret_cast<char*>(&models[0]), reinterpret_cast<char*>(&models[1])};
+            char* const savedModels[2] = {At<char*>(o, b::kModels), At<char*>(o, b::kModelsEnd)};
+            char* const savedList = At<char*>(o, b::kList188);
+            alignas(4) static char lists[2][8];
+            At<char*>(lists[0], 0) = lists[0]; // empty
+            At<char*>(lists[1], 0) = lists[1] + 4;
+            const uint32_t flagCases[] = {0u, 0x20u, 0x22u, 0x2020u, 2u, 0x2000u};
+            int run = 0;
+            for (const uint32_t f : flagCases)
+                for (int answers = 0; answers < 4; ++answers)
+                    for (int which = 0; which < 4; ++which) {
+                        g_ped2.flags = f;
+                        service.answer3C = static_cast<uint8_t>(answers & 1);
+                        service.answer44 = static_cast<uint8_t>(answers >> 1);
+                        // 0 none, 1 the null and the first, 2 the first alone
+                        // (the null first: not null-tested, so never), 3 both.
+                        char** const begin = which == 1 ? &modelList[0] : &modelList[1];
+                        char** const end = which == 0 ? begin : which == 2 ? &modelList[2] : &modelList[3];
+                        if (which == 1) {
+                            // the null model first would crash the frame test: skip the list then
+                            At<char*>(o, b::kList188) = lists[0];
+                        } else {
+                            At<char*>(o, b::kList188) = lists[run & 1];
+                        }
+                        At<char**>(o, b::kModels) = begin;
+                        At<char**>(o, b::kModelsEnd) = end;
+                        models[0].frame = run % 3 == 0 ? 4 : run % 3 == 1 ? 3 : -2;
+                        models[0].frames = 5;
+                        At<float>(o, b::kTimer1C0) = 1.5f + static_cast<float>(run) * 0.1f;
+                        At<uint32_t>(o, ped::ped::kFloat) = 0x12345u;
+                        pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_Animate, o, 0.125f + run * 0.0625f) & 0xFF);
+                        pstates.Mix(At<uint32_t>(o, b::kTimer1C0));
+                        pstates.Mix(At<uint32_t>(o, ped::ped::kFloat));
+                        ++run;
+                    }
+            At<char*>(o, b::kModels) = savedModels[0];
+            At<char*>(o, b::kModelsEnd) = savedModels[1];
+            At<char*>(o, b::kList188) = savedList;
+        }
+
+        // Slot 109: no states; the base's answer; no current state; the
+        // types 0 to 13 (the states 4 and 0xC's frames stubbed too).
+        {
+            Em4Jump frames[] = {
+                {addr::cSC4Pedestrian_State4Frame, reinterpret_cast<void*>(&Ped2Walk<4>)},
+                {addr::cSC4Pedestrian_StateCFrame, reinterpret_cast<void*>(&Ped2Walk<0xC>)},
+            };
+            char** const stack = &At<char*>(o, b::kStates);
+            char* const savedStack[2] = {stack[0], stack[1]};
+            static char* top[1];
+            top[0] = typed(0, 0xD, nullptr);
+            stack[0] = reinterpret_cast<char*>(top);
+            stack[1] = reinterpret_cast<char*>(top);
+            pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_StateFrame, o, 0.5f) & 0xFF);
+            stack[1] = reinterpret_cast<char*>(top + 1);
+            g_ped2.base = 1;
+            pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_StateFrame, o, 0.5f) & 0xFF);
+            g_ped2.base = 0;
+            g_ped2.current = nullptr;
+            pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_StateFrame, o, 0.5f) & 0xFF);
+            for (uint32_t type = 0; type < 14; ++type) {
+                g_ped2.current = typed(1, type, nullptr);
+                pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_StateFrame, o, 0.75f + type) & 0xFF);
+            }
+            g_ped2.current = nullptr;
+            stack[0] = savedStack[0];
+            stack[1] = savedStack[1];
+        }
+
+        // Slots 110 and 111: the base's answer, no state, the types 0 to 10
+        // (the smoothed value set before each).
+        for (const uint8_t answer : {uint8_t{1}, uint8_t{0}})
+            for (int32_t type = -1; type < 11; ++type) {
+                g_ped2.base = answer;
+                g_ped2.flags = 0x4100u;
+                char* const s = type < 0 ? nullptr : typed(2, static_cast<uint32_t>(type), nullptr);
+                At<float>(o, b::kSmoothed) = 0.5f;
+                At<float>(o, b::kSmoothed + 4) = 0.25f;
+                At<uint32_t>(o, b::kSmoothed + 8) = 7;
+                At<float>(o, b::kSmoothed + 12) = 0.0f;
+                pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_EnterState, o, s) & 0xFF);
+                pstates.Mix(g_ped2.flags);
+                pstates.MixBytes(o + b::kSmoothed, 16);
+                if (answer)
+                    continue;
+                pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_LeaveState, o, s));
+                pstates.Mix(g_ped2.flags);
+            }
+        g_ped2.base = 0;
+
+        // Slot 135: with and without an occupant, no current state and the
+        // types 3, 8 and 9.
+        {
+            Ped2Object occupant = Ped2Make(Ped2ObjectVtable());
+            for (int k = 0; k < 8; ++k) {
+                At<void*>(o, b::kOccupant) = (k & 1) ? &occupant : nullptr;
+                const uint32_t types[4] = {0, 3, 8, 9};
+                g_ped2.current = k < 2 ? nullptr : typed(3, types[k / 2], nullptr);
+                pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_Remove, o));
+                pstates.Mix(At<void*>(o, b::kOccupant) ? 1u : 0u);
+                pstates.Mix(static_cast<uint32_t>(occupant.references));
+            }
+            g_ped2.current = nullptr;
+            At<void*>(o, b::kOccupant) = nullptr;
+        }
+
+        // Slot 155 over positions and points: equal, within and at the
+        // bound, far, an infinite and a NaN y, a NaN x.
+        {
+            const float inf = std::numeric_limits<float>::infinity();
+            const float nan = std::numeric_limits<float>::quiet_NaN();
+            const float cases[][6] = {{100, 5, 200, 100, 5, 200},       {100, 5, 200, 100, 9, 200},
+                                      {100, 5, 200, 100.000001f, 5, 200}, {0, 0, 0, 1e-5f, 0, 0},
+                                      {0, 0, 0, 0, 0, 1e-5f},           {0, 0, 0, 6e-6f, 0, 8e-6f},
+                                      {100, 5, 200, 103, -7, 196},      {1.0e7f, 2, -3.0e7f, -1.0e-3f, 1, 0.3f},
+                                      {100, inf, 200, 101, 5, 200},     {100, nan, 200, 101, 5, 201},
+                                      {100, 5, 200, nan, 5, 200},       {1.1f, 2.2f, 3.3f, 7.7f, 8.8f, 9.9f}};
+            for (const auto& c : cases) {
+                SetPoint(o, b::kPosition, c[0], c[1], c[2]);
+                const float point[3] = {c[3], c[4], c[5]};
+                float out[3] = {9, 9, 9};
+                This<void>(addr::cSC4Pedestrian_DirectionTo, o, point, out);
+                pstates.MixBytes(out, 12);
+            }
+        }
+
+        // Slot 158, three draws.
+        for (int k = 0; k < 3; ++k) {
+            This<void>(addr::cSC4Pedestrian_DrawFloat200, o);
+            pstates.Mix(At<uint32_t>(o, b::kFloat200));
+        }
+
+        // Slot 165: the base's answer, +0x98, the occupant, the speed, the
+        // vector, the side against +0x1F4, the network part, the path.
+        {
+            Ped2Object part = Ped2Make(Ped2PartVtable());
+            Ped2Object occupant = Ped2Make(Ped2ObjectVtable());
+            g_ped2.occupant = &occupant;
+            SetPoint(o, b::kPosition, 10.0f, 1.0f, 20.0f);
+            const float speeds[] = {25.0f, -20.0f, 19.99f, std::numeric_limits<float>::quiet_NaN(), 40.0f};
+            const float vectors[][3] = {{3, 0, 4}, {0, 0, 0}, {0.1f, 0.2f, -0.3f}, {1e20f, 0, 1e20f}};
+            void* const saved98 = At<void*>(o, b::k98);
+            int run = 0;
+            for (int gate = 0; gate < 4; ++gate)
+                for (const float speed : speeds)
+                    for (const auto& v : vectors) {
+                        g_ped2.base = static_cast<uint8_t>(gate == 0 ? 0 : 1);
+                        At<void*>(o, b::k98) = gate == 1 ? nullptr : &part;
+                        At<void*>(o, b::kOccupant) = gate == 2 ? nullptr : &occupant;
+                        At<float>(o, b::kFloatA0) = speed;
+                        SetPoint(o, b::kVectorA4, v[0], v[1], v[2]);
+                        g_ped2.side = static_cast<uint8_t>(run % 5 == 4 ? 0xFF : run % 4);
+                        g_ped2.groups = 0xABCD0000u | static_cast<uint32_t>((run / 3) % 4);
+                        occupant.inner = run % 7 == 3 ? nullptr : &part;
+                        g_ped2.path = run % 5 != 1;
+                        g_ped2.key = 0x01000200u + static_cast<uint32_t>(run);
+                        // AL only where it answers the base's (slot 131's 0x131 shows as 0x31).
+                        pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_NextStep, o) & 0xFF);
+                        pstates.MixBytes(o + b::kVectorA4, 12);
+                        ++run;
+                    }
+            pstates.Mix(static_cast<uint32_t>(occupant.references));
+            At<void*>(o, b::k98) = saved98;
+            At<void*>(o, b::kOccupant) = nullptr;
+            g_ped2.occupant = nullptr;
+            g_ped2.base = 0;
+        }
+
+        // Slot 176 at its address.
+        pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_Idle, o) & 0xFF);
+
+        // The state 4's frame: no state, a state with no object; with one,
+        // not arriving and arriving at points about the position (one on it).
+        {
+            Ped2Object object = Ped2Make(Ped2ObjectVtable());
+            g_ped2.current = nullptr;
+            pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_State4Frame, o, 0.5f) & 0xFF);
+            g_ped2.current = typed(4, 4, nullptr);
+            pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_State4Frame, o, 0.5f) & 0xFF);
+            g_ped2.current = typed(4, 4, &object);
+            SetPoint(o, b::kPosition, 50.0f, 2.0f, 60.0f);
+            const float points[][3] = {{53, 2, 64}, {50, 2, 60}, {50, 9, 60}, {49.9f, -3, 60.7f}, {1e6f, 2, -1e6f},
+                                       {0.001f, 2, 60.3f}};
+            int run = 0;
+            for (const bool arrive : {false, true})
+                for (const auto& p : points) {
+                    g_ped2.arrive = arrive;
+                    g_ped2.flags = 0;
+                    std::memcpy(object.point, p, 12);
+                    At<uint32_t>(g_ped2.current, ped::state::kType) = run % 2 ? 4u : 0x44u;
+                    pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_State4Frame, o, 0.25f * (run + 1)) & 0xFF);
+                    pstates.Mix(g_ped2.flags);
+                    ++run;
+                }
+            g_ped2.arrive = false;
+            g_ped2.current = nullptr;
+            pstates.Mix(static_cast<uint32_t>(object.references));
+        }
+
+        // The state 0xC's frame: stacks with no state 0xC, one with no
+        // object, one whose object answers 0, and found below and on top;
+        // the city's simulators and none.
+        {
+            static void* cityTable[256];
+            void** const realCity = At<void**>(city, 0);
+            for (int i = 0; i < 256; ++i)
+                cityTable[i] = realCity[i];
+            cityTable[ped::pslot::kCitySimulators / 4] = reinterpret_cast<void*>(&Ped2CitySimulators);
+            At<void**>(city, 0) = cityTable;
+            Ped2Object burn = Ped2Make(Ped2ObjectVtable());
+            Ped2Object simulator = Ped2Make(Ped2ObjectVtable());
+            simulator.inner = &burn;
+            g_ped2Simulators = Ped2Make(Ped2ObjectVtable());
+            g_ped2Simulators.inner = &simulator;
+            Ped2Object objects[3] = {Ped2Make(Ped2ObjectVtable(), 1, 0), Ped2Make(Ped2ObjectVtable(), 1, 5),
+                                     Ped2Make(Ped2ObjectVtable(), 1, 9)};
+            char** const stack = &At<char*>(o, b::kStates);
+            char* const savedStack[2] = {stack[0], stack[1]};
+            static char* list[4];
+            // (Neither the game nor ours null-tests the interface once a word
+            // is found, so the test always gives one.)
+            for (int k = 0; k < 7; ++k) {
+                int n = 0;
+                g_ped2Simulators.vtable = k == 5 ? nullptr : Ped2ObjectVtable();
+                switch (k) {
+                case 0: // empty
+                    break;
+                case 1: // no state 0xC
+                    list[n++] = typed(0, 4, &objects[1]);
+                    list[n++] = typed(1, 0xD, &objects[2]);
+                    break;
+                case 2: // a state 0xC with no object, one answering 0
+                    list[n++] = typed(0, 0xC, nullptr);
+                    list[n++] = typed(1, 0xC, &objects[0]);
+                    break;
+                case 3: // found below another type
+                    list[n++] = typed(0, 0xC, &objects[1]);
+                    list[n++] = typed(1, 8, &objects[2]);
+                    break;
+                case 4: // found on top, another below
+                    list[n++] = typed(0, 0xC, &objects[1]);
+                    list[n++] = typed(1, 0xC, &objects[0]);
+                    list[n++] = typed(2, 0xC, &objects[2]);
+                    break;
+                case 5: // the city without simulators
+                    list[n++] = typed(0, 0xC, &objects[2]);
+                    break;
+                default: // found below a state 0xC whose object answers 0
+                    list[n++] = typed(0, 0xC, &objects[1]);
+                    list[n++] = typed(1, 0xC, &objects[0]);
+                    break;
+                }
+                stack[0] = reinterpret_cast<char*>(list);
+                stack[1] = reinterpret_cast<char*>(list + n);
+                pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_StateCFrame, o, 0.5f) & 0xFF);
+                pstates.Mix(static_cast<uint32_t>(burn.references));
+                pstates.Mix(static_cast<uint32_t>(simulator.references));
+            }
+            stack[0] = savedStack[0];
+            stack[1] = savedStack[1];
+            g_ped2Simulators = Ped2Object{};
+            At<void**>(city, 0) = realCity;
+        }
+
+        At<void**>(o, 4) = realPart;
+        At<void**>(o, 0) = real;
+    }
+    pstates.Mix(g_ped2.calls.h);
+    pflags |= 0x40;
+    ReleasePed(o);
+    log::Write("autotest: automata: vehicle: ped2a pstates %08X calls %08X (slot 158 draws between %08X and %08X)",
+               pstates.h, g_ped2.calls.h, Global<uint32_t>(addr::cSC4Pedestrian_Float200Low),
+               Global<uint32_t>(addr::cSC4Pedestrian_Float200High));
+    g_ped2 = Ped2Answers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -28387,6 +29175,10 @@ void VehicleDrive(cISC4City* city)
     uint32_t pflags = 0;
     PedestrianDrive(pobject, psave, pflags);
 
+    // ---- Part ped2a.
+    Hash pstates;
+    PedStatesDrive(pstates, pflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -28443,13 +29235,13 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
-                  pobject.h, psave.h, pflags);
+                  pobject.h, psave.h, pstates.h, pflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
