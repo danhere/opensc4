@@ -757,6 +757,24 @@ void DriveContext()
     MixContext(c);
     RsStage("context-batch");
 
+    // SetTarget: the target held (nothing happens; the answer is the
+    // caller's EAX), then none, with and without a rasterizer. A new target
+    // would make a real rasterizer through the framework, so that path is
+    // left to the game runs.
+    Method<uint32_t>(addr::GZDrawContext_SetTarget, c, static_cast<void*>(&target));
+    MixObject(At<void*>(c, 0x24));
+    MixObject(At<void*>(c, 0x28));
+    MixContext(c);
+    for (int pass = 0; pass < 2; ++pass) {
+        Mixed(addr::GZDrawContext_SetTarget, c, static_cast<void*>(nullptr));
+        MixObject(At<void*>(c, 0x24));
+        MixObject(At<void*>(c, 0x28));
+        MixContext(c);
+        At<void*>(c, 0x24) = &target;
+    }
+    At<void*>(c, 0x28) = &raster;
+    RsStage("context-target");
+
     // References: up twice, down three times (the last one destroys it,
     // releasing the rasterizer and the target).
     Mix(Method<uint32_t>(addr::GZDrawContext_AddRef, c));
