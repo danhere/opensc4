@@ -2519,7 +2519,8 @@ OPENSC4_THUNK(TSC4EffectB_Destruct, EffectBDtorByMode, 0)
 // through the shared detour, and held back until ours has read the
 // vectors' storage), and the textures of +0x248, given one more holder
 // each for the game's run, which must have taken exactly one from each,
-// and let go for real after.
+// and let go for real after (the model, held once more for the game's run
+// and released after, cannot let go of its own textures in it).
 Call0Fn g_SC4EffectC_Destruct = nullptr;
 Call1Fn g_SC4EffectC_Delete = nullptr;
 
@@ -2543,8 +2544,11 @@ uint32_t __fastcall EffectCDtorByMode(char* self, void*)
         DestructEffectC(self);
         return 0;
     }
-    if (char* const model = At<char*>(self, 0x254))
+    char* const model = At<char*>(self, 0x254);
+    if (model) {
+        CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(model, 0) + 4), model);
         BSwap(model, 0x8, reinterpret_cast<uint32_t>(&BRelease));
+    }
     for (char* batch = At<char*>(self, 0x230); batch != At<char*>(self, 0x234); batch += 0x40)
         BSwap(batch, 0, reinterpret_cast<uint32_t>(&DtorBatchEnd));
     std::vector<char*> textures;
@@ -2580,6 +2584,8 @@ uint32_t __fastcall EffectCDtorByMode(char* self, void*)
         for (char* const texture : textures)
             CallThis<uint32_t>(0x008090E0, texture);
     }
+    if (model)
+        CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(model, 0) + 8), model);
     return 0;
 }
 OPENSC4_THUNK(TSC4EffectC_Destruct, EffectCDtorByMode, 0)
@@ -17150,11 +17156,13 @@ uint32_t DwManagerForced(char* self, char* context)
 }
 
 void TcForce(char* self);
+void McForce(char* self);
 
 uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
 {
     HrForce(self, Ptr(context));
     TcForce(self);
+    McForce(self);
     if (g_dwManagerMode == StepMode::Original || g_dwTrace != DwTrace::Off || g_depth > 0) {
         const uint32_t result = g_SC4EffectsManager_Draw(self, nullptr, context);
         // The flash and the shake are forced after the manager's draw (the
@@ -18036,6 +18044,471 @@ const bool g_registeredThird = registry::Register({
     "before the manager's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallThird,
+});
+
+// --- The third class's description and model ---------------------------------------------
+//
+// The class taking a description (slot 0x28, 0x005AB190) and a model's
+// instance (slot 0x2C, 0x005AAFE0), effects_third.h, with the model's
+// load (0x005AB0F0), its materials (0x005AAE80), its batches (0x005AAD70)
+// and the vector code under them, which only those two reach
+// (renderer.effects.model_c). No test city makes an effect of the class,
+// so in compare mode the two run as the game's and are compared only when
+// forced (OPENSC4_EFFECT_FORCE_THIRD=1): before the manager's draw, one
+// turn a frame of two, each on a pair of new effects of the class (made
+// and deleted as TcNew and TcDelete make and delete them), the game's
+// function on the first and ours on the second, step by step, the two
+// compared after each step:
+// 0. descriptions: two real ones (of effects of the first class in the
+//    manager's table) with their fields changed for the step and put back
+//    after (+0xF0 always 2.75), on effects given a made-up point at +0xB4:
+//    without flag 1; with it and a model's ID (one of the second
+//    class's descriptions has, the model loaded for real); the same again
+//    (already held); the other one with ID 0 and +0x14 0 (the rate's
+//    floor, the first let go); ID -1 and +0x14 a NaN; an ID no resource
+//    has.
+// 1. made-up instances (McInstance below), each with its materials and
+//    box: three materials (one not drawn, one without a texture) with
+//    +0x22C cleared, then five (the textures' and batches' vectors grow),
+//    two (the batches taken out), five again (put in with room), the same
+//    five again (already held), nine (the batches grow by as many as they
+//    hold) and none (no materials: let go).
+// The effects are compared by their bytes (but for the three vectors'
+// pointers and the bytes in which the two differed when made), the
+// contents and room of the vectors (each batch by its words and its two
+// vectors' contents and room), and by what each run changed of the counts
+// of the descriptions (+0x204), the textures (+0xC) and the made-up
+// materials.
+StepMode g_modelCMode = StepMode::Original;
+Call1Fn g_SC4EffectC_SetDescription = nullptr, g_SC4EffectC_SetInstance = nullptr;
+
+uint32_t __fastcall DescriptionCByMode(char* self, void*, uint32_t description)
+{
+    if (g_modelCMode != StepMode::Ours)
+        return g_SC4EffectC_SetDescription(self, nullptr, description);
+    SetEffectDescriptionC(self, Ptr(description));
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_SetDescription, DescriptionCByMode, 4)
+
+uint32_t __fastcall InstanceCByMode(char* self, void*, uint32_t instance)
+{
+    if (g_modelCMode != StepMode::Ours)
+        return g_SC4EffectC_SetInstance(self, nullptr, instance);
+    SetEffectInstanceC(self, Ptr(instance));
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_SetInstance, InstanceCByMode, 4)
+
+// The made-up instance: slot 0 answers its materials for 0x26A68448 (held
+// once more), slot 0x20 fills the box unless it has none. Its materials:
+// slots 4 and 8 count their holders, slot 0xC their number, slot 0x18 one
+// of them (0x14 bytes: +0xB whether drawn, +0x10 its texture). A texture:
+// its first word points at its name, +8 no owner, +0xC its count.
+struct McTexture {
+    uint32_t* name;
+    uint32_t unused;
+    uint32_t owner;
+    int32_t count;
+};
+struct McMaterial {
+    uint8_t bytes[0x10];
+    McTexture* texture;
+};
+struct McMaterials {
+    uint32_t table;
+    int32_t held;
+    uint32_t count;
+    McMaterial* list;
+};
+struct McInstance {
+    uint32_t table;
+    McMaterials* materials;
+    bool hasBox;
+    float box[6];
+};
+
+uint32_t g_mcInstanceTable[16] = {}, g_mcMaterialsTable[16] = {};
+uint32_t g_mcNames[9] = {};
+McTexture g_mcTextures[9] = {};
+McMaterial g_mcMaterial[9] = {};
+McMaterials g_mcMaterials[4] = {};
+McInstance g_mcInstances[5] = {};
+
+uint32_t __fastcall McNothing(char*, void*)
+{
+    return 0;
+}
+
+uint32_t __fastcall McInstanceQuery(char* self, void*, uint32_t iid, uint32_t out)
+{
+    McMaterials* const materials = reinterpret_cast<McInstance*>(self)->materials;
+    if (iid != 0x26A68448u || !materials)
+        return 0;
+    ++materials->held;
+    *reinterpret_cast<McMaterials**>(Ptr(out)) = materials;
+    return 1;
+}
+
+uint32_t __fastcall McInstanceBox(char* self, void*, uint32_t box)
+{
+    const McInstance& instance = *reinterpret_cast<McInstance*>(self);
+    if (instance.hasBox)
+        std::memcpy(Ptr(box), instance.box, sizeof instance.box);
+    return 1;
+}
+
+uint32_t __fastcall McHold(char* self, void*)
+{
+    return static_cast<uint32_t>(++reinterpret_cast<McMaterials*>(self)->held);
+}
+
+uint32_t __fastcall McRelease(char* self, void*)
+{
+    return static_cast<uint32_t>(--reinterpret_cast<McMaterials*>(self)->held);
+}
+
+uint32_t __fastcall McCount(char* self, void*)
+{
+    return reinterpret_cast<McMaterials*>(self)->count;
+}
+
+uint32_t __fastcall McAt(char* self, void*, uint32_t index)
+{
+    return Word(&reinterpret_cast<McMaterials*>(self)->list[index]);
+}
+
+void McMakeFakes()
+{
+    if (g_mcInstanceTable[0])
+        return;
+    for (uint32_t i = 0; i < 16; ++i)
+        g_mcInstanceTable[i] = g_mcMaterialsTable[i] = Word(reinterpret_cast<void*>(&McNothing));
+    g_mcInstanceTable[0] = Word(reinterpret_cast<void*>(&McInstanceQuery));
+    g_mcInstanceTable[0x20 / 4] = Word(reinterpret_cast<void*>(&McInstanceBox));
+    g_mcMaterialsTable[1] = Word(reinterpret_cast<void*>(&McHold));
+    g_mcMaterialsTable[2] = Word(reinterpret_cast<void*>(&McRelease));
+    g_mcMaterialsTable[3] = Word(reinterpret_cast<void*>(&McCount));
+    g_mcMaterialsTable[6] = Word(reinterpret_cast<void*>(&McAt));
+    for (uint32_t i = 0; i < 9; ++i) {
+        g_mcNames[i] = 0x11110000u + i * 0x0101u;
+        g_mcTextures[i] = {&g_mcNames[i], 0, 0, 1000};
+        g_mcMaterial[i].bytes[0xB] = 1;
+        g_mcMaterial[i].texture = &g_mcTextures[i];
+    }
+    // Three: the second not drawn, the third without a texture (it is the
+    // ninth's place in the list of nine, which has one).
+    static McMaterial three[3];
+    three[0] = g_mcMaterial[0];
+    three[1] = g_mcMaterial[1];
+    three[1].bytes[0xB] = 0;
+    three[2] = g_mcMaterial[2];
+    three[2].texture = nullptr;
+    const std::pair<uint32_t, McMaterial*> lists[4] = {{3, three}, {5, g_mcMaterial + 1}, {2, g_mcMaterial + 4}, {9, g_mcMaterial}};
+    for (uint32_t i = 0; i < 4; ++i)
+        g_mcMaterials[i] = {Word(g_mcMaterialsTable), 1, lists[i].first, lists[i].second};
+    const float boxes[5][6] = {{-3.5f, 0.25f, -1.0f, 4.0f, 12.75f, 2.5f},
+                               {10.0f, 20.0f, 30.0f, 11.0f, 23.0f, 37.0f},
+                               {-0.1f, -0.2f, -0.3f, 0.7f, 1e-7f, 0.3f},
+                               {1e6f, 0.0f, -1e6f, 1e6f + 64.0f, 3.0f, -1e6f + 0.5f},
+                               {}};
+    McMaterials* const materials[5] = {&g_mcMaterials[0], &g_mcMaterials[1], &g_mcMaterials[2], nullptr,
+                                       &g_mcMaterials[3]};
+    for (uint32_t i = 0; i < 5; ++i) {
+        g_mcInstances[i] = {Word(g_mcInstanceTable), materials[i], i != 4, {}};
+        std::memcpy(g_mcInstances[i].box, boxes[i], sizeof boxes[i]);
+    }
+}
+
+// What is compared of an effect, each value with a tag saying where it is
+// from: 0x0xxx its bytes, 0x1xxxxx the words, 0x2xxxxx the textures,
+// 0x3bbbxx the batches, 0x4xxxxx the counts' changes.
+using McPrint = std::vector<std::pair<uint32_t, uint32_t>>;
+
+void McVector(McPrint& print, uint32_t tag, char* vector, uint32_t size)
+{
+    char* const begin = At<char*>(vector, 0);
+    const uint32_t used = static_cast<uint32_t>(At<char*>(vector, 4) - begin);
+    print.push_back({tag, used / size});
+    print.push_back({tag + 1, static_cast<uint32_t>(At<char*>(vector, 8) - begin) / size});
+    if (size == 4) {
+        for (uint32_t at = 0; at < used; at += 4)
+            print.push_back({tag + 2 + at / 4, At<uint32_t>(begin, at)});
+    } else {
+        for (uint32_t at = 0; at < used; ++at)
+            print.push_back({tag + 2 + at, At<uint8_t>(begin, at)});
+    }
+}
+
+McPrint McPrintOf(char* effect, const std::vector<char>& mask)
+{
+    McPrint print;
+    for (uint32_t at = 0; at < kEffectSizeC; at += 4) {
+        if (at >= 0x230 && at < 0x254)
+            continue;
+        uint32_t word = 0, masked = 0;
+        std::memcpy(&word, effect + at, 4);
+        std::memcpy(&masked, mask.data() + at, 4);
+        // A model's materials are made anew for each effect: only whether
+        // there are some, unless they are made-up ones.
+        if (at == 0x254 && word && !(word >= Word(g_mcMaterials) && word < Word(g_mcMaterials + 4)))
+            word = 1;
+        print.push_back({at, word & ~masked});
+    }
+    McVector(print, 0x100000, effect + 0x23C, 4);
+    McVector(print, 0x200000, effect + 0x248, 4);
+    char* const batches = effect + 0x230;
+    print.push_back({0x300000, static_cast<uint32_t>(At<char*>(batches, 4) - At<char*>(batches, 0)) >> 6});
+    print.push_back({0x300001, static_cast<uint32_t>(At<char*>(batches, 8) - At<char*>(batches, 0)) >> 6});
+    uint32_t index = 1;
+    for (char* batch = At<char*>(batches, 0); batch != At<char*>(batches, 4); batch += 0x40, ++index) {
+        const uint32_t tag = 0x300000 + index * 0x10000;
+        for (uint32_t at : {0x0u, 0x4u, 0x8u, 0xCu, 0x10u, 0x20u, 0x24u, 0x28u, 0x38u, 0x3Cu})
+            print.push_back({tag + at, At<uint32_t>(batch, at)});
+        McVector(print, tag + 0x1000, batch + 0x14, 1);
+        McVector(print, tag + 0x8000, batch + 0x2C, 1);
+    }
+    return print;
+}
+
+std::vector<char*> g_mcSeen;
+
+struct McPair {
+    char* game;
+    char* ours;
+    std::vector<char> mask;
+};
+
+McPair McMakePair()
+{
+    McPair pair{TcNew(), TcNew(), std::vector<char>(kEffectSizeC)};
+    for (std::size_t i = 0; i < kEffectSizeC; ++i)
+        pair.mask[i] = pair.game[i] == pair.ours[i] ? 0 : static_cast<char>(0xFF);
+    return pair;
+}
+
+// The counts a run may change: of the descriptions, the made-up textures
+// and materials, the textures either effect holds before and those seen
+// before. A real model's materials hold its textures too, so a texture
+// first seen in the game's run is not compared then (its count before is
+// not known); it is held from then on, so that it stays to be compared
+// in the turns after.
+void McAddCount(std::vector<int32_t*>& counts, int32_t* count)
+{
+    if (std::find(counts.begin(), counts.end(), count) == counts.end())
+        counts.push_back(count);
+}
+
+void McAddTextures(std::vector<int32_t*>& counts, char* effect)
+{
+    for (char** it = At<char**>(effect, 0x248); it != At<char**>(effect, 0x24C); ++it) {
+        if (*it)
+            McAddCount(counts, reinterpret_cast<int32_t*>(*it + 0xC));
+    }
+}
+
+std::vector<int32_t> McValues(const std::vector<int32_t*>& counts)
+{
+    std::vector<int32_t> values;
+    for (int32_t* count : counts)
+        values.push_back(*count);
+    return values;
+}
+
+std::string McText(const McPrint& print, std::size_t at)
+{
+    char text[64];
+    if (at < print.size())
+        std::snprintf(text, sizeof text, "%zu values, at %06X %08X", print.size(), print[at].first, print[at].second);
+    else
+        std::snprintf(text, sizeof text, "%zu values", print.size());
+    return text;
+}
+
+// One step: the game's on the first, ours on the second, compared.
+template <typename Game, typename Ours>
+void McStep(const char* id, McPair& pair, const std::vector<char*>& descriptions, Game&& game, Ours&& ours)
+{
+    std::vector<int32_t*> counts;
+    for (char* description : descriptions)
+        McAddCount(counts, reinterpret_cast<int32_t*>(description + 0x204));
+    for (McTexture& texture : g_mcTextures)
+        McAddCount(counts, &texture.count);
+    for (McMaterials& materials : g_mcMaterials)
+        McAddCount(counts, &materials.held);
+    McAddTextures(counts, pair.game);
+    McAddTextures(counts, pair.ours);
+    for (char* texture : g_mcSeen)
+        McAddCount(counts, reinterpret_cast<int32_t*>(texture + 0xC));
+    const std::size_t known = counts.size();
+    const std::vector<int32_t> before = McValues(counts);
+    game(pair.game);
+    const std::vector<int32_t> afterGame = McValues(counts);
+    McPrint theirs = McPrintOf(pair.game, pair.mask);
+    ours(pair.ours);
+    McPrint mine = McPrintOf(pair.ours, pair.mask);
+    for (std::size_t i = 0; i < known; ++i) {
+        const uint32_t tag = 0x400000 + static_cast<uint32_t>(i);
+        theirs.push_back({tag, static_cast<uint32_t>(afterGame[i] - before[i])});
+        mine.push_back({tag, static_cast<uint32_t>(*counts[i] - afterGame[i])});
+    }
+    for (char** it = At<char**>(pair.game, 0x248); it != At<char**>(pair.game, 0x24C); ++it) {
+        if (*it && std::find(counts.begin(), counts.end(), reinterpret_cast<int32_t*>(*it + 0xC)) == counts.end() &&
+            std::find(g_mcSeen.begin(), g_mcSeen.end(), *it) == g_mcSeen.end()) {
+            CallThis<uint32_t>(addr::SC4TextureBinding_AddRef, *it);
+            g_mcSeen.push_back(*it);
+        }
+    }
+    const bool same = theirs == mine;
+    std::size_t at = 0;
+    while (!same && at < theirs.size() && at < mine.size() && theirs[at] == mine[at])
+        ++at;
+    compare::Record(id, same, same ? std::string() : McText(theirs, at), same ? std::string() : McText(mine, at));
+}
+
+void McDescriptionStep(McPair& pair, char* description, const std::vector<char*>& held, uint32_t flag,
+                       uint32_t which, const uint32_t* rate)
+{
+    uint8_t& flags = At<uint8_t>(description, 8);
+    uint32_t& id = At<uint32_t>(description, 0xD0);
+    uint32_t& rateWord = At<uint32_t>(description, 0x14);
+    float& size = At<float>(description, 0xF0);
+    const uint8_t oldFlags = flags;
+    const uint32_t oldId = id, oldRate = rateWord;
+    const float oldSize = size;
+    flags = static_cast<uint8_t>((oldFlags & ~1u) | flag);
+    id = which;
+    if (rate)
+        rateWord = *rate;
+    size = 2.75f;
+    McStep(flag ? "effects.description_c" : "effects.description_c.none", pair, held,
+           [&](char* effect) { CallThis<uint32_t>(addr::SC4EffectC_SetDescription, effect, description); },
+           [&](char* effect) { SetEffectDescriptionC(effect, description); });
+    flags = oldFlags;
+    id = oldId;
+    rateWord = oldRate;
+    size = oldSize;
+}
+
+uint32_t g_mcModel = 0;
+
+void McDescriptions(char* manager)
+{
+    std::vector<char*> descriptions;
+    for (char** it = At<char**>(manager, 0xBE8); it != At<char**>(manager, 0xBEC) && descriptions.size() < 2; ++it) {
+        char* const description = *it ? At<char*>(*it, 0x24) : nullptr;
+        if (description && std::find(descriptions.begin(), descriptions.end(), description) == descriptions.end())
+            descriptions.push_back(description);
+    }
+    if (descriptions.empty())
+        return;
+    if (!g_mcModel) {
+        for (char** it = At<char**>(manager, 0xC30); it != At<char**>(manager, 0xC34) && !g_mcModel; ++it) {
+            char* const description = *it ? At<char*>(*it, 0x24) : nullptr;
+            const uint32_t which = description ? At<uint32_t>(description, 0xD0) : 0;
+            if (which && which != 0xFFFFFFFF) {
+                g_mcModel = which;
+                log::Write("water effects: the third class's forced descriptions load the model %08X", which);
+            }
+        }
+    }
+    McPair pair = McMakePair();
+    // A made-up point at +0xB4, where a load takes +0x25C from.
+    for (char* effect : {pair.game, pair.ours}) {
+        At<float>(effect, 0xB4) = 1.5f;
+        At<float>(effect, 0xB8) = -2.25f;
+        At<float>(effect, 0xBC) = 40.0f;
+    }
+    char* const first = descriptions[0];
+    char* const second = descriptions.size() > 1 ? descriptions[1] : nullptr;
+    const uint32_t zero = 0, nan = 0x7FC00000;
+    McDescriptionStep(pair, first, descriptions, 0, g_mcModel, nullptr);
+    McDescriptionStep(pair, first, descriptions, 1, g_mcModel, nullptr);
+    static bool told = false;
+    if (!told) {
+        told = true;
+        log::Write("water effects: the third class's forced model: materials %s, %d textures, %d batches",
+                   At<char*>(pair.game, 0x254) ? "kept" : "none",
+                   static_cast<int>(At<char**>(pair.game, 0x24C) - At<char**>(pair.game, 0x248)),
+                   static_cast<int>((At<char*>(pair.game, 0x234) - At<char*>(pair.game, 0x230)) >> 6));
+    }
+    McDescriptionStep(pair, first, descriptions, 1, g_mcModel, nullptr);
+    if (second)
+        McDescriptionStep(pair, second, descriptions, 1, 0, &zero);
+    McDescriptionStep(pair, first, descriptions, 1, 0xFFFFFFFF, &nan);
+    McDescriptionStep(pair, first, descriptions, 1, 0x0BADF00D, nullptr);
+    TcDelete(pair.game);
+    TcDelete(pair.ours);
+}
+
+void McInstances()
+{
+    McMakeFakes();
+    McPair pair = McMakePair();
+    const auto step = [&](uint32_t which) {
+        char* const instance = reinterpret_cast<char*>(&g_mcInstances[which]);
+        McStep("effects.instance_c", pair, {},
+               [&](char* effect) { CallThis<uint32_t>(addr::SC4EffectC_SetInstance, effect, instance); },
+               [&](char* effect) { SetEffectInstanceC(effect, instance); });
+    };
+    At<uint8_t>(pair.game, 0x22C) = 0;
+    At<uint8_t>(pair.ours, 0x22C) = 0;
+    step(0);
+    At<uint8_t>(pair.game, 0x22C) = 1;
+    At<uint8_t>(pair.ours, 0x22C) = 1;
+    for (const uint32_t which : {1u, 2u, 1u, 1u, 4u, 3u})
+        step(which);
+    TcDelete(pair.game);
+    TcDelete(pair.ours);
+}
+
+bool g_mcForce = false;
+
+void McForce(char* self)
+{
+    if (!g_mcForce || g_dwTrace != DwTrace::Off || g_depth > 0)
+        return;
+    static uint32_t turn = 0;
+    if (turn++ % 2 == 0)
+        McDescriptions(self - 4);
+    else
+        McInstances();
+}
+
+bool InstallModelC(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectC_SetDescription, &TSC4EffectC_SetDescription, &g_SC4EffectC_SetDescription) &&
+          Detour(addr::SC4EffectC_SetInstance, &TSC4EffectC_SetInstance, &g_SC4EffectC_SetInstance)))
+        return false;
+    if (mode == registry::Mode::Compare) {
+        const char* v = std::getenv("OPENSC4_EFFECT_FORCE_THIRD");
+        if (v && *v == '1') {
+            if (!g_SC4EffectsManager_Draw &&
+                !Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
+                return false;
+            g_mcForce = true;
+            log::Write("water effects: the third class's description and model forced before the manager's draw");
+        }
+    }
+    g_modelCMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the third class's description and model %s",
+               mode == registry::Mode::Compare ? "compared with the game's when forced" : "ours");
+    return true;
+}
+
+const bool g_registeredModelC = registry::Register({
+    "renderer.effects.model_c",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectC_SetDescription,
+    "The third effect class taking a description and a model's instance: its model loaded, its materials' "
+    "textures held and a batch made for each; no test city makes one, so compare mode compares them only when "
+    "forced, OPENSC4_EFFECT_FORCE_THIRD=1 running the game's and ours on pairs of new effects of the class before "
+    "the manager's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallModelC,
 });
 
 } // namespace
