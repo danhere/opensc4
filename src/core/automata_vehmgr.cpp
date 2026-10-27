@@ -1513,7 +1513,7 @@ std::uint32_t __fastcall PedestrianAddAutomaton(char* self, void*, void* automat
 {
     static bool logged;
     FirstCall("pedestrian AddAutomaton", logged);
-    return AddAutomatonOf(self, automaton, kPedestrianPool, addr::SC4VehPedManager_NewPedestrian);
+    return AddAutomatonOf(self, automaton, kPedestrianPool, addr::cSC4Pedestrian_Construct);
 }
 
 // 0x0054D690, slot 8 (automaton, b), ret 8: the common base's, then slot 69;
