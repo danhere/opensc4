@@ -12,7 +12,8 @@
 // addresses never go in. Then the drawing context's methods on recording
 // mocks ("The drawing context" below), the rasterizer's on recording buffers
 // and renderer, and a drawing through a context onto real pixels ("The
-// rasterizer").
+// rasterizer"), and the buffer with a context's on a recording context and
+// plain buffer, and drawing through one onto real pixels ("The buffer").
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/log.h"
@@ -1333,7 +1334,7 @@ void DriveRasterizerMethods()
 // and blits from a source picture; the target's pixels and every call on the
 // buffers go into the hash. Only what ran in the game: no blending, no
 // gradient, a source at scale 1, whole or a part.
-void DriveRasterDraw()
+bool DriveRasterDraw()
 {
     Random random{0x52415337u};
     RasterTables& t = RasterTablesOf();
@@ -1373,7 +1374,7 @@ void DriveRasterDraw()
         log::Write("autotest: raster: the framework made no rasterizer of 0x00AC17D0 for the test buffer");
         g_known.clear();
         RsStage("draw-skipped");
-        return;
+        return false;
     }
 
     uint8_t* const c = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(200));
@@ -1436,10 +1437,637 @@ void DriveRasterDraw()
     MixBytes(picture.bytes);
     g_known.clear();
     RsStage("draw-life");
+    return true;
 }
 
-// OPENSC4_TEST_RASTER=<day>: the four spans, the context's methods and the
-// rasterizer's by address.
+// ====================================================================================
+// The buffer
+//
+// The buffer with a drawing context (vtable 0x00AC1550): its methods by
+// address, each with a known EAX, on buffers of the game's constructor over
+// memory filled with a pattern, over a recording context and plain buffer
+// (the side's SetContext hands them over). The context's SetTarget and the
+// plain buffer's slots the buffer jumps to answer the EAX they were reached
+// with, so the methods that hand on such answers are checked too; answers
+// that are pointers go in as which object they are. After each call the
+// buffer's state goes into the hash. Then a buffer drawing through a
+// context of the game's (and a real rasterizer) onto real pixels.
+
+struct Recorder {
+    void** vtable;
+    uint32_t id;
+    uint32_t calls = 0;
+    int32_t references = 1;
+    uint8_t hasTarget = 0; // the context's slot 16
+    uint8_t batching = 0;  // its slot 41
+    uint8_t has = 1;       // a colour source: whether it has the colour interface
+    uint8_t ok = 1;        // and whether its slot 4 gives a colour
+    uint8_t rgba[4] = {};
+    uint32_t format = 9, pixelBytes = 4, key = 0;
+    Rect rect{};
+};
+
+void KRec(Recorder* k, uint32_t slot)
+{
+    Mix(k->id);
+    Mix(slot);
+    ++k->calls;
+}
+
+uint32_t KAnswer(Recorder* k, uint32_t slot) { return k->id << 16 ^ slot << 8 ^ k->calls * 0x9E3779B1u; }
+
+uint32_t Address(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// An answer, or which known object (or its table) it points at, AL apart.
+std::vector<std::pair<const void*, uint32_t>> g_pointers;
+
+void MixValue(uint32_t value)
+{
+    for (const auto& [p, id] : g_pointers) {
+        const uint32_t at = Address(p);
+        if (value == at) {
+            Mix(0xC0DE0000u | id);
+            return;
+        }
+        if ((value & ~0xFFu) == (at & ~0xFFu)) {
+            Mix(0xC1DE0000u | id);
+            MixByte(static_cast<uint8_t>(value));
+            return;
+        }
+    }
+    Mix(value);
+}
+
+void MixKnown(const void* p)
+{
+    if (!p) {
+        Mix(0);
+        return;
+    }
+    for (const auto& [object, id] : g_pointers)
+        if (object == p) {
+            Mix(id);
+            return;
+        }
+    Mix(0xBADu);
+}
+
+template <int Slot>
+uint32_t __fastcall KTrap(Recorder* k, void*)
+{
+    KRec(k, 0xEE00 + Slot);
+    return 0;
+}
+
+template <int Slot>
+uint32_t __fastcall KNone(Recorder* k, void*)
+{
+    KRec(k, Slot);
+    return KAnswer(k, Slot);
+}
+
+template <int Slot>
+uint32_t __fastcall KWord(Recorder* k, void*, uint32_t a)
+{
+    KRec(k, Slot);
+    Mix(a);
+    return KAnswer(k, Slot);
+}
+
+template <int Slot>
+uint32_t __fastcall KRect(Recorder* k, void*, const Rect* r)
+{
+    KRec(k, Slot);
+    MixRect(r);
+    return KAnswer(k, Slot);
+}
+
+uint32_t __fastcall KAddRef(Recorder* k, void*)
+{
+    KRec(k, 1);
+    return static_cast<uint32_t>(++k->references);
+}
+
+uint32_t __fastcall KRelease(Recorder* k, void*)
+{
+    KRec(k, 2);
+    --k->references;
+    return KAnswer(k, 2);
+}
+
+uint32_t __fastcall KHasTarget(Recorder* k, void*)
+{
+    KRec(k, 16);
+    return (KAnswer(k, 16) & ~0xFFu) | k->hasTarget;
+}
+
+uint32_t __fastcall KIsBatching(Recorder* k, void*)
+{
+    KRec(k, 41);
+    return (KAnswer(k, 41) & ~0xFFu) | k->batching;
+}
+
+uint32_t __fastcall KColour(Recorder* k, void*, uint32_t index, uint32_t rgb)
+{
+    KRec(k, 20);
+    Mix(index);
+    Mix(rgb);
+    return KAnswer(k, 20);
+}
+
+uint32_t __fastcall KBlt(Recorder* k, void*, const void* source, const Rect* from, const Rect* to)
+{
+    KRec(k, 38);
+    MixKnown(source);
+    MixRect(from);
+    MixRect(to);
+    return KAnswer(k, 38);
+}
+
+uint32_t __fastcall KSurface(Recorder* k, void*, uint32_t* out, uint32_t whole)
+{
+    KRec(k, 46);
+    Mix(whole);
+    for (uint32_t i = 0; i < 6; ++i)
+        out[i] = k->id * 0x1000193u + k->calls + i;
+    return KAnswer(k, 46);
+}
+
+// Recorders that leave EAX as they were reached with: the context's
+// SetTarget and the plain buffer's 23, 26, 27, 37 and 38.
+void __fastcall KTargetSeen(Recorder* k, void*, const void* target)
+{
+    KRec(k, 17);
+    MixKnown(target);
+}
+
+void __fastcall PWordSeen(Recorder* k, void*, uint32_t slot, uint32_t a)
+{
+    KRec(k, slot);
+    Mix(a);
+}
+
+void __fastcall PKeySeen(Recorder* k, void*, uint32_t* out)
+{
+    KRec(k, 26);
+    *out = k->key;
+}
+
+__declspec(naked) void KSetTarget()
+{
+    __asm {
+        push eax
+        push dword ptr [esp + 8]
+        call KTargetSeen
+        pop eax
+        ret 4
+    }
+}
+
+__declspec(naked) void PSetKey()
+{
+    __asm {
+        push eax
+        push dword ptr [esp + 8]
+        push 23
+        call PWordSeen
+        pop eax
+        ret 4
+    }
+}
+
+__declspec(naked) void PGetKey()
+{
+    __asm {
+        push eax
+        push dword ptr [esp + 8]
+        call PKeySeen
+        pop eax
+        ret 4
+    }
+}
+
+__declspec(naked) void PClearKey()
+{
+    __asm {
+        push eax
+        push 0
+        push 27
+        call PWordSeen
+        pop eax
+        ret
+    }
+}
+
+__declspec(naked) void PGetCache()
+{
+    __asm {
+        push eax
+        push 0
+        push 37
+        call PWordSeen
+        pop eax
+        ret
+    }
+}
+
+__declspec(naked) void PSetCache()
+{
+    __asm {
+        push eax
+        push dword ptr [esp + 8]
+        push 38
+        call PWordSeen
+        pop eax
+        ret 4
+    }
+}
+
+uint32_t __fastcall PQuery(Recorder* k, void*, uint32_t iid, void** out)
+{
+    KRec(k, 0);
+    Mix(iid);
+    if (iid == 0x20732180u) {
+        *out = k;
+        ++k->references;
+        return 0x5A5A5A01u;
+    }
+    return 0x5A5A5A00u;
+}
+
+const Rect* __fastcall PRectOf(Recorder* k, void*)
+{
+    KRec(k, 12);
+    return &k->rect;
+}
+
+uint32_t* __fastcall PFormat(Recorder* k, void*, uint32_t* out)
+{
+    KRec(k, 15);
+    out[0] = k->format;
+    out[1] = k->format * 8;
+    return out;
+}
+
+uint32_t __fastcall PPixelBytes(Recorder* k, void*)
+{
+    KRec(k, 17);
+    return k->pixelBytes;
+}
+
+// A source with a colour: its query for 0x86D72B57 answers itself, its slot
+// 4 the four bytes.
+uint32_t __fastcall CQuery(Recorder* k, void*, uint32_t iid, void** out)
+{
+    KRec(k, 0);
+    Mix(iid);
+    if (k->has && iid == 0x86D72B57u) {
+        *out = k;
+        ++k->references;
+        return 0x77777701u;
+    }
+    return 0x77777700u;
+}
+
+uint32_t __fastcall CColour(Recorder* k, void*, uint8_t* r, uint8_t* g, uint8_t* b, uint8_t* a)
+{
+    KRec(k, 4);
+    if (k->ok) {
+        *r = k->rgba[0];
+        *g = k->rgba[1];
+        *b = k->rgba[2];
+        *a = k->rgba[3];
+    }
+    return (KAnswer(k, 4) & ~0xFFu) | k->ok;
+}
+
+struct BufferTables {
+    void* context[48];
+    void* plain[48];
+    void* colour[8];
+    BufferTables()
+    {
+        FillTraps(context, std::make_index_sequence<48>{});
+        FillTraps(plain, std::make_index_sequence<48>{});
+        FillTraps(colour, std::make_index_sequence<8>{});
+        for (void** table : {context, plain, colour}) {
+            table[1] = V(&KAddRef);
+            table[2] = V(&KRelease);
+        }
+        context[3] = V(&KNone<3>);
+        context[5] = V(&KRect<5>);
+        context[9] = V(&KNone<9>);
+        context[16] = V(&KHasTarget);
+        context[17] = reinterpret_cast<void*>(&KSetTarget);
+        context[20] = V(&KColour);
+        context[21] = V(&KWord<21>);
+        context[35] = V(&KRect<35>);
+        context[38] = V(&KBlt);
+        context[40] = V(&KNone<40>);
+        context[41] = V(&KIsBatching);
+        context[42] = V(&KNone<42>);
+        context[43] = V(&KNone<43>);
+        context[46] = V(&KSurface);
+        plain[0] = V(&PQuery);
+        plain[12] = V(&PRectOf);
+        plain[15] = V(&PFormat);
+        plain[17] = V(&PPixelBytes);
+        plain[23] = reinterpret_cast<void*>(&PSetKey);
+        plain[26] = reinterpret_cast<void*>(&PGetKey);
+        plain[27] = reinterpret_cast<void*>(&PClearKey);
+        plain[37] = reinterpret_cast<void*>(&PGetCache);
+        plain[38] = reinterpret_cast<void*>(&PSetCache);
+        colour[0] = V(&CQuery);
+        colour[4] = V(&CColour);
+    }
+};
+
+BufferTables& BufferTablesOf()
+{
+    static BufferTables tables;
+    return tables;
+}
+
+// The buffer's state: its three tables as whether they are the class's,
+// the counted base's count, the context and plain buffer as which they are,
+// the surface's bits less `bits`, the rest byte by byte.
+void MixBuffer(const uint8_t* b, uint32_t bits = 0)
+{
+    MixByte(At<void*>(const_cast<uint8_t*>(b), 0x00) == reinterpret_cast<void*>(addr::GZContextBuffer_vftable));
+    MixByte(At<void*>(const_cast<uint8_t*>(b), 0x04) == reinterpret_cast<void*>(addr::GZContextBuffer_vftable_4));
+    MixByte(At<void*>(const_cast<uint8_t*>(b), 0x0C) == reinterpret_cast<void*>(addr::GZContextBuffer_vftable_C));
+    Mix(At<uint32_t>(const_cast<uint8_t*>(b), 0x08));
+    MixKnown(At<void*>(const_cast<uint8_t*>(b), 0x10));
+    MixKnown(At<void*>(const_cast<uint8_t*>(b), 0x14));
+    for (uint32_t at = 0x18; at < 0x4C; ++at)
+        if (at < 0x30 || at >= 0x34)
+            MixByte(b[at]);
+    Mix(At<uint32_t>(const_cast<uint8_t*>(b), 0x30) - bits);
+}
+
+// A method with a new EAX; its answer into the hash.
+template <typename... A>
+void Bm(std::uintptr_t address, void* self, A... args)
+{
+    g_eaxNext = g_eaxNext * 1664525u + 1013904223u;
+    MixValue(WithEax(g_eaxNext, address, self, args...));
+}
+
+uint8_t* NewBuffer()
+{
+    uint8_t* const b = static_cast<uint8_t*>(
+        reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x4C));
+    std::memset(b, 0x6B, 0x4C);
+    MixByte(WithEax(0x2468ACE0u, addr::GZContextBuffer_GZContextBuffer, b) == Address(b));
+    return b;
+}
+
+void DriveBufferMethods()
+{
+    Random random{0x52415338u};
+    BufferTables& t = BufferTablesOf();
+    Recorder context{t.context, 0xC7};
+    Recorder plain{t.plain, 0x91};
+    Recorder plain2{t.plain, 0x92};
+    Recorder colour{t.colour, 0xC5};
+    plain.rect = Rect{3, 4, 203, 154};
+    plain2.rect = Rect{-7, 2, 41, 30};
+    plain2.format = 5;
+    plain2.pixelBytes = 2;
+
+    uint8_t* const b = NewBuffer();
+    uint8_t* const side = b + 0x0C;
+    g_pointers = {{b, 0xB1},          {side, 0xB2},          {&context, context.id}, {&plain, plain.id},
+                  {&plain2, plain2.id}, {&colour, colour.id}, {t.context, 0xA1},      {t.plain, 0xA2},
+                  {t.colour, 0xA3}};
+    MixBuffer(b);
+    // Before it has a plain buffer: an interface it does not have.
+    void* out = nullptr;
+    Bm(addr::GZContextBuffer_QueryInterface, b, 0x12345678u, &out);
+    MixKnown(out);
+    RsStage("buffer-made");
+
+    // The context and the plain buffer: new, the same again, a new plain
+    // buffer, then the first back.
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+    MixBuffer(b);
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+    MixBuffer(b);
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain2));
+    MixBuffer(b);
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+    MixBuffer(b);
+    Mix(static_cast<uint32_t>(context.references));
+    Mix(static_cast<uint32_t>(plain.references));
+    Mix(static_cast<uint32_t>(plain2.references));
+    for (const uint32_t iid : {1u, 0x20732180u, 0xAB300B2Bu, 0x86D72B57u, 0x20732180u + 1}) {
+        out = nullptr;
+        Bm(addr::GZContextBuffer_QueryInterface, b, iid, &out);
+        MixKnown(out);
+    }
+    RsStage("buffer-context");
+
+    // The lock with the context with and without a target and batching,
+    // various flags, nested; the side's lock and unlock, GetContext.
+    static const uint32_t kFlags[] = {0x8010, 0x800, 0x8040, 0x18000, 0x7FFF8000, 0, 0xFFFFFFFF};
+    for (int round = 0; round < 16; ++round) {
+        context.hasTarget = static_cast<uint8_t>(round & 1);
+        context.batching = static_cast<uint8_t>(round >> 1 & 1);
+        const int depth = 1 + (round >> 2 & 1) + (round >> 3);
+        for (int i = 0; i < depth; ++i) {
+            Bm(addr::GZContextBuffer_Lock, b, kFlags[random.Below(7)]);
+            Bm(addr::GZContextBuffer_IsLocked, b);
+            MixBuffer(b);
+        }
+        for (int i = 0; i < depth; ++i) {
+            Bm(addr::GZContextBuffer_Unlock, b, kFlags[random.Below(7)]);
+            Bm(addr::GZContextBuffer_IsLocked, b);
+            MixBuffer(b);
+        }
+        Bm(addr::GZContextBuffer_LockContext, side);
+        MixBuffer(b);
+        Bm(addr::GZContextBuffer_GetContext, side);
+        Bm(addr::GZContextBuffer_UnlockContext, side);
+        MixBuffer(b);
+    }
+    RsStage("buffer-lock");
+
+    // Sizes, formats and colours, every format from 0 to 10.
+    for (uint32_t format = 0; format <= 10; ++format) {
+        plain.format = format;
+        plain.pixelBytes = format < 3 ? 1 : format < 8 ? 2 : 4;
+        plain.rect = Rect{static_cast<int32_t>(random.Below(20)) - 10, static_cast<int32_t>(random.Below(20)) - 10,
+                          static_cast<int32_t>(random.Below(300)), static_cast<int32_t>(random.Below(300))};
+        Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+        MixBuffer(b);
+        Bm(addr::GZContextBuffer_Width, b);
+        Bm(addr::GZContextBuffer_Height, b);
+        Rect r{};
+        MixByte(WithEax(0x11111111u, addr::GZContextBuffer_CopyRect, b, &r) == Address(&r));
+        MixRect(&r);
+        uint32_t record[2] = {};
+        Bm(addr::GZContextBuffer_FormatAndDepth, b, record);
+        Mix(record[0]);
+        Mix(record[1]);
+        record[0] = record[1] = 0;
+        MixByte(WithEax(0x22222222u, addr::GZContextBuffer_Format, b, record) == Address(record));
+        Mix(record[0]);
+        Mix(record[1]);
+        Bm(addr::GZContextBuffer_BitsPerPixel, b);
+        for (int i = 0; i < 24; ++i) {
+            const uint32_t pixel = i < 4 ? (i == 0 ? 0u : i == 1 ? 0xFFFFFFFFu : i == 2 ? 0xFFFFu : 0x8000u)
+                                         : random.Next();
+            Bm(addr::GZContextBuffer_ToArgb, b, pixel);
+            uint8_t rgb[3] = {0x5D, 0x5D, 0x5D};
+            Bm(addr::GZContextBuffer_ColourOf, b, pixel, &rgb[0], &rgb[1], &rgb[2]);
+            MixByte(rgb[0]);
+            MixByte(rgb[1]);
+            MixByte(rgb[2]);
+            Bm(addr::GZContextBuffer_PixelOf, b, random.Next(), random.Next(), random.Next());
+        }
+    }
+    RsStage("buffer-formats");
+
+    // FillRect and Blt with and without a clip; sources without the colour
+    // interface, with it and a colour, with it and none; UseColourOf alone.
+    plain.format = 9;
+    plain.pixelBytes = 4;
+    plain.rect = Rect{0, 0, 200, 150};
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+    for (int round = 0; round < 12; ++round) {
+        const Rect r = RandomRect(random, -20, 220), clip = RandomRect(random, -20, 220);
+        const Rect from = RandomRect(random, -5, 40), to = RandomRect(random, -20, 220);
+        Bm(addr::GZContextBuffer_FillRect, b, random.Next(), &r, round & 1 ? &clip : nullptr);
+        colour.has = static_cast<uint8_t>(round % 3 != 0);
+        colour.ok = static_cast<uint8_t>(round % 3 == 1);
+        for (uint8_t& byte : colour.rgba)
+            byte = static_cast<uint8_t>(random.Next());
+        Bm(addr::GZContextBuffer_Blt, b, static_cast<void*>(&colour), &from, &to, round & 2 ? &clip : nullptr);
+        Bm(addr::GZContextBuffer_UseColourOf, side, static_cast<void*>(&colour));
+        MixBuffer(b);
+    }
+    Mix(static_cast<uint32_t>(colour.references));
+    RsStage("buffer-draws");
+
+    // The colour key and the cache, on to the plain buffer.
+    for (int round = 0; round < 4; ++round) {
+        plain.key = random.Next();
+        Bm(addr::GZContextBuffer_SetColourKey, b, random.Next());
+        MixBuffer(b);
+        uint32_t key = 0;
+        Bm(addr::GZContextBuffer_GetColourKey, b, &key);
+        Mix(key);
+        Bm(addr::GZContextBuffer_ClearColourKey, b);
+        MixBuffer(b);
+        Bm(addr::GZContextBuffer_GetCache, b);
+        Bm(addr::GZContextBuffer_SetCache, b, 0x5E7CAC4Eu + static_cast<uint32_t>(round));
+    }
+    RsStage("buffer-key");
+
+    // Let go: the destructor without freeing (the memory is freed here),
+    // then a second buffer released through its own Release (the counted
+    // base's, which calls the deleting destructor).
+    Bm(addr::GZContextBuffer_Destroy, b, uint32_t{0});
+    MixBuffer(b);
+    Mix(static_cast<uint32_t>(context.references));
+    Mix(static_cast<uint32_t>(plain.references));
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(b);
+    uint8_t* const second = NewBuffer();
+    g_pointers.push_back({second, 0xB3});
+    Bm(addr::GZContextBuffer_SetContext, second + 0x0C, static_cast<void*>(&context), static_cast<void*>(&plain2));
+    MixValue(reinterpret_cast<uint32_t(__fastcall*)(void*, void*)>((*reinterpret_cast<void***>(second))[1])(second,
+                                                                                                         nullptr));
+    MixBuffer(second);
+    Mix(reinterpret_cast<uint32_t(__fastcall*)(void*, void*)>((*reinterpret_cast<void***>(second))[2])(second,
+                                                                                                    nullptr));
+    Mix(static_cast<uint32_t>(context.references));
+    Mix(static_cast<uint32_t>(plain2.references));
+    Mix(context.calls);
+    Mix(plain.calls);
+    Mix(plain2.calls);
+    Mix(colour.calls);
+    g_pointers.clear();
+    RsStage("buffer-life");
+}
+
+// A buffer of the game's with a context of the game's over a target buffer
+// with real pixels (so a real rasterizer from the framework when it locks):
+// fills and blits through the buffer, the pixels and every call on the
+// buffers into the hash.
+void DriveBufferDraw()
+{
+    Random random{0x52415339u};
+    RasterTables& t = RasterTablesOf();
+    Canvas pixels(48, 40, 4), picture(11, 7, 0);
+    pixels.Fill(random);
+    picture.Fill(random);
+    Buffer target{t.buffer, 0x7C};
+    target.width = pixels.width;
+    target.height = pixels.height;
+    target.bits = pixels.Bits();
+    target.stride = pixels.stride;
+    target.rect = Rect{0, 0, 48, 40};
+    Buffer source{t.buffer, 0x52};
+    source.width = picture.width;
+    source.height = picture.height;
+    source.bits = picture.Bits();
+    source.stride = picture.stride;
+    source.rect = Rect{0, 0, 11, 7};
+    g_known = {{&target, target.id}, {&source, source.id}};
+
+    uint8_t* const c = static_cast<uint8_t*>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(200));
+    std::memset(c, 0xC3, 200);
+    reinterpret_cast<void*(__fastcall*)(void*, void*)>(addr::GZDrawContext_GZDrawContext)(c, nullptr);
+    Method<uint32_t>(addr::GZDrawContext_AddRef, c);
+    uint8_t* const b = NewBuffer();
+    uint8_t* const side = b + 0x0C;
+    g_pointers = {{b, 0xB1}, {side, 0xB2}, {c, 0xCC}, {&target, target.id}, {&source, source.id}};
+    MixValue(Method<uint32_t>(addr::GZContextBuffer_SetContext, side, static_cast<void*>(c),
+                              static_cast<void*>(&target)));
+    MixValue(Method<uint32_t>(addr::GZContextBuffer_LockContext, side));
+    MixContext(c);
+    MixBuffer(b, pixels.Bits());
+    RsStage("buffer-draw-target");
+
+    for (int round = 0; round < 16; ++round) {
+        const Rect r = RandomRect(random, -10, 60), clip = RandomRect(random, -5, 50);
+        MixValue(Method<uint32_t>(addr::GZContextBuffer_FillRect, b, random.Next() & 0xFFFFFF, &r,
+                                  round & 1 ? &clip : nullptr));
+        const Rect from{static_cast<int32_t>(random.Below(3)), static_cast<int32_t>(random.Below(2)),
+                        6 + static_cast<int32_t>(random.Below(5)), 4 + static_cast<int32_t>(random.Below(3))};
+        const int32_t x = static_cast<int32_t>(random.Below(50)) - 5, y = static_cast<int32_t>(random.Below(40)) - 5;
+        const Rect to{x, y, x + from.right - from.left, y + from.bottom - from.top};
+        MixValue(Method<uint32_t>(addr::GZContextBuffer_Blt, b, static_cast<void*>(&source), &from, &to,
+                                  round & 2 ? &clip : nullptr));
+        if (round % 5 == 4) {
+            MixValue(Method<uint32_t>(addr::GZContextBuffer_UnlockContext, side));
+            MixValue(Method<uint32_t>(addr::GZContextBuffer_GetContext, side));
+            MixValue(Method<uint32_t>(addr::GZContextBuffer_Lock, b, uint32_t{0x8010}));
+        }
+        MixContext(c);
+        MixBuffer(b, pixels.Bits());
+        MixBytes(pixels.bytes);
+    }
+    RsStage("buffer-draw-pixels");
+
+    MixValue(Method<uint32_t>(addr::GZContextBuffer_UnlockContext, side));
+    MixValue(Method<uint32_t>(addr::GZContextBuffer_IsLocked, b));
+    MixContext(c);
+    MixBuffer(b, pixels.Bits());
+    Method<uint32_t>(addr::GZDrawContext_Release, c);
+    Mix(reinterpret_cast<uint32_t(__fastcall*)(void*, void*)>((*reinterpret_cast<void***>(b))[2])(b, nullptr));
+    Mix(static_cast<uint32_t>(target.references));
+    Mix(static_cast<uint32_t>(source.references));
+    Mix(target.calls);
+    Mix(source.calls);
+    MixBytes(picture.bytes);
+    g_pointers.clear();
+    g_known.clear();
+    RsStage("buffer-draw-life");
+}
+
+// OPENSC4_TEST_RASTER=<day>: the four spans, the context's methods, the
+// rasterizer's and the buffer's by address.
 void DriveRasterDay(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_RASTER") || !game::IsBuild641())
@@ -1451,7 +2079,9 @@ void DriveRasterDay(const Day& day)
     DriveDispatch();
     DriveContext();
     DriveRasterizerMethods();
-    DriveRasterDraw();
+    if (DriveRasterDraw())
+        DriveBufferDraw();
+    DriveBufferMethods();
     log::Write("autotest: raster driven (hash %08X)", g_rsHash);
 }
 
