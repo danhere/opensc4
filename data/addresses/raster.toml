@@ -1,4 +1,4 @@
-# The GZ framework's software rasterizer, 0x0082B780 to 0x00864B5F (docs/uncharted-code.md, "Block 1"; docs/renderer.md, "The software rasterizer"). A drawing context (vtable 0x00AC16C8) keeps a state stack and hands every draw to a rasterizer (vtable 0x00AC17D0), which owns five span renderers, one per pixel format; only the 32-bit one runs. Ours in src/core/raster_spans.cpp, group renderer.raster.spans.
+# The GZ framework's software rasterizer, 0x0082B780 to 0x00864B5F (docs/uncharted-code.md, "Block 1"; docs/renderer.md, "The software rasterizer"). A drawing context (vtable 0x00AC16C8) keeps a state stack and hands every draw to a rasterizer (vtable 0x00AC17D0), which owns five span renderers, one per pixel format; only the 32-bit one runs. Ours in src/core/raster_spans.cpp (group renderer.raster.spans) and src/core/raster_context.cpp (renderer.raster.context).
 
 [[entry]]
 name = "GZDrawContext::vftable"
@@ -81,3 +81,336 @@ address = 0x00AC23D8
 kind = "data"
 expect = "A8 23 AC 00 78 23 AC 00"
 source = "Name ours. Pointers to the 32-bit renderer's copy tables, 0x30 bytes (12 entries) each, indexed by CopySpans; index 8 is 0x00AC2228, the table of the two copies that ran."
+
+[[entry]]
+name = "GZDrawContext::Destroy"
+address = 0x0082CA40
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 4E 28 85 C9"
+source = "Name ours. The destructor's body: the vtable put back, the rasterizer's slot 4, the six vectors freed (0x0090CF63), the rasterizer and the target released. Called by Release (0x0082CF10). The game's."
+
+[[entry]]
+name = "GZDrawContext::AddRef"
+address = 0x0082BE80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 C4 00 00 00 40 89"
+source = "Name ours. Slot 1 (also of the classes whose vtables 0x00AB1164 and 0x00AB2494 hold it, and the thunks at 0x006E17A0 to 0x006E17F0): the count at +0xC4 plus one, answered. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::Release"
+address = 0x0082CF10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 8E C4 00 00"
+source = "Name ours. Slot 2: the count at +0xC4 less one, answered; at 0 the destructor 0x0082CA40 and operator delete (0x005E5620). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::PushTransform"
+address = 0x0082CFE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "8D 41 2C 50 83 C1 7C E8"
+source = "Name ours. Slot 3: the origin and the clip (0x18 bytes at +0x2C) pushed on the vector at +0x7C through SC4CornerVector::PushBack (0x00627100). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::ResetClip"
+address = 0x0082BEC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "8D 41 54 8B 10 83 C1 34"
+source = "Name ours. Slot 4: the clip (+0x34) set to the whole target (+0x54); the rasterizer is not told. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::ClipTo"
+address = 0x0082C6D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const Rect* r)"
+expect = "83 EC 10 8B 44 24 14 53"
+source = "Name ours. Slot 5, ret 4: the clip cut to the rectangle moved by the origin (each float truncated by __ftol2), then handed to the rasterizer (its slot 6), cut to the source rectangle (+0x64) first while a whole source is set (+0x74 set, +0x75 clear). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::ClipToAbsolute"
+address = 0x0082C190
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const Rect* r)"
+expect = "8B 44 24 04 56 57 8B F9"
+source = "Name ours. Slot 6, ret 4: the clip cut to the rectangle as it is (SC4UI::F79DD60), handed to the rasterizer (its slot 6). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::SetOrigin"
+address = 0x0082BF00
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const int32_t* point)"
+expect = "8B 44 24 04 DB 00 D9 59"
+source = "Name ours. Slot 8, ret 4: the origin (+0x2C, +0x30) from an integer point, as floats. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::PopTransform"
+address = 0x0082C780
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "8B C1 8B 48 7C 8B 90 80"
+source = "Name ours. Slot 9: with the vector at +0x7C not empty, its last 0x18 bytes back to the origin and clip, the vector shortened, the clip handed to the rasterizer (slot 6). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::PushSettings"
+address = 0x0082CFF0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 8B 81 8C 00 00 00 8D"
+source = "Name ours. Slot 10: the settings (0x10 bytes at +0x44) pushed on the vector at +0x88, in place or through SC4Vector16::InsertOverflow (0x00638C60). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::PopSettings"
+address = 0x0082C7D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 86 88 00 00"
+source = "Name ours. Slot 11: with the vector at +0x88 not empty, its last record put back through the context's own slots 24, 23, 22 and 25 (the bytes zero-extended), then the vector shortened. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::GetOrigin"
+address = 0x0082C1C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t* point)"
+expect = "56 8B F1 D9 46 2C 57 E8"
+source = "Name ours. Slot 14, ret 4: the origin truncated by __ftol2. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::TransformDepth"
+address = 0x0082C1F0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "8B 41 7C 8B 91 80 00 00"
+source = "Name ours. Slot 15: the number of records on the vector at +0x7C (signed byte difference / 0x18). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::HasTarget"
+address = 0x0082C210
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 51 24 33 C0 85 D2 0F"
+source = "Name ours. Slot 16 (and of the vtable at 0x00ACCAE0): whether +0x24 is set. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::ResetSettings"
+address = 0x0082BF80
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 06 6A 00 FF"
+source = "Name ours. Slot 19: the context's own slots 22, 23 and 24 with 0, 25 with 1.0f, 28, 30, and 26 (a tail jump). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::SetColour"
+address = 0x0082C220
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t index, uint32_t rgb)"
+expect = "8B 44 24 08 53 56 57 8B"
+source = "Name ours. Slot 20, ret 8: colour `index` (+0x04) set, its pixel value (+0x14) from the target's slot 30 (red, green, blue as rgb >> 16, rgb >> 8, rgb), and all four handed to the rasterizer (slot 7: 0, 4, +0x04) when there is one. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::SetForeColour"
+address = 0x0082BFC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t rgb)"
+expect = "8B 54 24 04 8B 01 52 6A"
+source = "Name ours. Slot 21, ret 4: the context's slot 20 with colour 0. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::SetMode"
+address = 0x0082C270
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, int32_t mode)"
+expect = "8B 44 24 04 39 41 48 74"
+source = "Name ours. Slot 22, ret 4: +0x48 set when it changes, and the rasterizer told (slot 8, a tail jump; otherwise the argument is answered). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::SetFlag45"
+address = 0x0082C290
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t flag)"
+expect = "8B 44 24 04 38 41 45 74"
+source = "Name ours. Slot 23, ret 4: the byte +0x45 set when it changes, and the rasterizer told (slot 9, the whole word, a tail jump). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::SetFlag44"
+address = 0x0082C2B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t flag)"
+expect = "8B 44 24 04 38 41 44 74"
+source = "Name ours. Slot 24, ret 4: the byte +0x44 set when it changes, and the rasterizer told (slot 10, the whole word, a tail jump). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::SetPenWidth"
+address = 0x0082C2D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float width)"
+expect = "51 D9 44 24 08 56 8B F1"
+source = "Name ours. Slot 25, ret 4: when the width differs from +0x4C (NaN always does): 0 unless above 0, kept at +0x4C, plus 0.5 truncated by __ftol2 at +0x50 (1 for 0), and handed to the rasterizer (slot 11) when there is one. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::Slot26"
+address = 0x0082C350
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 49 28 8B 01 6A 00 6A"
+source = "Name ours. Slot 26: the rasterizer's slot 12 with (0, 0, 0). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::ClearSource"
+address = 0x0082C370
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 68 00 00 80 3F 68 00"
+source = "Name ours. Slot 28: the context's slot 29 with no source at 0, 0 and scale 1.0f, the source flag +0x74 cleared and the clip handed to the rasterizer (slot 6). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::SetSource"
+address = 0x0082C3A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* source, float x, float y, float scaleX, float scaleY)"
+expect = "8B 54 24 14 D9 44 24 0C"
+source = "Name ours. Slot 29, ret 0x14: the rasterizer's slot 13 with the source, the position plus the origin and the scales, and +0x64 for the source rectangle; its answer (a byte) at +0x74; then the clip handed on (slot 6), cut to the source rectangle while the source is whole. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::UseWholeSource"
+address = 0x0082C420
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 10 56 8B F1 8B 4E"
+source = "Name ours. Slot 30: +0x75 cleared, the rasterizer's slot 14, the clip handed on as by SetSource. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::UseSourcePart"
+address = 0x0082C480
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const Rect* part)"
+expect = "8B 54 24 04 83 EC 10 56"
+source = "Name ours. Slot 31, ret 4: +0x75 set, the rasterizer's slot 15 with the rectangle, the clip handed on as by SetSource. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::FillClip"
+address = 0x0082BFE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 10 DB 41 34 8B 01"
+source = "Name ours. Slot 32: the clip as four floats to the context's slot 45 (kind 3, 2 points). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::FrameRect"
+address = 0x0082C060
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t left, int32_t top, int32_t right, int32_t bottom)"
+expect = "83 EC 10 DB 44 24 14 8B"
+source = "Name ours. Slot 34, ret 0x10: the four plus 0.5 as floats to the context's slot 44 (kind 1, 2 points). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::FillRect"
+address = 0x0082C0C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const Rect* r)"
+expect = "83 EC 10 8B 44 24 14 DB"
+source = "Name ours. Slot 35, ret 4: the rectangle as four floats to the context's slot 44 (kind 3, 2 points). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::Blt"
+address = 0x0082C530
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* source, const Rect* from, const Rect* to)"
+expect = "83 EC 0C 55 8B 6C 24 18"
+source = "Name ours. Slot 38, ret 0xC: with both rectangles not empty, the context's slots 29 (the source at to - from, scaled to / from in doubles, stored as floats), 30, 35 (to) and 28. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::TiledBlt"
+address = 0x0082C620
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* source, const Rect* from, const Rect* to, int32_t dx, int32_t dy)"
+expect = "53 8B 5C 24 0C 8B 43 08"
+source = "Name ours. Slot 39, ret 0x14: with both rectangles not empty, the context's slots 29 (the source at to's corner plus dx, dy, scale 1), 31 (from), 35 (to), 30 and 28. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::Slot40"
+address = 0x0082C520
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 49 28 8B 01 FF 60 40"
+source = "Name ours. Slot 40: a tail jump to the rasterizer's slot 16. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::IsBatching"
+address = 0x0082BFD0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 51 78 33 C0 85 D2 0F"
+source = "Name ours. Slot 41: whether the count at +0x78 is above 0. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::BeginBatch"
+address = 0x0082C4E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8B 46 78 8B 4E"
+source = "Name ours. Slot 42: the count at +0x78 plus one, the rasterizer's slots 16 and 17 (a tail jump). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::EndBatch"
+address = 0x0082C500
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 78 85 C0 74 0E 48"
+source = "Name ours. Slot 43: the count at +0x78 less one unless 0; reaching 0, the rasterizer's slot 18 (a tail jump). Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::Slot46"
+address = 0x0082C6B0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 49 28 8B 01 FF 60 4C"
+source = "Name ours. Slot 46: a tail jump to the rasterizer's slot 19. Ours in renderer.raster.context."
+
+[[entry]]
+name = "GZDrawContext::Slot47"
+address = 0x0082C6C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 49 28 8B 01 FF 60 50"
+source = "Name ours. Slot 47: a tail jump to the rasterizer's slot 20. Ours in renderer.raster.context."
