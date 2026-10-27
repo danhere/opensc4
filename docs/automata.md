@@ -37,7 +37,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
-| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b, em4 (part em below counts 122) |
+| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (part em below counts 122) |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
@@ -3492,7 +3492,7 @@ What each overrides:
 
 - **em1 (37, 2,305 bytes, done):** the objects, the save, the life cycle and the queries. Below.
 - **em2 (16, 3,606 bytes):** split in two: **em2a (10, done)** slots 25, 73 with 0x00530130, 79, 93, 109 to 111, 146 and 194, below; **em2b (6, done)** the frame 72, 195, 196, 198 and the helpers 0x0052F870 and 0x0052F910, below. The base's states and frames: 25 0x0052FF60 (set the mission), 72 0x0052F3F0 (the frame), 73 0x005304B0 with 0x00530130, 79 0x0052F210, 93 0x00532290 (the debug text), 109 0x0052F490, 110 0x0052F7C0, 111 0x0052F1C0, 146 0x0052F9A0, 194 0x00530AF0 (the siren), 195 0x0052FD50, 196 0x0052FE50, 198 0x0052F570, and the helpers 0x0052F870 and 0x0052F910.
-- **em3 (24, 4,217 bytes):** split by class: **em3a (14, done)** the fire truck's, below; em3b (10) the patrol car's. The fire truck's and the patrol car's frames: the fire truck's 25 0x005336C0, 60 0x00532D80, 111 0x00532E60, 121 0x00533090, 165 0x005332C0 (with 0x00533030 and 0x00533290, which the train's 165 also calls), 193 0x00532BF0, 197 0x005335F0, 199 0x00533060 and its helpers 0x00532AE0, 0x00532C40 (sends the fire crew), 0x00532D30, 0x00533410; the patrol car's 25 0x00543F60, 109 0x00543B40, 110 0x00543E80, 111 0x00543B80, 193 0x00543BC0, 197 0x00543C10, 199 0x00543F10, 200 0x00544060 and its helpers 0x00543C70 (sends the riot police), 0x00543D60. Could split by class.
+- **em3 (24, 4,217 bytes):** split by class: **em3a (14, done)** the fire truck's, below; **em3b (10, done)** the patrol car's, below. The fire truck's and the patrol car's frames: the fire truck's 25 0x005336C0, 60 0x00532D80, 111 0x00532E60, 121 0x00533090, 165 0x005332C0 (with 0x00533030 and 0x00533290, which the train's 165 also calls), 193 0x00532BF0, 197 0x005335F0, 199 0x00533060 and its helpers 0x00532AE0, 0x00532C40 (sends the fire crew), 0x00532D30, 0x00533410; the patrol car's 25 0x00543F60, 109 0x00543B40, 110 0x00543E80, 111 0x00543B80, 193 0x00543BC0, 197 0x00543C10, 199 0x00543F10, 200 0x00544060 and its helpers 0x00543C70 (sends the riot police), 0x00543D60. Could split by class.
 - **em4 (2, 1,127 bytes):** the base's slot 80 0x005329B0 and its helper 0x00532660, which walks the route deque.
 - **Stay the game's (43):** 16 adjustor thunks, three plain jumps (0x0052F1B0, 0x00532AD0, 0x00543B30) and 24 functions of the route deque's template code (0x0052FB80 to 0x00532430: copies and assignment; 0x00532430 is SC4RouteDeque::Assign, which the trailer's 0x005559D0 calls too).
 
@@ -3722,3 +3722,56 @@ A trial with eighteen planted changes (the cell rectangle, the default reach, th
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's efire was 0x612973ED on both sides (calls 0x150F209A), and every B run installed and reached all 14.
+
+### What is ours (em3b)
+
+10 more functions in `simulators.automata.emergency` (list kPatrolCar in [automata_emergency.cpp](../src/core/automata_emergency.cpp)), the patrol car:
+
+- **Its slots (8):** 25 0x00543F60 (set the mission), 109 0x00543B40 (the frame of a state), 110 0x00543E80 (entering a state), 111 0x00543B80 (leaving one), 193 0x00543BC0 (the reach), 197 0x00543C10 (the state 0x66, on the scene), 199 0x00543F10 and 200 0x00544060 (the state 0x68, the riot).
+- **The riot police (2):** 0x00543C70 sends them, 0x00543D60 recalls them (slot 199 inlines it).
+
+What they do:
+
+- The reach is the city's slot 65 service's (slots 22 and 23) for the target +0x2C4 when it knows it, else 16.
+- On the scene (197): unless the city's simulators' slot 10 answers true, the mission 2 (done) goes home and the mission 5 (handling the event) becomes 2.
+- Setting the mission runs the base's, then recalls the riot police; in the state 0x10 that is all. The mission 1 sends new police at once. The mission 5 asks 0x00B43D70 for a riot (slot 9) and a rioter (slot 10) within 20 of the car; while the simulators' slot 10 is true the police are sent, else the car pushes the state 0x68 (found either) or 7 (neither), with 2000.0 as its third word.
+- Sending: a cSC4RiotPolice (0x27C bytes of the pedestrians' allocator, constructed with the car), its word +0x274 the police simulator 0x00B43D98's for the target (slots 22 and 25) or the bits of 1.0 (0x00B09FFC), the city's slot 44 object told, then the police's dispatch 0x00546F30. Recalling: that object told they are done with, the police released.
+- The states: slot 109 runs slot 200 in the state 0x68 and the base's otherwise; entering the state 0x10 (110) recalls the police; leaving 0x68 (111) puts the start model back (slot 19 with 0) when the base's answered false.
+- The riot (200): the top state record's +0x10 is a timer. While it is above zero the seconds come off it; once that reaches zero the car calms up to five rioters near it (0x00B43D70's slot 10, each told slot 11 with 1) or, with none, fades the riot (slot 33: 0, 0.2) and gives it the state 7 (5000.0); the siren goes off, and with a start key and models the first model is swapped for the start key with its third word one of four instance words 0x00A99F78 (0x03400000, 0x03200000, 0x03300000, 0x0B500000) at the index of the police simulator's word for the target x 2.5, then played (slot 16 with 1). With the timer spent the state is popped once the first model's frame reaches its last.
+
+Left the game's: the riot police's code (its constructor 0x00547800, 0x00546CB0 and the dispatch, the pedestrians'), 0x00544890, the base's SetMission, StateFrame, EnterState and LeaveState (ours from em2a when on), the core's SwapModel (part ad2), __ftol2, and the services.
+
+Oddities kept:
+
+- **Slot 25** keeps 0x00B43D70's slot 9 answer in its mission argument's stack slot, and asks the city's simulators before it knows whether it needs them.
+- **0x00543C70** calls the police simulator without a null test once it has a target, and 0x00546CB0, slot 44 and the dispatch without testing the police; **slot 193** does not test the city's slot 65 service.
+- **Slot 200** reads the top state record without testing the stack, and the first model without testing the models when the timer is spent; it compares the timer's unrounded difference (a NaN never counts), stores it as a float, and reads the simulator's word through the seconds argument's stack slot. The index is not bounded: a word of 1.6 or more reads past the four instance words, a negative one before them.
+- **Slot 199** inlines 0x00543D60 (ours calls the same body).
+- **AL only in the game:** slots 109, 110, 111 and 200. Ours zero-extends. Slot 193 answers in ST0; ours as a double.
+
+### Test (em3b)
+
+The ` V` token gains `,<epatrol>` before eflags (49 fields; eflags 0x10000 when it ran, 0x20000 when the factory failed or there was no city, 0x40000 when the game's code could not be patched). The log line is "em3b epatrol".
+
+On a patrol car, em2b's vtable copy with slots 19, 29 and 200 the test's too; the police simulator 0x00B43D98 and 0x00B43D70 of the test's; the city's vtable swapped for a copy with slots 44, 65 and 72 the test's. For the test's while (a jump over the first five bytes, put back after) the riot police's constructor 0x00547800 and dispatch 0x00546F30, the core's SwapModel 0x0050E620 and the base's StateFrame, EnterState, LeaveState and SetMission go to the test's, so the police never reach the pedestrians and the base's answers are the test's (SetMission storing the field):
+
+- slot 193 by the target and four reaches (one NaN);
+- 0x00543C70 with police and over five cases (the simulator, the target, its answer and word); 0x00543D60 and slot 199 with and without police;
+- slot 197 over four missions and the simulators' answer;
+- slots 109, 110 and 111 over the states 0x68, 0x10, 0x64, 7 and none, four base answers (0x100 has AL 0) and police;
+- slot 25 over fourteen cases (the mission, a stacked state 0x10, police, the simulators, the riot and the rioters);
+- slot 200 over nineteen on a state stack of the test's (the timer spent, -0, NaN, not yet and just now; the seconds, one NaN; the first model's frames; up to seven rioters; the riot; the start key; the models; the simulator's word for the target, giving the indices 0 to 4 and -1, a NaN and a huge one).
+
+A trial with twenty-three planted changes (the default reach, the police's block size, their default word, the recall's word, the state slot 109 hands to 200, slot 111's AL test and its slot 19 word, slot 197's busy test, the state slot 110 recalls on, its answer, slot 199's mission, slot 25's mission that sends, the state it pushes and its third word, slot 200's two timer tests, its pop bound, its five rioters, the fade, the model index, the play mode, the siren and the stored timer) changed the token for twenty-two. The block size is not seen: the test's constructor takes any block (0x270 would come from the pedestrians' pool, which only the game's own police would show).
+
+### Parity (em3b)
+
+2026-10-26. As for em1. Env p4env-em1, snapshot em3b-p1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's epatrol was 0xB5F414B3 on both sides (calls 0x39A83358), and every B run installed and reached all 10.

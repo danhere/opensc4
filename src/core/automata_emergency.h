@@ -1,4 +1,4 @@
-// The layout of the emergency vehicles, parts em1, em2a, em2b and em3a (build 641; functions, vtables and data in
+// The layout of the emergency vehicles, parts em1, em2a, em2b, em3a and em3b (build 641; functions, vtables and data in
 // data/addresses/automata.toml, the survey in docs/automata.md, "Part em").
 //
 // A base on cSC4Vehicle (src/core/automata_vehicle.h) and three classes on
@@ -29,7 +29,8 @@
 //          saved), +0x2E0 an object (referenced, read back as 0xA9B40F05;
 //          the city's slot 44 object is told of it at Shutdown)
 // The patrol car's:
-//   +0x2D8 an object as the fire truck's +0x2E0
+//   +0x2D8 an object as the fire truck's +0x2E0 (the riot police it sends,
+//          a cSC4RiotPolice)
 // The ambulance adds none.
 #pragma once
 
@@ -148,7 +149,27 @@ inline constexpr std::size_t kBurning = 0x2C;       // the 0x49B43F57 interface'
 inline constexpr std::size_t kBurningCount = 0x40;  // that object's 16: a count
 inline constexpr std::size_t kServiceHas = 0x1C;    // 0x00B43D78's 7: (object), ret 4, a bool
 inline constexpr std::size_t kServiceWord = 0x28;   // its 10: (out, object), ret 8: a pointer to a word
+// Part em3b's (the patrol car), of the automaton unless noted.
+inline constexpr std::size_t kSwapStartModel = 0x4C; // 19: (offset), ret 4 (the core's 0x00510240)
+inline constexpr std::size_t kRiotFrame = 0x320;    // the patrol car's 200: (seconds), ret 4
+inline constexpr std::size_t kCityPolice = 0x104;   // the city's 65: the police (slots 22 and 23)
+inline constexpr std::size_t kPoliceHas = 0x58;     // its 22 and the police simulator's: (object), ret 4, a bool
+inline constexpr std::size_t kPoliceReach = 0x5C;   // its 23: (object), ret 4, a float in ST0
+inline constexpr std::size_t kPoliceWord = 0x64;    // the police simulator's 25: (out, object), ret 8: a pointer to a word
+inline constexpr std::size_t kSimulatorsBusy = 0x28; // the city's simulators' 10: a bool (the patrol car stays while true)
+inline constexpr std::size_t kRiotNear = 0x24;      // 0x00B43D70's 9: (point, radius), ret 8: an automaton or null
+inline constexpr std::size_t kRioterNear = 0x28;    // its 10: (point, radius), ret 8: an object or null
+inline constexpr std::size_t kRioterStop = 0x2C;    // that object's 11: (1), ret 4
+inline constexpr std::size_t kModelFrame = 0x2C;    // a model instance's 11: the current frame
+inline constexpr std::size_t kModelFrames = 0x30;   // its 12: the frame count
+inline constexpr std::size_t kModelPlayMode = 0x40; // its 16: (mode), ret 4
 } // namespace slot
+
+// The patrol car's state 0x68 (the riot): its record's timer.
+namespace riot {
+inline constexpr std::uint32_t kState = 0x68;
+inline constexpr std::size_t kTimer = 0x10;
+} // namespace riot
 
 // The fire truck's slot 121's argument (the driving controls): a float the
 // steering needs at or above zero, two words given to 0x00B43DD0's slot 60
