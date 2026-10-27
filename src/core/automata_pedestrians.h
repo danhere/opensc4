@@ -91,4 +91,59 @@ inline constexpr std::size_t kCityCrewService = 0xB0; // the city's 44
 inline constexpr std::size_t kStreamError = 0x48;     // a stream's 18: its error (AL tested)
 } // namespace slot
 
+// Part ped2a: the automaton base's and the core's fields the states and
+// frames use.
+namespace base {
+inline constexpr std::size_t kPosition = 0x40, k98 = 0x98, kFloatA0 = 0xA0, kVectorA4 = 0xA4;
+inline constexpr std::size_t kStates = 0xB4, kStatesEnd = 0xB8; // the state stack (pointers)
+inline constexpr std::size_t kModels = 0x110, kModelsEnd = 0x114, kList188 = 0x188;
+inline constexpr std::size_t kSmoothed = 0x1A0, kTimer1C0 = 0x1C0, kOccupant = 0x1EC, kFloat200 = 0x200;
+} // namespace base
+
+// A state record: its type, and the object some types hold.
+namespace state {
+inline constexpr std::size_t kType = 0x04, kObject = 0x08;
+inline constexpr std::uint32_t kBurn = 0xC; // the type slot 109's 0x00545280 looks for down the stack
+} // namespace state
+
+// The pedestrian's own slots (and the core's and the base's it calls).
+namespace pslot {
+inline constexpr std::size_t kSetHeading = 0x38;      // 14: the core's 0x0050AF10, (const float*), ret 4
+inline constexpr std::size_t kSwapStartModel = 0x4C;  // 19: the core's 0x00510240, (offset), ret 4
+inline constexpr std::size_t kSlot21 = 0x54;          // 21: the core's 0x00505880, (const string*), ret 4
+inline constexpr std::size_t kSetFlag = 0x78;         // 30: (flag, on), ret 8
+inline constexpr std::size_t kCheckFlag = 0x7C;       // 31: (flag), ret 4, a bool
+inline constexpr std::size_t kSetState = 0xCC;        // 51: the core's 0x00509860, seven words, ret 0x1C
+inline constexpr std::size_t kPopState = 0xD4;        // 53: the core's 0x0050B660
+inline constexpr std::size_t kCurrentState = 0xE0;    // 56: the core's 0x005098E0, the current state or null
+inline constexpr std::size_t kFlag2 = 0x158;          // 86: the core's 0x004FAD90, the flag 2 test
+inline constexpr std::size_t kSlot102 = 0x198;        // 102: the core's 0x0050B540, two words, ret 8
+inline constexpr std::size_t kSlot105 = 0x1A4;        // 105: the core's 0x005096B0
+inline constexpr std::size_t kPathTo = 0x20C;         // 131: 0x0054E920, (occupant, key, exact), ret 0xC
+inline constexpr std::size_t kPlaceOnNetwork = 0x218; // 134: 0x00550B60
+inline constexpr std::size_t kGroups = 0x220;         // 136: 0x00504F70, +0x1F4 (its low byte the side)
+inline constexpr std::size_t kSlot158 = 0x278;        // 158: 0x00544620, the draw into +0x200
+inline constexpr std::size_t kBestDirection = 0x2AC;  // 171: 0x0054D8D0, (network, direction, byte* out, check), ret 0x10
+inline constexpr std::size_t kIdle = 0x2C0;           // 176: 0x005457C0
+inline constexpr std::size_t kIsInitialised = 0x14;   // the occupant part's (+4) 5
+// Other objects'.
+inline constexpr std::size_t kNetworkPart = 0xC4;     // an occupant's 49: its network part
+inline constexpr std::size_t kFindPath = 0x14;        // a network part's 5: six words, ret 0x18, a path or null
+inline constexpr std::size_t kModelSlot14 = 0x38;     // a model's 14: (word), ret 4
+inline constexpr std::size_t kModelAdvance = 0x3C;    // a model's 15: (seconds), ret 4
+inline constexpr std::size_t kModelFrame = 0x2C;      // a model's 11: its frame, an int
+inline constexpr std::size_t kModelFrames = 0x30;     // a model's 12: its frame count, an int
+inline constexpr std::size_t kSimulator3C = 0x3C, kSimulator44 = 0x44; // 0x00B43D5C's 15 and 17, bools
+inline constexpr std::size_t kStateObjectFrame = 0x70; // a state's object's 28: (automaton, type, seconds), ret 0xC
+inline constexpr std::size_t kStateObjectPoint = 0x2C; // a state's object's 11: (float* out), ret 4
+inline constexpr std::size_t kStateObjectWord = 0x18;  // a state's object's 6: a word (the state 0xC's)
+inline constexpr std::size_t kCitySimulators = 0x120;  // the city's 72: the simulators
+inline constexpr std::size_t kSimulatorById = 0x1C;    // the simulators' 7: (id), ret 4
+inline constexpr std::size_t kBurnSet = 0x10;          // the 0x49B43F57 interface's 4: (word), ret 4
+inline constexpr std::size_t kBurnMode = 0x24;         // its 9: (word), ret 4
+} // namespace pslot
+
+inline constexpr std::uint32_t kBurnSimulator = 0x621CDA33, kBurnInterface = 0x49B43F57; // 0x00545280's
+inline constexpr std::uint32_t kSmoothTarget = 0x3AB60B61; // the float target (1/720) slot 110 gives SetSmoothedTarget
+
 } // namespace opensc4::automata_pedestrians
