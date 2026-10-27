@@ -1,4 +1,4 @@
-// The layout of the emergency vehicles, parts em1, em2a, em2b, em3a and em3b (build 641; functions, vtables and data in
+// The layout of the emergency vehicles, parts em1 to em4 (build 641; functions, vtables and data in
 // data/addresses/automata.toml, the survey in docs/automata.md, "Part em").
 //
 // A base on cSC4Vehicle (src/core/automata_vehicle.h) and three classes on
@@ -163,6 +163,18 @@ inline constexpr std::size_t kRioterStop = 0x2C;    // that object's 11: (1), re
 inline constexpr std::size_t kModelFrame = 0x2C;    // a model instance's 11: the current frame
 inline constexpr std::size_t kModelFrames = 0x30;   // its 12: the frame count
 inline constexpr std::size_t kModelPlayMode = 0x40; // its 16: (mode), ret 4
+// Part em4's (the route).
+inline constexpr std::size_t kOccupantsInRect = 0x64; // 0x00B43D54's 25: (vector*, rect*, byte, 0, mask), ret 0x14, a bool
+inline constexpr std::size_t kOccupantCell = 0xEC;  // a network occupant's 59: (int* x, int* z), ret 8
+inline constexpr std::size_t kFinderGet = 0x18;     // 0x00B43DA8's 6: (void** out), ret 4: a path finder
+inline constexpr std::size_t kFinderSlot5 = 0x14;   // the path finder's 5: (word), ret 4
+inline constexpr std::size_t kFinderRoute = 0x20;   // its 8: (route), ret 4: where it writes the cells
+inline constexpr std::size_t kFinderSlot9 = 0x24;   // its 9: (word), ret 4
+inline constexpr std::size_t kFinderSlot13 = 0x34;  // its 13: (word, word), ret 8
+inline constexpr std::size_t kFinderSlot18 = 0x48;  // its 18: (word), ret 4
+inline constexpr std::size_t kFinderFrom = 0x4C;    // its 19: a cell rect by value (x, z, x, z), ret 0x10
+inline constexpr std::size_t kFinderTo = 0x50;      // its 20: the same, ret 0x10
+inline constexpr std::size_t kFinderRun = 0x5C;     // its 23: 1 when a path was found
 } // namespace slot
 
 // The patrol car's state 0x68 (the riot): its record's timer.

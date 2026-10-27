@@ -13833,3 +13833,41 @@ name = "cSC4PatrolCar::RiotModels"
 address = 0x00A99F78
 kind = "data"
 source = "Name ours. Four instance words (0x03400000, 0x03200000, 0x03300000, 0x0B500000) the patrol car's slot 200 puts in the start key's third word, by the police simulator's word x 2.5. Called by address from src/core/automata_emergency.cpp (part em3b)."
+
+# Part em4: the base's slot 80 and the route extended to the goal (src/core/automata_emergency.cpp, docs/automata.md "Part em").
+
+[[entry]]
+name = "cSC4EmergencyVehicle::SetGoal"
+address = 0x005329B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* point, void* target)"
+expect = "83 EC 10 55 8B 6C 24 18"
+source = "Name ours. The base's slot 80, ret 8: the core's (0x00505860); the point into +0x2B8; with the automata flag 0x400 it off (slot 30) and slot 33 (1.0, 0); the target into +0x2C4 unless null with one there (the old released before the new is held). With a route (+0x23C not +0x22C) and 0x00B43D54, when an occupant at the route's last cell (slot 14, the list by +0x54) answers its slot 9 for 0x304, the route extended to the point (0x00532660). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em4)."
+
+[[entry]]
+name = "cSC4EmergencyVehicle::ExtendRoute"
+address = 0x00532660
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t x, uint32_t z, const float* point)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. Ret 0xC: the point's cell (the city's slot 95), 0x00B43D54's occupants there (slot 25: vector, the cell's rect, the byte 0x00B21CB8, 0, 0x1C49); a path finder of 0x00B43DA8's (slot 6, not released) from (x, z) (slots 19, 13, 18, 5, 5, 9, 8 the route); for each occupant nearer (slot 59's cell read unsigned, 0x005D6FC0 to the goal's cell, below the best float, first FLT_MAX) the route emptied and the finder run to its cell (slots 20, 23); answer 1 keeps it (SC4RouteDeque::Assign). The kept route inserted at the end of +0x22C (0x005320B0); routes destroyed, the vector freed (SC4::Free). Ours in simulators.automata.emergency (src/core/automata_emergency.cpp, part em4)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Slot80"
+address = 0x00505860
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* a, void* b)"
+expect = "8B 01 C7 44 24 08 00 00"
+source = "Name ours. The core's slot 80, ret 8: its two arguments overwritten with 6 and 0 and a tail jump to slot 102. Called by address from src/core/automata_emergency.cpp (part em4)."
+
+[[entry]]
+name = "SC4RouteDeque::InsertRange"
+address = 0x005320B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* deque, uint32_t pos[4], uint32_t first[4], uint32_t last[4])"
+expect = "8B 54 24 24 8D 44 24 24"
+source = "Name ours. The route deque's insert of a range at a position (three 16-byte iterators by value, ret 0x30); a template function kept the game's. Called by address from src/core/automata_emergency.cpp (part em4)."
