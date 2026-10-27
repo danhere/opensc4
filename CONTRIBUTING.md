@@ -2,6 +2,14 @@
 
 Thanks for helping. OpenSC4 runs inside a commercial game that EA still sells, so a few rules keep the project safe to publish. Please read them before opening a pull request.
 
+## Getting set up
+
+Follow "Getting started on Windows" in the [README](README.md); Linux, macOS and Ghidra setup are in [docs/dev-environment.md](docs/dev-environment.md). `core.dll` only runs inside the game on Windows, so check a change there before you open a pull request. There are no automatic CI builds yet.
+
+## Reporting bugs
+
+Open an issue with what you did, what happened, and your game version (OpenSC4 needs SimCity 4 Deluxe 1.1.641). Attach `opensc4.log` from your `Plugins` folder and, after a crash, the `opensc4-crash-*.dmp` next to it or the game's own report in `Documents\SimCity 4\Exception Reports`. Turn off other plugin DLLs first if you can, and say which ones you use.
+
 ## What never goes in the repository
 
 - **Game files.** No executables, DLLs, DBPF files, textures, models, sounds, music, saves, region folders or screenshots of other people's work. OpenSC4 always needs the player's own installed copy.
