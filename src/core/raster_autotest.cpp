@@ -17,6 +17,7 @@
 
 #include <opensc4/addresses.h>
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -213,7 +214,8 @@ void DriveDispatch()
 // our own: each of their slots records its id, slot and arguments into the
 // hash and answers from a fixed rule. The context's vtable is a copy of the
 // game's (so its slots reach the game's methods, or ours through the
-// detours) with the two draws (44 and 45) recording mocks too. After each
+// detours), the draws (44 and 45) included: the rasterizer's mock answers
+// how to draw a shape (slot 21) and records the spans (22). After each
 // call the context's state goes into the hash: everything but its pointers,
 // and the two stacks' records.
 
@@ -256,6 +258,8 @@ struct Mock {
     uint32_t id;
     uint32_t calls = 0;
     uint8_t answer = 1; // the rasterizer's answer to SetSource
+    uint32_t how = 2;   // its answer to how to draw a shape (slot 21)
+    uint32_t spanCalls = 0;
 };
 
 void Rec(Mock* m, uint32_t slot)
@@ -362,16 +366,27 @@ uint32_t __fastcall MNative(Mock* m, void*, uint32_t r, uint32_t g, uint32_t b)
     return 0x5A000000 | (r & 0xFF) << 16 | (g & 0xFF) << 8 | (b & 0xFF);
 }
 
-// The context's draws: the kind, the count and the points.
-template <int Slot>
-uint32_t __fastcall MDraw(Mock* m, void*, uint32_t kind, const float* points, uint32_t count)
+// How to draw a shape: the kind, the count and the points (two floats a
+// point, the first eight).
+uint32_t __fastcall MHow(Mock* m, void*, uint32_t kind, const float* points, int32_t count)
 {
-    Rec(m, Slot);
+    Rec(m, 21);
     Mix(kind);
-    Mix(count);
-    for (uint32_t i = 0; i < 2 * count && i < 16; ++i)
+    Mix(static_cast<uint32_t>(count));
+    for (int32_t i = 0; i < 2 * count && i < 16; ++i)
         MixFloat(points[i]);
-    return Answer(m, Slot);
+    return m->how;
+}
+
+// The spans: every word.
+uint32_t __fastcall MSpans(Mock* m, void*, const uint32_t* spans, uint32_t count)
+{
+    Rec(m, 22);
+    Mix(count);
+    for (uint32_t i = 0; i < 2 * count; ++i)
+        Mix(spans[i]);
+    ++m->spanCalls;
+    return Answer(m, 22);
 }
 
 template <std::size_t... I>
@@ -412,13 +427,13 @@ struct ContextTables {
                          : slot == 18 ? V(&MNone<18>)
                          : slot == 19 ? V(&MNone<19>)
                                       : V(&MNone<20>);
+        raster[21] = V(&MHow);
+        raster[22] = V(&MSpans);
         target[2] = V(&MNone<2>);
         target[30] = V(&MNative);
         std::memcpy(context, reinterpret_cast<void*>(addr::GZDrawContext_vftable), sizeof context);
         context[0] = V(&MTrap<0>);
         context[17] = V(&MTrap<17>);
-        context[44] = V(&MDraw<44>);
-        context[45] = V(&MDraw<45>);
     }
 };
 
@@ -442,6 +457,8 @@ void MixContext(uint8_t* c)
     for (uint32_t at = 0x04; at < 0x24; ++at)
         MixByte(c[at]);
     for (uint32_t at = 0x2C; at < 0x7C; ++at)
+        MixByte(c[at]);
+    for (uint32_t at = 0xA0; at < 0xB8; ++at) // DrawShape's swapped words
         MixByte(c[at]);
     for (const uint32_t vector : {0x7Cu, 0x88u}) {
         const uint8_t* begin = At<uint8_t*>(c, vector);
@@ -473,6 +490,17 @@ template <typename... A>
 void MixedIs(const void* expected, std::uintptr_t address, uint8_t* c, A... args)
 {
     MixByte(Method<uint32_t>(address, c, args...) == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(expected)));
+}
+
+// A draw's answer when it handed on spans (the rasterizer's answer) or the
+// rasterizer said not to draw; with nothing drawn it is a pointer.
+template <typename... A>
+void Drawn(Mock& raster, std::uintptr_t address, uint8_t* c, A... args)
+{
+    const uint32_t before = raster.spanCalls;
+    const uint32_t answer = Method<uint32_t>(address, c, args...);
+    if (raster.spanCalls != before || raster.how != 2)
+        Mix(answer);
 }
 
 // The pen width's answer only when it changes (unchanged, the game's is the
@@ -627,7 +655,7 @@ void DriveContext()
     // differences wrap), scales that do not divide.
     const int32_t origin[2] = {3, -4};
     MixedIs(origin, addr::GZDrawContext_SetOrigin, c, origin);
-    Mixed(addr::GZDrawContext_FillClip, c);
+    Drawn(raster, addr::GZDrawContext_FillClip, c);
     for (int i = 0; i < 40; ++i) {
         Rect from = RandomRect(random, -10, 60), to = RandomRect(random, -30, 120);
         if (i % 10 == 7)
@@ -640,13 +668,75 @@ void DriveContext()
         Mixed(addr::GZDrawContext_TiledBlt, c, static_cast<void*>(&source), &from, &to,
                      static_cast<int32_t>(random.Below(41)) - 20, i % 10 == 9 ? 0x7FFFFFFF : -i);
         MixContext(c);
-        Mixed(addr::GZDrawContext_FillRect, c, &to);
-        Mixed(addr::GZDrawContext_FrameRect, c, from.left, from.top, i % 10 == 9 ? 0x7FFFFFFF : from.right,
+        Drawn(raster, addr::GZDrawContext_FillRect, c, &to);
+        Drawn(raster, addr::GZDrawContext_FrameRect, c, from.left, from.top, i % 10 == 9 ? 0x7FFFFFFF : from.right,
                      i % 10 == 9 ? 16777217 : from.bottom);
         MixContext(c);
     }
     RsStage("context-draws");
 
+    // The shapes through Draw and DrawShape: rectangles and lines inside,
+    // across and outside clips of several sizes; ends on pixel centres and
+    // halves (the rounding and the lines' end rule); every octant, single
+    // pixels, steep and shallow, entering and leaving each side; NaN, huge
+    // and negative points; odd counts; the rasterizer saying 0, 2 and 7; the
+    // span vector grown past its first allocations.
+    const Rect clips[] = {{0, 0, 120, 90}, {10, 7, 37, 61}, {-5, -5, 3, 200}, {40, 40, 41, 41}, {0, 0, 0, 0}};
+    const float specials[] = {0.5f, 1.5f, 2.0f, 2.49f, 2.51f, -0.5f, 7.75f, 1e6f, -1e6f, FloatOf(0x7FC00000),
+                              FloatOf(0xFF800000), 119.5f, 89.5f, 0.0f};
+    for (int round = 0; round < 60; ++round) {
+        At<Rect>(c, 0x34) = clips[round % 5];
+        const int32_t o[2] = {round % 3 - 1, (round % 4) * 2 - 3};
+        MixedIs(o, addr::GZDrawContext_SetOrigin, c, o);
+        raster.how = round % 11 == 5 ? 0 : round % 13 == 6 ? 7 : 2;
+        float points[32];
+        for (int i = 0; i < 32; ++i) {
+            const uint32_t pick = random.Below(10);
+            points[i] = pick == 0   ? specials[random.Below(14)]
+                        : pick == 1 ? static_cast<float>(static_cast<int32_t>(random.Below(140)) - 10) + 0.5f
+                                    : static_cast<float>(static_cast<int32_t>(random.Below(1600)) - 200) / 8.0f;
+        }
+        const int32_t count = round % 7 == 3 ? 3 : 2 * static_cast<int32_t>(1 + random.Below(6));
+        Drawn(raster, addr::GZDrawContext_Draw, c, uint32_t{3}, static_cast<const float*>(points), count);
+        MixContext(c);
+        Drawn(raster, addr::GZDrawContext_Draw, c, uint32_t{1}, static_cast<const float*>(points), count);
+        MixContext(c);
+        Drawn(raster, addr::GZDrawContext_DrawShape, c, uint32_t{1}, static_cast<const float*>(points + 4), count);
+        Drawn(raster, addr::GZDrawContext_DrawShape, c, uint32_t{3}, static_cast<const float*>(points + 2), count);
+        Mix(Method<uint32_t>(addr::GZDrawContext_DrawShape, c, uint32_t{9}, static_cast<const float*>(points), 2));
+        Mix(Method<uint32_t>(addr::GZDrawContext_Draw, c, 0xFFFFFFFFu, static_cast<const float*>(points), 2));
+        MixContext(c);
+    }
+    // Lines from a centre to every direction, ends on centres and halves,
+    // through a small clip and a large one; then one long line per row.
+    for (const Rect& clip : {Rect{20, 20, 60, 50}, Rect{0, 0, 120, 90}}) {
+        At<Rect>(c, 0x34) = clip;
+        const int32_t zero[2] = {0, 0};
+        MixedIs(zero, addr::GZDrawContext_SetOrigin, c, zero);
+        raster.how = 2;
+        for (int angle = 0; angle < 48; ++angle) {
+            const float r = 10.0f + static_cast<float>(angle % 5) * 13.0f;
+            const float dx = static_cast<float>(std::cos(angle * 0.1309)) * r;
+            const float dy = static_cast<float>(std::sin(angle * 0.1309)) * r;
+            const float half = angle % 2 ? 0.5f : 0.0f;
+            const float line[4] = {40.0f + half, 35.0f, 40.0f + dx + half, 35.0f + dy};
+            Drawn(raster, addr::GZDrawContext_Draw, c, uint32_t{1}, line, 2);
+            const float back[4] = {line[2], line[3], line[0], line[1]};
+            Drawn(raster, addr::GZDrawContext_Draw, c, uint32_t{1}, back, 2);
+        }
+        float many[160];
+        for (int i = 0; i < 40; ++i) {
+            many[4 * i] = -15.0f + static_cast<float>(i);
+            many[4 * i + 1] = static_cast<float>(i) * 2.25f;
+            many[4 * i + 2] = 140.0f - static_cast<float>(i) * 3.0f;
+            many[4 * i + 3] = 95.0f - static_cast<float>(i);
+        }
+        Drawn(raster, addr::GZDrawContext_Draw, c, uint32_t{1}, static_cast<const float*>(many), 80);
+        Drawn(raster, addr::GZDrawContext_Draw, c, uint32_t{3}, static_cast<const float*>(many), 80);
+        MixContext(c);
+    }
+    At<Rect>(c, 0x34) = Rect{0, 0, 120, 90};
+    RsStage("context-shapes");
     // The batch count past zero, the rasterizer's own slots, the target.
     for (int i = 0; i < 6; ++i) {
         Mix(Method<uint32_t>(addr::GZDrawContext_IsBatching, c));
@@ -666,6 +756,24 @@ void DriveContext()
     At<void*>(c, 0x24) = &target;
     MixContext(c);
     RsStage("context-batch");
+
+    // SetTarget: the target held (nothing happens; the answer is the
+    // caller's EAX), then none, with and without a rasterizer. A new target
+    // would make a real rasterizer through the framework, so that path is
+    // left to the game runs.
+    Method<uint32_t>(addr::GZDrawContext_SetTarget, c, static_cast<void*>(&target));
+    MixObject(At<void*>(c, 0x24));
+    MixObject(At<void*>(c, 0x28));
+    MixContext(c);
+    for (int pass = 0; pass < 2; ++pass) {
+        Mixed(addr::GZDrawContext_SetTarget, c, static_cast<void*>(nullptr));
+        MixObject(At<void*>(c, 0x24));
+        MixObject(At<void*>(c, 0x28));
+        MixContext(c);
+        At<void*>(c, 0x24) = &target;
+    }
+    At<void*>(c, 0x28) = &raster;
+    RsStage("context-target");
 
     // References: up twice, down three times (the last one destroys it,
     // releasing the rasterizer and the target).

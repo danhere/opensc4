@@ -1,16 +1,26 @@
 // Our drawing context of the GZ framework's software rasterizer (docs/
-// renderer.md, "The software rasterizer"): the 36 small methods of the
-// context (vtable 0x00AC16C8) that ran, all detours here, off by default:
+// renderer.md, "The software rasterizer"): every method of the context
+// (vtable 0x00AC16C8) that ran but QueryInterface, all detours here, off
+// by default, in three groups:
 //
-//   renderer.raster.context  AddRef and Release, the two state stacks (the
-//                            origin and clip at +0x7C, the settings at
-//                            +0x88), the clip, origin, colour, mode, flag and
-//                            pen setters, the source setters, the rectangle
-//                            fills, Blt and TiledBlt, and the batch count
+//   renderer.raster.context  36 small methods: AddRef and Release, the two
+//                            state stacks (the origin and clip at +0x7C, the
+//                            settings at +0x88), the clip, origin, colour,
+//                            mode, flag and pen setters, the source setters,
+//                            the rectangle fills, Blt and TiledBlt, and the
+//                            batch count
+//   renderer.raster.draws    the draws: Draw and DrawShape (slots 44, 45),
+//                            the two shapes that ran (filled rectangles and
+//                            lines), the rectangle spans, the lines and the
+//                            line stepper (7)
+//   renderer.raster.target   SetTarget (slot 17): the target swapped, a new
+//                            rasterizer made through the framework and told
+//                            the context's state
 //
-// Left the game's: QueryInterface (slot 0), SetTarget (17, makes the
-// rasterizer) and the two draws (44 and 45, with the nine primitives behind
-// them); for later (docs/renderer.md).
+// Left the game's: QueryInterface (slot 0) and the seven shapes that never
+// ran. SetTarget with a new target makes a real rasterizer through the
+// framework, so the mock test reaches only its other two paths; the game
+// runs cover that one.
 //
 // Most of these hand their state to the rasterizer (+0x28) or call the
 // context's own slots, both through their vtables as the game does, so the
@@ -38,8 +48,10 @@
 
 #include <opensc4/addresses.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 namespace opensc4::raster {
 namespace {
@@ -85,7 +97,10 @@ struct Context {
     int32_t batch;            // 0x78
     Vector<Transform> transforms; // 0x7C
     Vector<Settings> stack;       // 0x88
-    uint8_t vectors[0x30];    // 0x94: four more, not touched here
+    Vector<float> points;     // 0x94: Draw's points plus the origin
+    uint32_t swappedA[3];     // 0xA0: DrawShape swaps these with the next three
+    uint32_t swappedB[3];     // 0xAC
+    Vector<uint32_t> spans;   // 0xB8: the shapes' spans
     int32_t references;       // 0xC4
 };
 static_assert(sizeof(Context) == 200 && offsetof(Context, settings) == 0x44 && offsetof(Context, batch) == 0x78 &&
@@ -509,17 +524,423 @@ uint32_t __fastcall Slot46(Context* c, void*) { return Call<uint32_t>(c->rasteri
 uint32_t __fastcall Slot47(Context* c, void*) { return Call<uint32_t>(c->rasterizer, kRaster20); }
 
 // ====================================================================================
+// The draws (renderer.raster.draws)
+//
+// Draw (slot 44) adds the origin and hands the points to DrawShape (45),
+// which picks one of nine shape routines. Only two ever ran: kind 3, the
+// filled rectangles of FillRect and FillClip, and kind 1, the lines of
+// FrameRect. Each asks the rasterizer (its slot 21) how to draw; it answered
+// 2, the context's own spans, which go to its slot 22. The other kinds and
+// the other answers stay the game's, called by address.
+
+constexpr int kRasterHow = 21;
+constexpr int kRasterSpans = 22;
+
+using ShapeFn = uint32_t(__fastcall*)(Context*, void*, const float*, int32_t);
+
+// Wrapping arithmetic, as the game's 32-bit registers.
+int32_t Add(int32_t a, int32_t b) { return static_cast<int32_t>(static_cast<uint32_t>(a) + static_cast<uint32_t>(b)); }
+int32_t Sub(int32_t a, int32_t b) { return static_cast<int32_t>(static_cast<uint32_t>(a) - static_cast<uint32_t>(b)); }
+int32_t Mul(int32_t a, int32_t b) { return static_cast<int32_t>(static_cast<uint32_t>(a) * static_cast<uint32_t>(b)); }
+int32_t Shl(int32_t a, int n) { return static_cast<int32_t>(static_cast<uint32_t>(a) << n); }
+// CDQ, XOR, SUB: INT_MIN stays itself.
+int32_t Abs(int32_t a) { return a < 0 ? Sub(0, a) : a; }
+
+uint32_t SpanCount(const Context* c)
+{
+    const int32_t words = static_cast<int32_t>(reinterpret_cast<uintptr_t>(c->spans.end) -
+                                               reinterpret_cast<uintptr_t>(c->spans.begin)) >> 2;
+    return static_cast<uint32_t>(words) >> 1;
+}
+
+uint32_t HandOnSpans(Context* c)
+{
+    return Call<uint32_t>(c->rasterizer, kRasterSpans, c->spans.begin, SpanCount(c));
+}
+
+// A word appended in place, or through the game's growing insert.
+void PushSpanWord(Context* c, uint32_t value)
+{
+    if (c->spans.end != c->spans.capacity) {
+        if (c->spans.end)
+            *c->spans.end = value;
+        ++c->spans.end;
+        return;
+    }
+    uint32_t tag = 0;
+    reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t*, const uint32_t*, const void*, uint32_t, uint32_t)>(
+        addr::SC4PtrVector_InsertN)(&c->spans, nullptr, c->spans.end, &value, &tag, 1, 1);
+}
+
+// 0x0082D040: a line between 24.8 fixed-point ends, one pixel a step along
+// its major axis. Written after the game's registers: u is the major axis,
+// v the minor (x and y, or swapped when the line is steep), each end with
+// bit 0 set; the ends are swapped so u runs toward the clip's far side.
+uint32_t __fastcall Line(Context* c, void*, int32_t x0, int32_t y0, int32_t x1, int32_t y1)
+{
+    int32_t u0 = x0 | 1, u1 = x1 | 1, v0 = y0 | 1, v1 = y1 | 1;
+    int32_t major = Abs(Sub(u1, u0)), minor = Abs(Sub(v1, v0));
+    const bool steep = minor > major;
+    if (steep)
+        std::swap(major, minor);
+    // The clip's bounds along u and v, in the direction of travel.
+    int32_t uFrom = c->transform.clip.left, uTo = Sub(c->transform.clip.right, 1);
+    int32_t vFrom = c->transform.clip.top, vTo = Sub(c->transform.clip.bottom, 1);
+    if (u0 > u1)
+        std::swap(uFrom, uTo);
+    if (v0 > v1)
+        std::swap(vFrom, vTo);
+    if (steep) {
+        std::swap(uFrom, vFrom);
+        std::swap(uTo, vTo);
+        std::swap(u0, v0);
+        std::swap(u1, v1);
+    }
+    bool reversed = false;
+    if (uFrom > uTo) {
+        std::swap(uFrom, uTo);
+        std::swap(vFrom, vTo);
+        std::swap(u0, u1);
+        std::swap(v0, v1);
+        reversed = true;
+    }
+    const int32_t vStep = vFrom < vTo ? 1 : -1;
+    int32_t v = v0 >> 8, u = u0 >> 8, uLast = u1 >> 8;
+    const int32_t vLast = v1 >> 8;
+    // Whether an end is more than half a pixel from its pixel's centre (the
+    // fractions' distances from 0x80 summed).
+    const auto outside = [](int32_t a, int32_t b) { return Abs((a & 0xFF) - 0x80) + Abs((b & 0xFF) - 0x80) > 0x80; };
+    // The game's two flags: the first pixel is stepped over unless `first`,
+    // the last dropped unless `last`. The high half of a pixel is the sign
+    // of the end's low byte.
+    const bool uHigh0 = static_cast<int8_t>(u0) < 0, uHigh1 = static_cast<int8_t>(u1) < 0;
+    bool first, last;
+    if (reversed) {
+        first = !uHigh0 && outside(u0, v0);
+        last = uHigh1 || !outside(u1, v1);
+    } else {
+        first = !uHigh0 || !outside(u0, v0);
+        last = uHigh1 && outside(u1, v1);
+    }
+    const int32_t twoMajor = Add(major, major);
+    const int32_t step = Shl(Sub(0, minor), 1);
+    int32_t err = Mul(Mul(Add(Sub(Shl(v, 8), v0), 0x80), twoMajor), vStep);
+    err = Add(err, Mul(Add(Sub(Shl(u, 8), u0), 0x80), step));
+    err = Add(err >> 8, twoMajor >> 1);
+    if (!first) {
+        u = Add(u, 1);
+        err = Add(err, step);
+        if (err < 0) {
+            err = Add(err, twoMajor);
+            v = Add(v, vStep);
+        }
+    }
+    if (!last)
+        uLast = Sub(uLast, 1);
+    if (err < 0) {
+        v = Add(v, vStep);
+        err = Add(err, twoMajor);
+    }
+    if (err >= twoMajor) {
+        v = Sub(v, vStep);
+        err = Sub(err, twoMajor);
+    }
+    if (u < uFrom) {
+        err = Add(err, Mul(Sub(uFrom, u), step));
+        while (err < 0) {
+            err = Add(err, twoMajor);
+            v = Add(v, vStep);
+        }
+        u = uFrom;
+    }
+    if (uLast > uTo)
+        uLast = uTo;
+    if (u > uLast)
+        return 0;
+    // Entering the clip along v: move u to the first step inside.
+    const auto enter = [&](int32_t across) {
+        err = Add(err, Mul(across, twoMajor));
+        v = vFrom;
+        if (err >= twoMajor) {
+            const int32_t k = Sub(1, Sub(err, twoMajor) / step);
+            u = Add(u, k);
+            err = Add(err, Mul(k, step));
+        }
+    };
+    // Leaving it: the last step inside.
+    const auto leave = [&](int32_t across) {
+        const int32_t end = Sub(u, Add(Mul(across, twoMajor), err) / step);
+        if (uLast > end)
+            uLast = end;
+    };
+    if (vFrom < vTo) {
+        if (v < vFrom) {
+            if (vLast < vFrom)
+                return 0;
+            enter(Sub(vFrom, v));
+        }
+        if (vLast > vTo) {
+            if (v > vTo)
+                return 0;
+            leave(Sub(vTo, v));
+        }
+    } else {
+        if (v > vFrom) {
+            if (vLast > vFrom)
+                return 0;
+            enter(Sub(v, vFrom));
+        }
+        if (vLast < vTo) {
+            if (v < vTo)
+                return 0;
+            leave(Sub(v, vTo));
+        }
+    }
+    if (u > uLast)
+        return 0;
+    const int32_t size = static_cast<int32_t>(reinterpret_cast<uintptr_t>(c->spans.end) -
+                                              reinterpret_cast<uintptr_t>(c->spans.begin)) >> 2;
+    reinterpret_cast<void(__fastcall*)(void*, void*, int32_t)>(addr::SC4PtrVector_Reserve)(
+        &c->spans, nullptr, Add(Add(size, Mul(Sub(uLast, u), 2)), 2));
+    int32_t vRow = Shl(v, 16), uRow = Shl(u, 16);
+    const int32_t vRowStep = Shl(vStep, 16);
+    do {
+        const int32_t at = steep ? Add(uRow, v) : Add(vRow, u);
+        PushSpanWord(c, static_cast<uint32_t>(at));
+        PushSpanWord(c, static_cast<uint32_t>(at) + 1);
+        u = Add(u, 1);
+        uRow = Add(uRow, 0x10000);
+        err = Add(err, step);
+        if (err < 0) {
+            v = Add(v, vStep);
+            err = Add(err, twoMajor);
+            vRow = Add(vRow, vRowStep);
+        }
+    } while (u <= uLast);
+    if (c->spans.begin != c->spans.end)
+        return HandOnSpans(c);
+    return 0;
+}
+
+// 0x0082F240: each pair of points a rectangle, rounded to pixel centres.
+uint32_t __fastcall FillRects(Context* c, void*, const float* points, int32_t count)
+{
+    c->spans.end = c->spans.begin;
+    for (int32_t n = count >> 1; n > 0; --n) {
+        int32_t left = Ftol(std::ceil(static_cast<double>(points[0]) - 0.5));
+        int32_t top = Ftol(std::ceil(static_cast<double>(points[1]) - 0.5));
+        int32_t right = Ftol(std::ceil(static_cast<double>(points[2]) - 0.5));
+        int32_t bottom = Ftol(std::ceil(static_cast<double>(points[3]) - 0.5));
+        points += 4;
+        const Rect& clip = c->transform.clip;
+        if (left < clip.left)
+            left = clip.left;
+        if (top < clip.top)
+            top = clip.top;
+        if (right > clip.right)
+            right = clip.right;
+        if (bottom > clip.bottom)
+            bottom = clip.bottom;
+        if (bottom <= top || right <= left)
+            continue;
+        const int32_t rows = Sub(bottom, top);
+        const int32_t size = static_cast<int32_t>(reinterpret_cast<uintptr_t>(c->spans.end) -
+                                                  reinterpret_cast<uintptr_t>(c->spans.begin)) >> 2;
+        const uint32_t wanted = static_cast<uint32_t>(Add(size, Mul(rows, 2)));
+        if (wanted < static_cast<uint32_t>(size)) {
+            c->spans.end = c->spans.begin + wanted;
+        } else {
+            const uint32_t zero = 0;
+            reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t*, uint32_t, const uint32_t*)>(
+                addr::SC4Uint32Vector_InsertN)(&c->spans, nullptr, c->spans.end, wanted - static_cast<uint32_t>(size),
+                                               &zero);
+        }
+        uint32_t* at = c->spans.begin + size;
+        int32_t row = Add(Shl(top, 16), right);
+        for (int32_t k = rows; k != 0; --k) {
+            at[1] = static_cast<uint32_t>(row);
+            at[0] = static_cast<uint32_t>(Add(Sub(left, right), row));
+            at += 2;
+            row = Add(row, 0x10000);
+        }
+    }
+    if (c->spans.begin != c->spans.end)
+        return HandOnSpans(c);
+    return Word(&c->spans);
+}
+
+// 0x0082E8A0: each pair of points a line, in 24.8 fixed point.
+uint32_t __fastcall Lines(Context* c, void*, const float* points, int32_t count)
+{
+    c->spans.end = c->spans.begin;
+    uint32_t answer = Word(c->spans.begin);
+    for (int32_t n = count >> 1; n > 0; --n) {
+        int32_t ends[4];
+        for (int i = 0; i < 4; ++i)
+            ends[i] = Ftol(std::floor(static_cast<double>(points[i]) * 256.0 + 0.5));
+        points += 4;
+        answer = Line(c, nullptr, ends[0], ends[1], ends[2], ends[3]);
+    }
+    if (c->spans.begin != c->spans.end)
+        return HandOnSpans(c);
+    return answer;
+}
+
+// Shape kinds 3 and 1: the rasterizer says how.
+template <uint32_t Kind>
+uint32_t Shape(Context* c, const float* points, int32_t count, std::uintptr_t other, ShapeFn spans)
+{
+    const uint32_t how = Call<uint32_t>(c->rasterizer, kRasterHow, Kind, points, count);
+    if (how == 0)
+        return 0;
+    if (how == 1)
+        return reinterpret_cast<ShapeFn>(other)(c, nullptr, points, count);
+    if (how == 2)
+        return spans(c, nullptr, points, count);
+    return how - 2;
+}
+
+uint32_t __fastcall Fill(Context* c, void*, const float* points, int32_t count)
+{
+    return Shape<3>(c, points, count, addr::GZDrawContext_FillOther, &FillRects);
+}
+
+uint32_t __fastcall Outline(Context* c, void*, const float* points, int32_t count)
+{
+    return Shape<1>(c, points, count, addr::GZDrawContext_OutlineOther, &Lines);
+}
+
+uint32_t __fastcall DrawShape(Context* c, void*, uint32_t kind, const float* points, int32_t count)
+{
+    for (int i = 0; i < 3; ++i)
+        std::swap(c->swappedA[i], c->swappedB[i]);
+    const std::uintptr_t kinds[9] = {addr::GZDrawContext_Shape0, 0, addr::GZDrawContext_Shape2, 0,
+                                     addr::GZDrawContext_Shape4, addr::GZDrawContext_Shape5,
+                                     addr::GZDrawContext_Shape6, addr::GZDrawContext_Shape7,
+                                     addr::GZDrawContext_Shape8};
+    if (kind == 1)
+        return Outline(c, nullptr, points, count);
+    if (kind == 3)
+        return Fill(c, nullptr, points, count);
+    if (kind > 8)
+        return kind;
+    return reinterpret_cast<ShapeFn>(kinds[kind])(c, nullptr, points, count);
+}
+
+uint32_t __fastcall Draw(Context* c, void*, uint32_t kind, const float* points, int32_t count)
+{
+    const float zero = 0.0f;
+    reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t, const float*)>(addr::SC4FloatVector_Resize2)(
+        &c->points, nullptr, static_cast<uint32_t>(Add(count, count)), &zero);
+    for (int32_t i = 0; i < count; ++i) {
+        c->points.begin[2 * i] = static_cast<float>(static_cast<double>(points[2 * i]) + c->transform.originX);
+        c->points.begin[2 * i + 1] =
+            static_cast<float>(static_cast<double>(points[2 * i + 1]) + c->transform.originY);
+    }
+    return Call<uint32_t>(c, kDrawShape, kind, static_cast<const float*>(c->points.begin), count);
+}
+
+// ====================================================================================
+// SetTarget (renderer.raster.target)
+
+// The rasterizer's slots SetTarget alone uses.
+constexpr int kRasterRelease = 2;
+constexpr int kRasterAttach = 3;
+constexpr int kRasterArea = 5;
+
+// Slot 17 past the thunk below: a target other than the one held. The
+// rasterizer let go (its slots 4 and 2), the new target held and the old
+// released; for a target, a new rasterizer from the framework's factory,
+// told the target, the clip (the target's rectangle, its slot 12), the
+// colours and the settings, and the source and batch cleared. Answers the
+// last call's answer: the rasterizer's slot 5, or with no target the old
+// target's release.
+uint32_t __fastcall SetTargetBody(Context* c, void*, void* target)
+{
+    uint32_t answer = 0;
+    if (c->rasterizer) {
+        answer = Call<uint32_t>(c->rasterizer, kRasterDetach);
+        if (void* const rasterizer = c->rasterizer) {
+            c->rasterizer = nullptr;
+            answer = Call<uint32_t>(rasterizer, kRasterRelease);
+        }
+    }
+    void* const old = c->target;
+    if (target != old) {
+        if (target)
+            answer = Call<uint32_t>(target, 1);
+        c->target = target;
+        if (old)
+            answer = Call<uint32_t>(old, 2);
+    }
+    if (!target)
+        return answer;
+
+    c->transform.clip = *Call<const Rect*>(target, 12);
+    c->transform.originX = 0.0f;
+    c->transform.originY = 0.0f;
+    void* made = nullptr;
+    if (void* const framework = reinterpret_cast<void*(__cdecl*)()>(addr::RZGetFramework)())
+        Call<uint32_t>(framework, 5, uint32_t{0xEB2EA3CB}, uint32_t{0x4B2EA3B3}, &made);
+    if (void* const rasterizer = c->rasterizer) {
+        c->rasterizer = nullptr;
+        Call<uint32_t>(rasterizer, kRasterRelease);
+    }
+    Call<uint32_t>(made, 4, target, &c->rasterizer);
+    reinterpret_cast<void(__fastcall*)(void**)>(addr::SC4RefPtr_Destruct)(&made);
+    Call<uint32_t>(c->rasterizer, kRasterAttach, target);
+    Call<uint32_t>(c->rasterizer, kRasterClip, &c->transform.clip);
+    Call<uint32_t>(c->rasterizer, kRasterColours, uint32_t{0}, uint32_t{4}, &c->colours[0]);
+    Call<uint32_t>(c->rasterizer, kRasterMode, c->settings.mode);
+    Call<uint32_t>(c->rasterizer, kRasterFlag45, static_cast<uint32_t>(c->settings.flag45));
+    Call<uint32_t>(c->rasterizer, kRasterFlag44, static_cast<uint32_t>(c->settings.flag44));
+    Call<uint32_t>(c->rasterizer, kRasterPen, c->settings.pen);
+    Rect scratch;
+    Call<uint32_t>(c->rasterizer, kRasterSource, static_cast<void*>(nullptr), 0.0f, 0.0f, 0.0f, 0.0f, &scratch);
+    Call<uint32_t>(c->rasterizer, kRaster12, uint32_t{0}, uint32_t{0}, uint32_t{0});
+    answer = Call<uint32_t>(c->rasterizer, kRasterArea, &c->area);
+    c->sourceSet = 0;
+    c->sourcePart = 0;
+    c->batch = 0;
+    return answer;
+}
+
+// Slot 17, 0x0082C830 (thiscall, ret 4). The target already held changes
+// nothing and leaves EAX as the caller had it, so that test is assembly.
+__declspec(naked) void SetTarget()
+{
+    __asm mov edx, dword ptr [esp + 4]
+    __asm cmp dword ptr [ecx + 0x24], edx
+    __asm jne SetTargetBody
+    __asm ret 4
+}
+
+// ====================================================================================
 // Installation
 
-bool Install(registry::Mode)
+struct Detour {
+    std::uintptr_t address;
+    void* detour;
+};
+
+template <std::size_t N>
+bool InstallAll(const Detour (&detours)[N], const char* what)
 {
     if (!game::IsBuild641())
         return false;
-    struct Detour {
-        std::uintptr_t address;
-        void* detour;
-    };
-    const Detour detours[] = {
+    for (const Detour& d : detours) {
+        const addr::Entry* entry = addr_check::Find(d.address);
+        void* original = nullptr;
+        if (!entry || !hook::Install(*entry, d.detour, &original))
+            return false;
+    }
+    log::Write("raster: %s: %u ours", what, static_cast<unsigned>(N));
+    return true;
+}
+
+bool Install(registry::Mode)
+{
+    static const Detour detours[] = {
         {addr::GZDrawContext_AddRef, reinterpret_cast<void*>(&AddRef)},
         {addr::GZDrawContext_Release, reinterpret_cast<void*>(&Release)},
         {addr::GZDrawContext_PushTransform, reinterpret_cast<void*>(&PushTransform)},
@@ -557,14 +978,29 @@ bool Install(registry::Mode)
         {addr::GZDrawContext_Slot46, reinterpret_cast<void*>(&Slot46)},
         {addr::GZDrawContext_Slot47, reinterpret_cast<void*>(&Slot47)},
     };
-    for (const Detour& d : detours) {
-        const addr::Entry* entry = addr_check::Find(d.address);
-        void* original = nullptr;
-        if (!entry || !hook::Install(*entry, d.detour, &original))
-            return false;
-    }
-    log::Write("raster: context: %u methods ours", static_cast<unsigned>(sizeof detours / sizeof detours[0]));
-    return true;
+    return InstallAll(detours, "context methods");
+}
+
+bool InstallDraws(registry::Mode)
+{
+    static const Detour detours[] = {
+        {addr::GZDrawContext_Draw, reinterpret_cast<void*>(&Draw)},
+        {addr::GZDrawContext_DrawShape, reinterpret_cast<void*>(&DrawShape)},
+        {addr::GZDrawContext_Fill, reinterpret_cast<void*>(&Fill)},
+        {addr::GZDrawContext_FillRects, reinterpret_cast<void*>(&FillRects)},
+        {addr::GZDrawContext_Outline, reinterpret_cast<void*>(&Outline)},
+        {addr::GZDrawContext_Lines, reinterpret_cast<void*>(&Lines)},
+        {addr::GZDrawContext_Line, reinterpret_cast<void*>(&Line)},
+    };
+    return InstallAll(detours, "draws");
+}
+
+bool InstallTarget(registry::Mode)
+{
+    static const Detour detours[] = {
+        {addr::GZDrawContext_SetTarget, reinterpret_cast<void*>(&SetTarget)},
+    };
+    return InstallAll(detours, "target");
 }
 
 const bool g_registered = registry::Register(
@@ -573,6 +1009,20 @@ const bool g_registered = registry::Register(
      "Our drawing context of the software rasterizer: the 36 of its methods that run besides SetTarget and the two "
      "draws (state stacks, clip, origin, colours, settings, source, rectangles, Blt; 36 detours; docs/renderer.md)",
      false, Install});
+
+const bool g_registeredDraws = registry::Register(
+    {"renderer.raster.draws", "renderer/raster", registry::Kind::Detour, registry::Phase::Attach,
+     addr::GZDrawContext_Draw,
+     "Our draws of the software rasterizer's drawing context: Draw and DrawShape (slots 44, 45), the two shapes that "
+     "run (filled rectangles and lines) and the line stepper (7 detours; docs/renderer.md)",
+     false, InstallDraws});
+
+const bool g_registeredTarget = registry::Register(
+    {"renderer.raster.target", "renderer/raster", registry::Kind::Detour, registry::Phase::Attach,
+     addr::GZDrawContext_SetTarget,
+     "Our SetTarget of the software rasterizer's drawing context (slot 17): the target swapped and a new rasterizer "
+     "made through the framework and told the context's state (1 detour; docs/renderer.md)",
+     false, InstallTarget});
 
 } // namespace
 } // namespace opensc4::raster
