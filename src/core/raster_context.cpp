@@ -1,7 +1,7 @@
 // Our drawing context of the GZ framework's software rasterizer (docs/
 // renderer.md, "The software rasterizer"): every method of the context
-// (vtable 0x00AC16C8) that ran but QueryInterface and SetTarget, all
-// detours here, off by default, in two groups:
+// (vtable 0x00AC16C8) that ran but QueryInterface, all detours here, off
+// by default, in three groups:
 //
 //   renderer.raster.context  36 small methods: AddRef and Release, the two
 //                            state stacks (the origin and clip at +0x7C, the
@@ -13,10 +13,14 @@
 //                            the two shapes that ran (filled rectangles and
 //                            lines), the rectangle spans, the lines and the
 //                            line stepper (7)
+//   renderer.raster.target   SetTarget (slot 17): the target swapped, a new
+//                            rasterizer made through the framework and told
+//                            the context's state
 //
-// Left the game's: QueryInterface (slot 0) and SetTarget (17, which makes
-// the rasterizer through the framework, so the mock test cannot reach it),
-// and the seven shapes that never ran.
+// Left the game's: QueryInterface (slot 0) and the seven shapes that never
+// ran. SetTarget with a new target makes a real rasterizer through the
+// framework, so the mock test reaches only its other two paths; the game
+// runs cover that one.
 //
 // Most of these hand their state to the rasterizer (+0x28) or call the
 // context's own slots, both through their vtables as the game does, so the
@@ -837,6 +841,81 @@ uint32_t __fastcall Draw(Context* c, void*, uint32_t kind, const float* points, 
 }
 
 // ====================================================================================
+// SetTarget (renderer.raster.target)
+
+// The rasterizer's slots SetTarget alone uses.
+constexpr int kRasterRelease = 2;
+constexpr int kRasterAttach = 3;
+constexpr int kRasterArea = 5;
+
+// Slot 17 past the thunk below: a target other than the one held. The
+// rasterizer let go (its slots 4 and 2), the new target held and the old
+// released; for a target, a new rasterizer from the framework's factory,
+// told the target, the clip (the target's rectangle, its slot 12), the
+// colours and the settings, and the source and batch cleared. Answers the
+// last call's answer: the rasterizer's slot 5, or with no target the old
+// target's release.
+uint32_t __fastcall SetTargetBody(Context* c, void*, void* target)
+{
+    uint32_t answer = 0;
+    if (c->rasterizer) {
+        answer = Call<uint32_t>(c->rasterizer, kRasterDetach);
+        if (void* const rasterizer = c->rasterizer) {
+            c->rasterizer = nullptr;
+            answer = Call<uint32_t>(rasterizer, kRasterRelease);
+        }
+    }
+    void* const old = c->target;
+    if (target != old) {
+        if (target)
+            answer = Call<uint32_t>(target, 1);
+        c->target = target;
+        if (old)
+            answer = Call<uint32_t>(old, 2);
+    }
+    if (!target)
+        return answer;
+
+    c->transform.clip = *Call<const Rect*>(target, 12);
+    c->transform.originX = 0.0f;
+    c->transform.originY = 0.0f;
+    void* made = nullptr;
+    if (void* const framework = reinterpret_cast<void*(__cdecl*)()>(addr::RZGetFramework)())
+        Call<uint32_t>(framework, 5, uint32_t{0xEB2EA3CB}, uint32_t{0x4B2EA3B3}, &made);
+    if (void* const rasterizer = c->rasterizer) {
+        c->rasterizer = nullptr;
+        Call<uint32_t>(rasterizer, kRasterRelease);
+    }
+    Call<uint32_t>(made, 4, target, &c->rasterizer);
+    reinterpret_cast<void(__fastcall*)(void**)>(addr::SC4RefPtr_Destruct)(&made);
+    Call<uint32_t>(c->rasterizer, kRasterAttach, target);
+    Call<uint32_t>(c->rasterizer, kRasterClip, &c->transform.clip);
+    Call<uint32_t>(c->rasterizer, kRasterColours, uint32_t{0}, uint32_t{4}, &c->colours[0]);
+    Call<uint32_t>(c->rasterizer, kRasterMode, c->settings.mode);
+    Call<uint32_t>(c->rasterizer, kRasterFlag45, static_cast<uint32_t>(c->settings.flag45));
+    Call<uint32_t>(c->rasterizer, kRasterFlag44, static_cast<uint32_t>(c->settings.flag44));
+    Call<uint32_t>(c->rasterizer, kRasterPen, c->settings.pen);
+    Rect scratch;
+    Call<uint32_t>(c->rasterizer, kRasterSource, static_cast<void*>(nullptr), 0.0f, 0.0f, 0.0f, 0.0f, &scratch);
+    Call<uint32_t>(c->rasterizer, kRaster12, uint32_t{0}, uint32_t{0}, uint32_t{0});
+    answer = Call<uint32_t>(c->rasterizer, kRasterArea, &c->area);
+    c->sourceSet = 0;
+    c->sourcePart = 0;
+    c->batch = 0;
+    return answer;
+}
+
+// Slot 17, 0x0082C830 (thiscall, ret 4). The target already held changes
+// nothing and leaves EAX as the caller had it, so that test is assembly.
+__declspec(naked) void SetTarget()
+{
+    __asm mov edx, dword ptr [esp + 4]
+    __asm cmp dword ptr [ecx + 0x24], edx
+    __asm jne SetTargetBody
+    __asm ret 4
+}
+
+// ====================================================================================
 // Installation
 
 struct Detour {
@@ -916,6 +995,14 @@ bool InstallDraws(registry::Mode)
     return InstallAll(detours, "draws");
 }
 
+bool InstallTarget(registry::Mode)
+{
+    static const Detour detours[] = {
+        {addr::GZDrawContext_SetTarget, reinterpret_cast<void*>(&SetTarget)},
+    };
+    return InstallAll(detours, "target");
+}
+
 const bool g_registered = registry::Register(
     {"renderer.raster.context", "renderer/raster", registry::Kind::Detour, registry::Phase::Attach,
      addr::GZDrawContext_AddRef,
@@ -929,6 +1016,13 @@ const bool g_registeredDraws = registry::Register(
      "Our draws of the software rasterizer's drawing context: Draw and DrawShape (slots 44, 45), the two shapes that "
      "run (filled rectangles and lines) and the line stepper (7 detours; docs/renderer.md)",
      false, InstallDraws});
+
+const bool g_registeredTarget = registry::Register(
+    {"renderer.raster.target", "renderer/raster", registry::Kind::Detour, registry::Phase::Attach,
+     addr::GZDrawContext_SetTarget,
+     "Our SetTarget of the software rasterizer's drawing context (slot 17): the target swapped and a new rasterizer "
+     "made through the framework and told the context's state (1 detour; docs/renderer.md)",
+     false, InstallTarget});
 
 } // namespace
 } // namespace opensc4::raster
