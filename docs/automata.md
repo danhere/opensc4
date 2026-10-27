@@ -37,7 +37,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Automaton and vehicle bases, cSC4Vehicle | 318 | 70,504 | vb1 (36, done), vb2 (30, done), vb3 (13, done), vb4 (22, done), vb5 (10, done), vb6 (12, done), vb7 (14, done), vb8 (1, done) |
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
-| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (part em below counts 122) |
+| Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (2, done) (part em below counts 122; part em finished) |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
@@ -3493,7 +3493,7 @@ What each overrides:
 - **em1 (37, 2,305 bytes, done):** the objects, the save, the life cycle and the queries. Below.
 - **em2 (16, 3,606 bytes):** split in two: **em2a (10, done)** slots 25, 73 with 0x00530130, 79, 93, 109 to 111, 146 and 194, below; **em2b (6, done)** the frame 72, 195, 196, 198 and the helpers 0x0052F870 and 0x0052F910, below. The base's states and frames: 25 0x0052FF60 (set the mission), 72 0x0052F3F0 (the frame), 73 0x005304B0 with 0x00530130, 79 0x0052F210, 93 0x00532290 (the debug text), 109 0x0052F490, 110 0x0052F7C0, 111 0x0052F1C0, 146 0x0052F9A0, 194 0x00530AF0 (the siren), 195 0x0052FD50, 196 0x0052FE50, 198 0x0052F570, and the helpers 0x0052F870 and 0x0052F910.
 - **em3 (24, 4,217 bytes):** split by class: **em3a (14, done)** the fire truck's, below; **em3b (10, done)** the patrol car's, below. The fire truck's and the patrol car's frames: the fire truck's 25 0x005336C0, 60 0x00532D80, 111 0x00532E60, 121 0x00533090, 165 0x005332C0 (with 0x00533030 and 0x00533290, which the train's 165 also calls), 193 0x00532BF0, 197 0x005335F0, 199 0x00533060 and its helpers 0x00532AE0, 0x00532C40 (sends the fire crew), 0x00532D30, 0x00533410; the patrol car's 25 0x00543F60, 109 0x00543B40, 110 0x00543E80, 111 0x00543B80, 193 0x00543BC0, 197 0x00543C10, 199 0x00543F10, 200 0x00544060 and its helpers 0x00543C70 (sends the riot police), 0x00543D60. Could split by class.
-- **em4 (2, 1,127 bytes):** the base's slot 80 0x005329B0 and its helper 0x00532660, which walks the route deque.
+- **em4 (2, 1,127 bytes, done):** the base's slot 80 0x005329B0 and its helper 0x00532660, which walks the route deque.
 - **Stay the game's (43):** 16 adjustor thunks, three plain jumps (0x0052F1B0, 0x00532AD0, 0x00543B30) and 24 functions of the route deque's template code (0x0052FB80 to 0x00532430: copies and assignment; 0x00532430 is SC4RouteDeque::Assign, which the trailer's 0x005559D0 calls too).
 
 Shared and not counted: cSC4Vehicle's GetGZCLSID 0x00532240 (part vb), the automaton base's slots 79, 80 and 105 that the base's call by address (0x00505820, 0x00505860, 0x005096B0), the folds 0x004FC900, 0x004E13E0, 0x005D4A10 and 0x008CD450, and four helpers the survey's closure reached that belong to the pedestrians (0x00546CB0, 0x00546F30 the riot police's dispatch, 0x00547EF0 the fire crew's, 0x00532E90). No NAM site and none of SC4UIScale's addresses is in the group.
@@ -3775,3 +3775,41 @@ A trial with twenty-three planted changes (the default reach, the police's block
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's epatrol was 0xB5F414B3 on both sides (calls 0x39A83358), and every B run installed and reached all 10.
+
+### What is ours (em4)
+
+2 more functions in `simulators.automata.emergency` (list kRoute in [automata_emergency.cpp](../src/core/automata_emergency.cpp)); with them part em is finished (79 ours):
+
+- **The base's slot 80 0x005329B0 (the goal):** the core's slot 80 (0x00505860, slot 102 with 6 and 0), the point into +0x2B8, the automata flag 0x400 cleared with slot 33 (1.0, 0) when it was on, the target into +0x2C4 (a null one keeps the target there). Then, with a route and an occupant at the route's last cell answering slot 9 for 0x304 (0x00B43D54's slot 14, the same walk as slot 146), the route is extended to the goal by 0x00532660.
+- **0x00532660 (the route extended):** the goal's cell (the city's slot 95); 0x00B43D54's occupants there (slot 25 with the cell's rect, the byte 0x00B21CB8, 0 and the mask 0x1C49); a path finder of 0x00B43DA8's (slot 6) set up from the route's last cell (slots 19, 13, 18, 5, 5, 9) with a route of its own (slot 8). For each occupant nearer the goal's cell than the best so far (squared, 0x005D6FC0) the finder runs to the occupant's cell (slots 20, 23); a run answering 1 keeps that route and distance. The kept route goes on the end of +0x22C (0x005320B0).
+
+Left the game's: the core's slot 80, the route deque's code (SC4RouteDeque::Init, Assign, InsertRange 0x005320B0, Destroy, SC4CellDeque::Clear and the rest of the 24 template functions), SC4::DistanceSquared2D, SC4::Free and the services.
+
+Oddities kept:
+
+- **Slot 80** releases the old target before it holds the new one, so the same object given again with one reference would be freed in between.
+- **0x00532660** never releases the path finder 0x00B43DA8 gave it, and tests neither it nor 0x00B43D54 (slot 80 tested the latter); the goal's cell goes into unset locals (the city always writes them), and so do the occupants' cells (z's held the 0x00B43D54 pointer). It reads the occupants' cells unsigned (FILD, plus 2^32 when negative), compares the unrounded squared distance with the best kept as a float (unordered never nearer), and frees the vector even when slot 25 answered false.
+
+### Test (em4)
+
+The ` V` token gains `,<eroute>` before eflags (50 fields; eflags 0x80000 when it ran, 0x100000 when the factory failed or there was no city). The log line is "em4 eroute".
+
+On an ambulance, em2b's vtable copy with slot 31 answering the flag 0x400 too; 0x00B43D54 (slot 14: em2a's nodes, slot 25: a vector of the test's occupants from SC4::stl_allocate) and 0x00B43DA8 (slot 6: a path finder of the test's that records its settings, answers run by run and writes cells into the route it was given) of the test's; the city's vtable swapped for a copy with slot 95 the test's:
+
+- 0x00532660 over fourteen cases: slot 25 false with and without occupants (the vector still freed), no occupants, one at the goal, three nearer each time, three farther each time, a nearer one the finder fails then farther ones, answers 2 and -1, ties, cells read unsigned (-1, -3), a tie made by rounding at 2^24 ((4096, 1) then (4096, 0) from (0, 0)), and routes of 0, 3, 40 and 42 cells taking paths of 1, 2, 45 and 60 cells (across blocks);
+- slot 80 over ten: the point (one NaN, -0), the flag 0x400, the target given (none, one, the same as held, another) and held, routes of 0, 1 and 42 cells and two with the finish at a block's first, 0x00B43D54 null, no nodes, a node not of the type and one of it;
+- the route's cells and count after each, the finder's runs, the targets' and finder's references, every call of the fakes.
+
+A trial with twenty planted changes (the core's slot 80 dropped, the point's y, the flag 0x400, the fade's words, the null target that keeps the one held, the route's last cell at a block's first, its z, the type 0x304, slot 25's mask and byte, the finder's slot 13 words and its from cell, the route not emptied before a run, nearer as at or below, the best stored unrounded, a run's answer other than 1 kept, the cells read signed, the goal's z, the kept route not inserted, the vector not freed) changed the token for nineteen. The vector's free is not seen (the test's allocation is the game's pool's; a leak only). The first trial missed the block's first: Clear keeps the start where it was, so a 42-cell route did not end at a block's first; the test now pushes until it does.
+
+### Parity (em4)
+
+2026-10-27. As for em1. Env p4env-em1, snapshot em4-p1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's eroute was 0x407A2A3E on both sides (calls 0xDF22CED0), and every B run installed and reached both.

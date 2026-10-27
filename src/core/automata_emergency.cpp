@@ -1,4 +1,4 @@
-// Our emergency vehicles, parts em1, em2a, em2b, em3a and em3b (build 641): a base on cSC4Vehicle
+// Our emergency vehicles, parts em1 to em4 (build 641): a base on cSC4Vehicle
 // (src/core/automata_vehicle.cpp) and cSC4FireTruck, cSC4PatrolCar and
 // cSC4Ambulance on it. em1: the objects (the three factories, the four
 // constructors, the base's and the fire truck's destructor bodies, the three
@@ -13,15 +13,19 @@
 // 0x00532D30), the counts near it (0x00532AE0, 0x00533410) and the route
 // step helpers (0x00533030, 0x00533290, which the train's 165 also calls).
 // em3b: the patrol car's slots 25, 109, 110, 111, 193, 197, 199 and 200 and
-// its riot police sent and recalled (0x00543C70, 0x00543D60). The layout is in src/core/automata_emergency.h and the survey in docs/automata.md, "Part
+// its riot police sent and recalled (0x00543C70, 0x00543D60). em4: the
+// base's slot 80 (the goal) and the route extended from its last cell to the
+// goal's nearest occupant (0x00532660); the route's deque code (24 template
+// functions) stays the game's. The layout is in
+// src/core/automata_emergency.h and the survey in docs/automata.md, "Part
 // em". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
 //   simulators.automata.emergency: the 37 detours in kObject (em1), the 10
-//   in kStates (em2a), the 6 in kFrames (em2b), the 14 in kFireTruck (em3a)
-//   and the 10 in kPatrolCar (em3b) below.
+//   in kStates (em2a), the 6 in kFrames (em2b), the 14 in kFireTruck (em3a),
+//   the 10 in kPatrolCar (em3b) and the 2 in kRoute (em4) below.
 //
 // What it does. Each class is a block of SC4::operator_new (0x2E4, 0x2DC and
 // 0x2D8 bytes) and goes back through SC4::operator_delete. The base's
@@ -51,8 +55,14 @@
 // the ambulance's slot 193 answers the int 0x00B09934 as FILD leaves it
 // (ours a double, exact).
 //
+// Oddities kept (em4): slot 80 releases the old target before it holds the
+// new one (the same object given again with one reference is freed there);
+// 0x00532660 never releases the path finder 0x00B43DA8 gave it, reads the
+// occupants' cells unsigned and compares the unrounded squared distance with
+// the float it stored.
+//
 // Still the game's, at their addresses: cSC4Vehicle's code (part vb), the
-// base's other slots (em4: 80; 197 is a fold), the core's slot 105 0x005096B0 and
+// base's slot 197 (a fold), the core's slots 80 0x00505860 and 105 0x005096B0 and
 // cSC4Vehicle's slot 60 0x0055B6C0, cSC4AutomatonBase::RemoveNow, the jumps
 // and adjustor thunks the vtables hold, the occupant filters' code, the
 // stream helpers and the sound service; the fire crew's and the riot police's
@@ -130,6 +140,8 @@ constexpr std::uint32_t kPlaySound = 0xEA451903;     // and the one that plays o
 // cSC4Vehicle's fields em2a reads.
 constexpr std::size_t kPosition = 0x40, kStateStack = 0xB4, kDeque204 = 0x204, kRouteStart = 0x22C, kRouteFinish = 0x23C;
 constexpr std::size_t kNext = 0x54; // a node's next, in 0x00B43D54's cell lists
+// em4's: a route (SC4RouteDeque, 3-byte cells, 0x7E-byte blocks).
+constexpr std::size_t kRouteSize = 0x28, kRouteBlock = 0x7E;
 // em2b's.
 constexpr std::size_t kObjectB0 = 0xB0, kSmoothed1B0 = 0x1B0, kOccupant = 0x1EC;
 constexpr std::uint32_t kMissionMessage = 0xCA8DCDB4; // 0x0052F910 posts it
@@ -2067,6 +2079,133 @@ std::uint32_t __fastcall PatrolRiotFrame(char* self, void*, float seconds)
 }
 
 // ====================================================================================
+// The route (part em4)
+
+// 0x00532660 (ret 0xC), the route extended from its last cell (x, z) to the
+// nearest occupant at the goal's cell: the cell of the point (the city's
+// slot 95, unrounded floats in, into unset locals), 0x00B43D54's occupants
+// at it (slot 25: the vector, the rect of that one cell, the byte 0x00B21CB8,
+// 0, 0x1C49; nothing more when it answers false); a path finder of
+// 0x00B43DA8's (slot 6, never released) from the cell (x, z) with the
+// game's settings (13: 2, 1; 18: 0; 5: 1 and 2; 9: 3) into a route of its
+// own (slot 8); for each occupant nearer than the best so far (its cell by
+// slot 59, read unsigned, squared distance to the goal's cell in floats by
+// 0x005D6FC0; ordered, the first bound FLT_MAX) the route emptied and the
+// finder run to its cell (slots 20, 23); an answer 1 keeps the route
+// (SC4RouteDeque::Assign) and the distance (stored as a float). With one
+// kept, it is inserted at the end of the route +0x22C (0x005320B0). Both
+// routes destroyed, the vector freed. The finder and 0x00B43D54 are not
+// null-tested.
+void __fastcall ExtendRoute(char* self, void*, std::uint32_t x, std::uint32_t z, const float* point)
+{
+    static bool logged;
+    FirstCall("ExtendRoute", logged);
+    void* const network = Global<void*>(addr::SC4_Service43D54);
+    struct {
+        void** begin;
+        void** end;
+        void** capacity;
+    } found = {};
+    std::int32_t cellX = 0, cellZ = 0;
+    Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), slot::kCellOf, point[0], point[2], &cellX, &cellZ);
+    std::int32_t rect[4] = {cellX, cellZ, cellX, cellZ};
+    if (Virtual<std::uint8_t>(network, slot::kOccupantsInRect, static_cast<void*>(&found), static_cast<void*>(rect),
+                              static_cast<std::uint32_t>(Global<std::uint8_t>(addr::cSC4AutomatonBase_NearCells)), 0u,
+                              0x1C49u)) {
+        void* finder = nullptr;
+        Virtual<void>(Global<void*>(addr::SC4_Service43DA8), slot::kFinderGet, static_cast<void*>(&finder));
+        alignas(8) char route[kRouteSize] = {};
+        CallThis<void>(addr::SC4RouteDeque_Init, route, 0u);
+        alignas(8) char best[kRouteSize] = {};
+        CallThis<void>(addr::SC4RouteDeque_Init, best, 0u);
+        Virtual<void>(finder, slot::kFinderFrom, x, z, x, z);
+        Virtual<void>(finder, slot::kFinderSlot13, 2u, 1u);
+        Virtual<void>(finder, slot::kFinderSlot18, 0u);
+        Virtual<void>(finder, slot::kFinderSlot5, 1u);
+        Virtual<void>(finder, slot::kFinderSlot5, 2u);
+        Virtual<void>(finder, slot::kFinderSlot9, 3u);
+        Virtual<void>(finder, slot::kFinderRoute, static_cast<void*>(route));
+        const float goal[2] = {static_cast<float>(cellX), static_cast<float>(cellZ)};
+        const std::uint32_t count = static_cast<std::uint32_t>(
+            static_cast<std::int32_t>(reinterpret_cast<char*>(found.end) - reinterpret_cast<char*>(found.begin)) >> 2);
+        float nearest = 3.402823466e+38f; // FLT_MAX, an immediate in the game
+        bool kept = false;
+        for (std::uint32_t i = 0; i < count; ++i) {
+            // Unset locals in the game: z's held the 0x00B43D54 pointer.
+            std::int32_t occupantX = 0;
+            std::int32_t occupantZ = static_cast<std::int32_t>(reinterpret_cast<std::uintptr_t>(network));
+            Virtual<void>(found.begin[i], slot::kOccupantCell, &occupantX, &occupantZ);
+            const float at[2] = {static_cast<float>(static_cast<double>(static_cast<std::uint32_t>(occupantX))),
+                                 static_cast<float>(static_cast<double>(static_cast<std::uint32_t>(occupantZ)))};
+            const double distance = CallCdecl<double>(addr::SC4_DistanceSquared2D, goal, at);
+            if (!(distance < nearest))
+                continue;
+            CallThis<void>(addr::SC4CellDeque_Clear, route);
+            Virtual<void>(finder, slot::kFinderTo, occupantX, occupantZ, occupantX, occupantZ);
+            if (Virtual<std::int32_t>(finder, slot::kFinderRun) == 1) {
+                nearest = static_cast<float>(distance);
+                CallThis<void*>(addr::SC4RouteDeque_Assign, best, static_cast<const void*>(route));
+                kept = true;
+            }
+        }
+        if (kept) {
+            const std::uint32_t* const finish = &At<std::uint32_t>(self, kRouteFinish);
+            const std::uint32_t* const from = &At<std::uint32_t>(best, 0);
+            CallThis<void>(addr::SC4RouteDeque_InsertRange, self + kRouteStart, finish[0], finish[1], finish[2],
+                           finish[3], from[0], from[1], from[2], from[3], from[4], from[5], from[6], from[7]);
+        }
+        CallThis<void>(addr::SC4RouteDeque_Destroy, best);
+        CallThis<void>(addr::SC4RouteDeque_Destroy, route);
+    }
+    if (found.begin)
+        CallCdecl<void>(addr::SC4_Free, static_cast<void*>(found.begin));
+}
+
+// 0x005329B0, the base's slot 80 (point, target), ret 8: the core's
+// (0x00505860); the point into +0x2B8; with the automata flag 0x400 it off
+// (slot 30) and slot 33 (1.0, 0); the target into +0x2C4 unless it is null
+// and one is there (the old released before the new is held, as the game).
+// With a route (+0x23C not +0x22C) and 0x00B43D54, when an occupant at the
+// route's last cell (slot 14; the list by +0x54) answers its slot 9 for
+// 0x304, the route extended from that cell to the point (0x00532660).
+void __fastcall BaseSetGoal(char* self, void*, const float* point, void* target)
+{
+    static bool logged;
+    FirstCall("BaseSetGoal", logged);
+    CallThis<void>(addr::cSC4AutomatonCore_Slot80, self, point, target);
+    const std::uint32_t* const words = reinterpret_cast<const std::uint32_t*>(point);
+    At<std::uint32_t>(self, base::kPoint) = words[0];
+    At<std::uint32_t>(self, base::kPoint + 4) = words[1];
+    At<std::uint32_t>(self, base::kPoint + 8) = words[2];
+    if (CheckFlag(self, 0x400u)) {
+        Virtual<void>(self, slot::kSetFlag, 0x400u, 0u);
+        Virtual<void>(self, slot::kFade, 1.0f, 0.0f);
+    }
+    if (target || !At<void*>(self, base::kTarget)) {
+        if (void* const old = At<void*>(self, base::kTarget))
+            Release(old);
+        At<void*>(self, base::kTarget) = target;
+        if (target)
+            Virtual<std::uint32_t>(target, kAddRef);
+    }
+    char* last = At<char*>(self, kRouteFinish);
+    if (last == At<char*>(self, kRouteStart))
+        return;
+    if (last == At<char*>(self, kRouteFinish + 4))
+        last = At<char**>(self, kRouteFinish + 0xC)[-1] + kRouteBlock;
+    void* const network = Global<void*>(addr::SC4_Service43D54);
+    if (!network)
+        return;
+    const std::uint32_t x = static_cast<std::uint8_t>(last[-3]);
+    const std::uint32_t z = static_cast<std::uint8_t>(last[-2]);
+    for (char* node = Virtual<char*>(network, slot::kOccupantsAt, x, z); node; node = At<char*>(node, kNext))
+        if (Virtual<std::uint8_t>(At<void*>(node, 0), slot::kIsType, 0x304u)) {
+            CallThis<void>(addr::cSC4EmergencyVehicle_ExtendRoute, self, x, z, point);
+            return;
+        }
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -2206,6 +2345,12 @@ const Detour kPatrolCar[] = {
     OPENSC4_DETOUR(addr::cSC4PatrolCar_RiotFrame, PatrolRiotFrame),
 };
 
+// Part em4.
+const Detour kRoute[] = {
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_ExtendRoute, ExtendRoute),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_SetGoal, BaseSetGoal),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -2214,7 +2359,8 @@ bool InstallObject(registry::Mode)
            InstallList(kStates, sizeof kStates / sizeof kStates[0], "states") &&
            InstallList(kFrames, sizeof kFrames / sizeof kFrames[0], "frames") &&
            InstallList(kFireTruck, sizeof kFireTruck / sizeof kFireTruck[0], "fire truck") &&
-           InstallList(kPatrolCar, sizeof kPatrolCar / sizeof kPatrolCar[0], "patrol car");
+           InstallList(kPatrolCar, sizeof kPatrolCar / sizeof kPatrolCar[0], "patrol car") &&
+           InstallList(kRoute, sizeof kRoute / sizeof kRoute[0], "route");
 }
 
 const bool g_registered[] = {
@@ -2230,7 +2376,8 @@ const bool g_registered[] = {
                         "the occupant at the cell and the mission message (6 detours, part em2b); the fire truck's "
                         "slots 25, 60, 111, 121, 165, 193, 197 and 199, its crew and nearby counts and the last step "
                         "(14 detours, part em3a); the patrol car's slots 25, 109, 110, 111, 193, 197, 199 and 200 and its "
-                        "riot police sent and recalled (10 detours, part em3b; src/core/automata_emergency.cpp)",
+                        "riot police sent and recalled (10 detours, part em3b); the base's slot 80 and the route "
+                        "extended to the goal's occupant (2 detours, part em4; src/core/automata_emergency.cpp)",
                         false, InstallObject}),
 };
 
