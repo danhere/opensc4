@@ -133,7 +133,7 @@ enum RasterSlot {
     kRaster16 = 16,
     kRaster17 = 17,
     kRaster18 = 18,
-    kRaster19 = 19,
+    kRasterSurface = 19,
     kRaster20 = 20,
 };
 
@@ -519,7 +519,12 @@ uint32_t __fastcall EndBatch(Context* c, void*)
     return Call<uint32_t>(c->rasterizer, kRaster18);
 }
 
-uint32_t __fastcall Slot46(Context* c, void*) { return Call<uint32_t>(c->rasterizer, kRaster19); }
+// Slot 46: the game's is a tail jump to the rasterizer's slot 19 (ret 8),
+// so the caller's two arguments go on (0x0082A610 passes a buffer and 1).
+uint32_t __fastcall GetSurface(Context* c, void*, uint32_t* out, uint32_t unused)
+{
+    return Call<uint32_t>(c->rasterizer, kRasterSurface, out, unused);
+}
 
 uint32_t __fastcall Slot47(Context* c, void*) { return Call<uint32_t>(c->rasterizer, kRaster20); }
 
@@ -975,7 +980,7 @@ bool Install(registry::Mode)
         {addr::GZDrawContext_IsBatching, reinterpret_cast<void*>(&IsBatching)},
         {addr::GZDrawContext_BeginBatch, reinterpret_cast<void*>(&BeginBatch)},
         {addr::GZDrawContext_EndBatch, reinterpret_cast<void*>(&EndBatch)},
-        {addr::GZDrawContext_Slot46, reinterpret_cast<void*>(&Slot46)},
+        {addr::GZDrawContext_GetSurface, reinterpret_cast<void*>(&GetSurface)},
         {addr::GZDrawContext_Slot47, reinterpret_cast<void*>(&Slot47)},
     };
     return InstallAll(detours, "context methods");
