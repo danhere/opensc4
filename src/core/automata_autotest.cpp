@@ -526,6 +526,25 @@
 //   the finder's runs and every call of the fakes. eflags 0x80000 when it
 //   ran, 0x100000 when the factory failed or there was no city. Log line:
 //   "em4 eroute".
+//   Part ped1 (the pedestrians, src/core/automata_pedestrians.cpp) adds
+//   `,<pobject>,<psave>,<pflags>` after eflags (53 fields): one pedestrian,
+//   one-shot, riot police and fire crew from their factories (pflags 1, 0x10
+//   when a factory failed): their fields (the fire crew's filters' vtables
+//   and counts), GetGZCLSID through +8 and at its address, QueryInterface
+//   over the four class IDs, the automaton base's and another (and both at
+//   their addresses on the one-shot); slot 17 and slot 174 (the city's slot
+//   44; pflags 0x20 without a city) through the vtable and at their
+//   addresses, the one-shot's slots 177 and 178, the crews' word, slot 16 on
+//   a vtable copy (slots 13, 100, 104 and 107 the test's) with no point and
+//   five headings (pflags 8); the allocator with a pool block and another
+//   size and its release. psave (pflags 2): each class written by its Write
+//   (through +8 and at its address) and the pedestrian's, read back as
+//   written, with each version word 3, cut by four and five bytes and empty,
+//   into objects whose crews hold a vehicle of the test's (the crews' +0x274,
+//   read through a local the game leaves unset, not mixed when the stream
+//   ends inside it). Then (pflags 4) each class released with its
+//   references set and each deleting destructor at its address with flag 0
+//   and the block given back by 0x00545130. Log line: "ped1 pobject".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -899,6 +918,7 @@
 #include "core/automata_scripts.h"
 #include "core/automata_situations.h"
 #include "core/automata_emergency.h"
+#include "core/automata_pedestrians.h"
 #include "core/automata_trains.h"
 #include "core/automata_vehicle.h"
 #include "core/automata_vehmgr.h"
@@ -27630,6 +27650,414 @@ void EmRouteDrive(Hash& eroute, uint32_t& eflags)
     g_em6 = Em6Answers{};
 }
 
+// ---- Part ped1: the pedestrians (src/core/automata_pedestrians.cpp).
+
+namespace ped = automata_pedestrians;
+
+// What the ped1 test's slots record.
+struct PedAnswers {
+    Hash calls; // every call of the test's slots
+};
+PedAnswers g_ped;
+
+void __fastcall PedRemove(char*, void*, uint32_t b)
+{
+    g_ped.calls.Mix(13);
+    g_ped.calls.Mix(b);
+}
+void __fastcall PedMoved(char*, void*, uint32_t moved, uint32_t turned)
+{
+    g_ped.calls.Mix(100);
+    g_ped.calls.Mix(moved & 0xFF);
+    g_ped.calls.Mix(turned & 0xFF);
+}
+void __fastcall PedSlot104(char*, void*) { g_ped.calls.Mix(104); }
+void __fastcall PedSlot107(char*, void*) { g_ped.calls.Mix(107); }
+
+// The classes, in the order of the token.
+struct PedClass {
+    std::uintptr_t create;
+    std::uintptr_t tables[6];
+    uint32_t clsid;
+    std::uintptr_t clsidAt;
+    std::uintptr_t write; // 0: the pedestrian's
+    std::uintptr_t read;
+    std::size_t size;
+    int slots;
+};
+
+const PedClass kPedClasses[4] = {
+    {addr::cSC4Pedestrian_Create,
+     {addr::cSC4Pedestrian_Vtable, addr::cSC4Pedestrian_Vtable4, addr::cSC4Pedestrian_Vtable8,
+      addr::cSC4Pedestrian_VtableC, addr::cSC4Pedestrian_Vtable20, addr::cSC4Pedestrian_Vtable38},
+     ped::kPedestrianClassId,
+     addr::cSC4Pedestrian_GetGZCLSID,
+     addr::cSC4Pedestrian_Write,
+     addr::cSC4Pedestrian_Read,
+     ped::kPedestrianSize,
+     177},
+    {addr::cSC4PedestrianOneShot_Create,
+     {addr::cSC4PedestrianOneShot_Vtable, addr::cSC4PedestrianOneShot_Vtable4, addr::cSC4PedestrianOneShot_Vtable8,
+      addr::cSC4PedestrianOneShot_VtableC, addr::cSC4PedestrianOneShot_Vtable20, addr::cSC4PedestrianOneShot_Vtable38},
+     ped::kOneShotClassId,
+     addr::cSC4PedestrianOneShot_GetGZCLSID,
+     addr::cSC4Pedestrian_Write,
+     addr::cSC4Pedestrian_Read,
+     ped::kOneShotSize,
+     179},
+    {addr::cSC4RiotPolice_Create,
+     {addr::cSC4RiotPolice_Vtable, addr::cSC4RiotPolice_Vtable4, addr::cSC4RiotPolice_Vtable8,
+      addr::cSC4RiotPolice_VtableC, addr::cSC4RiotPolice_Vtable20, addr::cSC4RiotPolice_Vtable38},
+     ped::kRiotPoliceClassId,
+     addr::cSC4RiotPolice_GetGZCLSID,
+     addr::cSC4RiotPolice_Write,
+     addr::cSC4RiotPolice_Read,
+     ped::kRiotPoliceSize,
+     177},
+    {addr::cSC4SimFireCrew_Create,
+     {addr::cSC4SimFireCrew_Vtable, addr::cSC4SimFireCrew_Vtable4, addr::cSC4SimFireCrew_Vtable8,
+      addr::cSC4SimFireCrew_VtableC, addr::cSC4SimFireCrew_Vtable20, addr::cSC4SimFireCrew_Vtable38},
+     ped::kFireCrewClassId,
+     addr::cSC4SimFireCrew_GetGZCLSID,
+     addr::cSC4SimFireCrew_Write,
+     addr::cSC4SimFireCrew_Read,
+     ped::kFireCrewSize,
+     177},
+};
+
+char* MakePed(int which, uint32_t& pflags)
+{
+    char* const o = reinterpret_cast<char* (*)()>(kPedClasses[which].create)();
+    if (!o) {
+        pflags |= 0x10;
+        return nullptr;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    return o;
+}
+
+void ReleasePed(char* o)
+{
+    if (!o)
+        return;
+    At<void*>(o, av::field::kObjectB0) = nullptr;
+    At<void*>(o, av::field::kOccupant) = nullptr;
+    At<void*>(o, av::field::kNetwork) = nullptr;
+    Virtual<uint32_t>(o, av::slot::kRelease);
+}
+
+// A field that may hold an object of the test's: 1 when it is `known`, 2 for
+// another, 0 for none.
+uint32_t PedHeld(char* o, std::size_t at, const void* known)
+{
+    void* const held = At<void*>(o, at);
+    return held == known && known ? 1u : held ? 2u : 0u;
+}
+
+// The fields of the pedestrian and the class (the test's objects by name;
+// the fire crew's +0x2B4, never set by its constructor, left out unless
+// `with2B4`; the crews' +0x274 left out unless `with274`).
+void MixPedFields(Hash& h, int which, char* o, const void* known, bool with274, bool with2B4)
+{
+    h.Mix(EmWord(At<uint32_t>(o, ped::ped::kWord), o + av::field::kSerializable));
+    h.Mix(At<uint8_t>(o, ped::ped::kByte));
+    h.MixBytes(o + ped::ped::kPoint, 12);
+    h.Mix(At<uint32_t>(o, ped::ped::kWord268));
+    h.Mix(At<uint32_t>(o, ped::ped::kFloat));
+    if (which == 1)
+        h.Mix(At<uint8_t>(o, ped::oneshot::kByte));
+    if (which < 2)
+        return;
+    h.Mix(PedHeld(o, ped::crew::kVehicle, known));
+    if (with274)
+        h.Mix(At<uint32_t>(o, ped::crew::kWord));
+    h.Mix(At<uint8_t>(o, ped::crew::kByte));
+    if (which == 2) {
+        h.Mix(At<uint8_t>(o, ped::riot::kByte279));
+        h.Mix(At<uint8_t>(o, ped::riot::kByte27A));
+        return;
+    }
+    for (const std::size_t at : {ped::fire::kHeld27C, ped::fire::kHeld280, ped::fire::kBlock, ped::fire::kWord288,
+                                 ped::fire::kWord28C, ped::fire::kHeld290, ped::fire::kHeld294})
+        h.Mix(At<void*>(o, at) ? 1u : 0u);
+    const std::uintptr_t expected[2][2] = {{addr::SC4OccupantFilter43_vftable, addr::SC4OccupantFilter43_vftable2},
+                                           {addr::cSC4FireTruck_FilterVtable, addr::cSC4FireTruck_FilterVtable2}};
+    for (int i = 0; i < 2; ++i) {
+        char* const filter = At<char*>(o, i == 0 ? ped::fire::kFilter : ped::fire::kFilter2);
+        h.Mix(filter ? 1u : 0u);
+        if (!filter)
+            continue;
+        h.Mix(At<std::uintptr_t>(filter, 0) == expected[i][0] ? 1u : 0u);
+        h.Mix(At<std::uintptr_t>(filter, 4) == expected[i][1] ? 1u : 0u);
+        h.Mix(At<uint32_t>(filter, 8));
+    }
+    h.Mix(At<uint32_t>(o, ped::fire::kWord2A0));
+    h.Mix(At<uint8_t>(o, ped::fire::kByte2A4));
+    h.MixBytes(o + ped::fire::kPoint2A8, 12);
+    if (with2B4)
+        h.Mix(At<uint32_t>(o, ped::fire::kFloat2B4));
+    h.MixBytes(o + ped::fire::kPoint2B8, 12);
+}
+
+void PedestrianDrive(Hash& pobject, Hash& psave, uint32_t& pflags)
+{
+    g_ped = PedAnswers{};
+    char* made[4] = {};
+    for (int i = 0; i < 4; ++i)
+        made[i] = MakePed(i, pflags);
+    for (char* o : made)
+        if (!o) {
+            for (char* m : made)
+                ReleasePed(m);
+            log::Write("autotest: automata: vehicle: ped1: a factory failed");
+            return;
+        }
+    pflags |= 1;
+    using Serialize = uint32_t(__thiscall*)(void*, void*);
+
+    // ---- The objects: the fields, GetGZCLSID through +8 and at its
+    // address, QueryInterface over the four class IDs, the automaton base's
+    // and another.
+    for (int i = 0; i < 4; ++i) {
+        char* const o = made[i];
+        MixFields(pobject, o, kPedClasses[i].tables, false);
+        MixPedFields(pobject, i, o, nullptr, true, false);
+        pobject.Mix(Virtual<uint32_t>(o + av::field::kSerializable, 0x14));
+        pobject.Mix(This<uint32_t>(kPedClasses[i].clsidAt, o + av::field::kSerializable));
+        for (const uint32_t iid : {ped::kPedestrianClassId, ped::kOneShotClassId, ped::kRiotPoliceClassId,
+                                   ped::kFireCrewClassId, 0x8B99EE7Cu, 0x12345678u}) {
+            void* out = &made;
+            const uint32_t answer = Virtual<uint32_t>(o, av::slot::kQueryInterface, iid, &out) & 0xFF;
+            pobject.Mix(answer);
+            pobject.Mix(out == o ? 1u : !out ? 0u : out == &made ? 3u : 2u);
+            if (answer && out)
+                pobject.Mix(Virtual<uint32_t>(static_cast<char*>(out), av::slot::kRelease));
+        }
+    }
+    {
+        char* const one = made[1];
+        void* out = nullptr;
+        pobject.Mix(This<uint32_t>(addr::cSC4Pedestrian_QueryInterface, one, ped::kOneShotClassId, &out) & 0xFF);
+        pobject.Mix(out ? 1u : 0u);
+        if (out)
+            Virtual<uint32_t>(one, av::slot::kRelease);
+        out = nullptr;
+        pobject.Mix(This<uint32_t>(addr::cSC4PedestrianOneShot_QueryInterface, one, ped::kPedestrianClassId, &out) &
+                    0xFF);
+        if (out)
+            Virtual<uint32_t>(one, av::slot::kRelease);
+    }
+
+    // ---- The queries: slot 17, slot 174 (the city's slot 44), the
+    // one-shot's slots 177 and 178, the crews' word, slot 16 on a vtable copy
+    // with no point and five headings.
+    void* const city = Global<void*>(addr::SC4_City);
+    for (int i = 0; i < 4; ++i) {
+        char* const o = made[i];
+        pobject.Mix(Bits(Virtual<float>(o, 17 * 4)));
+        pobject.Mix(Bits(This<float>(addr::cSC4Pedestrian_Slot17, o)));
+        if (city) {
+            void* const service = Virtual<void*>(city, ped::slot::kCityCrewService);
+            pobject.Mix(Virtual<void*>(o, 174 * 4) == service ? 1u : 0u);
+            pobject.Mix(This<void*>(addr::cSC4Pedestrian_CityCrewService, o) == service ? 1u : 0u);
+        } else {
+            pflags |= 0x20;
+        }
+    }
+    {
+        char* const one = made[1];
+        pobject.Mix(Virtual<uint32_t>(one, 177 * 4) & 0xFF);
+        Virtual<void>(one, 178 * 4, 0x1A2u);
+        pobject.Mix(This<uint32_t>(addr::cSC4PedestrianOneShot_Byte, one) & 0xFF);
+        This<void>(addr::cSC4PedestrianOneShot_SetByte, one, 0xFFFFFF07u);
+        pobject.Mix(Virtual<uint32_t>(one, 177 * 4) & 0xFF);
+        pobject.Mix(At<uint32_t>(one, ped::oneshot::kByte) & 0xFFFFFF00u ? 1u : 0u);
+        for (int i = 2; i < 4; ++i) {
+            const uint32_t word = 0x40490FDBu + static_cast<uint32_t>(i);
+            This<void>(addr::cSC4SimFireCrew_SetWord274, made[i], &word);
+            pobject.Mix(At<uint32_t>(made[i], ped::crew::kWord));
+        }
+    }
+    {
+        char* const o = made[0];
+        static void* table[192];
+        void** const real = At<void**>(o, 0);
+        for (int i = 0; i < 177; ++i)
+            table[i] = real[i];
+        table[13] = reinterpret_cast<void*>(&PedRemove);
+        table[100] = reinterpret_cast<void*>(&PedMoved);
+        table[104] = reinterpret_cast<void*>(&PedSlot104);
+        table[107] = reinterpret_cast<void*>(&PedSlot107);
+        At<void**>(o, 0) = table;
+        const float headings[5][3] = {
+            {3.0f, 2.0f, 4.0f}, {0.1f, -0.7f, -0.3f}, {0.0f, 5.0f, 0.0f}, {0.000001f, 0.0f, -0.000002f}, {-6.0f, 0.0f, 8.0f}};
+        for (const auto& heading : headings) {
+            Virtual<void>(o, 16 * 4, static_cast<const float*>(nullptr), static_cast<const float*>(heading));
+            pobject.MixBytes(o + av::field::kHeading, 12);
+            This<void>(addr::cSC4Pedestrian_Place, o, static_cast<const float*>(nullptr),
+                       static_cast<const float*>(heading));
+            pobject.MixBytes(o + av::field::kHeading, 12);
+        }
+        This<void>(addr::cSC4Pedestrian_Place, o, static_cast<const float*>(nullptr), static_cast<const float*>(nullptr));
+        pobject.MixBytes(o + av::field::kHeading, 12);
+        At<void**>(o, 0) = real;
+    }
+    pflags |= 8;
+
+    // ---- The allocator and its release: a 0x270 block from the pool's
+    // current page, another size from SC4::operator_new (not in it).
+    {
+        using New = void*(__cdecl*)(std::size_t);
+        using Delete = void(__cdecl*)(void*, std::size_t);
+        auto page = [] { return reinterpret_cast<std::uintptr_t>(Global<char*>(addr::cSC4Pedestrian_Pool + 4)); };
+        auto pageOf = [](void* b) { return reinterpret_cast<std::uintptr_t>(b) & 0xFFFF0000u; };
+        void* const block = reinterpret_cast<New>(addr::cSC4Pedestrian_New)(0x270);
+        pobject.Mix(block ? (pageOf(block) == page() ? 1u : 2u) : 0u);
+        reinterpret_cast<Delete>(addr::cSC4Pedestrian_Delete)(block, 0x270);
+        void* const other = reinterpret_cast<New>(addr::cSC4Pedestrian_New)(0x30);
+        pobject.Mix(other ? (pageOf(other) == page() ? 1u : 2u) : 0u);
+        reinterpret_cast<Delete>(addr::cSC4Pedestrian_Delete)(other, 0x30);
+        reinterpret_cast<Delete>(addr::cSC4Pedestrian_Delete)(nullptr, 0x270);
+    }
+
+    // ---- The save: each class written by its Write and the pedestrian's,
+    // read back as written, with each version word 3, cut by four and five
+    // bytes and empty, into objects whose crews hold a vehicle of the test's
+    // (a failed reference read clears it).
+    {
+        for (int i = 0; i < 4; ++i) {
+            char* const o = made[i];
+            SetPoint(o, ped::ped::kPoint, 1.5f, -2.0f, 3.25f + static_cast<float>(i));
+            At<uint8_t>(o, ped::ped::kByte) = static_cast<uint8_t>(i & 1);
+            At<uint32_t>(o, ped::ped::kWord) = 0xC0DE0000u + static_cast<uint32_t>(i);
+            At<float>(o, ped::ped::kFloat) = 0.25f * static_cast<float>(i + 1);
+            if (i >= 2) {
+                At<uint32_t>(o, ped::crew::kWord) = 0x3F000000u + static_cast<uint32_t>(i);
+                At<uint8_t>(o, ped::crew::kByte) = static_cast<uint8_t>(0x70 + i);
+            }
+            if (i == 2)
+                At<uint8_t>(o, ped::riot::kByte279) = 1;
+            if (i == 3) {
+                At<uint32_t>(o, ped::fire::kWord2A0) = 0xFFFFFFF6u;
+                At<uint8_t>(o, ped::fire::kByte2A4) = 1;
+                SetPoint(o, ped::fire::kPoint2A8, -4.0f, 0.5f, 9.0f);
+                At<float>(o, ped::fire::kFloat2B4) = 7.75f;
+                SetPoint(o, ped::fire::kPoint2B8, 11.0f, 12.0f, -13.0f);
+            }
+            ByteOStream out;
+            const uint32_t wrote = Virtual<uint32_t>(o + av::field::kSerializable, 0xC, static_cast<cIGZOStream*>(&out));
+            ByteOStream atAddress;
+            const uint32_t wrote2 = reinterpret_cast<Serialize>(kPedClasses[i].write)(
+                o + av::field::kSerializable, static_cast<cIGZOStream*>(&atAddress));
+            ByteOStream pedestrian;
+            reinterpret_cast<Serialize>(addr::cSC4Pedestrian_Write)(o + av::field::kSerializable,
+                                                                    static_cast<cIGZOStream*>(&pedestrian));
+            psave.Mix(wrote);
+            psave.Mix(wrote2);
+            const std::vector<uint8_t>& w = out.bytes;
+            const std::vector<uint8_t>& p = pedestrian.bytes;
+            psave.Mix(w == atAddress.bytes ? 1u : 0u);
+            const std::size_t header = i >= 2 ? 2 : 0;
+            const bool fits = w.size() >= header + p.size();
+            psave.Mix(static_cast<uint32_t>(w.size()));
+            psave.Mix(static_cast<uint32_t>(p.size()));
+            if (fits) {
+                psave.MixBytes(w.data(), header);
+                psave.Mix(std::equal(p.begin(), p.end(), w.begin() + static_cast<std::ptrdiff_t>(header)) ? 1u : 0u);
+                psave.MixBytes(w.data() + header + p.size(), w.size() - header - p.size());
+            }
+            // The pedestrian's part of the stream: its header and its own
+            // tail after the automaton base's (the last 0x15 bytes).
+            if (p.size() >= 0x15) {
+                psave.MixBytes(p.data(), 2);
+                psave.MixBytes(p.data() + p.size() - 0x15, 0x15);
+            }
+            std::vector<std::vector<uint8_t>> variants = {w};
+            variants.push_back(WithWord(w, 0, 3));
+            if (header)
+                variants.push_back(WithWord(w, header, 3));
+            for (const std::size_t cut : {std::size_t{4}, std::size_t{5}})
+                if (w.size() > header + cut)
+                    variants.emplace_back(w.begin(), w.end() - static_cast<std::ptrdiff_t>(cut));
+            variants.emplace_back();
+            for (const std::vector<uint8_t>& bytes : variants) {
+                char* const read = MakePed(i, pflags);
+                if (!read)
+                    continue;
+                Counted vehicle{CountedVtable(), 1, 0x270, 0};
+                if (i >= 2)
+                    At<void*>(read, ped::crew::kVehicle) = &vehicle;
+                ByteIStream in(bytes);
+                const uint32_t answer = reinterpret_cast<Serialize>(kPedClasses[i].read)(
+                    read + av::field::kSerializable, static_cast<cIGZIStream*>(&in));
+                psave.Mix(answer & 0xFF);
+                psave.Mix(static_cast<uint32_t>(in.at));
+                psave.Mix(static_cast<uint32_t>(in.error));
+                // The crews' +0x274 is read through a local the game leaves
+                // unset: not mixed when the stream ends inside that float.
+                const std::size_t at274 = header + p.size();
+                const bool unset274 = i >= 2 && bytes.size() >= at274 && bytes.size() < at274 + 4;
+                MixPedFields(psave, i, read, &vehicle, !unset274, true);
+                if (i >= 2)
+                    At<void*>(read, ped::crew::kVehicle) = nullptr;
+                ReleasePed(read);
+                psave.Mix(static_cast<uint32_t>(vehicle.references));
+            }
+        }
+        pflags |= 2;
+    }
+
+    // ---- The destructors: each class released with its references set
+    // (the crews' vehicle, the fire crew's four objects), then each class's
+    // deleting destructor at its address with flag 0 and the block given
+    // back by 0x00545130.
+    {
+        const std::uintptr_t deleting[4] = {addr::cSC4Pedestrian_DeletingDestructor,
+                                            addr::cSC4PedestrianOneShot_DeletingDestructor,
+                                            addr::cSC4RiotPolice_DeletingDestructor,
+                                            addr::cSC4SimFireCrew_DeletingDestructor};
+        for (const bool atAddress : {false, true})
+            for (int i = 0; i < 4; ++i) {
+                char* const o = MakePed(i, pflags);
+                if (!o)
+                    continue;
+                Counted held[5] = {{CountedVtable(), 5, 0x270, 0},
+                                   {CountedVtable(), 5, 0x27C, 0},
+                                   {CountedVtable(), 5, 0x280, 0},
+                                   {CountedVtable(), 5, 0x290, 0},
+                                   {CountedVtable(), 5, 0x294, 0}};
+                if (i >= 2)
+                    At<void*>(o, ped::crew::kVehicle) = &held[0];
+                if (i == 3) {
+                    At<void*>(o, ped::fire::kHeld27C) = &held[1];
+                    At<void*>(o, ped::fire::kHeld280) = &held[2];
+                    At<void*>(o, ped::fire::kHeld290) = &held[3];
+                    At<void*>(o, ped::fire::kHeld294) = &held[4];
+                }
+                At<void*>(o, av::field::kObjectB0) = nullptr;
+                At<void*>(o, av::field::kOccupant) = nullptr;
+                At<void*>(o, av::field::kNetwork) = nullptr;
+                if (atAddress) {
+                    pobject.Mix(This<char*>(deleting[i], o, 0u) == o ? 1u : 0u);
+                    reinterpret_cast<void(__cdecl*)(void*, std::size_t)>(addr::cSC4Pedestrian_Delete)(
+                        o, kPedClasses[i].size);
+                } else {
+                    Virtual<uint32_t>(o, av::slot::kRelease);
+                }
+                for (const Counted& c : held)
+                    pobject.Mix(static_cast<uint32_t>(c.references));
+            }
+        pflags |= 4;
+    }
+    pobject.Mix(g_ped.calls.h);
+
+    for (char* o : made)
+        ReleasePed(o);
+    log::Write("autotest: automata: vehicle: ped1 pobject %08X psave %08X pflags %X calls %08X", pobject.h, psave.h,
+               pflags, g_ped.calls.h);
+    g_ped = PedAnswers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -27954,6 +28382,11 @@ void VehicleDrive(cISC4City* city)
     Hash eroute;
     EmRouteDrive(eroute, eflags);
 
+    // ---- Part ped1.
+    Hash pobject, psave;
+    uint32_t pflags = 0;
+    PedestrianDrive(pobject, psave, pflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -28006,16 +28439,17 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[512];
+    char text[640];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
-                  eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags);
+                  eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
+                  pobject.h, psave.h, pflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

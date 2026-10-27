@@ -2074,13 +2074,13 @@ expect = "8B 54 24 0C 53 56 57 8B"
 source = "cSC4Vehicle's constructor, ret 0x10: the automaton base's 0x005544D0 with the four words (the vehicle manager's AddAutomaton passes itself and three zero words, the factory four zeros), the six vtables (0x00A9D488, 0x00A9D400, 0x00A9D3E4, 0x00A9D380, 0x00A9D368, 0x00A9D358), +0x254..+0x260 zero, +0x264 and +0x270 the core's default point (0x00B09A04), the +0x27C deque (0x0049EB90 with 0), +0x2B4 zero, the occupant type 0xC7CC75F1 at +0x28, +0x2A4..+0x2B0 zero; a time drawn from the generator 0x00B21D78 (cRZRandomSuper::Between of 0x00B21BCC and 0x00B21BD0, as a signed int, times 0x00A9D0B0) into +0x80 and, when it differs from +0x1A4 (or is unordered), the smoothed value at +0x1A0 (0x004FA960's answer, the time, 0, 0). Ours in simulators.automata.vehicle (src/core/automata_vehicle.cpp, part vb1). Also called by address from src/core/automata_vehmgr.cpp (part v2)."
 
 [[entry]]
-name = "SC4VehPedManager::NewPedestrian"
+name = "cSC4Pedestrian::Construct"
 address = 0x00545F20
 kind = "function"
 convention = "thiscall"
-signature = "void* (void* block, void* manager, uint32_t a, uint32_t b, uint32_t c)"
+signature = "void* (void* this, uint32_t a, uint32_t b, uint32_t c, uint32_t d)"
 expect = "8B 54 24 0C 53 56 57 8B"
-source = "Name ours. Builds a pedestrian in a pool block for the pedestrian manager's AddAutomaton, ret 0x10. Called by address from src/core/automata_vehmgr.cpp (part v2)."
+source = "Name ours. The pedestrian's constructor, ret 0x10: the automaton base's 0x005544D0 with the four words (the pedestrian manager's AddAutomaton passes itself and three zero words, the factories four zeros), the six vtables 0x00A9A718.., +0x254 and the byte +0x258 zero, the point +0x25C three copies of the float 0x00B228DC, +0x268 zero, +0x26C 0.01, the occupant type 0x496E5783 at +0x28; a time drawn from the generator 0x00B21D78 (cRZRandomSuper::Between of 0x00B21BE0 and 0x00B21BE4, as a signed int, times 0x00A9A3FC) into +0x80 and, when it differs from +0x1A4 (or is unordered), the smoothed value at +0x1A0 (0x004FA960's answer, the time, 0, 0). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1). Also called by address from src/core/automata_vehmgr.cpp (part v2)."
 
 # Part v3 of the vehicle and pedestrian managers: creation, dispatch and frames (src/core/automata_vehmgr.cpp; docs/automata.md, "Part v3").
 
@@ -13653,7 +13653,7 @@ kind = "function"
 convention = "cdecl"
 signature = "void* (uint32_t size)"
 expect = "8B 44 24 04 3D 70 02 00"
-source = "Name ours. The pedestrians' allocator: 0x270 bytes from the pool 0x00B0A018, any other size from SC4::operator_new (a tail jump). Called by address from src/core/automata_emergency.cpp (part em3a)."
+source = "Name ours. The pedestrians' allocator: 0x270 bytes from the pool 0x00B0A018 (a new page from SC4EdgePool::Grow when its page has none), any other size from SC4::operator_new (a tail jump). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1). Also called by address from src/core/automata_emergency.cpp (parts em3a and em3b)."
 
 [[entry]]
 name = "cSC4SimFireCrew::Construct"
@@ -13662,7 +13662,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, void* truck)"
 expect = "53 55 56 57 83 EC 0C 8B"
-source = "Name ours. The fire crew's constructor (ret 4): the pedestrian base's, then the crew's vtables and the truck at +0x270 (held). Called by address from src/core/automata_emergency.cpp (part em3a)."
+source = "Name ours. The fire crew's constructor (ret 4): the pedestrian's 0x00545F20 with four zero words, the six vtables 0x00A9B488.., the truck held at +0x270, +0x274 the word 0x00B228EC, the byte +0x278 1, +0x27C..+0x2B0 zero (+0x2A4 a byte; +0x2B4 left), the point +0x2B8 three copies of the float 0x00B228F0; the fire truck's two occupant filters (vtables 0x00A949B8 and 0x00A985B0) held into +0x298 and +0x29C. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1). Also called by address from src/core/automata_emergency.cpp (part em3a)."
 
 [[entry]]
 name = "cSC4SimFireCrew::SetWord274"
@@ -13671,7 +13671,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, const uint32_t* word)"
 expect = "8B 44 24 04 8B 10 89 91"
-source = "Name ours. Ret 4: +0x274 = *word. Called by address from src/core/automata_emergency.cpp (part em3a)."
+source = "Name ours. The riot police's and the fire crew's word, ret 4: +0x274 = *word. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1). Also called by address from src/core/automata_emergency.cpp (parts em3a and em3b)."
 
 [[entry]]
 name = "cSC4SimFireCrew::Dispatch"
@@ -13805,7 +13805,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, void* car)"
 expect = "53 56 83 EC 0C 8B C4 33"
-source = "Name ours. The riot police's constructor (ret 4): the pedestrian base's (0x00545F20), then the police's six vtables (0x00A9AFC8 ...) and the car at +0x270 (held). Called by address from src/core/automata_emergency.cpp (part em3b)."
+source = "Name ours. The riot police's constructor (ret 4): the pedestrian's 0x00545F20 with four zero words, the six vtables 0x00A9AFC8.., the car held at +0x270, +0x274 the word 0x00B228E0, the bytes +0x278 1, +0x279 and +0x27A zero. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1). Also called by address from src/core/automata_emergency.cpp (part em3b)."
 
 [[entry]]
 name = "cSC4RiotPolice::Dispatch"
@@ -13871,3 +13871,483 @@ convention = "thiscall"
 signature = "void (void* deque, uint32_t pos[4], uint32_t first[4], uint32_t last[4])"
 expect = "8B 54 24 24 8D 44 24 24"
 source = "Name ours. The route deque's insert of a range at a position (three 16-byte iterators by value, ret 0x30); a template function kept the game's. Called by address from src/core/automata_emergency.cpp (part em4)."
+
+# Part ped1: the pedestrians (the pedestrian, the one-shot, the riot police and the fire crew), the objects, the save and the small queries (src/core/automata_pedestrians.cpp, docs/automata.md "Part ped").
+
+[[entry]]
+name = "cSC4Pedestrian::Create"
+address = 0x005149A0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 70 02 00 00 E8 E6 FE"
+source = "The pedestrian's GZCOM factory: 0x270 bytes from the allocator 0x00544890 (the pool), the constructor 0x00545F20 with four zero words; null when the block is. Registered by 0x00514A00 for class 0x896E75AF. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Create"
+address = 0x005149D0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 74 02 00 00 E8 B6 FE"
+source = "The one-shot pedestrian's GZCOM factory: 0x274 bytes from the allocator 0x00544890 (so SC4::operator_new), the constructor 0x00546860 with four zero words; null when the block is. Registered by 0x00514A00 for class 0xAA09DC28. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::Create"
+address = 0x005147A0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 7C 02 00 00 E8 E6 00"
+source = "The riot police's GZCOM factory: 0x27C bytes from the allocator 0x00544890, the constructor 0x00547800 with no car; null when the block is. Registered by 0x00514A00 for class 0x8A6E4FA4. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Create"
+address = 0x00514780
+kind = "function"
+convention = "cdecl"
+signature = "void* (void)"
+expect = "68 C4 02 00 00 E8 06 01"
+source = "The fire crew's GZCOM factory: 0x2C4 bytes from the allocator 0x00544890, the constructor 0x0054A2A0 with no truck; null when the block is. Registered by 0x00514A00 for class 0x4A222E4D. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Delete"
+address = 0x00545130
+kind = "function"
+convention = "cdecl"
+signature = "void (void* block, uint32_t size)"
+expect = "8B 44 24 04 85 C0 74 1C"
+source = "Name ours. The allocator's counterpart: nothing for null; 0x270 bytes back to the pool 0x00B0A018 (0x00545410), other sizes to SC4::operator_delete. The riot police's and the fire crew's deleting destructors call it. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::PoolFree"
+address = 0x00545410
+kind = "function"
+convention = "thiscall"
+signature = "void (void* pool, void* block)"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Name ours. On the pool, ret 4: a non-null block back onto its page's free list (the page is the block's address & 0xFFFF0000, the free head at +8, the count at +0xC); at count 0 the page let go (SC4Pool::ReleaseBlock), at 0x4000004E reopened (SC4Pool::ReopenBlock), both tail jumps. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Construct"
+address = 0x00546860
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t a, uint32_t b, uint32_t c, uint32_t d)"
+expect = "8B 54 24 0C 56 8B F1 8B"
+source = "Name ours. The one-shot's constructor, ret 0x10: the pedestrian's 0x00545F20 with the four words, the six vtables 0x00A9AB50.., the byte +0x270 5. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::QueryInterface"
+address = 0x00544750
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D AF 75 6E"
+source = "Name ours. The pedestrian's slot 0 (and through the jump 0x00547920 the riot police's and the fire crew's), ret 8: 0x896E75AF answers the object (AddRef, slot 1; AL 1); the rest the automaton base's 0x0054D7F0 (a tail jump). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::QueryInterface"
+address = 0x00544780
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D 28 DC 09"
+source = "Name ours. The one-shot's slot 0, ret 8: 0xAA09DC28 or 0x896E75AF answers the object (AddRef; AL 1); the rest the automaton base's 0x0054D7F0. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::DeletingDestructor"
+address = 0x005460F0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 8D 8E 2C 02 00"
+source = "Name ours. The pedestrian's deleting destructor (+0xC slot 22 through 0x005460C0), ret 4: the automaton base's body inlined (as 0x00504E30), then with flag 1 a non-null block back to the pool (0x00545410); answers this. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::DeletingDestructor"
+address = 0x00546960
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 C8 E4 FB FF"
+source = "Name ours. The one-shot's deleting destructor (+0xC slot 22 through 0x00546920), ret 4: the automaton base's body 0x00504E30, then with flag 1 a non-null block to SC4::operator_delete; answers this. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::DeletingDestructor"
+address = 0x005478E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 8B 8E 70 02 00"
+source = "Name ours. The riot police's deleting destructor (+0xC slot 22 through 0x00547890), ret 4: the car +0x270 released (not cleared), the automaton base's body 0x00504E30, then with flag 1 0x00545130 (this, 0x27C); answers this. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Destroy"
+address = 0x0054A530
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8B 8E 9C 02 00"
+source = "Name ours. The fire crew's destructor body: +0x29C, +0x298 (the filters), +0x294 and +0x290 released, the block +0x284 freed (SC4::Free), +0x280, +0x27C and the truck +0x270 released (none cleared), then the automaton base's body inlined (a tail jump to the core's destructor 0x00513E60). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::DeletingDestructor"
+address = 0x0054A500
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 28 00 00 00"
+source = "Name ours. The fire crew's deleting destructor (+0xC slot 22 through 0x0054A470), ret 4: the body 0x0054A530, then with flag 1 0x00545130 (this, 0x2C4); answers this. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::GetGZCLSID"
+address = 0x00546030
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 AF 75 6E 89 C3"
+source = "Name ours. The pedestrian's +8 slot 5: 0x896E75AF. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::GetGZCLSID"
+address = 0x005468C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 28 DC 09 AA C3"
+source = "Name ours. The one-shot's +8 slot 5: 0xAA09DC28. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::GetGZCLSID"
+address = 0x00547880
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 A4 4F 6E 8A C3"
+source = "Name ours. The riot police's +8 slot 5: 0x8A6E4FA4. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::GetGZCLSID"
+address = 0x0054A430
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 4D 2E 22 4A C3"
+source = "Name ours. The fire crew's +8 slot 5: 0x4A222E4D. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Write"
+address = 0x00544650
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The pedestrian's +8 slot 3 (this = the object + 8), ret 4: version 5 (uint16), the automaton base's Write 0x00551DE0; when true the byte +0x258 (SC4Stream::WriteBool), the point +0x25C (SC4Stream::WriteVector3), the float +0x26C and the word +0x254. Answers whether the stream's error (slot 18, its AL) is zero. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Read"
+address = 0x005446C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "51 56 8B 74 24 0C 8B 06"
+source = "Name ours. The pedestrian's +8 slot 4, ret 4: the version (uint16) into the stream argument's own slot; AL 0 unless 5; the automaton base's Read 0x00554D20; when true the byte +0x258, the point +0x25C, the float +0x26C and the word +0x254 through a local that holds this (the part) when the read fails. Answers whether the stream's error is zero. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::Write"
+address = 0x00546DB0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The riot police's +8 slot 3, ret 4: version 2, the pedestrian's Write 0x00544650; when true the car +0x270 (SC4Stream::WriteReference), the float +0x274, the byte +0x278 (uint8) and the byte +0x279 (SC4Stream::WriteBool). Whether the stream's error is zero. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::Read"
+address = 0x00546E20
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. The riot police's +8 slot 4, ret 4: the version into the stream argument's own slot; AL 0 unless 2; the pedestrian's Read 0x005446C0; when true the car read as 0xA9B40F05 into a zeroed local and held into +0x270 when it differs (the old one released), +0x274 through a local left unset, the byte +0x278 and the byte +0x279 (SC4Stream::ReadBool). Whether the stream's error is zero. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Write"
+address = 0x00547BD0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The fire crew's +8 slot 3, ret 4: as the riot police's to the byte +0x278, then the word +0x2A0 (sint32), the byte +0x2A4 (SC4Stream::WriteBool), the point +0x2A8, the float +0x2B4 and the point +0x2B8. Whether the stream's error is zero. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Read"
+address = 0x00547C80
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part, void* stream)"
+expect = "83 EC 08 56 8B 74 24 10"
+source = "Name ours. The fire crew's +8 slot 4, ret 4: as the riot police's to the byte +0x278 (+0x274 through an unset local), then +0x2A0, +0x2A4, +0x2A8, +0x2B4 and +0x2B8 read in place. Whether the stream's error is zero. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Place"
+address = 0x00544530
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* point, const float* heading)"
+expect = "8B 44 24 08 83 EC 0C 85"
+source = "Name ours. The pedestrian's slot 16, ret 8: the core's slot 16 0x005080C0 with a copy of the heading with y zero, or none without one. Not in Ghidra's list of functions. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Slot17"
+address = 0x00546040
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this)"
+expect = "D9 05 2C 4D A8 00 C3"
+source = "Name ours. The pedestrian's slot 17: the float 0.5 0x00A84D2C in ST0. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::CityCrewService"
+address = 0x00544D90
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B 0D EC 3C B4 00 8B 01"
+source = "Name ours. The pedestrian's slot 174 (the automaton base's is a pure call): the city's (0x00B43CEC, not null-tested) slot 44 (a tail jump). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Byte"
+address = 0x005468D0
+kind = "function"
+convention = "thiscall"
+signature = "uint8_t (void* this)"
+expect = "8A 81 70 02 00 00 C3"
+source = "Name ours. The one-shot's slot 177: the byte +0x270 (AL only). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::SetByte"
+address = 0x005468E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint8_t value)"
+expect = "8A 44 24 04 88 81 70 02"
+source = "Name ours. The one-shot's slot 178, ret 4: the byte +0x270. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Pool"
+address = 0x00B0A018
+kind = "data"
+source = "Name ours. The pedestrians' pool (SC4EdgePool of 0x270-byte blocks; its current page at +4: the free head at +8, the count at +0xC). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::DrawLow"
+address = 0x00B21BE0
+kind = "data"
+source = "Name ours. The low end of the time the pedestrian's constructor draws (cRZRandomSuper::Between, signed). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::DrawHigh"
+address = 0x00B21BE4
+kind = "data"
+source = "Name ours. The high end of that draw. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::DrawScale"
+address = 0x00A9A3FC
+kind = "data"
+expect = "B5 A2 91 39"
+source = "Name ours. The float 1/3600 the pedestrian's constructor multiplies the drawn int by. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::DefaultFloat"
+address = 0x00B228DC
+kind = "data"
+source = "Name ours. A float the pedestrian's constructor copies into the point +0x25C..+0x264. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::DefaultWord"
+address = 0x00B228E0
+kind = "data"
+source = "Name ours. The word the riot police's constructor gives +0x274. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::DefaultWord"
+address = 0x00B228EC
+kind = "data"
+source = "Name ours. The word the fire crew's constructor gives +0x274. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::DefaultFloat"
+address = 0x00B228F0
+kind = "data"
+source = "Name ours. A float the fire crew's constructor copies into the point +0x2B8..+0x2C0. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Vtable"
+address = 0x00A9A718
+kind = "data"
+expect = "50 47 54 00 F0 28 5E 00"
+source = "cSC4Pedestrian's main vtable (177 slots). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Vtable4"
+address = 0x00A9A690
+kind = "data"
+expect = "80 60 54 00 B0 29 5E 00"
+source = "cSC4Pedestrian's +4 vtable (the occupant part). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Vtable8"
+address = 0x00A9A674
+kind = "data"
+expect = "A0 60 54 00 E0 29 5E 00"
+source = "cSC4Pedestrian's +8 vtable (the serializable part). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::VtableC"
+address = 0x00A9A610
+kind = "data"
+expect = "B0 60 54 00 10 2A 5E 00"
+source = "cSC4Pedestrian's +0xC vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Vtable20"
+address = 0x00A9A5F8
+kind = "data"
+expect = "D0 60 54 00 A0 06 5E 00"
+source = "cSC4Pedestrian's +0x20 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4Pedestrian::Vtable38"
+address = 0x00A9A5E8
+kind = "data"
+expect = "E0 60 54 00 30 AF 4F 00"
+source = "cSC4Pedestrian's +0x38 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Vtable"
+address = 0x00A9AB50
+kind = "data"
+expect = "80 47 54 00 F0 28 5E 00"
+source = "cSC4PedestrianOneShot's main vtable (179 slots). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Vtable4"
+address = 0x00A9AAC8
+kind = "data"
+expect = "F0 68 54 00 B0 29 5E 00"
+source = "cSC4PedestrianOneShot's +4 vtable (the occupant part). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Vtable8"
+address = 0x00A9AAAC
+kind = "data"
+expect = "00 69 54 00 E0 29 5E 00"
+source = "cSC4PedestrianOneShot's +8 vtable (the serializable part). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::VtableC"
+address = 0x00A9AA48
+kind = "data"
+expect = "10 69 54 00 10 2A 5E 00"
+source = "cSC4PedestrianOneShot's +0xC vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Vtable20"
+address = 0x00A9AA30
+kind = "data"
+expect = "30 69 54 00 A0 06 5E 00"
+source = "cSC4PedestrianOneShot's +0x20 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Vtable38"
+address = 0x00A9AA20
+kind = "data"
+expect = "40 69 54 00 30 AF 4F 00"
+source = "cSC4PedestrianOneShot's +0x38 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::Vtable"
+address = 0x00A9AFC8
+kind = "data"
+expect = "20 79 54 00 60 A8 65 00"
+source = "cSC4RiotPolice's main vtable (177 slots). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::Vtable4"
+address = 0x00A9AF40
+kind = "data"
+expect = "40 A4 54 00 D0 85 64 00"
+source = "cSC4RiotPolice's +4 vtable (the occupant part). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::Vtable8"
+address = 0x00A9AF24
+kind = "data"
+expect = "50 A4 54 00 00 86 64 00"
+source = "cSC4RiotPolice's +8 vtable (the serializable part). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::VtableC"
+address = 0x00A9AEC0
+kind = "data"
+expect = "60 A4 54 00 30 86 64 00"
+source = "cSC4RiotPolice's +0xC vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::Vtable20"
+address = 0x00A9AEA8
+kind = "data"
+expect = "80 A4 54 00 70 86 64 00"
+source = "cSC4RiotPolice's +0x20 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4RiotPolice::Vtable38"
+address = 0x00A9AE98
+kind = "data"
+expect = "90 A4 54 00 A0 A4 54 00"
+source = "cSC4RiotPolice's +0x38 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Vtable"
+address = 0x00A9B488
+kind = "data"
+expect = "20 79 54 00 60 A8 65 00"
+source = "cSC4SimFireCrew's main vtable (177 slots). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Vtable4"
+address = 0x00A9B400
+kind = "data"
+expect = "40 A4 54 00 D0 85 64 00"
+source = "cSC4SimFireCrew's +4 vtable (the occupant part). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Vtable8"
+address = 0x00A9B3E4
+kind = "data"
+expect = "50 A4 54 00 00 86 64 00"
+source = "cSC4SimFireCrew's +8 vtable (the serializable part). Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::VtableC"
+address = 0x00A9B380
+kind = "data"
+expect = "60 A4 54 00 30 86 64 00"
+source = "cSC4SimFireCrew's +0xC vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Vtable20"
+address = 0x00A9B368
+kind = "data"
+expect = "80 A4 54 00 70 86 64 00"
+source = "cSC4SimFireCrew's +0x20 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Vtable38"
+address = 0x00A9B358
+kind = "data"
+expect = "90 A4 54 00 A0 A4 54 00"
+source = "cSC4SimFireCrew's +0x38 vtable. Called by address from src/core/automata_pedestrians.cpp (part ped1)."

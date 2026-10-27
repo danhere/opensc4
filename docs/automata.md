@@ -38,7 +38,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (2, done) (part em below counts 122; part em finished) |
-| Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | 3 |
+| Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2 to ped4 (part ped below counts 111) |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
 | Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | 2 |
@@ -3813,3 +3813,65 @@ A trial with twenty planted changes (the core's slot 80 dropped, the point's y, 
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's eroute was 0x407A2A3E on both sides (calls 0xDF22CED0), and every B run installed and reached both.
+
+## Part ped: the pedestrians
+
+### Survey
+
+cSC4Pedestrian on the automaton base and three classes on it ([automata_pedestrians.h](../src/core/automata_pedestrians.h) has their fields). The read-only survey (tools in %LOCALAPPDATA%\opensc4\net-tools\ped0: pvte.py the vtables against the one before, pseeds.py the closure, summ.py a summary per function) found them as part em's did: by their vtables, the constructors that write them and the factories registered by 0x00514A00.
+
+| Class | ID | Factory | Constructor | Size | Main vtable |
+| --- | --- | --- | --- | --- | --- |
+| cSC4Pedestrian | 0x896E75AF | 0x005149A0 | 0x00545F20 | 0x270, the pool 0x00B0A018 | 0x00A9A718 (177 slots) |
+| cSC4PedestrianOneShot | 0xAA09DC28 | 0x005149D0 | 0x00546860 | 0x274 | 0x00A9AB50 (179 slots) |
+| cSC4RiotPolice | 0x8A6E4FA4 | 0x005147A0 | 0x00547800 | 0x27C | 0x00A9AFC8 (177 slots) |
+| cSC4SimFireCrew | 0x4A222E4D | 0x00514780 | 0x0054A2A0 | 0x2C4 | 0x00A9B488 (177 slots) |
+
+The pedestrian's allocator 0x00544890 gives 0x270 bytes from the pool and any other size from SC4::operator_new; 0x00545130 gives them back by size. What each overrides:
+
+- **The pedestrian** (of the automaton base): slots 0 (QueryInterface), 3 (Init), 4 (a jump to the base's Shutdown), 16 (the placement, upright), 17 (0.5), 72 (the frame), 103, 109 to 111 (the states), 135, 155, 158, 159 (SC4AgentBase::MonthPassed), 165, 174 (the city's slot 44; the base's is a pure call), and adds 176; its +8 Write and Read have version 5.
+- **The one-shot:** 0, 3, 72, and adds 177 and 178 (the byte +0x270). Its Write and Read are the pedestrian's.
+- **The riot police:** 0 (a jump to the pedestrian's), 3, 4, 72, 74; a Write and Read of version 2 around the pedestrian's. Its main slots 1 and 2 are another base's AddRef and Release (0x0065A860, 0x0065A870).
+- **The fire crew:** 0 (the same jump), 3, 4, 9, 72 (2,113 bytes), 74 and the +0x38 part's slot 3; a Write and Read of version 2 as the riot police's with more fields.
+
+111 functions of the group's own: 75 of Ghidra's list (22,187 bytes) and the pedestrian's slot 16 0x00544530 (not in the list), 34 adjustor thunks and two jumps (0x00544520 to the base's Shutdown, 0x00547920 to the pedestrian's QueryInterface); the thunks and jumps stay the game's.
+
+- **ped1 (34, done):** the objects, the save and the small queries. Below.
+- **ped2 (the pedestrian's states and frames, 20, about 6,400 bytes):** Init 0x005444F0, the frame 72 0x00544580, 103 0x00544C90, 109 0x00546BC0, 110 0x00546A10, 111 0x005445F0, 135 0x00544C40, 155 0x00545360, 158 0x00544620, 165 0x00545160, 176 0x005457C0, and the helpers 0x00544950, 0x00545280, 0x00545690, 0x00545840, 0x00545B10, 0x00545D60, 0x00546150, 0x00546220 and 0x00546530 (the walks). Could split in two.
+- **ped3 (the one-shot's and the riot police's, 9, about 3,100 bytes):** the one-shot's Init 0x00544DA0 and frame 0x00544E80; the riot police's Init 0x00547630, Shutdown 0x00546EF0, frame 0x00547530 and slot 74 0x00546CC0, the message helper 0x00546D20 (all three crews call it), the dispatch 0x00546F30 (1,530 bytes) and 0x00547930.
+- **ped4 (the fire crew's, 13, about 9,900 bytes):** Init 0x00549890 with 0x00548F10, Shutdown 0x00547D90, slots 9 0x00547A70 and 74 0x005479F0, the +0x38 slot 3 0x00548DC0, the frame 0x00549A50 with 0x00549000, 0x00548BD0, 0x00547AD0, 0x00547B50 and 0x00532E90, and the dispatch 0x00547EF0 (3,284 bytes). Could split: the dispatch alone, then the frame.
+
+Shared and not counted: the automaton base's and the core's code the classes call by address (0x0054D7F0, 0x00504E30, 0x00555310, 0x00509660, 0x0050E390), 0x0053D100 (in the path info's range), SC4AgentBase::MonthPassed and the other base's AddRef and Release. No NAM site and none of SC4UIScale's addresses is in the group.
+
+### What is ours (ped1)
+
+34 functions in a new group, off by default: `simulators.automata.pedestrians` ([automata_pedestrians.cpp](../src/core/automata_pedestrians.cpp)).
+
+- **The objects (22):** the four factories; the allocator 0x00544890, its release 0x00545130 and the pool's free 0x00545410; the four constructors 0x00545F20, 0x00546860, 0x00547800 and 0x0054A2A0; the two QueryInterfaces 0x00544750 (also the crews', by the jump) and 0x00544780; the deleting destructors 0x005460F0, 0x00546960, 0x005478E0 and 0x0054A500 and the fire crew's body 0x0054A530; the four GetGZCLSIDs.
+- **The save (6):** the pedestrian's Write and Read (0x00544650, 0x005446C0), the riot police's (0x00546DB0, 0x00546E20) and the fire crew's (0x00547BD0, 0x00547C80).
+- **The queries (6):** the pedestrian's slots 16 0x00544530, 17 0x00546040 and 174 0x00544D90, the one-shot's 177 0x005468D0 and 178 0x005468E0, and the crews' word 0x00546CB0 (the fire truck and the patrol car call it).
+
+What they do:
+
+- The pedestrian's constructor runs the automaton base's with its four words, sets its six vtables, the point +0x25C to three copies of the float 0x00B228DC, +0x26C to 0.01 and the rest to zero, the occupant type 0x496E5783, and draws a time as cSC4Vehicle's does (0x00B21BE0 to 0x00B21BE4, times 1/3600) into +0x80 and the smoothed value. The one-shot's sets +0x270 to 5. The riot police's and the fire crew's run it with four zeros and hold the vehicle that sent them at +0x270 with their word at +0x274; the fire crew's makes the fire truck's two occupant filters.
+- The Writes write their version, the inner Write, then their fields; the Reads read the version into the stream argument's slot, the inner Read, then the fields. All of them answer whether the stream's error is zero, not what the inner one answered.
+- Slot 16 hands the core's placement the heading with its y zeroed, so a pedestrian always stands upright.
+
+Left the game's: the automaton base's code (part vb), the jumps and thunks above, the occupant filters' code, the stream helpers, the pool's growth and release, and the classes' other slots (ped2 on).
+
+Oddities kept:
+
+- **The riot police and the fire crew** answer the pedestrian's QueryInterface, so neither answers its own class ID; the one-shot's answers its own and the pedestrian's.
+- **The destructors:** the pedestrian's and the one-shot's inline the automaton base's body; the one-shot goes back through SC4::operator_delete, the crews through 0x00545130. The riot police's releases the car without clearing it.
+- **The fire crew's +0x2B4** is saved and read but never set by its constructor.
+- **The Reads:** the pedestrian's reads +0x254 through a local that holds the part's address when the read fails; the crews' read +0x274 through a local the game leaves unset (ours zero). A Read of the wrong version answers 0 before the stream's error is asked.
+- **AL only in the game:** QueryInterface's true, the Reads' false, slot 177. Ours zero-extends.
+
+### Test (ped1)
+
+The ` V` token gains `,<pobject>,<psave>,<pflags>` after eflags (53 fields). pflags: 1 objects made, 2 the save ran, 4 the destructors ran, 8 the queries ran, 0x10 a factory failed, 0x20 no city. The log line is "ped1 pobject".
+
+- **pobject:** one object of each class from its factory: its fields (the fire crew's filters' vtables and counts), GetGZCLSID through +8 and at its address, QueryInterface over the four class IDs, the automaton base's and another (and both QueryInterfaces at their addresses on the one-shot); slots 17 and 174 (against the city's slot 44) through the vtable and at their addresses, the one-shot's 177 and 178, the crews' word, slot 16 on a vtable copy (slots 13, 100, 104 and 107 the test's) with no point and five headings (one upright, which flattens to nothing); the allocator with a pool block and another size, and its release. Then each class released with its references set (the crews' vehicle, the fire crew's four objects) and each deleting destructor at its address with flag 0, the block given back by 0x00545130.
+- **psave:** each class written by its Write (through +8 and at its address) and by the pedestrian's, read back as written, with each version word 3, cut by four and five bytes and empty, into objects whose crews hold a vehicle of the test's (a failed reference read lets go of it). The crews' +0x274 is not mixed when the stream ends inside that float (the game's unset local).
+
+A trial with twenty planted changes (+0x268, +0x26C's float, the occupant type, the smoothed value's third word, the one-shot's 5, the riot police's +0x279, the fire crew's +0x2B8 from the other word, the one-shot test in QueryInterface for the pedestrian, the order of the pedestrian's float and word, the Read's local, the version test, the stream's error, the crews' failed reference read keeping the vehicle, the fire crew's +0x2B4 not written, the riot police's car not released, the fire crew's +0x294 not released, slot 16's y kept, slot 17's float, the crews' word, the crews' byte +0x278 not read) changed the token for nineteen. The twentieth (+0x2B8 from 0x00B228EC instead of 0x00B228F0) is not seen on the test day: the two words hold the same value there.
