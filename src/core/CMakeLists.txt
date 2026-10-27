@@ -356,6 +356,7 @@ add_library(opensc4_core SHARED
   raster_spans.cpp
   raster_context.cpp
   raster_rasterizer.cpp
+  raster_buffer.cpp
   raster_autotest.cpp
   font_blitter.cpp
   font_blitter_autotest.cpp

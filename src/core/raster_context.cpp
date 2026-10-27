@@ -32,8 +32,10 @@
 // Return values: every one of ours answers what the game's leaves in EAX
 // (the last call's answer, the argument, a pointer), because callers do read
 // some of them: the panel code at 0x0082A6AD reads the origin through
-// GetOrigin's answer, the point it was given. The one exception is an
-// unchanged pen width, where the game's leaves the FPU status word.
+// GetOrigin's answer, the point it was given. Slots 40, 42, 43 and 47 are
+// the game's assembly, since the rasterizer's slots they reach answer the
+// EAX they were reached with. The one exception is an unchanged pen width,
+// where the game's leaves the FPU status word.
 //
 // No compare mode: the results are calls on the rasterizer, which would run
 // twice. The autotest (raster_autotest.cpp, "context") drives every method
@@ -499,24 +501,55 @@ uint32_t __fastcall TiledBlt(Context* c, void*, void* source, const Rect* from, 
 // ====================================================================================
 // The batch count and the rasterizer's own slots
 
-uint32_t __fastcall Slot40(Context* c, void*) { return Call<uint32_t>(c->rasterizer, kRaster16); }
+// Slots 40, 42, 43 and 47 are the game's few instructions of assembly: the
+// rasterizer's slots they reach (16 and 20, empty; 17 and 18 with nothing to
+// do) answer the EAX they were reached with, the rasterizer's vtable, and the
+// buffer panels draw into hands slot 40's answer on as its own.
+
+// Slot 40: a jump to the rasterizer's slot 16.
+__declspec(naked) void Slot40()
+{
+    __asm mov ecx, dword ptr [ecx + 0x28]
+    __asm mov eax, dword ptr [ecx]
+    __asm jmp dword ptr [eax + 0x40]
+}
 
 uint32_t __fastcall IsBatching(Context* c, void*) { return c->batch > 0; }
 
-uint32_t __fastcall BeginBatch(Context* c, void*)
+// Slot 42: the count up, the rasterizer's slots 16 and 17 (a jump).
+__declspec(naked) void BeginBatch()
 {
-    ++c->batch;
-    Call<void>(c->rasterizer, kRaster16);
-    return Call<uint32_t>(c->rasterizer, kRaster17);
+    __asm push esi
+    __asm mov esi, ecx
+    __asm mov eax, dword ptr [esi + 0x78]
+    __asm mov ecx, dword ptr [esi + 0x28]
+    __asm inc eax
+    __asm mov dword ptr [esi + 0x78], eax
+    __asm mov eax, dword ptr [ecx]
+    __asm call dword ptr [eax + 0x40]
+    __asm mov ecx, dword ptr [esi + 0x28]
+    __asm mov edx, dword ptr [ecx]
+    __asm pop esi
+    __asm jmp dword ptr [edx + 0x44]
 }
 
-uint32_t __fastcall EndBatch(Context* c, void*)
+// Slot 43: the count down while above 0, answered; back at 0 a jump to the
+// rasterizer's slot 18.
+__declspec(naked) void EndBatch()
 {
-    if (c->batch == 0)
-        return 0;
-    if (--c->batch != 0)
-        return static_cast<uint32_t>(c->batch);
-    return Call<uint32_t>(c->rasterizer, kRaster18);
+    __asm {
+        mov eax, dword ptr [ecx + 0x78]
+        test eax, eax
+        jz done
+        dec eax
+        mov dword ptr [ecx + 0x78], eax
+        jnz done
+        mov ecx, dword ptr [ecx + 0x28]
+        mov eax, dword ptr [ecx]
+        jmp dword ptr [eax + 0x48]
+    done:
+        ret
+    }
 }
 
 // Slot 46: the game's is a tail jump to the rasterizer's slot 19 (ret 8),
@@ -526,7 +559,13 @@ uint32_t __fastcall GetSurface(Context* c, void*, uint32_t* out, uint32_t unused
     return Call<uint32_t>(c->rasterizer, kRasterSurface, out, unused);
 }
 
-uint32_t __fastcall Slot47(Context* c, void*) { return Call<uint32_t>(c->rasterizer, kRaster20); }
+// Slot 47: a jump to the rasterizer's slot 20.
+__declspec(naked) void Slot47()
+{
+    __asm mov ecx, dword ptr [ecx + 0x28]
+    __asm mov eax, dword ptr [ecx]
+    __asm jmp dword ptr [eax + 0x50]
+}
 
 // ====================================================================================
 // The draws (renderer.raster.draws)
