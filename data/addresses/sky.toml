@@ -1181,6 +1181,87 @@ expect = "53 56 8B D9 8B 33 57 8B"
 source = "Name ours. Each binding let go, the storage freed. Ours, written out, in renderer.effects.model_c."
 
 [[entry]]
+name = "SC4EffectC::CutGrid"
+address = 0x005A9150
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, const float* quad, const float* places, uint32_t count, uint8_t material)"
+expect = "81 EC D0 00 00 00 53 55"
+source = "Name ours. ret 0x10: a quad of the model (four points of three floats, the third the grid's corner) cut into count by count 0x3C-byte pieces at +0x220 (SC4EffectPieceVector::Grow when full), each piece's way back from its middle, its two sides and three texture places (from four, the first unused) taken through the effect's matrix (+0x90), place (+0xB4) and scale (+0xC0); a particle made at each piece's middle (SC4EffectC::MakeParticle), +0x18 the material, +0x44 the piece's number, added by the sub-object's slot 0x2C. Only 0x005A9E10 (the class's emit) calls it. Ours in renderer.effects.pieces_c (src/core/effects_third.h)."
+
+[[entry]]
+name = "SC4EffectC::CutTriangle"
+address = 0x005A9820
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, const float* points, const float* places, const int32_t* corner, uint8_t material)"
+expect = "81 EC 98 00 00 00 8B 84"
+source = "Name ours. ret 0x10: one piece of a triangle (three numbers into the points and the texture places), from its second corner: the middle (sides summed times 0x00B0A57C over three) and the second corner taken through the effect's matrix, place and scale; the piece pushed at +0x220 and a particle made at its middle as SC4EffectC::CutGrid does. Only SC4EffectC::SplitTriangle calls it. Ours in renderer.effects.pieces_c."
+
+[[entry]]
+name = "SC4EffectC::SplitTriangle"
+address = 0x005A9FF0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, void* points, void* places, const int32_t* corner, float most, uint32_t material)"
+expect = "83 EC 28 53 56 57 8B 7C"
+source = "Name ours. ret 0x14, recursive: a triangle of the vectors of points (12 bytes, 0x0050C3B0 when full) and texture places (8 bytes, 0x007C61A0) halved across its longest side (the later one for a tie) at its middle, put at the end of both, until that side is shorter than `most`; then SC4EffectC::CutTriangle. Called by 0x005AA3A0 (the class's emit). Ours in renderer.effects.pieces_c."
+
+[[entry]]
+name = "SC4EffectC::MakeParticle"
+address = 0x005A8930
+kind = "function"
+convention = "thiscall"
+signature = "SC4Particle* (SC4Effect* this, const float* at)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. ret 4: the first particle of the list at 0x00B0A5A0 (the pool 0x00B0A594 grown by SC4ParticlePool::Grow when empty), cleared (SC4Particle::Clear), placed at `at`; from the generator 0x00B22DF8 (SC4Random::Uniform) by the description (+0x24): a direction (+0x30..+0x44) made as long as a speed (+0x48..+0x4C), a push of +0xF0 away from its point +0xF4 (none within 1e-4 of it), its life +8 (+0xC..+0x10), +0x28 (+0x68, times the effect's +0x1C8), +0x2C (+0x6C), +0x30 (1 for a +0x70 of zero, else plus or minus it). Called by SC4EffectC::CutGrid and SC4EffectC::CutTriangle. Ours in renderer.effects.pieces_c."
+
+[[entry]]
+name = "SC4EffectPieceVector::Grow"
+address = 0x005A8D90
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, void* where, const void* value, void* unused, uint32_t count, bool atEnd)"
+expect = "51 53 8B D9 8B 13 8B 4B"
+source = "Name ours. ret 0x14: std::vector of 0x3C-byte pieces given room for size + max(size, count) (SC4::stl_allocate), those before `where`, `count` copies of the value and (unless atEnd) those after copied (SC4EffectPiece::Copy), the old storage freed (SC4::Free). Ours, written out, in renderer.effects.pieces_c."
+
+[[entry]]
+name = "SC4EffectPieceVector::CopyRange"
+address = 0x005A63F0
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to)"
+expect = "53 8B 5C 24 0C 56 8B 74"
+source = "Name ours. Copies of the pieces [first, last) made from `to` (SC4EffectPiece::Copy, none at a null place); answers the end. Ours, written out, in renderer.effects.pieces_c."
+
+[[entry]]
+name = "SC4EffectPieceVector::Assign"
+address = 0x005A6480
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to)"
+expect = "8B 4C 24 08 56 8B 74 24"
+source = "Name ours. The pieces [first, last) assigned forwards from `to` (the count by a signed division, none when it is not above zero); answers the end. Called by 0x005A9E10 and 0x005AA3A0 to empty +0x220. Ours, written out, in renderer.effects.pieces_c (the two callers are still the game's)."
+
+[[entry]]
+name = "SC4EffectPiece::Copy"
+address = 0x005A6220
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* from)"
+expect = "8B C1 8B 4C 24 04 8B 11"
+source = "Name ours. ret 4: a 0x3C-byte piece's fifteen words copied. Ours, written out, in renderer.effects.pieces_c."
+
+[[entry]]
+name = "SC4EffectPiece::Construct"
+address = 0x005A6340
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "8B C1 8B 0D 40 2D B2 00"
+source = "Name ours. A piece's first nine words from 0x00B22D40, the other six zero. SC4EffectC::CutTriangle makes its piece with it before filling every word. Ours, written out, in renderer.effects.pieces_c."
+
+[[entry]]
 name = "SC4EffectB::Construct"
 address = 0x005AC510
 kind = "function"
