@@ -28751,7 +28751,8 @@ void PedStatesDrive(Hash& pstates, uint32_t& pflags)
             pstates.Mix(This<uint32_t>(addr::cSC4Pedestrian_State4Frame, o, 0.5f) & 0xFF);
             g_ped2.current = typed(4, 4, &object);
             SetPoint(o, b::kPosition, 50.0f, 2.0f, 60.0f);
-            const float points[][3] = {{53, 2, 64}, {50, 2, 60}, {50, 9, 60}, {49.9f, -3, 60.7f}, {1e6f, 2, -1e6f}};
+            const float points[][3] = {{53, 2, 64}, {50, 2, 60}, {50, 9, 60}, {49.9f, -3, 60.7f}, {1e6f, 2, -1e6f},
+                                       {0.001f, 2, 60.3f}};
             int run = 0;
             for (const bool arrive : {false, true})
                 for (const auto& p : points) {
@@ -28790,7 +28791,7 @@ void PedStatesDrive(Hash& pstates, uint32_t& pflags)
             static char* list[4];
             // (Neither the game nor ours null-tests the interface once a word
             // is found, so the test always gives one.)
-            for (int k = 0; k < 6; ++k) {
+            for (int k = 0; k < 7; ++k) {
                 int n = 0;
                 g_ped2Simulators.vtable = k == 5 ? nullptr : Ped2ObjectVtable();
                 switch (k) {
@@ -28813,8 +28814,12 @@ void PedStatesDrive(Hash& pstates, uint32_t& pflags)
                     list[n++] = typed(1, 0xC, &objects[0]);
                     list[n++] = typed(2, 0xC, &objects[2]);
                     break;
-                default: // the city without simulators
+                case 5: // the city without simulators
                     list[n++] = typed(0, 0xC, &objects[2]);
+                    break;
+                default: // found below a state 0xC whose object answers 0
+                    list[n++] = typed(0, 0xC, &objects[1]);
+                    list[n++] = typed(1, 0xC, &objects[0]);
                     break;
                 }
                 stack[0] = reinterpret_cast<char*>(list);
@@ -28835,7 +28840,9 @@ void PedStatesDrive(Hash& pstates, uint32_t& pflags)
     pstates.Mix(g_ped2.calls.h);
     pflags |= 0x40;
     ReleasePed(o);
-    log::Write("autotest: automata: vehicle: ped2a pstates %08X calls %08X", pstates.h, g_ped2.calls.h);
+    log::Write("autotest: automata: vehicle: ped2a pstates %08X calls %08X (slot 158 draws between %08X and %08X)",
+               pstates.h, g_ped2.calls.h, Global<uint32_t>(addr::cSC4Pedestrian_Float200Low),
+               Global<uint32_t>(addr::cSC4Pedestrian_Float200High));
     g_ped2 = Ped2Answers{};
 }
 
