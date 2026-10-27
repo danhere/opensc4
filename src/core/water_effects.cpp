@@ -17157,12 +17157,14 @@ uint32_t DwManagerForced(char* self, char* context)
 
 void TcForce(char* self);
 void McForce(char* self);
+void PcForce(char* self);
 
 uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
 {
     HrForce(self, Ptr(context));
     TcForce(self);
     McForce(self);
+    PcForce(self);
     if (g_dwManagerMode == StepMode::Original || g_dwTrace != DwTrace::Off || g_depth > 0) {
         const uint32_t result = g_SC4EffectsManager_Draw(self, nullptr, context);
         // The flash and the shake are forced after the manager's draw (the
@@ -18509,6 +18511,482 @@ const bool g_registeredModelC = registry::Register({
     "the manager's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallModelC,
+});
+
+// --- The third class's pieces ------------------------------------------------------------------
+//
+// The class's model cut into pieces (effects_third.h): a quad by a grid
+// (0x005A9150), a triangle halved until small (0x005A9FF0, recursive), one
+// piece of a triangle (0x005A9820) and the particle made for each piece
+// (0x005A8930), with the pieces' vector code under them
+// (renderer.effects.pieces_c). The class's emit (0x005AA5D0, still the
+// game's) is their only caller and no test city makes an effect of the
+// class, so in compare mode they run as the game's and are compared only
+// when forced (OPENSC4_EFFECT_FORCE_THIRD=1): before the manager's draw,
+// one turn a frame of three, on a pair of new effects of the class (as
+// McMakePair makes them), the game's function on the first and ours on the
+// second, step by step. Both effects are given the same made-up matrix,
+// place and scale, +0x1C8 and description (+0x24; four kinds by turn: a
+// push from its point and a spread; no push, no spread and no direction;
+// a push and a NaN direction; a push with each direction's range one
+// value),
+// and a copy of the sub-object's table of functions whose slot 0x2C notes
+// the particles added instead of keeping them. The generator (0x00B22DF8)
+// is put back before ours, so that both draw the same numbers, and after.
+// The steps:
+// 0. particles made straight away at four places, one on the
+//    description's point and one within a hair of it (their +0x44, which
+//    the callers set, made zero);
+// 1. grids of 2, 1, 0 and 3 pieces a side on two made-up quads;
+// 2. pieces of four triangles of made-up points;
+// 3. four triangles halved down to a side of 3 (one with its first two
+//    sides the same) with the points' vectors full or with room;
+// 4. the pieces' vector code on its own (0x005A8D90 putting 3, 1 and 0
+//    pieces in the middle, 0x005A6480 and 0x005A63F0) on made-up vectors.
+// Each step is compared by the effect's bytes (but for the pieces'
+// vector's pointers and the bytes in which the two differed when made),
+// the pieces' vector's contents and room, the particles added (each one's
+// 0x48 bytes but +0x34, which nothing writes: a new pool's particles have
+// whatever malloc left there) and the generator after; the halving also by its two vectors. In
+// one turn of eight (the first eight times), the list of free particles
+// (0x00B0A5A0) is empty for both runs, so that its pool grows; what the
+// two left of it is put back on the list after.
+StepMode g_piecesCMode = StepMode::Original;
+using PcCall4Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t);
+using PcCall5Fn = uint32_t(__fastcall*)(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+PcCall4Fn g_SC4EffectC_CutGrid = nullptr, g_SC4EffectC_CutTriangle = nullptr;
+PcCall5Fn g_SC4EffectC_SplitTriangle = nullptr;
+Call1Fn g_SC4EffectC_MakeParticle = nullptr;
+
+const float* PcFloats(uint32_t value)
+{
+    return reinterpret_cast<const float*>(Ptr(value));
+}
+
+uint32_t __fastcall GridCByMode(char* self, void*, uint32_t quad, uint32_t places, uint32_t count, uint32_t which)
+{
+    if (g_piecesCMode != StepMode::Ours)
+        return g_SC4EffectC_CutGrid(self, nullptr, quad, places, count, which);
+    CutGridC(self, PcFloats(quad), PcFloats(places), count, static_cast<uint8_t>(which));
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_CutGrid, GridCByMode, 16)
+
+uint32_t __fastcall TriangleCByMode(char* self, void*, uint32_t points, uint32_t places, uint32_t corner,
+                                    uint32_t which)
+{
+    if (g_piecesCMode != StepMode::Ours)
+        return g_SC4EffectC_CutTriangle(self, nullptr, points, places, corner, which);
+    CutTriangleC(self, PcFloats(points), PcFloats(places), reinterpret_cast<const int32_t*>(Ptr(corner)),
+                 static_cast<uint8_t>(which));
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_CutTriangle, TriangleCByMode, 16)
+
+uint32_t __fastcall SplitCByMode(char* self, void*, uint32_t points, uint32_t places, uint32_t corner, uint32_t most,
+                                 uint32_t which)
+{
+    if (g_piecesCMode != StepMode::Ours)
+        return g_SC4EffectC_SplitTriangle(self, nullptr, points, places, corner, most, which);
+    float limit = 0.0f;
+    std::memcpy(&limit, &most, 4);
+    SplitTriangleC(self, Ptr(points), Ptr(places), reinterpret_cast<const int32_t*>(Ptr(corner)), limit, which);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_SplitTriangle, SplitCByMode, 20)
+
+uint32_t __fastcall ParticleCByMode(char* self, void*, uint32_t at)
+{
+    if (g_piecesCMode != StepMode::Ours)
+        return g_SC4EffectC_MakeParticle(self, nullptr, at);
+    return Word(MakeParticleC(self, PcFloats(at)));
+}
+OPENSC4_THUNK(TSC4EffectC_MakeParticle, ParticleCByMode, 4)
+
+bool g_pcForce = false;
+std::vector<uint32_t> g_pcAdded;
+uint32_t g_pcSubTable[18] = {};
+alignas(4) char g_pcDescription[0x210] = {};
+
+uint32_t __fastcall PcNoteAdded(char*, void*, uint32_t particle)
+{
+    g_pcAdded.push_back(particle);
+    return static_cast<uint32_t>(g_pcAdded.size());
+}
+
+void PcAddParticles(McPrint& print, uint32_t tag, const std::vector<uint32_t>& particles)
+{
+    const uint32_t size = Global<uint32_t>(kParticlePoolC);
+    print.push_back({tag, static_cast<uint32_t>(particles.size())});
+    for (std::size_t i = 0; i < particles.size(); ++i) {
+        for (uint32_t at = 0; at < size; at += 4) {
+            const uint32_t word = M<uint32_t>(particles[i] + at);
+            print.push_back({tag + 0x100 + static_cast<uint32_t>(i) * 0x100 + at, at == 0x34 ? 0 : word});
+        }
+    }
+}
+
+McPrint PcPrintOf(char* effect, const std::vector<char>& mask, const std::vector<uint32_t>& particles)
+{
+    McPrint print;
+    for (uint32_t at = 0; at < kEffectSizeC; at += 4) {
+        if (at >= 0x220 && at < 0x22C)
+            continue;
+        uint32_t word = 0, masked = 0;
+        std::memcpy(&word, effect + at, 4);
+        std::memcpy(&masked, mask.data() + at, 4);
+        print.push_back({at, word & ~masked});
+    }
+    McVector(print, 0x100000, effect + 0x220, 4);
+    PcAddParticles(print, 0x500000, particles);
+    for (uint32_t at = 0; at < kSetupGeneratorSize; at += 4)
+        print.push_back({0x700000 + at, M<uint32_t>(static_cast<uint32_t>(kSetupGenerator) + at)});
+    return print;
+}
+
+uint32_t PcSplice(uint32_t first, uint32_t rest)
+{
+    if (!first)
+        return rest;
+    uint32_t last = first;
+    while (M<uint32_t>(last))
+        last = M<uint32_t>(last);
+    M<uint32_t>(last) = rest;
+    return first;
+}
+
+uint32_t g_pcEmptied = 0;
+
+// One step: the game's on the first, ours on the second, compared;
+// `extra` adds what else each run left (by the effect it ran on).
+template <typename Game, typename Ours, typename Extra>
+void PcStep(const char* id, McPair& pair, bool empty, Game&& game, Ours&& ours, Extra&& extra)
+{
+    char* const generator = reinterpret_cast<char*>(kSetupGenerator);
+    char before[kSetupGeneratorSize];
+    std::memcpy(before, generator, kSetupGeneratorSize);
+    const uint32_t head = Global<uint32_t>(kParticleFreeC);
+    if (empty)
+        Global<uint32_t>(kParticleFreeC) = 0;
+    g_pcAdded.clear();
+    game(pair.game);
+    const std::vector<uint32_t> theirsAdded = g_pcAdded;
+    McPrint theirs = PcPrintOf(pair.game, pair.mask, theirsAdded);
+    extra(pair.game, theirs);
+    const uint32_t gameLeft = Global<uint32_t>(kParticleFreeC);
+    std::memcpy(generator, before, kSetupGeneratorSize);
+    if (empty)
+        Global<uint32_t>(kParticleFreeC) = 0;
+    g_pcAdded.clear();
+    ours(pair.ours);
+    const std::vector<uint32_t> mineAdded = g_pcAdded;
+    McPrint mine = PcPrintOf(pair.ours, pair.mask, mineAdded);
+    extra(pair.ours, mine);
+    std::memcpy(generator, before, kSetupGeneratorSize);
+    if (empty)
+        Global<uint32_t>(kParticleFreeC) = PcSplice(Global<uint32_t>(kParticleFreeC), PcSplice(gameLeft, head));
+    for (const uint32_t particle : theirsAdded)
+        GiveBackParticleC(particle);
+    for (const uint32_t particle : mineAdded)
+        GiveBackParticleC(particle);
+    g_pcAdded.clear();
+    const bool same = theirs == mine;
+    std::size_t at = 0;
+    while (!same && at < theirs.size() && at < mine.size() && theirs[at] == mine[at])
+        ++at;
+    compare::Record(id, same, same ? std::string() : McText(theirs, at), same ? std::string() : McText(mine, at));
+}
+
+template <typename Game, typename Ours>
+void PcStep(const char* id, McPair& pair, bool empty, Game&& game, Ours&& ours)
+{
+    PcStep(id, pair, empty, game, ours, [](char*, McPrint&) {});
+}
+
+// The made-up description, by turn.
+void PcDescribe(uint32_t kind)
+{
+    std::memset(g_pcDescription, 0, sizeof g_pcDescription);
+    const auto set = [](uint32_t at, float value) { std::memcpy(g_pcDescription + at, &value, 4); };
+    set(0xC, 1.5f);
+    set(0x10, 4.0f);
+    const float low[3] = {-1.0f, 0.5f, -2.0f}, high[3] = {1.0f, 3.0f, 2.5f};
+    for (uint32_t i = 0; i < 3; ++i) {
+        set(0x30 + i * 4, low[i]);
+        set(0x3C + i * 4, kind == 3 ? low[i] : high[i]);
+    }
+    if (kind == 1) {
+        for (uint32_t at = 0x30; at < 0x48; at += 4)
+            set(at, 0.0f);
+    }
+    if (kind == 2) {
+        const uint32_t nan = 0x7FC00000;
+        std::memcpy(g_pcDescription + 0x34, &nan, 4);
+    }
+    set(0x48, 2.0f);
+    set(0x4C, 7.5f);
+    set(0x68, 0.25f);
+    set(0x6C, 0.125f);
+    set(0x70, kind == 1 ? 0.0f : 0.3f);
+    set(0xF0, kind == 1 ? 0.0f : 2.5f);
+    set(0xF4, 101.0f);
+    set(0xF8, 21.5f);
+    set(0xFC, -299.0f);
+}
+
+void PcSetUp(char* effect, uint32_t kind)
+{
+    const float frame[13] = {0.8137f, -0.5812f, 0.1123f, 0.5791f, 0.8061f, -0.0517f, 0.0213f, 0.0731f, 0.9907f,
+                             100.37f, 20.29f, -300.113f, kind % 2 ? 1.0f : 1.7381f};
+    std::memcpy(effect + 0x90, frame, sizeof frame);
+    At<float>(effect, 0x1C8) = 1.25f;
+    At<char*>(effect, 0x24) = g_pcDescription;
+    char* const sub = effect + 4;
+    if (!g_pcSubTable[0]) {
+        for (uint32_t i = 0; i < 18; ++i)
+            g_pcSubTable[i] = M<uint32_t>(At<uint32_t>(sub, 0) + i * 4);
+        g_pcSubTable[0x2C / 4] = Word(reinterpret_cast<void*>(&PcNoteAdded));
+    }
+    At<uint32_t*>(sub, 0) = g_pcSubTable;
+}
+
+void PcPutBack(char* effect, uint32_t table)
+{
+    At<char*>(effect, 0x24) = nullptr;
+    At<uint32_t>(effect + 4, 0) = table;
+}
+
+// A vector of `size` things of `bytes` bytes with room for `room` more,
+// from the game's allocator, filled from `from`.
+void PcMakeVector(char* vector, const void* from, uint32_t size, uint32_t room, uint32_t bytes)
+{
+    if (!(size + room)) {
+        At<char*>(vector, 0) = At<char*>(vector, 4) = At<char*>(vector, 8) = nullptr;
+        return;
+    }
+    char* const storage = StlAllocate((size + room) * bytes);
+    std::memcpy(storage, from, size * bytes);
+    At<char*>(vector, 0) = storage;
+    At<char*>(vector, 4) = storage + size * bytes;
+    At<char*>(vector, 8) = storage + (size + room) * bytes;
+}
+
+void PcFreeVector(char* vector)
+{
+    if (At<char*>(vector, 0))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(At<char*>(vector, 0));
+    At<char*>(vector, 0) = At<char*>(vector, 4) = At<char*>(vector, 8) = nullptr;
+}
+
+// The pieces' vector code on its own: pieces numbered by their words.
+void PcVectors()
+{
+    float made[8][15];
+    for (uint32_t i = 0; i < 8; ++i) {
+        for (uint32_t j = 0; j < 15; ++j)
+            made[i][j] = static_cast<float>(i * 100 + j) + 0.5f;
+    }
+    float value[15];
+    for (uint32_t j = 0; j < 15; ++j)
+        value[j] = -1.0f - static_cast<float>(j);
+    struct Grow {
+        uint32_t size, room, where, count;
+        bool atEnd;
+    };
+    const Grow grows[] = {{5, 0, 2, 3, false}, {5, 2, 1, 1, false}, {4, 0, 4, 1, true}, {3, 1, 1, 0, false},
+                          {0, 0, 0, 2, false}};
+    for (const Grow& g : grows) {
+        alignas(4) char theirs[12] = {}, mine[12] = {};
+        PcMakeVector(theirs, made, g.size, g.room, kPieceBytes);
+        PcMakeVector(mine, made, g.size, g.room, kPieceBytes);
+        uint8_t tag = 0;
+        CallThis<uint32_t>(0x005A8D90, theirs, At<char*>(theirs, 0) + g.where * kPieceBytes, value, &tag, g.count,
+                           static_cast<uint32_t>(g.atEnd));
+        PcGrowPieces(mine, At<char*>(mine, 0) + g.where * kPieceBytes, reinterpret_cast<char*>(value), g.count,
+                     g.atEnd);
+        McPrint a, b;
+        McVector(a, 0x100000, theirs, 4);
+        McVector(b, 0x100000, mine, 4);
+        compare::Record("effects.pieces_c.grow", a == b, a == b ? std::string() : McText(a, 0),
+                        a == b ? std::string() : McText(b, 0));
+        PcFreeVector(theirs);
+        PcFreeVector(mine);
+    }
+    // Assigned down over the first two (0x005A6480), none, and copied
+    // into fresh storage and to a null place (0x005A63F0).
+    const std::pair<uint32_t, uint32_t> ranges[] = {{2, 8}, {3, 3}, {5, 2}};
+    for (const auto& [first, last] : ranges) {
+        alignas(4) float theirs[8][15], mine[8][15];
+        std::memcpy(theirs, made, sizeof made);
+        std::memcpy(mine, made, sizeof made);
+        char* const t = reinterpret_cast<char*>(theirs);
+        char* const m = reinterpret_cast<char*>(mine);
+        const uint32_t endT = reinterpret_cast<uint32_t(__cdecl*)(char*, char*, char*)>(0x005A6480)(
+            t + first * kPieceBytes, t + last * kPieceBytes, t);
+        char* const endM = PcAssignPieces(m + first * kPieceBytes, m + last * kPieceBytes, m);
+        const bool same = std::memcmp(theirs, mine, sizeof theirs) == 0 && endT - Word(t) == Word(endM) - Word(m);
+        compare::Record("effects.pieces_c.assign", same, same ? std::string() : Hex(t, 8),
+                        same ? std::string() : Hex(m, 8));
+    }
+    for (const bool null : {false, true}) {
+        alignas(4) float theirs[3][15] = {}, mine[3][15] = {};
+        char* const t = null ? nullptr : reinterpret_cast<char*>(theirs);
+        char* const m = null ? nullptr : reinterpret_cast<char*>(mine);
+        char* const from = reinterpret_cast<char*>(made);
+        // Only the place itself is tested: a null start with one piece.
+        const uint32_t pieces = null ? 1 : 3;
+        const uint32_t endT = reinterpret_cast<uint32_t(__cdecl*)(char*, char*, char*)>(0x005A63F0)(
+            from, from + pieces * kPieceBytes, t);
+        char* const endM = PcCopyPieces(from, from + pieces * kPieceBytes, m);
+        const bool same = std::memcmp(theirs, mine, sizeof theirs) == 0 && endT - Word(t) == Word(endM) - Word(m);
+        compare::Record("effects.pieces_c.copy", same, same ? std::string() : Hex(theirs, 8),
+                        same ? std::string() : Hex(mine, 8));
+    }
+}
+
+void PcPieces(uint32_t turn)
+{
+    const uint32_t kind = turn % 4;
+    const bool empty = turn % 8 == 5 && g_pcEmptied < 8;
+    if (empty)
+        ++g_pcEmptied;
+    PcDescribe(kind);
+    McPair pair = McMakePair();
+    const uint32_t table = At<uint32_t>(pair.game + 4, 0);
+    PcSetUp(pair.game, kind);
+    PcSetUp(pair.ours, kind);
+    // 0. Particles made straight away.
+    const float places[4][3] = {
+        {101.0f, 21.5f, -299.0f}, {101.00001f, 21.5f, -299.0f}, {-40.0f, 3.0f, 12.0f}, {101.5f, 20.0f, -298.0f}};
+    for (const auto& place : places) {
+        PcStep("effects.particle_c", pair, empty,
+               [&](char* effect) {
+                   g_pcAdded.push_back(CallThis<uint32_t>(addr::SC4EffectC_MakeParticle, effect, place));
+                   M<uint32_t>(g_pcAdded.back() + 0x44) = 0;
+               },
+               [&](char* effect) {
+                   g_pcAdded.push_back(Word(MakeParticleC(effect, place)));
+                   M<uint32_t>(g_pcAdded.back() + 0x44) = 0;
+               });
+    }
+    // 1. Grids.
+    const float quads[2][12] = {{0.0f, 4.0f, 1.0f, 3.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.25f, 0.0f, 2.75f},
+                                {-5.53f, 1.07f, 2.11f, 7.13f, -1.29f, 3.01f, 1.17f, 2.03f, -3.07f, 0.1f, 6.31f, 9.19f}};
+    const float texture[2][8] = {{0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f},
+                                 {0.9f, 0.1f, 0.7531f, 0.2519f, 0.1237f, 0.5113f, 0.3071f, 0.9533f}};
+    const std::pair<uint32_t, uint32_t> grids[] = {{0, 2}, {1, 1}, {0, 0}, {1, 3}};
+    for (const auto& [which, count] : grids) {
+        const uint32_t material = which ? 200 : 3;
+        PcStep("effects.grid_c", pair, empty,
+               [&](char* effect) {
+                   CallThis<uint32_t>(addr::SC4EffectC_CutGrid, effect, quads[which], texture[which], count, material);
+               },
+               [&](char* effect) {
+                   CutGridC(effect, quads[which], texture[which], count, static_cast<uint8_t>(material));
+               });
+    }
+    // 2. Triangles.
+    // The last two make, with the first, a triangle whose first two sides
+    // are both 5 (a tie).
+    const float points[8][3] = {{0.0f, 0.0f, 0.0f},      {4.0f, 0.0f, 0.0f},   {0.0f, 4.0f, 0.0f},
+                                {1.53f, -2.07f, 7.29f}, {-3.11f, 9.03f, 0.51f}, {12.07f, 0.131f, -6.03f},
+                                {3.0f, 4.0f, 0.0f},      {3.0f, -1.0f, 0.0f}};
+    const float uvs[8][2] = {{0.0f, 0.0f},     {1.0f, 0.0f},   {0.0f, 1.0f},  {0.5131f, 0.4973f},
+                             {0.2017f, 0.9031f}, {0.7519f, 0.33f}, {0.6f, 0.8f}, {0.6f, 0.2f}};
+    const int32_t corners[4][3] = {{0, 1, 2}, {3, 4, 5}, {5, 0, 4}, {0, 6, 7}};
+    for (const auto& corner : corners) {
+        PcStep("effects.triangle_c", pair, empty,
+               [&](char* effect) {
+                   CallThis<uint32_t>(addr::SC4EffectC_CutTriangle, effect, points, uvs, corner, 7u);
+               },
+               [&](char* effect) { CutTriangleC(effect, &points[0][0], &uvs[0][0], corner, 7); });
+    }
+    // 3. Triangles halved: the vectors made for each run, kept by effect.
+    struct Vectors {
+        alignas(4) char points[12];
+        alignas(4) char places[12];
+    };
+    const std::pair<const int32_t*, uint32_t> splits[] = {{corners[0], 0}, {corners[1], 4}, {corners[2], 1}, {corners[3], 2}};
+    for (const auto& [corner, room] : splits) {
+        Vectors theirs{}, mine{};
+        for (Vectors* v : {&theirs, &mine}) {
+            PcMakeVector(v->points, points, 8, room, 12);
+            PcMakeVector(v->places, uvs, 8, room, 8);
+        }
+        const float most = 3.0f;
+        uint32_t mostBits = 0;
+        std::memcpy(&mostBits, &most, 4);
+        PcStep("effects.split_c", pair, empty,
+               [&](char* effect) {
+                   CallThis<uint32_t>(addr::SC4EffectC_SplitTriangle, effect, theirs.points, theirs.places, corner,
+                                      mostBits, 9u);
+               },
+               [&](char* effect) { SplitTriangleC(effect, mine.points, mine.places, corner, most, 9); },
+               [&](char* effect, McPrint& print) {
+                   Vectors& v = effect == pair.game ? theirs : mine;
+                   McVector(print, 0x200000, v.points, 4);
+                   McVector(print, 0x300000, v.places, 4);
+               });
+        for (Vectors* v : {&theirs, &mine}) {
+            PcFreeVector(v->points);
+            PcFreeVector(v->places);
+        }
+    }
+    PcPutBack(pair.game, table);
+    PcPutBack(pair.ours, table);
+    TcDelete(pair.game);
+    TcDelete(pair.ours);
+    // 4. The vector code on its own.
+    PcVectors();
+}
+
+void PcForce(char*)
+{
+    if (!g_pcForce || g_dwTrace != DwTrace::Off || g_depth > 0)
+        return;
+    static uint32_t turn = 0;
+    const uint32_t now = turn++;
+    if (now % 3 == 0)
+        PcPieces(now / 3);
+}
+
+bool InstallPiecesC(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectC_CutGrid, &TSC4EffectC_CutGrid, &g_SC4EffectC_CutGrid) &&
+          Detour(addr::SC4EffectC_CutTriangle, &TSC4EffectC_CutTriangle, &g_SC4EffectC_CutTriangle) &&
+          Detour(addr::SC4EffectC_SplitTriangle, &TSC4EffectC_SplitTriangle, &g_SC4EffectC_SplitTriangle) &&
+          Detour(addr::SC4EffectC_MakeParticle, &TSC4EffectC_MakeParticle, &g_SC4EffectC_MakeParticle)))
+        return false;
+    if (mode == registry::Mode::Compare) {
+        const char* v = std::getenv("OPENSC4_EFFECT_FORCE_THIRD");
+        if (v && *v == '1') {
+            if (!g_SC4EffectsManager_Draw &&
+                !Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
+                return false;
+            g_pcForce = true;
+            log::Write("water effects: the third class's pieces forced before the manager's draw");
+        }
+    }
+    g_piecesCMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the third class's pieces %s",
+               mode == registry::Mode::Compare ? "compared with the game's when forced" : "ours");
+    return true;
+}
+
+const bool g_registeredPiecesC = registry::Register({
+    "renderer.effects.pieces_c",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectC_CutGrid,
+    "The third effect class's model cut into pieces: a quad by a grid, a triangle halved until small, one piece of "
+    "a triangle and the particle made for each piece, with the pieces' vector code; no test city makes such an "
+    "effect, so compare mode compares them only when forced, OPENSC4_EFFECT_FORCE_THIRD=1 running the game's and "
+    "ours on pairs of new effects of the class before the manager's draw (docs/renderer.md, \"Water effects, sky "
+    "and clouds\")",
+    true,
+    InstallPiecesC,
 });
 
 } // namespace
