@@ -747,3 +747,281 @@ convention = "thiscall"
 signature = "void (void* this, void* target)"
 expect = "83 EC 10 55 8B 6C 24 18"
 source = "Name ours. Slot 17, ret 4: the target already held changes nothing (EAX left as the caller had it); otherwise the rasterizer's slots 4 and 2, the new target held (slot 1) and the old one released (slot 2), and for a target its rectangle (slot 12) as the clip, origin 0, a new rasterizer from the framework (RZGetFramework's slot 5: class 0xEB2EA3CB, interface 0x4B2EA3B3; that object's slot 4 with the target and +0x28, its holder destroyed by SC4RefPtr::Destruct), told the target (3), the clip (6), the colours (7), the settings (8 to 11), no source (13) and slot 12, then the whole area (5, +0x54); source and batch cleared. Answers the last call's answer. Ours in renderer.raster.target."
+
+[[entry]]
+name = "GZContextBuffer::vftable"
+address = 0x00AC1550
+kind = "vtable"
+expect = "A0 AE 82 00 E0 E3 5B 00"
+source = "Name ours. The buffer with a drawing context (0x4C bytes, made by GZRasterizerFactory::MakeContextBuffer 0x0082B980 and by 0x0082B820; docs/renderer.md, \"The software rasterizer\"): a cIGZBuffer of 40 slots. +0x04 the counted base (vtable 0x00AC1538), +0x0C a side interface (0x00AC1510, interface 0xAB300B2B), +0x10 the drawing context, +0x14 a plain buffer with the pixels (vtable 0x00AC1400), +0x18 its rectangle, +0x28 the lock count, +0x2C the format, +0x30 the context's six surface words, +0x48 and +0x49 flags. Slots 1 to 5, 12, 13, 17, 24, 32 to 36 and 39 are shared with other classes; 18, 19, 21, 22, 25 and 28 never ran. The rest are ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::vftable_4"
+address = 0x00AC1538
+kind = "vtable"
+expect = "90 AE 82 00 10 E4 5B 00"
+source = "Name ours. The buffer with a drawing context's counted base at +0x04: slot 0 0x0082AE90 (this less 4, then a jump to the destructor 0x0082B7D0), then the counted base's own (shared)."
+
+[[entry]]
+name = "GZContextBuffer::vftable_C"
+address = 0x00AC1510
+kind = "vtable"
+expect = "70 B7 82 00 50 18 76 00"
+source = "Name ours. The buffer with a drawing context's side interface at +0x0C (interface 0xAB300B2B): 0 QueryInterface (this less 0x0C, a jump to 0x0082AEA0), 1 and 2 shared, 3 the buffer (this less 0x0C), 4 GetContext, 5 LockContext, 6 UnlockContext, 7 SetContext, 8 0x0082B030 (never ran), 9 UseColourOf."
+
+[[entry]]
+name = "GZContextBuffer::vftable_base"
+address = 0x00AC1338
+kind = "vtable"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The table the constructor puts at +0 before the counted base is made: every slot 0x005D4A10 (an abstract base, presumably cIGZBuffer's)."
+
+[[entry]]
+name = "GZContextBuffer::vftable_C_base"
+address = 0x00AC14E8
+kind = "vtable"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "Name ours. The table the constructor puts at +0x0C first: every slot 0x005D4A10 (the side interface's abstract base)."
+
+[[entry]]
+name = "GZContextBuffer::GZContextBuffer"
+address = 0x0082B780
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. The base tables 0x00AC1338 (+0) and 0x00AC14E8 (+0x0C) around the counted base's constructor (0x0090D957 on +0x04), then the three tables; the context, the plain buffer, the lock count, flag +0x48 and the bits (+0x30) zeroed, the surface's format (+0x40) 1. Answers this. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::Destroy"
+address = 0x0082B7D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 57 8D 7E 04 C7"
+source = "Name ours. Ret 4: the three tables, the plain buffer (+0x14) then the context (+0x10) released, the counted base's destructor (0x0090D964), and with flag 1 operator delete (0x005E5620). Answers this. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::QueryInterface"
+address = 0x0082AEA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 83 F8 01 74"
+source = "Name ours. Slot 0: 1 and 0x20732180 (cIGZBuffer) this, 0xAB300B2B the side (+0x0C), each with AddRef (slot 1) and AL 1 over its answer; anything else the plain buffer's QueryInterface (its answer), or with none AL 0 over the iid. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::Lock"
+address = 0x0082B120
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t flags)"
+expect = "56 8B F1 8B 46 28 85 C0"
+source = "Name ours. Slot 6, ret 4: the first lock remembers (+0x49) whether the context had no target or was batching, points the context at the plain buffer (its slot 17) and ends a batch it is in (41, 43); every lock asks the context for its surface into +0x30 (slot 46; second argument 1 unless flag 0x8000) and counts (+0x28). AL 1 over the surface's answer. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::Unlock"
+address = 0x0082B1A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t flags)"
+expect = "FF 49 28 75 12 8A 41 49"
+source = "Name ours. Slot 7, ret 4: the count less one; at 0 with +0x49 set the context's BeginBatch (slot 42). AL 1 over that answer, or over the caller's EAX. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::IsLocked"
+address = 0x0082ACE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8B 51 28 33 C0 3B C2 1B"
+source = "Name ours. Slot 8: the lock count (+0x28) not 0. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::Width"
+address = 0x0082B1C0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "8B 01 FF 50 30 8B C8 8B"
+source = "Name ours. Slot 9: the rectangle's (its own slot 12) right less left. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::Height"
+address = 0x0082B1D0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "8B 01 FF 50 30 8B C8 8B"
+source = "Name ours. Slot 10: the rectangle's (its own slot 12) bottom less top. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::CopyRect"
+address = 0x0082AD00
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* out)"
+expect = "8B 44 24 04 83 C1 18 8B"
+source = "Name ours. Slot 11, ret 4: the rectangle (+0x18) copied to out; answers out. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::FormatAndDepth"
+address = 0x0082B200
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t* out)"
+expect = "8B 49 2C 8D 41 FE 83 F8"
+source = "Name ours. Slot 14, ret 4: the format (+0x2C) and its bits a pixel (8 for 2, 16 for 3 to 7, 32 for 8 and 9, else 0) to out; answers the bits. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::Format"
+address = 0x0082B1E0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t* (void* this, uint32_t* out)"
+expect = "8B 41 2C 56 8B 74 24 08"
+source = "Name ours. Slot 15, ret 4: the format (+0x2C) and SC4BufferColorType::DepthOf of it to out; answers out. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::BitsPerPixel"
+address = 0x0082AD20
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 44 C1 E0 03 C3 CC"
+source = "Name ours. Slot 16: the surface's bytes a pixel (+0x44) times 8. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::ToArgb"
+address = 0x0082ABF0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t pixel)"
+expect = "8B 49 2C 8D 41 FC 83 F8"
+source = "Name ours. Ret 4, called by slots 18, 20, 22, 28 and 31: a pixel value as 0xAARRGGBB by the format (+0x2C): 4 and 6 1-5-5-5, 5 5-6-5, 7 4-4-4-4 (each nibble doubled), 8 and 9 the value with alpha 0xFF; the 16-bit ones with alpha 0xFF and the low bits of each channel filled from its high bits; any other format 0. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::PixelOf"
+address = 0x0082AD30
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint8_t red, uint8_t green, uint8_t blue)"
+expect = "8B 49 2C 8D 41 FC 83 F8"
+source = "Name ours. Slot 30, ret 0xC: a colour's pixel value by the format (+0x2C), the 16-bit ones with their alpha bits set; any other format 0. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::ColourOf"
+address = 0x0082AE10
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t pixel, uint8_t* red, uint8_t* green, uint8_t* blue)"
+expect = "8B 44 24 04 50 E8 D6 FD"
+source = "Name ours. Slot 31, ret 0x10: ToArgb's red, green and blue to the three bytes; AL 1 over its answer. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::FillRect"
+address = 0x0082B280
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t pixel, const void* rect, const void* clip)"
+expect = "53 56 8B F1 8B 4E 10 8B"
+source = "Name ours. Slot 20, ret 0xC: through the context: PushTransform (3), ClipTo (5) when clip is given, SetColour(0, ToArgb(pixel)) (20), FillRect (35), PopTransform (9), slot 40. AL 1 over slot 40's answer. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::Blt"
+address = 0x0082B690
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* source, const void* from, const void* to, const void* clip)"
+expect = "83 EC 10 53 55 56 8B F1"
+source = "Name ours. Slot 29, ret 0x10: through the context: PushTransform, ClipTo when clip is given, the side's UseColourOf with the source, Blt (38) of the source with `to` moved to `from`'s top left, and `to`; PopTransform, slot 40. AL 1 over slot 40's answer. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::SetColourKey"
+address = 0x0082B4B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t key)"
+expect = "C6 41 48 01 8B 49 14 8B"
+source = "Name ours. Slot 23: +0x48 set, then a jump to the plain buffer's slot 23 (SetColourKey). Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::GetColourKey"
+address = 0x0082B540
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t* key)"
+expect = "8B 49 14 8B 01 FF 60 68"
+source = "Name ours. Slot 26: a jump to the plain buffer's slot 26 (GetColourKey). Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::ClearColourKey"
+address = 0x0082B550
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C6 41 48 00 8B 49 14 8B"
+source = "Name ours. Slot 27: +0x48 cleared, then a jump to the plain buffer's slot 27 (ClearColourKey). Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::GetCache"
+address = 0x0082B750
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B 49 14 8B 01 FF A0 94"
+source = "Name ours. Slot 37: a jump to the plain buffer's slot 37 (the hardware cache, docs/ui-scaling.md). Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::SetCache"
+address = 0x0082B760
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* cache)"
+expect = "8B 49 14 8B 01 FF A0 98"
+source = "Name ours. Slot 38: a jump to the plain buffer's slot 38 (sets the hardware cache). Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::GetContext"
+address = 0x0082AF20
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* side)"
+expect = "56 8B F1 8B 4E 04 8B 01"
+source = "Name ours. Side slot 4 (this the side, +0x0C): the context, pointed at the plain buffer (its slot 17) and BeginBatch (42) when it has no target (16). Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::LockContext"
+address = 0x0082AF50
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* side)"
+expect = "56 8B F1 8B 46 F4 8D 4E"
+source = "Name ours. Side slot 5: the buffer's Lock with 0x8010; answers the context. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::UnlockContext"
+address = 0x0082ABE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* side)"
+expect = "8B 41 F4 83 C1 F4 68 10"
+source = "Name ours. Side slot 6: the buffer's Unlock with 0x8010, reached with EAX the buffer's vtable; answers Unlock's answer. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::SetContext"
+address = 0x0082AF70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* side, void* context, void* inner)"
+expect = "83 EC 08 53 8B 5C 24 10"
+source = "Name ours. Side slot 7, ret 8: the context and the plain buffer held (each AddRef'd before the old one is released), the plain buffer's rectangle (slot 12), format (15, an 8-byte record) and bytes a pixel (17), the width and height into the surface (+0x38, +0x3C); last the context's SetTarget(0) with EAX the width, whose answer it answers. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::UseColourOf"
+address = 0x0082B080
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* side, void* source)"
+expect = "83 EC 08 56 8D 54 24 08"
+source = "Name ours. Side slot 9, ret 4: the source asked for 0x86D72B57; its slot 4 (red, green, blue, alpha bytes) gives the context's fore colour (slot 21) as 0xAARRGGBB, or 0xFFFFFFFF when either fails; the colour object released. Answers SetForeColour's answer, or Release's when the object was held. Ours in renderer.raster.buffer."
