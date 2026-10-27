@@ -493,6 +493,39 @@
 //   cases. eflags 0x1000 when it ran, 0x2000 or 0x4000 when the factory
 //   failed or there was no city, 0x8000 when the code could not be
 //   patched. Log line: "em3a efire".
+//   Part em3b (the patrol car) adds `,<epatrol>` before eflags (49 fields):
+//   on a patrol car, em2b's vtable copy with slots 19, 29 and 200 the test's
+//   too, the police simulator 0x00B43D98 and 0x00B43D70 of the test's, the
+//   city's vtable swapped for a copy with slots 44, 65 and 72 the test's,
+//   and for the while the riot police's constructor 0x00547800 and dispatch
+//   0x00546F30, the core's SwapModel 0x0050E620 and the base's StateFrame,
+//   EnterState, LeaveState and SetMission patched to the test's (the base's
+//   answer set by the test, SetMission storing the field): slot 193 by the
+//   target and four reaches; 0x00543C70 with riot police and over five
+//   cases (the simulator, the target, its answer and word); 0x00543D60 and
+//   slot 199 with and without; slot 197 over four missions and the
+//   simulators' answer; slots 109, 110 and 111 over five states (0x68,
+//   0x10, 0x64, 7, none), four base answers and riot police; slot 25 over
+//   fourteen cases (the mission, a stacked state 0x10, the simulators, the
+//   riot and the rioters); slot 200 over nineteen on a state stack of the
+//   test's (the timer, the seconds, the first model's frames, the rioters,
+//   the riot, the start key, the models, the simulator's word for the
+//   target). eflags 0x10000 when it ran, 0x20000 when the factory failed or
+//   there was no city, 0x40000 when the code could not be patched. Log
+//   line: "em3b epatrol".
+//   Part em4 (the base's slot 80 and the route) adds `,<eroute>` before
+//   eflags (50 fields): on an ambulance, em2b's vtable copy with slot 31
+//   answering the flag 0x400 too, 0x00B43D54 (slots 14 and 25) and
+//   0x00B43DA8 (slot 6: a path finder of the test's) of the test's and the
+//   city's vtable swapped for a copy with slot 95 the test's: 0x00532660
+//   over fourteen cases (the network's answer, the occupants' cells and
+//   distances, a float-rounding tie at 2^24, cells read unsigned, the
+//   finder's answers, routes crossing blocks) and slot 80 over ten (the
+//   point, the flag 0x400, the target given and held, the route's length,
+//   0x00B43D54 and its nodes at the route's last cell); the route's cells,
+//   the finder's runs and every call of the fakes. eflags 0x80000 when it
+//   ran, 0x100000 when the factory failed or there was no city. Log line:
+//   "em4 eroute".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -26740,6 +26773,863 @@ void EmFireDrive(Hash& efire, uint32_t& eflags)
     g_em4Target = nullptr;
 }
 
+// ---- Part em3b: the patrol car (src/core/automata_emergency.cpp).
+
+// What the em3b test's slots, services and patched code answer.
+struct Em5Answers {
+    uint32_t base = 0;        // the base's StateFrame, EnterState and LeaveState (patched)
+    uint8_t busy = 0;         // the city's simulators' slot 10
+    uint8_t policeHas = 0;    // the city's slot 65 service's slot 22 and the police simulator's
+    float policeReach = 0;    // the city's slot 65 service's slot 23
+    float policeWord = 0;     // the police simulator's slot 25 word
+    uint8_t riot = 0;         // 0x00B43D70's slot 9 answers the riot
+    int rioters = 0;          //   and its slot 10 a rioter this many times
+    int32_t frame = 0, frames = 0; // the first model's slots 11 and 12
+};
+Em5Answers g_em5;
+Em4Object g_em5Riot, g_em5Rioter, g_em5Model, g_em5Police, g_em5PoliceSim;
+
+// The patched game code: the base's three state slots and SetMission, the
+// riot police's constructor and dispatch, the core's SwapModel.
+uint32_t __fastcall Em5BaseFrame(char*, void*, uint32_t seconds)
+{
+    g_em.calls.Mix(0x490);
+    g_em.calls.Mix(seconds);
+    return g_em5.base;
+}
+uint32_t Em5Type(const char* state) { return state ? At<uint32_t>(const_cast<char*>(state), 4) : 0xFFFFu; }
+uint32_t __fastcall Em5BaseEnter(char*, void*, char* state)
+{
+    g_em.calls.Mix(0x7C0);
+    g_em.calls.Mix(Em5Type(state));
+    return g_em5.base;
+}
+uint32_t __fastcall Em5BaseLeave(char*, void*, char* state)
+{
+    g_em.calls.Mix(0x1C0);
+    g_em.calls.Mix(Em5Type(state));
+    return g_em5.base;
+}
+void __fastcall Em5BaseMission(char* o, void*, uint32_t mission)
+{
+    g_em.calls.Mix(0xF60);
+    g_em.calls.Mix(mission);
+    At<uint32_t>(o, em::base::kMission) = mission;
+}
+char* __fastcall Em5PoliceConstruct(char* block, void*, char* car)
+{
+    g_em.calls.Mix(0x9C0C);
+    g_em.calls.Mix(car == g_em2.self ? 1u : 2u);
+    auto* const police = reinterpret_cast<Em4Crew*>(block);
+    police->vtable = Em4CrewTable();
+    police->references = 0;
+    police->id = 0;
+    At<uint32_t>(block, 0x274) = 0xA5A5A5A5u;
+    if (g_em4.madeCount < 32)
+        g_em4.made[g_em4.madeCount++] = block;
+    return block;
+}
+void __fastcall Em5PoliceDispatch(char* police, void*)
+{
+    g_em.calls.Mix(0x9D15);
+    g_em.calls.Mix(Em4CrewId(police));
+    g_em.calls.Mix(police && police != reinterpret_cast<char*>(&g_em4Crew) ? At<uint32_t>(police, 0x274) : 0u);
+    g_em.calls.Mix(g_em2.self ? Em4CrewId(At<void*>(g_em2.self, em::patrol::kCrew)) : 0u);
+}
+void __fastcall Em5SwapModel(char*, void*, void* model, const uint32_t* key)
+{
+    g_em.calls.Mix(0xE620);
+    g_em.calls.Mix(model == &g_em5Model ? 1u : 2u);
+    g_em.calls.MixBytes(key, 12);
+}
+
+// The slots of the test's: 19, 29 (em3a's) and 200.
+uint32_t __fastcall Em5SwapStart(char*, void*, uint32_t offset)
+{
+    g_em.calls.Mix(19);
+    g_em.calls.Mix(offset);
+    return 1;
+}
+uint32_t __fastcall Em5RiotFrameSlot(char*, void*, uint32_t seconds)
+{
+    g_em.calls.Mix(200);
+    g_em.calls.Mix(seconds);
+    return 0x200;
+}
+
+// The city's slot 65 service (slots 22 and 23), the police simulator
+// 0x00B43D98 (slots 22 and 25), the simulators' slot 10.
+uint8_t __fastcall Em5PoliceHas(Em4Object* s, void*, void* target)
+{
+    g_em.calls.Mix(s == &g_em5Police ? 0x6522u : 0xD9822u);
+    g_em.calls.Mix(target == g_em4Target ? 1u : 2u);
+    return g_em5.policeHas;
+}
+float __fastcall Em5PoliceReach(Em4Object*, void*, void* target)
+{
+    g_em.calls.Mix(0x6523);
+    g_em.calls.Mix(target == g_em4Target ? 1u : 2u);
+    return g_em5.policeReach;
+}
+float* __fastcall Em5PoliceWord(Em4Object*, void*, uint32_t*, void* target)
+{
+    g_em.calls.Mix(0xD9825);
+    g_em.calls.Mix(target == g_em4Target ? 1u : 2u);
+    return &g_em5.policeWord;
+}
+void* __fastcall Em5CityPolice(void*, void*)
+{
+    g_em.calls.Mix(0x65);
+    return &g_em5Police;
+}
+uint8_t __fastcall Em5Busy(void*, void*)
+{
+    g_em.calls.Mix(0x7210);
+    return g_em5.busy;
+}
+void* __fastcall Em5CitySimulators(void*, void*)
+{
+    g_em.calls.Mix(0x72);
+    static void* table[16] = {};
+    table[em::slot::kSimulatorsBusy / 4] = reinterpret_cast<void*>(&Em5Busy);
+    static void** simulators = table;
+    return &simulators;
+}
+
+// 0x00B43D70 (slots 9 and 10), the riot (slots 33 and 52), a rioter (slot
+// 11) and the first model (slots 11, 12 and 16).
+void* __fastcall Em5RiotNear(void*, void*, const float* point, uint32_t radius)
+{
+    g_em.calls.Mix(0xD709);
+    g_em.calls.Mix(point == reinterpret_cast<float*>(g_em2.self + av::field::kPosition) ? 1u : 2u);
+    g_em.calls.Mix(radius);
+    return g_em5.riot ? &g_em5Riot : nullptr;
+}
+void* __fastcall Em5RioterNear(void*, void*, const float* point, uint32_t radius)
+{
+    g_em.calls.Mix(0xD710);
+    g_em.calls.Mix(point == reinterpret_cast<float*>(g_em2.self + av::field::kPosition) ? 1u : 2u);
+    g_em.calls.Mix(radius);
+    if (g_em5.rioters <= 0)
+        return nullptr;
+    --g_em5.rioters;
+    return &g_em5Rioter;
+}
+uint32_t __fastcall Em5RioterStop(Em4Object*, void*, uint32_t word)
+{
+    g_em.calls.Mix(0x11);
+    g_em.calls.Mix(word);
+    return 0;
+}
+uint32_t __fastcall Em5RiotFade(Em4Object*, void*, uint32_t a, uint32_t b)
+{
+    g_em.calls.Mix(0x33);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(b);
+    return 0;
+}
+uint32_t __fastcall Em5RiotPush(Em4Object*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+                                uint32_t f, uint32_t g)
+{
+    g_em.calls.Mix(0x52);
+    for (const uint32_t w : {a, b, c, d, e, f, g})
+        g_em.calls.Mix(w);
+    return 1;
+}
+int32_t __fastcall Em5ModelFrame(Em4Object*, void*)
+{
+    g_em.calls.Mix(0xF11);
+    return g_em5.frame;
+}
+int32_t __fastcall Em5ModelFrames(Em4Object*, void*)
+{
+    g_em.calls.Mix(0xF12);
+    return g_em5.frames;
+}
+uint32_t __fastcall Em5ModelPlay(Em4Object*, void*, uint32_t mode)
+{
+    g_em.calls.Mix(0xF16);
+    g_em.calls.Mix(mode);
+    return 0;
+}
+
+// Em3Table (the patrol car's) with slots 19, 29 and 200 the test's too.
+void** Em5Table(char* o)
+{
+    static void* t[202];
+    void** const base = Em3Table(1, o);
+    for (int i = 0; i < kEmClasses[1].slots; ++i)
+        t[i] = base[i];
+    t[em::slot::kSwapStartModel / 4] = reinterpret_cast<void*>(&Em5SwapStart);
+    t[em::slot::kGoHome / 4] = reinterpret_cast<void*>(&Em4GoHome);
+    t[em::slot::kRiotFrame / 4] = reinterpret_cast<void*>(&Em5RiotFrameSlot);
+    return t;
+}
+
+void EmPatrolDrive(Hash& epatrol, uint32_t& eflags)
+{
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    g_em3 = Em3Answers{};
+    g_em4 = Em4Answers{};
+    g_em5 = Em5Answers{};
+    char* const o = MakeEm(1, eflags);
+    void* const city = Global<void*>(addr::SC4_City);
+    if (!o || !city) {
+        eflags |= 0x20000;
+        ReleaseEm(o);
+        log::Write("autotest: automata: vehicle: em3b: the factory failed or no city");
+        return;
+    }
+    // The services and objects of the test's.
+    g_em5Police = Em4Object{Em4Table16<20>({{em::slot::kPoliceHas / 4, reinterpret_cast<void*>(&Em5PoliceHas)},
+                                            {em::slot::kPoliceReach / 4, reinterpret_cast<void*>(&Em5PoliceReach)}}),
+                            1};
+    g_em5PoliceSim = Em4Object{Em4Table16<21>({{em::slot::kPoliceHas / 4, reinterpret_cast<void*>(&Em5PoliceHas)},
+                                               {em::slot::kPoliceWord / 4, reinterpret_cast<void*>(&Em5PoliceWord)}}),
+                               1};
+    g_em5Riot = Em4Object{Em4Table16<22>({{em::slot::kFade / 4, reinterpret_cast<void*>(&Em5RiotFade)},
+                                          {em::slot::kPushState / 4, reinterpret_cast<void*>(&Em5RiotPush)}}),
+                          1};
+    g_em5Rioter = Em4Object{Em4Table16<23>({{em::slot::kRioterStop / 4, reinterpret_cast<void*>(&Em5RioterStop)}}), 1};
+    g_em5Model = Em4Object{Em4Table16<24>({{em::slot::kModelFrame / 4, reinterpret_cast<void*>(&Em5ModelFrame)},
+                                           {em::slot::kModelFrames / 4, reinterpret_cast<void*>(&Em5ModelFrames)},
+                                           {em::slot::kModelPlayMode / 4, reinterpret_cast<void*>(&Em5ModelPlay)}}),
+                           1};
+    static void* riotsTable[16] = {};
+    riotsTable[em::slot::kRiotNear / 4] = reinterpret_cast<void*>(&Em5RiotNear);
+    riotsTable[em::slot::kRioterNear / 4] = reinterpret_cast<void*>(&Em5RioterNear);
+    void** riots = riotsTable;
+    g_em4Crew = Em4Crew{Em4CrewTable(), 1, 1};
+    static void* cityTable[256];
+    void** const realCity = At<void**>(city, 0);
+    for (int i = 0; i < 256; ++i)
+        cityTable[i] = realCity[i];
+    cityTable[em::slot::kCityCrewService / 4] = reinterpret_cast<void*>(&Em4CityCrews);
+    cityTable[em::slot::kCityPolice / 4] = reinterpret_cast<void*>(&Em5CityPolice);
+    cityTable[em::slot::kCitySimulators / 4] = reinterpret_cast<void*>(&Em5CitySimulators);
+    RfSwap swapPolice(addr::SC4_PoliceSimulator, &g_em5PoliceSim);
+    RfSwap swapRiots(addr::SC4_Service43D70, &riots);
+    Em4Jump jumps[] = {{addr::cSC4RiotPolice_Construct, reinterpret_cast<void*>(&Em5PoliceConstruct)},
+                       {addr::cSC4RiotPolice_Dispatch, reinterpret_cast<void*>(&Em5PoliceDispatch)},
+                       {addr::cSC4AutomatonCore_SwapModel, reinterpret_cast<void*>(&Em5SwapModel)},
+                       {addr::cSC4EmergencyVehicle_StateFrame, reinterpret_cast<void*>(&Em5BaseFrame)},
+                       {addr::cSC4EmergencyVehicle_EnterState, reinterpret_cast<void*>(&Em5BaseEnter)},
+                       {addr::cSC4EmergencyVehicle_LeaveState, reinterpret_cast<void*>(&Em5BaseLeave)},
+                       {addr::cSC4EmergencyVehicle_SetMission, reinterpret_cast<void*>(&Em5BaseMission)}};
+    for (const Em4Jump& j : jumps)
+        if (!j.written) {
+            eflags |= 0x40000;
+            ReleaseEm(o);
+            log::Write("autotest: automata: vehicle: em3b: the game's code could not be patched");
+            return;
+        }
+    At<void**>(city, 0) = cityTable;
+
+    g_em2.self = o;
+    void** const real = At<void**>(o, 0);
+    At<void**>(o, 0) = Em5Table(o);
+    Em4Object target{Em4Table16<25>({}), 1};
+    g_em4Target = &target;
+    auto crewIs = [&] { return Em4CrewId(At<void*>(o, em::patrol::kCrew)); };
+    auto setCrew = [&](bool on) {
+        if (At<void*>(o, em::patrol::kCrew) == &g_em4Crew)
+            --g_em4Crew.references;
+        At<void*>(o, em::patrol::kCrew) = nullptr;
+        if (on) {
+            ++g_em4Crew.references;
+            At<void*>(o, em::patrol::kCrew) = &g_em4Crew;
+        }
+    };
+    auto recall = [&] { This<uint32_t>(addr::cSC4PatrolCar_RecallPolice, o); };
+    constexpr float kNaN = std::numeric_limits<float>::quiet_NaN();
+
+    // Slot 193 at its address: no target, unknown, known (four reaches).
+    for (int k = 0; k < 6; ++k) {
+        At<void*>(o, em::base::kTarget) = k == 0 ? nullptr : static_cast<void*>(&target);
+        g_em5.policeHas = static_cast<uint8_t>(k >= 2);
+        g_em5.policeReach = k == 2 ? 37.5f : k == 3 ? -0.1f : k == 4 ? 1e30f : kNaN;
+        epatrol.Mix(Bits64(This<double>(addr::cSC4PatrolCar_Reach, o)));
+    }
+    At<void*>(o, em::base::kTarget) = nullptr;
+
+    // 0x00543C70 with riot police, and without by the police simulator, the
+    // target and its answers (each made one sent by the patched dispatch).
+    {
+        setCrew(true);
+        This<void>(addr::cSC4PatrolCar_SendPolice, o);
+        epatrol.Mix(crewIs());
+        struct CaseSend {
+            bool simulator, target;
+            uint8_t has;
+            float word;
+        };
+        const CaseSend cases[] = {{true, false, 1, 0.5f}, {true, true, 0, 0.5f}, {true, true, 1, 0.75f},
+                                  {true, true, 1, kNaN},  {false, false, 0, 0}};
+        for (const CaseSend& c : cases) {
+            setCrew(false);
+            At<void*>(o, em::base::kTarget) = c.target ? static_cast<void*>(&target) : nullptr;
+            g_em5.policeHas = c.has;
+            g_em5.policeWord = c.word;
+            if (!c.simulator)
+                *reinterpret_cast<void**>(addr::SC4_PoliceSimulator) = nullptr;
+            This<void>(addr::cSC4PatrolCar_SendPolice, o);
+            *reinterpret_cast<void**>(addr::SC4_PoliceSimulator) = &g_em5PoliceSim;
+            epatrol.Mix(crewIs());
+            char* const made = At<char*>(o, em::patrol::kCrew);
+            epatrol.Mix(made && made != reinterpret_cast<char*>(&g_em4Crew) ? At<uint32_t>(made, 0x274) : 0u);
+            epatrol.Mix(made && made != reinterpret_cast<char*>(&g_em4Crew) ? At<uint32_t>(made, 4) : 0u);
+            recall();
+            epatrol.Mix(crewIs());
+        }
+        At<void*>(o, em::base::kTarget) = nullptr;
+        epatrol.Mix(static_cast<uint32_t>(g_em5PoliceSim.references));
+    }
+
+    // 0x00543D60 and slot 199 with and without riot police.
+    for (const bool crew : {false, true}) {
+        setCrew(crew);
+        epatrol.Mix(This<uint32_t>(addr::cSC4PatrolCar_RecallPolice, o));
+        epatrol.Mix(crewIs());
+        setCrew(crew);
+        This<void>(addr::cSC4PatrolCar_Slot199, o);
+        epatrol.Mix(crewIs());
+    }
+    epatrol.Mix(static_cast<uint32_t>(g_em4Crew.references));
+
+    // Slot 197 by the mission and the simulators' answer.
+    for (const uint32_t mission : {2u, 5u, 3u, 0u})
+        for (const uint8_t busy : {uint8_t{0}, uint8_t{1}}) {
+            At<uint32_t>(o, em::base::kMission) = mission;
+            g_em5.busy = busy;
+            epatrol.Mix(This<uint32_t>(addr::cSC4PatrolCar_SceneFrame, o, Bits(0.5f)) & 0xFF);
+        }
+
+    // Slots 109, 110 and 111 by the state and the base's answer (patched).
+    {
+        alignas(4) static char states[4][0x40];
+        const uint32_t types[4] = {0x68, 0x10, 0x64, 7};
+        for (int k = 0; k < 4; ++k) {
+            std::memset(states[k], 0, sizeof states[k]);
+            At<uint32_t>(states[k], 4) = types[k];
+        }
+        char* const choices[] = {states[0], states[1], states[2], states[3], nullptr};
+        for (char* state : choices)
+            for (const uint32_t answer : {0u, 1u, 0x100u, 0x5A01u}) {
+                g_em5.base = answer;
+                g_em2.current = state;
+                epatrol.Mix(This<uint32_t>(addr::cSC4PatrolCar_StateFrame, o, Bits(0.25f)) & 0xFF);
+                for (const bool crew : {false, true}) {
+                    setCrew(crew);
+                    epatrol.Mix(This<uint32_t>(addr::cSC4PatrolCar_EnterState, o, state) & 0xFF);
+                    epatrol.Mix(crewIs());
+                    setCrew(crew);
+                    epatrol.Mix(This<uint32_t>(addr::cSC4PatrolCar_LeaveState, o, state) & 0xFF);
+                    epatrol.Mix(crewIs());
+                }
+            }
+        g_em2.current = nullptr;
+        g_em5.base = 0;
+        setCrew(false);
+    }
+
+    // Slot 25 over the missions, a stacked state 0x10, riot police, the
+    // simulators' answer and the riot and rioter found.
+    {
+        Counted stacked{CountedVtable(), 1, 0x10, 0};
+        struct Case25 {
+            uint32_t mission;
+            bool stacked, crew;
+            uint8_t busy, riot;
+            int rioters;
+        };
+        const Case25 cases[] = {{1, false, false, 0, 0, 0}, {1, false, true, 1, 1, 1}, {1, true, true, 0, 0, 0},
+                                {5, true, true, 0, 1, 0},   {5, false, true, 1, 0, 0}, {5, false, false, 1, 1, 1},
+                                {5, false, false, 0, 0, 0}, {5, false, true, 0, 1, 0}, {5, false, false, 0, 0, 1},
+                                {5, false, false, 0, 1, 2}, {3, false, true, 0, 1, 1}, {2, false, false, 1, 0, 0},
+                                {6, false, true, 0, 0, 0},  {0, false, false, 0, 0, 0}};
+        for (const Case25& c : cases) {
+            At<uint32_t>(o, em::base::kMission) = 9;
+            setCrew(c.crew);
+            g_em.inState = c.stacked ? static_cast<void*>(&stacked) : nullptr;
+            g_em5.busy = c.busy;
+            g_em5.riot = c.riot;
+            g_em5.rioters = c.rioters;
+            This<void>(addr::cSC4PatrolCar_SetMission, o, c.mission);
+            epatrol.Mix(At<uint32_t>(o, em::base::kMission));
+            epatrol.Mix(crewIs());
+            recall();
+        }
+        g_em.inState = nullptr;
+        g_em5.riot = 0;
+        g_em5.rioters = 0;
+        setCrew(false);
+    }
+
+    // Slot 200 on a state stack of the test's: the timer (spent, NaN, not
+    // yet, just now), the first model's frames, the rioters, the riot, the
+    // start key, the models and the police simulator's word for the target.
+    {
+        alignas(4) static char record[0x40];
+        std::memset(record, 0, sizeof record);
+        At<uint32_t>(record, 4) = em::riot::kState;
+        char* stack[2] = {record, nullptr};
+        void* models[2] = {&g_em5Model, nullptr};
+        alignas(4) char saved[0x40];
+        std::memcpy(saved, o + 0xB4, 8);
+        std::memcpy(saved + 8, o + 0x110, 8);
+        std::memcpy(saved + 16, o + 0x11C, 12);
+        At<char**>(o, 0xB4) = &stack[0];
+        At<char**>(o, 0xB8) = &stack[1];
+        At<void**>(o, 0x110) = &models[0];
+        struct Case200 {
+            float timer, seconds;
+            int32_t frame, frames;
+            int rioters;
+            uint8_t riot;
+            uint32_t key;
+            bool models, simulator, target;
+            uint8_t has;
+            float word;
+        };
+        const Case200 cases[] = {
+            {0, 0.5f, 8, 10, 0, 0, 0, true, true, false, 0, 0},
+            {-1, 0.5f, 9, 10, 0, 0, 0, true, true, false, 0, 0},
+            {kNaN, 0.5f, 0, 0, 0, 0, 0, true, true, false, 0, 0},
+            {-0.0f, 0.5f, 7, 5, 0, 0, 0, true, true, false, 0, 0},
+            {1.0f, 0.5f, 0, 0, 2, 1, 0x77, true, true, true, 1, 0.4f},
+            {0.5f, 0.5f, 0, 0, 0, 0, 0, true, true, false, 0, 0},
+            {0.5f, 0.75f, 0, 0, 3, 1, 0x77, true, true, true, 1, 0.4f},
+            {0.5f, kNaN, 0, 0, 3, 1, 0x77, true, true, true, 1, 0.4f},
+            {1e-30f, 1e-30f, 0, 0, 7, 0, 0x77, true, true, true, 1, 0.8f},
+            {0.25f, 0.5f, 0, 0, 5, 1, 0x77, true, true, true, 0, 0.8f},
+            {0.25f, 0.5f, 0, 0, 0, 1, 0x77, true, true, true, 1, 1.2f},
+            {0.25f, 0.5f, 0, 0, 0, 1, 0x77, true, true, true, 1, 1.6f},
+            {0.25f, 0.5f, 0, 0, 0, 0, 0x77, true, true, true, 1, -0.5f},
+            {0.25f, 0.5f, 0, 0, 0, 0, 0x77, true, true, true, 1, kNaN},
+            {0.25f, 0.5f, 0, 0, 0, 0, 0x77, true, true, true, 1, 1e30f},
+            {0.25f, 0.5f, 0, 0, 0, 0, 0x77, true, true, true, 1, 0.399999f},
+            {0.25f, 0.5f, 0, 0, 1, 0, 0x77, true, false, false, 0, 0},
+            {0.25f, 0.5f, 0, 0, 0, 1, 0, true, true, true, 1, 0.4f},
+            {0.25f, 0.5f, 0, 0, 0, 0, 0x77, false, true, true, 1, 0.4f}};
+        for (const Case200& c : cases) {
+            At<float>(record, em::riot::kTimer) = c.timer;
+            g_em5.frame = c.frame;
+            g_em5.frames = c.frames;
+            g_em5.rioters = c.rioters;
+            g_em5.riot = c.riot;
+            At<uint32_t>(o, 0x11C) = 0x6534C0DEu;
+            At<uint32_t>(o, 0x120) = 0x1234u;
+            At<uint32_t>(o, 0x124) = c.key;
+            At<void**>(o, 0x114) = c.models ? &models[1] : &models[0];
+            At<void*>(o, em::base::kTarget) = c.target ? static_cast<void*>(&target) : nullptr;
+            g_em5.policeHas = c.has;
+            g_em5.policeWord = c.word;
+            if (!c.simulator)
+                *reinterpret_cast<void**>(addr::SC4_PoliceSimulator) = nullptr;
+            epatrol.Mix(This<uint32_t>(addr::cSC4PatrolCar_RiotFrame, o, Bits(c.seconds)) & 0xFF);
+            *reinterpret_cast<void**>(addr::SC4_PoliceSimulator) = &g_em5PoliceSim;
+            epatrol.Mix(Bits(At<float>(record, em::riot::kTimer)));
+            epatrol.Mix(static_cast<uint32_t>(g_em5.rioters));
+        }
+        std::memcpy(o + 0xB4, saved, 8);
+        std::memcpy(o + 0x110, saved + 8, 8);
+        std::memcpy(o + 0x11C, saved + 16, 12);
+        At<void*>(o, em::base::kTarget) = nullptr;
+        g_em5.rioters = 0;
+        g_em5.riot = 0;
+        epatrol.Mix(static_cast<uint32_t>(g_em5PoliceSim.references));
+    }
+
+    setCrew(false);
+    At<uint8_t>(o, em::base::kByte) = 0;
+    At<uint32_t>(o, em::base::kMission) = 0;
+    At<void**>(o, 0) = real;
+    At<void**>(city, 0) = realCity;
+    epatrol.Mix(static_cast<uint32_t>(target.references));
+    epatrol.Mix(static_cast<uint32_t>(g_em4.madeCount));
+    for (int i = 0; i < g_em4.madeCount; ++i)
+        epatrol.Mix(static_cast<uint32_t>(At<int32_t>(g_em4.made[i], 4)));
+    epatrol.Mix(g_em.calls.h);
+    eflags |= 0x10000;
+    ReleaseEm(o);
+    // The made riot police's blocks (none is held now) back to the game.
+    using Delete = void(__cdecl*)(void*);
+    for (int i = 0; i < g_em4.madeCount; ++i)
+        reinterpret_cast<Delete>(addr::SC4_operator_delete)(g_em4.made[i]);
+    log::Write("autotest: automata: vehicle: em3b epatrol %08X calls %08X police %d", epatrol.h, g_em.calls.h,
+               g_em4.madeCount);
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    g_em3 = Em3Answers{};
+    g_em4 = Em4Answers{};
+    g_em5 = Em5Answers{};
+    g_em4Target = nullptr;
+}
+
+// ---- Part em4: the base's slot 80 and the route (src/core/automata_emergency.cpp).
+
+// The network occupants the em4 test's 0x00B43D54 lists (slot 59: their cell).
+struct Em6Occupant {
+    void** vtable;
+    int32_t references;
+    int32_t x, z;
+};
+
+// What the em4 test's slots, services and path finder answer.
+struct Em6Answers {
+    uint8_t flag400 = 0;          // slot 31 for the flag 0x400
+    int32_t cell[2] = {};         // the city's slot 95
+    uint8_t inRect = 0;           // 0x00B43D54's slot 25
+    Em6Occupant* listed[8] = {};  //   and the occupants it lists
+    int count = 0;
+    int32_t answers[8] = {};      // the finder's slot 23, run by run
+    int runs = 0;
+    int length = 0;               // the cells a run answering 1 writes (plus the run's index)
+    char* route = nullptr;        // the finder's slot 8
+    int32_t to[2] = {};           // its slot 20
+    int finders = 0;              // 0x00B43DA8's slot 6
+};
+Em6Answers g_em6;
+Em4Object g_em6Finder;
+
+uint8_t __fastcall Em6CheckFlag(char* o, void* edx, uint32_t flag)
+{
+    if (flag == 0x400) {
+        g_em.calls.Mix(0x31400);
+        return g_em6.flag400;
+    }
+    return EmCheckFlag(o, edx, flag);
+}
+uint32_t __fastcall Em6CellOf(void*, void*, float x, float z, int32_t* a, int32_t* b)
+{
+    g_em.calls.Mix(0x95);
+    g_em.calls.Mix(Bits(x));
+    g_em.calls.Mix(Bits(z));
+    *a = g_em6.cell[0];
+    *b = g_em6.cell[1];
+    return 1;
+}
+uint8_t __fastcall Em6InRect(void*, void*, void** vector, const int32_t* rect, uint32_t byte, uint32_t zero,
+                             uint32_t mask)
+{
+    g_em.calls.Mix(0x5425);
+    g_em.calls.MixBytes(rect, 16);
+    g_em.calls.Mix(byte);
+    g_em.calls.Mix(zero);
+    g_em.calls.Mix(mask);
+    g_em.calls.Mix(vector[0] || vector[1] || vector[2] ? 1u : 0u);
+    if (g_em6.count > 0) {
+        using Alloc = void*(__cdecl*)(uint32_t);
+        auto** const store = static_cast<Em6Occupant**>(
+            reinterpret_cast<Alloc>(addr::SC4_stl_allocate)(static_cast<uint32_t>(g_em6.count * 4)));
+        for (int i = 0; i < g_em6.count; ++i)
+            store[i] = g_em6.listed[i];
+        vector[0] = store;
+        vector[1] = store + g_em6.count;
+        vector[2] = store + g_em6.count;
+    }
+    return g_em6.inRect;
+}
+uint32_t __fastcall Em6OccupantCell(Em6Occupant* occupant, void*, int32_t* x, int32_t* z)
+{
+    g_em.calls.Mix(0x59);
+    g_em.calls.Mix(static_cast<uint32_t>(occupant - g_em6.listed[0]));
+    *x = occupant->x;
+    *z = occupant->z;
+    return 0;
+}
+void __fastcall Em6Finders(void*, void*, void** out)
+{
+    g_em.calls.Mix(0xDA806);
+    ++g_em6.finders;
+    *out = &g_em6Finder;
+}
+
+// The path finder: slots 5, 9, 13, 18, 19 recorded; 8 holds the route; 20
+// the goal; 23 answers run by run and writes cells into the route on 1.
+template <uint32_t N>
+uint32_t __fastcall Em6FinderWord(Em4Object*, void*, uint32_t w)
+{
+    g_em.calls.Mix(0xF000 + N);
+    g_em.calls.Mix(w);
+    return 0;
+}
+uint32_t __fastcall Em6FinderSlot13(Em4Object*, void*, uint32_t a, uint32_t b)
+{
+    g_em.calls.Mix(0xF013);
+    g_em.calls.Mix(a);
+    g_em.calls.Mix(b);
+    return 0;
+}
+uint32_t __fastcall Em6FinderRoute(Em4Object*, void*, char* route)
+{
+    g_em.calls.Mix(0xF008);
+    g_em6.route = route;
+    return 0;
+}
+template <uint32_t N>
+uint32_t __fastcall Em6FinderRect(Em4Object*, void*, int32_t a, int32_t b, int32_t c, int32_t d)
+{
+    g_em.calls.Mix(0xF000 + N);
+    for (const int32_t w : {a, b, c, d})
+        g_em.calls.Mix(static_cast<uint32_t>(w));
+    if (N == 0x20) {
+        g_em6.to[0] = a;
+        g_em6.to[1] = b;
+    }
+    return 0;
+}
+int32_t __fastcall Em6FinderRun(Em4Object*, void*)
+{
+    g_em.calls.Mix(0xF023);
+    const int run = g_em6.runs++;
+    const int32_t answer = run < 8 ? g_em6.answers[run] : 0;
+    // The route given by slot 8 is cleared before each run: mix how many cells it holds.
+    if (char* const route = g_em6.route)
+        g_em.calls.Mix(static_cast<uint32_t>(This<int32_t>(addr::SC4CellDeque_Size, route)));
+    if (answer == 1 && g_em6.route)
+        for (int k = 0; k < g_em6.length + run; ++k)
+            PushCell(g_em6.route, static_cast<uint8_t>(g_em6.to[0] + k), static_cast<uint8_t>(g_em6.to[1] + run));
+    return answer;
+}
+
+// Em3Table (the ambulance's) with slot 31 answering the flag 0x400 too.
+void** Em6Table(char* o)
+{
+    static void* t[202];
+    void** const base = Em3Table(2, o);
+    for (int i = 0; i < kEmClasses[2].slots; ++i)
+        t[i] = base[i];
+    t[em::slot::kCheckFlag / 4] = reinterpret_cast<void*>(&Em6CheckFlag);
+    return t;
+}
+
+// The route's cells and count (from the start's current to the finish's).
+void MixRoute(Hash& h, char* route)
+{
+    char* current = At<char*>(route, av::deque::kStart + av::deque::kCurrent);
+    char* last = At<char*>(route, av::deque::kStart + av::deque::kLast);
+    char** node = At<char**>(route, av::deque::kStart + av::deque::kNode);
+    const char* const finish = At<char*>(route, av::deque::kFinish + av::deque::kCurrent);
+    uint32_t count = 0;
+    while (current != finish && count < 4096) {
+        h.MixBytes(current, 3);
+        ++count;
+        current += 3;
+        if (current == last) {
+            current = *++node;
+            last = current + 0x7E;
+        }
+    }
+    h.Mix(count);
+}
+
+void EmRouteDrive(Hash& eroute, uint32_t& eflags)
+{
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    g_em3 = Em3Answers{};
+    g_em6 = Em6Answers{};
+    char* const o = MakeEm(2, eflags);
+    void* const city = Global<void*>(addr::SC4_City);
+    if (!o || !city) {
+        eflags |= 0x100000;
+        ReleaseEm(o);
+        log::Write("autotest: automata: vehicle: em4: the factory failed or no city");
+        return;
+    }
+    static Em6Occupant occupants[8];
+    void** const occupantTable = Em4Table16<26>({{em::slot::kOccupantCell / 4, reinterpret_cast<void*>(&Em6OccupantCell)}});
+    for (Em6Occupant& occupant : occupants)
+        occupant = Em6Occupant{occupantTable, 1, 0, 0};
+    g_em6Finder = Em4Object{
+        Em4Table16<27>({{em::slot::kFinderSlot5 / 4, reinterpret_cast<void*>(&Em6FinderWord<5>)},
+                        {em::slot::kFinderRoute / 4, reinterpret_cast<void*>(&Em6FinderRoute)},
+                        {em::slot::kFinderSlot9 / 4, reinterpret_cast<void*>(&Em6FinderWord<9>)},
+                        {em::slot::kFinderSlot13 / 4, reinterpret_cast<void*>(&Em6FinderSlot13)},
+                        {em::slot::kFinderSlot18 / 4, reinterpret_cast<void*>(&Em6FinderWord<0x18>)},
+                        {em::slot::kFinderFrom / 4, reinterpret_cast<void*>(&Em6FinderRect<0x19>)},
+                        {em::slot::kFinderTo / 4, reinterpret_cast<void*>(&Em6FinderRect<0x20>)},
+                        {em::slot::kFinderRun / 4, reinterpret_cast<void*>(&Em6FinderRun)}}),
+        1};
+    static void* gridTable[32] = {};
+    gridTable[em::slot::kOccupantsAt / 4] = reinterpret_cast<void*>(&Em2OccupantsAt);
+    gridTable[em::slot::kOccupantsInRect / 4] = reinterpret_cast<void*>(&Em6InRect);
+    void** grid = gridTable;
+    static void* findersTable[16] = {};
+    findersTable[em::slot::kFinderGet / 4] = reinterpret_cast<void*>(&Em6Finders);
+    void** finders = findersTable;
+    static void* cityTable[256];
+    void** const realCity = At<void**>(city, 0);
+    for (int i = 0; i < 256; ++i)
+        cityTable[i] = realCity[i];
+    cityTable[em::slot::kCellOf / 4] = reinterpret_cast<void*>(&Em6CellOf);
+    RfSwap swapGrid(addr::SC4_Service43D54, &grid);
+    RfSwap swapFinders(addr::SC4_Service43DA8, &finders);
+    At<void**>(city, 0) = cityTable;
+
+    g_em2.self = o;
+    void** const real = At<void**>(o, 0);
+    At<void**>(o, 0) = Em6Table(o);
+    char* const route = o + av::field::kRoute;
+    Em4Object targets[2] = {{Em4Table16<28>({}), 1}, {Em4Table16<28>({}), 1}};
+    auto targetIs = [&]() -> uint32_t {
+        void* const t = At<void*>(o, em::base::kTarget);
+        return t == &targets[0] ? 1u : t == &targets[1] ? 2u : t ? 3u : 0u;
+    };
+    // The 0x00B43D54 nodes at the route's last cell: none, one not of the
+    // type, the second of it.
+    static Em2Typed typed[2];
+    static Em2Node nodes[2];
+    void** const typedTable = Em4Table16<29>({{em::slot::kIsType / 4, reinterpret_cast<void*>(&Em2IsType)}});
+    typed[0] = Em2Typed{typedTable, 0};
+    typed[1] = Em2Typed{typedTable, 1};
+    nodes[0] = Em2Node{&typed[0], {}, &nodes[1]};
+    nodes[1] = Em2Node{&typed[1], {}, nullptr};
+    constexpr float kNaN = std::numeric_limits<float>::quiet_NaN();
+
+    // The occupants of one case: cells, the finder's answers.
+    struct Listed {
+        int32_t x, z, answer;
+    };
+    auto setUp = [&](std::initializer_list<Listed> list) {
+        g_em6.count = 0;
+        g_em6.runs = 0;
+        for (const Listed& l : list) {
+            occupants[g_em6.count].x = l.x;
+            occupants[g_em6.count].z = l.z;
+            g_em6.listed[g_em6.count] = &occupants[g_em6.count];
+            g_em6.answers[g_em6.count] = l.answer;
+            ++g_em6.count;
+        }
+    };
+    // Cells pushed; -1: until the finish is at a block's first (Clear
+    // keeps the start where it was).
+    auto fillRoute = [&](int cells) {
+        ClearRoute(route);
+        for (int k = 0; cells < 0 || k < cells; ++k) {
+            PushCell(route, static_cast<uint8_t>(30 + k), static_cast<uint8_t>(60 + k / 5));
+            if (cells < 0 && At<char*>(route, av::deque::kFinish + av::deque::kCurrent) ==
+                                 At<char*>(route, av::deque::kFinish + av::deque::kFirst))
+                break;
+        }
+    };
+    auto mixAfter = [&] {
+        MixRoute(eroute, route);
+        eroute.Mix(static_cast<uint32_t>(g_em6.runs));
+        eroute.Mix(static_cast<uint32_t>(occupants[0].references));
+    };
+
+    // 0x00532660 at its address over the network's answer, the occupants'
+    // cells and distances, the finder's answers and the path's length.
+    {
+        struct CaseRoute {
+            uint8_t inRect;
+            int32_t cell[2];
+            int prefill, length;
+            std::initializer_list<Listed> list;
+        };
+        const CaseRoute cases[] = {
+            {0, {5, 6}, 3, 2, {}},
+            {0, {5, 6}, 3, 2, {{1, 2, 1}, {3, 4, 1}}},
+            {1, {5, 6}, 3, 2, {}},
+            {1, {5, 6}, 3, 2, {{5, 6, 1}}},
+            {1, {5, 6}, 3, 2, {{9, 9, 1}, {7, 7, 1}, {6, 6, 1}}},
+            {1, {5, 6}, 3, 2, {{6, 6, 1}, {7, 7, 1}, {9, 9, 1}}},
+            {1, {5, 6}, 3, 2, {{6, 6, 0}, {9, 9, 1}, {8, 8, 1}}},
+            {1, {5, 6}, 3, 2, {{6, 6, 2}, {9, 9, -1}}},
+            {1, {5, 6}, 3, 2, {{6, 7, 1}, {7, 6, 1}, {4, 5, 1}}},
+            {1, {5, 6}, 3, 2, {{-1, 6, 1}, {5, -3, 0}, {200, 9, 1}}},
+            {1, {0, 0}, 3, 2, {{4096, 1, 1}, {4096, 0, 1}, {4095, 1, 1}}},
+            {1, {-4, 3}, 40, 60, {{10, 10, 1}}},
+            {1, {5, 6}, 0, 45, {{2, 2, 1}}},
+            {1, {5, 6}, 42, 1, {{2, 2, 1}}},
+        };
+        const float point[3] = {81.5f, -2.25f, 1044.0f};
+        for (const CaseRoute& c : cases) {
+            g_em6.inRect = c.inRect;
+            g_em6.cell[0] = c.cell[0];
+            g_em6.cell[1] = c.cell[1];
+            g_em6.length = c.length;
+            g_em6.route = nullptr;
+            setUp(c.list);
+            fillRoute(c.prefill);
+            This<void>(addr::cSC4EmergencyVehicle_ExtendRoute, o, 12u, 250u, point);
+            mixAfter();
+        }
+        eroute.Mix(static_cast<uint32_t>(g_em6.finders));
+    }
+
+    // Slot 80 at its address: the point, the flag 0x400, the target (none,
+    // one, the same, a second, none given with one there), the route (none,
+    // one cell, 42 cells, the finish at a block's first), 0x00B43D54 (none,
+    // no nodes, a node not of the type, the second of it).
+    {
+        struct Case80 {
+            float point[3];
+            uint8_t flag;
+            int target, held, cells;
+            int grid; // 0 none, 1 no nodes, 2 the first node, 3 both
+        };
+        const Case80 cases[] = {
+            {{1, 2, 3}, 0, 0, 0, 0, 3},        {{1, 2, 3}, 1, 1, 0, 0, 3},     {{kNaN, -0.0f, 1e30f}, 1, 0, 1, 0, 3},
+            {{4, 5, 6}, 0, 1, 1, 1, 0},        {{4, 5, 6}, 0, 2, 1, 1, 1},     {{4, 5, 6}, 1, 0, 2, 1, 2},
+            {{100.5f, 0, 70.25f}, 0, 1, 0, 1, 3}, {{100.5f, 0, 70.25f}, 0, 0, 0, 42, 3},
+            {{100.5f, 0, 70.25f}, 0, 2, 2, -1, 2}, {{-8, 9, -10}, 1, 1, 2, -1, 3},
+        };
+        for (const Case80& c : cases) {
+            if (At<void*>(o, em::base::kTarget) == &targets[0])
+                --targets[0].references;
+            else if (At<void*>(o, em::base::kTarget) == &targets[1])
+                --targets[1].references;
+            At<void*>(o, em::base::kTarget) = c.held ? static_cast<void*>(&targets[c.held - 1]) : nullptr;
+            if (c.held)
+                ++targets[c.held - 1].references;
+            g_em6.flag400 = c.flag;
+            g_em6.inRect = 1;
+            g_em6.cell[0] = 3;
+            g_em6.cell[1] = 4;
+            g_em6.length = 3;
+            setUp({{7, 7, 1}, {3, 5, 1}});
+            fillRoute(c.cells);
+            g_em2.nodes = reinterpret_cast<char*>(c.grid == 2 ? &nodes[1] : c.grid == 3 ? &nodes[0] : nullptr);
+            if (c.grid == 0)
+                *reinterpret_cast<void**>(addr::SC4_Service43D54) = nullptr;
+            This<void>(addr::cSC4EmergencyVehicle_SetGoal, o, c.point,
+                       c.target ? static_cast<void*>(&targets[c.target - 1]) : nullptr);
+            *reinterpret_cast<void**>(addr::SC4_Service43D54) = &grid;
+            eroute.MixBytes(o + em::base::kPoint, 12);
+            eroute.Mix(targetIs());
+            eroute.Mix(static_cast<uint32_t>(targets[0].references));
+            eroute.Mix(static_cast<uint32_t>(targets[1].references));
+            mixAfter();
+        }
+        g_em2.nodes = nullptr;
+    }
+
+    if (At<void*>(o, em::base::kTarget) == &targets[0])
+        --targets[0].references;
+    else if (At<void*>(o, em::base::kTarget) == &targets[1])
+        --targets[1].references;
+    At<void*>(o, em::base::kTarget) = nullptr;
+    ClearRoute(route);
+    At<void**>(o, 0) = real;
+    At<void**>(city, 0) = realCity;
+    eroute.Mix(static_cast<uint32_t>(targets[0].references));
+    eroute.Mix(static_cast<uint32_t>(targets[1].references));
+    eroute.Mix(static_cast<uint32_t>(g_em6Finder.references));
+    eroute.Mix(g_em.calls.h);
+    eflags |= 0x80000;
+    ReleaseEm(o);
+    log::Write("autotest: automata: vehicle: em4 eroute %08X calls %08X runs %d", eroute.h, g_em.calls.h,
+               g_em6.runs);
+    g_em = EmAnswers{};
+    g_em2 = Em2Answers{};
+    g_em3 = Em3Answers{};
+    g_em6 = Em6Answers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -27056,6 +27946,14 @@ void VehicleDrive(cISC4City* city)
     Hash efire;
     EmFireDrive(efire, eflags);
 
+    // ---- Part em3b.
+    Hash epatrol;
+    EmPatrolDrive(epatrol, eflags);
+
+    // ---- Part em4.
+    Hash eroute;
+    EmRouteDrive(eroute, eflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -27112,12 +28010,12 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
-                  eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, eflags);
+                  eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

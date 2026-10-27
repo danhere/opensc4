@@ -1,4 +1,4 @@
-// Our emergency vehicles, parts em1, em2a, em2b and em3a (build 641): a base on cSC4Vehicle
+// Our emergency vehicles, parts em1 to em4 (build 641): a base on cSC4Vehicle
 // (src/core/automata_vehicle.cpp) and cSC4FireTruck, cSC4PatrolCar and
 // cSC4Ambulance on it. em1: the objects (the three factories, the four
 // constructors, the base's and the fire truck's destructor bodies, the three
@@ -11,15 +11,21 @@
 // 198, 0x0052F870 and 0x0052F910). em3a: the fire truck's slots 25, 60,
 // 111, 121, 165, 193, 197 and 199, the crew sent and recalled (0x00532C40,
 // 0x00532D30), the counts near it (0x00532AE0, 0x00533410) and the route
-// step helpers (0x00533030, 0x00533290, which the train's 165 also calls). The layout is in src/core/automata_emergency.h and the survey in docs/automata.md, "Part
+// step helpers (0x00533030, 0x00533290, which the train's 165 also calls).
+// em3b: the patrol car's slots 25, 109, 110, 111, 193, 197, 199 and 200 and
+// its riot police sent and recalled (0x00543C70, 0x00543D60). em4: the
+// base's slot 80 (the goal) and the route extended from its last cell to the
+// goal's nearest occupant (0x00532660); the route's deque code (24 template
+// functions) stays the game's. The layout is in
+// src/core/automata_emergency.h and the survey in docs/automata.md, "Part
 // em". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
 //   simulators.automata.emergency: the 37 detours in kObject (em1), the 10
-//   in kStates (em2a), the 6 in kFrames (em2b) and the 14 in kFireTruck
-//   (em3a) below.
+//   in kStates (em2a), the 6 in kFrames (em2b), the 14 in kFireTruck (em3a),
+//   the 10 in kPatrolCar (em3b) and the 2 in kRoute (em4) below.
 //
 // What it does. Each class is a block of SC4::operator_new (0x2E4, 0x2DC and
 // 0x2D8 bytes) and goes back through SC4::operator_delete. The base's
@@ -49,11 +55,18 @@
 // the ambulance's slot 193 answers the int 0x00B09934 as FILD leaves it
 // (ours a double, exact).
 //
+// Oddities kept (em4): slot 80 releases the old target before it holds the
+// new one (the same object given again with one reference is freed there);
+// 0x00532660 never releases the path finder 0x00B43DA8 gave it, reads the
+// occupants' cells unsigned and compares the unrounded squared distance with
+// the float it stored.
+//
 // Still the game's, at their addresses: cSC4Vehicle's code (part vb), the
-// base's other slots (em4: 80; 197 is a fold) and the patrol car's (em3b), the core's slot 105 0x005096B0 and
+// base's slot 197 (a fold), the core's slots 80 0x00505860 and 105 0x005096B0 and
 // cSC4Vehicle's slot 60 0x0055B6C0, cSC4AutomatonBase::RemoveNow, the jumps
 // and adjustor thunks the vtables hold, the occupant filters' code, the
-// stream helpers and the sound service; the fire crew's code (the pedestrians').
+// stream helpers and the sound service; the fire crew's and the riot police's
+// code (the pedestrians').
 
 #include "core/automata_emergency.h"
 
@@ -127,6 +140,8 @@ constexpr std::uint32_t kPlaySound = 0xEA451903;     // and the one that plays o
 // cSC4Vehicle's fields em2a reads.
 constexpr std::size_t kPosition = 0x40, kStateStack = 0xB4, kDeque204 = 0x204, kRouteStart = 0x22C, kRouteFinish = 0x23C;
 constexpr std::size_t kNext = 0x54; // a node's next, in 0x00B43D54's cell lists
+// em4's: a route (SC4RouteDeque, 3-byte cells, 0x7E-byte blocks).
+constexpr std::size_t kRouteSize = 0x28, kRouteBlock = 0x7E;
 // em2b's.
 constexpr std::size_t kObjectB0 = 0xB0, kSmoothed1B0 = 0x1B0, kOccupant = 0x1EC;
 constexpr std::uint32_t kMissionMessage = 0xCA8DCDB4; // 0x0052F910 posts it
@@ -1794,6 +1809,403 @@ void __fastcall FireSetMission(char* self, void*, std::uint32_t mission)
 }
 
 // ====================================================================================
+// The patrol car (em3b)
+
+constexpr std::size_t kModelsBegin = 0x110, kModelsEnd = 0x114, kStartKey = 0x11C; // the core's
+constexpr float kRiotRadius = 20.0f;              // 0x41A00000, pushed by slots 25 and 200
+constexpr std::uint32_t kRiotWait = 0x44FA0000;    // 2000.0, slot 25's state's third word
+constexpr std::uint32_t kCalmWait = 0x459C4000;    // 5000.0, slot 200's for the rioter
+constexpr std::uint32_t kCalmFade = 0x3E4CCCCD;    // 0.2, slot 200's fade
+
+// The city's simulators' slot 10 (no null tests).
+bool SimulatorsBusy()
+{
+    void* const simulators = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCitySimulators);
+    return Virtual<std::uint8_t>(simulators, slot::kSimulatorsBusy) != 0;
+}
+
+// 0x00543D60's body (slot 199 inlines it): with the riot police +0x2D8 the
+// city's slot 44 object told it is done with (slot 8, it and 0), then +0x2D8
+// cleared and released. EAX the last call's.
+std::uint32_t RecallPoliceBody(char* self)
+{
+    if (!At<void*>(self, patrol::kCrew))
+        return 0;
+    void* const crews = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityCrewService);
+    const std::uint32_t told = Virtual<std::uint32_t>(crews, slot::kCrewDone, At<void*>(self, patrol::kCrew), 0u);
+    void* const police = At<void*>(self, patrol::kCrew);
+    if (!police)
+        return told;
+    At<void*>(self, patrol::kCrew) = nullptr;
+    return Release(police);
+}
+
+std::uint32_t RecallPolice(char* self) { return CallThis<std::uint32_t>(addr::cSC4PatrolCar_RecallPolice, self); }
+void SendPolice(char* self) { CallThis<void>(addr::cSC4PatrolCar_SendPolice, self); }
+
+// 0x00543C70: without riot police +0x2D8 a block of 0x27C bytes (0x00544890)
+// given to cSC4RiotPolice's constructor 0x00547800 with this car, held in
+// +0x2D8 (the old one released); its word +0x274 (0x00546CB0) the float
+// 0x00B09FFC's bits, or the police simulator's word for the target when it
+// knows it (slots 22 and 25; held for the while, its slots called without a
+// null test); the city's slot 44 object told of it (slot 7) and the police
+// sent (0x00546F30).
+void __fastcall PatrolSendPolice(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PatrolSendPolice", logged);
+    if (At<void*>(self, patrol::kCrew))
+        return;
+    void* const block = CallCdecl<void*>(addr::cSC4Pedestrian_New, std::size_t{0x27C});
+    Assign(self, patrol::kCrew, block ? CallThis<void*>(addr::cSC4RiotPolice_Construct, block, self) : nullptr);
+    void* const police = Global<void*>(addr::SC4_PoliceSimulator);
+    std::uint32_t word = Global<std::uint32_t>(addr::cSC4PatrolCar_PoliceWord);
+    if (police)
+        Virtual<std::uint32_t>(police, kAddRef);
+    void* const target = At<void*>(self, base::kTarget);
+    if (target && Virtual<std::uint8_t>(police, slot::kPoliceHas, target)) {
+        std::uint32_t out = 0;
+        word = *Virtual<std::uint32_t*>(police, slot::kPoliceWord, &out, At<void*>(self, base::kTarget));
+    }
+    CallThis<void>(addr::cSC4SimFireCrew_SetWord274, At<void*>(self, patrol::kCrew), &word);
+    void* const crews = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityCrewService);
+    Virtual<std::uint32_t>(crews, slot::kCrewAdd, At<void*>(self, patrol::kCrew));
+    CallThis<void>(addr::cSC4RiotPolice_Dispatch, At<void*>(self, patrol::kCrew));
+    if (police)
+        Release(police);
+}
+
+// 0x00543D60: the riot police recalled (RecallPoliceBody).
+std::uint32_t __fastcall PatrolRecallPolice(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PatrolRecallPolice", logged);
+    return RecallPoliceBody(self);
+}
+
+// 0x00543B40, the patrol car's slot 109 (seconds), ret 4: AL 0 without a
+// current state (slot 56); in the state 0x68 slot 200 (seconds) and AL 1;
+// else the base's (0x0052F490), its EAX.
+std::uint32_t __fastcall PatrolStateFrame(char* self, void*, std::uint32_t seconds)
+{
+    static bool logged;
+    FirstCall("PatrolStateFrame", logged);
+    char* const current = Virtual<char*>(self, slot::kCurrentState);
+    if (!current)
+        return 0;
+    if (At<std::uint32_t>(current, state::kType) != riot::kState)
+        return CallThis<std::uint32_t>(addr::cSC4EmergencyVehicle_StateFrame, self, seconds);
+    Virtual<std::uint32_t>(self, slot::kRiotFrame, seconds);
+    return 1;
+}
+
+// 0x00543B80, the patrol car's slot 111 (state), ret 4: the base's
+// (0x0052F1C0); when it answers AL 0 and the state left is 0x68, the start
+// model again (slot 19 with 0) and AL 1; with no state the base's EAX.
+std::uint32_t __fastcall PatrolLeaveState(char* self, void*, char* left)
+{
+    static bool logged;
+    FirstCall("PatrolLeaveState", logged);
+    const std::uint32_t answer = CallThis<std::uint32_t>(addr::cSC4EmergencyVehicle_LeaveState, self, left);
+    if (answer & 0xFF)
+        return 1;
+    if (!left)
+        return answer;
+    if (At<std::uint32_t>(left, state::kType) == riot::kState)
+        Virtual<std::uint32_t>(self, slot::kSwapStartModel, 0u);
+    return 1;
+}
+
+// 0x00543BC0, the patrol car's slot 193: the city's slot 65 service's slot
+// 23 for the target +0x2C4 when its slot 22 knows it (the service fetched
+// first, not null-tested), else 16. In ST0 (ours a double).
+double __fastcall PatrolReach(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PatrolReach", logged);
+    void* const police = Virtual<void*>(Global<void*>(addr::SC4_City), slot::kCityPolice);
+    void* const target = At<void*>(self, base::kTarget);
+    if (target && Virtual<std::uint8_t>(police, slot::kPoliceHas, target))
+        return Virtual<double>(police, slot::kPoliceReach, At<void*>(self, base::kTarget));
+    return 16.0;
+}
+
+// 0x00543C10, the patrol car's slot 197 (seconds), ret 4, the state 0x66 (on
+// the scene): unless the city's simulators are busy (slot 10, asked first),
+// on the mission 2 home (slot 29) and on the mission 5 the mission 2 (slot
+// 25). AL 1.
+std::uint32_t __fastcall PatrolSceneFrame(char* self, void*, std::uint32_t)
+{
+    static bool logged;
+    FirstCall("PatrolSceneFrame", logged);
+    const bool busy = SimulatorsBusy();
+    const std::uint32_t mission = Mission(self);
+    if (mission == 2 && !busy)
+        Virtual<void>(self, slot::kGoHome);
+    else if (mission == 5 && !busy)
+        Virtual<void>(self, slot::kSetMission, 2u);
+    return 1;
+}
+
+// 0x00543E80, the patrol car's slot 110 (state), ret 4: entering the state
+// 0x10 recalls the riot police (0x00543D60); then the base's (0x0052F7C0):
+// AL 1 when it answers AL 1, else whether there is a state.
+std::uint32_t __fastcall PatrolEnterState(char* self, void*, char* entered)
+{
+    static bool logged;
+    FirstCall("PatrolEnterState", logged);
+    if (entered && At<std::uint32_t>(entered, state::kType) == 0x10)
+        RecallPolice(self);
+    if (CallThis<std::uint32_t>(addr::cSC4EmergencyVehicle_EnterState, self, entered) & 0xFF)
+        return 1;
+    return entered ? 1 : 0;
+}
+
+// 0x00543F10, the patrol car's slot 199: the riot police recalled (0x00543D60
+// inlined), then the mission 2 (slot 25).
+void __fastcall PatrolSlot199(char* self, void*)
+{
+    static bool logged;
+    FirstCall("PatrolSlot199", logged);
+    RecallPoliceBody(self);
+    Virtual<void>(self, slot::kSetMission, 2u);
+}
+
+// 0x00543F60, the patrol car's slot 25 (mission), ret 4: the base's
+// (0x0052FF60); with a state 0x10 stacked (slot 57) the riot police
+// recalled. Else the city's simulators asked (slot 10), then by slot 26: 1
+// the police recalled and sent again (0x00543C70); 5 the police recalled,
+// 0x00B43D70 asked for a riot (slot 9) and a rioter (slot 10) within 20 of
+// the position, and while the simulators are busy the police sent; else the
+// state 0x68 (or 7 with neither found) pushed (slot 52: 0, 2000.0, 0, 0, 0,
+// 0); other missions the police recalled.
+void __fastcall PatrolSetMission(char* self, void*, std::uint32_t mission)
+{
+    static bool logged;
+    FirstCall("PatrolSetMission", logged);
+    CallThis<void>(addr::cSC4EmergencyVehicle_SetMission, self, mission);
+    if (Virtual<void*>(self, slot::kInState, 0x10u)) {
+        RecallPolice(self);
+        return;
+    }
+    const bool busy = SimulatorsBusy();
+    const std::uint32_t now = Mission(self);
+    RecallPolice(self);
+    if (now == 1) {
+        SendPolice(self);
+        return;
+    }
+    if (now != 5)
+        return;
+    void* const riots = Global<void*>(addr::SC4_Service43D70);
+    float* const position = &At<float>(self, kPosition);
+    void* const riot = Virtual<void*>(riots, slot::kRiotNear, position, kRiotRadius);
+    void* const rioter = Virtual<void*>(riots, slot::kRioterNear, position, kRiotRadius);
+    if (busy) {
+        SendPolice(self);
+        return;
+    }
+    Virtual<void>(self, slot::kPushState, riot || rioter ? riot::kState : 7u, 0u, kRiotWait, 0u, 0u, 0u, 0u);
+}
+
+// 0x00544060, the patrol car's slot 200 (seconds), ret 4, the state 0x68 (the
+// riot), on the top state record's timer +0x10 (the stack not tested). At or
+// below 0 (or NaN): the state popped (slot 53) once the first model's frame
+// (slot 11) reaches its count (slot 12) less 1 (no null tests). Else the
+// timer less the seconds, stored as a float; when that (unrounded) is at or
+// below 0: 0x00B43D70's rioters within 20 (slot 10) each told slot 11 (1),
+// five at most, or without any the riot (slot 9) faded (slot 33: 0, 0.2) and
+// given the state 7 (slot 52: 0, 5000.0, 1, 0, 0, 0); the siren off (slot
+// 194); then with a start key (+0x11C, its third word +0x124 set) and
+// models, the first swapped (0x0050E620) for the start key with the third
+// word the word 0x00A99F78 at the index __ftol2(the police simulator's word
+// for the target (slots 22, 25) as a float x 2.5 (0x00A95530); 0 without),
+// and the first model's slot 16 (1). AL 1.
+std::uint32_t __fastcall PatrolRiotFrame(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("PatrolRiotFrame", logged);
+    char* const record = At<char**>(self, kStateStack + 4)[-1];
+    const double zero = Global<float>(addr::SC4_FloatZero);
+    const float timer = At<float>(record, riot::kTimer);
+    if (!(timer > zero)) {
+        char* const first = *At<char**>(self, kModelsBegin);
+        const std::int32_t last = Virtual<std::int32_t>(first, slot::kModelFrames) - 1;
+        if (Virtual<std::int32_t>(first, slot::kModelFrame) >= last)
+            Virtual<std::uint32_t>(self, slot::kPopState);
+        return 1;
+    }
+    const double left = static_cast<double>(timer) - seconds;
+    At<float>(record, riot::kTimer) = static_cast<float>(left);
+    if (!(left <= zero))
+        return 1;
+    void* const riots = Global<void*>(addr::SC4_Service43D70);
+    float* const position = &At<float>(self, kPosition);
+    void* const riot = Virtual<void*>(riots, slot::kRiotNear, position, kRiotRadius);
+    void* rioter = Virtual<void*>(riots, slot::kRioterNear, position, kRiotRadius);
+    if (rioter) {
+        for (int calmed = 0; rioter && calmed < 5; ++calmed) {
+            Virtual<std::uint32_t>(rioter, slot::kRioterStop, 1u);
+            rioter = Virtual<void*>(riots, slot::kRioterNear, position, kRiotRadius);
+        }
+    } else if (riot) {
+        Virtual<std::uint32_t>(riot, slot::kFade, 0u, kCalmFade);
+        Virtual<std::uint32_t>(riot, slot::kPushState, 7u, 0u, kCalmWait, 1u, 0u, 0u, 0u);
+    }
+    Virtual<std::uint32_t>(self, slot::kSetSiren, 0u);
+    std::uint32_t key[3] = {At<std::uint32_t>(self, kStartKey), At<std::uint32_t>(self, kStartKey + 4),
+                            At<std::uint32_t>(self, kStartKey + 8)};
+    if (!key[2] || At<char*>(self, kModelsBegin) == At<char*>(self, kModelsEnd))
+        return 1;
+    void* const police = Global<void*>(addr::SC4_PoliceSimulator);
+    std::uint32_t index = 0;
+    if (police)
+        Virtual<std::uint32_t>(police, kAddRef);
+    void* const target = At<void*>(self, base::kTarget);
+    if (target && Virtual<std::uint8_t>(police, slot::kPoliceHas, target)) {
+        std::uint32_t out = 0;
+        const float* const word =
+            Virtual<const float*>(police, slot::kPoliceWord, &out, At<void*>(self, base::kTarget));
+        index = FtolWide(static_cast<double>(*word) * Global<float>(addr::cSC4PatrolCar_ModelScale));
+    }
+    key[2] = Global<std::uint32_t>(static_cast<std::uintptr_t>(addr::cSC4PatrolCar_RiotModels + index * 4u));
+    CallThis<void>(addr::cSC4AutomatonCore_SwapModel, self, *At<char**>(self, kModelsBegin),
+                   static_cast<const std::uint32_t*>(key));
+    if (char* const first = *At<char**>(self, kModelsBegin))
+        Virtual<std::uint32_t>(first, slot::kModelPlayMode, 1u);
+    if (police)
+        Release(police);
+    return 1;
+}
+
+// ====================================================================================
+// The route (part em4)
+
+// 0x00532660 (ret 0xC), the route extended from its last cell (x, z) to the
+// nearest occupant at the goal's cell: the cell of the point (the city's
+// slot 95, unrounded floats in, into unset locals), 0x00B43D54's occupants
+// at it (slot 25: the vector, the rect of that one cell, the byte 0x00B21CB8,
+// 0, 0x1C49; nothing more when it answers false); a path finder of
+// 0x00B43DA8's (slot 6, never released) from the cell (x, z) with the
+// game's settings (13: 2, 1; 18: 0; 5: 1 and 2; 9: 3) into a route of its
+// own (slot 8); for each occupant nearer than the best so far (its cell by
+// slot 59, read unsigned, squared distance to the goal's cell in floats by
+// 0x005D6FC0; ordered, the first bound FLT_MAX) the route emptied and the
+// finder run to its cell (slots 20, 23); an answer 1 keeps the route
+// (SC4RouteDeque::Assign) and the distance (stored as a float). With one
+// kept, it is inserted at the end of the route +0x22C (0x005320B0). Both
+// routes destroyed, the vector freed. The finder and 0x00B43D54 are not
+// null-tested.
+void __fastcall ExtendRoute(char* self, void*, std::uint32_t x, std::uint32_t z, const float* point)
+{
+    static bool logged;
+    FirstCall("ExtendRoute", logged);
+    void* const network = Global<void*>(addr::SC4_Service43D54);
+    struct {
+        void** begin;
+        void** end;
+        void** capacity;
+    } found = {};
+    std::int32_t cellX = 0, cellZ = 0;
+    Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), slot::kCellOf, point[0], point[2], &cellX, &cellZ);
+    std::int32_t rect[4] = {cellX, cellZ, cellX, cellZ};
+    if (Virtual<std::uint8_t>(network, slot::kOccupantsInRect, static_cast<void*>(&found), static_cast<void*>(rect),
+                              static_cast<std::uint32_t>(Global<std::uint8_t>(addr::cSC4AutomatonBase_NearCells)), 0u,
+                              0x1C49u)) {
+        void* finder = nullptr;
+        Virtual<void>(Global<void*>(addr::SC4_Service43DA8), slot::kFinderGet, static_cast<void*>(&finder));
+        alignas(8) char route[kRouteSize] = {};
+        CallThis<void>(addr::SC4RouteDeque_Init, route, 0u);
+        alignas(8) char best[kRouteSize] = {};
+        CallThis<void>(addr::SC4RouteDeque_Init, best, 0u);
+        Virtual<void>(finder, slot::kFinderFrom, x, z, x, z);
+        Virtual<void>(finder, slot::kFinderSlot13, 2u, 1u);
+        Virtual<void>(finder, slot::kFinderSlot18, 0u);
+        Virtual<void>(finder, slot::kFinderSlot5, 1u);
+        Virtual<void>(finder, slot::kFinderSlot5, 2u);
+        Virtual<void>(finder, slot::kFinderSlot9, 3u);
+        Virtual<void>(finder, slot::kFinderRoute, static_cast<void*>(route));
+        const float goal[2] = {static_cast<float>(cellX), static_cast<float>(cellZ)};
+        const std::uint32_t count = static_cast<std::uint32_t>(
+            static_cast<std::int32_t>(reinterpret_cast<char*>(found.end) - reinterpret_cast<char*>(found.begin)) >> 2);
+        float nearest = 3.402823466e+38f; // FLT_MAX, an immediate in the game
+        bool kept = false;
+        for (std::uint32_t i = 0; i < count; ++i) {
+            // Unset locals in the game: z's held the 0x00B43D54 pointer.
+            std::int32_t occupantX = 0;
+            std::int32_t occupantZ = static_cast<std::int32_t>(reinterpret_cast<std::uintptr_t>(network));
+            Virtual<void>(found.begin[i], slot::kOccupantCell, &occupantX, &occupantZ);
+            const float at[2] = {static_cast<float>(static_cast<double>(static_cast<std::uint32_t>(occupantX))),
+                                 static_cast<float>(static_cast<double>(static_cast<std::uint32_t>(occupantZ)))};
+            const double distance = CallCdecl<double>(addr::SC4_DistanceSquared2D, goal, at);
+            if (!(distance < nearest))
+                continue;
+            CallThis<void>(addr::SC4CellDeque_Clear, route);
+            Virtual<void>(finder, slot::kFinderTo, occupantX, occupantZ, occupantX, occupantZ);
+            if (Virtual<std::int32_t>(finder, slot::kFinderRun) == 1) {
+                nearest = static_cast<float>(distance);
+                CallThis<void*>(addr::SC4RouteDeque_Assign, best, static_cast<const void*>(route));
+                kept = true;
+            }
+        }
+        if (kept) {
+            const std::uint32_t* const finish = &At<std::uint32_t>(self, kRouteFinish);
+            const std::uint32_t* const from = &At<std::uint32_t>(best, 0);
+            CallThis<void>(addr::SC4RouteDeque_InsertRange, self + kRouteStart, finish[0], finish[1], finish[2],
+                           finish[3], from[0], from[1], from[2], from[3], from[4], from[5], from[6], from[7]);
+        }
+        CallThis<void>(addr::SC4RouteDeque_Destroy, best);
+        CallThis<void>(addr::SC4RouteDeque_Destroy, route);
+    }
+    if (found.begin)
+        CallCdecl<void>(addr::SC4_Free, static_cast<void*>(found.begin));
+}
+
+// 0x005329B0, the base's slot 80 (point, target), ret 8: the core's
+// (0x00505860); the point into +0x2B8; with the automata flag 0x400 it off
+// (slot 30) and slot 33 (1.0, 0); the target into +0x2C4 unless it is null
+// and one is there (the old released before the new is held, as the game).
+// With a route (+0x23C not +0x22C) and 0x00B43D54, when an occupant at the
+// route's last cell (slot 14; the list by +0x54) answers its slot 9 for
+// 0x304, the route extended from that cell to the point (0x00532660).
+void __fastcall BaseSetGoal(char* self, void*, const float* point, void* target)
+{
+    static bool logged;
+    FirstCall("BaseSetGoal", logged);
+    CallThis<void>(addr::cSC4AutomatonCore_Slot80, self, point, target);
+    const std::uint32_t* const words = reinterpret_cast<const std::uint32_t*>(point);
+    At<std::uint32_t>(self, base::kPoint) = words[0];
+    At<std::uint32_t>(self, base::kPoint + 4) = words[1];
+    At<std::uint32_t>(self, base::kPoint + 8) = words[2];
+    if (CheckFlag(self, 0x400u)) {
+        Virtual<void>(self, slot::kSetFlag, 0x400u, 0u);
+        Virtual<void>(self, slot::kFade, 1.0f, 0.0f);
+    }
+    if (target || !At<void*>(self, base::kTarget)) {
+        if (void* const old = At<void*>(self, base::kTarget))
+            Release(old);
+        At<void*>(self, base::kTarget) = target;
+        if (target)
+            Virtual<std::uint32_t>(target, kAddRef);
+    }
+    char* last = At<char*>(self, kRouteFinish);
+    if (last == At<char*>(self, kRouteStart))
+        return;
+    if (last == At<char*>(self, kRouteFinish + 4))
+        last = At<char**>(self, kRouteFinish + 0xC)[-1] + kRouteBlock;
+    void* const network = Global<void*>(addr::SC4_Service43D54);
+    if (!network)
+        return;
+    const std::uint32_t x = static_cast<std::uint8_t>(last[-3]);
+    const std::uint32_t z = static_cast<std::uint8_t>(last[-2]);
+    for (char* node = Virtual<char*>(network, slot::kOccupantsAt, x, z); node; node = At<char*>(node, kNext))
+        if (Virtual<std::uint8_t>(At<void*>(node, 0), slot::kIsType, 0x304u)) {
+            CallThis<void>(addr::cSC4EmergencyVehicle_ExtendRoute, self, x, z, point);
+            return;
+        }
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1919,6 +2331,26 @@ const Detour kFireTruck[] = {
     OPENSC4_DETOUR(addr::cSC4FireTruck_SetMission, FireSetMission),
 };
 
+// Part em3b.
+const Detour kPatrolCar[] = {
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_StateFrame, PatrolStateFrame),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_LeaveState, PatrolLeaveState),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_Reach, PatrolReach),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_SceneFrame, PatrolSceneFrame),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_SendPolice, PatrolSendPolice),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_RecallPolice, PatrolRecallPolice),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_EnterState, PatrolEnterState),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_Slot199, PatrolSlot199),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_SetMission, PatrolSetMission),
+    OPENSC4_DETOUR(addr::cSC4PatrolCar_RiotFrame, PatrolRiotFrame),
+};
+
+// Part em4.
+const Detour kRoute[] = {
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_ExtendRoute, ExtendRoute),
+    OPENSC4_DETOUR(addr::cSC4EmergencyVehicle_SetGoal, BaseSetGoal),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -1926,7 +2358,9 @@ bool InstallObject(registry::Mode)
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kStates, sizeof kStates / sizeof kStates[0], "states") &&
            InstallList(kFrames, sizeof kFrames / sizeof kFrames[0], "frames") &&
-           InstallList(kFireTruck, sizeof kFireTruck / sizeof kFireTruck[0], "fire truck");
+           InstallList(kFireTruck, sizeof kFireTruck / sizeof kFireTruck[0], "fire truck") &&
+           InstallList(kPatrolCar, sizeof kPatrolCar / sizeof kPatrolCar[0], "patrol car") &&
+           InstallList(kRoute, sizeof kRoute / sizeof kRoute[0], "route");
 }
 
 const bool g_registered[] = {
@@ -1941,7 +2375,9 @@ const bool g_registered[] = {
                         "93, 109 to 111, 146 and 194 (10 detours, part em2a); the frames: slots 72, 195, 196 and 198, "
                         "the occupant at the cell and the mission message (6 detours, part em2b); the fire truck's "
                         "slots 25, 60, 111, 121, 165, 193, 197 and 199, its crew and nearby counts and the last step "
-                        "(14 detours, part em3a; src/core/automata_emergency.cpp)",
+                        "(14 detours, part em3a); the patrol car's slots 25, 109, 110, 111, 193, 197, 199 and 200 and its "
+                        "riot police sent and recalled (10 detours, part em3b); the base's slot 80 and the route "
+                        "extended to the goal's occupant (2 detours, part em4; src/core/automata_emergency.cpp)",
                         false, InstallObject}),
 };
 
