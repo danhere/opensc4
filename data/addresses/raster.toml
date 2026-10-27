@@ -1,4 +1,4 @@
-# The GZ framework's software rasterizer, 0x0082B780 to 0x00864B5F (docs/uncharted-code.md, "Block 1"; docs/renderer.md, "The software rasterizer"). A drawing context (vtable 0x00AC16C8) keeps a state stack and hands every draw to a rasterizer (vtable 0x00AC17D0), which owns five span renderers, one per pixel format; only the 32-bit one runs. Ours in src/core/raster_spans.cpp (group renderer.raster.spans) and src/core/raster_context.cpp (renderer.raster.context and renderer.raster.draws).
+# The GZ framework's software rasterizer, 0x0082B780 to 0x00864B5F (docs/uncharted-code.md, "Block 1"; docs/renderer.md, "The software rasterizer"). A drawing context (vtable 0x00AC16C8) keeps a state stack and hands every draw to a rasterizer (vtable 0x00AC17D0), which owns five span renderers, one per pixel format; only the 32-bit one runs. Ours in src/core/raster_spans.cpp (group renderer.raster.spans), src/core/raster_context.cpp (renderer.raster.context, renderer.raster.draws and renderer.raster.target) and src/core/raster_rasterizer.cpp (renderer.raster.rasterizer).
 
 [[entry]]
 name = "GZDrawContext::vftable"
@@ -30,7 +30,187 @@ name = "GZRasterizer::vftable"
 address = 0x00AC17D0
 kind = "vtable"
 expect = "60 FD 82 00 F0 47 5F 00"
-source = "Name ours. The rasterizer a drawing context draws through (its +0x28), set by the constructor 0x008306C0; 0x00830710 makes its five span renderers (vtables 0x00AC182C, 0x00AC1844, 0x00AC185C, 0x00AC1874, 0x00AC188C, six slots each). Two more classes share its code (vtables 0x00ADB500 and 0x00AEFDE0, the companion at 0x00A64110)."
+source = "Name ours. The rasterizer a drawing context draws through (its +0x28): 0xD4 bytes made by GZRasterizer::Make 0x0082B910, constructor 0x00830690. 23 slots; 0 QueryInterface 0x0082FD60 (1 and 0x2AE78A07), 1 AddRef 0x005F47F0 (shared), 2 Release 0x008306C0, 3 Attach 0x00830710 (makes one of five span renderers: vtables 0x00AC182C, 0x00AC1844, 0x00AC185C, 0x00AC1874, 0x00AC188C, six slots each), 4 Detach, 5 0x00A64430 (the target's slot 11, shared), 11, 16 and 20 empty (shared), 21 HowToDraw, 22 DrawSpans. Its slots 0, 1, 5, 11, 16 and 20 are shared with two more classes (vtables 0x00ADB500 and 0x00AEFDE0, the companion at 0x00A64110), which have their own copies of the rest. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::Make"
+address = 0x0082B910
+kind = "function"
+convention = "stdcall"
+signature = "bool (void* target, void** out)"
+expect = "51 8B 4C 24 08 8B 01 8D"
+source = "Name ours. Ret 8, not reached by Ghidra's analysis (no function there). Asks the target for the buffer interface 0x20732180 (only to test it), then 0xD4 bytes from SC4::operator_new and the constructor into *out, AddRef (slot 1); the queried buffer released. Answers AL 1, or 0 when the target does not have the interface (EAX's other bits from the last call). Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::GZRasterizer"
+address = 0x00830690
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 33 C9 C7 00 D0 17"
+source = "Name ours. Not reached by Ghidra's analysis; called by Make. The vtable, the count (+4), the target (+8), the source (+0x24) and the renderer (+0xB0) zeroed, and the bytes +0x41, +0x43, +0x74, +0x75. Answers this. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::Release"
+address = 0x008306C0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "56 8B F1 8B 4E 04 49 57"
+source = "Name ours. Slot 2: the count at +4 less one; at 0 the vtable set back to 0x00AC17D0, the renderer's slot 0 with 1 (deleting destructor), the source and target released (slot 2) and SC4::operator_delete, nothing unlocked. Answers the count. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::Attach"
+address = 0x00830710
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* target)"
+expect = "83 EC 08 56 8B F1 8B 06"
+source = "Name ours. Slot 3, ret 4: Detach (its own slot 4), the target queried for 0x20732180 into +8 and locked (slot 6, 0x8040); its format (slot 15, which fills an 8-byte record, the format first, and answers its pointer) picks the span renderer, 4 bytes of operator_new with a vtable: 2 0x00AC188C, 4 and 6 0x00AC182C, 5 0x00AC1844, 7 0x00AC185C, 8 and 9 0x00AC1874 (32 bits); any other format releases the target, still locked, and answers 0. Then +0x78 the target's surface (bits slot 34, stride 35, width 9, height 10, format 15, bytes a pixel 17; six words, as the span renderers take them), the size at +0xC, bytes a pixel again at +0x90, no part (+0xA4), locked (+0x75). Answers AL 1 (EAX's other bits those of the last call). Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::Detach"
+address = 0x0082FF20
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 8E B0 00 00"
+source = "Name ours. Slot 4: the renderer deleted (its slot 0 with 1); the target unlocked (slot 7, 0x8040) while +0x75 says it is locked, and released (a tail jump). Neither held, EAX is left as the caller had it. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::SetClip"
+address = 0x0082FD90
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const Rect* clip)"
+expect = "8B 44 24 04 8B 10 83 C1"
+source = "Name ours. Slot 6, ret 4: the clip to +0x14. Answers its bottom. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::SetColours"
+address = 0x0082FF70
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, int32_t first, int32_t count, const uint32_t* colours)"
+expect = "8B 44 24 08 85 C0 53 8B"
+source = "Name ours. Slot 7, ret 0xC: colours 0x00RRGGBB to +0xB4 + 4 first and their pixel values to +0xC4 + 4 first (the target's slot 30 with the colour shifted right 16, 8 and 0, unmasked). Answers 0. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::SetMode"
+address = 0x0082FEA0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, int32_t mode)"
+expect = "8B 44 24 04 85 C0 0F 9F"
+source = "Name ours. Slot 8, ret 4: +0x41 whether the mode is above 0 (signed). Answers the mode with its low byte that flag. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::SetFlag45"
+address = 0x0082FEB0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint8_t flag)"
+expect = "8A 44 24 04 88 41 42 C2"
+source = "Name ours (the context's flag at its +0x45). Slot 9, ret 4: the byte to +0x42, which picks the span renderers' blending (DrawSpans). AL the byte, the rest of EAX the caller's. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::SetFlag44"
+address = 0x0082FEC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint8_t flag)"
+expect = "8A 44 24 04 88 41 43 C2"
+source = "Name ours (the context's flag at its +0x44). Slot 10, ret 4: the byte to +0x43; while it is 0, HowToDraw answers 2 (the context's own spans). AL the byte, the rest of EAX the caller's. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::SetGradient"
+address = 0x0082FDB0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const float* planes, float x, float y)"
+expect = "8B 44 24 04 85 C0 53 55"
+source = "Name ours. Slot 12, ret 0xC: none (0) clears +0x74 and answers 0. Otherwise twelve floats, three rows of four channels, each times 255 * 65536.0 (0x00AC17C8: 16.16) rounded to a float and to the nearest integer (FISTP): row 1 to +0x54, row 2 to +0x64, and +0x44 = __ftol2(row 0 + 0x8000 - (row 1 * x + row 2 * y)), +0x74 set; answers the last of +0x44. The context only ever passes (0, 0, 0). Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::SetSource"
+address = 0x0082FFD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* source, float x, float y, float scaleX, float scaleY, Rect* out)"
+expect = "83 EC 10 55 8B 6C 24 18"
+source = "Name ours. Slot 13, ret 0x18: the source held at +0x24 released; none answers AL 0 (EAX's other bits the release's, or the caller's). The source queried for 0x20732180 into +0x24 (not having it still answers AL 1); its rectangle (slot 11); scales in 16.16 at +0x30 (scale * 65536.0) and their inverses at +0x38 (65536.0 / scale), each rounded to a float and then to the nearest integer. Both 1.0: +0x28 the position rounded, unscaled (+0x40 clear), out the rectangle moved by it. Otherwise +0x28 the inverse times the position, scaled (+0x40 set), out's sides from the position less 0.5 and the scaled size by the 1.5 * 2^23 trick (one less when the value is a whole number). Then the source's size at +0xA8. Answers AL 1, the rest the width's. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::UseWholeSource"
+address = 0x0082FE60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C6 81 A4 00 00 00 00 C3"
+source = "Name ours. Slot 14: clears +0xA4 (no part). EAX left as the caller had it. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::UseSourcePart"
+address = 0x0082FE70
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, const Rect* part)"
+expect = "8B 44 24 04 C6 81 A4 00"
+source = "Name ours. Slot 15, ret 4: sets +0xA4 and the part to +0x94. Answers its bottom. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::UnlockTarget"
+address = 0x008302A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8A 46 75 84 C0"
+source = "Name ours. Slot 17 (the context's BeginBatch): while locked (+0x75), the target's slot 7 with 0x8040 and +0x75 cleared, answering that call's answer; otherwise AL 0 and the rest of EAX the caller's. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::LockTarget"
+address = 0x008302C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8A 46 75 84 C0"
+source = "Name ours. Slot 18 (the context's EndBatch): unless locked, the target's slot 6 with 0x8040 and +0x75 set whatever it answers, answering that; otherwise AL the flag and the rest of EAX the caller's. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::GetSurface"
+address = 0x0082FED0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t* out, uint32_t unused)"
+expect = "8B 44 24 04 83 C1 78 8B"
+source = "Name ours. Slot 19, ret 8 (the context's slot 46 passes both on): the six words at +0x78 to out. Answers AL 1, the rest of EAX out's. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::HowToDraw"
+address = 0x00831000
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t kind, const float* points, int32_t count)"
+expect = "57 8B F9 8A 47 43 84 C0"
+source = "Name ours. Slot 21, ret 0xC: 2 (the context's own spans) while +0x43 is clear. Otherwise kind 6 DrawPolygon on each three points (count at least 3, signed; count / 3 unsigned), 7 on each four (count >> 2), 8 on all, answering 0; any other kind 1. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::DrawSpans"
+address = 0x008302E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const uint32_t* spans, int32_t count)"
+expect = "83 EC 40 53 56 8B F1 8B"
+source = "Name ours. Slot 22, ret 8. Without a source, the renderer (+0xB0) with (spans, count, the surface +0x78, ...): a gradient set (+0x74) its slot 4 when +0x41 else 2, with +0x44; otherwise slot 3 when +0x41 with pixel value 0 and colour 0, else FillSpans (slot 1) with pixel value 0. With one: the source locked (slot 6, 0x800; refused answers that), its surface read (slots 9, 10, 15, 34, 35, 17), its format to an index (2 6, 4 2, 5 3, 6 1, 7 0, 8 5, 9 4; others unlock and answer that), its colour key (slot 26, masked by the index: 0xFFF, 0x7FFF, 0xFFFF or 0xFFFFFF, none for index 6), and the renderer's CopySpans (slot 5) with an 8-word pattern {shift x, shift y, step x, step y, index, colour 0, key, key set} and op (+0x41: 1 or 3 by +0x42; else 0 or 2): with a part (+0xA4) its corner's bits, its size, the shifts (0x7FFFFFFF less its remainder less the position, remainder of the part's size, unsigned) and op | 8; scaled (+0x40) the inverses halved less the position and the inverses and op | 4; else the bits moved back by the position (shifts and steps left unset). Then the source unlocked; answers that. Ours in renderer.raster.rasterizer."
+
+[[entry]]
+name = "GZRasterizer::DrawPolygon"
+address = 0x008308D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* points, int32_t count)"
+expect = "83 EC 64 55 56 8B 74 24"
+source = "Name ours. Ret 8: a polygon of count points (at least 3), for HowToDraw's kinds 6 to 8 when +0x43 is set. Never ran; the game's."
 
 [[entry]]
 name = "GZRaster32::vftable"
@@ -398,13 +578,13 @@ expect = "8B 41 78 85 C0 74 0E 48"
 source = "Name ours. Slot 43: the count at +0x78 less one unless 0; reaching 0, the rasterizer's slot 18 (a tail jump). Ours in renderer.raster.context."
 
 [[entry]]
-name = "GZDrawContext::Slot46"
+name = "GZDrawContext::GetSurface"
 address = 0x0082C6B0
 kind = "function"
 convention = "thiscall"
-signature = "uint32_t (void* this)"
+signature = "bool (void* this, uint32_t* out, uint32_t unused)"
 expect = "8B 49 28 8B 01 FF 60 4C"
-source = "Name ours. Slot 46: a tail jump to the rasterizer's slot 19. Ours in renderer.raster.context."
+source = "Name ours. Slot 46: a tail jump to the rasterizer's slot 19 (GetSurface, ret 8), so it takes that slot's two arguments: the target's six surface words to out (0x0082A610 and 0x0082B120 call it with (out, 1) and read AL). Ours in renderer.raster.context."
 
 [[entry]]
 name = "GZDrawContext::Slot47"
