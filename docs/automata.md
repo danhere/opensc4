@@ -38,7 +38,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (2, done) (part em below counts 122; part em finished) |
-| Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2 to ped4 (part ped below counts 111) |
+| Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3, ped4 (part ped below counts 111) |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
 | Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | 2 |
@@ -3837,7 +3837,7 @@ The pedestrian's allocator 0x00544890 gives 0x270 bytes from the pool and any ot
 111 functions of the group's own: 75 of Ghidra's list (22,187 bytes) and the pedestrian's slot 16 0x00544530 (not in the list), 34 adjustor thunks and two jumps (0x00544520 to the base's Shutdown, 0x00547920 to the pedestrian's QueryInterface); the thunks and jumps stay the game's.
 
 - **ped1 (34, done):** the objects, the save and the small queries. Below.
-- **ped2 (the pedestrian's states and frames, 20, about 6,400 bytes):** Init 0x005444F0, the frame 72 0x00544580, 103 0x00544C90, 109 0x00546BC0, 110 0x00546A10, 111 0x005445F0, 135 0x00544C40, 155 0x00545360, 158 0x00544620, 165 0x00545160, 176 0x005457C0, and the helpers 0x00544950, 0x00545280, 0x00545690, 0x00545840, 0x00545B10, 0x00545D60, 0x00546150, 0x00546220 and 0x00546530 (the walks). Split in two: **ped2a (13, done)**, the states and the frame, below; **ped2b (7, about 4,200 bytes)**, the walks: the frames of the states 2 (0x00546150), 3 (0x00545B10), 6 (0x00544950), 8 (0x00546220) and 9 (0x00546530), and their helpers 0x00545840 and 0x00545D60.
+- **ped2 (the pedestrian's states and frames, 20, about 6,400 bytes):** Init 0x005444F0, the frame 72 0x00544580, 103 0x00544C90, 109 0x00546BC0, 110 0x00546A10, 111 0x005445F0, 135 0x00544C40, 155 0x00545360, 158 0x00544620, 165 0x00545160, 176 0x005457C0, and the helpers 0x00544950, 0x00545280, 0x00545690, 0x00545840, 0x00545B10, 0x00545D60, 0x00546150, 0x00546220 and 0x00546530 (the walks). Split in two: **ped2a (13, done)**, the states and the frame, below; **ped2b (7, done)**, the walks: the frames of the states 2 (0x00546150), 3 (0x00545B10), 6 (0x00544950), 8 (0x00546220) and 9 (0x00546530), and their helpers 0x00545840 and 0x00545D60.
 - **ped3 (the one-shot's and the riot police's, 9, about 3,100 bytes):** the one-shot's Init 0x00544DA0 and frame 0x00544E80; the riot police's Init 0x00547630, Shutdown 0x00546EF0, frame 0x00547530 and slot 74 0x00546CC0, the message helper 0x00546D20 (all three crews call it), the dispatch 0x00546F30 (1,530 bytes) and 0x00547930.
 - **ped4 (the fire crew's, 13, about 9,900 bytes):** Init 0x00549890 with 0x00548F10, Shutdown 0x00547D90, slots 9 0x00547A70 and 74 0x005479F0, the +0x38 slot 3 0x00548DC0, the frame 0x00549A50 with 0x00549000, 0x00548BD0, 0x00547AD0, 0x00547B50 and 0x00532E90, and the dispatch 0x00547EF0 (3,284 bytes). Could split: the dispatch alone, then the frame.
 
@@ -3937,3 +3937,57 @@ A trial with 32 planted changes (Init's test, slot 72's two cases and slot 19's 
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's ped fields were the same on both sides (pstates 0x309249D0, pflags 0x4F), and every B run installed and reached all 13. An earlier batch run alongside the planted-change trial's game runs had two saves partly the same (one B run in three each, ped fields equal); with the PC free the batch came out 12 of 12.
+
+### What is ours (ped2b)
+
+7 more functions in `simulators.automata.pedestrians` (list kWalks in [automata_pedestrians.cpp](../src/core/automata_pedestrians.cpp)), 4,252 bytes of the game's:
+
+- **The frames of the states 2, 3, 6, 8 and 9** (slot 109's): 0x00546150, 0x00545B10, 0x00544950, 0x00546220 (seconds, start; ret 8) and 0x00546530.
+- **Their helpers:** the bump 0x00545840 and the step 0x00545D60 (names ours).
+
+What they do:
+
+- **The step** (direction, seconds) asks the city for the traffic network map (its slot 40) first, takes the step as slot 34 times slot 125 (stored as a float) times the seconds, scales the direction to it (when its square is above 0) and adds it to the position. Without the automata flag 0x20000 the map's slot 44 sees the target (position, target, 0xC49); then the bump. Bumped, with the push byte +0x258 and a push +0x25C longer than 0, the target moves by the push, slot 44 again and the bump with 0 seconds. Not bumped, slot 16 (the target, the direction as given). The push byte is cleared; EAX 1 when it placed.
+- **The bump** (point, seconds) adds the seconds to its timer +0x268 and waits for 500. Then (the timer zeroed) it asks the occupant manager (0x00B43D0C's slot 37) for up to 10 pedestrians in the box 1 about the point in x and z, from the point's y to 2 above, in a list of the game's allocator, and pushes the first one other than itself (slot 5) closer than 1: through that one's occupant part it sets the push byte and the push to the difference, or within 0.01 to two draws of -0.5 to 0.5 in x and z. The manager's slot 48 and the list's release follow.
+- **The state 2's frame** walks along the vector +0xA4 normalised, when it has a length. **The state 3's** (AL 0 without a state holding an object) heads for the object's point (its slot 11), adds the push (first scaled to the seconds / 360 over its length) to the position, asks slot 44 and the bump, and places itself (slot 16) heading there when not bumped; with the first model at its last frame and two or more names at the state's +0x24, slot 21 gets one drawn (SC4Random::Below).
+- **The state 6's frame** needs a place on the network (+0x1F8 or slot 134), moves on its path (slot 129) and, at the end of the way (slot 87), takes the rectangle of the lot under the state's object's point (the lot manager's slot 6; else the object's word's slot 11) grown by 1. Then the neighbour the map gives for the groups' side (slots 16 and 15 on the occupant +0x1EC; the groups of slot 136 split by 0x0053D100): outside the rectangle, slot 131 to the occupant with the groups packed (0x004ADE80) with their two low bytes swapped, and slot 158; inside, slot 131 to the neighbour for each side but the opposite one, from its own round to it, the key the groups and then packed with the opposite side and that side, until one answers.
+- **The state 8's frame** (seconds, start) removes the pedestrian (slot 13 with 0, AL 0) when no occupant is on its cell (x and z times 1/16, truncated; the map's slot 14). Starting, the state's side +0x30 is drawn, its cell +0x28 and +0x2C set to -1 and the smoothed speed set towards 1/720, AL 1. Else, on a new cell, the sides are tried in the order 0, 1, 3, 2 from its own (0x00B43D54's slot 29 on the cell beside), the first open kept with the cell (none: a side drawn); the heading is swayed sideways by a draw of -1 to 1, stepped a quarter towards the side, normalised and walked.
+- **The state 9's frame** takes +0xB0 (the target, as 0xA9B40F05) from the top state 9 whose object answers a word, removes the pedestrian as the state 8's does without a cell occupant, and walks along the heading swayed by a draw of -0.6 to 0.6 (pushed: two draws of -1 to 1 in x and z), pulled 1/64 towards the target beyond 10, with the smoothed speed towards 1/360.
+
+Left the game's: the groups' split and pack (0x0053D100, 0x004ADE80), the map's, the managers' and the occupants' code, SC4Rect::Contains, the generator and the list helpers.
+
+Oddities kept:
+
+- **The bump** compares its timer unrounded with 500 after storing it as a float, does not read slot 37's answer, and calls slot 48 on the list's second stack word (the manager, which it reloads from there). It writes the other pedestrian's push through its occupant part: that part's +0x254 and +0x258 are the pedestrian's +0x258 and +0x25C.
+- **The step** gives slot 16 the direction it was given, not its scaled copy, and answers 1 when it placed.
+- **The state 6's frame** null-tests neither the current state nor the object's point (asked into the game's stack unset; ours zeros), passes the side to the map's slot 15 with three bytes of the stack above it (ours zeros), and swaps the groups' two low bytes in the key for the occupant. Its loop ends only at its own side again, so a side byte above 3 loops until a path answers.
+- **The states 8's and 9's frames** null-test no current state; without a cell occupant they return before slot 105, as does starting the state 8. The smoothed speed's target is compared by its bits.
+- **AL only in the game:** the frames' and the bump's AL 0, the step's EAX 1; ours zero-extends.
+
+Floats (53 bits): each factor (1 / length, draw / length, step / length) stays unrounded where the game keeps it in a register; the state 2's y and z use it stored as a float; the bump's differences are squared unrounded and stored as floats; the states 8's and 9's z sum is normalised unrounded. The cell is the coordinate times 0.0625 truncated as __ftol2 does.
+
+### Test (ped2b)
+
+The ` V` token gains `,<pwalks>` before pflags (55 fields); pflags 0x100 when it ran, 0x200 without a city, the list allocator or the pedestrian. The log line is "ped2b pwalks", with one line per section before it.
+
+One pedestrian from its factory, on ped2a's copy of its vtable with slots 5, 13, 16, 34, 87, 125, 129, 131, 134 and 174 the test's too; the city's slots 40 (the map, the test's: slots 14, 15, 16 and 44) and 95, and the lot manager, 0x00B43D54 and the occupant manager (slots 37 and 48, the nodes from the game's allocator) swapped for the test's. Unlike ped2a's no game code is patched: the walks call one another and the bump at their addresses.
+
+- **The bump:** five timers (one sum that rounds to 500 as a float, a NaN), eight lists (empty, itself alone or first, far, within 1, within 0.01, a NaN point first, two near), then 24 drawn.
+- **The step:** six directions (a zero, a NaN, tiny) by six cases (the flag 0x20000, slot 44 moving the target, bumped, the push zero or set, slot 44 setting the timer for a second bump), then 32 drawn (every other one near the origin, where the step's rounding shows; slot 44 setting the timer over 500, just under it or not at all).
+- **The state 2's frame** over five vectors (a zero, a NaN, large) and 16 drawn; **the state 3's** without a state or object and over 30 cases (the point on the position, the push, bumped or not, the models and names) and 24 drawn (points about the origin from positions far off, so the differences are not floats); **the state 6's** over 40 (each gate, the lot or the word's rectangle, outside, on the grown edge, the sides 0 to 3 and 5 with a path at the first, second or third try or never); **the state 8's** over 24 (no cell or occupant, starting with the target 1/720 or not, the same cell, the sides open at each try or none, the side 5) and 24 drawn (negative positions among them); **the state 9's** over 24 (+0xB0 down six stacks, two found, held; no cell; the push; the target near and far; the target 1/360 or not) and 24 drawn.
+
+The game leaves two points unset on its stack in the state 6's frame; the test does not mix what they held (a first run that did came out different run to run on the game's side).
+
+A trial with 31 planted changes (the bump's rounded timer, its timer not zeroed, its box's height, itself not skipped, the 0.01 test reversed, y and z swapped, every near one pushed; the step's product order, its z factor rounded, the flag 0x20000 reversed, slot 16 given the scaled copy, the push byte kept, the second bump's seconds; the state 2's y factor unrounded; the state 3's push rate, the names' count, the heading's z unrounded, the last frame; the state 6's key unswapped, the opposite side, the rectangle not grown in x, slot 158; the state 8's side order, start target, quarter and z rounded; the cell floored; the state 9's sway, distance, search from the bottom, target speed) changed the token for 26 at first. Of the other five, four were seen once the test gained the cases above (drawn points near the origin and far, a timer just under 500 for the second bump, the grown edge). The last (the step's slot 34 x (slot 125 x seconds) for (slot 34 x slot 125) x seconds) is not seen: slot 125 times the seconds is exact as a double, so the change moves one 53-bit rounding, which the step's float rounding hides unless the product sits on a float boundary. 30 of 31.
+
+### Parity (ped2b)
+
+2026-10-30. B = the five automata groups as for ped1 (env p4env-em1, snapshot ped2b-p1), with other threads' games running on the PC:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's ped fields were the same on both sides (pwalks 70CD77C8, pflags 0x14F), and every B run installed and reached all 7. None of the walks ran before the test in any B run.
