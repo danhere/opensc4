@@ -41,4 +41,9 @@ private:
     uint32_t previous_;
 };
 
+// The site a SiteOverride on this thread has set, or 0. A replacement whose
+// original would be counted under its own return address takes this one
+// when it is set, as the original then is (the override wins there too).
+uint32_t CurrentSiteOverride();
+
 } // namespace opensc4::fixed_seed
