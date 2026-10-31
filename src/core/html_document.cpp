@@ -20,6 +20,25 @@
 //                                skipped, the string hash maps' hash code,
 //                                bucket, find, erase and clear, GetAttribute
 //
+// and h2b1's (docs/html.md, "Ours: the document's slots, life, glue and font
+// stack"):
+//
+//   ui.html.document.slots       the document's slots: QueryInterface,
+//                                AddRef and Release (and its +4 part's), the
+//                                text, the font steps, anchors, SetFlag29,
+//                                Redraw, the link colours, the base, the
+//                                faces, DOCTYPE
+//   ui.html.document.life        Init, the base address, the destructor and
+//                                the deleting one
+//   ui.html.document.glue        text nodes, the flow, the tag sets and
+//                                their filling, the alignment stack's push
+//   ui.html.document.fonts       the font records' copy and assignment,
+//                                ranges copied, filled and destroyed, the
+//                                font stack's growth, destructor and pop
+//
+// Slot 5 (0x009006BB, shared with three vtables outside the viewer) and slot
+// 20 (0x009006D6, four bytes, too short for a detour) stay the game's.
+//
 // The game's strings and containers are STLport's, through the game's own
 // helpers (the string constructors, Substring, the bodies' erase, find,
 // assign and resize, MakeUpper, Equals; the hash map's iterator and the
@@ -807,6 +826,523 @@ void SkipSpaces(char* doc)
 }
 
 // ====================================================================================
+// The document's slots (h2b1)
+
+constexpr uint32_t kDocumentVtable = 0x00ACD938;
+constexpr uint32_t kDocumentSecondVtable = 0x00ACD928;
+constexpr std::size_t kInited = 0x18;     // Init has run
+constexpr std::size_t kRefs = 0x1C;       // the reference count
+constexpr std::size_t kWindow = 0x2C;     // the HTML window, with a reference
+constexpr std::size_t kService = 0x30;    // the Internet service, with a reference (may be null)
+constexpr std::size_t kAnchors = 0xC8;    // A's nodes with a NAME
+constexpr std::size_t kTagId = 0xE8;      // the current tag's ID
+constexpr std::size_t kTagRest = 0xEC;    // the current tag's text after its name
+constexpr std::size_t kFont = 0x130;      // the current font record
+constexpr std::size_t kFontStack = 0x15C; // the font records pushed
+constexpr std::size_t kSteps = 0x1A8;     // the seven font steps
+
+void DestroyText(void* text) { CallThis<void>(addr::SC4String_Destroy, text); }
+
+// Slot 0 (0x008FE759, ret 8): IDs 1 and 0xE0ECA23A give the document,
+// 0x452294AA its part at +4 (null for no document), each with a reference
+// through slot 1; anything else false.
+bool DocQueryInterface(char* doc, uint32_t iid, void** out)
+{
+    if (iid == 1 || iid == 0xE0ECA23Au)
+        *out = doc;
+    else if (iid == 0x452294AAu)
+        *out = doc ? doc + 4 : nullptr;
+    else
+        return false;
+    Virtual<uint32_t>(doc, 0x4);
+    return true;
+}
+
+// Slots 1 and 2 (0x008FE79A, 0x008FE7A1): the count at +0x1C; the last
+// release deletes the document (slot 3 with flag 1) and answers 0.
+uint32_t DocAddRef(char* doc) { return ++At<uint32_t>(doc, kRefs); }
+
+uint32_t DocRelease(char* doc)
+{
+    const uint32_t refs = At<uint32_t>(doc, kRefs);
+    if (refs == 1) {
+        Virtual<char*>(doc, 0xC, uint32_t{1});
+        return 0;
+    }
+    At<uint32_t>(doc, kRefs) = refs - 1;
+    return refs - 1;
+}
+
+// The part at +4 (vtable 0x00ACD928): its slots 0 to 2 (0x009006DA,
+// 0x009006E2, 0x009006EA) are the document's with `this` 4 lower.
+bool DocQueryInterface4(char* self, uint32_t iid, void** out)
+{
+    return CallThis<uint8_t>(addr::HTMLDocument_QueryInterface, self - 4, iid, out) != 0;
+}
+uint32_t DocAddRef4(char* self) { return CallThis<uint32_t>(addr::HTMLDocument_AddRef, self - 4); }
+uint32_t DocRelease4(char* self) { return CallThis<uint32_t>(addr::HTMLDocument_Release, self - 4); }
+
+// Slot 4 (0x009006B4): the page's text.
+char* GetText(char* doc) { return doc + 0x180; }
+
+// Slot 6 (0x008FEE66, ret 8): the font steps into `out`, at most seven
+// (counts compared signed); the rest of the `count` zero. The number copied.
+int32_t GetFontSteps(char* doc, int32_t* out, int32_t count)
+{
+    const int32_t n = count > 7 ? 7 : count;
+    int32_t* const steps = &At<int32_t>(doc, kSteps);
+    CallPlain<int32_t*>(addr::SC4_CopyDwords, steps, steps + n, out);
+    for (int32_t* at = out + n; at != out + count; ++at)
+        *at = 0;
+    return n;
+}
+
+// Slot 7 (0x008FEEB8, ret 8): at most seven font steps from `steps`; the
+// fourth becomes both faces' sizes (+0x54, +0x6C).
+uint32_t SetFontSteps(char* doc, const int32_t* steps, int32_t count)
+{
+    const int32_t n = count > 7 ? 7 : count;
+    CallPlain<int32_t*>(addr::SC4_CopyDwords, steps, steps + n, &At<int32_t>(doc, kSteps));
+    const uint32_t size = At<uint32_t>(doc, 0x1B4);
+    At<uint32_t>(doc, 0x54) = size;
+    At<uint32_t>(doc, 0x6C) = size;
+    return size;
+}
+
+// Slot 13 (0x008FE89E, ret 4): the first anchor whose NAME (+0x30) says
+// it is `name` (the string's slot 10, with 1), or null.
+char* FindAnchor(char* doc, const Text* name)
+{
+    char** const last = At<char**>(doc, kAnchors + 4);
+    for (char** at = At<char**>(doc, kAnchors); at != last; ++at) {
+        char* const node = *at;
+        if (Virtual<uint8_t>(At<char*>(node, 0x30), 0x28, name, uint32_t{1}) != 0)
+            return node;
+    }
+    return nullptr;
+}
+
+// Slot 15 (0x009006C0, ret 4): the byte at +0x29.
+void SetFlag29(char* doc, uint8_t value) { At<uint8_t>(doc, 0x29) = value; }
+
+// Slot 17 (0x008FE6D0): the window's slot 92 (nothing without a window;
+// the game's EAX is then whatever it was).
+uint32_t Redraw(char* doc)
+{
+    char* const window = At<char*>(doc, kWindow);
+    return window ? Virtual<uint32_t>(window, 0x170) : 0;
+}
+
+// Slots 18 and 19 (0x009006CA, 0x009006D0): the active and visited link
+// colours every document shares.
+uint32_t GetActiveColour(char*) { return *reinterpret_cast<const uint32_t*>(addr::HTMLDocument_ActiveColour); }
+uint32_t GetVisitedColour(char*) { return *reinterpret_cast<const uint32_t*>(addr::HTMLDocument_VisitedColour); }
+
+// Slot 21 (0x009007A1, ret 4): the base address into `out`, or false and
+// `out` emptied when there is none.
+bool GetBase(char* doc, Text* out)
+{
+    const Text* const base = At<Text*>(doc, kBase);
+    if (base) {
+        AssignText(out, base);
+        return true;
+    }
+    Erase(&out->body, 0, kAll);
+    return false;
+}
+
+// Slots 22 and 23 (0x009006F2, 0x0090070F, ret 8): the proportional face
+// (+0x40) and its size (+0x54), the fixed one (+0x58, +0x6C).
+uint32_t GetFace(char* doc, Text* out, uint32_t* size, std::size_t field)
+{
+    AssignText(out, &At<Text>(doc, field));
+    const uint32_t value = At<uint32_t>(doc, field + 0x14);
+    *size = value;
+    return value;
+}
+uint32_t GetProportionalFace(char* doc, Text* out, uint32_t* size) { return GetFace(doc, out, size, 0x40); }
+uint32_t GetFixedFace(char* doc, Text* out, uint32_t* size) { return GetFace(doc, out, size, 0x58); }
+
+// Slot 9 (0x008FFF91): `<!DOCTYPE`. Unless the text after the tag's name
+// starts with HTML (in any case), false. Else the first attribute whose name
+// holds `DTD HTML` (in any case) gives the version (+0x70): from one past
+// where `DTD HTML` starts, spaces skipped, the digits and dots there (so
+// nothing, as the game has it); and when the name's fourth and third
+// characters from the end are slashes, its last two (+0x84). Then the page
+// is parsed (slot 10).
+bool ParseDoctype(char* doc)
+{
+    Text left;
+    Text start;
+    Text* const made = CallThis<Text*>(addr::cRZBaseString_Left, doc + kTagRest, &left, uint32_t{4});
+    Substring(&start, made, 0, kAll);
+    Release(&left);
+    MakeUpper(&start);
+    if (!Equals(&start, "HTML")) {
+        Release(&start);
+        return false;
+    }
+    Iterator it{};
+    CallThis<Iterator*>(addr::cGZDBSegmentPackedFile_KeyTableBegin, doc + kAttributes, &it);
+    while (it.node) {
+        Text name;
+        Substring(&name, reinterpret_cast<const Text*>(it.node + 4), 0, kAll);
+        MakeUpper(&name);
+        uint32_t i = CallThis<uint32_t>(addr::SC4StringBody_Find, &name.body, "DTD HTML", uint32_t{0});
+        if (i >= Length(name.body)) {
+            Release(&name);
+            CallThis<Iterator*>(addr::HTMLAttributes_Next, &it);
+            continue;
+        }
+        ++i;
+        while (i < Length(name.body) && CallIsSpaceAt(&name, i))
+            ++i;
+        const uint32_t n = Length(name.body);
+        uint32_t j = i;
+        while (j < n) {
+            const char c = name.body.begin[j];
+            if (static_cast<uint32_t>(static_cast<int32_t>(c) - '0') >= 10 && c != '.')
+                break;
+            ++j;
+        }
+        CallThis<Body*>(addr::SC4StringBody_AssignBody, doc + 0x74, static_cast<const Body*>(&name.body), i, j - i);
+        const char* const end = name.body.begin + Length(name.body);
+        if (end[-4] == '/' && end[-3] == '/')
+            CallThis<Body*>(addr::SC4StringBody_AssignBody, doc + 0x88, static_cast<const Body*>(&name.body),
+                            Length(name.body) - 2, uint32_t{2});
+        Release(&name);
+        break;
+    }
+    const bool parsed = Virtual<uint8_t>(doc, 0x28) != 0;
+    Release(&start);
+    return parsed;
+}
+
+// ====================================================================================
+// The document's life
+
+// Init (0x009007CA, ret 0xC), once per document (+0x18): the window and the
+// service (may be null) kept with a reference each, the base address
+// (0x00900302), the font record's size (the fourth step), the link colour
+// and the rest of it reset. True either way.
+bool Init(char* doc, char* window, char* service, const Text* base)
+{
+    if (At<uint8_t>(doc, kInited) != 0)
+        return true;
+    At<uint8_t>(doc, kInited) = 1;
+    At<char*>(doc, kWindow) = window;
+    Virtual<uint32_t>(window, 0x4);
+    At<char*>(doc, kService) = service;
+    if (service)
+        Virtual<uint32_t>(service, 0x4);
+    CallThis<uint8_t>(addr::HTMLDocument_SetBase, doc, base);
+    At<uint32_t>(doc, 0x144) = 1;
+    At<uint32_t>(doc, 0x148) = At<uint32_t>(doc, 0x1B4);
+    At<uint32_t>(doc, 0x150) = 0;
+    At<uint32_t>(doc, 0x14C) = *reinterpret_cast<const uint32_t*>(addr::HTMLDocument_TextColour);
+    At<uint8_t>(doc, 0x154) = 0;
+    At<uint8_t>(doc, 0x155) = 0;
+    return true;
+}
+
+// The base address (0x00900302, ret 4): assigned, or a new string the first
+// time; then the window's +0xD8 interface told (its slot 19). True.
+bool SetBase(char* doc, const Text* text)
+{
+    Text*& base = At<Text*>(doc, kBase);
+    if (base)
+        AssignText(base, text);
+    else
+        base = NewCopy(text);
+    Virtual<void>(At<char*>(doc, kWindow) + 0xD8, 0x4C, text);
+    return true;
+}
+
+// The destructor (0x009005AD): the vtables put back, the images still
+// waiting released (only after Init), the image map, the strings and the
+// vectors in the game's order, the lock, then the entity map (+8). The base
+// address (+0xB8) is not freed and the window and the service keep their
+// references, as the game has it.
+void DestroyDocument(char* doc)
+{
+    At<uint32_t>(doc, 0x0) = kDocumentVtable;
+    At<uint32_t>(doc, 0x4) = kDocumentSecondVtable;
+    if (At<uint8_t>(doc, kInited) != 0)
+        CallThis<void>(addr::HTMLDocument_ReleaseImages, doc);
+    CallThis<void>(addr::HTMLImageMap_Destroy, doc + 0x198);
+    DestroyText(doc + 0x180);
+    for (const std::size_t at : {0x174u, 0x168u})
+        if (At<void*>(doc, at))
+            Free(At<void*>(doc, at));
+    CallThis<void>(addr::HTMLFontStack_Destroy, doc + kFontStack);
+    DestroyText(doc + kFont);
+    CallThis<void>(addr::HTMLAttributes_Destroy, doc + kAttributes);
+    for (const std::size_t at : {0x100u, 0xECu, 0xD4u})
+        DestroyText(doc + at);
+    for (const std::size_t at : {0xC8u, 0xBCu, 0xACu})
+        if (At<void*>(doc, at))
+            Free(At<void*>(doc, at));
+    for (const std::size_t at : {0x98u, 0x84u, 0x70u, 0x58u, 0x40u})
+        DestroyText(doc + at);
+    CallThis<void>(addr::RZCriticalSection_Destroy, doc + 0x34);
+    CallThis<void>(addr::HTMLEntityMap_Destroy, doc + 0x8);
+}
+
+// Slot 3 (0x009010E1): the destructor, then operator delete with flag 1.
+char* DeleteDocument(char* doc, uint32_t flags)
+{
+    CallThis<void>(addr::HTMLDocument_Destruct, doc);
+    if (flags & 1)
+        CallPlain<void>(addr::SC4_operator_delete, doc);
+    return doc;
+}
+
+// ====================================================================================
+// The parser's glue
+
+// The tag sets (STLport sets of tag IDs, 12 bytes each: the header node,
+// the count, the compare): font tags, phrase tags, special tags, form tags,
+// the inline ones (text and those four), list items, table parts, the block
+// ones (with those two) and the flow (inline and block).
+constexpr uint32_t kFontTags = 0x00B624B8;
+constexpr uint32_t kPhraseTags = 0x00B624C4;
+constexpr uint32_t kSpecialTags = 0x00B624D0;
+constexpr uint32_t kFormTags = 0x00B624DC;
+constexpr uint32_t kInlineTags = 0x00B624E8;
+constexpr uint32_t kListTags = 0x00B624F4;
+constexpr uint32_t kTableTags = 0x00B62500;
+constexpr uint32_t kBlockTags = 0x00B6250C;
+constexpr uint32_t kFlowTags = 0x00B62518;
+
+char* SetAt(uint32_t address) { return reinterpret_cast<char*>(static_cast<std::uintptr_t>(address)); }
+
+// AddText (0x008FE6E2, ret 8): a text node (0x58 bytes, 0x00908CA6) of the
+// text in the current font and alignment, given to the parent (slot 1; null
+// when the allocation failed).
+void AddText(char* doc, const Text* text, char* parent)
+{
+    char* const memory = NewObject(0x58);
+    char* node = nullptr;
+    if (memory)
+        node = CallThis<char*>(addr::HTMLTextNode_Construct, memory, doc, text, doc + kFont, At<uint32_t>(doc, kAlign));
+    AddChild(parent, node);
+}
+
+// Whether a tag ID is in a set (0x008FEE4A, cdecl): its find (0x0094C8F5)
+// against the header.
+bool Contains(uint32_t id, char* set)
+{
+    char* const node = CallThis<char*>(addr::SC4IntSet_Find, set, &id);
+    return node != At<char*>(set, 0x0);
+}
+
+bool CallContains(uint32_t id, uint32_t set) { return CallPlain<uint8_t>(addr::HTMLTagSet_Contains, id, SetAt(set)) != 0; }
+
+// ParseFlow (0x008FEEFA, ret 4): the current tag as inline content
+// (0x00907CCA) or a block (0x00907135); false for anything else.
+bool ParseFlow(char* doc, char* parent)
+{
+    const uint32_t id = At<uint32_t>(doc, kTagId);
+    if (CallContains(id, kInlineTags))
+        return CallThis<uint8_t>(addr::HTMLDocument_ParseInline, doc, parent) != 0;
+    if (CallContains(id, kBlockTags))
+        return CallThis<uint8_t>(addr::HTMLDocument_ParseBlock, doc, parent) != 0;
+    return false;
+}
+
+void Insert(uint32_t set, const int32_t* value)
+{
+    uint8_t result[8];
+    CallThis<void*>(addr::SC4IntSet_Insert, SetAt(set), result, value);
+}
+
+// Every ID of one set put into another (0x008FF187, cdecl), in order.
+void InsertAll(char* to, char* from)
+{
+    char* const header = At<char*>(from, 0x0);
+    for (char* node = At<char*>(header, 0x8); node != header; node = CallPlain<char*>(addr::SC4Tree_Next, node)) {
+        uint8_t result[8];
+        CallThis<void*>(addr::SC4IntSet_Insert, to, result, reinterpret_cast<const int32_t*>(node + 0x10));
+    }
+}
+
+// The sets filled (0x008FF1B9, once, from the first document's
+// constructor), in the game's order: an ID put in, or (from not zero) a
+// whole set put into another.
+struct TagSetStep {
+    uint32_t set;
+    int32_t id;
+    uint32_t from;
+};
+constexpr TagSetStep kTagSetSteps[] = {
+    {kFontTags, 0x12, 0},     {kFontTags, 0x14, 0},     {kFontTags, 0x16, 0},     {kFontTags, 0x18, 0},
+    {kFontTags, 0x1A, 0},     {kFontTags, 0x1C, 0},     {kFontTags, 0x20, 0},     {kFontTags, 0x1E, 0},
+    {kPhraseTags, 0x22, 0},   {kPhraseTags, 0x24, 0},   {kPhraseTags, 0x26, 0},   {kPhraseTags, 0x28, 0},
+    {kPhraseTags, 0x2A, 0},   {kPhraseTags, 0x2C, 0},   {kPhraseTags, 0x2E, 0},   {kPhraseTags, 0x30, 0},
+    {kPhraseTags, 0x32, 0},   {kPhraseTags, 0x34, 0},   {kSpecialTags, 0x36, 0},  {kSpecialTags, 0x38, 0},
+    {kSpecialTags, 0x39, 0},  {kSpecialTags, 0x3B, 0},  {kSpecialTags, 0x3C, 0},  {kSpecialTags, 0x3E, 0},
+    {kSpecialTags, 0x40, 0},  {kSpecialTags, 0x42, 0},  {kSpecialTags, 0x44, 0},  {kSpecialTags, 0x46, 0},
+    {kSpecialTags, 0x48, 0},  {kSpecialTags, 0x4A, 0},  {kFormTags, 0x4C, 0},     {kFormTags, 0x4D, 0},
+    {kFormTags, 0x53, 0},     {kFormTags, 0x55, 0},     {kFormTags, 0x57, 0},     {kInlineTags, 0x3, 0},
+    {kInlineTags, 0, kFontTags}, {kInlineTags, 0, kPhraseTags}, {kInlineTags, 0, kSpecialTags},
+    {kInlineTags, 0, kFormTags}, {kListTags, 0x59, 0},     {kListTags, 0x5B, 0},     {kListTags, 0x5D, 0},
+    {kListTags, 0x5F, 0},     {kListTags, 0x61, 0},     {kListTags, 0x63, 0},     {kTableTags, 0x69, 0},
+    {kTableTags, 0x6B, 0},    {kBlockTags, 0x65, 0},    {kBlockTags, 0, kListTags}, {kBlockTags, 0, kTableTags},
+    {kBlockTags, 0x67, 0},    {kBlockTags, 0x6D, 0},    {kBlockTags, 0x6F, 0},    {kBlockTags, 0x71, 0},
+    {kBlockTags, 0x73, 0},    {kBlockTags, 0x75, 0},    {kBlockTags, 0x77, 0},    {kBlockTags, 0x78, 0},
+    {kBlockTags, 0x7A, 0},    {kBlockTags, 0x7C, 0},    {kBlockTags, 0x7E, 0},    {kFlowTags, 0, kInlineTags},
+    {kFlowTags, 0, kBlockTags},
+};
+static_assert(std::size(kTagSetSteps) == 64);
+
+void InitTagSets()
+{
+    for (const TagSetStep& step : kTagSetSteps) {
+        if (step.from)
+            CallPlain<void>(addr::HTMLTagSet_InsertAll, SetAt(step.set), SetAt(step.from));
+        else
+            Insert(step.set, &step.id);
+    }
+}
+
+// push_back of a dword vector (0x008FF7B6, ret 4: the alignment stack,
+// +0x168): in place when there is room, else the vector's insert when full
+// (0x008FEF8F, one at the end).
+void PushBack(char* vector, const int32_t* value)
+{
+    int32_t* const end = At<int32_t*>(vector, 0x4);
+    if (end != At<int32_t*>(vector, 0x8)) {
+        if (end)
+            *end = *value;
+        At<int32_t*>(vector, 0x4) = end + 1;
+        return;
+    }
+    uint8_t tag = 0;
+    CallThis<void>(addr::HTMLIntVector_InsertOverflow, vector, end, value, &tag, uint32_t{1}, uint32_t{1});
+}
+
+// ====================================================================================
+// The font stack
+
+// A font record (0x28 bytes): the face (a game string), four dwords (the
+// style, the size, the colour, the height) and two flags.
+struct Font {
+    Text face;
+    uint32_t words[4];
+    uint8_t flags[2];
+    uint8_t spare[2];
+};
+static_assert(sizeof(Font) == 0x28);
+
+void CopyFields(Font* to, const Font* from)
+{
+    for (int i = 0; i < 4; ++i)
+        to->words[i] = from->words[i];
+    to->flags[0] = from->flags[0];
+    to->flags[1] = from->flags[1];
+}
+
+// A record made a copy of another (0x008FFE11, ret 4).
+Font* CopyFont(Font* self, const Font* from)
+{
+    Substring(&self->face, &from->face, 0, kAll);
+    CopyFields(self, from);
+    return self;
+}
+
+// A record given another's face and the rest (0x009002C9, ret 4).
+Font* AssignFont(Font* self, const Font* from)
+{
+    AssignText(&self->face, &from->face);
+    CopyFields(self, from);
+    return self;
+}
+
+Font* CallCopyFont(Font* to, const Font* from) { return CallThis<Font*>(addr::HTMLFont_Copy, to, from); }
+
+// The records of a range copied to `to` (0x00900278, cdecl; null `to`
+// skips the copies); where the copies end.
+Font* CopyFonts(Font* first, Font* last, Font* to, void*)
+{
+    for (; first != last; ++first, ++to)
+        if (to)
+            CallCopyFont(to, first);
+    return to;
+}
+
+// `count` copies of one record at `to` (0x009002A1, cdecl).
+Font* FillFonts(Font* to, uint32_t count, const Font* value, void*)
+{
+    for (; count != 0; --count, ++to)
+        if (to)
+            CallCopyFont(to, value);
+    return to;
+}
+
+// A range of records destroyed (0x0090025F, cdecl): each face.
+void DestroyFonts(Font* first, Font* last)
+{
+    for (; first != last; ++first)
+        DestroyText(first);
+}
+
+// The font stack's destructor (0x00900492): its records destroyed, its
+// storage freed.
+void DestroyFontStack(char* stack)
+{
+    CallPlain<void>(addr::HTMLFont_DestroyRange, At<Font*>(stack, 0x0), At<Font*>(stack, 0x4));
+    if (At<Font*>(stack, 0x0))
+        Free(At<Font*>(stack, 0x0));
+}
+
+Font* CallCopyFonts(Font* first, Font* last, Font* to, uint8_t* tag)
+{
+    return CallPlain<Font*>(addr::HTMLFont_CopyRange, first, last, to, tag);
+}
+
+// The font stack's insert when full (0x00900E91, ret 0x14): new storage for
+// the size plus the larger of the size and `count` (the allocator at +8),
+// the records before `at`, `count` copies of `font`, the records from `at`
+// on unless at the end; the old ones destroyed and freed.
+void GrowFontStack(char* stack, Font* at, const Font* font, void*, uint32_t count, uint8_t atEnd)
+{
+    Font* const begin = At<Font*>(stack, 0x0);
+    Font* const end = At<Font*>(stack, 0x4);
+    const uint32_t size = static_cast<uint32_t>(
+        static_cast<int32_t>(reinterpret_cast<char*>(end) - reinterpret_cast<char*>(begin)) / 0x28);
+    const uint32_t grown = size + (size < count ? count : size);
+    Font* const fresh = CallThis<Font*>(addr::HTMLFontStack_Allocate, stack + 0x8, grown, uint32_t{0});
+    uint8_t tag = 0;
+    Font* to = CallCopyFonts(begin, at, fresh, &tag);
+    if (count == 1) {
+        if (to)
+            CallCopyFont(to, font);
+        ++to;
+    } else {
+        to = CallPlain<Font*>(addr::HTMLFont_FillN, to, count, font, &tag);
+    }
+    if (!atEnd)
+        to = CallCopyFonts(at, end, to, &tag);
+    CallThis<void>(addr::HTMLFontStack_Destroy, stack);
+    At<Font*>(stack, 0x4) = to;
+    At<Font*>(stack, 0x0) = fresh;
+    At<Font*>(stack, 0x8) = fresh + grown;
+}
+
+// PopFont (0x00900E5F): the current font record (+0x130) given the top of
+// the stack, which is then taken off; nothing when the stack is empty.
+void PopFont(char* doc)
+{
+    char* const stack = doc + kFontStack;
+    Font*& end = At<Font*>(stack, 0x4);
+    if (At<Font*>(stack, 0x0) == end)
+        return;
+    CallThis<Font*>(addr::HTMLFont_Assign, doc + kFont, end - 1);
+    --end;
+    DestroyText(end);
+}
+
+// ====================================================================================
 // The detours
 
 #define OPENSC4_UNPAREN(...) __VA_ARGS__
@@ -903,6 +1439,60 @@ OPENSC4_THIS_DETOUR(bool, GetAttribute, 0x0090072C, GetAttribute, (, const char*
 OPENSC4_CDECL_DETOUR(void, Trim, 0x008FEB74, Trim, (Text * text), (text))
 OPENSC4_CDECL_DETOUR(void, SplitTagName, 0x00900138, SplitTagName, (Text * tag, Text* rest), (tag, rest))
 OPENSC4_THIS_DETOUR(void, SkipSpaces, 0x008FE7B8, SkipSpaces, (), ())
+
+// The document's slots.
+OPENSC4_THIS_DETOUR(bool, DocQueryInterface, 0x008FE759, DocQueryInterface, (, uint32_t iid, void** out), (, iid, out))
+OPENSC4_THIS_DETOUR(uint32_t, DocAddRef, 0x008FE79A, DocAddRef, (), ())
+OPENSC4_THIS_DETOUR(uint32_t, DocRelease, 0x008FE7A1, DocRelease, (), ())
+OPENSC4_THIS_DETOUR(bool, DocQueryInterface4, 0x009006DA, DocQueryInterface4, (, uint32_t iid, void** out),
+                    (, iid, out))
+OPENSC4_THIS_DETOUR(uint32_t, DocAddRef4, 0x009006E2, DocAddRef4, (), ())
+OPENSC4_THIS_DETOUR(uint32_t, DocRelease4, 0x009006EA, DocRelease4, (), ())
+OPENSC4_THIS_DETOUR(char*, GetText, 0x009006B4, GetText, (), ())
+OPENSC4_THIS_DETOUR(int32_t, GetFontSteps, 0x008FEE66, GetFontSteps, (, int32_t* out, int32_t count), (, out, count))
+OPENSC4_THIS_DETOUR(uint32_t, SetFontSteps, 0x008FEEB8, SetFontSteps, (, const int32_t* steps, int32_t count),
+                    (, steps, count))
+OPENSC4_THIS_DETOUR(char*, FindAnchor, 0x008FE89E, FindAnchor, (, const Text* name), (, name))
+OPENSC4_THIS_DETOUR(void, SetFlag29, 0x009006C0, SetFlag29, (, uint8_t value), (, value))
+OPENSC4_THIS_DETOUR(uint32_t, Redraw, 0x008FE6D0, Redraw, (), ())
+OPENSC4_THIS_DETOUR(uint32_t, GetActiveColour, 0x009006CA, GetActiveColour, (), ())
+OPENSC4_THIS_DETOUR(uint32_t, GetVisitedColour, 0x009006D0, GetVisitedColour, (), ())
+OPENSC4_THIS_DETOUR(bool, GetBase, 0x009007A1, GetBase, (, Text* out), (, out))
+OPENSC4_THIS_DETOUR(uint32_t, GetProportionalFace, 0x009006F2, GetProportionalFace, (, Text* out, uint32_t* size),
+                    (, out, size))
+OPENSC4_THIS_DETOUR(uint32_t, GetFixedFace, 0x0090070F, GetFixedFace, (, Text* out, uint32_t* size), (, out, size))
+OPENSC4_THIS_DETOUR(bool, ParseDoctype, 0x008FFF91, ParseDoctype, (), ())
+
+// The document's life.
+OPENSC4_THIS_DETOUR(bool, Init, 0x009007CA, Init, (, char* window, char* service, const Text* base),
+                    (, window, service, base))
+OPENSC4_THIS_DETOUR(bool, SetBase, 0x00900302, SetBase, (, const Text* text), (, text))
+OPENSC4_THIS_DETOUR(void, DestroyDocument, 0x009005AD, DestroyDocument, (), ())
+OPENSC4_THIS_DETOUR(char*, DeleteDocument, 0x009010E1, DeleteDocument, (, uint32_t flags), (, flags))
+
+// The parser's glue.
+OPENSC4_THIS_DETOUR(void, AddText, 0x008FE6E2, AddText, (, const Text* text, char* parent), (, text, parent))
+OPENSC4_THIS_DETOUR(bool, ParseFlow, 0x008FEEFA, ParseFlow, (, char* parent), (, parent))
+OPENSC4_CDECL_DETOUR(bool, Contains, 0x008FEE4A, Contains, (uint32_t id, char* set), (id, set))
+OPENSC4_CDECL_DETOUR(void, InitTagSets, 0x008FF1B9, InitTagSets, (), ())
+OPENSC4_CDECL_DETOUR(void, InsertAll, 0x008FF187, InsertAll, (char* to, char* from), (to, from))
+OPENSC4_THIS_DETOUR(void, PushBack, 0x008FF7B6, PushBack, (, const int32_t* value), (, value))
+
+// The font stack.
+Font* CopyFontAt(char* self, const Font* from) { return CopyFont(reinterpret_cast<Font*>(self), from); }
+Font* AssignFontAt(char* self, const Font* from) { return AssignFont(reinterpret_cast<Font*>(self), from); }
+OPENSC4_THIS_DETOUR(Font*, CopyFont, 0x008FFE11, CopyFontAt, (, const Font* from), (, from))
+OPENSC4_THIS_DETOUR(Font*, AssignFont, 0x009002C9, AssignFontAt, (, const Font* from), (, from))
+OPENSC4_CDECL_DETOUR(Font*, CopyFonts, 0x00900278, CopyFonts, (Font * first, Font* last, Font* to, void* tag),
+                     (first, last, to, tag))
+OPENSC4_CDECL_DETOUR(Font*, FillFonts, 0x009002A1, FillFonts, (Font * to, uint32_t count, const Font* value, void* tag),
+                     (to, count, value, tag))
+OPENSC4_CDECL_DETOUR(void, DestroyFonts, 0x0090025F, DestroyFonts, (Font * first, Font* last), (first, last))
+OPENSC4_THIS_DETOUR(void, DestroyFontStack, 0x00900492, DestroyFontStack, (), ())
+OPENSC4_THIS_DETOUR(void, GrowFontStack, 0x00900E91, GrowFontStack,
+                    (, Font* at, const Font* font, void* tag, uint32_t count, uint8_t atEnd),
+                    (, at, font, tag, count, atEnd))
+OPENSC4_THIS_DETOUR(void, PopFont, 0x00900E5F, PopFont, (), ())
 
 // ====================================================================================
 // Installation
@@ -1026,6 +1616,70 @@ bool InstallTokenizer(registry::Mode)
     return InstallAll("tokenizer", detours);
 }
 
+bool InstallSlots(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(DocQueryInterface, addr::HTMLDocument_QueryInterface),
+        OPENSC4_D(DocAddRef, addr::HTMLDocument_AddRef),
+        OPENSC4_D(DocRelease, addr::HTMLDocument_Release),
+        OPENSC4_D(DocQueryInterface4, addr::HTMLDocument_QueryInterface4),
+        OPENSC4_D(DocAddRef4, addr::HTMLDocument_AddRef4),
+        OPENSC4_D(DocRelease4, addr::HTMLDocument_Release4),
+        OPENSC4_D(GetText, addr::HTMLDocument_GetText),
+        OPENSC4_D(GetFontSteps, addr::HTMLDocument_GetFontSteps),
+        OPENSC4_D(SetFontSteps, addr::HTMLDocument_SetFontSteps),
+        OPENSC4_D(FindAnchor, addr::HTMLDocument_FindAnchor),
+        OPENSC4_D(SetFlag29, addr::HTMLDocument_SetFlag29),
+        OPENSC4_D(Redraw, addr::HTMLDocument_Redraw),
+        OPENSC4_D(GetActiveColour, addr::HTMLDocument_GetActiveColour),
+        OPENSC4_D(GetVisitedColour, addr::HTMLDocument_GetVisitedColour),
+        OPENSC4_D(GetBase, addr::HTMLDocument_GetBase),
+        OPENSC4_D(GetProportionalFace, addr::HTMLDocument_GetProportionalFace),
+        OPENSC4_D(GetFixedFace, addr::HTMLDocument_GetFixedFace),
+        OPENSC4_D(ParseDoctype, addr::HTMLDocument_ParseDoctype),
+    };
+    return InstallAll("slots", detours);
+}
+
+bool InstallLife(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(Init, addr::HTMLDocument_Init),
+        OPENSC4_D(SetBase, addr::HTMLDocument_SetBase),
+        OPENSC4_D(DestroyDocument, addr::HTMLDocument_Destruct),
+        OPENSC4_D(DeleteDocument, addr::HTMLDocument_Delete),
+    };
+    return InstallAll("life", detours);
+}
+
+bool InstallGlue(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(AddText, addr::HTMLDocument_AddText),
+        OPENSC4_D(ParseFlow, addr::HTMLDocument_ParseFlow),
+        OPENSC4_D(Contains, addr::HTMLTagSet_Contains),
+        OPENSC4_D(InitTagSets, addr::HTMLTagSets_Init),
+        OPENSC4_D(InsertAll, addr::HTMLTagSet_InsertAll),
+        OPENSC4_D(PushBack, addr::HTMLIntVector_PushBack),
+    };
+    return InstallAll("glue", detours);
+}
+
+bool InstallFonts(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(CopyFont, addr::HTMLFont_Copy),
+        OPENSC4_D(AssignFont, addr::HTMLFont_Assign),
+        OPENSC4_D(CopyFonts, addr::HTMLFont_CopyRange),
+        OPENSC4_D(FillFonts, addr::HTMLFont_FillN),
+        OPENSC4_D(DestroyFonts, addr::HTMLFont_DestroyRange),
+        OPENSC4_D(DestroyFontStack, addr::HTMLFontStack_Destroy),
+        OPENSC4_D(GrowFontStack, addr::HTMLFontStack_Grow),
+        OPENSC4_D(PopFont, addr::HTMLDocument_PopFont),
+    };
+    return InstallAll("fonts", detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"ui.html.document.ctors", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
                         addr::HTMLContainerNode_Construct,
@@ -1051,6 +1705,26 @@ const bool g_registered[] = {
                         "Our HTML tokenizer helpers: the tag's name, trimming, spaces, the hash maps' hash, find, "
                         "erase and clear, GetAttribute (11 detours; docs/html.md)",
                         false, InstallTokenizer}),
+    registry::Register({"ui.html.document.slots", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_QueryInterface,
+                        "Our HTML document's slots: QueryInterface, AddRef, Release (and the +4 part's), the text, "
+                        "the font steps, anchors, the link colours, the base, the faces, DOCTYPE (18 detours; "
+                        "docs/html.md)",
+                        false, InstallSlots}),
+    registry::Register({"ui.html.document.life", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_Init,
+                        "Our HTML document's Init, base address and destructors (4 detours; docs/html.md)", false,
+                        InstallLife}),
+    registry::Register({"ui.html.document.glue", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_ParseFlow,
+                        "Our HTML parser's glue in the document: text nodes, the flow, the tag sets and their "
+                        "filling, the alignment stack's push (6 detours; docs/html.md)",
+                        false, InstallGlue}),
+    registry::Register({"ui.html.document.fonts", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_PopFont,
+                        "Our HTML font stack: a record's copy and assignment, ranges copied, filled and destroyed, "
+                        "the stack's growth, destructor and pop (8 detours; docs/html.md)",
+                        false, InstallFonts}),
 };
 
 } // namespace
