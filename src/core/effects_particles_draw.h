@@ -552,8 +552,8 @@ inline void DrawParticlesBuffered(char* self, char* context)
         const uint32_t run = static_cast<uint32_t>(room < left ? room : left);
         left -= static_cast<int32_t>(run);
         char* const batch = self + 0x28;
-        CallThis<uint32_t>(addr::SC4IndexBatch_Clear, batch);
-        CallThis<uint32_t>(addr::SC4IndexBatch_AddQuads, batch, run);
+        IbClearFor(batch);
+        IbAddQuadsFor(batch, run);
         char* out = BfLock(At<char*>(self, 0x1EC), At<uint32_t>(self, 0x30) * run);
         if (!out)
             return;
@@ -746,9 +746,9 @@ inline void DrawParticlesPlain(char* self, char* context)
         At<uint32_t>(self, 0x1AC + i * 4) = 0;
     }
     char* const batch = self + 0x28;
-    CallThis<uint32_t>(addr::SC4IndexBatch_Clear, batch);
-    char* out = Ptr(CallThis<uint32_t>(addr::SC4IndexBatch_AddVertices, batch, At<uint32_t>(self, 0x18)));
-    CallThis<uint32_t>(addr::SC4IndexBatch_AddQuads, batch, At<uint32_t>(self, 0x18));
+    IbClearFor(batch);
+    char* out = Ptr(IbAddVerticesFor(batch, At<uint32_t>(self, 0x18)));
+    IbAddQuadsFor(batch, At<uint32_t>(self, 0x18));
     char* description = At<char*>(self, 0x24);
     const int32_t lastColour =
         static_cast<int32_t>(At<uint32_t>(description, 0x98) - At<uint32_t>(description, 0x94)) / 12 - 1;

@@ -1514,7 +1514,7 @@ void DrawEffectC(char* self, char* context)
         return;
     }
     for (uint32_t i = 0; i < EcBatches(self); ++i)
-        CallThis<uint32_t>(addr::SC4IndexBatch_Clear, At<char*>(self, 0x230) + i * 0x40);
+        IbClearFor(At<char*>(self, 0x230) + i * 0x40);
     char* const description = At<char*>(self, 0x24);
     const int32_t lastColour =
         static_cast<int32_t>(At<uint32_t>(description, 0x98) - At<uint32_t>(description, 0x94)) / 12 - 1;
@@ -1524,8 +1524,8 @@ void DrawEffectC(char* self, char* context)
         char* const p = At<char*>(node, 8);
         char* const batch = At<char*>(self, 0x230) + static_cast<uint32_t>(At<uint8_t>(p, 0x18)) * 0x40;
         const bool quad = At<uint32_t>(batch, 8) == 4;
-        CallThis<uint32_t>(addr::SC4IndexBatch_AddQuads, batch, 1u);
-        char* const out = Ptr(CallThis<uint32_t>(addr::SC4IndexBatch_AddVertices, batch, 1u));
+        IbAddQuadsFor(batch, 1u);
+        char* const out = Ptr(IbAddVerticesFor(batch, 1u));
         const float t = PcF(static_cast<double>(At<float>(p, 4)) / At<float>(p, 8));
         char* const d = At<char*>(self, 0x24);
         const float turn = PcF(EcCurve(d, 0xC4, t) * At<float>(p, 0x30));
@@ -1654,8 +1654,8 @@ void DrawEffectCBuffered(char* self)
     while (left) {
         const uint32_t run = static_cast<int32_t>(room) < static_cast<int32_t>(left) ? room : left;
         left -= run;
-        CallThis<uint32_t>(addr::SC4IndexBatch_Clear, At<char*>(self, 0x230));
-        CallThis<uint32_t>(addr::SC4IndexBatch_AddQuads, At<char*>(self, 0x230), run);
+        IbClearFor(At<char*>(self, 0x230));
+        IbAddQuadsFor(At<char*>(self, 0x230), run);
         char* out = BfLock(At<char*>(self, 0x1EC), At<uint32_t>(At<char*>(self, 0x230), 8) * run);
         if (!out)
             return;

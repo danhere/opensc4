@@ -1133,6 +1133,13 @@ bool g_growOurs = false, g_clearOurs = false;
 
 #include "core/effects_pool.h"
 
+// The index batch's clear and adds (effects_index_batch.h), ours when their
+// switches are ours (set at install, "The index batch's three parts" at the
+// end).
+bool g_batchClearOurs = false, g_batchAddQuadsOurs = false, g_batchAddVerticesOurs = false;
+
+#include "core/effects_index_batch.h"
+
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -16548,12 +16555,14 @@ uint32_t DwEffectDrawRun(char* self, uint32_t step, uint32_t context)
 
 void EnForce(char* self);
 void PlForce(char* self);
+void IbForce(char* self);
 
 uint32_t __fastcall DwEffectDrawByMode(char* self, void*, uint32_t step, uint32_t context)
 {
     LfForceSteps(self);
     EnForce(self);
     PlForce(self);
+    IbForce(self);
     if (!DwNoting())
         return DwEffectDrawRun(self, step, context);
     DwAddNote(kDwEffect, self, step, context);
@@ -20471,6 +20480,320 @@ const bool g_registeredClear = registry::Register({
     "running effect's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallClear,
+});
+
+// --- The index batch's three parts ------------------------------------------------------------
+//
+// The index batch's clear (0x005EC4A0), add of quads' indices (0x005EC850)
+// and add of quads' vertices (0x005EC8C0), written by hand in
+// effects_index_batch.h. Each has a switch: ours makes the ported draws
+// (effects_particles_draw.h, effects_third.h) call ours and the detour run
+// ours for the game's callers. The batch's draw (0x005EC5D0) is still the
+// game's.
+//
+// The clear writes only the batch: compare mode runs ours on a copy and the
+// game's on the batch. The adds may resize a vector of the batch (memory
+// taken and given back), so they cannot run twice: the game's runs for real,
+// with the batch's fill function (when it has one) swapped for one that
+// notes its arguments and calls it; ours runs on a copy of the batch as it
+// was, with the resize noted and answered by the vector's words as the
+// game's left them, and the fill only noted. Compared: the batch's 0x40
+// bytes, the answer, whether and to what size the vector was resized (and,
+// with no fill, the value against the game's first new element) and the
+// fills' arguments; a resize is recorded as <id>.grown.
+//
+// OPENSC4_EFFECT_FORCE_BATCH=1 (compare mode only) compares each switch in
+// compare mode before every running effect's draw on made-up batches
+// (IbForce).
+StepMode g_batchClearMode = StepMode::Original, g_batchAddQuadsMode = StepMode::Original,
+         g_batchAddVerticesMode = StepMode::Original;
+Call0Fn g_SC4IndexBatch_Clear = nullptr;
+Call1Fn g_SC4IndexBatch_AddQuads = nullptr, g_SC4IndexBatch_AddVertices = nullptr;
+bool g_ibForce = false;
+
+constexpr std::size_t kIndexBatchBytes = 0x40;
+
+// The game's fills while an add is compared: the real fill and its calls.
+uint32_t g_ibFillReal = 0;
+std::vector<std::array<uint32_t, 4>>* g_ibFillNotes = nullptr;
+
+void __cdecl IbFillNoted(uint32_t begin, uint32_t from, uint32_t to)
+{
+    g_ibFillNotes->push_back({g_ibFillReal, begin, from, to});
+    IbFill(g_ibFillReal, begin, from, to);
+}
+
+std::string IbText(const char* batch, uint32_t answer, bool resized, uint32_t at, uint32_t size, uint32_t value,
+                   const std::vector<std::array<uint32_t, 4>>& fills)
+{
+    char text[96];
+    std::snprintf(text, sizeof text, "answer %08X, ", answer);
+    std::string result = text + Hex(batch, kIndexBatchBytes);
+    if (resized) {
+        std::snprintf(text, sizeof text, ", resized +%X to %X with %X", at, size, value);
+        result += text;
+    }
+    for (const auto& fill : fills) {
+        std::snprintf(text, sizeof text, ", fill %08X (%08X, %X, %X)", fill[0], fill[1], fill[2], fill[3]);
+        result += text;
+    }
+    return result;
+}
+
+// An add compared on `batch` (the indices' when `indices`, else the
+// vertices'); answers the game's.
+uint32_t IbAddCompared(const char* id, char* batch, uint32_t quads, bool indices)
+{
+    const std::size_t vector = indices ? 0x2C : 0x14, fillAt = indices ? 0x3C : 0x28, element = indices ? 2 : 1;
+    char before[kIndexBatchBytes], after[kIndexBatchBytes], mine[kIndexBatchBytes];
+    std::memcpy(before, batch, sizeof before);
+    std::vector<std::array<uint32_t, 4>> gameFills, ourFills;
+    const uint32_t realFill = At<uint32_t>(batch, fillAt);
+    const uint32_t outerFill = g_ibFillReal;
+    auto* const outerNotes = g_ibFillNotes;
+    g_ibFillReal = realFill;
+    g_ibFillNotes = &gameFills;
+    if (realFill)
+        At<uint32_t>(batch, fillAt) = reinterpret_cast<uint32_t>(&IbFillNoted);
+    const uint32_t result = (indices ? g_SC4IndexBatch_AddQuads : g_SC4IndexBatch_AddVertices)(batch, nullptr, quads);
+    At<uint32_t>(batch, fillAt) = realFill;
+    g_ibFillReal = outerFill;
+    g_ibFillNotes = outerNotes;
+    std::memcpy(after, batch, sizeof after);
+    const bool grew = std::memcmp(before + vector, after + vector, 12) != 0;
+    const auto elements = [&](char* words) {
+        const int32_t bytes = static_cast<int32_t>(At<uint32_t>(words, vector + 4) - At<uint32_t>(words, vector));
+        return static_cast<uint32_t>(indices ? bytes >> 1 : bytes);
+    };
+
+    std::memcpy(mine, before, sizeof mine);
+    bool resized = false;
+    uint32_t resizedAt = 0, resizedTo = 0, resizedWith = 0;
+    const auto resize = [&](char* words, uint32_t size, auto value) {
+        resized = true;
+        resizedAt = static_cast<uint32_t>(words - mine);
+        resizedTo = size;
+        resizedWith = value;
+        if (grew)
+            std::memcpy(mine + vector, after + vector, 12);
+    };
+    const auto fill = [&](uint32_t fn, uint32_t begin, uint32_t from, uint32_t to) {
+        ourFills.push_back({fn, begin, from, to});
+    };
+    const uint32_t ours =
+        indices ? IbAddQuadsWith(mine, quads, resize, fill) : IbAddVerticesWith(mine, quads, resize, fill);
+
+    // The game's resize gave the new size and, with no fill after it, the
+    // value of the new elements.
+    const uint32_t gameTo = grew ? elements(after) : 0;
+    uint32_t gameWith = resizedWith;
+    if (grew && !realFill && gameTo > elements(before)) {
+        const uint32_t first = At<uint32_t>(after, vector) + elements(before) * element;
+        gameWith = indices ? M<uint16_t>(first) : M<uint8_t>(first);
+    }
+    const bool same = resized == grew && (!grew || (resizedAt == vector && resizedTo == gameTo && resizedWith == gameWith)) &&
+                      ours == result && gameFills == ourFills && std::memcmp(mine, after, sizeof mine) == 0;
+    compare::Record(grew ? (std::string(id) + ".grown").c_str() : id, same,
+                    same ? std::string() : IbText(after, result, grew, static_cast<uint32_t>(vector), gameTo, gameWith, gameFills),
+                    same ? std::string() : IbText(mine, ours, resized, resizedAt, resizedTo, resizedWith, ourFills));
+    return result;
+}
+
+// The clear compared: ours on a copy, the game's on the batch.
+uint32_t IbClearCompared(const char* id, char* batch)
+{
+    char mine[kIndexBatchBytes];
+    std::memcpy(mine, batch, sizeof mine);
+    const uint32_t answer = IbClear(mine);
+    const uint32_t result = g_SC4IndexBatch_Clear(batch, nullptr);
+    const bool same = answer == result && std::memcmp(mine, batch, sizeof mine) == 0;
+    compare::Record(id, same, same ? std::string() : Hex(batch, sizeof mine),
+                    same ? std::string() : Hex(mine, sizeof mine));
+    return result;
+}
+
+uint32_t __fastcall IbClearByMode(char* batch, void*)
+{
+    if (g_batchClearMode == StepMode::Ours)
+        return IbClear(batch);
+    if (g_batchClearMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4IndexBatch_Clear(batch, nullptr);
+    return IbClearCompared("effects.batch_clear", batch);
+}
+OPENSC4_THUNK(TIbClear, IbClearByMode, 0)
+
+uint32_t __fastcall IbAddQuadsByMode(char* batch, void*, uint32_t quads)
+{
+    if (g_batchAddQuadsMode == StepMode::Ours)
+        return IbAddQuads(batch, quads);
+    if (g_batchAddQuadsMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4IndexBatch_AddQuads(batch, nullptr, quads);
+    return IbAddCompared("effects.batch_add_quads", batch, quads, true);
+}
+OPENSC4_THUNK(TIbAddQuads, IbAddQuadsByMode, 4)
+
+uint32_t __fastcall IbAddVerticesByMode(char* batch, void*, uint32_t quads)
+{
+    if (g_batchAddVerticesMode == StepMode::Ours)
+        return IbAddVertices(batch, quads);
+    if (g_batchAddVerticesMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4IndexBatch_AddVertices(batch, nullptr, quads);
+    return IbAddCompared("effects.batch_add_vertices", batch, quads, false);
+}
+OPENSC4_THUNK(TIbAddVertices, IbAddVerticesByMode, 4)
+
+// A made-up fill for the forced batches: each 16-bit index (the indices')
+// or byte (the vertices') from `from` to `to` gets its number and a mark.
+void __cdecl IbFillIndicesMadeUp(uint32_t begin, uint32_t from, uint32_t to)
+{
+    for (uint32_t i = from; i < to; ++i)
+        M<uint16_t>(begin + i * 2) = static_cast<uint16_t>(i ^ 0x5A00u);
+}
+
+void __cdecl IbFillVerticesMadeUp(uint32_t begin, uint32_t from, uint32_t to)
+{
+    for (uint32_t i = from; i < to; ++i)
+        M<uint8_t>(begin + i) = static_cast<uint8_t>(i ^ 0xC3u);
+}
+
+// Forcing, before each running effect's draw (DwEffectDrawByMode): for
+// each switch in compare mode, in turn of a counter (k).
+// - The clear: the effect's own batch (+0x28) copied, and made-up ones
+//   filled with 0xA5, 0xFF and counting bytes.
+// - The adds: a made-up batch (counting bytes) of 4, 3 or 1 vertices of
+//   0x20, 0x18 or 0x1C bytes and 6, 4 or 3 indices to a quad, counts of 0, 5
+//   or 0x600, a made-up fill or none, adding 0, 1, 2, 7 or 64 quads three
+//   times: to empty vectors (the resize takes memory), after the vectors are
+//   cut to half their size (it grows in place) and after the counts are
+//   zeroed (no resize unless it adds more than the first did). The vectors'
+//   memory is given back after (0x0090CF63).
+void IbForce(char* self)
+{
+    if (!g_ibForce || g_effectRecord || g_effectReplay || !At<uint8_t>(self, 9))
+        return;
+    static uint32_t turn = 0;
+    const uint32_t k = turn++;
+    if (g_batchClearMode == StepMode::Compare) {
+        char batch[kIndexBatchBytes];
+        const uint32_t kind = k % 4;
+        if (kind == 0)
+            std::memcpy(batch, self + 0x28, sizeof batch);
+        else if (kind == 3)
+            for (std::size_t i = 0; i < sizeof batch; ++i)
+                batch[i] = static_cast<char>(i + 1);
+        else
+            std::memset(batch, kind == 2 ? 0xFF : 0xA5, sizeof batch);
+        IbClearCompared("effects.batch_clear.forced", batch);
+    }
+    for (const bool indices : {true, false}) {
+        if ((indices ? g_batchAddQuadsMode : g_batchAddVerticesMode) != StepMode::Compare)
+            continue;
+        static const uint32_t perQuad[2][3] = {{6, 4, 3}, {4, 3, 1}};
+        static const uint32_t strides[3] = {0x20, 0x18, 0x1C};
+        static const uint32_t counts[3] = {0, 5, 0x600};
+        static const uint32_t quads[5] = {0, 1, 2, 7, 64};
+        char batch[kIndexBatchBytes];
+        for (std::size_t i = 0; i < sizeof batch; ++i)
+            batch[i] = static_cast<char>(0x40 + i);
+        const std::size_t vector = indices ? 0x2C : 0x14, count = indices ? 0x38 : 0x24, fillAt = indices ? 0x3C : 0x28;
+        At<uint32_t>(batch, indices ? 0xC : 8) = perQuad[indices ? 0 : 1][k % 3];
+        At<uint32_t>(batch, 0x20) = strides[k / 3 % 3];
+        At<uint32_t>(batch, count) = counts[k / 9 % 3];
+        At<uint32_t>(batch, fillAt) =
+            k / 27 % 2 ? reinterpret_cast<uint32_t>(indices ? &IbFillIndicesMadeUp : &IbFillVerticesMadeUp) : 0;
+        for (const std::size_t words : {vector, vector + 4, vector + 8})
+            At<uint32_t>(batch, words) = 0;
+        const char* const id = indices ? "effects.batch_add_quads.forced" : "effects.batch_add_vertices.forced";
+        IbAddCompared(id, batch, quads[k / 54 % 5], indices);
+        const uint32_t half = (At<uint32_t>(batch, vector + 4) - At<uint32_t>(batch, vector)) / 2;
+        At<uint32_t>(batch, vector + 4) = At<uint32_t>(batch, vector) + (indices ? half & ~1u : half);
+        IbAddCompared(id, batch, quads[(k / 54 + 1) % 5], indices);
+        At<uint32_t>(batch, count) = 0;
+        IbAddCompared(id, batch, quads[(k / 54 + 2) % 5], indices);
+        if (At<uint32_t>(batch, vector))
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(Ptr(At<uint32_t>(batch, vector)));
+    }
+}
+
+bool IbHookForce()
+{
+    const char* v = std::getenv("OPENSC4_EFFECT_FORCE_BATCH");
+    if (!v || *v != '1')
+        return true;
+    if (!DwHookEffectDraw())
+        return false;
+    if (!g_ibForce)
+        log::Write("water effects: the index batch's clear and adds forced before each effect's draw");
+    g_ibForce = true;
+    return true;
+}
+
+bool InstallBatchClear(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_batchClearMode, addr::SC4IndexBatch_Clear, &TIbClear, &g_SC4IndexBatch_Clear,
+                   "the index batch's clear"))
+        return false;
+    g_batchClearOurs = mode == registry::Mode::Ours;
+    return mode != registry::Mode::Compare || IbHookForce();
+}
+
+bool InstallBatchAddQuads(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_batchAddQuadsMode, addr::SC4IndexBatch_AddQuads, &TIbAddQuads, &g_SC4IndexBatch_AddQuads,
+                   "the index batch's add of quads"))
+        return false;
+    g_batchAddQuadsOurs = mode == registry::Mode::Ours;
+    return mode != registry::Mode::Compare || IbHookForce();
+}
+
+bool InstallBatchAddVertices(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_batchAddVerticesMode, addr::SC4IndexBatch_AddVertices, &TIbAddVertices,
+                   &g_SC4IndexBatch_AddVertices, "the index batch's add of vertices"))
+        return false;
+    g_batchAddVerticesOurs = mode == registry::Mode::Ours;
+    return mode != registry::Mode::Compare || IbHookForce();
+}
+
+const bool g_registeredBatchClear = registry::Register({
+    "renderer.effects.batch_clear",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4IndexBatch_Clear,
+    "The index batch's clear (0x005EC4A0): its vertex and index counts zeroed, before the particle draws fill it; "
+    "compare mode runs ours on a copy, OPENSC4_EFFECT_FORCE_BATCH=1 forces it on made-up batches before each "
+    "running effect's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallBatchClear,
+});
+
+const bool g_registeredBatchAddQuads = registry::Register({
+    "renderer.effects.batch_add_quads",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4IndexBatch_AddQuads,
+    "The index batch's add of quads' indices (0x005EC850): the index count raised, the indices resized and filled "
+    "when short; compare mode runs the game's for real and ours on a copy with its resize answered by the game's, "
+    "OPENSC4_EFFECT_FORCE_BATCH=1 forces it on made-up batches before each running effect's draw "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallBatchAddQuads,
+});
+
+const bool g_registeredBatchAddVertices = registry::Register({
+    "renderer.effects.batch_add_vertices",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4IndexBatch_AddVertices,
+    "The index batch's add of quads' vertices (0x005EC8C0): the vertex count raised, the vertices resized and "
+    "filled when short; compare mode runs the game's for real and ours on a copy with its resize answered by the "
+    "game's, OPENSC4_EFFECT_FORCE_BATCH=1 forces it on made-up batches before each running effect's draw "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallBatchAddVertices,
 });
 
 } // namespace
