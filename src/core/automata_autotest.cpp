@@ -579,6 +579,30 @@
 //   inputs drawn from the test's own generator after the set cases. pflags
 //   0x100 when it ran, 0x200 without a city, the list allocator or the
 //   pedestrian. Log line: "ped2b pwalks".
+//   Part ped3 (the one-shot and the riot police) adds `,<pcrews>` before
+//   pflags (56 fields): one one-shot and one riot police from their
+//   factories on vtable copies whose slots 13, 16, 30, 31, 33, 83, 158 and
+//   174 (the occupant part's 5 and 6, the +0x20 part's 3) are the test's,
+//   with the automaton base's Init and Shutdown, the pedestrian's frame,
+//   SetStart, SwapModel and the core's slot 74 jumped to the test's stubs
+//   for the while; the city's slots 40 (the map: 18 the height), 47 (the
+//   sounds), 93, 94 and 95 and the message server the test's for its own
+//   thread (another thread gets the real ones), the camera view's
+//   direction set in the game's object for the while; a car of the
+//   test's (slots 7, 12, 15, 26, 137, 143).
+//   The one-shot's Init (the part's and the base's answers, the property
+//   and its bytes, the models) and frame (the models' frames, the count);
+//   the riot police's Init (the missions 5 over the level's bounds, a NaN
+//   and a bound, 1 and others; the sounds, the manager and what it finds),
+//   Shutdown, frame (the flag 1, the missions, the levels, the models),
+//   slot 74 (a NaN and -0 camera), the message helper and the clamp at
+//   their addresses, and the dispatch over 40 cases (the car's point far,
+//   within 1e-5, on it, a NaN; transforms identity, turned, skewed and
+//   scaled, a NaN and an infinity; no occupant; the cell in and out of the
+//   rectangle; the city's edges) and 128 drawn (64 of them about the
+//   origin, where the low bits show). Each posted message's flags, type,
+//   four words and object (by name). pflags 0x400 when it ran, 0x800
+//   without a city, a factory or the patches. Log line: "ped3 pcrews".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -29714,6 +29738,816 @@ void PedWalksDrive(Hash& pwalks, uint32_t& pflags)
     g_ped2 = Ped2Answers{};
 }
 
+// ---- Part ped3: the one-shot and the riot police (src/core/automata_pedestrians.cpp).
+
+// A test object of the ped3 test's: its vtable and a count.
+struct CrewObject {
+    void** vtable;
+    int32_t references;
+    uint32_t pad[16];
+};
+
+// The test's car: its vtable, its occupant part (+4, which the messages
+// hold) and their one count.
+struct CrewCar {
+    void** vtable;
+    void** part;
+    int32_t references;
+};
+
+// What the ped3 test's slots, stubs and objects answer and record (the
+// ped2a and ped2b stubs it shares record into their own calls).
+struct CrewAnswers {
+    Hash calls;
+    char* self = nullptr;
+    CrewCar* car = nullptr;
+    uint8_t initialised = 0;  // the occupant part's slot 5
+    uint8_t pedFrame = 1;     // the pedestrian frame's stub
+    uint32_t mission = 0;     // the car's slot 26
+    void* holder = nullptr;   // the occupant part's slot 6
+    void* property = nullptr; // the holder's slot 9
+    void* value = nullptr;    // the property's slot 5
+    uint8_t bytes[4] = {};    // the value's slot 95
+    uint32_t count = 0;       // the value's slot 4
+    void* sounds = nullptr;   // the city's slot 47
+    void* manager = nullptr;  // slot 174
+    char* found = nullptr;    // its slot 44
+    float position[3] = {};   // the car's slot 7
+    float point[3] = {};      // its slot 143
+    float heading[3] = {};    // its slot 15
+    float transform[13] = {}; // its slot 12 (the matrix, the point, the scale)
+    bool transformWrites = true;
+    void* occupant = nullptr; // its slot 137
+    double height = 0.0;      // the map's slot 18
+    int32_t cells[2] = {};    // the city's slots 93 and 94
+    int32_t mapReferences = 0;
+    uint32_t posts = 0;
+};
+CrewAnswers g_crew;
+
+uint32_t CrewName(const void* p)
+{
+    if (!p)
+        return 0;
+    if (g_crew.self && p == g_crew.self + 4)
+        return 1;
+    if (g_crew.car && p == reinterpret_cast<const char*>(g_crew.car) + 4)
+        return 2;
+    return 3;
+}
+
+// The swapped city slots and message server serve only the test's thread:
+// another thread of the game calling them meanwhile gets the real ones (the
+// swap is for everyone, and a call from elsewhere must neither reach the
+// test's objects nor go into its record).
+extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId();
+unsigned long g_crewThread = 0;
+void** g_crewRealCity = nullptr;
+void* g_crewRealServer = nullptr;
+bool CrewForeign() { return GetCurrentThreadId() != g_crewThread; }
+template <typename R, typename... Args>
+R CrewRealCity(void* city, std::size_t at, Args... args)
+{
+    return reinterpret_cast<R(__thiscall*)(void*, Args...)>(g_crewRealCity[at / 4])(city, args...);
+}
+
+// The test's six distinct words for the message helper at its address.
+constexpr uint32_t kCrewWords[6] = {0x5151A001u, 0x5151A002u, 0x5151A003u, 0x5151A004u, 0x5151A005u, 0x5151A006u};
+
+// The riot police's and the one-shot's slots.
+uint32_t __fastcall CrewPlace(char*, void*, const float* point, const float* heading)
+{
+    g_crew.calls.Mix(16);
+    g_crew.calls.Mix(point ? 1u : 0u);
+    if (point)
+        g_crew.calls.MixBytes(point, 12);
+    g_crew.calls.MixBytes(heading, 12);
+    return 0;
+}
+uint32_t __fastcall CrewFade(char*, void*, float a, float b)
+{
+    g_crew.calls.Mix(33);
+    g_crew.calls.Mix(Bits(a));
+    g_crew.calls.Mix(Bits(b));
+    return 0;
+}
+uint32_t __fastcall CrewSlot83(char*, void*, float seconds)
+{
+    g_crew.calls.Mix(83);
+    g_crew.calls.Mix(Bits(seconds));
+    return 0;
+}
+void* __fastcall CrewManager(char*, void*)
+{
+    g_crew.calls.Mix(174);
+    return g_crew.manager;
+}
+uint8_t __fastcall CrewInitialised(char*, void*)
+{
+    g_crew.calls.Mix(5);
+    return g_crew.initialised;
+}
+void* __fastcall CrewHolder(char*, void*)
+{
+    g_crew.calls.Mix(6);
+    return g_crew.holder;
+}
+uint32_t __fastcall CrewPart20(char*, void*, uint32_t word)
+{
+    g_crew.calls.Mix(0x203);
+    g_crew.calls.Mix(word);
+    return 0;
+}
+
+// The stubs jumped to from the game's code.
+uint32_t __fastcall CrewPedFrame(char*, void*, uint32_t word, float seconds)
+{
+    g_crew.calls.Mix(0x580);
+    g_crew.calls.Mix(word);
+    g_crew.calls.Mix(Bits(seconds));
+    return g_crew.pedFrame;
+}
+uint32_t __fastcall CrewSetStart(char*, void*, const uint32_t* key)
+{
+    g_crew.calls.Mix(0x360);
+    g_crew.calls.MixBytes(key, 12);
+    return 1;
+}
+void __fastcall CrewSwapModel(char*, void*, void* model, const uint32_t* key)
+{
+    g_crew.calls.Mix(0x620);
+    g_crew.calls.Mix(model ? static_cast<Ped2Object*>(model)->word : 0u);
+    g_crew.calls.MixBytes(key, 12);
+}
+void __fastcall CrewZoom(char*, void*, uint32_t zoom, uint32_t rotation)
+{
+    g_crew.calls.Mix(0x660);
+    g_crew.calls.Mix(zoom);
+    g_crew.calls.Mix(rotation);
+}
+uint32_t __fastcall CrewBaseShutdown(char*, void*)
+{
+    g_crew.calls.Mix(0x310);
+    return 0x5D;
+}
+
+// The objects' slots.
+uint32_t __fastcall CrewAddRef(CrewObject* o, void*) { return static_cast<uint32_t>(++o->references); }
+uint32_t __fastcall CrewCarAddRef(CrewCar* o, void*) { return static_cast<uint32_t>(++o->references); }
+uint32_t __fastcall CrewCarRelease(CrewCar* o, void*) { return static_cast<uint32_t>(--o->references); }
+uint32_t __fastcall CrewPartAddRef(char* part, void*) { return static_cast<uint32_t>(++At<int32_t>(part, 4)); }
+uint32_t __fastcall CrewPartRelease(char* part, void*) { return static_cast<uint32_t>(--At<int32_t>(part, 4)); }
+void** CrewPartVtable()
+{
+    static void* t[8] = {};
+    t[1] = reinterpret_cast<void*>(&CrewPartAddRef);
+    t[2] = reinterpret_cast<void*>(&CrewPartRelease);
+    return t;
+}
+uint32_t __fastcall CrewRelease(CrewObject* o, void*) { return static_cast<uint32_t>(--o->references); }
+uint32_t __fastcall CrewMapAddRef(CrewObject*, void*) { return static_cast<uint32_t>(++g_crew.mapReferences); }
+uint32_t __fastcall CrewMapRelease(CrewObject*, void*) { return static_cast<uint32_t>(--g_crew.mapReferences); }
+double __fastcall CrewHeight(CrewObject*, void*, float x, float z)
+{
+    g_crew.calls.Mix(0x418);
+    g_crew.calls.Mix(Bits(x));
+    g_crew.calls.Mix(Bits(z));
+    return g_crew.height;
+}
+void* __fastcall CrewSoundsMake(CrewObject*, void*, void* occupant, char* text, uint32_t zero)
+{
+    g_crew.calls.Mix(0x475);
+    g_crew.calls.Mix(CrewName(occupant));
+    // SC4String::FromText leaves the string's first word (its vtable) as the
+    // game's stack held it: not mixed.
+    const char* const begin = At<const char*>(text, 4);
+    const char* const end = At<const char*>(text, 8);
+    g_crew.calls.Mix(static_cast<uint32_t>(end - begin));
+    if (begin && end > begin && end - begin < 64)
+        g_crew.calls.MixBytes(begin, static_cast<std::size_t>(end - begin));
+    g_crew.calls.Mix(zero);
+    return reinterpret_cast<void*>(0x5D5D5D5D);
+}
+char* __fastcall CrewManagerFind(CrewObject*, void*, const uint32_t* key)
+{
+    g_crew.calls.Mix(0x744);
+    g_crew.calls.MixBytes(key, 12);
+    return g_crew.found;
+}
+void* __fastcall CrewGetProperty(CrewObject*, void*, uint32_t id)
+{
+    g_crew.calls.Mix(0x609);
+    g_crew.calls.Mix(id);
+    return g_crew.property;
+}
+void* __fastcall CrewPropertyValue(CrewObject*, void*)
+{
+    g_crew.calls.Mix(0x605);
+    return g_crew.value;
+}
+const uint8_t* __fastcall CrewValueBytes(CrewObject*, void*)
+{
+    g_crew.calls.Mix(0x695);
+    return g_crew.bytes;
+}
+uint32_t __fastcall CrewValueCount(CrewObject*, void*)
+{
+    g_crew.calls.Mix(0x604);
+    return g_crew.count;
+}
+// The message server's slot 4: what the setters wrote into the message (its
+// flags, the byte +8: the three above it are the message's unset; the type
+// +0xC, the four words +0x10 to +0x1C, the object +0x24 by name).
+uint32_t __fastcall CrewPost(CrewObject*, void*, char* message, uint32_t word)
+{
+    if (CrewForeign())
+        return Virtual<uint32_t>(g_crewRealServer, ped::cslot::kPost, static_cast<void*>(message), word);
+    ++g_crew.posts;
+    g_crew.calls.Mix(0xCC);
+    g_crew.calls.Mix(message ? 1u : 0u);
+    if (message) {
+        g_crew.calls.Mix(At<uint8_t>(message, 8));
+        g_crew.calls.MixBytes(message + 0xC, 0x14);
+        g_crew.calls.Mix(CrewName(At<void*>(message, 0x24)));
+    }
+    g_crew.calls.Mix(word);
+    return 1;
+}
+// The car's.
+uint32_t __fastcall CrewCarPosition(CrewObject*, void*, float* out)
+{
+    g_crew.calls.Mix(0x807);
+    g_crew.calls.MixBytes(out, 12);
+    for (int i = 0; i < 3; ++i)
+        out[i] = g_crew.position[i];
+    return 0;
+}
+uint32_t __fastcall CrewCarTransform(CrewObject*, void*, char* t)
+{
+    g_crew.calls.Mix(0x812);
+    g_crew.calls.MixBytes(t, 2); // the bytes 2 and 3 are the game's unset
+    g_crew.calls.MixBytes(t + 4, 0x34);
+    if (g_crew.transformWrites)
+        std::memcpy(t + 4, g_crew.transform, sizeof g_crew.transform);
+    return 0;
+}
+uint32_t __fastcall CrewCarHeading(CrewObject*, void*, float* out)
+{
+    g_crew.calls.Mix(0x815);
+    g_crew.calls.MixBytes(out, 12);
+    for (int i = 0; i < 3; ++i)
+        out[i] = g_crew.heading[i];
+    return 0;
+}
+uint32_t __fastcall CrewCarMission(CrewObject*, void*)
+{
+    g_crew.calls.Mix(0x826);
+    return g_crew.mission;
+}
+void* __fastcall CrewCarOccupant(CrewObject*, void*)
+{
+    g_crew.calls.Mix(0x937);
+    return g_crew.occupant;
+}
+const float* __fastcall CrewCarPoint(CrewObject*, void*)
+{
+    g_crew.calls.Mix(0x943);
+    return g_crew.point;
+}
+// The city's.
+CrewObject g_crewMap{};
+void* __fastcall CrewCityMap(void* city, void*)
+{
+    if (CrewForeign())
+        return CrewRealCity<void*>(city, ped::wslot::kCityNetwork);
+    g_crew.calls.Mix(40);
+    return &g_crewMap;
+}
+void* __fastcall CrewCitySounds(void* city, void*)
+{
+    if (CrewForeign())
+        return CrewRealCity<void*>(city, ped::cslot::kCitySounds);
+    g_crew.calls.Mix(47);
+    return g_crew.sounds;
+}
+uint32_t __fastcall CrewCellsX(void* city, void*)
+{
+    if (CrewForeign())
+        return CrewRealCity<uint32_t>(city, ped::cslot::kCityCellsX);
+    g_crew.calls.Mix(93);
+    return static_cast<uint32_t>(g_crew.cells[0]);
+}
+uint32_t __fastcall CrewCellsZ(void* city, void*)
+{
+    if (CrewForeign())
+        return CrewRealCity<uint32_t>(city, ped::cslot::kCityCellsZ);
+    g_crew.calls.Mix(94);
+    return static_cast<uint32_t>(g_crew.cells[1]);
+}
+uint32_t __fastcall CrewCellOf(void* city, void*, float x, float z, int32_t* cellX, int32_t* cellZ)
+{
+    if (CrewForeign())
+        return CrewRealCity<uint32_t>(city, ped::wslot::kCellOf, x, z, cellX, cellZ);
+    return WalkCellOf(city, nullptr, x, z, cellX, cellZ);
+}
+
+template <int Kind>
+void** CrewVtable()
+{
+    static void* t[160] = {};
+    t[1] = reinterpret_cast<void*>(&CrewAddRef);
+    t[2] = reinterpret_cast<void*>(&CrewRelease);
+    namespace c = ped::cslot;
+    switch (Kind) {
+    case 0: // the map
+        t[1] = reinterpret_cast<void*>(&CrewMapAddRef);
+        t[2] = reinterpret_cast<void*>(&CrewMapRelease);
+        t[c::kMapHeight / 4] = reinterpret_cast<void*>(&CrewHeight);
+        break;
+    case 1: // the sounds
+        t[c::kSoundsMake / 4] = reinterpret_cast<void*>(&CrewSoundsMake);
+        break;
+    case 2: // the manager
+        t[c::kManagerFind / 4] = reinterpret_cast<void*>(&CrewManagerFind);
+        break;
+    case 3: // the property holder
+        t[c::kGetProperty / 4] = reinterpret_cast<void*>(&CrewGetProperty);
+        break;
+    case 4: // the property
+        t[c::kPropertyValue / 4] = reinterpret_cast<void*>(&CrewPropertyValue);
+        break;
+    case 5: // its value
+        t[c::kValueCount / 4] = reinterpret_cast<void*>(&CrewValueCount);
+        t[c::kValueBytes / 4] = reinterpret_cast<void*>(&CrewValueBytes);
+        break;
+    case 6: // the message server
+        t[c::kPost / 4] = reinterpret_cast<void*>(&CrewPost);
+        break;
+    default: // the car
+        t[1] = reinterpret_cast<void*>(&CrewCarAddRef);
+        t[2] = reinterpret_cast<void*>(&CrewCarRelease);
+        t[c::kCarPosition / 4] = reinterpret_cast<void*>(&CrewCarPosition);
+        t[c::kCarTransform / 4] = reinterpret_cast<void*>(&CrewCarTransform);
+        t[c::kCarHeading / 4] = reinterpret_cast<void*>(&CrewCarHeading);
+        t[c::kMission / 4] = reinterpret_cast<void*>(&CrewCarMission);
+        t[c::kCarOccupant / 4] = reinterpret_cast<void*>(&CrewCarOccupant);
+        t[c::kCarPoint / 4] = reinterpret_cast<void*>(&CrewCarPoint);
+        break;
+    }
+    return t;
+}
+
+CrewObject CrewMake(void** vtable)
+{
+    CrewObject o{};
+    o.vtable = vtable;
+    o.references = 1;
+    return o;
+}
+
+// A crew's main vtable copied (`count` slots) with the test's slots, its
+// occupant part's (+4) with slots 5 and 6 and its +0x20 part's with slot 3.
+void** CrewTable(char* o, int count, void** (&parts)[2])
+{
+    static void* tables[2][200];
+    static void* partTables[2][2][40];
+    const int i = count == 179 ? 0 : 1;
+    void** const t = tables[i];
+    void** const real = At<void**>(o, 0);
+    for (int k = 0; k < count; ++k)
+        t[k] = real[k];
+    namespace w = ped::wslot;
+    namespace s = ped::pslot;
+    t[w::kRemove / 4] = reinterpret_cast<void*>(&WalkRemove);
+    t[w::kPlace / 4] = reinterpret_cast<void*>(&CrewPlace);
+    t[s::kSetFlag / 4] = reinterpret_cast<void*>(&Ped2SetFlag);
+    t[s::kCheckFlag / 4] = reinterpret_cast<void*>(&Ped2CheckFlag);
+    t[ped::cslot::kFade / 4] = reinterpret_cast<void*>(&CrewFade);
+    t[ped::cslot::kSlot83 / 4] = reinterpret_cast<void*>(&CrewSlot83);
+    t[s::kSlot158 / 4] = reinterpret_cast<void*>(&Ped2Slot158);
+    t[w::kPedestrianManager / 4] = reinterpret_cast<void*>(&CrewManager);
+    void** const part = partTables[i][0];
+    void** const realPart = At<void**>(o, 4);
+    for (int k = 0; k < 34; ++k)
+        part[k] = realPart[k];
+    part[s::kIsInitialised / 4] = reinterpret_cast<void*>(&CrewInitialised);
+    part[ped::cslot::kPropertyHolder / 4] = reinterpret_cast<void*>(&CrewHolder);
+    void** const part20 = partTables[i][1];
+    void** const real20 = At<void**>(o, 0x20);
+    for (int k = 0; k < 8; ++k)
+        part20[k] = real20[k];
+    part20[ped::cslot::kPart20Set / 4] = reinterpret_cast<void*>(&CrewPart20);
+    parts[0] = part;
+    parts[1] = part20;
+    return t;
+}
+
+// A section's hashes so far, for the log.
+void CrewSection(const char* name, const Hash& pcrews)
+{
+    log::Write("autotest: automata: vehicle: ped3 %s: pcrews %08X calls %08X %08X %08X posts %u", name, pcrews.h,
+               g_crew.calls.h, g_ped2.calls.h, g_walk.calls.h, g_crew.posts);
+}
+
+void PedCrewsDrive(Hash& pcrews, uint32_t& pflags)
+{
+    g_ped2 = Ped2Answers{};
+    g_walk = WalkAnswers{};
+    g_crew = CrewAnswers{};
+    void* const city = Global<void*>(addr::SC4_City);
+    char* const one = city ? MakePed(1, pflags) : nullptr;
+    char* const riot = city ? MakePed(2, pflags) : nullptr;
+    if (!one || !riot) {
+        pflags |= 0x800;
+        ReleasePed(one);
+        ReleasePed(riot);
+        log::Write("autotest: automata: vehicle: ped3: no city or a factory failed");
+        return;
+    }
+    namespace b = ped::base;
+    namespace c = ped::crew;
+    void** const realOne[3] = {At<void**>(one, 0), At<void**>(one, 4), At<void**>(one, 0x20)};
+    void** const realRiot[3] = {At<void**>(riot, 0), At<void**>(riot, 4), At<void**>(riot, 0x20)};
+    char* const savedModels[2][2] = {{At<char*>(one, b::kModels), At<char*>(one, b::kModelsEnd)},
+                                     {At<char*>(riot, b::kModels), At<char*>(riot, b::kModelsEnd)}};
+    bool ran = false;
+    {
+        Em4Jump jumps[] = {
+            {addr::cSC4AutomatonBase_Init, reinterpret_cast<void*>(&Ped2BaseInit)},
+            {addr::cSC4Pedestrian_Frame, reinterpret_cast<void*>(&CrewPedFrame)},
+            {addr::SC4Automaton_SetStart, reinterpret_cast<void*>(&CrewSetStart)},
+            {addr::cSC4AutomatonCore_SwapModel, reinterpret_cast<void*>(&CrewSwapModel)},
+            {addr::cSC4AutomatonCore_SetZoomAndRotation, reinterpret_cast<void*>(&CrewZoom)},
+            {addr::cSC4AutomatonBase_Shutdown, reinterpret_cast<void*>(&CrewBaseShutdown)},
+        };
+        bool patched = true;
+        for (const Em4Jump& j : jumps)
+            patched = patched && j.written;
+        if (patched) {
+            ran = true;
+            // The vtables, the city's copy, the camera view, the message
+            // server and the globals the test sets.
+            void** parts[2];
+            At<void**>(one, 0) = CrewTable(one, 179, parts);
+            At<void**>(one, 4) = parts[0];
+            At<void**>(one, 0x20) = parts[1];
+            At<void**>(riot, 0) = CrewTable(riot, 177, parts);
+            At<void**>(riot, 4) = parts[0];
+            At<void**>(riot, 0x20) = parts[1];
+            static void* cityTable[256];
+            void** const realCity = At<void**>(city, 0);
+            for (int i = 0; i < 256; ++i)
+                cityTable[i] = realCity[i];
+            namespace cs = ped::cslot;
+            cityTable[ped::wslot::kCityNetwork / 4] = reinterpret_cast<void*>(&CrewCityMap);
+            cityTable[cs::kCitySounds / 4] = reinterpret_cast<void*>(&CrewCitySounds);
+            cityTable[cs::kCityCellsX / 4] = reinterpret_cast<void*>(&CrewCellsX);
+            cityTable[cs::kCityCellsZ / 4] = reinterpret_cast<void*>(&CrewCellsZ);
+            cityTable[ped::wslot::kCellOf / 4] = reinterpret_cast<void*>(&CrewCellOf);
+            g_crewThread = GetCurrentThreadId();
+            g_crewRealCity = realCity;
+            g_crewRealServer = Global<void*>(addr::SC4_MessageServer);
+            At<void**>(city, 0) = cityTable;
+            g_crewMap = CrewMake(CrewVtable<0>());
+            CrewObject sounds = CrewMake(CrewVtable<1>());
+            CrewObject manager = CrewMake(CrewVtable<2>());
+            CrewObject holder = CrewMake(CrewVtable<3>());
+            CrewObject property = CrewMake(CrewVtable<4>());
+            CrewObject value = CrewMake(CrewVtable<5>());
+            CrewObject server = CrewMake(CrewVtable<6>());
+            CrewCar car{CrewVtable<7>(), CrewPartVtable(), 1};
+            alignas(4) static char found[0x40];
+            At<uint32_t>(found, 0x30) = 0x30303030u;
+            RfSwap swapServer(addr::SC4_MessageServer, &server);
+            // The camera view's direction set for the while in the game's
+            // own object (another thread may call it meanwhile, so it is not
+            // swapped for a fake); a buffer of the test's without one.
+            alignas(4) static char cameraBuffer[0x60];
+            char* const camera =
+                Global<char*>(addr::SC4_CameraView) ? Global<char*>(addr::SC4_CameraView) : cameraBuffer;
+            RfSwap swapCamera(addr::SC4_CameraView, camera);
+            float savedDirection[3];
+            std::memcpy(savedDirection, camera + ped::cslot::kCameraDirection, sizeof savedDirection);
+            uint8_t* const counts = reinterpret_cast<uint8_t*>(addr::cSC4PedestrianOneShot_CountLow);
+            const uint8_t savedCounts[2] = {counts[0], counts[1]};
+            float* const levels = reinterpret_cast<float*>(addr::cSC4RiotPolice_Levels);
+            const float savedLevels[3] = {levels[0], levels[1], levels[2]};
+            g_crew.car = &car;
+            g_crew.value = &value;
+            WalkLcg lcg{0x3C4EED};
+            Ped2Object models[3] = {Ped2Make(Ped2ModelVtable(), 1, 0x61), Ped2Make(Ped2ModelVtable(), 1, 0x62),
+                                    Ped2Make(Ped2ModelVtable(), 1, 0x63)};
+            static void* list[4];
+            auto setModels = [&](char* o, int kind) {
+                int n = 0;
+                switch (kind) {
+                case 0:
+                    break;
+                case 1: // a null one first
+                    list[n++] = nullptr;
+                    list[n++] = &models[0];
+                    break;
+                case 2:
+                    list[n++] = &models[0];
+                    list[n++] = &models[1];
+                    break;
+                default:
+                    list[n++] = &models[2];
+                    break;
+                }
+                At<void**>(o, b::kModels) = list;
+                At<void**>(o, b::kModelsEnd) = list + n;
+            };
+
+            // The one-shot's Init at its address: the part's answer, the
+            // base's, the holder, the property and its value's bytes, the
+            // models.
+            g_crew.self = one;
+            g_ped2.self = one;
+            counts[0] = 3;
+            counts[1] = 7;
+            for (int k = 0; k < 36; ++k) {
+                g_crew.initialised = static_cast<uint8_t>(k & 1);
+                g_ped2.base = k % 6 == 5 ? 0 : 1;
+                g_crew.holder = nullptr;
+                g_crew.property = nullptr;
+                switch ((k / 2) % 6) {
+                case 0:
+                    break;
+                case 1: // no property
+                    g_crew.holder = &holder;
+                    break;
+                default: // a value of 0 to 3 bytes
+                    g_crew.holder = &holder;
+                    g_crew.property = &property;
+                    g_crew.count = static_cast<uint32_t>((k / 2) % 6 - 2);
+                    g_crew.bytes[0] = k % 4 == 0 ? 9 : 4;
+                    g_crew.bytes[1] = k % 4 == 0 ? 2 : 9;
+                    break;
+                }
+                if (k == 30) {
+                    counts[0] = 5;
+                    counts[1] = 5;
+                }
+                setModels(one, k % 3);
+                At<uint8_t>(one, ped::oneshot::kByte) = 0xEE;
+                pcrews.Mix(This<uint32_t>(addr::cSC4PedestrianOneShot_Init, one) & 0xFF);
+                pcrews.Mix(At<uint8_t>(one, ped::oneshot::kByte));
+            }
+            CrewSection("oneshot-init", pcrews);
+
+            // Its frame: the models (none, a null one first, the first at,
+            // before and past its last frame, no frames) and the count.
+            for (int k = 0; k < 40; ++k) {
+                setModels(one, k % 4);
+                models[0].frames = 6;
+                models[0].frame = k % 5 == 0 ? 5 : k % 5 == 1 ? 4 : k % 5 == 2 ? 6 : 3;
+                models[1].frames = 2;
+                models[1].frame = 1;
+                models[2].frames = k % 7 == 3 ? 0 : 3;
+                models[2].frame = k % 7 == 4 ? 1 : 2;
+                At<uint8_t>(one, ped::oneshot::kByte) = static_cast<uint8_t>(k % 6 == 5 ? 0xFF : (k / 4) % 3);
+                pcrews.Mix(This<uint32_t>(addr::cSC4PedestrianOneShot_Frame, one, 0x72u + k, 0.125f * (k + 1)) & 0xFF);
+                pcrews.Mix(At<uint8_t>(one, ped::oneshot::kByte));
+            }
+            setModels(one, 0);
+            CrewSection("oneshot-frame", pcrews);
+
+            // The riot police's Init: initialised, the missions 5 (the level
+            // from +0x274 against three bounds; a NaN; on a bound), 1 and
+            // others; the sounds, the manager and what it finds.
+            g_crew.self = riot;
+            g_ped2.self = riot;
+            At<CrewCar*>(riot, c::kVehicle) = &car;
+            levels[0] = 0.75f;
+            levels[1] = 0.5f;
+            levels[2] = 0.25f;
+            const float words[] = {1.0f, 0.6f, 0.3f, 0.1f, std::numeric_limits<float>::quiet_NaN(), 0.5f, 0.25f};
+            for (int k = 0; k < 42; ++k) {
+                g_crew.initialised = k % 9 == 8 ? 1 : 0;
+                g_ped2.base = k % 5 == 4 ? 0 : 1;
+                g_crew.mission = k < 28 ? 5u : k % 3 == 0 ? 1u : k % 3 == 1 ? 0u : 3u;
+                At<float>(riot, c::kWord) = words[k % 7];
+                At<uint8_t>(riot, c::kByte) = 0xEE;
+                At<uint8_t>(riot, ped::riot::kByte27A) = 0xEE;
+                g_crew.sounds = k % 4 == 3 ? nullptr : &sounds;
+                g_crew.manager = k % 6 == 1 ? nullptr : &manager;
+                g_crew.found = k % 5 == 2 ? nullptr : found;
+                g_ped2.flags = 0;
+                pcrews.Mix(This<uint32_t>(addr::cSC4RiotPolice_Init, riot) & 0xFF);
+                pcrews.Mix(At<uint8_t>(riot, c::kByte));
+                pcrews.Mix(At<uint8_t>(riot, ped::riot::kByte27A));
+                pcrews.Mix(g_ped2.flags);
+            }
+            CrewSection("riot-init", pcrews);
+
+            // Its Shutdown.
+            for (int k = 0; k < 2; ++k) {
+                g_crew.initialised = static_cast<uint8_t>(k);
+                pcrews.Mix(This<uint32_t>(addr::cSC4RiotPolice_Shutdown, riot) & 0xFF);
+            }
+            CrewSection("riot-shutdown", pcrews);
+
+            // Its frame: the flag 1, the missions, the level, +0x27A, the
+            // pedestrian frame's answer and the models.
+            for (int k = 0; k < 48; ++k) {
+                g_ped2.flags = k < 16 ? 1u : 0x20u;
+                g_crew.mission = k % 3 == 0 ? 5u : k % 3 == 1 ? 1u : 0u;
+                At<uint8_t>(riot, c::kByte) = static_cast<uint8_t>(k % 4);
+                At<uint8_t>(riot, ped::riot::kByte27A) = static_cast<uint8_t>(k % 6);
+                g_crew.pedFrame = static_cast<uint8_t>(k % 5 == 0 ? 0 : 1);
+                setModels(riot, k % 4 == 0 ? 0 : 3);
+                models[2].frames = 4;
+                models[2].frame = k % 8 < 4 ? 3 : k % 8 == 4 ? 2 : 7;
+                pcrews.Mix(This<uint32_t>(addr::cSC4RiotPolice_Frame, riot, 0x50u + k, 0.25f + k * 0.03125f) & 0xFF);
+            }
+            setModels(riot, 0);
+            CrewSection("riot-frame", pcrews);
+
+            // Slot 74: the missions, the camera's direction (a NaN, -0).
+            for (int k = 0; k < 9; ++k) {
+                g_crew.mission = k % 3 == 0 ? 1u : k % 3 == 1 ? 5u : 0u;
+                At<float>(camera, ped::cslot::kCameraDirection) = k < 3 ? 0.6f : k < 6 ? -0.0f : 0.25f;
+                At<float>(camera, ped::cslot::kCameraDirection + 4) =
+                    k < 3 ? -0.5f : k < 6 ? std::numeric_limits<float>::quiet_NaN() : 0.0f;
+                At<float>(camera, ped::cslot::kCameraDirection + 8) = k < 3 ? 0.8f : 1.0f;
+                This<uint32_t>(addr::cSC4RiotPolice_SetZoomAndRotation, riot, static_cast<uint32_t>(k), 3u - k % 4);
+            }
+            CrewSection("riot-74", pcrews);
+
+            // The message helper at its address.
+            for (int k = 0; k < 3; ++k) {
+                void* const object = k == 0 ? riot + 4 : k == 1 ? reinterpret_cast<char*>(&car) + 4 : nullptr;
+                This<uint32_t>(addr::cSC4RiotPolice_PostMessage, riot, kCrewWords[k], object, kCrewWords[1],
+                               kCrewWords[2], kCrewWords[3 + k % 3], kCrewWords[5]);
+            }
+            CrewSection("post", pcrews);
+
+            // The clamp at its address: the city's cells (one shifted past
+            // an int), points below, on and past the edges, -0 and NaNs.
+            {
+                const int32_t cells[3][2] = {{64, 32}, {0, 1}, {0x10000001, -3}};
+                const float points[][3] = {{-1.0f, 2.0f, -1.0f},      {-0.0f, 2.0f, 0.0f},
+                                           {1023.0f, 2.0f, 511.0f},   {1024.0f, 2.0f, 512.0f},
+                                           {1023.999f, 2.0f, 511.9999f}, {5000.0f, 2.0f, -3.0f},
+                                           {100.0f, 2.0f, 600.0f},    {std::numeric_limits<float>::quiet_NaN(), 2.0f,
+                                                                       std::numeric_limits<float>::infinity()}};
+                for (const auto& cell : cells)
+                    for (const auto& point : points) {
+                        g_crew.cells[0] = cell[0];
+                        g_crew.cells[1] = cell[1];
+                        float p[3] = {point[0], point[1], point[2]};
+                        This<uint32_t>(addr::cSC4RiotPolice_ClampToCity, riot, static_cast<float*>(p));
+                        pcrews.MixBytes(p, 12);
+                    }
+            }
+            CrewSection("clamp", pcrews);
+
+            // The dispatch: the mission 5 (the car's point far, within 1e-5,
+            // on its position, a NaN; the level; the edges), the mission 1
+            // (transforms: none written, the identity, turned, skewed,
+            // scaled, a NaN; no occupant; the cell in and out of the
+            // rectangle), others; then drawn.
+            g_crew.cells[0] = 64;
+            g_crew.cells[1] = 64;
+            WalkObject inner = WalkMake(WalkVtable<6>());
+            WalkObject occupant = WalkMake(WalkVtable<8>());
+            occupant.inner = &inner;
+            At<float>(camera, ped::cslot::kCameraDirection) = 0.6f;
+            At<float>(camera, ped::cslot::kCameraDirection + 4) = -0.5f;
+            At<float>(camera, ped::cslot::kCameraDirection + 8) = 0.8f;
+            auto set3 = [](float* to, float x, float y, float z) {
+                to[0] = x;
+                to[1] = y;
+                to[2] = z;
+            };
+            for (int k = 0; k < 40 + 64 + 64; ++k) {
+                const bool drawn = k >= 40;
+                const bool tiny = k >= 40 + 64; // about the origin, where the low bits show
+                g_crew.mission = drawn ? (k % 2 ? 5u : 1u) : k < 16 ? 5u : k < 36 ? 1u : k % 2 ? 0u : 2u;
+                g_crew.height = drawn ? lcg.In(0.0f, 100.0f) : 12.5 + k;
+                At<uint8_t>(riot, c::kByte) = static_cast<uint8_t>(k % 4);
+                if (drawn) {
+                    set3(g_crew.position, lcg.In(-20.0f, 1100.0f), lcg.In(0.0f, 50.0f), lcg.In(-20.0f, 1100.0f));
+                    const float spread = k % 4 == 1 ? 1e-6f : 30.0f;
+                    set3(g_crew.point, g_crew.position[0] + lcg.In(-spread, spread), g_crew.position[1] + lcg.In(-1.0f, 1.0f),
+                         g_crew.position[2] + lcg.In(-spread, spread));
+                    if (tiny) {
+                        // The point within 1e-5 of the position, neither on
+                        // the other's exponent, so the differences round.
+                        const float reach = k % 2 ? 4e-6f : 0.01f;
+                        set3(g_crew.position, lcg.In(0.0f, reach / 2), lcg.In(0.0f, reach / 2), lcg.In(0.0f, reach / 2));
+                        set3(g_crew.point, lcg.In(0.0f, reach), lcg.In(0.0f, reach), lcg.In(0.0f, reach));
+                    }
+                    set3(g_crew.heading, lcg.In(-1.0f, 1.0f), lcg.In(-0.2f, 0.2f), lcg.In(-1.0f, 1.0f));
+                    for (int i = 0; i < 9; ++i)
+                        g_crew.transform[i] = lcg.In(-1.0f, 1.0f);
+                    set3(g_crew.transform + 9, lcg.In(-5.0f, 5.0f), 0.0f, lcg.In(-5.0f, 5.0f));
+                    g_crew.transform[12] = lcg.In(0.5f, 2.0f);
+                    g_crew.transformWrites = true;
+                    g_crew.occupant = &occupant;
+                    const int32_t cx = static_cast<int32_t>(std::floor(g_crew.position[0] / 16.0f));
+                    const int32_t cz = static_cast<int32_t>(std::floor(g_crew.position[2] / 16.0f));
+                    const int32_t grow = static_cast<int32_t>(lcg.Next() >> 30);
+                    inner.rect[0] = cx - grow;
+                    inner.rect[1] = cz - grow;
+                    inner.rect[2] = cx + grow;
+                    inner.rect[3] = cz + grow;
+                } else {
+                    set3(g_crew.position, k % 8 == 7 ? 1020.0f : 400.0f, 10.0f, k % 8 == 6 ? 2.0f : 500.0f);
+                    switch (k % 4) {
+                    case 0: // far
+                        set3(g_crew.point, g_crew.position[0] + 3.0f, 11.0f, g_crew.position[2] - 4.0f);
+                        break;
+                    case 1: // within 1e-5
+                        set3(g_crew.point, g_crew.position[0] + 3e-6f, 10.0f, g_crew.position[2]);
+                        break;
+                    case 2: // on the position
+                        set3(g_crew.point, g_crew.position[0], g_crew.position[1], g_crew.position[2]);
+                        break;
+                    default:
+                        set3(g_crew.point, std::numeric_limits<float>::quiet_NaN(), 10.0f, g_crew.position[2]);
+                        break;
+                    }
+                    set3(g_crew.heading, 0.8f, 0.0f, k % 3 == 0 ? -0.6f : 0.6f);
+                    static constexpr float kIdentity[13] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+                    std::memcpy(g_crew.transform, kIdentity, sizeof kIdentity);
+                    g_crew.transformWrites = k % 7 != 0;
+                    switch (k % 5) {
+                    case 1: // turned about y
+                        set3(g_crew.transform, 0.8f, 0.0f, -0.6f);
+                        set3(g_crew.transform + 6, 0.6f, 0.0f, 0.8f);
+                        break;
+                    case 2: // skewed and scaled
+                        set3(g_crew.transform, 0.7f, 0.1f, 0.3f);
+                        set3(g_crew.transform + 3, -0.2f, 0.9f, 0.4f);
+                        set3(g_crew.transform + 6, 0.33f, -0.25f, 1.1f);
+                        g_crew.transform[12] = 2.0f;
+                        break;
+                    case 3: // a NaN in the row the side adds
+                        g_crew.transform[4] = std::numeric_limits<float>::quiet_NaN();
+                        break;
+                    case 4: // an infinity times the 0
+                        g_crew.transform[1] = std::numeric_limits<float>::infinity();
+                        break;
+                    default:
+                        break;
+                    }
+                    g_crew.occupant = k % 9 == 4 ? nullptr : &occupant;
+                    const int32_t cx = static_cast<int32_t>(std::floor(g_crew.position[0] / 16.0f));
+                    const int32_t cz = static_cast<int32_t>(std::floor(g_crew.position[2] / 16.0f));
+                    const int32_t grow = k % 3 == 0 ? 0 : 2;
+                    inner.rect[0] = cx - grow;
+                    inner.rect[1] = cz - grow;
+                    inner.rect[2] = cx + grow;
+                    inner.rect[3] = cz + grow;
+                }
+                This<uint32_t>(addr::cSC4RiotPolice_Dispatch, riot);
+                pcrews.Mix(static_cast<uint32_t>(g_crew.mapReferences));
+            }
+            CrewSection("dispatch", pcrews);
+
+            pcrews.Mix(static_cast<uint32_t>(car.references));
+            pcrews.Mix(static_cast<uint32_t>(sounds.references));
+            pcrews.Mix(g_crew.posts);
+            std::memcpy(camera + ped::cslot::kCameraDirection, savedDirection, sizeof savedDirection);
+            counts[0] = savedCounts[0];
+            counts[1] = savedCounts[1];
+            for (int i = 0; i < 3; ++i)
+                levels[i] = savedLevels[i];
+            At<void**>(city, 0) = realCity;
+        }
+    }
+    At<void**>(one, 0) = realOne[0];
+    At<void**>(one, 4) = realOne[1];
+    At<void**>(one, 0x20) = realOne[2];
+    At<void**>(riot, 0) = realRiot[0];
+    At<void**>(riot, 4) = realRiot[1];
+    At<void**>(riot, 0x20) = realRiot[2];
+    At<char*>(one, b::kModels) = savedModels[0][0];
+    At<char*>(one, b::kModelsEnd) = savedModels[0][1];
+    At<char*>(riot, b::kModels) = savedModels[1][0];
+    At<char*>(riot, b::kModelsEnd) = savedModels[1][1];
+    At<void*>(riot, c::kVehicle) = nullptr;
+    ReleasePed(one);
+    ReleasePed(riot);
+    if (!ran) {
+        pflags |= 0x800;
+        log::Write("autotest: automata: vehicle: ped3: the game's code could not be patched");
+        g_crew = CrewAnswers{};
+        return;
+    }
+    pcrews.Mix(g_crew.calls.h);
+    pcrews.Mix(g_ped2.calls.h);
+    pcrews.Mix(g_walk.calls.h);
+    pflags |= 0x400;
+    log::Write("autotest: automata: vehicle: ped3 pcrews %08X calls %08X %08X %08X posts %u", pcrews.h, g_crew.calls.h,
+               g_ped2.calls.h, g_walk.calls.h, g_crew.posts);
+    g_crew = CrewAnswers{};
+    g_walk = WalkAnswers{};
+    g_ped2 = Ped2Answers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -30051,6 +30885,10 @@ void VehicleDrive(cISC4City* city)
     Hash pwalks;
     PedWalksDrive(pwalks, pflags);
 
+    // ---- Part ped3.
+    Hash pcrews;
+    PedCrewsDrive(pcrews, pflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -30107,13 +30945,13 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
-                  pobject.h, psave.h, pstates.h, pwalks.h, pflags);
+                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

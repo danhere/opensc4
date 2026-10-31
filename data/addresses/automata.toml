@@ -13808,15 +13808,6 @@ expect = "53 56 83 EC 0C 8B C4 33"
 source = "Name ours. The riot police's constructor (ret 4): the pedestrian's 0x00545F20 with four zero words, the six vtables 0x00A9AFC8.., the car held at +0x270, +0x274 the word 0x00B228E0, the bytes +0x278 1, +0x279 and +0x27A zero. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped1). Also called by address from src/core/automata_emergency.cpp (part em3b)."
 
 [[entry]]
-name = "cSC4RiotPolice::Dispatch"
-address = 0x00546F30
-kind = "function"
-convention = "thiscall"
-signature = "void (void* this)"
-expect = "81 EC 98 00 00 00 56 8B"
-source = "Name ours, not analysed: sends the riot police out from their car (+0x270). Called by address from src/core/automata_emergency.cpp (part em3b)."
-
-[[entry]]
 name = "cSC4PatrolCar::PoliceWord"
 address = 0x00B09FFC
 kind = "data"
@@ -14628,6 +14619,162 @@ address = 0x00A8F7B8
 kind = "data"
 expect = "00 00 80 3C"
 source = "Name ours. The float 1/64 the state 9's frame scales the way to its target by beyond 10. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::Shutdown"
+address = 0x00544520
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "E9 EB 0D 01 00"
+source = "Name ours. The pedestrian's and the one-shot's slot 4: a jump to the automaton base's Shutdown 0x00555310 (kept the game's). Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Init"
+address = 0x00544DA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "51 55 57 8B F9 8B 47 04"
+source = "Name ours. The one-shot's slot 3: slot 158 unless the occupant part (+4) says the object is initialised (its slot 5); the automaton base's Init 0x0054D790; when it answers AL 1, each model (not null) given 0.01 (its slot 14) and the byte +0x270 drawn (SC4Random::Below on 0x00B21D78) from the byte 0x00B21D04 to 0x00B21D05 inclusive, or from the first two bytes of the occupant's property 0xEA958845 when it holds more than one (the part's slot 6, its slot 9, the property's slot 5, the value's slots 95 and 4). AL the Init's. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::Frame"
+address = 0x00544E80
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t word, float seconds)"
+expect = "51 53 55 56 8B F1 8B 4C"
+source = "Name ours. The one-shot's slot 72, ret 8: slot 83 (seconds); each model (not null) advanced (slot 15, seconds); the first one at its last frame (slot 11 against slot 12 less 1, signed) counts the byte +0x270 down (not below 0) and at 0 removes the one-shot (slot 13 with 0), AL 0. Else AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::Init"
+address = 0x00547630
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 20 53 56 8B F1 8B"
+source = "Name ours. The riot police's slot 3: AL 1 when the occupant part (+4) says the object is initialised. Else by the car's (+0x270, not null-tested) mission (slot 26): 5, the byte +0x278 counted up from 0 while the float +0x274 is below 0x00B21CD0[+0x278] (to 3 at most), at 2 the message 0xA9E3B6E2 (the part, -1, 0x40, 0, 0; 0x00546D20), the start model (SC4Automaton::SetStart) 0x29A5D1EC, 0x49A593E7, 0x00A9AE28[+0x278]; 1, +0x27A drawn below 6 and the start model 0x5AD0E817, 0xBADB57F1, 0x00A9AE38[+0x27A x 3 + a draw below 3]. The city's sounds (slot 47) told the sound \"riot_police_repulsor\" (0x00A98FF4) for the part (its slot 5; the sound it answers not kept); the automata flags 0x2000 and 0x4000 on; with a start model, slot 174's slot 44 (the key) found object's +0x30 given to the +0x20 part's slot 3. Then the pedestrian's Init 0x005444F0, its EAX. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::Shutdown"
+address = 0x00546EF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 57 8B F9 8B 47 04 8D"
+source = "Name ours. The riot police's slot 4: when the occupant part (+4) says the object is initialised, the message 0xA9E3B6E2 (the part, four zeros; 0x00546D20); then a tail jump to 0x00544520 (the base's Shutdown). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::Frame"
+address = 0x00547530
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t word, float seconds)"
+expect = "8B 44 24 08 83 EC 0C 53"
+source = "Name ours. The riot police's slot 72, ret 8: the pedestrian's frame 0x00544580; with the automata flag 1, the message 0x8A0F3F7B (the car's +4, 0x00A9AE80[+0x278], three zeros; 0x00546D20) unless the car's mission (slot 26) is 5; without it and on the mission 1, the first model (not null-tested) at its last frame swapped (SwapModel) for 0x5AD0E817, 0xBADB57F1, 0x00A9AE38[+0x27A x 3 + a draw below 3]. AL the pedestrian frame's. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::SetZoomAndRotation"
+address = 0x00546CC0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int zoom, int rotation)"
+expect = "8B 44 24 08 83 EC 0C 56"
+source = "Name ours. The riot police's slot 74, ret 8: the core's 0x00509660; on the car's mission (slot 26) 1, slot 16 with no point and the camera view's (0x00B43DD8) +0x54 to +0x5C negated as the heading. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::PostMessage"
+address = 0x00546D20
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t type, void* object, uint32_t a, uint32_t b, uint32_t c, uint32_t d)"
+expect = "56 6A 2C E8 B2 C6 3C 00"
+source = "Name ours. Ret 0x18 (this unused): a cGZMessage (0x2C bytes of RZ::operator_new; not null-tested past its AddRef) given the type (slot 5), the object (slot 33) and the four words (slots 11, 16, 21, 26), posted (the message server 0x00B43CCC's slot 4, with 0) and released. The riot police's and the fire crew's code calls it. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::Dispatch"
+address = 0x00546F30
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "81 EC 98 00 00 00 56 8B"
+source = "Name ours. Sends the riot police out from their car (+0x270): the city's map (slot 40) held for the while (its slot 18 called without a null test). The car's mission (slot 26) 5: from the car's position (slot 7) towards its point (slot 143) normalised when that is shorter than 1e-5, else the car's heading (slot 15), 8 out, kept in the city (0x00547930) on the map's height (slot 18), placed (slot 16) heading that way, and the message 0xAA0F3F75 (the car's +4, 0x00A9AE80[+0x278], three zeros). The mission 1: the car's transform (slot 12 from the identity) turned a quarter about y (FSIN, FCOS at 64 bits), its third row negated and scaled, 6 out from the car's position, or 6 the other way when that cell (city slot 95) is outside the rectangle of the car's occupant's (slot 137; none: Remove(1)) object (slot 48, its slot 11); kept in the city, on the map's height, placed heading against the camera view. Then slot 33 (0, 0) and (1, 1). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3). Also called by address from src/core/automata_emergency.cpp (part em3b)."
+
+[[entry]]
+name = "cSC4RiotPolice::ClampToCity"
+address = 0x00547930
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float* point)"
+expect = "83 EC 08 56 8B 35 EC 3C"
+source = "Name ours. Ret 4 (this unused): with a city (0x00B43CEC), the point's x and z kept in it: below 0 to 0; at or past the city's cells (slots 93 and 94) x 16 as floats, that less 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped3)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::CountLow"
+address = 0x00B21D04
+kind = "data"
+source = "Name ours. A byte (bss): the low end of the one-shot's count +0x270 when its occupant has no property 0xEA958845. Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4PedestrianOneShot::CountHigh"
+address = 0x00B21D05
+kind = "data"
+source = "Name ours. A byte (bss): the high end of the one-shot's count. Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::Levels"
+address = 0x00B21CD0
+kind = "data"
+source = "Name ours. Three floats (bss): the riot police's Init counts +0x278 up while +0x274 is below the one it is at. Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::LevelModels"
+address = 0x00A9AE28
+kind = "data"
+expect = "00 00 60 04 00 00 60 04 00 00 30 07 00 00 00 00"
+source = "Name ours. Four words: the instance of the riot police's start model by +0x278 (type 0x29A5D1EC, group 0x49A593E7). Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::DrawnModels"
+address = 0x00A9AE38
+kind = "data"
+expect = "00 1E 30 02 00 1F 30 02"
+source = "Name ours. 18 words: the instance of the start or swapped model on the mission 1 by +0x27A x 3 + a draw below 3 (type 0x5AD0E817, group 0xBADB57F1). Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::MessageWords"
+address = 0x00A9AE80
+kind = "data"
+expect = "D6 8F DE 29 E4 8E DE C9 E4 8E DE C9 17 B7 D1 38"
+source = "Name ours. Four words: the first word of the messages 0x8A0F3F7B and 0xAA0F3F75 by +0x278 (the fourth is the next datum's, the float 1e-4). Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::RepulsorName"
+address = 0x00A98FF4
+kind = "data"
+expect = "72 69 6F 74 5F 70 6F 6C"
+source = "Name ours. The text \"riot_police_repulsor\": the sound the riot police's Init asks the city's sounds for. Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::DefaultFloat"
+address = 0x00B228E4
+kind = "data"
+source = "Name ours. A float (bss) the dispatch starts its points from (three copies). Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::One"
+address = 0x00B0A028
+kind = "data"
+expect = "00 00 80 3F"
+source = "Name ours. The float 1.0 the dispatch divides by the length. Called by address from src/core/automata_pedestrians.cpp (part ped3)."
+
+[[entry]]
+name = "cSC4RiotPolice::QuarterTurn"
+address = 0x00A99090
+kind = "data"
+expect = "00 00 00 60 FB 21 F9 3F"
+source = "Name ours. The double pi/2 (as a float's value) the dispatch turns the car's transform by (FSIN, FCOS). Called by address from src/core/automata_pedestrians.cpp (part ped3)."
 
 [[entry]]
 name = "cSC4Pedestrian::One"

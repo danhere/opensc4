@@ -190,4 +190,50 @@ inline constexpr std::size_t kOccupantObject = 0xC0;  // an occupant's 48: an ob
 inline constexpr std::size_t kTargetPoint = 0x1C;     // +0xB0's 7: (float* out), ret 4
 } // namespace wslot
 
+// Part ped3: the one-shot's and the riot police's slots and objects.
+namespace cslot {
+inline constexpr std::size_t kSlot83 = 0x14C;         // 83: the core's 0x005091C0, (seconds), ret 4
+inline constexpr std::size_t kFade = 0x84;            // 33: the core's 0x0050B360, (float, float), ret 8
+inline constexpr std::size_t kPart20Set = 0x0C;       // the +0x20 part's 3: (word), ret 4
+// The occupant part's (+4) property holder and the one-shot's count range.
+inline constexpr std::size_t kPropertyHolder = 0x18;  // the occupant part's 6: an object
+inline constexpr std::size_t kGetProperty = 0x24;     // the holder's 9: (id), ret 4: the property or null
+inline constexpr std::size_t kPropertyValue = 0x14;   // the property's 5: its value
+inline constexpr std::size_t kValueBytes = 0x17C;     // the value's 95: its bytes
+inline constexpr std::size_t kValueCount = 0x10;      // the value's 4: their count
+// The car (+0x270).
+inline constexpr std::size_t kCarPosition = 0x1C;     // 7: (float* out), ret 4
+inline constexpr std::size_t kCarTransform = 0x30;    // 12: (transform* out), ret 4
+inline constexpr std::size_t kCarHeading = 0x3C;      // 15: (float* out), ret 4
+inline constexpr std::size_t kMission = 0x68;         // 26: the emergency vehicle's mission
+inline constexpr std::size_t kCarOccupant = 0x224;    // 137: +0x1EC
+inline constexpr std::size_t kCarPoint = 0x23C;       // 143: the second point's address
+// The city's and others'.
+inline constexpr std::size_t kCitySounds = 0xBC;      // the city's 47: the sounds' service
+inline constexpr std::size_t kSoundsMake = 0x14;      // its 5: (occupant, SC4String*, 0), ret 0xC: a sound
+inline constexpr std::size_t kCityCellsX = 0x174;     // the city's 93: an int
+inline constexpr std::size_t kCityCellsZ = 0x178;     // the city's 94: an int
+inline constexpr std::size_t kMapHeight = 0x48;       // the city's slot 40 map's 18: (x, z), ret 8, a float in ST0
+inline constexpr std::size_t kManagerFind = 0xB0;     // slot 174's object's 44: (key*), ret 4: an object (its +0x30 a word)
+inline constexpr std::size_t kMessageType = 0x14;     // a cGZMessage's 5: (type), ret 4
+inline constexpr std::size_t kMessageData1 = 0x2C;    // its 11: (word), ret 4
+inline constexpr std::size_t kMessageData2 = 0x40;    // its 16
+inline constexpr std::size_t kMessageData3 = 0x54;    // its 21
+inline constexpr std::size_t kMessageData4 = 0x68;    // its 26
+inline constexpr std::size_t kMessageObject = 0x84;   // its 33: (object), ret 4
+inline constexpr std::size_t kPost = 0x10;            // the message server's 4: (message, 0), ret 8
+// The camera view's (0x00B43DD8) direction, three floats.
+inline constexpr std::size_t kCameraDirection = 0x54;
+} // namespace cslot
+
+namespace crewdata {
+inline constexpr std::uint32_t kRepulsorMessage = 0xA9E3B6E2; // the riot police's Init (at level 2) and Shutdown
+inline constexpr std::uint32_t kFrameMessage = 0x8A0F3F7B;    // the riot police's frame with the automata flag 1
+inline constexpr std::uint32_t kDispatchMessage = 0xAA0F3F75; // the dispatch on the mission 5
+inline constexpr std::uint32_t kLevelKeyType = 0x29A5D1EC, kLevelKeyGroup = 0x49A593E7; // the mission 5's start model
+inline constexpr std::uint32_t kDrawnKeyType = 0x5AD0E817, kDrawnKeyGroup = 0xBADB57F1; // the mission 1's models
+inline constexpr std::uint32_t kCountProperty = 0xEA958845; // the one-shot's count range (two bytes)
+inline constexpr std::uint32_t kMessageSize = 0x2C;           // a cGZMessage
+} // namespace crewdata
+
 } // namespace opensc4::automata_pedestrians

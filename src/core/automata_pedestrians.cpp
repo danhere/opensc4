@@ -10,15 +10,18 @@
 // slot 72, the animation 103, the states 109 to 111, slots 135, 155, 158,
 // 165 and 176, and the frames of the states 4 and 0xC). ped2b: the walks
 // (the frames of the states 2, 3, 6, 8 and 9, the bump 0x00545840 and the
-// step 0x00545D60). The layout is in
+// step 0x00545D60). ped3: the one-shot's Init and frame and the riot
+// police's Init, Shutdown, frame, slot 74, message helper 0x00546D20, dispatch
+// 0x00546F30 and its clamp 0x00547930. The layout is in
 // src/core/automata_pedestrians.h and the survey in docs/automata.md, "Part
 // ped". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.pedestrians: the 34 detours in kObject (ped1) and
-//   the 13 in kStates (ped2a) and the 7 in kWalks (ped2b) below.
+//   simulators.automata.pedestrians: the 34 detours in kObject (ped1), the
+//   13 in kStates (ped2a), the 7 in kWalks (ped2b) and the 9 in kCrews
+//   (ped3) below.
 //
 // What it does. A pedestrian is a 0x270-byte block of the pool 0x00B0A018
 // (0x00544890; the one-shot, the riot police and the fire crew, of other
@@ -95,12 +98,40 @@
 // normalising length in the states 8 and 9 and the bump's differences are
 // squared unrounded and stored as floats.
 //
+// ped3's oddities kept: the one-shot's Init null-tests the property but not
+// its value, and gives SC4Random::Below high - low + 1 as it comes (zero or
+// less when high is below low); its frame counts down only by the first
+// model that is not null and goes on through the list after removing. The
+// riot police's code reads the car (+0x270) without a null test (the frame's
+// later test for the message is dead); the Init counts the level +0x278 up
+// while +0x274 is below or unordered with the bound (a NaN gives 3), at 3
+// takes the fourth word 0 of 0x00A9AE28 (no start model, so no manager
+// look-up) and drops the sound the city's sounds answer; at level 3 the
+// messages take the fourth word of 0x00A9AE80, the next datum's (the float
+// 1e-4). The message helper and the clamp do not read their this; the
+// helper calls through a failed allocation. The dispatch holds the map but
+// calls its slot 18 without a null test; on the mission 5 it normalises the
+// way to the car's point only when it is shorter than 1e-5 and else takes
+// the car's heading; on the mission 1 the side is (m + c) x 0 - c, so an
+// infinity or NaN in the car's transform survives the 0, and the target's
+// cell comes from locals the city's slot 95 may leave unset (ours zero).
+// AL only in the game: the one-shot's Init and frame and the riot police's
+// Init's 1 and frame; ours zero-extends.
+//
+// Floats (53 bits, ped3): FSIN and FCOS of the dispatch's quarter turn at
+// 64 bits (x87 code), each product with them rounded to 53; the mission 5's
+// x difference a float, y and z not, 1 / length unrounded; the targets' x
+// sums unrounded where the game keeps them in a register (y and z, and the
+// mission 1's way back x and y, as floats); the clamp's bounds the cells as
+// floats less 1.
+//
 // Still the game's, at their addresses: the automaton base's code (part vb),
 // the riot police's and the fire crew's jumps to the pedestrian's
 // QueryInterface and the adjustor thunks the vtables hold, the occupant
 // filters' code, the stream helpers, the pool's growth and release, the
-// groups' split and pack (0x0053D100, 0x004ADE80), and the other classes'
-// states, frames, Inits and Shutdowns (parts ped3 and ped4).
+// groups' split and pack (0x0053D100, 0x004ADE80), the jump 0x00544520 to
+// the base's Shutdown, the cGZMessage and string code, and the fire crew's
+// states, frames, Init and Shutdown (part ped4).
 
 #include "core/automata_pedestrians.h"
 
@@ -1829,6 +1860,536 @@ std::uint32_t __fastcall PedestrianState9Frame(char* self, void*, float seconds)
 }
 
 // ====================================================================================
+// The one-shot and the riot police (ped3)
+
+std::uint32_t Below(std::uint32_t count) { return CallThis<std::uint32_t>(addr::SC4Random_Below, Random(), count); }
+
+std::uint32_t Mission(char* self) { return Virtual<std::uint32_t>(At<char*>(self, crew::kVehicle), cslot::kMission); }
+
+// The car's occupant part (+4), or null without a car.
+void* CarPart(char* self)
+{
+    char* const car = At<char*>(self, crew::kVehicle);
+    return car ? car + 4 : nullptr;
+}
+
+// The message helper at its address.
+void Post(char* self, std::uint32_t type, void* object, std::uint32_t a, std::uint32_t b, std::uint32_t c,
+          std::uint32_t d)
+{
+    CallThis<void>(addr::cSC4RiotPolice_PostMessage, self, type, object, a, b, c, d);
+}
+
+// The mission 1's model key: 0x00A9AE38 by +0x27A x 3 plus a draw below 3
+// (the byte's product and sum, as the game's 8-bit IMUL and ADD).
+void DrawnKey(char* self, std::uint32_t (&key)[3])
+{
+    const std::uint32_t drawn = Below(3);
+    const std::uint8_t index =
+        static_cast<std::uint8_t>(At<std::uint8_t>(self, riot::kByte27A) * 3 + static_cast<std::uint8_t>(drawn));
+    key[0] = crewdata::kDrawnKeyType;
+    key[1] = crewdata::kDrawnKeyGroup;
+    key[2] = reinterpret_cast<const std::uint32_t*>(addr::cSC4RiotPolice_DrawnModels)[index];
+}
+
+// The camera view's direction (+0x54 to +0x5C) negated.
+void AwayFromCamera(float (&heading)[3])
+{
+    char* const camera = Global<char*>(addr::SC4_CameraView);
+    for (int i = 0; i < 3; ++i)
+        heading[i] = -At<float>(camera, cslot::kCameraDirection + 4 * i);
+}
+
+// 0x00544DA0, the one-shot's slot 3: slot 158 unless the occupant part (+4)
+// says the object is initialised (its slot 5); the automaton base's Init
+// 0x0054D790, its EAX when it answers AL 0. Else each model (not null) given
+// 0.01 (slot 14) and the byte +0x270 drawn from low to high inclusive
+// (SC4Random::Below, the count high - low + 1 as an int): the bytes
+// 0x00B21D04 and 0x00B21D05, or the first two of the occupant's property
+// 0xEA958845 when its value holds more than one (the part's slot 6, the
+// holder's slot 9, the property's slot 5, the value's slots 95 and 4; the
+// property null-tested, the value not). AL the Init's (AL only in the game;
+// ours zero-extends).
+std::uint32_t __fastcall OneShotInit(char* self, void*)
+{
+    static bool logged;
+    FirstCall("OneShotInit", logged);
+    if (!Virtual<std::uint8_t>(self + 4, pslot::kIsInitialised))
+        Virtual<std::uint32_t>(self, pslot::kSlot158);
+    const std::uint32_t init = CallThis<std::uint32_t>(addr::cSC4AutomatonBase_Init, self);
+    if (!(init & 0xFF))
+        return init;
+    for (char** it = At<char**>(self, base::kModels); it != At<char**>(self, base::kModelsEnd); ++it)
+        if (char* const model = *it)
+            Virtual<std::uint32_t>(model, pslot::kModelSlot14, 0x3C23D70Au); // 0.01f
+    std::uint8_t high = Global<std::uint8_t>(addr::cSC4PedestrianOneShot_CountHigh);
+    std::uint8_t low = Global<std::uint8_t>(addr::cSC4PedestrianOneShot_CountLow);
+    if (void* const holder = Virtual<void*>(self + 4, cslot::kPropertyHolder))
+        if (void* const property = Virtual<void*>(holder, cslot::kGetProperty, crewdata::kCountProperty)) {
+            void* const value = Virtual<void*>(property, cslot::kPropertyValue);
+            const std::uint8_t* const bytes = Virtual<const std::uint8_t*>(value, cslot::kValueBytes);
+            if (Virtual<std::uint32_t>(value, cslot::kValueCount) > 1) {
+                low = bytes[0];
+                high = bytes[1];
+            }
+        }
+    const std::uint32_t drawn = Below(static_cast<std::uint32_t>(static_cast<std::int32_t>(high) - low + 1));
+    At<std::uint8_t>(self, oneshot::kByte) = static_cast<std::uint8_t>(drawn + low);
+    return init & 0xFF;
+}
+
+// 0x00544E80, the one-shot's slot 72 (word, seconds), ret 8: slot 83
+// (seconds), then each model (not null) advanced (slot 15, seconds); the
+// first one at its last frame (slot 12 less 1, then slot 11, signed) counts
+// the byte +0x270 down (not below 0) and at 0 removes the one-shot (slot 13
+// with 0), AL 0. Else AL 1. The word is not read.
+std::uint32_t __fastcall OneShotFrame(char* self, void*, std::uint32_t, float seconds)
+{
+    static bool logged;
+    FirstCall("OneShotFrame", logged);
+    std::uint32_t answer = 1;
+    Virtual<std::uint32_t>(self, cslot::kSlot83, seconds);
+    bool first = true;
+    for (char** it = At<char**>(self, base::kModels); it != At<char**>(self, base::kModelsEnd); ++it) {
+        char* const model = *it;
+        if (!model)
+            continue;
+        Virtual<std::uint32_t>(model, pslot::kModelAdvance, seconds);
+        if (first) {
+            const std::int32_t last = Virtual<std::int32_t>(model, pslot::kModelFrames) - 1;
+            if (Virtual<std::int32_t>(model, pslot::kModelFrame) >= last) {
+                std::uint8_t& count = At<std::uint8_t>(self, oneshot::kByte);
+                if (count)
+                    --count;
+                if (!count) {
+                    Virtual<std::uint32_t>(self, wslot::kRemove, 0u);
+                    answer = 0;
+                }
+            }
+        }
+        first = false;
+    }
+    return answer;
+}
+
+// 0x00547630, the riot police's slot 3: AL 1 when the occupant part (+4)
+// says the object is initialised (its slot 5). Else by the car's mission
+// (+0x270's slot 26; the car not null-tested):
+//   5: the level +0x278 counted up from 0 while the float +0x274 is below
+//      (or unordered with) 0x00B21CD0[level], to 3 at most; at level 2 the
+//      message 0xA9E3B6E2 (the part, -1, 0x40, 0, 0); the start model
+//      (SC4Automaton::SetStart) 0x29A5D1EC, 0x49A593E7, 0x00A9AE28[level].
+//   1: +0x27A drawn below 6; the start model 0x5AD0E817, 0xBADB57F1,
+//      0x00A9AE38[+0x27A x 3 + a draw below 3].
+// Then the city's sounds (its slot 47, the city not null-tested) told the
+// sound "riot_police_repulsor" (SC4String::FromText, freed after) for slot
+// 5's answer (their slot 5 with 0; the sound it answers not kept); the
+// automata flags 0x2000 and 0x4000 on; with a start model (its instance not
+// 0), slot 174's object's slot 44 (the key) and, when it finds one, that
+// one's +0x30 given to the +0x20 part's slot 3. Then the pedestrian's Init
+// 0x005444F0, its EAX.
+std::uint32_t __fastcall RiotPoliceInit(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RiotPoliceInit", logged);
+    if (Virtual<std::uint8_t>(self + 4, pslot::kIsInitialised))
+        return 1;
+    std::uint32_t key[3] = {};
+    switch (Mission(self)) {
+    case 5: {
+        std::uint8_t& level = At<std::uint8_t>(self, crew::kByte);
+        level = 0;
+        const float* const levels = reinterpret_cast<const float*>(addr::cSC4RiotPolice_Levels);
+        while (!(At<float>(self, crew::kWord) >= levels[level]))
+            if (++level >= 3)
+                break;
+        if (level == 2)
+            Post(self, crewdata::kRepulsorMessage, self + 4, 0xFFFFFFFFu, 0x40u, 0u, 0u);
+        key[0] = crewdata::kLevelKeyType;
+        key[1] = crewdata::kLevelKeyGroup;
+        key[2] = reinterpret_cast<const std::uint32_t*>(addr::cSC4RiotPolice_LevelModels)[level];
+        CallThis<std::uint32_t>(addr::SC4Automaton_SetStart, self, static_cast<const void*>(key));
+        break;
+    }
+    case 1:
+        At<std::uint8_t>(self, riot::kByte27A) = static_cast<std::uint8_t>(Below(6));
+        DrawnKey(self, key);
+        CallThis<std::uint32_t>(addr::SC4Automaton_SetStart, self, static_cast<const void*>(key));
+        break;
+    default:
+        break;
+    }
+    if (void* const sounds = Virtual<void*>(Global<void*>(addr::SC4_City), cslot::kCitySounds)) {
+        GameString name{};
+        CallThis<void*>(addr::SC4String_FromText, static_cast<void*>(&name),
+                        reinterpret_cast<const char*>(addr::cSC4RiotPolice_RepulsorName));
+        void* const occupant = Virtual<void*>(self, wslot::kAsOccupant);
+        Virtual<void*>(sounds, cslot::kSoundsMake, occupant, static_cast<void*>(&name), 0u);
+        name.vtable = addr::SC4String_Vtable;
+        if (name.begin)
+            CallCdecl<void>(addr::SC4_Free, static_cast<void*>(name.begin));
+    }
+    SetFlag(self, 0x2000u, 1u);
+    SetFlag(self, 0x4000u, 1u);
+    if (key[2])
+        if (void* const manager = Virtual<void*>(self, wslot::kPedestrianManager))
+            if (char* const found = Virtual<char*>(manager, cslot::kManagerFind, static_cast<void*>(key)))
+                Virtual<std::uint32_t>(self + 0x20, cslot::kPart20Set, At<std::uint32_t>(found, 0x30));
+    return CallThis<std::uint32_t>(addr::cSC4Pedestrian_Init, self);
+}
+
+// 0x00546EF0, the riot police's slot 4: when the occupant part (+4) says the
+// object is initialised, the message 0xA9E3B6E2 (the part, four zeros);
+// then 0x00544520 (a jump to the base's Shutdown, a tail jump), its EAX.
+std::uint32_t __fastcall RiotPoliceShutdown(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RiotPoliceShutdown", logged);
+    if (Virtual<std::uint8_t>(self + 4, pslot::kIsInitialised))
+        Post(self, crewdata::kRepulsorMessage, self + 4, 0u, 0u, 0u, 0u);
+    return CallThis<std::uint32_t>(addr::cSC4Pedestrian_Shutdown, self);
+}
+
+// 0x00547530, the riot police's slot 72 (word, seconds), ret 8: the
+// pedestrian's frame 0x00544580. With the automata flag 1, the message
+// 0x8A0F3F7B (the car's +4, 0x00A9AE80[+0x278], three zeros) unless the
+// car's mission (slot 26, the car not null-tested) is 5. Without it, on the
+// mission 1 and with models, the first model (not null-tested) at its last
+// frame (slot 12 less 1, then slot 11, signed) swapped (SwapModel) for the
+// mission 1's drawn key. AL the pedestrian frame's (AL only in the game;
+// ours zero-extends).
+std::uint32_t __fastcall RiotPoliceFrame(char* self, void*, std::uint32_t word, float seconds)
+{
+    static bool logged;
+    FirstCall("RiotPoliceFrame", logged);
+    const std::uint8_t framed = CallThis<std::uint8_t>(addr::cSC4Pedestrian_Frame, self, word, seconds);
+    if (CheckFlag(self, 1u)) {
+        if (Mission(self) != 5)
+            Post(self, crewdata::kFrameMessage, CarPart(self),
+                 reinterpret_cast<const std::uint32_t*>(addr::cSC4RiotPolice_MessageWords)[At<std::uint8_t>(self, crew::kByte)],
+                 0u, 0u, 0u);
+        return framed;
+    }
+    if (Mission(self) != 1 || At<char**>(self, base::kModels) == At<char**>(self, base::kModelsEnd))
+        return framed;
+    char* const model = *At<char**>(self, base::kModels);
+    const std::int32_t last = Virtual<std::int32_t>(model, pslot::kModelFrames) - 1;
+    if (Virtual<std::int32_t>(model, pslot::kModelFrame) >= last) {
+        std::uint32_t key[3];
+        DrawnKey(self, key);
+        CallThis<void>(addr::cSC4AutomatonCore_SwapModel, self, static_cast<void*>(model), static_cast<const void*>(key));
+    }
+    return framed;
+}
+
+// 0x00546CC0, the riot police's slot 74 (zoom, rotation), ret 8: the core's
+// 0x00509660; on the car's mission (slot 26) 1, slot 16 with no point and
+// the camera view's direction negated as the heading.
+void __fastcall RiotPoliceSetZoomAndRotation(char* self, void*, std::uint32_t zoom, std::uint32_t rotation)
+{
+    static bool logged;
+    FirstCall("RiotPoliceSetZoomAndRotation", logged);
+    CallThis<void>(addr::cSC4AutomatonCore_SetZoomAndRotation, self, zoom, rotation);
+    if (Mission(self) != 1)
+        return;
+    float heading[3];
+    AwayFromCamera(heading);
+    Virtual<std::uint32_t>(self, wslot::kPlace, static_cast<const float*>(nullptr), static_cast<const float*>(heading));
+}
+
+// 0x00546D20 (this not read; type, object, four words), ret 0x18: a
+// cGZMessage (0x2C bytes of RZ::operator_new) held, given the type (slot 5),
+// the object (slot 33) and the words (slots 11, 16, 21 and 26), posted (the
+// message server's slot 4, with 0) and released. A failed allocation is
+// null-tested only around the AddRef (the game then calls through null).
+void __fastcall RiotPolicePostMessage(char*, void*, std::uint32_t type, void* object, std::uint32_t a,
+                                      std::uint32_t b, std::uint32_t c, std::uint32_t d)
+{
+    static bool logged;
+    FirstCall("RiotPolicePostMessage", logged);
+    char* const block = CallCdecl<char*>(addr::RZ_operator_new, std::size_t{crewdata::kMessageSize});
+    char* const message = block ? CallThis<char*>(addr::cGZMessage_cGZMessage, block) : nullptr;
+    if (message)
+        Virtual<std::uint32_t>(message, slot::kAddRef);
+    Virtual<std::uint32_t>(message, cslot::kMessageType, type);
+    Virtual<std::uint32_t>(message, cslot::kMessageObject, object);
+    Virtual<std::uint32_t>(message, cslot::kMessageData1, a);
+    Virtual<std::uint32_t>(message, cslot::kMessageData2, b);
+    Virtual<std::uint32_t>(message, cslot::kMessageData3, c);
+    Virtual<std::uint32_t>(message, cslot::kMessageData4, d);
+    Virtual<std::uint32_t>(Global<void*>(addr::SC4_MessageServer), cslot::kPost, static_cast<void*>(message), 0u);
+    Release(message);
+}
+
+// 0x00547930 (this not read; point), ret 4: with a city, the point's x and
+// z kept in it: below 0 (0x00A81054, NaN not) set to 0; else at or past the
+// city's cells (slots 93 and 94, shifted left 4 as ints, then floats) set
+// to that less 1 (0x00A81228) as a float.
+void __fastcall RiotPoliceClampToCity(char*, void*, float* point)
+{
+    static bool logged;
+    FirstCall("RiotPoliceClampToCity", logged);
+    void* const city = Global<void*>(addr::SC4_City);
+    if (!city)
+        return;
+    const float sizes[2] = {
+        static_cast<float>(static_cast<std::int32_t>(Virtual<std::uint32_t>(city, cslot::kCityCellsX) << 4)),
+        static_cast<float>(static_cast<std::int32_t>(Virtual<std::uint32_t>(city, cslot::kCityCellsZ) << 4))};
+    const double zero = Zero();
+    const double one = Global<float>(addr::SC4_FloatOneA81228);
+    for (int i = 0; i < 2; ++i) {
+        float& v = point[2 * i];
+        if (static_cast<double>(v) < zero)
+            v = 0.0f;
+        else if (v >= sizes[i])
+            v = static_cast<float>(static_cast<double>(sizes[i]) - one);
+    }
+}
+
+// An x87 value as the FPU keeps it, its ten bytes: FSIN and FCOS leave 64
+// bits of mantissa whatever the precision control, and the dispatch
+// multiplies them as they are (as the tank's and the train's frames).
+struct X87 {
+    unsigned char bytes[10];
+};
+
+// The sine and the cosine of `angle` (FSIN, FCOS).
+void X87SinCos(double angle, X87* sine, X87* cosine)
+{
+    __asm {
+        mov eax, sine
+        mov edx, cosine
+        fld qword ptr [angle]
+        fld st(0)
+        fcos
+        fstp tbyte ptr [edx]
+        fsin
+        fstp tbyte ptr [eax]
+    }
+}
+
+// `value` times `factor` (FMUL).
+double X87Times(const X87& value, double factor)
+{
+    double product = 0.0;
+    double* const out = &product;
+    const X87* const in = &value;
+    __asm {
+        mov eax, in
+        mov edx, out
+        fld tbyte ptr [eax]
+        fmul qword ptr [factor]
+        fstp qword ptr [edx]
+    }
+    return product;
+}
+
+// A model transform as the car's slot 12 fills it: a count and flags, a 3x3
+// matrix, a point and a scale.
+struct ModelTransform {
+    std::uint8_t count, flags;
+    std::uint8_t unused[2];
+    float m[9];
+    float point[3];
+    float scale;
+};
+static_assert(sizeof(ModelTransform) == 0x38, "slot 12's transform");
+
+// The float with its sign flipped (FCHS) as a stored value, so that the
+// compiler cannot move the flip past the product that follows it (which
+// would leave a NaN's sign as it was).
+float Negated(float value)
+{
+    volatile float negated = -value;
+    return negated;
+}
+
+// Three copies of the float 0x00B228E4 (its bits).
+void DefaultPoint(float (&p)[3])
+{
+    const std::uint32_t bits = Global<std::uint32_t>(addr::cSC4RiotPolice_DefaultFloat);
+    for (float& v : p)
+        std::memcpy(&v, &bits, sizeof v);
+}
+
+// The map's height (slot 18) at the point's x and z, into its y.
+void OnMap(void* map, float* point)
+{
+    point[1] = static_cast<float>(Virtual<double>(map, cslot::kMapHeight, point[0], point[2]));
+}
+
+// The dispatch on the mission 5. The direction from the car's position
+// (slot 7) to its point (slot 143): x rounded to a float, y and z not; the
+// length squares the float x, then z, then y; shorter than 1e-5 (not
+// unordered) it is scaled by 0x00B0A028 / length (each a float), else the
+// car's heading (slot 15) replaces it. The target is the position plus 8
+// (0x00A8E178) times it (x unrounded, y and z as floats), kept in the city,
+// on the map's height, placed heading that way, and the message
+// 0xAA0F3F75.
+void DispatchRiot(char* self, void* map)
+{
+    float p[3], q[3], r[3];
+    DefaultPoint(p);
+    DefaultPoint(q);
+    DefaultPoint(r);
+    Virtual<std::uint32_t>(At<char*>(self, crew::kVehicle), cslot::kCarPosition, static_cast<float*>(p));
+    const float* const t = Virtual<const float*>(At<char*>(self, crew::kVehicle), cslot::kCarPoint);
+    const float t0 = t[0], t1 = t[1], t2 = t[2];
+    const float dx = static_cast<float>(static_cast<double>(t0) - p[0]);
+    q[0] = dx;
+    const double dy = static_cast<double>(t1) - p[1];
+    const double dz = static_cast<double>(t2) - p[2];
+    q[1] = static_cast<float>(dy);
+    q[2] = static_cast<float>(dz);
+    const double length =
+        std::sqrt((static_cast<double>(dx) * dx + dz * dz) + dy * dy);
+    if (length < static_cast<double>(Global<float>(addr::cSC4AutomatonBase_DirectionEpsilon))) {
+        const double factor = static_cast<double>(Global<float>(addr::cSC4RiotPolice_One)) / length;
+        q[0] = static_cast<float>(static_cast<double>(dx) * factor);
+        q[1] = static_cast<float>(dy * factor);
+        q[2] = static_cast<float>(dz * factor);
+    } else {
+        Virtual<std::uint32_t>(At<char*>(self, crew::kVehicle), cslot::kCarHeading, static_cast<float*>(q));
+    }
+    const double eight = Global<float>(addr::SC4_FloatEight);
+    const double x = static_cast<double>(q[0]) * eight + p[0];
+    const float y8 = static_cast<float>(static_cast<double>(q[1]) * eight);
+    const float z8 = static_cast<float>(static_cast<double>(q[2]) * eight);
+    r[2] = static_cast<float>(static_cast<double>(z8) + p[2]);
+    r[0] = static_cast<float>(x);
+    r[1] = static_cast<float>(static_cast<double>(y8) + p[1]);
+    CallThis<void>(addr::cSC4RiotPolice_ClampToCity, self, static_cast<float*>(r));
+    OnMap(map, r);
+    Virtual<std::uint32_t>(self, wslot::kPlace, static_cast<const float*>(r), static_cast<const float*>(q));
+    Post(self, crewdata::kDispatchMessage, CarPart(self),
+         reinterpret_cast<const std::uint32_t*>(addr::cSC4RiotPolice_MessageWords)[At<std::uint8_t>(self, crew::kByte)],
+         0u, 0u, 0u);
+}
+
+// The dispatch on the mission 1. The car's position (slot 7) and transform
+// (slot 12, from the identity, a count and flags of 0) turned by the double
+// 0x00A99090 (the matrix's columns 0 and 2 by its FCOS and FSIN at 64 bits,
+// each product at 53 bits, stored as floats where the game stores them);
+// the side is ((m1 + c0) x 0 - c2) x scale for the row (m1, m4, m7) and the
+// new column (c0, c1, c2) (x keeps c2 unrounded, y and z its float; 0x00A81054
+// and 0x00A81228 the zero and the one); the target the position plus 6
+// (0x00A90900) times it (x unrounded, y and z as floats). Without the car's
+// occupant (slot 137) Remove(1). Else when the target's cell (city slot 95,
+// the cells the game's unset locals; ours zero) is outside the rectangle of
+// the occupant's object (its slot 48, then slot 11, signed), the target is
+// 6 the other way (x and y as floats, z unrounded). Kept in the city, on the
+// map's height, placed (slot 16) heading against the camera view.
+void DispatchOne(char* self, void* map)
+{
+    float p[3], q[3];
+    DefaultPoint(p);
+    DefaultPoint(q);
+    ModelTransform transform{};
+    static constexpr float kIdentity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    std::memcpy(transform.m, kIdentity, sizeof kIdentity);
+    transform.scale = 1.0f;
+    Virtual<std::uint32_t>(At<char*>(self, crew::kVehicle), cslot::kCarPosition, static_cast<float*>(p));
+    Virtual<std::uint32_t>(At<char*>(self, crew::kVehicle), cslot::kCarTransform, static_cast<void*>(&transform));
+    X87 sine, cosine;
+    X87SinCos(Global<double>(addr::cSC4RiotPolice_QuarterTurn), &sine, &cosine);
+    float* const m = transform.m;
+    const float m0 = m[0], m2 = m[2], m3 = m[3], m5 = m[5], m6 = m[6], m8 = m[8];
+    const float m8s = static_cast<float>(X87Times(sine, m8));
+    const double m0c = X87Times(cosine, m0);
+    const double m2s = X87Times(sine, m2);
+    const double m5s = X87Times(sine, m5);
+    const float m3c = static_cast<float>(X87Times(cosine, m3));
+    const float m6c = static_cast<float>(X87Times(cosine, m6));
+    float r[3];
+    r[0] = static_cast<float>(m0c - m2s);
+    m[0] = r[0];
+    const double c1 = static_cast<double>(m3c) - m5s;
+    r[1] = static_cast<float>(c1);
+    const double c2 = static_cast<double>(m6c) - m8s;
+    r[2] = static_cast<float>(c2);
+    m[3] = static_cast<float>(c1);
+    m[6] = static_cast<float>(c2);
+    const float m2c = static_cast<float>(X87Times(cosine, m2));
+    const float m5c = static_cast<float>(X87Times(cosine, m5));
+    const float m8c = static_cast<float>(X87Times(cosine, m8));
+    const float m0s = static_cast<float>(X87Times(sine, m0));
+    const float m3s = static_cast<float>(X87Times(sine, m3));
+    const double m6s = X87Times(sine, m6);
+    const double n0 = static_cast<double>(m0s) + m2c;
+    const double n1 = static_cast<double>(m3s) + m5c;
+    const double n2 = m6s + m8c;
+    m[2] = static_cast<float>(n0);
+    m[5] = static_cast<float>(n1);
+    m[8] = static_cast<float>(n2);
+    const double zero = Zero();
+    const double one = Global<float>(addr::SC4_FloatOneA81228);
+    const double v0 = (static_cast<double>(m[1]) + r[0]) * zero - n0 * one;
+    const double v1 = (static_cast<double>(m[4]) + r[1]) * zero - static_cast<double>(m[5]) * one;
+    const float v2 = static_cast<float>((static_cast<double>(m[7]) + r[2]) * zero - static_cast<double>(m[8]) * one);
+    const double scale = transform.scale;
+    r[0] = static_cast<float>(v0 * scale);
+    r[1] = static_cast<float>(v1 * scale);
+    r[2] = static_cast<float>(static_cast<double>(v2) * scale);
+    const double six = Global<float>(addr::SC4_FloatSix);
+    const double x6 = static_cast<double>(r[0]) * six;
+    const float y6 = static_cast<float>(static_cast<double>(r[1]) * six);
+    const float z6 = static_cast<float>(static_cast<double>(r[2]) * six);
+    q[2] = static_cast<float>(static_cast<double>(z6) + p[2]);
+    q[0] = static_cast<float>(x6 + p[0]);
+    q[1] = static_cast<float>(static_cast<double>(y6) + p[1]);
+    char* const occupant = Virtual<char*>(At<char*>(self, crew::kVehicle), cslot::kCarOccupant);
+    if (!occupant) {
+        Virtual<std::uint32_t>(self, wslot::kRemove, 1u);
+        return;
+    }
+    void* const object = Virtual<void*>(occupant, wslot::kOccupantObject);
+    std::int32_t rect[4] = {};
+    Virtual<std::uint32_t>(object, wslot::kObjectRect, static_cast<std::int32_t*>(rect));
+    std::int32_t cellX = 0, cellZ = 0;
+    Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), wslot::kCellOf, q[0], q[2], &cellX, &cellZ);
+    if (!(cellX >= rect[0] && cellX <= rect[2] && cellZ >= rect[1] && cellZ <= rect[3])) {
+        const float nx = static_cast<float>(static_cast<double>(Negated(r[0])) * six);
+        const float ny = static_cast<float>(static_cast<double>(Negated(r[1])) * six);
+        const double nz = static_cast<double>(Negated(r[2])) * six;
+        q[2] = static_cast<float>(nz + p[2]);
+        q[0] = static_cast<float>(static_cast<double>(nx) + p[0]);
+        q[1] = static_cast<float>(static_cast<double>(ny) + p[1]);
+    }
+    CallThis<void>(addr::cSC4RiotPolice_ClampToCity, self, static_cast<float*>(q));
+    OnMap(map, q);
+    float heading[3];
+    AwayFromCamera(heading);
+    Virtual<std::uint32_t>(self, wslot::kPlace, static_cast<const float*>(q), static_cast<const float*>(heading));
+}
+
+// 0x00546F30: the city's map (slot 40) held for the while (its slot 18 is
+// called without a null test); by the car's mission (slot 26, the car not
+// null-tested) 5 or 1 the riot police placed (above); then slot 33 (0, 0)
+// and (1, 1).
+void __fastcall RiotPoliceDispatch(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RiotPoliceDispatch", logged);
+    void* const map = Virtual<void*>(Global<void*>(addr::SC4_City), wslot::kCityNetwork);
+    if (map)
+        Virtual<std::uint32_t>(map, slot::kAddRef);
+    switch (Mission(self)) {
+    case 5:
+        DispatchRiot(self, map);
+        break;
+    case 1:
+        DispatchOne(self, map);
+        break;
+    default:
+        break;
+    }
+    Virtual<std::uint32_t>(self, cslot::kFade, 0.0f, 0.0f);
+    Virtual<std::uint32_t>(self, cslot::kFade, 1.0f, 1.0f);
+    if (map)
+        Release(map);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1937,13 +2498,27 @@ const Detour kWalks[] = {
     OPENSC4_DETOUR(addr::cSC4Pedestrian_Walk, PedestrianWalk),
 };
 
+// Part ped3.
+const Detour kCrews[] = {
+    OPENSC4_DETOUR(addr::cSC4PedestrianOneShot_Init, OneShotInit),
+    OPENSC4_DETOUR(addr::cSC4PedestrianOneShot_Frame, OneShotFrame),
+    OPENSC4_DETOUR(addr::cSC4RiotPolice_Init, RiotPoliceInit),
+    OPENSC4_DETOUR(addr::cSC4RiotPolice_Shutdown, RiotPoliceShutdown),
+    OPENSC4_DETOUR(addr::cSC4RiotPolice_Frame, RiotPoliceFrame),
+    OPENSC4_DETOUR(addr::cSC4RiotPolice_SetZoomAndRotation, RiotPoliceSetZoomAndRotation),
+    OPENSC4_DETOUR(addr::cSC4RiotPolice_PostMessage, RiotPolicePostMessage),
+    OPENSC4_DETOUR(addr::cSC4RiotPolice_Dispatch, RiotPoliceDispatch),
+    OPENSC4_DETOUR(addr::cSC4RiotPolice_ClampToCity, RiotPoliceClampToCity),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kStates, sizeof kStates / sizeof kStates[0], "states") &&
-           InstallList(kWalks, sizeof kWalks / sizeof kWalks[0], "walks");
+           InstallList(kWalks, sizeof kWalks / sizeof kWalks[0], "walks") &&
+           InstallList(kCrews, sizeof kCrews / sizeof kCrews[0], "crews");
 }
 
 const bool g_registered[] = {
@@ -1957,7 +2532,9 @@ const bool g_registered[] = {
                         "and the crews' word (34 detours, part ped1); the pedestrian's Init, frame, animation, "
                         "states (slots 109 to 111), slots 135, 155, 158, 165 and 176 and the frames of the states 4 "
                         "and 0xC (13 detours, part ped2a); the frames of the states 2, 3, 6, 8 and 9 (the walks) and "
-                        "their bump and step (7 detours, part ped2b; src/core/automata_pedestrians.cpp)",
+                        "their bump and step (7 detours, part ped2b); the one-shot's Init and frame, the riot "
+                        "police's Init, Shutdown, frame, slot 74, message helper, dispatch and its clamp to the city "
+                        "(9 detours, part ped3; src/core/automata_pedestrians.cpp)",
                         false, InstallObject}),
 };
 
