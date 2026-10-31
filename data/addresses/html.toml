@@ -1,4 +1,4 @@
-# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups, the layout (h4 and the layout side of h5) in ui.html.layout and the ui.html.nodes.layout.* groups, and the nodes' paint, hit tests and links (h5b) in the ui.html.nodes.paint.* groups, ui.html.nodes.hit and ui.html.nodes.links, and the nodes' constructors and destructors, colours and character helpers (h5c) in ui.html.nodes.ctors, ui.html.nodes.ctors.text, ui.html.nodes.dtors, ui.html.colors and ui.html.chars, with h5d's in ui.html.nodes.pictures and ui.html.nodes.children; the document's node constructors and destructors outside h5, attribute setters, small tag handlers and tokenizer helpers (h2a) and the document's slots, Init, base and destructors, the parser's glue in h2 and the font stack (h2b1) in the ui.html.document.* groups; the rest is not hooked.
+# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups, the layout (h4 and the layout side of h5) in ui.html.layout and the ui.html.nodes.layout.* groups, and the nodes' paint, hit tests and links (h5b) in the ui.html.nodes.paint.* groups, ui.html.nodes.hit and ui.html.nodes.links, and the nodes' constructors and destructors, colours and character helpers (h5c) in ui.html.nodes.ctors, ui.html.nodes.ctors.text, ui.html.nodes.dtors, ui.html.colors and ui.html.chars, with h5d's in ui.html.nodes.pictures and ui.html.nodes.children; the document's node constructors and destructors outside h5, attribute setters, small tag handlers and tokenizer helpers (h2a) and the document's slots, Init, base and destructors, the parser's glue in h2 and the font stack (h2b1) and the image fetching, image map, bullets and last slots (h2b2) in the ui.html.document.* groups; the HTML window's life, pages, COM slots and settings (h1a) in the ui.html.window.* groups; the rest is not hooked.
 
 [[entry]]
 name = "HTMLDirector::Construct"
@@ -25,7 +25,7 @@ kind = "function"
 convention = "cdecl"
 signature = "void* ()"
 expect = "68 68 04 00 00 E8 19 98"
-source = "Name ours, not hooked. Factory of class 0xAA12E5F5: allocates 0x468 bytes, runs the constructor 0x008FBC38 and returns the window's interface 0x4A11FD4A at +0xD8 (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.window.life. Factory of class 0xAA12E5F5: allocates 0x468 bytes, runs the constructor 0x008FBC38 and returns the window's interface 0x4A11FD4A at +0xD8 (null when the allocation failed) (docs/html.md, h1)."
 
 [[entry]]
 name = "HTMLWindow::Construct"
@@ -34,7 +34,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "53 55 56 57 8B F1 E8 F5"
-source = "Name ours, not hooked. Class 0xAA12E5F5, 0x468 bytes: the framework window's constructor (0x0099D938), then vtables 0x00ACD0D8 (151 slots), 0x00ACD050 at +0xD8 (34) and 0x00ACD040 at +0xDC (4); background 0xC0C0C0 (0x008FA62A). Plain ret (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.window.life. Plain ret. Class 0xAA12E5F5, 0x468 bytes: the framework window's constructor (0x0099D938), then vtables 0x00ACD0D8 (151 slots), 0x00ACD050 at +0xD8 (34) and 0x00ACD040 at +0xDC (4); the layout context (+0xE0), the lock (+0x14C), the `Missing.jpg` string (+0x16C, empty), flags 0xFA (+0x180), margins 4, 4, 0x16, 4 (+0x184 to +0x190), the timer (+0x1DC), three addresses (+0x220 the base, +0x2E0 the page shown, +0x3A0 the page asked for), the font steps (+0x204, seven) none; background 0xC0C0C0 (0x008FA62A) (docs/html.md, h1)."
 
 [[entry]]
 name = "HTMLWindow::QueryInterface"
@@ -43,7 +43,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, uint32_t iid, void** out)"
 expect = "55 8B EC 8B 45 08 48 74"
-source = "Name ours, not hooked. Slot 0 of 0x00ACD0D8; `ret 8`. 0x22BA0121 is the window itself, 1 and 0x4A11FD4A the part at +0xD8, 0x452294AA the part at +0xDC; anything else goes to the framework window's (0x0099B774) (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.window.slots. `ret 8`. Slot 0 of 0x00ACD0D8. 0x22BA0121 is the window itself, 1 and 0x4A11FD4A the part at +0xD8, 0x452294AA the part at +0xDC (each with a reference, slot 1); anything else goes to the framework window's (0x0099B774) (docs/html.md, h1)."
 
 [[entry]]
 name = "HTMLWindow::OnCreate"
@@ -52,7 +52,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this)"
 expect = "55 8B EC 83 EC 1C 53 8B"
-source = "Name ours, not hooked. Slot 4 of 0x00ACD0D8; plain ret. Takes three fonts from the window manager, loads `Missing.jpg`, makes a picture reader (class 0xA2FFB5D3, interface 0x02FFBB60), titles the window `HTML Window` and gets the Internet service (or makes class 0x849B190A, interface 0x449B1912) (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.window.life. Plain ret. Slot 4 of 0x00ACD0D8. Once (the framework window's Init 0x0099C2C3, whose answer it returns): two fonts from the window manager's font list (slot 6 of the window, its slot 32, that one's slot 9: 0x12, else 0x11, else 1 at +0x164; 1 at +0x168), each with a reference; `Missing.jpg` into +0x16C; a picture reader (RZGetCOM's slot 3, class 0xA2FFB5D3, interface 0x02FFBB60) at +0x1D8 when there is none; the title `HTML Window` (slot 74); the Internet service (system service 0x449B1939 through 0x008FA948, else class 0x849B190A, interface 0x449B1912) at +0x460 when there is none; the context's window and picture (+0xE0, +0xE8); the client rectangle (0x008FAC01); and when a page was asked for (+0x2E0) slot 17 of the +0xD8 part, and with its answer the view (+0xFC) the client rectangle at 0, 0 (docs/html.md, h1)."
 
 [[entry]]
 name = "HTMLWindow::ShowHTML"
@@ -61,16 +61,16 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* text, void* base_url)"
 expect = "55 8B EC 83 EC 18 53 56"
-source = "Name ours, not hooked. `ret 8`. Makes a document (0x1C4 bytes, 0x00905AC5), parses the text with it (document slot 8) and on success replaces the shown document, sets the scroll area and lays it out (0x008FA6F3); starts a 500 ms timer (0x008FA31D) when the document's slot 20 asks for one. Called by slot 22 of the +0xD8 interface and by the service's reply (0x008FBFE5) (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.window.show. `ret 8`. Makes a document (0x1C4 bytes, 0x00905AC5) with a reference, Inits it with the window, the service (+0x460) and the base, gives it the window's font steps (+0x204, slot 7) when set and parses the text (slot 8; false and the document released when that fails). Then under the lock (+0x14C): the 500 ms timer (callback 0x008FA31D) started when the document's slot 20 says so and stopped otherwise, the base to slot 19 of the +0xD8 part, the view (+0xFC) the client rectangle at 0, 0, the old document's images released (0x00900357) and it released, the new one at +0x148 and the context's +4, the page asked for (+0x3A0) made the page shown (+0x2E0), the scroll bars dropped (0x008FA6F3). True. Called by slot 22 of the +0xD8 interface and by the service's reply (0x008FBFE5) (docs/html.md, h1)."
 
 [[entry]]
 name = "HTMLWindow::SetFontSizes"
 address = 0x008FB66F
 kind = "function"
 convention = "thiscall"
-signature = "void (void* this, const uint32_t* sizes)"
+signature = "void* (void* this, const int32_t* sizes)"
 expect = "8B 44 24 04 81 C1 2C 01"
-source = "Name ours, not hooked. Slot 33 (+0x84) of the interface at +0xD8 (vtable 0x00ACD050), so this is the window +0xD8; `ret 4`. Copies the seven HTML font steps to +0x12C; the text page dialog passes SC4UI::TextPageFontSizes (0x00AB4AD0) (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.window.settings. Slot 33 (+0x84) of the interface at +0xD8 (vtable 0x00ACD050), so this is the window +0xD8; `ret 4`. Copies the seven HTML font steps to +0x12C (the window's +0x204, 0x008FB654), which ShowHTML hands each new document; the text page dialog passes SC4UI::TextPageFontSizes (0x00AB4AD0) (docs/html.md, h1)."
 
 [[entry]]
 name = "InternetService::Construct"
@@ -1908,7 +1908,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "56 8B F1 8B 46 5C 85 C0"
-source = "Name ours. Plain ret. The layout context's destructor: the two vectors freed, the list's destructor (cGZDBSegmentPackedFile::ListDestruct, a jump). Called by ours (the cell's copy) and the layout test; still the game's (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.window.life. Plain ret. The layout context's destructor: the two vectors (+0x5C, +0x50) freed, the list's destructor (cGZDBSegmentPackedFile::ListDestruct, a jump). Called by the window's destructor, ours (the cell's copy) and the layout test (docs/html.md, h1)."
 
 [[entry]]
 name = "HTMLLayout::PushRightEntry"
@@ -3079,3 +3079,309 @@ convention = "cdecl"
 signature = "void (void* image, int32_t left, int32_t top, int32_t right, int32_t bottom, uint32_t colour, uint32_t filled)"
 expect = "B8 70 00 01 00 E8 96 8B"
 source = "Name ours, not hooked. Name a guess. 6,749 bytes: an ellipse drawn into a 16-bit image (its slots 9, 10, 34 and 35: width, height, pixels, pitch). Called by the HTML bullets 0x008FF8AB (ours), 0x0099EF11 and 0x009B6AE5 (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLWindow::Destruct"
+address = 0x008FB6B2
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 C7 06 D8 D0 AC"
+source = "Name ours. Ours in ui.html.window.life. Plain ret. The window's destructor: its three vtables again, slot 5 (0x008FA329), the three addresses, the timer, the string, the lock and the layout context (0x008FB68A) destroyed, then a jump to the framework window's (0x0099E1A2) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::Delete"
+address = 0x008FBDA1
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 09 F9 FF FF"
+source = "Name ours. Ours in ui.html.window.life. `ret 4`. Slot 148 of 0x00ACD0D8: the destructor (0x008FB6B2), then operator delete with flag 1 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::OnDestroy"
+address = 0x008FA329
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 E8 00 19 0A 00"
+source = "Name ours. Ours in ui.html.window.life. Plain ret. Slot 5 of 0x00ACD0D8: when created, slot 24 of the +0xD8 part (0x008FA9A7), the timer stopped (its slot 7), the picture reader (+0x1D8), the service (+0x460), the two fonts (+0x164, +0x168), the document (+0x148), the scroll bars (+0x1A4, +0x1A8) and +0x1AC, +0x1B0 released and cleared, then a jump to the framework window's 0x0099D2FE. Not created: true (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLServiceRef::Construct"
+address = 0x008FA948
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 83 26 00 E8 99"
+source = "Name ours. Ours in ui.html.window.life. Plain ret. A smart pointer to the Internet service: null, then the framework's (RZGetFramework) slot 5 for system service 0x449B1939, interface 0x449B1912. Called by the window's slot 4 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLServiceRef::Destruct"
+address = 0x008FA96D
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "B8 EA F0 A6 00 E8 59 6F"
+source = "Name ours. Ours in ui.html.window.life. Plain ret. The smart pointer's destructor (an SEH frame around it): the service released (slot 2) when there is one (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::SetColour"
+address = 0x008FA62A
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t red, uint32_t green, uint32_t blue)"
+expect = "55 8B EC 56 FF 75 10 8B"
+source = "Name ours. Ours in ui.html.window.life. `ret 0xC`. Slot 107 of 0x00ACD0D8: the framework window's colour (0x0099BFAC, +0xD4), then slot 108's colour of the same red, green and blue kept at +0x11C (the page's background where nothing is drawn). Called by the constructor with 0xC0, 0xC0, 0xC0 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::ShowHTMLText"
+address = 0x008FBF73
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* text, void* base_url)"
+expect = "55 8B EC 83 EC 10 56 57"
+source = "Name ours. Ours in ui.html.window.show. `ret 8`. Slot 22 of the +0xD8 interface (this is the window +0xD8): ShowHTML (0x008FBDE4); when it worked, the load state (+0x464) made 2 with a message 0xE4A85D8F to the parent (+0x4C, slot 145: the window, 2 and the state before) unless it was 2 already, and the window drawn again (slot 92) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::DropScrollBars"
+address = 0x008FA6F3
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint8_t vertical, uint8_t horizontal)"
+expect = "55 8B EC 51 53 33 DB 38"
+source = "Name ours. Ours in ui.html.window.show. `ret 8`. Each scroll bar asked for and there (+0x1A4 vertical, +0x1A8 horizontal) taken out of the children (its slot 3 to the window's slot 16), released and cleared; then, when one was, the page laid out again (0x008FA559) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::Relayout"
+address = 0x008FA559
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 8D 86 48 01 00"
+source = "Name ours. Ours in ui.html.window.show. Plain ret. With a document (+0x148): its slot 15 with 0 (laid out again when drawn), then the window drawn again (slot 92, a jump; EAX its answer, else the field's address) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::OnMessage"
+address = 0x008FBFE5
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* message)"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Name ours. Ours in ui.html.window.show. `ret 4`. Slot 3 of the +0xDC part (0x00ACD040; this is the window +0xDC): a message of type 0x75758483 (slot 4) is the Internet service's answer (slot 14 whether it succeeded, slot 10, slot 20 the request). While a page is asked for (+0x464 1): on success the request's text (+0x30), when not empty, shown with the page asked for as its base (0x008FBDE4; a failure leaves it there) and the state made 2; on a failure the state made 2 with a document, else 0; then the message 0xE4A85D8F to the parent (slot 145: the window, the state, 1) and slot 91. True for the type, else false (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::OnTimer"
+address = 0x008FA31D
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (void* window)"
+expect = "8B 4C 24 04 8B 01 FF A0"
+source = "Name ours. Ours in ui.html.window.show. The 500 ms timer's callback (BLINK): the window drawn again (slot 92, a jump) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::GetText"
+address = 0x008FC0C5
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* out)"
+expect = "8B 49 70 8B 01 56 57 FF"
+source = "Name ours. Ours in ui.html.window.show. `ret 4`. Slot 21 of the +0xD8 interface: the document's text (its slot 4; the string's slots 7 and 6) assigned to `out`, a string body (a string's +4; 0x0044D3A0). True (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::QueryInterfaceD8"
+address = 0x008FB745
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "81 E9 D8 00 00 00 E9 BC"
+source = "Name ours. Ours in ui.html.window.slots. `ret 8` (of 0x008FA40C). Slot 0 of the +0xD8 interface: a jump to the window's (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::QueryInterfaceDC"
+address = 0x008FB750
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "81 E9 DC 00 00 00 E9 B1"
+source = "Name ours. Ours in ui.html.window.slots. `ret 8` (of 0x008FA40C). Slot 0 of the +0xDC part: a jump to the window's (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::AddRefDC"
+address = 0x008FB75B
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "81 E9 DC 00 00 00 E9 C3"
+source = "Name ours. Ours in ui.html.window.slots. Plain ret. Slot 1 of the +0xDC part: a jump to the window's AddRef (0x008FB729) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::ReleaseDC"
+address = 0x008FB766
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "81 E9 DC 00 00 00 E9 BD"
+source = "Name ours. Ours in ui.html.window.slots. Plain ret. Slot 2 of the +0xDC part: a jump to the window's Release (0x008FB72E) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::GetClassID"
+address = 0x008FA317
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t ()"
+expect = "B8 F5 E5 12 AA C3"
+source = "Name ours. Ours in ui.html.window.slots. Returns 0xAA12E5F5, the class the HTML director registers (its constructor 0x008F673E calls it) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::GetLoadState"
+address = 0x008FB733
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 81 8C 03 00 00 C3"
+source = "Name ours. Ours in ui.html.window.settings. Plain ret. Slot 5 of the +0xD8 interface: the load state (+0x464; 1 while a page is asked for, 2 shown, 0 failed) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::SetMissingImage"
+address = 0x008FB73A
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* name)"
+expect = "81 C1 94 00 00 00 8B 01"
+source = "Name ours. Ours in ui.html.window.settings. `ret 4` (of the string's slot 13). Slot 23 of the +0xD8 interface: the name of the picture for images not found (+0x16C, `Missing.jpg`) assigned, a jump to the string's slot 13 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::GetPageSize"
+address = 0x008FA65C
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t* width, uint32_t* height)"
+expect = "8B 41 24 8B 54 24 04 89"
+source = "Name ours. Ours in ui.html.window.settings. `ret 8`. Slot 6 of the +0xD8 interface: the view's left and top (+0xFC, +0x100), EAX the second (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::AddFlags"
+address = 0x008FA45D
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t flags)"
+expect = "8B 81 A8 00 00 00 8B 54"
+source = "Name ours. Ours in ui.html.window.settings. `ret 4`. Slot 26 of the +0xD8 interface: when none of `flags` is set in +0x180, slot 27 with them added. EAX the flags before, or slot 27's (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::SetFlags"
+address = 0x008FA4A8
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "8D 81 A8 00 00 00 8B 4C"
+source = "Name ours. Ours in ui.html.window.settings. `ret 4`. Slot 27 of the +0xD8 interface: the flags (+0x180: 4 the horizontal scroll bar, 8 the vertical, 0x40 a frame, 0x80 the background filled) written when they differ; EAX their address (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::RemoveFlags"
+address = 0x008FA478
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t flags)"
+expect = "8B 91 A8 00 00 00 8B 44"
+source = "Name ours. Ours in ui.html.window.settings. `ret 4`. Slot 28 of the +0xD8 interface: when any of `flags` is set, slot 27 with them taken out. EAX `flags`, or slot 27's (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::HasFlags"
+address = 0x008FA495
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t flags)"
+expect = "8B 81 A8 00 00 00 23 44"
+source = "Name ours. Ours in ui.html.window.settings. `ret 4`. Slot 29 of the +0xD8 interface: 1 when any of `flags` is set in +0x180, else 0 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::SetMargins"
+address = 0x008FB127
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, int32_t left, int32_t top, int32_t right, int32_t bottom)"
+expect = "8B 44 24 04 89 81 AC 00"
+source = "Name ours. Ours in ui.html.window.settings. `ret 0x10`. Slot 32 of the +0xD8 interface: the four margins (+0x184 to +0x190), the client rectangle made again (0x008FAC01) and the page laid out again (0x008FA559) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::CopyFontSizes"
+address = 0x008FB654
+kind = "function"
+convention = "cdecl"
+signature = "int32_t* (const int32_t* first, const int32_t* last, int32_t* to)"
+expect = "55 8B EC 51 8D 45 FF 50"
+source = "Name ours. Ours in ui.html.window.settings. A copy of dwords (SC4::CopyDwords with a tag of its own). Called by slot 33 (0x008FB66F) (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::SetBase"
+address = 0x008FBBB9
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* text)"
+expect = "55 8B EC 81 EC C0 00 00"
+source = "Name ours. Ours in ui.html.window.settings. `ret 4`. Slot 19 of the +0xD8 interface: an address made from the text (0x00821C60, 0xC0 bytes on the stack) assigned to the base (+0x220 of the window, 0x00821E20), then destroyed. True. ShowHTML and the document's base set call it (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::GetShownURL"
+address = 0x008FC327
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* out)"
+expect = "56 81 C1 08 02 00 00 E8"
+source = "Name ours. Ours in ui.html.window.settings. `ret 4`. Slot 15 of the +0xD8 interface: the text of the page shown (+0x2E0) assigned to `out`; AL whether it is not empty, the rest of EAX the string's begin (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::GetAskedURL"
+address = 0x008FC350
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* out)"
+expect = "56 81 C1 C8 02 00 00 E8"
+source = "Name ours. Ours in ui.html.window.settings. `ret 4`. Slot 16 of the +0xD8 interface: the text of the page asked for (+0x3A0), as slot 15 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::PostLoadState"
+address = 0x008FA9A7
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "55 8B EC 83 EC 10 33 C0"
+source = "Name ours. Ours in ui.html.window.settings. Plain ret. Slot 24 of the +0xD8 interface: while a page is asked for (+0x464 1), the state made 0 and the message 0xE4A85D8F to the parent (+0x4C, slot 145: the window, 0, 1); AL 0 then (the rest of EAX slot 145's), else EAX 1. The window's slot 5 calls it (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLWindow::UpdateClientRect"
+address = 0x008FAC01
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 10 56 57"
+source = "Name ours, not hooked. Plain ret. The client rectangle (+0xEC) made from the window's area (+0x24) and the margins (+0x184 to +0x190), the view's right and bottom (+0x104, +0x108) moved with it; true when it changed (0x005DC950). Called by the window's slots 4, 32 and 55 and the paint (docs/html.md, h1)."
+
+[[entry]]
+name = "SC4Url::Assign"
+address = 0x00821E20
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours, not hooked. `ret 4`. An address's operator= (0xC0 bytes: two flags, a dword and the parts' strings, SC4String::AssignRange each). Called by the HTML window (docs/html.md, h1) and the Internet service."
+
+[[entry]]
+name = "SC4Url::FromText"
+address = 0x00821C60
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* text)"
+expect = "8B 44 24 04 53 33 DB 3B"
+source = "Name ours, not hooked. `ret 4`. An address made from a string (0xC0 bytes). Called by the HTML window's slot 19 (docs/html.md, h1)."
+
+[[entry]]
+name = "GZWin::SetBackgroundRGB"
+address = 0x0099BFAC
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint8_t red, uint8_t green, uint8_t blue)"
+expect = "0F B6 54 24 0C 33 C0 8A"
+source = "Name ours. `ret 0xC`. The framework window's colour at +0xD4 as 0x00rrggbb. Called by the HTML window's slot 107 (docs/html.md, h1)."
