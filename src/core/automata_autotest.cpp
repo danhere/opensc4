@@ -586,8 +586,10 @@
 //   with the automaton base's Init and Shutdown, the pedestrian's frame,
 //   SetStart, SwapModel and the core's slot 74 jumped to the test's stubs
 //   for the while; the city's slots 40 (the map: 18 the height), 47 (the
-//   sounds), 93, 94 and 95, the message server and the camera view swapped
-//   for the test's; a car of the test's (slots 7, 12, 15, 26, 137, 143).
+//   sounds), 93, 94 and 95 and the message server the test's for its own
+//   thread (another thread gets the real ones), the camera view's
+//   direction set in the game's object for the while; a car of the
+//   test's (slots 7, 12, 15, 26, 137, 143).
 //   The one-shot's Init (the part's and the base's answers, the property
 //   and its bytes, the models) and frame (the models' frames, the count);
 //   the riot police's Init (the missions 5 over the level's bounds, a NaN
@@ -597,8 +599,9 @@
 //   their addresses, and the dispatch over 40 cases (the car's point far,
 //   within 1e-5, on it, a NaN; transforms identity, turned, skewed and
 //   scaled, a NaN and an infinity; no occupant; the cell in and out of the
-//   rectangle; the city's edges) and 64 drawn. Each posted message's words
-//   by which known word each holds. pflags 0x400 when it ran, 0x800
+//   rectangle; the city's edges) and 128 drawn (64 of them about the
+//   origin, where the low bits show). Each posted message's flags, type,
+//   four words and object (by name). pflags 0x400 when it ran, 0x800
 //   without a city, a factory or the patches. Log line: "ped3 pcrews".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
@@ -29793,6 +29796,21 @@ uint32_t CrewName(const void* p)
     return 3;
 }
 
+// The swapped city slots and message server serve only the test's thread:
+// another thread of the game calling them meanwhile gets the real ones (the
+// swap is for everyone, and a call from elsewhere must neither reach the
+// test's objects nor go into its record).
+extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId();
+unsigned long g_crewThread = 0;
+void** g_crewRealCity = nullptr;
+void* g_crewRealServer = nullptr;
+bool CrewForeign() { return GetCurrentThreadId() != g_crewThread; }
+template <typename R, typename... Args>
+R CrewRealCity(void* city, std::size_t at, Args... args)
+{
+    return reinterpret_cast<R(__thiscall*)(void*, Args...)>(g_crewRealCity[at / 4])(city, args...);
+}
+
 // The test's six distinct words for the message helper at its address.
 constexpr uint32_t kCrewWords[6] = {0x5151A001u, 0x5151A002u, 0x5151A003u, 0x5151A004u, 0x5151A005u, 0x5151A006u};
 
@@ -29941,6 +29959,8 @@ uint32_t __fastcall CrewValueCount(CrewObject*, void*)
 // by name).
 uint32_t __fastcall CrewPost(CrewObject*, void*, char* message, uint32_t word)
 {
+    if (CrewForeign())
+        return Virtual<uint32_t>(g_crewRealServer, ped::cslot::kPost, static_cast<void*>(message), word);
     ++g_crew.posts;
     g_crew.calls.Mix(0xCC);
     g_crew.calls.Mix(message ? 1u : 0u);
@@ -29994,25 +30014,39 @@ const float* __fastcall CrewCarPoint(CrewObject*, void*)
 }
 // The city's.
 CrewObject g_crewMap{};
-void* __fastcall CrewCityMap(void*, void*)
+void* __fastcall CrewCityMap(void* city, void*)
 {
+    if (CrewForeign())
+        return CrewRealCity<void*>(city, ped::wslot::kCityNetwork);
     g_crew.calls.Mix(40);
     return &g_crewMap;
 }
-void* __fastcall CrewCitySounds(void*, void*)
+void* __fastcall CrewCitySounds(void* city, void*)
 {
+    if (CrewForeign())
+        return CrewRealCity<void*>(city, ped::cslot::kCitySounds);
     g_crew.calls.Mix(47);
     return g_crew.sounds;
 }
-uint32_t __fastcall CrewCellsX(void*, void*)
+uint32_t __fastcall CrewCellsX(void* city, void*)
 {
+    if (CrewForeign())
+        return CrewRealCity<uint32_t>(city, ped::cslot::kCityCellsX);
     g_crew.calls.Mix(93);
     return static_cast<uint32_t>(g_crew.cells[0]);
 }
-uint32_t __fastcall CrewCellsZ(void*, void*)
+uint32_t __fastcall CrewCellsZ(void* city, void*)
 {
+    if (CrewForeign())
+        return CrewRealCity<uint32_t>(city, ped::cslot::kCityCellsZ);
     g_crew.calls.Mix(94);
     return static_cast<uint32_t>(g_crew.cells[1]);
+}
+uint32_t __fastcall CrewCellOf(void* city, void*, float x, float z, int32_t* cellX, int32_t* cellZ)
+{
+    if (CrewForeign())
+        return CrewRealCity<uint32_t>(city, ped::wslot::kCellOf, x, z, cellX, cellZ);
+    return WalkCellOf(city, nullptr, x, z, cellX, cellZ);
 }
 
 template <int Kind>
@@ -30167,7 +30201,10 @@ void PedCrewsDrive(Hash& pcrews, uint32_t& pflags)
             cityTable[cs::kCitySounds / 4] = reinterpret_cast<void*>(&CrewCitySounds);
             cityTable[cs::kCityCellsX / 4] = reinterpret_cast<void*>(&CrewCellsX);
             cityTable[cs::kCityCellsZ / 4] = reinterpret_cast<void*>(&CrewCellsZ);
-            cityTable[ped::wslot::kCellOf / 4] = reinterpret_cast<void*>(&WalkCellOf);
+            cityTable[ped::wslot::kCellOf / 4] = reinterpret_cast<void*>(&CrewCellOf);
+            g_crewThread = GetCurrentThreadId();
+            g_crewRealCity = realCity;
+            g_crewRealServer = Global<void*>(addr::SC4_MessageServer);
             At<void**>(city, 0) = cityTable;
             g_crewMap = CrewMake(CrewVtable<0>());
             CrewObject sounds = CrewMake(CrewVtable<1>());
@@ -30179,9 +30216,16 @@ void PedCrewsDrive(Hash& pcrews, uint32_t& pflags)
             CrewCar car{CrewVtable<7>(), CrewPartVtable(), 1};
             alignas(4) static char found[0x40];
             At<uint32_t>(found, 0x30) = 0x30303030u;
-            alignas(4) static char camera[0x60];
             RfSwap swapServer(addr::SC4_MessageServer, &server);
+            // The camera view's direction set for the while in the game's
+            // own object (another thread may call it meanwhile, so it is not
+            // swapped for a fake); a buffer of the test's without one.
+            alignas(4) static char cameraBuffer[0x60];
+            char* const camera =
+                Global<char*>(addr::SC4_CameraView) ? Global<char*>(addr::SC4_CameraView) : cameraBuffer;
             RfSwap swapCamera(addr::SC4_CameraView, camera);
+            float savedDirection[3];
+            std::memcpy(savedDirection, camera + ped::cslot::kCameraDirection, sizeof savedDirection);
             uint8_t* const counts = reinterpret_cast<uint8_t*>(addr::cSC4PedestrianOneShot_CountLow);
             const uint8_t savedCounts[2] = {counts[0], counts[1]};
             float* const levels = reinterpret_cast<float*>(addr::cSC4RiotPolice_Levels);
@@ -30464,6 +30508,7 @@ void PedCrewsDrive(Hash& pcrews, uint32_t& pflags)
             pcrews.Mix(static_cast<uint32_t>(car.references));
             pcrews.Mix(static_cast<uint32_t>(sounds.references));
             pcrews.Mix(g_crew.posts);
+            std::memcpy(camera + ped::cslot::kCameraDirection, savedDirection, sizeof savedDirection);
             counts[0] = savedCounts[0];
             counts[1] = savedCounts[1];
             for (int i = 0; i < 3; ++i)
