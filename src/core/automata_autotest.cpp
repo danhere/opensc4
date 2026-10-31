@@ -610,13 +610,15 @@
 //   and 10), the view 0x00B43DD0's slot 30 the test's for its own thread
 //   (the view's vtable swapped for a copy), ped3's city slots, map, message
 //   server and camera direction, and the tuning floats 0x00B21CC8 and
-//   0x00B21CCC set for the while on three of each four cases. The dispatch
+//   0x00B21CCC set for the while on three of each four cases (and the fade
+//   0x00B21C84 on one in three). The dispatch
 //   over 64 cases (the mission 5 with the state 0x10 over eight headings, a
 //   NaN, a zero and an infinity among them; without it the truck's point
 //   far, within 1e-5, on the position, a NaN, above it; the missions 1, 0,
 //   3 and 7 over ped3's transforms, no occupant and the cell in and out of
-//   the rectangle; the model's transform answers, the count 0xFF) and 128
-//   drawn (64 about the origin), each mixing +0x2A8 and +0x2B8 and the
+//   the rectangle; the model's transform answers, the count 0xFF) and 192
+//   drawn (64 about the origin, 64 with the truck's point near the origin
+//   from far off), each mixing +0x2A8 and +0x2B8 and the
 //   counts. pflags 0x1000 when it ran, 0x2000 without a city or the
 //   factory. Log line: "ped4a pfire".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
@@ -30735,6 +30737,8 @@ void PedFireDrive(Hash& pfire, uint32_t& pflags)
         float* const tuning[2] = {reinterpret_cast<float*>(addr::SC4AutomataTuning_CrewStep21CC8),
                                   reinterpret_cast<float*>(addr::SC4AutomataTuning_CrewSide21CCC)};
         const float savedTuning[2] = {*tuning[0], *tuning[1]};
+        float* const fade = reinterpret_cast<float*>(addr::SC4AutomataTuning_Fade21C84);
+        const float savedFade = *fade;
         log::Write("autotest: automata: vehicle: ped4a: tuning %08X %08X fade %08X", Bits(savedTuning[0]),
                    Bits(savedTuning[1]), Bits(Global<float>(addr::SC4AutomataTuning_Fade21C84)));
 
@@ -30775,10 +30779,12 @@ void PedFireDrive(Hash& pfire, uint32_t& pflags)
                                       {-1.0f, 0.0f, 0.0f}, {nan, 0.0f, 0.5f}, {0.0f, 0.0f, 0.0f},
                                       {inf, 0.0f, 1.0f},  {-0.0f, -0.25f, -0.97f}};
         const float tunings[4][2] = {{0.0f, 0.0f}, {2.3f, 3.7f}, {0.1f, 6.0f}, {-1.5f, 0.3f}};
-        for (int k = 0; k < 64 + 64 + 64; ++k) {
+        for (int k = 0; k < 64 + 64 + 64 + 64; ++k) {
             const bool drawn = k >= 64;
-            const bool tiny = k >= 64 + 64; // about the origin, where the low bits show
+            const bool tiny = k >= 64 + 64 && k < 64 + 64 + 64; // about the origin, where the low bits show
+            const bool far = k >= 64 + 64 + 64; // the truck's point near the origin, the truck far off
             const int t = k % 4;
+            *fade = k % 3 == 1 ? 0.37f : savedFade;
             if (t == 0) {
                 *tuning[0] = savedTuning[0];
                 *tuning[1] = savedTuning[1];
@@ -30801,6 +30807,14 @@ void PedFireDrive(Hash& pfire, uint32_t& pflags)
                     const float reach = k % 8 == 3 ? 4e-6f : 0.01f;
                     set3(g_crew.position, lcg.In(0.0f, reach / 2), lcg.In(0.0f, reach / 2), lcg.In(0.0f, reach / 2));
                     set3(g_crew.point, lcg.In(0.0f, reach), lcg.In(0.0f, reach), lcg.In(0.0f, reach));
+                }
+                if (far) {
+                    // The way's differences are not floats: the mission 5
+                    // without the state.
+                    g_crew.mission = 5u;
+                    g_crew.inState = nullptr;
+                    set3(g_crew.position, lcg.In(100.0f, 1000.0f), lcg.In(10.0f, 60.0f), lcg.In(100.0f, 1000.0f));
+                    set3(g_crew.point, lcg.In(-1.0f, 1.0f), lcg.In(-3.0f, 3.0f), lcg.In(-1.0f, 1.0f));
                 }
                 set3(g_crew.heading, lcg.In(-1.0f, 1.0f), lcg.In(-0.2f, 0.2f), lcg.In(-1.0f, 1.0f));
                 for (int i = 0; i < 9; ++i)
@@ -30887,8 +30901,11 @@ void PedFireDrive(Hash& pfire, uint32_t& pflags)
                 FireSection("fixed", pfire);
             else if (k == 127)
                 FireSection("drawn", pfire);
+            else if (k == 191)
+                FireSection("tiny", pfire);
         }
-        FireSection("tiny", pfire);
+        FireSection("far", pfire);
+        *fade = savedFade;
         pfire.Mix(static_cast<uint32_t>(car.references));
         pfire.Mix(static_cast<uint32_t>(g_fire.viewMoves));
         pfire.Mix(g_crew.posts);
