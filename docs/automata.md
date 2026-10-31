@@ -41,7 +41,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3 (9, done), ped4a (1, done), ped4b (part ped below counts 111) |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
-| Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | 2 |
+| Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | pi1 (25, done), pi2, pi3 (part pi below counts 73 of its own) |
 
 That is about 48 parts of 20 to 45 functions. What the parts after a1 will meet:
 
@@ -4173,3 +4173,90 @@ A trial with 42 planted changes (the hose point's gate; the setters' share of 3,
 | The 12-save batch | 7 | 12 of 12 saves (Making Money d0090 same after 3 pairs, two outcomes on both sides) |
 
 Every run's ped fields were the same on both sides (pfire 4BEDEA6F, pfire2 0B1C0B7D at that build, pflags 0x554F), and every B run installed the 12 and reached them. With the final test both sides give pfire2 828C9ED4 on Making Money d0000; in that run the game itself reached none of the 12 before the test.
+
+## Part pi: the path information
+
+### Survey
+
+cSC4PathInfo is the resource of type 0x296678F7 (interface 0xA9667793) that holds a network piece's paths, the SC4PATHS files; cSC4PathInfoFactory (class ID 0x496678FE, registered at 0x00460328) is its resource factory. The network occupants make one per piece on first use (GetPathInfo, slot 49; [netocc.md](netocc.md)), which follows the view; the construction crews and the automata ask it for paths. The read-only survey (tools in %LOCALAPPDATA%\opensc4\net-tools\pi0: vtscan.py the scan of .rdata for words in the range, vtdump.py, xref.py the callers in and out of the range, survey.py; CSV and notes in %LOCALAPPDATA%\opensc4\analysis\pathinfo-survey) found both by their vtables and the constructors that write them.
+
+| Class | ID | Factory | Constructor | Size | Vtables |
+| --- | --- | --- | --- | --- | --- |
+| cSC4PathInfoFactory | class 0x496678FE (0x0053CF90) | 0x0053D130 | the resource factory base's 0x0097564D | 0x10 | 0x00A99D34 (12 slots: 7 the deleting destructor, 9 CreateInstance, 10 the SC4PATHS reader 0x00542900) |
+| cSC4PathInfo | type 0x296678F7, interface 0xA9667793 | CreateInstance 0x00542800, Clone 0x00540910 | 0x005407D0, copy 0x005408B0 | 0x3C, the pool 0x00B09FEC | +0 0x00A99E70 (41 slots), +4 0x00A99E38 (the cRZResource part, 13 slots), the interface's 0x00A99D78 |
+
+The fields: +4 the resource part (its count +8, its key), +0x1C the path table (a hash map of 100 buckets: begin +0x20, end +0x24, the count +0x2C), +0x30 the flags (1 slots 16's and 17's, 2 there are stops), +0x31 a byte per path type 0 to 7. A key is type << 24 | number << 16 | from << 8 | to; a stop's type byte has 0x10 or 0x20 above the type. A node is 0x1C bytes: next, key, then the record (the points, a vector of 12-byte points; the length, a float; a byte). The pools' vtables 0x00A99D64 and 0x00A99E24 (0x3C-byte blocks in 4 KB pages of 0x44) hold the pool's free 0x0053DC10 and new page 0x0053D0C0.
+
+75 functions in Ghidra's list (23,825 bytes), 73 of them the path information's: 0x0053D100 is the pedestrians' groups split (shared, not counted, part ped) and 0x00542EE0 is the aircraft manager's route line (ours since aw2). Kept as the game's: the adjustors 0x005403D0 (+4 slot 0) and 0x005403E0 (+4 slot 12), the hash iterator's advance 0x0053DCF0 (ten functions of other classes call it) and the allocate-and-copy 0x0053D5A0 (0x0050C540 calls it too); the main AddRef and Release are other code's (0x00808600, 0x00808610).
+
+- **pi1 (25, done):** the objects, the small queries and the building. Below.
+- **pi2 (22, 6,829 bytes):** the SC4PATHS reader 0x00542900 (1,500 bytes) with its line, number and point readers (0x0053DEB0, 0x0053F8A0, 0x00540610) and the type 2 mirror 0x005423D0; the path table's template code (insert_unique 0x0053FF10, insert_equal 0x0053FFD0, 0x005400D0, operator[] 0x005402D0, the copy 0x00540160); slots 12, 14, 15, 27, 28, 32 to 35, 38, 40 and 0x0053EB30 (the highest number).
+- **pi3 (22, 14,771 bytes):** the geometry, the searches and the transforms: slots 5 to 9, 18 to 23, 25, 26, 29, 31, 37, 39 and the helpers 0x0053D160, 0x0053D280, 0x0053D600, 0x0053F940 and 0x005403F0. Floats throughout and draws (slot 5's ties, slots 8, 9 and 23); 0x00540AC0 (2,992 bytes), 0x00541AE0 (2,286) and 0x00541670 (1,110) are the big ones. Likely split by bytes: pi3a the searches (14), pi3b the transforms (8).
+
+No NAM site and none of SC4UIScale's addresses is in the range.
+
+### What is ours (pi1)
+
+25 functions in a new group, off by default: `simulators.automata.pathinfo` ([automata_pathinfo.cpp](../src/core/automata_pathinfo.cpp), list kObject).
+
+- **The factory (4):** its class ID 0x0053CF90, Create 0x0053D130, the deleting destructor 0x0053D570 and CreateInstance 0x00542800.
+- **The pool (2):** the free 0x0053DC10 and the new page 0x0053D0C0.
+- **The object (5):** the constructor 0x005407D0, the deleting destructor 0x00540820, the copy constructor 0x005408B0, Clone 0x00540910 (slot 24) and QueryInterface 0x0053CFA0.
+- **The queries (8):** slots 3 0x0053DD30 (the path of a key and its length), 4 0x0053CFF0 (by parts), 10 0x0053DD90 (the length), 11 0x0053D030 (by parts), 13 0x0053D0A0 (a type has paths), 16 0x005403A0 and 17 0x005403B0 (the flag 1) and 36 0x0053D060 (a stop's point by parts).
+- **The building (6):** AddPath 0x00540960, AddStop 0x00540A00, their packed forms 0x00542880 and 0x005428B0 (the SC4PATHS reader calls them), the free path number 0x0053DDE0 and the points' reserve 0x0053DC50.
+
+What they do:
+
+- **CreateInstance**, for the type 0x296678F7 only, takes a block of the pool (its page's free head, SC4EdgePool::Grow when there is none), constructs it and asks it for the interface; one that does not answer goes back through its +4 part's slot 12 (the deleting destructor with the flag 1). Otherwise *out 0 and 0.
+- **The constructor** sets the interface's vtable, the resource part (0x00975633), the class's two vtables, the table with 100 buckets (0x00829BC0) and the flags and type bytes to zero. **The copy constructor** copies the table (0x00540160), the flags and the type bytes, not the resource key. **Clone** takes a pool block, copy-constructs it and holds it. **The deleting destructor** clears the table (0x00584660), frees its buckets, runs the resource part's destructor and with the flag 1 puts the block back on its page as the pool's free does (the page let go at the count 0, reopened at 0x40000033).
+- **QueryInterface** answers the resource part (+4) for 0x456B8F1D and the object for 0xA9667793, held through the object's slot 1.
+- **The queries** find the key's node in its bucket (the key modulo the bucket count). Slot 3 answers the record (node + 8) and writes its length through the pointer when one is given; slot 10 answers the length or the float 0x00A81054 (0) in ST0. The forms by parts pack the key and call slot 3, 10 or 35 through the vtable; slot 36 ORs 0x10 into the type first.
+- **AddPath** inserts an empty record for the key (insert_unique 0x0053FF10 after the table's resize for one more) and answers it, or null when the key was there. **AddStop** does the same and gives a new record the one point (0x004FC6B0), the type's byte (+0x31 + (key >> 24 & 0xF)) 1 and the flag 2. The packed AddStop puts 0x20 above the type when its last argument's low byte is set, else 0x10.
+- **The free path number** answers the packed key when it is not in the table; else it counts the number up to the first key that is not, to 26 at most.
+- **The points' reserve** gives a record's points room for the count: a new block with the points copied in (0x0053D5A0) and the old freed, or for an empty vector SC4::stl_allocate.
+
+Left the game's: the reader (pi2), the table's template code and iterator, the slot 36 calls (35, pi2), the resource and factory bases' code, the pool's growth and page release, the adjustors.
+
+Oddities kept:
+
+- **QueryInterface** holds through the object's slot 1 whatever part it answers; for 0x456B8F1D on a null object it answers null and 0.
+- **HasPaths** (slot 13) reads +0x31 + the type with no bound; the type 0 answers the stop flag 2 instead.
+- **AddStop's** value for the insert carries a length and a byte from the game's stack that it never set; they are stored only when the insert happens, and then overwritten with 0 (ours 0).
+- **The free path number** compares the number as a signed word (0xFFFFFFFF starts again from 0 by its low byte) and at 26 answers that key even when it is taken.
+- **AddStop** writes its type byte at +0x31 + (key >> 24 & 0xF) with no bound: a type nibble of 8 to 10 lands on the block's padding (+0x39 to +0x3B), 11 to 15 on the next pool block's first word (+0x3C to +0x40). Unlike AddPath it does not test the node for null.
+- **Slot 36** always ORs 0x10 into the type, so it finds only first stops (those added with the last argument 0), and the type byte AddStop sets for the nibble 0 (+0x31) is never read by HasPaths, whose type 0 is the stop flag.
+- **The free path number** with a "negative" number whose 256 low-byte keys are all taken counts for up to 2^31 lookups.
+- **No null tests** on the block from SC4EdgePool::Grow (CreateInstance, Clone), on SC4::AllocatePoolPage's page (the new page) or in the deleting destructor's return of the block (the pool's free tests it).
+- **The packed forms** keep only each part's low byte (the type's too, after a stop's 0x10 or 0x20 is ORed in).
+- **The factory's class ID** touches only EAX; the class registration calls it before any detour is in place.
+- **AL only in the game:** CreateInstance, QueryInterface, HasPaths and AddStop; ours zero-extends. SetFlag leaves the new flags byte in EAX, as ours.
+
+Reimplemented like the ped parts: one writer, then an independent audit of all 25 against the disassembly (no defect found; the oddities above are partly its findings).
+
+### Test (pi1)
+
+The ` V` token gains `,<pinfo>,<piflags>` at the end (60 fields); piflags 1 when it ran, 2 when the factory failed. The log line is "pi1 pinfo", with one line per section before it. Everything is called at the game's addresses (ours when the group is on), on objects the test makes:
+
+- **The factory:** its class ID, Create, CreateInstance over three types and four interfaces (each one made released through its count, a failed one through slot 12), the deleting destructor.
+- **QueryInterface** at its address, through the vtable, through the +4 adjustor and on a null object, over five interfaces.
+- **The building:** 83 paths by parts (types 1 to 7, sides 0 to 3 and 0xFF, numbers 0 to 2; a fourth of them with high bytes in the parts, a fourth added again by parts and by key), four by key; each one's points reserved in five steps (0, the count, fewer, more) and filled, the length and byte set, a third of them grown again once filled; a run of the numbers 0 to 26 of one type and sides, the free number asked after each; 48 stops by parts (first and second, the flag's low byte 0x100) and four by key, one of them twice; two stops of the type nibbles 8 and 9 on an object of their own (their bytes land past the eight; the eight are mixed).
+- **The queries:** slots 3, 4, 10, 11 and the free number (six numbers: its own, 0, 25, 26, 0xFFFFFFFF, 0x7FFFFFFF) over every key and five not there; slot 13 over the types 0 to 7; slots 16 and 17 over seven values; slot 36 over 240 parts with and without wild cards (every record has a point, so the wild card's search reads one).
+- **The copies:** Clone, slot 24 and the copy constructor into a pool block of the test's, each asked for every key; the deleting destructor and the releases.
+- **The pool:** a block taken and given back by the pool's free (the count's change and the head, mixed only when the page keeps blocks), a null; a new page's chain by offsets, given back through the pool's slot 3.
+
+Pointers and the pool's counts are not mixed: the game makes path information as the view draws pieces.
+
+A trial with 28 planted changes (the class ID; Create's vtable; CreateInstance's type test and its *out; the pool's free head; the new page's chain (a crash) and count; the constructor's flags and bucket count; the copy's flags and its eighth type byte; Clone's AddRef; QueryInterface's +4 part (a crash) and its AddRef; slot 3's length word; the key's byte order; slot 10's 0; slot 13's flag; slot 17's low byte; slot 36's 0x10; AddPath's test of the insert; AddStop's type nibble and its flag 2; the packed stop's low byte; the free number compared unsigned and its bound; the reserve's capacity test and its size) changed the token (or crashed) for 24 at first. Three more were seen once the test gained a filled record grown again, the run of numbers to 26 and the stops of the nibbles 8 and 9. The last (the reserve's capacity compared with > for >=) cannot show: at an equal capacity the copy holds the same points. 27 of 28.
+
+### Parity (pi1)
+
+2026-10-31. B = the five automata groups as for ped1 and `simulators.automata.pathinfo` against the original (env p4env-pi1, snapshot pi1-p1, built on main 0a0a1d9):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same on the shared outcome after 3 pairs (the original gave three outcomes, ours one); the first pair differed only in ad3's chighlight (field 25) |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's pi1 fields were the same on both sides: pinfo 32313A94, piflags 1, but on the four Rush Hour d saves 2DCEED64 (only the pool section differs there: the page the test's block came from held no other, so the count's change is not mixed). Every B run installed the 25 and reached all of them. The game reaches 14 of them before the test on every save (15 on Rush Hour t0000, with HasPaths), as it reads the pieces' SC4PATHS files: CreateInstance, the new page, the constructor, the deleting destructor, QueryInterface, slots 3, 4, 16 and 17, AddPath, AddStop, their packed forms and the points' reserve. The rest only the test reaches. The reach check is %LOCALAPPDATA%\opensc4
+et-tools\pi0\pi1each.py (globs in Python, so the parity folders' spaces are no trouble).

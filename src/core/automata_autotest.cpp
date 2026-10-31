@@ -651,8 +651,9 @@
 //   vtable, the +4 adjustor and on a null object over five interfaces; paths
 //   added by parts (types 1 to 7, sides 0 to 3 and 0xFF, numbers 0 to 2, a
 //   fourth again, high bytes in the parts) and by key, their points
-//   reserved in steps and filled; stops by parts (first and second, the
-//   flag's low byte) and by key; slots 3, 4, 10, 11 and the free number over
+//   reserved in steps and filled (a third grown again), a run of numbers
+//   0 to 26; stops by parts (first and second, the flag's low byte), by key
+//   and of the type nibbles 8 and 9 on an object of their own; slots 3, 4, 10, 11 and the free number over
 //   every key and five more, slot 13 over the types, slots 16 and 17, slot
 //   36 over 240 keys with and without wild cards; Clone, slot 24 and the
 //   copy constructor asked for every key, the deleting destructor; a pool
