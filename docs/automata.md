@@ -41,7 +41,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3 (9, done), ped4a (1, done), ped4b (part ped below counts 111) |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
-| Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | pi1 (25, done), pi2, pi3 (part pi below counts 73 of its own) |
+| Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | pi1 (25, done), pi2 (22, done), pi3 (part pi below counts 73 of its own) |
 
 That is about 48 parts of 20 to 45 functions. What the parts after a1 will meet:
 
@@ -4190,7 +4190,7 @@ The fields: +4 the resource part (its count +8, its key), +0x1C the path table (
 75 functions in Ghidra's list (23,825 bytes), 73 of them the path information's: 0x0053D100 is the pedestrians' groups split (shared, not counted, part ped) and 0x00542EE0 is the aircraft manager's route line (ours since aw2). Kept as the game's: the adjustors 0x005403D0 (+4 slot 0) and 0x005403E0 (+4 slot 12), the hash iterator's advance 0x0053DCF0 (ten functions of other classes call it) and the allocate-and-copy 0x0053D5A0 (0x0050C540 calls it too); the main AddRef and Release are other code's (0x00808600, 0x00808610).
 
 - **pi1 (25, done):** the objects, the small queries and the building. Below.
-- **pi2 (22, 6,829 bytes):** the SC4PATHS reader 0x00542900 (1,500 bytes) with its line, number and point readers (0x0053DEB0, 0x0053F8A0, 0x00540610) and the type 2 mirror 0x005423D0; the path table's template code (insert_unique 0x0053FF10, insert_equal 0x0053FFD0, 0x005400D0, operator[] 0x005402D0, the copy 0x00540160); slots 12, 14, 15, 27, 28, 32 to 35, 38, 40 and 0x0053EB30 (the highest number).
+- **pi2 (22, 6,829 bytes, done):** the SC4PATHS reader 0x00542900 (1,500 bytes) with its line, number and point readers (0x0053DEB0, 0x0053F8A0, 0x00540610) and the type 2 mirror 0x005423D0; the path table's template code (insert_unique 0x0053FF10, insert_equal 0x0053FFD0, 0x005400D0, operator[] 0x005402D0, the copy 0x00540160); slots 12, 14, 15, 27, 28, 32 to 35, 38, 40 and 0x0053EB30 (the highest number).
 - **pi3 (22, 14,771 bytes):** the geometry, the searches and the transforms: slots 5 to 9, 18 to 23, 25, 26, 29, 31, 37, 39 and the helpers 0x0053D160, 0x0053D280, 0x0053D600, 0x0053F940 and 0x005403F0. Floats throughout and draws (slot 5's ties, slots 8, 9 and 23); 0x00540AC0 (2,992 bytes), 0x00541AE0 (2,286) and 0x00541670 (1,110) are the big ones. Likely split by bytes: pi3a the searches (14), pi3b the transforms (8).
 
 No NAM site and none of SC4UIScale's addresses is in the range.
@@ -4259,3 +4259,69 @@ A trial with 28 planted changes (the class ID; Create's vtable; CreateInstance's
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's pi1 fields were the same on both sides: pinfo 32313A94, piflags 1, but on the four Rush Hour d saves 2DCEED64 (only the pool section differs there: the page the test's block came from held no other, so the count's change is not mixed). Every B run installed the 25 and reached all of them. The game reaches 14 of them before the test on every save (15 on Rush Hour t0000, with HasPaths), as it reads the pieces' SC4PATHS files: CreateInstance, the new page, the constructor, the deleting destructor, QueryInterface, slots 3, 4, 16 and 17, AddPath, AddStop, their packed forms and the points' reserve. The rest only the test reaches. The reach check is %LOCALAPPDATA%\opensc4\net-tools\pi0\pi1\reach.py (globs in Python, so the parity folders' spaces are no trouble).
+
+### What is ours (pi2)
+
+22 more functions in the same group, `simulators.automata.pathinfo` ([automata_pathinfo.cpp](../src/core/automata_pathinfo.cpp), list kTables), 47 in all.
+
+- **The SC4PATHS reader (5):** the factory's slot 10 0x00542900, the line reader 0x0053DEB0, the number reader 0x0053F8A0, the point reader 0x00540610 and the type 2 mirror 0x005423D0.
+- **The path table's code (5):** insert_unique 0x0053FF10, insert_equal 0x0053FFD0, the insert 0x005400D0, operator[] 0x005402D0 and the copy 0x00540160.
+- **The queries over all paths (12):** slots 12 0x0053EAA0 (a count by type, from and to), 14 0x0053E870 and 15 0x0053E990 (the keys from or to a side), 27 0x0053EBB0 (each path to an occupant), 28 0x0053EC40 (every point moved), 32 0x0053FD70 (the ends joined to a neighbour's), 33 0x0053E650 and 34 0x0053E550 (stop counts with wild cards), 35 0x0053E740 (a stop's point), 38 0x0053F000 (the keys of flagged records), 40 0x0053F6C0 (the ends checked against the cell) and the highest number 0x0053EB30.
+
+What they do:
+
+- **The reader**, for a resource part (the object + 4) whose slot 5 (the key's type) is 0x296678F7, reads the stream (slot 52 its byte count, slot 4 its bytes) by lines: "SC4PATHS" (the strings' inequality 0x00454BB0), the version (a float), the path count (up to 1000), from 1.1 (0x00A8FAF4) the stop count (up to 1000), the flag (slot 17). Each path: the type (1 to 7), number, from and to (0 to 3 or 0xFF), from 1.2 (0x00A99F24) its byte, the point count (1 up), the points. The path is added by parts (a key there already fails the file), its points reserved; the first point is kept, each later one only when farther than 1e-5 (0x00A99F20) from the last one read, its distance (rounded to a float) added to the length; the byte is set at every point. Each stop: the kind (1 or 2), type, number, from, to and a point, added by parts as the second stop when the kind and the game's left-hand driving (the app's slot 38 (0)'s slot 25, 1 when there is none) say so: kind 2 driving on the left or kind 1 on the right. Then the type 2 paths are mirrored. AL 1, or 0 at the first bad line.
+- **The line reader** empties the string and reads a byte at a time while the remaining count is not 0, counting each down, to a '\n', or a '\r' and the byte after it; the others are appended (the string's slot 17). A line that starts with "--" is skipped by calling itself. AL whether the line is not empty. **The number reader** gives *out 0, then the line's SC4::TextToUint32; **the point reader** gives the point 0, then the line cut at commas (SplitOff): x the first field, z the second negated, y the rest (SC4::ParseDouble910991 each, rounded to floats).
+- **The mirror** walks the table and for each path of the type nibble 2 adds the key with from and to swapped, from the same number up to the first one not in the table (to 26; a path whose mirrors are all taken is passed by), with the points in reverse, the length and the byte.
+- **insert_unique** (no resize) answers the key's node with inserted 0, else puts a new node (0x1C bytes from SC4::stl_allocate, the points copied by 0x0050BCB0) at the head of the key's bucket with inserted 1. **insert_equal** puts the new node after the key's first node, else at the bucket's head; **the insert** resizes the table for one more (0x004F0940) and puts it at the head without a test. **operator[]** answers the key's record or one inserted with no points. **The copy** empties the buckets, reserves and fills them with nulls to the other's count and copies each chain in its order; the count is copied.
+- **Slot 12** counts the keys equal to the type byte, from and to under 0xFF00FFFF. **Slots 14 and 15** empty a vector of keys and put in those of paths (type high nibble 0) of the type nibble from (or to) the side's byte, growing it by 0x0051CA60; they answer the count. **Slot 38** does it for the keys of the type nibble (stops too) from the side whose record's byte has the bit 1 and answers whether there are any.
+- **Slot 33** counts the keys equal to the key with the type's high nibble 1 (its number 0xFF a wild card) or equal with their own from and to 0xFF as wild cards; **slot 34** counts first stops (type | 0x10) of the parts with the type 0 (its nibble), 0xFF parts and the keys' own 0xFF from and to as wild cards; **slot 35** answers the key's record's first point, else that of the first key in the table's order matching the key with the high nibble 1 and 0xFF from and to on either side as wild cards.
+- **Slot 27** gives each path (type high nibble 0) to the occupant's slot 54 (AddPathConnection) as (the type nibble, key >> 8, key); **slot 28** adds the three floats to every point.
+- **Slot 32** finds the other occupant's side from the two cells (their slot 48's slot 11, x then z, signed: 2 the other's x greater, 3 its z, 0 its x less, 1 its z less, else 0); with the other's path information (its slot 49) each path to that side whose key the other has with points gets the other's first point appended when its own last point is farther than 1 (0x00A99E20) from it.
+- **Slot 40** takes the occupant's cell (its slot 59) to a point (the city's slot 97) and the cell's sides 8 (0x00A8E178) to either side of it; for each path (type high nibble 0) the first point is measured against the from side, the last against the to side (0 low x, 1 low z, 2 high x, 3 high z): 1 or more off (unordered too) marks the record's byte with 2 and the answer 0.
+- **The highest number** is the greatest number byte of all keys, stops too.
+
+Left the game's: the table's clear, resize, begin and next bucket, the vectors' and strings' code, the adjustors and everything of pi3 (searches, geometry, transforms).
+
+Oddities kept:
+
+- **The line reader** does not test the stream's answer: a read that fails leaves the byte read before (the first time, the low byte of the string's address). After a '\r' it reads and counts one more byte with no test of the count, so a '\r' as the last byte takes the count from 0 to 0xFFFFFFFF and the next line reads on. An empty line ends a line read as a failure, so a blank line in an SC4PATHS file stops the read.
+- **The line reader** takes the byte after a '
+' as the line's end whatever it is ("a
+bc" gives "a", then "c"), and skips each comment line by calling itself once more.
+- **The reader** drops a point within 1e-5 of the last point read, not the last kept (a run of tiny steps is all dropped), and the last point carries over from one path to the next. It keeps what it added before a bad line, does not test a stop's answer (a stop there already is passed by), fails the whole file for a path key there already, and compares the version as a float (a NaN reads neither stops nor bytes).
+- **Slots 35, 32 and 40** read records' points unchecked: slot 35 the first point of the record it finds, slot 32 the last point of its own paths to the side, slot 40 the first and last of every path.
+- **Slot 40** reads both ends of every path before it looks at the sides (a path with from and to 0xFF and no points still reads them); **slot 32** has no type test (stops are joined too) and matches only the key's to byte; equal cells fall to side 0. **Slot 34's** type above 0xF runs into the high nibble once 0x10 is ORed in, and the type 0 wild card covers only the nibble.
+- **The copy** of a table onto itself empties it (the other's bucket count is read after its own buckets are emptied). **insert_unique** and **insert_equal** do not resize; **the insert** does not test for the key.
+- **operator[]'s** new record carries a length and a byte from the game's stack, and **slot 40's** cell and point are words the occupant's and city's slots may leave unset: x the occupant argument's stack word, the others stack leftovers (ours 0 for all).
+- **The copy** does not free the table's old nodes (the copy constructor's table is empty).
+- **The highest number** takes three arguments (ret 0xC) and reads none.
+- **The mirror** walks the table as it grows, so the mirrors it adds are met and mirrored in turn (the number counting up, to 26).
+- **The reader's** distance and slot 32's are x87 sums in 53 bits (slot 32's x difference rounded to a float, y and z not); ours the same in doubles.
+- **AL only in the game:** the three readers, slots 35 and 40; ours zero-extends.
+
+Reimplemented like pi1: one writer, then an independent audit of all 22 against the disassembly. It found no defect; three fidelity points were taken (slot 40's ends read before the sides, insert_unique and insert_equal answering their result in EAX as the game's do, the stack word slot 40's x is) and the oddities above are partly its findings.
+
+### Test (pi2)
+
+The ` V` token gains `,<pinfo2>,<pi2flags>` (62 fields); pi2flags 1 when it ran, 2 when the factory failed, 4 when an object could not be made, 8 when slot 40 ran (a city). The log line is "pi2 pinfo2", with one line per section and one per file before it. Everything is called at the game's addresses, on objects, streams and occupants of the test's:
+
+- **The readers:** the line reader over nine texts (CR LF, LF, a lone CR, comments, empty lines, a count shorter than the text), the number reader over ten and the point reader over ten (missing and extra fields, exponents, huge and tiny values).
+- **The reader:** three good files (1.0; 1.1 with stops of both kinds and type 2 paths both ways; 1.2 with bytes, comments before the header and the version, repeated and close points, type 2 paths of two numbers) and 20 bad ones, each failing at a line of its own (the header, its case, empty, the counts' bounds, the type, sides, point count, a key there already, a short file, a stop's kind, type, side and point, the flag line, an empty line, a missing byte), and a part of another type; at its address and through the factory's slot 10. The resource key's type is set as the resource manager would.
+- **The queries** on the third file's object with stops and paths added (every record has a point): slots 12, 14, 15 and 38 over every type and side, at their addresses and through the vtable; 33 and 35 over every key and nine more; 34 over 480 parts; the highest number.
+- **Slot 27** to an occupant of the test's (its slot 54 mixes the arguments), **slot 28** on a clone; **slot 40** on paths about a cell's sides (on a side, off by less than 1, by 1, by more, another side, a NaN) for the cell the city's slot 97 was asked for and the next; **slot 32** against an occupant east, north, west, south, in the same cell and two more, and one without path information.
+- **The table's code** on an object's table: insert_unique and insert_equal (new keys and keys there), the insert, operator[] (there and new; the new records' length and byte set before they are mixed) and the copy into a table of the test's.
+
+A trial with 39 planted changes changed the token (or crashed) for all 39: the line reader's CR, comment length and answer; the number reader's 0; the point reader's z sign and y; the reader's path bound, both version gates, the sides' bound, the step's distance, the length's sum, the byte, the stop's kind, the flag and the mirror call; the mirror's swap, its bound 26 and its length; insert_unique's found answer, insert_equal's place, the insert's resize, operator[]'s found record (a crash), the copy's count; slot 12's mask, slots 14 and 15's high nibble and side, the highest number's compare, slot 27's arguments, slot 28's y, the keys' own 0xFF to, slot 33's number and slot 34's type wild cards, slot 35's to wild card, slot 38's bit, slot 40's slack and z, slot 32's side and distance. Three were seen only once the test gained a path of two kept steps (the length's sum), a mirror that needs the number 26 (its bound) and a key whose number 0xFF matches a stop (slot 33's wild card). 39 of 39.
+
+### Parity (pi2)
+
+2026-10-31. B = the five automata groups as for ped1 and `simulators.automata.pathinfo` (pi1 and pi2) against the original (env p4env-pi2, snapshot pi2-p3, built on main 826267b):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days (the first pair) |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's pi fields were the same on both sides: pinfo2 71D0D006, pi2flags 9 (pi1's as before: 32313A94, 2DCEED64 on the four Rush Hour d saves). Every B run installed the 47 and reached all 22 of pi2. The game reaches 11 of them before the test on every save (12 on Rush Hour d0000 with slot 34, and on Rush Hour t0000 with slot 32), as it reads the pieces' SC4PATHS files and the network occupants take their paths: the reader, its three line readers, the mirror, insert_unique, slots 14, 27, 38 and 40 and the highest number. The rest only the test reaches (reach.py with the pi2 names; PI=1 for pi1's).
