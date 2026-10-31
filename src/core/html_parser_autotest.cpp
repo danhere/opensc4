@@ -734,7 +734,8 @@ bool AnyOurs()
                            "ui.html.document.handlers", "ui.html.document.tokenizer", "ui.html.document.slots",
                            "ui.html.document.life", "ui.html.document.glue", "ui.html.document.fonts",
                            "ui.html.document.images", "ui.html.document.imagemap", "ui.html.document.bullets",
-                           "ui.html.document.vslots"})
+                           "ui.html.document.vslots", "ui.html.window.life", "ui.html.window.show",
+                           "ui.html.window.slots", "ui.html.window.settings"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -4407,6 +4408,661 @@ uint32_t VtableSlotItem(char* window, int which)
     return f.h;
 }
 
+// h1a's: the HTML window's life, its pages, its COM slots and settings.
+//
+// Each item makes a window of its own through the class factory (never
+// created on screen) and gives it a copy of its vtable in which the slots
+// the window calls on itself that reach the screen or its parent are
+// recorders: 6 (the window manager, a stand-in), 16 (a child taken out),
+// 18, 70, 74 (the title), 91, 92 (drawn again), 96, 100 and 145 (a message
+// to the parent). The fonts the manager gives are node stand-ins; the
+// Internet service is the parser test's stand-in and the picture reader a
+// stand-in of h2b2's.
+
+Fnv g_winRecord;
+void* g_winVtable[151] = {};
+
+template <int Slot>
+uint32_t __fastcall WinRecord0(char*, void*)
+{
+    g_winRecord.Word(0x900u + Slot);
+    return 0x9000u + Slot;
+}
+
+template <int Slot>
+uint32_t __fastcall WinRecord1(char*, void*, uint32_t argument)
+{
+    g_winRecord.Word(0x900u + Slot);
+    g_winRecord.Word(argument);
+    return 0x9000u + Slot;
+}
+
+uint32_t __fastcall WinTitle(char*, void*, const GameText* title)
+{
+    g_winRecord.Word(0x900u + 74);
+    g_winRecord.Bytes(title->begin, title->end);
+    return 1;
+}
+
+char* g_winCurrent = nullptr;
+
+uint32_t __fastcall WinPost(char*, void*, uint32_t target, const uint32_t* message)
+{
+    g_winRecord.Word(0x900u + 145);
+    g_winRecord.Word(target);
+    g_winRecord.Word(message[0]);
+    g_winRecord.Byte(reinterpret_cast<char*>(static_cast<std::uintptr_t>(message[1])) == g_winCurrent);
+    g_winRecord.Word(message[2]);
+    g_winRecord.Word(message[3]);
+    return 0x14500u;
+}
+
+// The window manager (slot 6): its slot 32 the font list, whose slot 9
+// gives each font asked for from g_winFonts (null for none).
+struct WinStand {
+    void** vtable;
+};
+void* g_winFonts[3] = {};
+void* g_fontListVtable[16] = {};
+void* g_managerVtable[40] = {};
+WinStand g_fontList{g_fontListVtable};
+WinStand g_manager{g_managerVtable};
+
+void* __fastcall FontListFont(WinStand*, void*, uint32_t id)
+{
+    g_winRecord.Word(0xF0u);
+    g_winRecord.Word(id);
+    return id == 0x12 ? g_winFonts[0] : id == 0x11 ? g_winFonts[1] : g_winFonts[2];
+}
+void* __fastcall ManagerFonts(WinStand*, void*)
+{
+    g_winRecord.Word(0xF1u);
+    return &g_fontList;
+}
+void* __fastcall WinManager(char*, void*)
+{
+    g_winRecord.Word(0x906u);
+    return &g_manager;
+}
+
+// A scroll bar of the test's own: slot 3 its window (a number), slot 2 its
+// release.
+struct BarStand {
+    void** vtable;
+    uint32_t id;
+};
+void* g_barVtable[8] = {};
+BarStand g_bars[2] = {};
+uint32_t __fastcall BarWindow(BarStand* self, void*)
+{
+    g_winRecord.Word(self->id);
+    g_winRecord.Word(3);
+    return self->id + 0x10000u;
+}
+uint32_t __fastcall BarRelease(BarStand* self, void*)
+{
+    g_winRecord.Word(self->id);
+    g_winRecord.Word(2);
+    return 0;
+}
+
+// The service's answers to the window (the +0xDC part's slot 3): h2b2's
+// message stand-in with slot 10 recorded too.
+void* g_winMessageVtable[24] = {};
+uint32_t __fastcall WinMessageSlot10(MessageStand*, void*)
+{
+    g_readerRecord.Word(0x40A);
+    return 0;
+}
+
+ReaderStand g_winReader{};
+
+// The window's timer (+0x1DC) with a vtable whose start (slot 5), stop (7),
+// running (8) and callback (9) are recorders, the timer service never
+// asked: a window of the test's own never has a callback run.
+constexpr std::uintptr_t kTimerVtable = 0x00AD1F14;
+void* g_timerVtable[12] = {};
+uint8_t g_timerRunning = 0;
+uint32_t __fastcall TimerStart(char*, void*, uint32_t ms, uint32_t repeat)
+{
+    g_winRecord.Word(0x7105u);
+    g_winRecord.Word(ms);
+    g_winRecord.Word(repeat);
+    g_timerRunning = 1;
+    return 1;
+}
+uint32_t __fastcall TimerStop(char*, void*)
+{
+    g_winRecord.Word(0x7107u);
+    g_timerRunning = 0;
+    return 1;
+}
+uint8_t __fastcall TimerRunning(char*, void*) { return g_timerRunning; }
+uint32_t __fastcall TimerCallback(char*, void*, uint32_t callback, char* data)
+{
+    g_winRecord.Word(0x7109u);
+    g_winRecord.Byte(callback == static_cast<uint32_t>(addr::HTMLWindow_OnTimer));
+    g_winRecord.Byte(data == g_winCurrent);
+    return 1;
+}
+
+void SetUpWindowStands()
+{
+    std::memcpy(g_winVtable, reinterpret_cast<const void*>(static_cast<std::uintptr_t>(0x00ACD0D8)), sizeof g_winVtable);
+    g_winVtable[6] = reinterpret_cast<void*>(&WinManager);
+    g_winVtable[16] = reinterpret_cast<void*>(&WinRecord1<16>);
+    g_winVtable[18] = reinterpret_cast<void*>(&WinRecord0<18>);
+    g_winVtable[70] = reinterpret_cast<void*>(&WinRecord0<70>);
+    g_winVtable[74] = reinterpret_cast<void*>(&WinTitle);
+    g_winVtable[91] = reinterpret_cast<void*>(&WinRecord0<91>);
+    g_winVtable[92] = reinterpret_cast<void*>(&WinRecord0<92>);
+    g_winVtable[96] = reinterpret_cast<void*>(&WinRecord0<96>);
+    g_winVtable[100] = reinterpret_cast<void*>(&WinRecord1<100>);
+    g_winVtable[145] = reinterpret_cast<void*>(&WinPost);
+    FillStand(g_fontListVtable, std::make_integer_sequence<int, 16>{});
+    g_fontListVtable[9] = reinterpret_cast<void*>(&FontListFont);
+    FillStand(g_managerVtable, std::make_integer_sequence<int, 40>{});
+    g_managerVtable[32] = reinterpret_cast<void*>(&ManagerFonts);
+    FillStand(g_barVtable, std::make_integer_sequence<int, 8>{});
+    g_barVtable[2] = reinterpret_cast<void*>(&BarRelease);
+    g_barVtable[3] = reinterpret_cast<void*>(&BarWindow);
+    g_bars[0] = {g_barVtable, 0x5B00};
+    g_bars[1] = {g_barVtable, 0x5B01};
+    std::memcpy(g_winMessageVtable, g_messageVtable, sizeof g_winMessageVtable);
+    g_winMessageVtable[10] = reinterpret_cast<void*>(&WinMessageSlot10);
+    g_winReader = {g_readerVtable, 0x5D00, 1, nullptr, 0};
+    std::memcpy(g_timerVtable, reinterpret_cast<const void*>(kTimerVtable), sizeof g_timerVtable);
+    g_timerVtable[5] = reinterpret_cast<void*>(&TimerStart);
+    g_timerVtable[7] = reinterpret_cast<void*>(&TimerStop);
+    g_timerVtable[8] = reinterpret_cast<void*>(&TimerRunning);
+    g_timerVtable[9] = reinterpret_cast<void*>(&TimerCallback);
+}
+
+// A window of the test's own: its +0xD8 interface with a reference, the
+// recording vtable, the stand-in service.
+char* NewTestWindow()
+{
+    char* const face = reinterpret_cast<char*(__cdecl*)()>(addr::HTMLWindow_Create)();
+    Virtual<uint32_t>(face, 0x4);
+    char* const window = face - 0xD8;
+    At<void**>(window, 0x0) = g_winVtable;
+    At<void*>(window, 0x460) = &g_service;
+    At<void**>(window, 0x1DC) = g_timerVtable;
+    g_timerRunning = 0;
+    g_winCurrent = window;
+    return window;
+}
+
+// The document let go (its images released, which releases the window and
+// the service, then the document), the timer stopped, the window released.
+void FreeTestWindow(char* window)
+{
+    if (char* const doc = At<char*>(window, 0x148)) {
+        reinterpret_cast<uint8_t(__thiscall*)(void*)>(addr::HTMLDocument_ReleaseImages)(doc);
+        Virtual<uint32_t>(doc, 0x8);
+        At<char*>(window, 0x148) = nullptr;
+    }
+    At<uint32_t>(window, 0x1DC) = static_cast<uint32_t>(kTimerVtable);
+    At<void*>(window, 0x460) = nullptr;
+    Virtual<uint32_t>(window + 0xD8, 0x8);
+}
+
+// A word of the window: 0, an offset into the window, a stand-in's number,
+// a heap pointer as one, anything else as it is.
+uint32_t WindowWord(char* window, uint32_t value)
+{
+    const auto at = [](const void* p) { return static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(p)); };
+    if (value == 0)
+        return 0;
+    if (value >= at(window) && value < at(window) + 0x468)
+        return 0xC1000000u + (value - at(window));
+    if (value == at(g_winVtable))
+        return 0xC2000001u;
+    if (value == at(&g_service))
+        return 0xC2000002u;
+    if (value == at(&g_winReader))
+        return 0xC2000003u;
+    if (value >= at(&g_bars[0]) && value < at(&g_bars[2]))
+        return 0xC2000010u + (value - at(&g_bars[0]));
+    const uint32_t first = StandAt(0);
+    if (value >= first && value < first + sizeof g_nodeStands)
+        return 0xC3000000u + (value - first);
+    return IsHeap(value) ? 0xB2u : value;
+}
+
+std::string UrlText(char* url)
+{
+    const GameText* const text = reinterpret_cast<const GameText*(__thiscall*)(void*)>(addr::SC4Url_Text)(url);
+    return std::string(text->begin, text->end);
+}
+
+void HashUrl(Fnv& f, char* url)
+{
+    const std::string text = UrlText(url);
+    f.Word(static_cast<uint32_t>(text.size()));
+    f.Bytes(text.data(), text.data() + text.size());
+}
+
+// The window's own fields (not the framework window's but its colour and
+// area): the context, the document, the fonts, the string, the flags and
+// margins, the scroll bars, the timer running, the steps, the addresses,
+// the service and the load state.
+void HashWindow(Fnv& f, char* window)
+{
+    f.Word(WindowWord(window, At<uint32_t>(window, 0x0)));
+    for (std::size_t at = 0x24; at < 0x34; at += 4)
+        f.Word(At<uint32_t>(window, at));
+    f.Word(At<uint32_t>(window, 0xD4));
+    for (std::size_t at = 0xD8; at < 0x14C; at += 4)
+        f.Word(WindowWord(window, At<uint32_t>(window, at)));
+    for (std::size_t at = 0x154; at < 0x16C; at += 4)
+        f.Word(WindowWord(window, At<uint32_t>(window, at)));
+    const GameText* const missing = &At<GameText>(window, 0x16C);
+    f.Bytes(missing->begin, missing->end);
+    for (std::size_t at = 0x180; at < 0x1DC; at += 4)
+        f.Word(WindowWord(window, At<uint32_t>(window, at)));
+    f.Byte(Virtual<uint8_t>(window + 0x1DC, 0x20));
+    for (std::size_t at = 0x204; at < 0x220; at += 4)
+        f.Word(At<uint32_t>(window, at));
+    HashUrl(f, window + 0x220);
+    HashUrl(f, window + 0x2E0);
+    HashUrl(f, window + 0x3A0);
+    f.Word(WindowWord(window, At<uint32_t>(window, 0x460)));
+    f.Word(At<uint32_t>(window, 0x464));
+    if (char* const doc = At<char*>(window, 0x148)) {
+        f.Byte(At<char*>(window, 0xE4) == doc);
+        HashDocument(f, doc);
+        for (std::size_t at = 0x1A8; at < 0x1C4; at += 4)
+            f.Word(At<uint32_t>(doc, at));
+    }
+}
+
+// An address set from text (into +0x220, +0x2E0 or +0x3A0), as the window's
+// slot 19 does it.
+void SetUrl(char* url, const char* text)
+{
+    GameText from;
+    MakeText(&from, text);
+    alignas(4) char made[0xC0];
+    reinterpret_cast<void*(__thiscall*)(void*, const void*)>(addr::SC4Url_FromText)(made, &from);
+    reinterpret_cast<void*(__thiscall*)(void*, const void*)>(addr::SC4Url_Assign)(url, made);
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4Url_Destroy)(made);
+    DestroyText(&from);
+}
+
+// A page handed to slot 22 (a range of characters) with a base.
+struct Range {
+    const char* begin;
+    const char* end;
+};
+
+uint8_t ShowPage(char* window, const char* page, const char* base)
+{
+    const Range range{page, page + std::strlen(page)};
+    GameText text;
+    MakeText(&text, base);
+    const uint8_t shown = Virtual<uint8_t>(window + 0xD8, 0x58, &range, &text);
+    DestroyText(&text);
+    return shown;
+}
+
+const char* const kWinPages[] = {
+    "<HTML><BODY>Hello <B>window</B></BODY></HTML>",
+    "<HTML><BODY>text <BLINK>blink <B>b</B></BLINK> and more</BODY></HTML>",
+    "plain text, no tags",
+    "<BODY BGCOLOR=#102030><IMG SRC=\"a.png\" WIDTH=4 HEIGHT=4><A HREF=\"x.html\">x</A></BODY>",
+    "",
+};
+const char* const kWinBases[] = {"", "http://maxis.com/a/b.html", "sc4://advice/1", "file.html"};
+const uint32_t kWinIds[] = {1, 0x22BA0121u, 0x452294AAu, 0x4A11FD4Au, 0x12345678u, 0};
+
+// Sequences of the four flag slots: slot (26 add, 27 set, 28 remove, 29
+// test) and value.
+struct FlagStep {
+    int slot;
+    uint32_t value;
+};
+const FlagStep kFlagSequences[][5] = {
+    {{26, 0x8}, {26, 0x100}, {29, 0x100}, {28, 0x100}, {29, 0x100}},
+    {{28, 0x8}, {28, 0x8}, {29, 0xC}, {26, 0x8}, {29, 0x8}},
+    {{27, 0}, {29, 0xFFFFFFFFu}, {26, 0x3}, {28, 0x1}, {29, 0x3}},
+    {{27, 0xFA}, {26, 0x6}, {28, 0x5}, {28, 0xFFFFFFFFu}, {29, 0xFA}},
+    {{26, 0}, {28, 0}, {29, 0}, {27, 0xFFFFFFFFu}, {29, 0x80}},
+    {{26, 0x80000000u}, {29, 0x80000000u}, {27, 0x80000000u}, {28, 0x7FFFFFFF}, {29, 0x80000000u}},
+};
+const int32_t kWinMargins[][4] = {{0, 0, 0, 0}, {10, 20, 30, 40}, {-5, 3, 7, -9}, {4, 4, 0x16, 4}};
+const int32_t kWinSteps[][7] = {{8, 10, 12, 16, 19, 24, 48}, {1, 2, 3, 4, 5, 6, 7}, {0, 0, 0, 0, 0, 0, 0}};
+
+// The OnMessage cases: type, succeeded, the load state before, the
+// request's text, a page shown before.
+struct MessageCase {
+    uint32_t type;
+    uint32_t succeeded;
+    uint32_t state;
+    const char* text;
+    bool shown;
+};
+const MessageCase kWinMessages[] = {
+    {0x12345678u, 1, 1, "<BODY>x</BODY>", false}, {0x75758483u, 1, 0, "<BODY>x</BODY>", false},
+    {0x75758483u, 1, 1, "<BODY>answer <I>page</I></BODY>", false}, {0x75758483u, 1, 1, "", false},
+    {0x75758483u, 1, 1, "", true}, {0x75758483u, 0, 1, "", false},
+    {0x75758483u, 0, 1, "", true}, {0x75758483u, 1, 2, "<BODY>y</BODY>", true},
+};
+
+constexpr int kWinLifeItems = 3;
+constexpr int kWinQueryItems = static_cast<int>(std::size(kWinIds)) * 3;
+constexpr int kWinFlagItems = static_cast<int>(std::size(kFlagSequences));
+constexpr int kWinMarginItems = static_cast<int>(std::size(kWinMargins)) * 2;
+constexpr int kWinStepItems = static_cast<int>(std::size(kWinSteps)) + 3;
+constexpr int kWinBaseItems = static_cast<int>(std::size(kWinBases));
+constexpr int kWinSmallItems = 4 + 3 + 2 + 2 + 3 + 1 + 3;
+constexpr int kWinPageItems = static_cast<int>(std::size(kWinPages)) + 4;
+constexpr int kWinBarItems = 5;
+constexpr int kWinMessageItems = static_cast<int>(std::size(kWinMessages));
+constexpr int kWinTextItems = 1 + 2 + 2;
+constexpr int kWinCreateItems = 3;
+constexpr int kWindowItems = kWinLifeItems + kWinQueryItems + kWinFlagItems + kWinMarginItems + kWinStepItems +
+                             kWinBaseItems + kWinSmallItems + kWinPageItems + kWinBarItems + kWinMessageItems +
+                             kWinTextItems + kWinCreateItems;
+
+uint32_t WindowItem(int which)
+{
+    Fnv f;
+    g_winRecord = Fnv{};
+    g_readerRecord = Fnv{};
+    const auto offset = [](char* window, const void* p) {
+        return WindowWord(window, static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(p)));
+    };
+    const auto finish = [&](char* window) {
+        HashWindow(f, window);
+        f.Word(g_winRecord.h);
+        f.Word(g_readerRecord.h);
+        FreeTestWindow(window);
+        return f.h;
+    };
+    if (which < kWinLifeItems) {
+        // Made by the factory, hashed and released; made on patterned
+        // memory and deleted with flag 1 and with 0 (the block checked).
+        if (which == 0) {
+            char* const face = reinterpret_cast<char*(__cdecl*)()>(addr::HTMLWindow_Create)();
+            char* const window = face - 0xD8;
+            Virtual<uint32_t>(face, 0x4);
+            HashWindow(f, window);
+            Blocks blocks;
+            blocks.Track(window, 0x468, true);
+            f.Word(Virtual<uint32_t>(face, 0x8));
+            HashFreedDeep(f, blocks);
+            return f.h;
+        }
+        char* const memory = static_cast<char*>(GameNew(0x468));
+        std::memset(memory, kPattern, 0x468);
+        char* const window = CallGameThis<char*>(addr::HTMLWindow_Construct, memory);
+        f.Word(offset(memory, window));
+        HashWindow(f, memory);
+        Blocks blocks;
+        blocks.Track(memory, 0x468, true);
+        f.Word(offset(memory, CallGameThis<char*>(addr::HTMLWindow_Delete, memory, uint32_t(which == 1 ? 1 : 0))));
+        if (which == 2)
+            GameDelete(memory);
+        HashFreedDeep(f, blocks);
+        return f.h;
+    }
+    which -= kWinLifeItems;
+    if (which < kWinQueryItems) {
+        // QueryInterface through the window, its +0xD8 and its +0xDC part;
+        // the +0xDC part's AddRef and Release after.
+        char* const window = NewTestWindow();
+        char* const self = window + (which % 3 == 0 ? 0 : which % 3 == 1 ? 0xD8 : 0xDC);
+        void* out = reinterpret_cast<void*>(0x77);
+        const uint8_t r = Virtual<uint8_t>(self, 0x0, kWinIds[which / 3], &out);
+        f.Byte(r & 1);
+        f.Word(out == reinterpret_cast<void*>(0x77) ? 0xEEEEu : offset(window, out));
+        f.Word(Virtual<uint32_t>(window + 0xDC, 0x4));
+        f.Word(Virtual<uint32_t>(window + 0xDC, 0x8));
+        if (r & 1)
+            Virtual<uint32_t>(window, 0x8);
+        return finish(window);
+    }
+    which -= kWinQueryItems;
+    if (which < kWinFlagItems) {
+        char* const window = NewTestWindow();
+        for (const FlagStep& step : kFlagSequences[which]) {
+            const uint32_t r = Virtual<uint32_t>(window + 0xD8, static_cast<std::size_t>(step.slot) * 4, step.value);
+            f.Word(WindowWord(window, r)); // slot 27's answer (and 26's and 28's through it) is an address
+            f.Word(At<uint32_t>(window, 0x180));
+        }
+        return finish(window);
+    }
+    which -= kWinFlagItems;
+    if (which < kWinMarginItems) {
+        // The margins on an empty window and on one showing a page.
+        char* const window = NewTestWindow();
+        if (which % 2)
+            f.Byte(ShowPage(window, kWinPages[0], ""));
+        const int32_t* const m = kWinMargins[which / 2];
+        const uint32_t r = Virtual<uint32_t>(window + 0xD8, 0x80, m[0], m[1], m[2], m[3]);
+        f.Word(which % 2 ? r : offset(window, reinterpret_cast<void*>(static_cast<std::uintptr_t>(r))));
+        return finish(window);
+    }
+    which -= kWinMarginItems;
+    if (which < kWinStepItems) {
+        char* const window = NewTestWindow();
+        if (which < static_cast<int>(std::size(kWinSteps))) {
+            // Slot 33, then a page shown with the steps.
+            f.Word(offset(window, Virtual<int32_t*>(window + 0xD8, 0x84, kWinSteps[which])));
+            f.Byte(ShowPage(window, "<BODY><FONT SIZE=7>big</FONT><FONT SIZE=1>small</FONT></BODY>", ""));
+        } else {
+            // The copy alone: none, three and all seven into a patterned
+            // buffer (the window's steps).
+            const int n = (which - static_cast<int>(std::size(kWinSteps))) == 0 ? 0 : which == 4 ? 3 : 7;
+            int32_t* const to = &At<int32_t>(window, 0x204);
+            for (int i = 0; i < 7; ++i)
+                to[i] = 0x5A5A5A5A;
+            int32_t* const r = reinterpret_cast<int32_t*(__cdecl*)(const int32_t*, const int32_t*, int32_t*)>(
+                addr::HTMLWindow_CopyFontSizes)(kWinSteps[1], kWinSteps[1] + n, to);
+            f.Word(offset(window, r));
+        }
+        return finish(window);
+    }
+    which -= kWinStepItems;
+    if (which < kWinBaseItems) {
+        // Slot 19, the base from text.
+        char* const window = NewTestWindow();
+        GameText text;
+        MakeText(&text, kWinBases[which]);
+        f.Byte(Virtual<uint8_t>(window + 0xD8, 0x4C, &text));
+        DestroyText(&text);
+        return finish(window);
+    }
+    which -= kWinBaseItems;
+    if (which < kWinSmallItems) {
+        char* const window = NewTestWindow();
+        if (which < 4) {
+            // Slots 15 and 16: nothing, a page asked for, both after it was
+            // shown.
+            if (which >= 1)
+                SetUrl(window + 0x3A0, "http://maxis.com/asked.html");
+            if (which >= 2)
+                f.Byte(ShowPage(window, kWinPages[0], "http://maxis.com/"));
+            if (which == 3)
+                SetUrl(window + 0x3A0, "");
+            for (const std::size_t slot : {0x3Cu, 0x40u}) {
+                GameText out;
+                MakeText(&out, "was");
+                const uint32_t r = Virtual<uint32_t>(window + 0xD8, slot, &out);
+                f.Byte(static_cast<uint8_t>(r));
+                f.Bytes(out.begin, out.end);
+                DestroyText(&out);
+            }
+            return finish(window);
+        }
+        which -= 4;
+        if (which < 3) {
+            // Slot 5, the load state.
+            At<uint32_t>(window, 0x464) = which;
+            f.Word(Virtual<uint32_t>(window + 0xD8, 0x14));
+            return finish(window);
+        }
+        which -= 3;
+        if (which < 2) {
+            // Slot 6, the view's corner.
+            At<uint32_t>(window, 0xFC) = which ? 17u : 0u;
+            At<uint32_t>(window, 0x100) = which ? 0xFFFFFFF0u : 5u;
+            uint32_t width = 0x99;
+            uint32_t height = 0x98;
+            f.Word(Virtual<uint32_t>(window + 0xD8, 0x18, &width, &height));
+            f.Word(width);
+            f.Word(height);
+            return finish(window);
+        }
+        which -= 2;
+        if (which < 2) {
+            // Slot 23, the missing picture's name.
+            GameText name;
+            MakeText(&name, which ? "Other.jpg" : "");
+            f.Word(offset(window, Virtual<void*>(window + 0xD8, 0x5C, &name)));
+            DestroyText(&name);
+            return finish(window);
+        }
+        which -= 2;
+        if (which < 3) {
+            // Slot 24, the load state posted, from 0, 1 and 2.
+            At<uint32_t>(window, 0x464) = which;
+            f.Word(Virtual<uint32_t>(window + 0xD8, 0x60));
+            return finish(window);
+        }
+        which -= 3;
+        if (which == 0) {
+            f.Word(reinterpret_cast<uint32_t(__cdecl*)()>(addr::HTMLWindow_GetClassID)());
+            return finish(window);
+        }
+        which -= 1;
+        // Slot 107, the colour.
+        const uint32_t colours[][3] = {{0, 0, 0}, {0xFF, 0x80, 0x01}, {0x1FF, 0x12345678u, 0xFFFFFFFFu}};
+        f.Word(WindowWord(window, Virtual<uint32_t>(window, 0x1AC, colours[which][0], colours[which][1],
+                                                    colours[which][2])));
+        return finish(window);
+    }
+    which -= kWinSmallItems;
+    if (which < kWinPageItems) {
+        // Slot 22: each page once; then a page over a page, BLINK and after
+        // it a plain one, a page with font steps, and ShowHTML alone.
+        char* const window = NewTestWindow();
+        const int pages = static_cast<int>(std::size(kWinPages));
+        if (which < pages) {
+            f.Byte(ShowPage(window, kWinPages[which], kWinBases[which % 4]));
+        } else if (which == pages) {
+            f.Byte(ShowPage(window, kWinPages[3], "http://maxis.com/"));
+            f.Byte(ShowPage(window, kWinPages[0], ""));
+        } else if (which == pages + 1) {
+            f.Byte(ShowPage(window, kWinPages[1], ""));
+            f.Byte(Virtual<uint8_t>(window + 0x1DC, 0x20));
+            f.Byte(ShowPage(window, kWinPages[2], ""));
+        } else if (which == pages + 2) {
+            Virtual<int32_t*>(window + 0xD8, 0x84, kWinSteps[0]);
+            f.Byte(ShowPage(window, kWinPages[1], ""));
+            f.Byte(ShowPage(window, kWinPages[1], ""));
+        } else {
+            const char* const page = kWinPages[0];
+            const Range range{page, page + std::strlen(page)};
+            GameText base;
+            MakeText(&base, "sc4://x");
+            f.Byte(CallGameThis<uint8_t>(addr::HTMLWindow_ShowHTML, window, &range, &base));
+            DestroyText(&base);
+        }
+        return finish(window);
+    }
+    which -= kWinPageItems;
+    if (which < kWinBarItems) {
+        // The scroll bars dropped: both, one, the other, none asked for, and
+        // none there (with a page, laid out again).
+        char* const window = NewTestWindow();
+        if (which < 4) {
+            At<void*>(window, 0x1A4) = &g_bars[0];
+            At<void*>(window, 0x1A8) = &g_bars[1];
+        } else {
+            f.Byte(ShowPage(window, kWinPages[0], ""));
+            At<void*>(window, 0x1A8) = &g_bars[1];
+        }
+        CallGameThis<void>(addr::HTMLWindow_DropScrollBars, window, uint32_t(which == 0 || which == 1 || which == 4),
+                           uint32_t(which == 0 || which == 2 || which == 4));
+        f.Word(WindowWord(window, At<uint32_t>(window, 0x1A4)));
+        f.Word(WindowWord(window, At<uint32_t>(window, 0x1A8)));
+        At<void*>(window, 0x1A4) = nullptr;
+        At<void*>(window, 0x1A8) = nullptr;
+        return finish(window);
+    }
+    which -= kWinBarItems;
+    if (which < kWinMessageItems) {
+        // The service's answer through the +0xDC part's slot 3.
+        const MessageCase& c = kWinMessages[which];
+        char* const window = NewTestWindow();
+        if (c.shown)
+            f.Byte(ShowPage(window, kWinPages[0], ""));
+        SetUrl(window + 0x3A0, "http://maxis.com/answer/");
+        At<uint32_t>(window, 0x464) = c.state;
+        alignas(4) char request[0x40] = {};
+        At<const char*>(request, 0x30) = c.text;
+        At<const char*>(request, 0x34) = c.text + std::strlen(c.text);
+        MessageStand message{g_winMessageVtable, c.type, c.succeeded, request};
+        f.Byte(Virtual<uint8_t>(window + 0xDC, 0xC, &message));
+        return finish(window);
+    }
+    which -= kWinMessageItems;
+    if (which < kWinTextItems) {
+        char* const window = NewTestWindow();
+        if (which == 0) {
+            // The timer's callback.
+            f.Word(reinterpret_cast<uint32_t(__cdecl*)(char*)>(addr::HTMLWindow_OnTimer)(window));
+            return finish(window);
+        }
+        which -= 1;
+        if (which < 2) {
+            // Slot 21, the page's text (into a string's body).
+            f.Byte(ShowPage(window, kWinPages[which ? 2 : 0], ""));
+            GameText out;
+            MakeText(&out, "was");
+            f.Byte(Virtual<uint8_t>(window + 0xD8, 0x54, &out.begin));
+            f.Bytes(out.begin, out.end);
+            DestroyText(&out);
+            return finish(window);
+        }
+        which -= 2;
+        // The layout context's destructor: as made, and with a left and a
+        // right entry pushed (their storage checked).
+        alignas(4) char context[0x68];
+        CallGameThis<void*>(addr::HTMLLayout_Construct, context);
+        Blocks blocks;
+        if (which) {
+            const uint32_t left[4] = {1, 2, 3, 4};
+            const uint32_t right[2] = {5, 6};
+            CallGameThis<void>(addr::HTMLLayout_PushLeftEntry, context + 0x50, static_cast<const void*>(left));
+            CallGameThis<void>(addr::HTMLLayout_PushRightEntry, context + 0x5C, static_cast<const void*>(right));
+            f.Word((At<char*>(context, 0x54) - At<char*>(context, 0x50)));
+            f.Word((At<char*>(context, 0x60) - At<char*>(context, 0x5C)));
+        }
+        CallGameThis<void>(addr::HTMLLayout_Destruct, context);
+        return finish(window);
+    }
+    which -= kWinTextItems;
+    // Slot 4 (create) with fonts 0x12, 0x11 and 1 there, only 1, and none;
+    // again (created); slot 5 (destroy), again.
+    char* const window = NewTestWindow();
+    At<void*>(window, 0x1D8) = &g_winReader;
+    g_winFonts[0] = which == 0 ? &g_nodeStands[20] : nullptr;
+    g_winFonts[1] = which == 0 ? &g_nodeStands[21] : nullptr;
+    g_winFonts[2] = which < 2 ? &g_nodeStands[22] : nullptr;
+    g_standRecord = Fnv{};
+    f.Byte(Virtual<uint8_t>(window, 0x10));
+    HashWindow(f, window);
+    f.Byte(Virtual<uint8_t>(window, 0x10));
+    f.Byte(Virtual<uint8_t>(window, 0x14));
+    f.Byte(Virtual<uint8_t>(window, 0x14));
+    f.Word(g_standRecord.h);
+    At<void*>(window, 0x460) = &g_service;
+    return finish(window);
+}
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -4417,6 +5073,7 @@ void DriveNodesDay(const Day& day)
     SetUpService();
     SetUpNodeStands();
     SetUpImageStands();
+    SetUpWindowStands();
     void* const face = MakeWindow("html nodes");
     if (!face)
         return;
@@ -4425,9 +5082,9 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[9] = {};
+    uint32_t sectionHash[10] = {};
     const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children",
-                                    "document", "slots", "images"};
+                                    "document", "slots", "images", "window"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -4524,16 +5181,20 @@ void DriveNodesDay(const Day& day)
         for (int i = 0; i < kVtableSlotItems; ++i)
             item(8, at++, [&] { return VtableSlotItem(window, i); });
     }
+    // h1a's: the window's life, pages, COM slots and settings.
+    for (int i = 0; i < kWindowItems; ++i)
+        item(9, i, [&] { return WindowItem(i); });
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
-               "pages %08X, children %08X, document %08X, slots %08X, images %08X), %u stand-in calls, %u of %u blocks "
+               "pages %08X, children %08X, document %08X, slots %08X, images %08X, window %08X), %u stand-in calls, %u of %u "
+               "blocks "
                "freed; %s; "
                "hash %08X",
                items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
-               sectionHash[6], sectionHash[7], sectionHash[8], g_standCalls,
+               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)

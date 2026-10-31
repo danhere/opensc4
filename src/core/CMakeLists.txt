@@ -357,6 +357,7 @@ add_library(opensc4_core SHARED
   html_paint.cpp
   html_parser.cpp
   html_parser_autotest.cpp
+  html_window.cpp
   gzbuffer_blit.cpp
   raster_spans.cpp
   raster_context.cpp
