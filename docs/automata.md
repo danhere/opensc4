@@ -3838,7 +3838,7 @@ The pedestrian's allocator 0x00544890 gives 0x270 bytes from the pool and any ot
 
 - **ped1 (34, done):** the objects, the save and the small queries. Below.
 - **ped2 (the pedestrian's states and frames, 20, about 6,400 bytes):** Init 0x005444F0, the frame 72 0x00544580, 103 0x00544C90, 109 0x00546BC0, 110 0x00546A10, 111 0x005445F0, 135 0x00544C40, 155 0x00545360, 158 0x00544620, 165 0x00545160, 176 0x005457C0, and the helpers 0x00544950, 0x00545280, 0x00545690, 0x00545840, 0x00545B10, 0x00545D60, 0x00546150, 0x00546220 and 0x00546530 (the walks). Split in two: **ped2a (13, done)**, the states and the frame, below; **ped2b (7, done)**, the walks: the frames of the states 2 (0x00546150), 3 (0x00545B10), 6 (0x00544950), 8 (0x00546220) and 9 (0x00546530), and their helpers 0x00545840 and 0x00545D60.
-- **ped3 (the one-shot's and the riot police's, 9, about 3,100 bytes):** the one-shot's Init 0x00544DA0 and frame 0x00544E80; the riot police's Init 0x00547630, Shutdown 0x00546EF0, frame 0x00547530 and slot 74 0x00546CC0, the message helper 0x00546D20 (all three crews call it), the dispatch 0x00546F30 (1,530 bytes) and 0x00547930.
+- **ped3 (the one-shot's and the riot police's, 9, about 3,100 bytes; done, below):** the one-shot's Init 0x00544DA0 and frame 0x00544E80; the riot police's Init 0x00547630, Shutdown 0x00546EF0, frame 0x00547530 and slot 74 0x00546CC0, the message helper 0x00546D20 (all three crews call it), the dispatch 0x00546F30 (1,530 bytes) and 0x00547930.
 - **ped4 (the fire crew's, 13, about 9,900 bytes):** Init 0x00549890 with 0x00548F10, Shutdown 0x00547D90, slots 9 0x00547A70 and 74 0x005479F0, the +0x38 slot 3 0x00548DC0, the frame 0x00549A50 with 0x00549000, 0x00548BD0, 0x00547AD0, 0x00547B50 and 0x00532E90, and the dispatch 0x00547EF0 (3,284 bytes). Could split: the dispatch alone, then the frame.
 
 Shared and not counted: the automaton base's and the core's code the classes call by address (0x0054D7F0, 0x00504E30, 0x00555310, 0x00509660, 0x0050E390), 0x0053D100 (in the path info's range), SC4AgentBase::MonthPassed and the other base's AddRef and Release. No NAM site and none of SC4UIScale's addresses is in the group.
@@ -3991,3 +3991,62 @@ A trial with 31 planted changes (the bump's rounded timer, its timer not zeroed,
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's ped fields were the same on both sides (pwalks 70CD77C8, pflags 0x14F), and every B run installed and reached all 7. None of the walks ran before the test in any B run.
+
+### What is ours (ped3)
+
+9 more functions in `simulators.automata.pedestrians` (list kCrews in [automata_pedestrians.cpp](../src/core/automata_pedestrians.cpp)), 3,091 bytes of the game's:
+
+- **The one-shot's:** Init 0x00544DA0 (slot 3) and the frame 0x00544E80 (slot 72).
+- **The riot police's:** Init 0x00547630 (slot 3), Shutdown 0x00546EF0 (slot 4), the frame 0x00547530 (slot 72), slot 74 0x00546CC0, the message helper 0x00546D20, the dispatch 0x00546F30 and its clamp to the city 0x00547930 (names ours).
+
+What they do:
+
+- **The one-shot's Init** draws +0x200 (slot 158) unless the occupant part says the object is initialised and runs the automaton base's Init; when that answers 1, each model gets 0.01 (slot 14) and the count +0x270 is drawn (SC4Random::Below) from low to high inclusive: the bytes 0x00B21D04 and 0x00B21D05, or the first two bytes of the occupant's property 0xEA958845 when its value holds more than one (the part's slot 6, the holder's slot 9, the property's slot 5, the value's slots 95 and 4). **Its frame** calls slot 83 with the seconds and advances each model; the first model at its last frame counts +0x270 down, and at 0 the one-shot removes itself (slot 13 with 0) and answers 0.
+- **The riot police's Init** (unless initialised) sets the start model by the car's mission (+0x270's slot 26): on the mission 5 the level +0x278 counts up from 0 while the float +0x274 is below the bound 0x00B21CD0[level] (three floats; to 3 at most), level 2 sends the message 0xA9E3B6E2 (the part, -1, 0x40, 0, 0), and the model is 0x29A5D1EC, 0x49A593E7, 0x00A9AE28[level]; on the mission 1 +0x27A is drawn below 6 and the model is 0x5AD0E817, 0xBADB57F1, 0x00A9AE38[+0x27A x 3 + a draw below 3]. Then the city's sounds (slot 47) are asked for "riot_police_repulsor" for the part, the automata flags 0x2000 and 0x4000 go on, and with a model the pedestrian manager (slot 174)'s slot 44 finds an object whose +0x30 goes to the +0x20 part's slot 3. Last the pedestrian's Init. **Shutdown** sends 0xA9E3B6E2 (the part, four zeros) when initialised, then the base's Shutdown (through the jump 0x00544520).
+- **The frame** runs the pedestrian's frame; with the automata flag 1 it sends 0x8A0F3F7B (the car's part, 0x00A9AE80[level], three zeros) unless the car is on the mission 5; without the flag, on the mission 1 the first model at its last frame is swapped (SwapModel) for a newly drawn one of the mission 1's. **Slot 74** runs the core's slot 74 and on the mission 1 places the riot police (slot 16, no point) facing away from the camera view (0x00B43DD8's +0x54 to +0x5C negated).
+- **The message helper** (type, object, four words) makes a cGZMessage (RZ::operator_new, 0x2C bytes), sets the type (slot 5), the object (slot 33) and the words (slots 11, 16, 21, 26), posts it (the message server's slot 4 with 0) and lets go of it.
+- **The dispatch** holds the city's map (slot 40) and, by the car's mission, places the riot police. Mission 5: the way from the car's position (slot 7) to its point (slot 143), normalised only when shorter than 1e-5 and else the car's heading (slot 15); the target is 8 along it, kept in the city (0x00547930), on the map's height (slot 18), placed (slot 16) heading that way, and the message 0xAA0F3F75 (the car's part, 0x00A9AE80[level], three zeros). Mission 1: the car's transform (slot 12, from the identity) turned by the double 0x00A99090 (pi/2 as a float) about y; the side is ((m1 + c0) x 0 - c2) x the scale for the transform's middle column against the new third; the target is 6 along the side from the car's position, or 6 the other way when its cell (city slot 95) is outside the rectangle of the car's occupant's (slot 137) object (slot 48, then slot 11); without an occupant Remove(1). Kept in the city, on the map's height, placed facing away from the camera view. Then slot 33 (0, 0) and (1, 1).
+- **The clamp** keeps the point's x and z in the city: below 0 to 0, at or past the city's cells (slots 93 and 94) x 16 to that less 1.
+
+Left the game's: the jump 0x00544520, the automaton base's and the core's code (Init, Shutdown, slot 74, SetStart, SwapModel), the pedestrian's frame and Init (ped2a's, at their addresses), the cGZMessage, string and generator code, the managers', sounds' and map's code.
+
+Oddities kept:
+
+- **The riot police's code** reads the car without a null test (the frame's later test for the message's object is dead).
+- **The Init's level** counts up while +0x274 is below or unordered with the bound, so a NaN gives 3; at 3 the start model's instance is the fourth word of 0x00A9AE28, 0, so no start model and no manager look-up. The sound the city's sounds answer is not kept.
+- **The messages** at level 3 take the fourth word of 0x00A9AE80, the next datum's (the float 1e-4).
+- **The dispatch on the mission 5** normalises the way to the car's point only when it is shorter than 1e-5 (a way of 0 gives NaNs) and else takes the car's heading; it holds the map but calls its slot 18 without a null test. **On the mission 1** the side multiplies (m1 + c0) by 0, so an infinity or NaN in the transform survives as a NaN; the cell is read from locals the city's slot 95 may leave unset (ours zero).
+- **The one-shot's Init** null-tests the property but not its value, and passes high - low + 1 as it is (zero or less when high is below low). **Its frame** counts down only by the first model that is not null and goes on through the list after removing.
+- **The message helper and the clamp** do not read their this; the helper calls through a failed allocation.
+- **AL only in the game:** the one-shot's Init and frame, the riot police's Init's 1 and frame; ours zero-extends.
+
+Floats (53 bits): the dispatch's quarter turn takes FSIN and FCOS at the x87's 64 bits (x87 code, as the tank's and the train's) and rounds each product with them to 53; the mission 5's x difference is a float, y and z not, and 1 / length stays unrounded; each target's x sum stays unrounded where the game keeps it in a register (y and z, and the mission 1's way back x and y, are floats first). The way back flips the side's signs before multiplying by 6 (FCHS): ours keeps the flip as a stored value, or the compiler moves it past the product and a NaN keeps its sign (the test's infinity case found this).
+
+Audit: each of the nine was read against the disassembly again after the test came out the same. No behaviour defect. Ghidra's C for 0x00544E80 passes the first argument to the models' slot 15; the disassembly passes the seconds (the second) to both slot 83 and slot 15, as ours does.
+
+### Test (ped3)
+
+The ` V` token gains `,<pcrews>` before pflags (56 fields); pflags 0x400 when it ran, 0x800 without a city, a factory or the patches. The log line is "ped3 pcrews", with one line per section before it.
+
+One one-shot and one riot police from their factories, on copies of their vtables with slots 13, 16, 30, 31, 33, 83, 158 and 174 (the occupant part's 5 and 6, the +0x20 part's 3) the test's. For the while the automaton base's Init and Shutdown, the pedestrian's frame, SetStart, SwapModel and the core's slot 74 jump to the test's stubs (em3a's 5-byte jumps); the city's slots 40 (the map: slot 18), 47 (the sounds), 93, 94 and 95 and the message server are the test's for the test's own thread (another thread of the game calling them meanwhile gets the real ones), the camera view's direction is set in the game's own object for the while, with a car of the test's (slots 7, 12, 15, 26, 137 and 143; its occupant part at +4 with a vtable, since the message holds it). Each posted message is mixed by what the setters wrote: its flag byte (+8; the three bytes above it are the message's unset), type (+0xC), four words (+0x10 to +0x1C) and object (+0x24, by name).
+
+- **The one-shot's Init** over 36 cases (the part's and the base's answers, no holder, no property, values of 0 to 3 bytes, high below low, the models) and **its frame** over 40 (no models, a null one first, the first at, before and past its last frame, no frames, the count 0, 1, 2 and 255).
+- **The riot police's Init** over 42 (initialised; the mission 5 with +0x274 above, between and below the bounds, a NaN and on a bound; the missions 1, 0 and 3; no sounds, no manager, nothing found), **Shutdown** both ways, **the frame** over 48 (the flag 1, the missions, the levels 0 to 3, +0x27A, the pedestrian frame's answer, the model at and past its last frame), **slot 74** over 9 (a NaN and -0 in the camera's direction).
+- **The message helper** at its address with six distinct words and three objects; **the clamp** at its address over three cities (one whose cells shift past an int) and eight points (below, on and past the edges, -0, a NaN and an infinity).
+- **The dispatch** over 40 cases (the car's point far, within 1e-5, on its position, a NaN; the levels; the city's edges; transforms not written, the identity, turned, skewed and scaled, a NaN and an infinity; no occupant; the cell in and out of the rectangle) and 128 drawn (positions, points, headings, transforms and rectangles from the test's own generator; the last 64 about the origin, the mission 5's point within 1e-5 of the position but not on its exponent, where the roundings show).
+
+A first run that gave the car no occupant part crashed both sides at the frame's message (cGZMessage's slot 33 holds the object). Three parity batches had saves partly the same, with pcrews itself taking several values on each side, always from the riot police's Init section on. Two values the game leaves unset had gone into the record: SC4String::FromText zeroes the string's +4 to +0xC but never writes its first word (the vtable), so the sound's name reaches the city's sounds with that word as the game's stack held it; and cGZMessage's +8 is a flag byte with three bytes above it the message never sets (seen only under run-parity). The test reads neither now. Before finding them it also stopped serving other threads from its swapped city slots and message server (they get the real ones) and stopped swapping the camera view for a buffer of its own; both stay, as other threads may call them during the test.
+
+A trial with 36 planted changes (the one-shot's 0.01, value count, range, early return, first model only, last frame, Remove's flag; the riot police's Init's NaN test, level 2, message words, draw below 6, the key's x 3, flag 0x4000, the key test, the sound's occupant; Shutdown's test; the frame's mission, message word, last frame; slot 74's mission; the camera's sign; the helper's word order; the clamp's at-or-past, shift and NaN test; the dispatch's 1e-5 test, x rounded, y factor rounded, 64-bit cosine, the side's c2 rounded, the scale, the way back's NaN sign, the rectangle's edge, Remove(1), slot 33's second pair, the y step unrounded) changed the token for 30 at first. Three more were seen once the test mixed the messages' fields themselves (not which known word each held: a 0 word changed to 1) and gained the 64 cases about the origin (the y factor and the c2 rounding). The last three cannot show: x times 8 is exact, the mission 1's target y is replaced by the map's height before anything reads it, and the cosine's bits past 53 lie below a float in every product (as tr3a's). 33 of 36.
+
+### Parity (ped3)
+
+2026-10-31. B = the five automata groups as for ped1 (env p4env-ped3, snapshot ped3-p4):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's ped fields were the same on both sides (pcrews 535864B1, pflags 0x54F), and every B run installed and reached all 9. None of them ran before the test in any B run.
