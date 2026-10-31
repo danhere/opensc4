@@ -2066,8 +2066,335 @@ void DriveBufferDraw()
     RsStage("buffer-draw-life");
 }
 
+// ====================================================================================
+// The factory
+//
+// The rasterizer factory (vtable 0x00AC1668): its methods by address, each
+// with a known EAX, on factories of the game's constructor over memory
+// filled with a pattern, with recording makers (put on its list by the
+// game's AddMaker) and tracked objects; answers that are pointers go in as
+// which object they are, and after each call the factory's state (its
+// lists by what they hold). Then buffers with a context made through the
+// graphics system and drawn into, and a second factory's Init, OnTick and
+// Shutdown against the framework, with a rasterizer from the maker Init
+// puts there.
+
+// A maker's slot 3: it records the target and where the rasterizer goes,
+// and makes one (itself) when `ok` is set.
+uint32_t __fastcall FMake(Recorder* k, void*, const void* target, void** out)
+{
+    KRec(k, 3);
+    MixKnown(target);
+    MixKnown(out);
+    if (k->ok)
+        *out = k;
+    return (KAnswer(k, 3) & ~0xFFu) | k->ok;
+}
+
+// A tracked object: whether it holds something (`has`, slot 9), the tick
+// it was last used (`key`, slot 11), and letting go (slot 6).
+uint32_t __fastcall FHolding(Recorder* k, void*)
+{
+    KRec(k, 9);
+    return (KAnswer(k, 9) & ~0xFFu) | k->has;
+}
+
+uint32_t __fastcall FLastUsed(Recorder* k, void*)
+{
+    KRec(k, 11);
+    return k->key;
+}
+
+uint32_t __fastcall FLetGo(Recorder* k, void*)
+{
+    KRec(k, 6);
+    k->has = 0;
+    return KAnswer(k, 6);
+}
+
+struct FactoryTables {
+    void* maker[8];
+    void* tracked[16];
+    FactoryTables()
+    {
+        FillTraps(maker, std::make_index_sequence<8>{});
+        FillTraps(tracked, std::make_index_sequence<16>{});
+        for (void** table : {maker, tracked}) {
+            table[1] = V(&KAddRef);
+            table[2] = V(&KRelease);
+        }
+        maker[3] = V(&FMake);
+        tracked[6] = V(&FLetGo);
+        tracked[9] = V(&FHolding);
+        tracked[11] = V(&FLastUsed);
+    }
+};
+
+FactoryTables& FactoryTablesOf()
+{
+    static FactoryTables tables;
+    return tables;
+}
+
+// A list of the game's (a ring through a sentinel): how many, what each
+// holds, and whether the links agree.
+void MixList(uint8_t* sentinel)
+{
+    uint32_t count = 0;
+    uint8_t* n = At<uint8_t*>(sentinel, 0);
+    while (n != sentinel && count < 64) {
+        MixKnown(At<void*>(n, 8));
+        MixByte(At<uint8_t*>(At<uint8_t*>(n, 0), 4) == n);
+        n = At<uint8_t*>(n, 0);
+        ++count;
+    }
+    Mix(count);
+    MixByte(At<uint8_t*>(sentinel, 4) != nullptr && At<uint8_t*>(At<uint8_t*>(sentinel, 4), 0) == sentinel);
+}
+
+// The factory's state: its tables as whether they are the class's, the
+// service base's words, both lists, the tick count, the lock's table and
+// count.
+void MixFactory(uint8_t* f)
+{
+    MixByte(At<void*>(f, 0x00) == reinterpret_cast<void*>(addr::GZRasterizerFactory_vftable));
+    MixByte(At<void*>(f, 0x04) == reinterpret_cast<void*>(addr::GZRasterizerFactory_vftable_4));
+    MixByte(At<void*>(f, 0x08) == reinterpret_cast<void*>(addr::GZRasterizerFactory_vftable_8));
+    for (uint32_t at = 0x0C; at < 0x20; at += 4)
+        Mix(At<uint32_t>(f, at));
+    MixList(At<uint8_t*>(f, 0x20));
+    MixList(At<uint8_t*>(f, 0x24));
+    Mix(At<uint32_t>(f, 0x28));
+    MixByte(At<void*>(f, 0x2C) == reinterpret_cast<void*>(addr::RZCriticalSection_Vtable));
+    Mix(At<uint32_t>(At<uint8_t*>(f, 0x30), 0x18));
+}
+
+uint8_t* NewFactory()
+{
+    uint8_t* const f = static_cast<uint8_t*>(
+        reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0x34));
+    std::memset(f, 0x6E, 0x34);
+    MixByte(WithEax(0x1357ACE0u, addr::GZRasterizerFactory_GZRasterizerFactory, f) == Address(f));
+    return f;
+}
+
+void DriveFactoryMethods()
+{
+    Random random{0x52415341u};
+    FactoryTables& t = FactoryTablesOf();
+    Recorder makers[3] = {{t.maker, 0x6A}, {t.maker, 0x6B}, {t.maker, 0x6C}};
+    Recorder tracked[6] = {{t.tracked, 0x70}, {t.tracked, 0x71}, {t.tracked, 0x72},
+                           {t.tracked, 0x73}, {t.tracked, 0x74}, {t.tracked, 0x75}};
+    uint8_t* const f = NewFactory();
+    void* out = nullptr;
+    g_pointers = {{f, 0xF1}, {f + 4, 0xF2}, {f + 8, 0xF3}, {&out, 0xF4}};
+    for (Recorder& k : makers)
+        g_pointers.push_back({&k, k.id});
+    for (Recorder& k : tracked)
+        g_pointers.push_back({&k, k.id});
+    MixFactory(f);
+    // Its own interface and the base service's (1, cIGZSystemService), from
+    // the factory and its service part.
+    for (const uint32_t iid : {0x4B2EA3B3u, 1u, 0x287FB697u, 0x12345678u}) {
+        out = nullptr;
+        Bm(addr::GZRasterizerFactory_QueryInterface, f, iid, &out);
+        MixKnown(out);
+        out = nullptr;
+        Bm(addr::GZRasterizerFactory_ServiceQueryInterface, f + 4, iid, &out);
+        MixKnown(out);
+    }
+    MixFactory(f);
+    RsStage("factory-made");
+
+    // No makers (the caller's EAX), then makers in front of one another,
+    // the one that makes a rasterizer first, last or not there.
+    const void* const target = &tracked[5];
+    Bm(addr::GZRasterizerFactory_MakeRasterizer, f, target, &out);
+    makers[0].ok = 0;
+    makers[1].ok = 1;
+    makers[2].ok = 1;
+    for (int i = 0; i < 3; ++i) {
+        Method<uint32_t>(addr::GZRasterizerFactory_AddMaker, f, static_cast<void*>(&makers[i]));
+        MixFactory(f);
+        for (int round = 0; round < 4; ++round) {
+            out = nullptr;
+            Bm(addr::GZRasterizerFactory_MakeRasterizer, f, target, &out);
+            MixKnown(out);
+            makers[random.Below(3)].ok ^= 1;
+        }
+    }
+    for (Recorder& k : makers)
+        k.ok = 0;
+    Bm(addr::GZRasterizerFactory_MakeRasterizer, f, target, &out);
+    Mix(static_cast<uint32_t>(makers[0].references));
+    RsStage("factory-makers");
+
+    // Tracked objects in and out, twice over and not there; let go of when
+    // idle at tick counts near 0 and 2^32, and through OnTick.
+    for (Recorder& k : tracked) {
+        Bm(addr::GZRasterizerFactory_Track, f, static_cast<void*>(&k));
+        MixFactory(f);
+    }
+    Bm(addr::GZRasterizerFactory_Untrack, f, static_cast<void*>(&tracked[2]));
+    MixFactory(f);
+    Bm(addr::GZRasterizerFactory_Untrack, f, static_cast<void*>(&makers[0]));
+    MixFactory(f);
+    Bm(addr::GZRasterizerFactory_Untrack, f, static_cast<void*>(&tracked[0]));
+    Bm(addr::GZRasterizerFactory_Track, f, static_cast<void*>(&tracked[2]));
+    Bm(addr::GZRasterizerFactory_Track, f, static_cast<void*>(&tracked[0]));
+    Bm(addr::GZRasterizerFactory_Track, f, static_cast<void*>(&tracked[0]));
+    MixFactory(f);
+    Bm(addr::GZRasterizerFactory_Untrack, f, static_cast<void*>(&tracked[0]));
+    MixFactory(f);
+    static const uint32_t kTicks[] = {0, 3, 4, 5, 9, 100, 0x7FFFFFFF, 0xFFFFFFFE};
+    for (const uint32_t ticks : kTicks) {
+        At<uint32_t>(f, 0x28) = ticks;
+        for (Recorder& k : tracked) {
+            k.has = static_cast<uint8_t>(random.Below(4) != 0);
+            k.key = random.Below(3) == 0 ? random.Next() : ticks - 7 + random.Below(10);
+        }
+        Bm(addr::GZRasterizerFactory_ReleaseIdle, f, random.Next());
+        for (Recorder& k : tracked)
+            MixByte(k.has);
+        MixFactory(f);
+    }
+    At<uint32_t>(f, 0x28) = 0x00ABCDE3; // the quotient OnTick answers shows above AL
+    for (int round = 0; round < 12; ++round) {
+        for (Recorder& k : tracked) {
+            if (random.Below(3) == 0)
+                k.has = 1;
+            k.key = At<uint32_t>(f, 0x28) - random.Below(8);
+        }
+        Bm(addr::GZRasterizerFactory_OnTick, f + 4, random.Next());
+        for (Recorder& k : tracked)
+            MixByte(k.has);
+        MixFactory(f);
+    }
+    RsStage("factory-tracked");
+
+    // Let go by the game's destructor: the makers released.
+    Mix(Method<uint32_t>(addr::GZRasterizerFactory_Destroy, f, uint32_t{1}) == Address(f));
+    for (Recorder& k : makers) {
+        Mix(static_cast<uint32_t>(k.references));
+        Mix(k.calls);
+    }
+    for (Recorder& k : tracked)
+        Mix(k.calls);
+    g_pointers.clear();
+    RsStage("factory-life");
+}
+
+// A buffer MakeContextBuffer made: as MixBuffer, but without the bytes
+// operator new left (no constructor writes the last two, and the batch
+// flag +0x49 is first written by Lock).
+void MixMade(uint8_t* b, uint32_t bits, bool locked)
+{
+    const uint8_t left[3] = {b[0x49], b[0x4A], b[0x4B]};
+    b[0x4A] = b[0x4B] = 0;
+    if (!locked)
+        b[0x49] = 0;
+    MixBuffer(b, bits);
+    b[0x49] = left[0];
+    b[0x4A] = left[1];
+    b[0x4B] = left[2];
+}
+
+// Buffers with a context made by MakeContextBuffer through the graphics
+// system at several sizes and colour types, drawn into through the buffer
+// (a game context and a real rasterizer), their pixels into the hash.
+void DriveFactoryBuffers()
+{
+    Random random{0x52415342u};
+    uint8_t* const f = NewFactory();
+    g_pointers = {{f, 0xF1}};
+    struct Size {
+        uint32_t width, height, type;
+    };
+    static const Size kSizes[] = {{37, 23, 9}, {16, 16, 8}, {9, 31, 5}, {64, 3, 9}, {1, 1, 9}};
+    for (const Size& size : kSizes) {
+        void* made = nullptr;
+        Bm(addr::GZRasterizerFactory_MakeContextBuffer, f, &made, size.width, size.height, size.type);
+        uint8_t* const b = static_cast<uint8_t*>(made);
+        MixByte(b != nullptr);
+        if (!b)
+            continue;
+        MixByte(At<void*>(b, 0) == reinterpret_cast<void*>(addr::GZContextBuffer_vftable));
+        MixMade(b, 0, false);
+        void** const vtable = *reinterpret_cast<void***>(b);
+        // Lock's AL (the rest is the surface's answer, a pointer of the heap's).
+        MixByte(static_cast<uint8_t>(
+            reinterpret_cast<uint32_t(__fastcall*)(void*, void*, uint32_t)>(vtable[6])(b, nullptr, 0x8010u)));
+        const uint32_t bits = At<uint32_t>(b, 0x30), stride = At<uint32_t>(b, 0x34);
+        const uint32_t width = At<uint32_t>(b, 0x38), height = At<uint32_t>(b, 0x3C);
+        const uint32_t pixelBytes = At<uint32_t>(b, 0x44);
+        MixMade(b, bits, true);
+        MixByte(bits != 0);
+        const Rect whole{0, 0, static_cast<int32_t>(size.width), static_cast<int32_t>(size.height)};
+        MixValue(Method<uint32_t>(addr::GZContextBuffer_FillRect, b, random.Next(), &whole,
+                                  static_cast<const Rect*>(nullptr)));
+        for (int round = 0; round < 6; ++round) {
+            const Rect r = RandomRect(random, -8, 70), clip = RandomRect(random, -4, 40);
+            MixValue(Method<uint32_t>(addr::GZContextBuffer_FillRect, b, random.Next(), &r,
+                                      round & 1 ? &clip : nullptr));
+        }
+        if (bits && width <= size.width && height <= size.height && pixelBytes <= 4)
+            for (uint32_t y = 0; y < height; ++y) {
+                const uint8_t* const row = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(bits + y * stride));
+                for (uint32_t x = 0; x < width * pixelBytes; ++x)
+                    MixByte(row[x]);
+            }
+        MixValue(reinterpret_cast<uint32_t(__fastcall*)(void*, void*, uint32_t)>(vtable[7])(b, nullptr, 0x8010u));
+        MixMade(b, bits, true);
+        Mix(reinterpret_cast<uint32_t(__fastcall*)(void*, void*)>(vtable[2])(b, nullptr));
+    }
+    MixFactory(f);
+    Method<uint32_t>(addr::GZRasterizerFactory_Destroy, f, uint32_t{1});
+    g_pointers.clear();
+    RsStage("factory-buffers");
+}
+
+// A second factory as a service: Init (its maker, the framework's
+// AddToTick: the real factory has the same ID, so it is not added), a
+// rasterizer from that maker for a recording target, OnTick, Shutdown.
+// Kept, held once more: the framework may hold it until its tick ends.
+void DriveFactoryService()
+{
+    RasterTables& rt = RasterTablesOf();
+    Buffer target{rt.buffer, 0x7D};
+    target.rect = Rect{0, 0, 8, 8};
+    g_known = {{&target, target.id}};
+    uint8_t* const f = NewFactory();
+    reinterpret_cast<uint32_t(__fastcall*)(void*, void*)>((*reinterpret_cast<void***>(f))[1])(f, nullptr);
+    void* out = nullptr;
+    g_pointers = {{f, 0xF1}, {f + 4, 0xF2}, {&out, 0xF4}, {&target, target.id}};
+    Bm(addr::GZRasterizerFactory_Init, f + 4);
+    MixFactory(f);
+    uint8_t* const sentinel = At<uint8_t*>(f, 0x20);
+    void** const maker = At<void**>(At<uint8_t*>(sentinel, 0), 8);
+    MixByte(maker && maker[0] == reinterpret_cast<void*>(addr::GZRasterizerMaker_vftable));
+    MixByte(maker && maker[1] == reinterpret_cast<void*>(addr::GZRasterizerMaker_vftable_4));
+    Bm(addr::GZRasterizerFactory_MakeRasterizer, f, static_cast<void*>(&target), &out);
+    MixByte(out && *static_cast<void**>(out) == reinterpret_cast<void*>(addr::GZRasterizer_vftable));
+    if (out)
+        Mix(reinterpret_cast<uint32_t(__fastcall*)(void*, void*)>((*static_cast<void***>(out))[2])(out, nullptr));
+    target.queried = 0;
+    out = nullptr;
+    Bm(addr::GZRasterizerFactory_MakeRasterizer, f, static_cast<void*>(&target), &out);
+    MixKnown(out);
+    for (int i = 0; i < 7; ++i)
+        Bm(addr::GZRasterizerFactory_OnTick, f + 4, static_cast<uint32_t>(i));
+    MixFactory(f);
+    Bm(addr::GZRasterizerFactory_Shutdown, f + 4);
+    MixFactory(f);
+    Mix(static_cast<uint32_t>(target.references));
+    Mix(target.calls);
+    g_pointers.clear();
+    g_known.clear();
+    RsStage("factory-service");
+}
+
 // OPENSC4_TEST_RASTER=<day>: the four spans, the context's methods, the
-// rasterizer's and the buffer's by address.
+// rasterizer's, the buffer's and the factory's by address.
 void DriveRasterDay(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_RASTER") || !game::IsBuild641())
@@ -2082,6 +2409,9 @@ void DriveRasterDay(const Day& day)
     if (DriveRasterDraw())
         DriveBufferDraw();
     DriveBufferMethods();
+    DriveFactoryMethods();
+    DriveFactoryBuffers();
+    DriveFactoryService();
     log::Write("autotest: raster driven (hash %08X)", g_rsHash);
 }
 
