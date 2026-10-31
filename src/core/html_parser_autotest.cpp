@@ -16,6 +16,9 @@
 // difference). The fingerprint's `hp` part is the hash of ours (the game's
 // when no group is ours), so runs with the groups off and on must give the
 // same. Also hashed: the static tag table, bucket by bucket.
+//
+// The layout test (OPENSC4_TEST_HTML_LAYOUT, fingerprint `hl`) is further
+// down: the same pages and some of its own, laid out (html_layout.cpp).
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
@@ -721,22 +724,11 @@ bool AnyOurs()
     return false;
 }
 
-void DriveParserDay(const Day& day)
+// Ours, then the ticker's rows, each one once; `own` the number of ours.
+// OPENSC4_TEST_HTML_PARSER_FILE=<path>: the pages from a file instead of
+// ours, separated by lines of `====` (for looking into one page).
+std::vector<std::string> AllPages(std::vector<std::string> pages, std::size_t& own)
 {
-    if (!OnRunDay(day, "OPENSC4_TEST_HTML_PARSER") || !game::IsBuild641())
-        return;
-    SetUpService();
-    void* const face = reinterpret_cast<void*(__cdecl*)()>(addr::HTMLWindow_Create)();
-    if (!face) {
-        log::Write("autotest: html parser: no window");
-        return;
-    }
-    Virtual<uint32_t>(face, 0x4);
-    char* const window = static_cast<char*>(face) - 0xD8;
-
-    std::vector<std::string> pages(std::begin(kPages), std::end(kPages));
-    // OPENSC4_TEST_HTML_PARSER_FILE=<path>: the pages from a file instead,
-    // separated by lines of `====` (for looking into one page).
     const std::string file = Env("OPENSC4_TEST_HTML_PARSER_FILE");
     if (!file.empty()) {
         pages.clear();
@@ -755,12 +747,39 @@ void DriveParserDay(const Day& day)
             }
         }
     }
-    const std::size_t own = pages.size();
-    // The ticker's rows, each one once.
+    own = pages.size();
     std::set<std::string> seen;
     for (std::string& row : TickerRows())
         if (seen.insert(row).second)
             pages.push_back(std::move(row));
+    return pages;
+}
+
+// The HTML window of the tests: made by the class factory, never created on
+// screen; its +0xD8 interface, with a reference.
+void* MakeWindow(const char* test)
+{
+    void* const face = reinterpret_cast<void*(__cdecl*)()>(addr::HTMLWindow_Create)();
+    if (!face) {
+        log::Write("autotest: %s: no window", test);
+        return nullptr;
+    }
+    Virtual<uint32_t>(face, 0x4);
+    return face;
+}
+
+void DriveParserDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_HTML_PARSER") || !game::IsBuild641())
+        return;
+    SetUpService();
+    void* const face = MakeWindow("html parser");
+    if (!face)
+        return;
+    char* const window = static_cast<char*>(face) - 0xD8;
+
+    std::size_t own = 0;
+    const std::vector<std::string> pages = AllPages({std::begin(kPages), std::end(kPages)}, own);
 
     const bool compare = AnyOurs();
     Fnv total;
@@ -844,6 +863,381 @@ void ParserFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kParserFingerprint{"html parser", 5, &ParserFingerprint};
 const DayHook kParserDrive{"html parser", 5, &DriveParserDay};
+
+// ====================================================================================
+// The layout test
+
+// OPENSC4_TEST_HTML_LAYOUT=<day> (fingerprint `hl`): the parser test's pages
+// and some of the layout's own, each parsed with the document's default
+// font steps and with the text page dialog's (SC4UI::TextPageFontSizes, as
+// the window's slot 33 hands them to the document's slot 7), and laid out
+// at 300 and 450 pixels as the window lays a page out: a layout context
+// (0x68 bytes) with the client rectangle and the view (the second width
+// scrolled across a little, which the start of a layout treats on its own),
+// the body's Layout (slot 3) and second pass (slot 4). Hashed: every node's
+// flags and box and the fields the layout sets (a text run's progress and
+// its pieces, an image's and a rule's sizes, a cell's), the context after
+// (line, pen, margins, the items left, the left and right entries), and
+// for each box the context's view test and its window coordinates.
+//
+// With any layout or parser group ours, each page is laid out twice, as the
+// parser test does: through the game's functions and through ours.
+
+const char* const kLayoutPages[] = {
+    // Long text that wraps, a word longer than either width, runs of spaces.
+    "<HTML><BODY>The quick brown fox jumps over the lazy dog again and again, until the line has to break "
+    "somewhere and then once more, and the dog is still lazy.   Spaces    between     words.     "
+    "Supercalifragilisticexpialidociousandthensomemorelettersthatnevermeetaspaceatall end.</BODY></HTML>",
+    // Alignment: centred and right paragraphs and blocks, mixed in one line.
+    "<HTML><BODY><P ALIGN=center>centred text that runs over more than one line of the narrow width, centred "
+    "each time</P><P ALIGN=right>right aligned text, also long enough to wrap at three hundred pixels wide</P>"
+    "<CENTER>c <B>bold</B> c</CENTER><DIV ALIGN=right>r<BR>r2</DIV>left <DIV ALIGN=center>mid</DIV> after"
+    "</BODY></HTML>",
+    // Floating images, left and right, with text around and after them.
+    "<HTML><BODY><IMG SRC=a.png WIDTH=60 HEIGHT=40 ALIGN=left>Text beside a left float that goes on long "
+    "enough to pass below it at either width, and then some more words to fill the lines.<IMG SRC=b.png "
+    "WIDTH=80 HEIGHT=30 ALIGN=right>More text beside a right float, long enough to wrap around it as well."
+    "<BR><IMG SRC=c.png WIDTH=500 HEIGHT=10 ALIGN=right>wide<IMG SRC=d.png WIDTH=20 HEIGHT=200 ALIGN=left>"
+    "tall<P>after the floats</P></BODY></HTML>",
+    // Images in the line, every ALIGN, too wide for the line, no size.
+    "<HTML><BODY>a<IMG SRC=a.png WIDTH=30 HEIGHT=30>b<IMG SRC=b.png WIDTH=30 HEIGHT=30 ALIGN=top>c"
+    "<IMG SRC=c.png WIDTH=30 HEIGHT=31 ALIGN=middle>d<IMG SRC=d.png WIDTH=30 HEIGHT=30 ALIGN=bottom>e"
+    "<IMG SRC=e.png WIDTH=30 HEIGHT=30 ALIGN=absmiddle>f<IMG SRC=f.png WIDTH=400 HEIGHT=20>g"
+    "<IMG SRC=g.png WIDTH=300 HEIGHT=20>h<IMG SRC=h.png><IMG SRC=i.png WIDTH=0 HEIGHT=5><IMG SRC=j.png "
+    "WIDTH=5></BODY></HTML>",
+    // Rules: widths, percentages over 100, sizes 0 and negative.
+    "<HTML><BODY>x<HR>y<HR WIDTH=50%><HR WIDTH=150%><HR WIDTH=0%><HR WIDTH=-5><HR WIDTH=1000><HR SIZE=0>"
+    "<HR SIZE=-3 WIDTH=20><HR SIZE=12 WIDTH=75%>z</BODY></HTML>",
+    // Lists in lists, numbered lists long enough to wrap, a quote in a list.
+    "<HTML><BODY><OL><LI>first item with enough text to wrap onto a second line at the narrow width "
+    "<LI>second<OL><LI>inner one<LI>inner two with more words than fit on one line of the narrow page</OL>"
+    "<LI>third<UL><LI>bullet<UL><LI>deeper<BLOCKQUOTE>quoted in a list, a long quote that wraps</BLOCKQUOTE>"
+    "</UL></UL></OL><DL><DT>term<DD>a definition long enough to wrap onto the next line of the page</DL>"
+    "</BODY></HTML>",
+    // Preformatted text, NOBR, breaks in a row, empty paragraphs.
+    "<HTML><BODY><PRE>line one is long and is not broken however narrow the page is, it just runs on\n"
+    "line two\n\n   indented four\n</PRE><NOBR>no break here even though this is long enough to wrap</NOBR>"
+    "<BR><BR><BR>three breaks<P></P><P></P>two empty paragraphs<BR>end</BODY></HTML>",
+    // Headings and fonts of every size in one paragraph (a line of mixed
+    // heights), quotes in quotes.
+    "<HTML><BODY><H1>Heading one wraps at the narrow width</H1><H3>three</H3><H6>six</H6><P>small "
+    "<FONT SIZE=1>one</FONT> <FONT SIZE=7>seven</FONT> <BIG>big</BIG> <SMALL>small</SMALL> <TT>typewriter "
+    "text</TT> and on</P><BLOCKQUOTE>outer<BLOCKQUOTE>inner quote that runs over the line's end at three "
+    "hundred</BLOCKQUOTE>outer again</BLOCKQUOTE></BODY></HTML>",
+    // Tables: widths, cells with lots of text, NOWRAP, nested, floats in a
+    // cell, empty cells.
+    "<HTML><BODY><TABLE BORDER=1 WIDTH=100% CELLPADDING=2><TR><TD WIDTH=50>narrow cell with a lot of text "
+    "in it</TD><TD>wide cell<BR>two lines</TD><TD NOWRAP>no wrap in this cell at all</TD></TR><TR><TD></TD>"
+    "<TD><IMG SRC=a.png WIDTH=20 HEIGHT=20 ALIGN=left>float in a cell with text</TD><TD><TABLE><TR><TD>in"
+    "</TD><TD>ner</TD></TR></TABLE></TD></TR></TABLE><TABLE WIDTH=120><TR><TD>fixed table width</TD></TR>"
+    "</TABLE>after</BODY></HTML>",
+    // A link and spans in a wrapped line, an image in a link.
+    "<HTML><BODY>Before <A HREF=x.html>a link whose text is long enough to wrap at the narrow width</A> "
+    "and <SPAN STYLE=\"color: #FF0000\">a span</SPAN>, <A HREF=y.html><IMG SRC=a.png WIDTH=16 HEIGHT=16>"
+    "</A> after.</BODY></HTML>",
+    // Floats ending on a line's top or just before or after it (lines of
+    // the default font are 16 high), on both sides.
+    "<HTML><BODY><IMG SRC=a.png WIDTH=40 HEIGHT=16 ALIGN=right>beside<BR>the words of a line long enough "
+    "to run up to the right margin of the page and on<BR><IMG SRC=b.png WIDTH=40 HEIGHT=15 ALIGN=right>be"
+    "side<BR>the words of a line long enough to run up to the right margin of the page and on<BR><IMG SRC"
+    "=c.png WIDTH=40 HEIGHT=17 ALIGN=right>beside<BR>the words of a line long enough to run up to the rig"
+    "ht margin of the page and on<BR><IMG SRC=d.png WIDTH=40 HEIGHT=32 ALIGN=right>beside<BR>the words of"
+    " a line long enough to run up to the right margin of the page and on<BR><IMG SRC=e.png WIDTH=40 HEIG"
+    "HT=16 ALIGN=left>beside<BR>the words of a line long enough to run up to the right margin of the page"
+    " and on<BR><IMG SRC=f.png WIDTH=40 HEIGHT=32 ALIGN=left>beside<BR>the words of a line long enough to"
+    " run up to the right margin of the page and on<BR></BODY></HTML>",
+    // Words longer than the line, centred and right aligned (the width left
+    // after a forced word aligns the line). Not in a list: there the game
+    // may not force it (html_layout.cpp, IndentOf), and with no group ours a
+    // run did not get through a page of words too long for their list.
+    "<HTML><BODY><P ALIGN=center>Pneumonoultramicroscopicsilicovolcanoconiosisandthensomemoreletters "
+    "short</P><P ALIGN=right>Pneumonoultramicroscopicsilicovolcanoconiosisandthensomemoreletters short</P>"
+    "<DIV ALIGN=center>Antidisestablishmentarianismistic</DIV></BODY></HTML>",
+};
+
+// The text page dialog's font steps (SC4UI::TextPageFontSizes).
+const int32_t* TextPageSteps() { return reinterpret_cast<const int32_t*>(addr::SC4UI_TextPageFontSizes); }
+
+// The layout's own hash of a node: its flags and box and what the layout
+// set, its children's after.
+void HashLayoutNode(Fnv& f, char* ctx, char* node, int depth)
+{
+    f.Byte(0x5A);
+    if (g_trace)
+        *g_trace += "\n" + std::string(static_cast<std::size_t>(depth) * 2, ' ');
+    if (!node || depth > 64) {
+        f.Byte(0);
+        Trace("null", 0);
+        return;
+    }
+    ++g_nodes;
+    const uint32_t vtable = At<uint32_t>(node, 0);
+    f.Word(vtable);
+    Trace("%08X", vtable);
+    f.Byte(At<uint8_t>(node, 0x8));
+    f.Byte(At<uint8_t>(node, 0x9));
+    Trace(" b%X", At<uint8_t>(node, 0x8));
+    Trace(" b%X |", At<uint8_t>(node, 0x9));
+    for (std::size_t at = 0xC; at < 0x1C; at += 4) {
+        f.Word(At<uint32_t>(node, at));
+        Trace(" %d", At<uint32_t>(node, at));
+    }
+    // The view test and the window's coordinates of the box.
+    using InViewFn = uint8_t(__thiscall*)(void*, const void*, uint8_t);
+    using RectFn = void*(__thiscall*)(void*, const void*, void*);
+    using PointFn = int32_t(__thiscall*)(void*, int32_t, int32_t, int32_t*, int32_t*);
+    const uint8_t part = reinterpret_cast<InViewFn>(addr::HTMLLayout_InView)(ctx, node + 0xC, 0);
+    const uint8_t whole = reinterpret_cast<InViewFn>(addr::HTMLLayout_InView)(ctx, node + 0xC, 1);
+    int32_t window[4] = {};
+    reinterpret_cast<RectFn>(addr::HTMLLayout_ToWindowRect)(ctx, node + 0xC, window);
+    int32_t point[2] = {};
+    reinterpret_cast<PointFn>(addr::HTMLLayout_ToWindowPoint)(ctx, At<int32_t>(node, 0xC), At<int32_t>(node, 0x10),
+                                                              &point[0], &point[1]);
+    f.Byte(part);
+    f.Byte(whole);
+    for (const int32_t v : window)
+        f.Word(static_cast<uint32_t>(v));
+    f.Word(static_cast<uint32_t>(point[0]));
+    f.Word(static_cast<uint32_t>(point[1]));
+    Trace(" v%X", part | whole << 1);
+    Trace(" w%d", window[0]);
+    Trace(",%d", window[1]);
+    Trace(",%d", window[2]);
+    Trace(",%d", window[3]);
+    Trace(" p%d", point[0]);
+    Trace(",%d", point[1]);
+    switch (vtable) {
+    case 0x00ACE300: { // text: progress, the fit, the pieces
+        f.Word(At<uint32_t>(node, 0x44));
+        f.Word(At<uint32_t>(node, 0x48));
+        Trace(" @%X", At<uint32_t>(node, 0x44));
+        Trace("+%X", At<uint32_t>(node, 0x48));
+        const uint32_t* first = At<const uint32_t*>(node, 0x4C);
+        const uint32_t* last = At<const uint32_t*>(node, 0x50);
+        const uint32_t count = first && first <= last ? static_cast<uint32_t>(last - first) : 0;
+        f.Word(count);
+        for (uint32_t i = 0; i < count && i < 60000; ++i) {
+            f.Word(first[i]);
+            Trace(i % 6 == 0 ? " [%d" : (i % 6 == 5 ? " %d]" : " %d"), first[i]);
+        }
+        break;
+    }
+    case 0x00ACE188: // IMG
+        for (std::size_t at = 0x2C; at <= 0x38; at += 4)
+            f.Word(At<uint32_t>(node, at));
+        break;
+    case 0x00ACD55C: // HR
+        f.Word(At<uint32_t>(node, 0x20));
+        f.Word(At<uint32_t>(node, 0x24));
+        break;
+    case 0x00ACE264: // TD (+0x30 is read only when +0x2C is 0, and the
+                     // game leaves it as the heap had it otherwise)
+        f.Word(At<uint32_t>(node, 0x2C));
+        if (At<uint32_t>(node, 0x2C) == 0)
+            f.Word(At<uint32_t>(node, 0x30));
+        Trace(" td %X", At<uint32_t>(node, 0x2C));
+        Trace(" %X", At<uint32_t>(node, 0x30));
+        break;
+    default:
+        break;
+    }
+    const NodeClass* const c = ClassOf(vtable);
+    if (c && c->container) {
+        char** const first = At<char**>(node, 0x1C);
+        char** const last = At<char**>(node, 0x20);
+        const uint32_t count = first && first <= last ? static_cast<uint32_t>(last - first) : 0;
+        f.Word(count);
+        for (uint32_t i = 0; i < count && i < 100000; ++i)
+            HashLayoutNode(f, ctx, first[i], depth + 1);
+    } else if (!c) {
+        ++g_unknown;
+    }
+}
+
+// The context after a layout: the line, pen and margins, the items left, the
+// left entries (their padding and an indent's bottom are what the stack had)
+// and the right ones.
+void HashContext(Fnv& f, char* ctx)
+{
+    Trace("\nctx", 0);
+    for (std::size_t at = 0x2C; at <= 0x48; at += 4) {
+        f.Word(At<uint32_t>(ctx, at));
+        Trace(" %d", At<uint32_t>(ctx, at));
+    }
+    char* const header = At<char*>(ctx, 0x4C);
+    uint32_t items = 0;
+    for (char* node = At<char*>(header, 0); node != header && items < 100000; node = At<char*>(node, 0))
+        ++items;
+    f.Word(items);
+    Trace(" items %d", items);
+    for (char* e = At<char*>(ctx, 0x50); e && e < At<char*>(ctx, 0x54); e += 16) {
+        f.Byte(At<uint8_t>(e, 0));
+        if (At<uint8_t>(e, 0))
+            f.Word(At<uint32_t>(e, 4));
+        f.Word(At<uint32_t>(e, 8));
+        f.Word(At<uint32_t>(e, 12));
+        Trace(" L%d", At<uint8_t>(e, 0));
+    }
+    for (char* e = At<char*>(ctx, 0x5C); e && e < At<char*>(ctx, 0x60); e += 8) {
+        f.Word(At<uint32_t>(e, 0));
+        f.Word(At<uint32_t>(e, 4));
+        Trace(" R%d", At<uint32_t>(e, 4));
+    }
+}
+
+// One page parsed (with the font steps given, or the default ones) and laid
+// out `width` wide; the hash of the boxes.
+uint32_t LayoutPage(char* window, const std::string& page, const int32_t* steps, int32_t width, bool scrolled)
+{
+    using NewFn = void*(__cdecl*)(std::size_t);
+    using ThisFn = void*(__thiscall*)(void*);
+    using InitFn = uint8_t(__thiscall*)(void*, void*, void*, const GameText*);
+    char* const doc = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x1C4));
+    if (!doc)
+        return 0;
+    reinterpret_cast<ThisFn>(addr::HTMLDocument_Construct)(doc);
+    Virtual<uint32_t>(doc, 0x4);
+    GameText base;
+    MakeText(&base, "");
+    reinterpret_cast<InitFn>(addr::HTMLDocument_Init)(doc, window, &g_service, &base);
+    DestroyText(&base);
+    if (steps)
+        Virtual<void>(doc, 0x1C, steps, 7); // as ShowHTML hands on the window's steps
+    GameText text;
+    MakeText(&text, page.c_str());
+    const bool parsed = Virtual<uint8_t>(doc, 0x20, &text) != 0;
+    DestroyText(&text);
+    const bool dump = EnvInt("OPENSC4_TEST_HTML_PARSER_DUMP", 0) != 0;
+    if (dump)
+        log::Write("autotest: html layout: parsed, laying out");
+    Fnv f;
+    f.Byte(parsed ? 1 : 0);
+    char* const root = At<char*>(doc, 0x14);
+    if (root) {
+        alignas(8) char ctx[0x68] = {};
+        reinterpret_cast<ThisFn>(addr::HTMLLayout_Construct)(ctx);
+        // The client rectangle (+0xC) and the view (+0x1C), as the window
+        // sets them; the scrolled one 7 across and 0 down.
+        const int32_t scroll = scrolled ? 7 : 0;
+        const int32_t rects[8] = {2, 3, width + 2, 403, scroll, 0, width + scroll, 400};
+        std::memcpy(ctx + 0xC, rects, sizeof rects);
+        Virtual<void>(root, 0xC, ctx); // Layout
+        Virtual<void>(root, 0x10);     // the second pass
+        if (dump)
+            log::Write("autotest: html layout: laid out, hashing");
+        HashLayoutNode(f, ctx, root, 0);
+        HashContext(f, ctx);
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::HTMLLayout_Destruct)(ctx);
+    }
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+bool g_layoutOn = false;
+uint32_t g_layoutHash = 2166136261u;
+
+bool AnyLayoutOurs()
+{
+    for (const char* id : {"ui.html.layout", "ui.html.nodes.layout.blocks", "ui.html.nodes.layout.text",
+                           "ui.html.nodes.layout.images", "ui.html.nodes.layout.cells"})
+        if (registry::ModeOf(id) == registry::Mode::Ours)
+            return true;
+    return AnyOurs();
+}
+
+void DriveLayoutDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_HTML_LAYOUT") || !game::IsBuild641())
+        return;
+    SetUpService();
+    void* const face = MakeWindow("html layout");
+    if (!face)
+        return;
+    char* const window = static_cast<char*>(face) - 0xD8;
+
+    std::vector<std::string> mine(std::begin(kPages), std::end(kPages));
+    mine.insert(mine.end(), std::begin(kLayoutPages), std::end(kLayoutPages));
+    std::size_t own = 0;
+    const std::vector<std::string> pages = AllPages(std::move(mine), own);
+
+    const bool compare = AnyLayoutOurs();
+    Fnv total;
+    int differ = 0;
+    int nodes = 0;
+    struct Variant {
+        const char* name;
+        const int32_t* steps;
+        int32_t width;
+        bool scrolled;
+    };
+    const Variant variants[] = {
+        {"d300", nullptr, 300, true},
+        {"d450", nullptr, 450, false},
+        {"t300", TextPageSteps(), 300, true},
+        {"t450", TextPageSteps(), 450, false},
+    };
+    for (std::size_t i = 0; i < pages.size(); ++i) {
+        uint32_t hashes[4] = {};
+        for (int v = 0; v < 4; ++v) {
+            const Variant& variant = variants[v];
+            if (EnvInt("OPENSC4_TEST_HTML_PARSER_DUMP", 0))
+                log::Write("autotest: html layout: page %zu %s", i, variant.name);
+            auto run = [&] { return LayoutPage(window, pages[i], variant.steps, variant.width, variant.scrolled); };
+            uint32_t game = 0;
+            if (compare) {
+                html_parser::g_useGame = true;
+                game = run();
+                html_parser::g_useGame = false;
+            }
+            g_nodes = 0;
+            const uint32_t ours = run();
+            nodes += g_nodes;
+            hashes[v] = ours;
+            total.Word(ours);
+            if (compare && game != ours) {
+                ++differ;
+                log::Write("autotest: html layout: page %zu %s differs: game %08X ours %08X (%zu bytes)", i,
+                           variant.name, game, ours, pages[i].size());
+                if (differ <= 8) {
+                    std::string trace[2];
+                    for (int side = 0; side < 2; ++side) {
+                        html_parser::g_useGame = side == 0;
+                        g_trace = &trace[side];
+                        run();
+                        g_trace = nullptr;
+                    }
+                    html_parser::g_useGame = false;
+                    log::Write("autotest: html layout: page %zu %s: %s\n  game:%s\n  ours:%s", i, variant.name,
+                               pages[i].c_str(), trace[0].c_str(), trace[1].c_str());
+                }
+            }
+        }
+        if (i < own || EnvInt("OPENSC4_TEST_HTML_PARSER_DUMP", 0))
+            log::Write("autotest: html layout: page %zu %08X %08X %08X %08X", i, hashes[0], hashes[1], hashes[2],
+                       hashes[3]);
+    }
+    Virtual<uint32_t>(face, 0x8);
+
+    g_layoutHash = total.h;
+    g_layoutOn = true;
+    log::Write("autotest: html layout: %zu pages (%zu ours, %zu ticker rows), 4 layouts each, %d nodes; %s; hash %08X",
+               pages.size(), own, pages.size() - own, nodes,
+               compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_layoutHash);
+    if (compare)
+        log::Write("autotest: html layout: %d differences in %zu layouts", differ, pages.size() * 4);
+}
+
+void LayoutFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_layoutOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | hl %08X", g_layoutHash);
+    line += text;
+}
+
+const FingerprintPart kLayoutFingerprint{"html layout", 5, &LayoutFingerprint};
+const DayHook kLayoutDrive{"html layout", 5, &DriveLayoutDay};
 
 } // namespace
 } // namespace opensc4::autotest

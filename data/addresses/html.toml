@@ -1,4 +1,4 @@
-# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups; the rest is not hooked.
+# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups, and the layout (h4 and the layout side of h5) in ui.html.layout and the ui.html.nodes.layout.* groups; the rest is not hooked.
 
 [[entry]]
 name = "HTMLDirector::Construct"
@@ -1513,3 +1513,462 @@ address = 0x00ACD4A0
 kind = "data"
 source = "Name ours. The default seven font steps: 8, 10, 12, 14, 18, 24, 36 (docs/html.md)."
 
+
+[[entry]]
+name = "HTMLLayout::ToWindowPoint"
+address = 0x008FDE3F
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, int32_t x, int32_t y, int32_t* outX, int32_t* outY)"
+expect = "8B 41 0C 2B 41 1C 8B 54"
+source = "Name ours. Ours in ui.html.layout. `ret 0x10`. A point of the page in the window's coordinates: plus the client rectangle's corner (+0xC), less the scroll position (+0x1C). Called by DrawString 0x00909757 (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::Begin"
+address = 0x008FDE62
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "8B 51 10 2B 51 20 8B 41"
+source = "Name ours. Ours in ui.html.layout. Plain ret. The start of a layout: the line's height and ascent 0, the margins (+0x40, +0x44, +0x48) the client rectangle's sides less the scroll position, the pen at the rectangle's corner (its x not less the scroll position). Called by the window (0x008FB5A0 and its two other layouts) and the body's Layout (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::ToWindowRect"
+address = 0x008FDEEC
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* in, void* out)"
+expect = "8B 44 24 08 53 56 8B 74"
+source = "Name ours. Ours in ui.html.layout. `ret 8`, returns out. A rectangle of the page in the window's coordinates (the paint code) (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::InView"
+address = 0x008FDF3C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* rect, bool whole)"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Name ours. Ours in ui.html.layout. `ret 8`. Whether a rectangle meets the view (+0x1C, 0x0079DD60); with `whole` only when it is all in view or covers it (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::ToPageRect"
+address = 0x008FDF8C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* in, void* out)"
+expect = "8B 44 24 08 53 56 8B 74"
+source = "Name ours. Ours in ui.html.layout. `ret 8`, returns out. A rectangle of the window in the page's coordinates: the nodes' boxes (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::NoLeftFloat"
+address = 0x008FE00E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8B 41 50 3B 41 54 74 0F"
+source = "Name ours. Ours in ui.html.layout. Plain ret; keeps ECX and EDX, which MeasureLine relies on (ours through a thunk). True when the left entries (+0x50) are empty or the last one never ends (bottom 0x3FFFFFFF, a table cell's margin); an indent's bottom is never set (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::NoRightFloat"
+address = 0x008FE029
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8B 41 5C 3B 41 60 74 0F"
+source = "Name ours. Ours in ui.html.layout. Plain ret; keeps EDX (ours through a thunk). The same for the right entries (+0x5C) (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::Measure"
+address = 0x008FE044
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t* left)"
+expect = "55 8B EC 83 EC 14 53 8B"
+source = "Name ours. Ours in ui.html.layout. `ret 4`. Measures the line's items (list at +0x4C: slots 1 and 2) against the width between the margins, keeping the line's height (+0x2C) and ascent (+0x30); true when the line is full. The first item is made to give something when nothing of it fits and nothing floats (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::NewLine"
+address = 0x008FE116
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t advance)"
+expect = "8B 44 24 04 01 41 38 8B"
+source = "Name ours. Ours in ui.html.layout. `ret 4`. The next line `advance` below; ends the floats whose bottom the line reached (the left ones down to the first indent) (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::Unindent"
+address = 0x008FE183
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "8B 41 50 3B 41 54 74 13"
+source = "Name ours. Ours in ui.html.layout. Plain ret. Ends the last left entry, indent or float, putting back its margins (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::HangIndent"
+address = 0x008FE19F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "55 8B EC 51 56 8D 45 FC"
+source = "Name ours. Ours in ui.html.layout. Plain ret. The next lines' margin (+0x44) where the items waiting end: a numbered list item's number (0x0090907D) (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::Flush"
+address = 0x008FE1BB
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, bool all)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Ours in ui.html.layout. `ret 4`. Lays out the items waiting a line at a time, while a line is full (or with `all`, always): aligned by its last item (slot 0), each item placed (slot 3) until the pen reaches the right margin, those placed whole taken off (SC4PtrList::Erase); the next line the line's height below (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::Construct"
+address = 0x008FE2C6
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "51 56 8B F1 57 33 FF 8D"
+source = "Name ours. Ours in ui.html.layout. Plain ret. The layout context, 0x68 bytes (the HTML window's at +0xE0): rectangles at +0xC (client) and +0x1C (view), the line, pen and margins at +0x2C to +0x48, a list of line items at +0x4C, left entries (16 bytes) at +0x50, right ones (8 bytes) at +0x5C. +4 and +0x44 are left as they are. Destructor 0x008FB68A (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::AddItem"
+address = 0x008FE492
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* item)"
+expect = "56 57 8B F9 8D 77 4C 8B"
+source = "Name ours. Ours in ui.html.layout. `ret 4`. An item for the line (SC4PtrList::PushBack), after the items waiting are laid out when it is aligned otherwise than the last; then the full lines are laid out (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::FloatLeft"
+address = 0x008FE515
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t left, int32_t bottom)"
+expect = "55 8B EC 83 EC 10 8B 45"
+source = "Name ours. Ours in ui.html.layout. `ret 8`. An image floating left: a left entry (flag 1, bottom, the two margins) and the margin `left` (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::FloatRight"
+address = 0x008FE54E
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t right, int32_t bottom)"
+expect = "55 8B EC 51 51 8B 45 0C"
+source = "Name ours. Ours in ui.html.layout. `ret 8`. An image floating right: a right entry (bottom, the margin) and the margin `right` (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::Indent"
+address = 0x008FE579
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t left)"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Name ours. Ours in ui.html.layout. `ret 4`. An indent: a left entry with flag 0 and its bottom as the stack has it (ours 0x3FFFFFFF), and the margin `left` (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::Copy"
+address = 0x00909ECD
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "53 8B D9 55 8B 6C 24 0C"
+source = "Name ours. Ours in ui.html.layout. `ret 4`, returns this. The layout context's copy constructor: every field to +0x48, the list (0x00909CCC) and the vectors (0x00909AF9, 0x00909B33). A table cell lays itself out in a copy (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLNode::AddToBox"
+address = 0x009084A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* rect)"
+expect = "53 56 8B 74 24 0C 8B D9"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. A rectangle not empty (cRZRect::IsEmpty) taken into the node's box (+0xC): the box itself the first time (+8 set), their union after (SC4Rect::UnionOf) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLContainerNode::LayoutChildren"
+address = 0x00909299
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "56 8B 71 1C 57 8B 79 20"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of the plain containers (through the thunk 0x00909A07): the box to set again (+8 cleared) and each child's Layout (slot 3) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLContainerNode::Finish"
+address = 0x009092BE
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "53 55 57 8B F9 8B 5F 1C"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. Plain ret. Slot 4 of the containers (through the thunk 0x00909A0C): each child's slot 4, the box the union of the boxes of those laid out (+9), then laid out itself (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBlockNode::Layout"
+address = 0x009092F8
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of CENTER and DIV, the headings and DD: the line flushed before and after the children (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLRuleNode::Layout"
+address = 0x0090931F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "55 8B EC 83 EC 20 53 56"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of HR: 5 in from the pen, SIZE (+0x20, at least 1) high, WIDTH (+0x24) wide or a percentage (+0x28, at most 100) of the margins' width less 10; the next line SIZE + 10 below (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLListNode::Layout"
+address = 0x009096A4
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of UL, OL and DT: indented by 20 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLItemNode::Layout"
+address = 0x009096E6
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of LI (vtable 0x00ACD774): an indent at the margin, so a number's hanging indent ends with the item (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLParagraphNode::Layout"
+address = 0x0090971E
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of P: 6 pixels before and after (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLQuoteNode::Layout"
+address = 0x0090996D
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of BLOCKQUOTE: 12 pixels before and after, indented by 20 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBodyNode::Layout"
+address = 0x009099E2
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "56 8B 74 24 08 57 8B F9"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of the body: the layout's start (HTMLLayout::Begin), the children, the last line (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBreakNode::Layout"
+address = 0x00909216
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "55 8B EC 83 EC 20 53 56"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of BR: the line flushed, the box the empty rectangle at the pen (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLNumberNode::Layout"
+address = 0x0090907D
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "8B 4C 24 04 E8 19 51 FF"
+source = "Name ours. Ours in ui.html.nodes.layout.blocks. `ret 4`. Slot 3 of vtable 0x00ACD7A0 (a numbered item's number): only HTMLLayout::HangIndent; its children are not laid out (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextNode::Layout"
+address = 0x00909EA1
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "56 8B F1 8D 4E 4C FF 71"
+source = "Name ours. Ours in ui.html.nodes.layout.text. `ret 4`. Slot 3 of a text run: its pieces (+0x4C) erased (0x00909B9D), the text from its start (+0x44), its item (+0x1C) on the line (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextItem::Metrics"
+address = 0x00908641
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t* ascent, int32_t* height)"
+expect = "55 8B EC 51 51 56 57 8B"
+source = "Name ours. Ours in ui.html.nodes.layout.text. `ret 8`. Slot 1 of the text item (vtable 0x00ACE2EC): the height the larger of the font's slots 35 and 37, the ascent its slot 38 but not more (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextItem::Fit"
+address = 0x00909BE1
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t width, int32_t* used, bool force)"
+expect = "55 8B EC 51 53 56 8B F1"
+source = "Name ours. Ours in ui.html.nodes.layout.text. `ret 0xC`. Slot 2 of the text item: how much of the rest fits (+0x2C) and its width; preformatted text (+0x20) to its next line break. FitString (font slot 41), or with `force` slot 42 one pixel wider at a time (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextItem::Place"
+address = 0x0090A24D
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* layout)"
+expect = "55 8B EC 83 EC 48 53 8B"
+source = "Name ours. Ours in ui.html.nodes.layout.text. `ret 4`. Slot 3 of the text item: what fits as a piece (rectangle, start, count; 0x0090A216) at the pen, the box without the spaces at its end, the pen moved on with them (font slot 48); true when the text is all laid out (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextItem::Done"
+address = 0x00909A11
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8B 41 0C 2B 41 08 80 79"
+source = "Name ours. Ours in ui.html.nodes.layout.text. Plain ret. Slot 4 of the text item: skips the spaces; true when nothing else is left; never for preformatted text (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLImageNode::Layout"
+address = 0x009094DF
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "55 8B EC 83 EC 24 53 8B"
+source = "Name ours. Ours in ui.html.nodes.layout.images. `ret 4`. Slot 3 of IMG: nothing for no WIDTH or HEIGHT (+0x2C, +0x30); ALIGN (+0x34) 0 floats left, 1 right, others make it an item of the line (+0x1C) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLImageItem::Metrics"
+address = 0x009082CA
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t* ascent, int32_t* height)"
+expect = "55 8B EC 8B 41 14 8B 55"
+source = "Name ours. Ours in ui.html.nodes.layout.images. `ret 8`. Slot 1 of the image item (vtable 0x00ACE174): the height; the ascent 0 (ALIGN 2), half (3) or all of it (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLImageItem::Fit"
+address = 0x00908FA5
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t width, int32_t* used, bool force)"
+expect = "8B 41 10 8B 54 24 04 3B"
+source = "Name ours. Ours in ui.html.nodes.layout.images. `ret 0xC`. Slot 2 of the image item: all or nothing, the width compared unsigned (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLImageItem::Place"
+address = 0x0090962B
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* layout)"
+expect = "55 8B EC 83 EC 20 53 8B"
+source = "Name ours. Ours in ui.html.nodes.layout.images. `ret 4`. Slot 3 of the image item: at the pen by ALIGN (2 top, 3 middle on the base, others bottom on it), the pen moved on (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLCellNode::Fit"
+address = 0x00909089
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "55 8B EC 83 EC 10 56 8B"
+source = "Name ours. Ours in ui.html.nodes.layout.cells. `ret 4`. A cell with nothing at +0x2C: a box of a pixel at the pen if it has none, at least the width at +0x30 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLCellNode::LayoutIn"
+address = 0x00909837
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout, const void* rect)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours. Ours in ui.html.nodes.layout.cells. `ret 8`. A cell laid out in the context it is given, its box the rectangle given; called by the table's rows (0x00909FF2) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLCellNode::Layout"
+address = 0x0090A34F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout)"
+expect = "55 8B EC 83 EC 68 53 56"
+source = "Name ours. Ours in ui.html.nodes.layout.cells. `ret 4`. Slot 3 of TD: laid out in a copy of the context (HTMLLayout::Copy), its box made again from its children (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLLayout::Destruct"
+address = 0x008FB68A
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 5C 85 C0"
+source = "Name ours. Plain ret. The layout context's destructor: the two vectors freed, the list's destructor (cGZDBSegmentPackedFile::ListDestruct, a jump). Called by ours (the cell's copy) and the layout test; still the game's (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLLayout::PushRightEntry"
+address = 0x008FE4DE
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, const void* entry)"
+expect = "55 8B EC 56 8B F1 8B 46"
+source = "Name ours. `ret 4`. STLport vector push_back of 8 bytes (0x00997792; 0x008FE3DC when full), the layout context's right entries among others (0x009B936E). Called by ours; still the game's (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::PushLeftEntry"
+address = 0x009214A4
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, const void* entry)"
+expect = "55 8B EC 56 8B F1 8B 46"
+source = "Name ours. `ret 4`. STLport vector push_back of 16 bytes (0x008FDE8D; 0x008FE324 when full), the layout context's left entries. Outside the viewer. Called by ours; still the game's (docs/html.md, h4)."
+
+[[entry]]
+name = "HTMLLayout::CopyItems"
+address = 0x00909CCC
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* list, const void* from)"
+expect = "55 8B EC 56 8D 45 0B 50"
+source = "Name ours. `ret 4`. STLport list copy constructor of the layout context's items. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLLayout::CopyLeftEntries"
+address = 0x00909AF9
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, const void* from)"
+expect = "55 8B EC 56 8B 75 08 57"
+source = "Name ours. `ret 4`. STLport vector copy constructor, 16-byte elements. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLLayout::CopyRightEntries"
+address = 0x00909B33
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, const void* from)"
+expect = "55 8B EC 56 8B 75 08 57"
+source = "Name ours. `ret 4`. STLport vector copy constructor, 8-byte elements; shared with code outside the viewer. Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextPieces::Erase"
+address = 0x00909B9D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void* first, void* last)"
+expect = "55 8B EC 56 8D 45 0B 50"
+source = "Name ours. `ret 8`. STLport vector erase of 24-byte elements (a text run's pieces). Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextPieces::PushBack"
+address = 0x0090A216
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, const void* piece)"
+expect = "55 8B EC 56 8B F1 8B 46"
+source = "Name ours. `ret 4`. STLport vector push_back of 24-byte elements (0x009090FC; 0x00909CFB when full). Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLText::PreviousChar"
+address = 0x0090A8F5
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (const void* text, uint32_t position)"
+expect = "8B 44 24 04 8B 40 04 56"
+source = "Name ours. The position of the character before `position` of a game string (0x0091073C). Called by ours; still the game's (docs/html.md, h5)."
