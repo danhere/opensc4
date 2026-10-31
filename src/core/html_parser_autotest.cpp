@@ -1652,13 +1652,22 @@ void CollectNodes(char* node, std::vector<char*>& nodes, int depth)
 
 // Waits for the game's clock to be in the first half of a second (phase
 // even) or the second (BLINK draws in the second), 300 ms clear of the turn.
+// A clock that does not move (the parity runs freeze the wall clock, and
+// the game's clock with it) is left as it is: both runs read the same.
 void WaitForClock(int phase)
 {
     using ClockFn = uint32_t(__cdecl*)();
+    const auto clock = reinterpret_cast<ClockFn>(addr::RZ_TimeMilliseconds);
     const uint32_t from = phase % 2 ? 600 : 100;
-    for (int i = 0; i < 4000; ++i) {
-        const uint32_t t = reinterpret_cast<ClockFn>(addr::RZ_TimeMilliseconds)() % 1000;
+    const uint32_t first = clock();
+    const ULONGLONG start = GetTickCount64();
+    for (;;) {
+        const uint32_t now = clock();
+        const uint32_t t = now % 1000;
         if (t >= from && t < from + 300)
+            return;
+        const ULONGLONG waited = GetTickCount64() - start;
+        if ((now == first && waited >= 50) || waited >= 2000)
             return;
         Sleep(1);
     }
