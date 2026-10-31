@@ -878,7 +878,7 @@ inline void DrawParticlesPlain(char* self, char* context)
         if (g_bReplay)
             PlKeepVertices(batch, g_bfOurVertices);
         BOurs(addr::SC4IndexBatch_Draw, Word(batch), Word(&context), 4,
-              [&] { return CallThis<uint32_t>(addr::SC4IndexBatch_Draw, batch, context); });
+              [&] { return IbDrawFor(batch, context); });
     }
     BfGrow(self);
 }

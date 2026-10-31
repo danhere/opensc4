@@ -1616,7 +1616,7 @@ void DrawEffectC(char* self, char* context)
         if (g_bReplay)
             PlKeepVertices(drawn, g_bfOurVertices);
         BOurs(addr::SC4IndexBatch_Draw, Word(drawn), Word(&context), 4,
-              [&] { return CallThis<uint32_t>(addr::SC4IndexBatch_Draw, drawn, context); });
+              [&] { return IbDrawFor(drawn, context); });
     }
 }
 

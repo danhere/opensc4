@@ -70,7 +70,7 @@
 0x008FD729 FileCache::Destruct              ours; vtable 0x00ACD418 (docs/html.md, h7)
 0x008FF1B9 HTMLTags::InitSets               ours; builds the parser's tag-ID sets (font, phrase, block tags) once, from the document's constructor (docs/html.md, h3)
 0x008FFBFC HTMLDocument::LoadImage          ours; reads an image file through cRZFile and hands it to the node's picture (docs/html.md, h2)
-0x008FFF91 HTMLDocument::ParseDoctype       ours; slot 9 of 0x00ACD938: reads `<!DOCTYPE ... DTD HTML x.y>`, then parses the page (docs/html.md, h3)
+0x008FFF91 HTMLDocument::ParseDoctype       ours; slot 9 of 0x00ACD938: reads `<!DOCTYPE ... DTD HTML x.y>`, then parses the page (docs/html.md, h2)
 0x0090097A HTMLDocument::ParseHR            ours; HR: ALIGN, SIZE, WIDTH; makes the rule node (vtable 0x00ACD55C) (docs/html.md, h2)
 0x00900A58 HTMLDocument::ParseIMG           ours; IMG: SRC, ALT, WIDTH, HEIGHT, ALIGN; makes the image node (vtable 0x00ACE188) (docs/html.md, h2)
 0x00905985 HTMLDocument::ParsePlainText     ours; slot 11 of 0x00ACD938: the body node with the whole text as one run (docs/html.md, h3)

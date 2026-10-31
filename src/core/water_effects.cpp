@@ -1133,10 +1133,10 @@ bool g_growOurs = false, g_clearOurs = false;
 
 #include "core/effects_pool.h"
 
-// The index batch's clear and adds (effects_index_batch.h), ours when their
-// switches are ours (set at install, "The index batch's three parts" at the
-// end).
-bool g_batchClearOurs = false, g_batchAddQuadsOurs = false, g_batchAddVerticesOurs = false;
+// The index batch's clear, adds and draw (effects_index_batch.h), ours when
+// their switches are ours (set at install, "The index batch's three parts"
+// and "The index batch's draw" at the end).
+bool g_batchClearOurs = false, g_batchAddQuadsOurs = false, g_batchAddVerticesOurs = false, g_batchDrawOurs = false;
 
 #include "core/effects_index_batch.h"
 
@@ -15406,13 +15406,17 @@ uint32_t __fastcall PdBindTextureNoted(char* self, void*, uint32_t texture, uint
 }
 OPENSC4_THUNK(TPdBindTexture, PdBindTextureNoted, 8)
 
+// The batch's draw by its own switch's mode ("The index batch's draw" at the
+// end); this detour is that switch's too.
+uint32_t IbDrawByMode(char* batch, uint32_t context);
+
 uint32_t __fastcall PdBatchDrawNoted(char* self, void*, uint32_t context)
 {
     if (!BNoting())
-        return g_PdBatchDraw(self, nullptr, context);
+        return IbDrawByMode(self, context);
     PlKeepVertices(self, g_bfGameVertices);
     return BCallee(addr::SC4IndexBatch_Draw, Word(self), Word(&context), 4,
-                   [&] { return g_bDry ? 0u : g_PdBatchDraw(self, nullptr, context); });
+                   [&] { return g_bDry ? 0u : IbDrawByMode(self, context); });
 }
 OPENSC4_THUNK(TPdBatchDraw, PdBatchDrawNoted, 4)
 
@@ -20642,6 +20646,125 @@ uint32_t __fastcall IbAddVerticesByMode(char* batch, void*, uint32_t quads)
 }
 OPENSC4_THUNK(TIbAddVertices, IbAddVerticesByMode, 4)
 
+// --- The index batch's draw ------------------------------------------------------------------
+//
+// renderer.effects.batch_draw: the batch's draw (0x005EC5D0) ours
+// (effects_index_batch.h), called by ours from the ported draws and, for the
+// game's callers, through the detour the particle draws' comparisons already
+// have of it (TPdBatchDraw: it notes the draw as their callee while they
+// note, and otherwise goes by this switch's mode).
+//
+// Compare mode: the draw only calls the render context and lowers the
+// batch's counts. The game's runs on the batch with the context's three
+// (0x007D2970, 0x007D29F0, 0x007FC2D0) noted by detours of their own and
+// passed on; ours runs on a copy of the batch as it was, with the three only
+// noted. Compared: the calls (which, on what, with what, in turn) and the
+// batch's 0x40 bytes after.
+//
+// OPENSC4_EFFECT_FORCE_BATCH=1 (compare mode only) also compares it before
+// every running effect's draw on made-up batches with a made-up context,
+// whose calls are only noted (IbForce).
+StepMode g_batchDrawMode = StepMode::Original;
+Call3Fn g_IbSetVertexArray = nullptr, g_IbDrawElements = nullptr, g_IbDrawVertexRange = nullptr;
+
+struct IbCall {
+    uint32_t target, context, args[3];
+    bool operator==(const IbCall& other) const
+    {
+        return target == other.target && context == other.context && args[0] == other.args[0] &&
+               args[1] == other.args[1] && args[2] == other.args[2];
+    }
+};
+
+// The game's draw's calls while it is compared, on this thread; when dry,
+// not passed on.
+std::vector<IbCall>* g_ibCalls = nullptr;
+bool g_ibDry = false;
+DWORD g_ibThread = 0;
+
+uint32_t IbContextNoted(uint32_t target, Call3Fn real, char* context, uint32_t a, uint32_t b, uint32_t c)
+{
+    if (!g_ibCalls || GetCurrentThreadId() != g_ibThread)
+        return real(context, nullptr, a, b, c);
+    g_ibCalls->push_back({target, Word(context), {a, b, c}});
+    return g_ibDry ? 0u : real(context, nullptr, a, b, c);
+}
+
+uint32_t __fastcall IbSetVertexArrayNoted(char* self, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    return IbContextNoted(addr::SC4RenderContext_SetVertexArray, g_IbSetVertexArray, self, a, b, c);
+}
+OPENSC4_THUNK(TIbSetVertexArray, IbSetVertexArrayNoted, 12)
+
+uint32_t __fastcall IbDrawElementsNoted(char* self, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    return IbContextNoted(addr::SC4RenderContext_DrawElements, g_IbDrawElements, self, a, b, c);
+}
+OPENSC4_THUNK(TIbDrawElements, IbDrawElementsNoted, 12)
+
+uint32_t __fastcall IbDrawVertexRangeNoted(char* self, void*, uint32_t a, uint32_t b, uint32_t c)
+{
+    return IbContextNoted(addr::SC4RenderContext_DrawVertexRange, g_IbDrawVertexRange, self, a, b, c);
+}
+OPENSC4_THUNK(TIbDrawVertexRange, IbDrawVertexRangeNoted, 12)
+
+// The batch and the calls from the first one that differs (at most four of
+// them).
+std::string IbDrawText(const char* batch, const std::vector<IbCall>& calls, std::size_t from)
+{
+    char text[96];
+    std::snprintf(text, sizeof text, "%zu calls, ", calls.size());
+    std::string result = text + Hex(batch, kIndexBatchBytes);
+    for (std::size_t i = from; i < calls.size() && i < from + 4; ++i) {
+        const IbCall& call = calls[i];
+        std::snprintf(text, sizeof text, ", #%zu %08X on %08X (%X, %X, %X)", i, call.target, call.context,
+                      call.args[0], call.args[1], call.args[2]);
+        result += text;
+    }
+    return result;
+}
+
+// The draw compared on `batch` with `context` (whose calls are not passed on
+// when `dry`); answers the game's.
+uint32_t IbDrawCompared(const char* id, char* batch, uint32_t context, bool dry)
+{
+    char mine[kIndexBatchBytes];
+    std::memcpy(mine, batch, sizeof mine);
+    std::vector<IbCall> gameCalls, ourCalls;
+    auto* const outerCalls = g_ibCalls;
+    const bool outerDry = g_ibDry;
+    g_ibCalls = &gameCalls;
+    g_ibDry = dry;
+    g_ibThread = GetCurrentThreadId();
+    const uint32_t result = g_PdBatchDraw(batch, nullptr, context);
+    g_ibCalls = outerCalls;
+    g_ibDry = outerDry;
+
+    const auto noted = [&](uint32_t target) {
+        return [&, target](uint32_t a, uint32_t b, uint32_t c) { ourCalls.push_back({target, context, {a, b, c}}); };
+    };
+    IbDrawWith(mine, noted(addr::SC4RenderContext_SetVertexArray), noted(addr::SC4RenderContext_DrawElements),
+               noted(addr::SC4RenderContext_DrawVertexRange));
+    const bool same = gameCalls == ourCalls && std::memcmp(mine, batch, sizeof mine) == 0;
+    std::size_t from = 0;
+    while (!same && from < gameCalls.size() && from < ourCalls.size() && gameCalls[from] == ourCalls[from])
+        ++from;
+    compare::Record(id, same, same ? std::string() : IbDrawText(batch, gameCalls, from),
+                    same ? std::string() : IbDrawText(mine, ourCalls, from));
+    return result;
+}
+
+uint32_t IbDrawByMode(char* batch, uint32_t context)
+{
+    if (g_batchDrawMode == StepMode::Ours) {
+        IbDraw(batch, Ptr(context));
+        return 0;
+    }
+    if (g_batchDrawMode != StepMode::Compare || g_effectRecord || g_effectReplay)
+        return g_PdBatchDraw(batch, nullptr, context);
+    return IbDrawCompared("effects.batch_draw", batch, context, false);
+}
+
 // A made-up fill for the forced batches: each 16-bit index (the indices')
 // or byte (the vertices') from `from` to `to` gets its number and a mark.
 void __cdecl IbFillIndicesMadeUp(uint32_t begin, uint32_t from, uint32_t to)
@@ -20667,6 +20790,12 @@ void __cdecl IbFillVerticesMadeUp(uint32_t begin, uint32_t from, uint32_t to)
 //   cut to half their size (it grows in place) and after the counts are
 //   zeroed (no resize unless it adds more than the first did). The vectors'
 //   memory is given back after (0x0090CF63).
+// - The draw: a made-up batch (counting bytes) with a primitive of 0 to 6,
+//   its indices at 0, near the top of memory or at their counting bytes,
+//   and counts of 0, 1, 2, 0x5FF, 0x600, 0x601, 0xBFF, 0xC00, 0xC01, 0x1801
+//   or 0x3000 vertices and (every other turn) indices, drawn dry with a
+//   made-up context; one turn in 4,999 with 0x80000001 indices or vertices
+//   (above 0x600 only unsigned).
 void IbForce(char* self)
 {
     if (!g_ibForce || g_effectRecord || g_effectReplay || !At<uint8_t>(self, 9))
@@ -20713,6 +20842,21 @@ void IbForce(char* self)
         if (At<uint32_t>(batch, vector))
             reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(Ptr(At<uint32_t>(batch, vector)));
     }
+    if (g_batchDrawMode == StepMode::Compare) {
+        static const uint32_t counts[11] = {0, 1, 2, 0x5FF, 0x600, 0x601, 0xBFF, 0xC00, 0xC01, 0x1801, 0x3000};
+        static char context[0x40];
+        char batch[kIndexBatchBytes];
+        for (std::size_t i = 0; i < sizeof batch; ++i)
+            batch[i] = static_cast<char>(0x60 + i);
+        At<uint32_t>(batch, 4) = k % 7;
+        if (k % 3 != 2)
+            At<uint32_t>(batch, 0x2C) = k % 3 ? 0xFFFFF800u : 0u;
+        At<uint32_t>(batch, 0x38) = k % 2 ? 0u : counts[k / 2 % 11];
+        At<uint32_t>(batch, 0x24) = counts[k / 22 % 11];
+        if (k % 4999 == 4998)
+            At<uint32_t>(batch, k / 4999 % 2 ? 0x24 : 0x38) = 0x80000001u;
+        IbDrawCompared("effects.batch_draw.forced", batch, Word(context), true);
+    }
 }
 
 bool IbHookForce()
@@ -20723,7 +20867,7 @@ bool IbHookForce()
     if (!DwHookEffectDraw())
         return false;
     if (!g_ibForce)
-        log::Write("water effects: the index batch's clear and adds forced before each effect's draw");
+        log::Write("water effects: the index batch's clear, adds and draw forced before each effect's draw");
     g_ibForce = true;
     return true;
 }
@@ -20743,6 +20887,22 @@ bool InstallBatchAddQuads(registry::Mode mode)
                    "the index batch's add of quads"))
         return false;
     g_batchAddQuadsOurs = mode == registry::Mode::Ours;
+    return mode != registry::Mode::Compare || IbHookForce();
+}
+
+bool InstallBatchDraw(registry::Mode mode)
+{
+    if (mode == registry::Mode::Compare &&
+        !((g_IbSetVertexArray ||
+           Detour(addr::SC4RenderContext_SetVertexArray, &TIbSetVertexArray, &g_IbSetVertexArray)) &&
+          (g_IbDrawElements || Detour(addr::SC4RenderContext_DrawElements, &TIbDrawElements, &g_IbDrawElements)) &&
+          (g_IbDrawVertexRange ||
+           Detour(addr::SC4RenderContext_DrawVertexRange, &TIbDrawVertexRange, &g_IbDrawVertexRange))))
+        return false;
+    if (!SuInstall(mode, g_batchDrawMode, addr::SC4IndexBatch_Draw, &TPdBatchDraw, &g_PdBatchDraw,
+                   "the index batch's draw"))
+        return false;
+    g_batchDrawOurs = mode == registry::Mode::Ours;
     return mode != registry::Mode::Compare || IbHookForce();
 }
 
@@ -20794,6 +20954,21 @@ const bool g_registeredBatchAddVertices = registry::Register({
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallBatchAddVertices,
+});
+
+const bool g_registeredBatchDraw = registry::Register({
+    "renderer.effects.batch_draw",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4IndexBatch_Draw,
+    "The index batch's draw (0x005EC5D0): its vertices handed to the render context, then its indices (else its "
+    "vertices) drawn in runs of at most 0x600 from the end, the count lowered after each; compare mode runs the "
+    "game's with the context's calls noted and ours on a copy with them only noted, "
+    "OPENSC4_EFFECT_FORCE_BATCH=1 forces it on made-up batches with a made-up context before each running "
+    "effect's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallBatchDraw,
 });
 
 } // namespace

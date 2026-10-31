@@ -313,7 +313,16 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, SC4RenderContext* context)"
 expect = "55 56 8B F1 8B 46 14 8B"
-source = "Class and name ours. Draws the batch with the render context: its vertices handed over (0x007D2970), then, with indices, in runs of at most 0x600 indices (0x007D29F0), else its vertices in runs of 0x600 (0x007FC2D0)."
+source = "Class and name ours (75 instructions). Draws the batch with the render context: its vertices handed over (0x007D2970: the format +0x10, the vertex count +0x24, the vertices +0x14); then, with an index count (+0x38, tested for zero), while it is above 0x600 (unsigned), a run of 0x600 indices from its end (0x007D29F0: the primitive +4, 0x600, the indices +0x2C plus the count less 0x600 as 16-bit words) and the count lowered by 0x600, then the rest from the first index; with none, the same on the vertex count with runs of vertices (0x007FC2D0: the primitive, the count less 0x600, 0x600) and the rest from the first vertex (the primitive, 0, the count). The counts are read from the batch again after each call and left at the last run's; the calls' answers are not used. Ours in renderer.effects.batch_draw (src/core/effects_index_batch.h)."
+
+[[entry]]
+name = "SC4RenderContext::DrawVertexRange"
+address = 0x007FC2D0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4RenderContext* this, uint32_t primitive, uint32_t first, uint32_t count)"
+expect = "8B 49 30 8B 01 FF 60 0C"
+source = "Name ours. (primitive, first vertex, count): a draw of so many vertices of the vertex array set before; jumps to the driver's slot 0xC (DrawArrays) with the same arguments. The index batch's draw (0x005EC5D0) calls it for a batch with no indices (docs/renderer.md, \"Water effects, sky and clouds\")."
 
 [[entry]]
 name = "SC4Effect::NotDrawn"
