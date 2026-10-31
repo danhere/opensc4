@@ -2436,7 +2436,7 @@ address = 0x005A6290
 kind = "function"
 convention = "thiscall"
 expect = "56 8B F1 8B 46 0C 85 C0"
-source = "No arguments: takes one block off a fixed-size pool's free list (this + 0xC), refilling the list first (0x005A61B0) when it is empty; returns the block."
+source = "No arguments: takes one block off a fixed-size pool's free list (this + 0xC), refilling the list first (0x005A61B0) when it is empty; returns the block. Called by the database files' record code (33 call sites, 0x00970273 to 0x009AEDA4; ported callers in packed_file_3.cpp and save_file_2.cpp). Ours in renderer.effects.allocate (src/core/effects_pool.h)."
 
 [[entry]]
 name = "cGZDBSegmentPackedFile::FileRecordPool"
