@@ -603,6 +603,24 @@
 //   origin, where the low bits show). Each posted message's flags, type,
 //   four words and object (by name). pflags 0x400 when it ran, 0x800
 //   without a city, a factory or the patches. Log line: "ped3 pcrews".
+//   Part ped4a (the fire crew's dispatch) adds `,<pfire>` before pflags (57
+//   fields): one fire crew from its factory on ped3's vtable copy, with a
+//   truck of the test's (ped3's car and slot 57), a model of the test's as
+//   the second of +0x110 (slots 0 and 1, a virtual base with slots 1, 2, 9
+//   and 10), the view 0x00B43DD0's slot 30 the test's for its own thread
+//   (the view's vtable swapped for a copy), ped3's city slots, map, message
+//   server and camera direction, and the tuning floats 0x00B21CC8 and
+//   0x00B21CCC set for the while on three of each four cases (and the fade
+//   0x00B21C84 on one in three). The dispatch
+//   over 64 cases (the mission 5 with the state 0x10 over eight headings, a
+//   NaN, a zero and an infinity among them; without it the truck's point
+//   far, within 1e-5, on the position, a NaN, above it; the missions 1, 0,
+//   3 and 7 over ped3's transforms, no occupant and the cell in and out of
+//   the rectangle; the model's transform answers, the count 0xFF) and 192
+//   drawn (64 about the origin, 64 with the truck's point near the origin
+//   from far off), each mixing +0x2A8 and +0x2B8 and the
+//   counts. pflags 0x1000 when it ran, 0x2000 without a city or the
+//   factory. Log line: "ped4a pfire".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -29778,6 +29796,7 @@ struct CrewAnswers {
     float transform[13] = {}; // its slot 12 (the matrix, the point, the scale)
     bool transformWrites = true;
     void* occupant = nullptr; // its slot 137
+    void* inState = nullptr;  // its slot 57 (the fire crew's dispatch)
     double height = 0.0;      // the map's slot 18
     int32_t cells[2] = {};    // the city's slots 93 and 94
     int32_t mapReferences = 0;
@@ -30014,6 +30033,12 @@ const float* __fastcall CrewCarPoint(CrewObject*, void*)
     g_crew.calls.Mix(0x943);
     return g_crew.point;
 }
+void* __fastcall CrewCarInState(CrewObject*, void*, uint32_t type)
+{
+    g_crew.calls.Mix(0x857);
+    g_crew.calls.Mix(type);
+    return g_crew.inState;
+}
 // The city's.
 CrewObject g_crewMap{};
 void* __fastcall CrewCityMap(void* city, void*)
@@ -30092,6 +30117,7 @@ void** CrewVtable()
         t[c::kMission / 4] = reinterpret_cast<void*>(&CrewCarMission);
         t[c::kCarOccupant / 4] = reinterpret_cast<void*>(&CrewCarOccupant);
         t[c::kCarPoint / 4] = reinterpret_cast<void*>(&CrewCarPoint);
+        t[ped::fslot::kInState / 4] = reinterpret_cast<void*>(&CrewCarInState);
         break;
     }
     return t;
@@ -30548,6 +30574,365 @@ void PedCrewsDrive(Hash& pcrews, uint32_t& pflags)
     g_ped2 = Ped2Answers{};
 }
 
+// ---- Part ped4a: the fire crew's dispatch (src/core/automata_pedestrians.cpp).
+
+// The test's model for the hose: its vtable (slots 0 and 1), its virtual
+// base table (+4: the base 4 past it) and the base (+8: slots 1, 2, 9, 10)
+// with its count.
+struct FireModel {
+    void** vtable;
+    const int32_t* bases;
+    void** baseVtable;
+    int32_t references;
+};
+static_assert(offsetof(FireModel, baseVtable) == 8, "the virtual base");
+
+// What the model's and the view's slots answer and record.
+struct FireAnswers {
+    uint8_t transform[0x38] = {}; // the base's slot 9 writes it (the bytes 2 and 3 not)
+    bool writes = true;
+    int32_t viewMoves = 0;
+};
+FireAnswers g_fire;
+alignas(4) char g_fireDrawable[4];
+
+uint32_t FireName(const void* p) { return p == g_fireDrawable ? 1u : p ? 2u : 0u; }
+
+void* __fastcall FireModelDrawable(FireModel*, void*)
+{
+    g_crew.calls.Mix(0xA00);
+    return g_fireDrawable;
+}
+uint32_t __fastcall FireModelPoint(FireModel*, void*, const float* point)
+{
+    g_crew.calls.Mix(0xA01);
+    g_crew.calls.MixBytes(point, 12);
+    return 0;
+}
+uint32_t __fastcall FireBaseAddRef(char* base, void*) { return static_cast<uint32_t>(++At<int32_t>(base, 4)); }
+uint32_t __fastcall FireBaseRelease(char* base, void*) { return static_cast<uint32_t>(--At<int32_t>(base, 4)); }
+// The transform as the dispatch hands it: the count and flags, the matrix,
+// the point and the scale (the bytes 2 and 3 are the game's unset).
+void FireMixTransform(const uint8_t* t)
+{
+    g_crew.calls.MixBytes(t, 2);
+    g_crew.calls.MixBytes(t + 4, 0x34);
+}
+uint32_t __fastcall FireBaseGet(char*, void*, uint8_t* t)
+{
+    g_crew.calls.Mix(0xA09);
+    FireMixTransform(t);
+    if (g_fire.writes) {
+        t[0] = g_fire.transform[0];
+        t[1] = g_fire.transform[1];
+        std::memcpy(t + 4, g_fire.transform + 4, 0x34);
+    }
+    return 0;
+}
+uint32_t __fastcall FireBaseSet(char*, void*, const uint8_t* t)
+{
+    g_crew.calls.Mix(0xA0A);
+    FireMixTransform(t);
+    return 0;
+}
+void** FireModelVtable()
+{
+    static void* t[8] = {};
+    t[ped::fslot::kModelDrawable / 4] = reinterpret_cast<void*>(&FireModelDrawable);
+    t[ped::fslot::kModelPoint / 4] = reinterpret_cast<void*>(&FireModelPoint);
+    return t;
+}
+void** FireBaseVtable()
+{
+    static void* t[16] = {};
+    t[1] = reinterpret_cast<void*>(&FireBaseAddRef);
+    t[2] = reinterpret_cast<void*>(&FireBaseRelease);
+    t[ped::fslot::kGetTransform / 4] = reinterpret_cast<void*>(&FireBaseGet);
+    t[ped::fslot::kSetTransform / 4] = reinterpret_cast<void*>(&FireBaseSet);
+    return t;
+}
+
+// The view's slot 30 for the test's thread (another thread gets the real
+// one: the view's vtable is swapped for everyone).
+void** g_fireRealView = nullptr;
+uint32_t __fastcall FireViewMove(void* view, void*, void* drawable)
+{
+    if (CrewForeign())
+        return reinterpret_cast<uint32_t(__thiscall*)(void*, void*)>(g_fireRealView[ped::fslot::kViewMove / 4])(view,
+                                                                                                                drawable);
+    ++g_fire.viewMoves;
+    g_crew.calls.Mix(0xA78);
+    g_crew.calls.Mix(FireName(drawable));
+    return 0;
+}
+
+void FireSection(const char* name, const Hash& pfire)
+{
+    log::Write("autotest: automata: vehicle: ped4a %s: pfire %08X calls %08X %08X posts %u", name, pfire.h,
+               g_crew.calls.h, g_walk.calls.h, g_crew.posts);
+}
+
+void PedFireDrive(Hash& pfire, uint32_t& pflags)
+{
+    g_ped2 = Ped2Answers{};
+    g_walk = WalkAnswers{};
+    g_crew = CrewAnswers{};
+    g_fire = FireAnswers{};
+    void* const city = Global<void*>(addr::SC4_City);
+    char* const fire = city ? MakePed(3, pflags) : nullptr;
+    if (!fire) {
+        pflags |= 0x2000;
+        log::Write("autotest: automata: vehicle: ped4a: no city or the factory failed");
+        return;
+    }
+    namespace b = ped::base;
+    namespace c = ped::crew;
+    namespace cs = ped::cslot;
+    void** const realFire[3] = {At<void**>(fire, 0), At<void**>(fire, 4), At<void**>(fire, 0x20)};
+    char* const savedModels[2] = {At<char*>(fire, b::kModels), At<char*>(fire, b::kModelsEnd)};
+    {
+        void** parts[2];
+        At<void**>(fire, 0) = CrewTable(fire, 177, parts);
+        At<void**>(fire, 4) = parts[0];
+        At<void**>(fire, 0x20) = parts[1];
+        static void* cityTable[256];
+        void** const realCity = At<void**>(city, 0);
+        for (int i = 0; i < 256; ++i)
+            cityTable[i] = realCity[i];
+        cityTable[ped::wslot::kCityNetwork / 4] = reinterpret_cast<void*>(&CrewCityMap);
+        cityTable[cs::kCityCellsX / 4] = reinterpret_cast<void*>(&CrewCellsX);
+        cityTable[cs::kCityCellsZ / 4] = reinterpret_cast<void*>(&CrewCellsZ);
+        cityTable[ped::wslot::kCellOf / 4] = reinterpret_cast<void*>(&CrewCellOf);
+        g_crewThread = GetCurrentThreadId();
+        g_crewRealCity = realCity;
+        g_crewRealServer = Global<void*>(addr::SC4_MessageServer);
+        At<void**>(city, 0) = cityTable;
+        g_crewMap = CrewMake(CrewVtable<0>());
+        CrewObject server = CrewMake(CrewVtable<6>());
+        CrewCar car{CrewVtable<7>(), CrewPartVtable(), 1};
+        RfSwap swapServer(addr::SC4_MessageServer, &server);
+        // The view: its vtable swapped for a copy whose slot 30 is the
+        // test's (the game's own object, as another thread may use it); an
+        // object of the test's without one.
+        static void* viewTable[256];
+        static void* fakeView[4];
+        void* const realView = Global<void*>(addr::SC4_View43DD0);
+        g_fireRealView = realView ? At<void**>(realView, 0) : viewTable;
+        for (int i = 0; i < 256 && realView; ++i)
+            viewTable[i] = g_fireRealView[i];
+        viewTable[ped::fslot::kViewMove / 4] = reinterpret_cast<void*>(&FireViewMove);
+        fakeView[0] = viewTable;
+        void* const view = realView ? realView : static_cast<void*>(fakeView);
+        RfSwap swapView(addr::SC4_View43DD0, view);
+        At<void**>(view, 0) = viewTable;
+        alignas(4) static char cameraBuffer[0x60];
+        char* const camera =
+            Global<char*>(addr::SC4_CameraView) ? Global<char*>(addr::SC4_CameraView) : cameraBuffer;
+        RfSwap swapCamera(addr::SC4_CameraView, camera);
+        float savedDirection[3];
+        std::memcpy(savedDirection, camera + cs::kCameraDirection, sizeof savedDirection);
+        At<float>(camera, cs::kCameraDirection) = 0.6f;
+        At<float>(camera, cs::kCameraDirection + 4) = -0.5f;
+        At<float>(camera, cs::kCameraDirection + 8) = 0.8f;
+        float* const tuning[2] = {reinterpret_cast<float*>(addr::SC4AutomataTuning_CrewStep21CC8),
+                                  reinterpret_cast<float*>(addr::SC4AutomataTuning_CrewSide21CCC)};
+        const float savedTuning[2] = {*tuning[0], *tuning[1]};
+        float* const fade = reinterpret_cast<float*>(addr::SC4AutomataTuning_Fade21C84);
+        const float savedFade = *fade;
+        log::Write("autotest: automata: vehicle: ped4a: tuning %08X %08X fade %08X", Bits(savedTuning[0]),
+                   Bits(savedTuning[1]), Bits(Global<float>(addr::SC4AutomataTuning_Fade21C84)));
+
+        g_crew.self = fire;
+        g_crew.car = &car;
+        At<CrewCar*>(fire, c::kVehicle) = &car;
+        static const int32_t bases[2] = {0, 4};
+        FireModel model{FireModelVtable(), bases, FireBaseVtable(), 1};
+        static void* list[2];
+        list[0] = nullptr;
+        list[1] = &model;
+        At<void**>(fire, b::kModels) = list;
+        At<void**>(fire, b::kModelsEnd) = list + 2;
+        int32_t stateRecord = 0;
+        g_crew.cells[0] = 64;
+        g_crew.cells[1] = 64;
+        WalkObject inner = WalkMake(WalkVtable<6>());
+        WalkObject occupant = WalkMake(WalkVtable<8>());
+        occupant.inner = &inner;
+        WalkLcg lcg{0x4FA4E0};
+        auto set3 = [](float* to, float x, float y, float z) {
+            to[0] = x;
+            to[1] = y;
+            to[2] = z;
+        };
+        auto answerTransform = [&](int k) {
+            float t[13] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+            g_fire.transform[0] = static_cast<uint8_t>(k % 5 == 3 ? 0xFF : k % 3);
+            g_fire.transform[1] = static_cast<uint8_t>(k % 4 == 1 ? 0x05 : k % 4 == 2 ? 0xFB : 0x00);
+            for (int i = 0; i < 13; ++i)
+                t[i] = k % 2 ? static_cast<float>(i) * 0.75f - 2.0f : t[i];
+            std::memcpy(g_fire.transform + 4, t, sizeof t);
+            g_fire.writes = k % 7 != 6;
+        };
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const float inf = std::numeric_limits<float>::infinity();
+        const float headings[8][3] = {{0.8f, 0.0f, 0.6f}, {0.0f, 0.0f, 1.0f}, {0.6f, 0.3f, -0.8f},
+                                      {-1.0f, 0.0f, 0.0f}, {nan, 0.0f, 0.5f}, {0.0f, 0.0f, 0.0f},
+                                      {inf, 0.0f, 1.0f},  {-0.0f, -0.25f, -0.97f}};
+        const float tunings[4][2] = {{0.0f, 0.0f}, {2.3f, 3.7f}, {0.1f, 6.0f}, {-1.5f, 0.3f}};
+        for (int k = 0; k < 64 + 64 + 64 + 64; ++k) {
+            const bool drawn = k >= 64;
+            const bool tiny = k >= 64 + 64 && k < 64 + 64 + 64; // about the origin, where the low bits show
+            const bool far = k >= 64 + 64 + 64; // the truck's point near the origin, the truck far off
+            const int t = k % 4;
+            *fade = k % 3 == 1 ? 0.37f : savedFade;
+            if (t == 0) {
+                *tuning[0] = savedTuning[0];
+                *tuning[1] = savedTuning[1];
+            } else {
+                *tuning[0] = tunings[t][0];
+                *tuning[1] = tunings[t][1];
+            }
+            answerTransform(k);
+            At<uint8_t>(fire, c::kByte) = static_cast<uint8_t>(k % 4);
+            g_crew.height = drawn ? lcg.In(0.0f, 100.0f) : 12.5 + k;
+            g_crew.inState = nullptr;
+            if (drawn) {
+                g_crew.mission = k % 2 ? 5u : k % 4 == 0 ? 1u : 3u;
+                g_crew.inState = k % 4 == 1 ? &stateRecord : nullptr;
+                set3(g_crew.position, lcg.In(-20.0f, 1100.0f), lcg.In(0.0f, 50.0f), lcg.In(-20.0f, 1100.0f));
+                const float spread = k % 8 == 3 ? 1e-6f : 30.0f;
+                set3(g_crew.point, g_crew.position[0] + lcg.In(-spread, spread), g_crew.position[1] + lcg.In(-1.0f, 1.0f),
+                     g_crew.position[2] + lcg.In(-spread, spread));
+                if (tiny) {
+                    const float reach = k % 8 == 3 ? 4e-6f : 0.01f;
+                    set3(g_crew.position, lcg.In(0.0f, reach / 2), lcg.In(0.0f, reach / 2), lcg.In(0.0f, reach / 2));
+                    set3(g_crew.point, lcg.In(0.0f, reach), lcg.In(0.0f, reach), lcg.In(0.0f, reach));
+                }
+                if (far) {
+                    // The way's differences are not floats: the mission 5
+                    // without the state.
+                    g_crew.mission = 5u;
+                    g_crew.inState = nullptr;
+                    set3(g_crew.position, lcg.In(100.0f, 1000.0f), lcg.In(10.0f, 60.0f), lcg.In(100.0f, 1000.0f));
+                    set3(g_crew.point, lcg.In(-1.0f, 1.0f), lcg.In(-3.0f, 3.0f), lcg.In(-1.0f, 1.0f));
+                }
+                set3(g_crew.heading, lcg.In(-1.0f, 1.0f), lcg.In(-0.2f, 0.2f), lcg.In(-1.0f, 1.0f));
+                for (int i = 0; i < 9; ++i)
+                    g_crew.transform[i] = lcg.In(-1.0f, 1.0f);
+                set3(g_crew.transform + 9, lcg.In(-5.0f, 5.0f), 0.0f, lcg.In(-5.0f, 5.0f));
+                g_crew.transform[12] = lcg.In(0.5f, 2.0f);
+                g_crew.transformWrites = true;
+                g_crew.occupant = k % 16 == 6 ? nullptr : &occupant;
+                const int32_t cx = static_cast<int32_t>(std::floor(g_crew.position[0] / 16.0f));
+                const int32_t cz = static_cast<int32_t>(std::floor(g_crew.position[2] / 16.0f));
+                const int32_t grow = static_cast<int32_t>(lcg.Next() >> 30);
+                inner.rect[0] = cx - grow;
+                inner.rect[1] = cz - grow;
+                inner.rect[2] = cx + grow;
+                inner.rect[3] = cz + grow;
+            } else {
+                g_crew.mission = k < 40 ? 5u : k % 4 == 0 ? 1u : k % 4 == 1 ? 0u : k % 4 == 2 ? 3u : 7u;
+                set3(g_crew.position, k % 8 == 7 ? 1020.0f : 400.0f, 10.0f, k % 8 == 6 ? 2.0f : 500.0f);
+                std::memcpy(g_crew.heading, headings[k % 8], sizeof g_crew.heading);
+                if (k < 20) {
+                    // With the state 0x10: the heading turned a quarter.
+                    g_crew.inState = &stateRecord;
+                } else {
+                    switch (k % 5) {
+                    case 0: // far
+                        set3(g_crew.point, g_crew.position[0] + 3.0f, 11.0f, g_crew.position[2] - 4.0f);
+                        break;
+                    case 1: // within 1e-5
+                        set3(g_crew.point, g_crew.position[0] + 3e-6f, 10.0f, g_crew.position[2]);
+                        break;
+                    case 2: // on the position
+                        set3(g_crew.point, g_crew.position[0], g_crew.position[1], g_crew.position[2]);
+                        break;
+                    case 3: // a NaN
+                        set3(g_crew.point, nan, 10.0f, g_crew.position[2]);
+                        break;
+                    default: // far in y only
+                        set3(g_crew.point, g_crew.position[0], 40.0f, g_crew.position[2]);
+                        break;
+                    }
+                }
+                static constexpr float kIdentity[13] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+                std::memcpy(g_crew.transform, kIdentity, sizeof kIdentity);
+                g_crew.transformWrites = k % 7 != 0;
+                switch (k % 5) {
+                case 1: // turned about y
+                    set3(g_crew.transform, 0.8f, 0.0f, -0.6f);
+                    set3(g_crew.transform + 6, 0.6f, 0.0f, 0.8f);
+                    break;
+                case 2: // skewed and scaled
+                    set3(g_crew.transform, 0.7f, 0.1f, 0.3f);
+                    set3(g_crew.transform + 3, -0.2f, 0.9f, 0.4f);
+                    set3(g_crew.transform + 6, 0.33f, -0.25f, 1.1f);
+                    g_crew.transform[12] = 2.0f;
+                    break;
+                case 3: // a NaN in the row the side adds
+                    g_crew.transform[4] = nan;
+                    break;
+                case 4: // an infinity times the 0
+                    g_crew.transform[1] = inf;
+                    break;
+                default:
+                    break;
+                }
+                g_crew.occupant = k % 9 == 4 ? nullptr : &occupant;
+                const int32_t cx = static_cast<int32_t>(std::floor(g_crew.position[0] / 16.0f));
+                const int32_t cz = static_cast<int32_t>(std::floor(g_crew.position[2] / 16.0f));
+                const int32_t grow = k % 3 == 0 ? 0 : 2;
+                inner.rect[0] = cx - grow;
+                inner.rect[1] = cz - grow;
+                inner.rect[2] = cx + grow;
+                inner.rect[3] = cz + grow;
+            }
+            for (int i = 0; i < 3; ++i) {
+                At<uint32_t>(fire, ped::fire::kPoint2A8 + 4 * i) = 0xEEEEEE00u + i;
+                At<uint32_t>(fire, ped::fire::kPoint2B8 + 4 * i) = 0xDDDDDD00u + i;
+            }
+            This<uint32_t>(addr::cSC4SimFireCrew_Dispatch, fire);
+            pfire.MixBytes(fire + ped::fire::kPoint2A8, 12);
+            pfire.MixBytes(fire + ped::fire::kPoint2B8, 12);
+            pfire.Mix(static_cast<uint32_t>(g_crewMap.references));
+            pfire.Mix(static_cast<uint32_t>(model.references));
+            if (k == 63)
+                FireSection("fixed", pfire);
+            else if (k == 127)
+                FireSection("drawn", pfire);
+            else if (k == 191)
+                FireSection("tiny", pfire);
+        }
+        FireSection("far", pfire);
+        *fade = savedFade;
+        pfire.Mix(static_cast<uint32_t>(car.references));
+        pfire.Mix(static_cast<uint32_t>(g_fire.viewMoves));
+        pfire.Mix(g_crew.posts);
+        *tuning[0] = savedTuning[0];
+        *tuning[1] = savedTuning[1];
+        std::memcpy(camera + cs::kCameraDirection, savedDirection, sizeof savedDirection);
+        At<void**>(view, 0) = g_fireRealView;
+        At<void**>(city, 0) = realCity;
+    }
+    At<void**>(fire, 0) = realFire[0];
+    At<void**>(fire, 4) = realFire[1];
+    At<void**>(fire, 0x20) = realFire[2];
+    At<char*>(fire, b::kModels) = savedModels[0];
+    At<char*>(fire, b::kModelsEnd) = savedModels[1];
+    At<void*>(fire, c::kVehicle) = nullptr;
+    ReleasePed(fire);
+    pfire.Mix(g_crew.calls.h);
+    pfire.Mix(g_walk.calls.h);
+    pflags |= 0x1000;
+    log::Write("autotest: automata: vehicle: ped4a pfire %08X calls %08X %08X posts %u moves %d", pfire.h,
+               g_crew.calls.h, g_walk.calls.h, g_crew.posts, g_fire.viewMoves);
+    g_crew = CrewAnswers{};
+    g_walk = WalkAnswers{};
+    g_ped2 = Ped2Answers{};
+    g_fire = FireAnswers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -30889,6 +31274,10 @@ void VehicleDrive(cISC4City* city)
     Hash pcrews;
     PedCrewsDrive(pcrews, pflags);
 
+    // ---- Part ped4a.
+    Hash pfire;
+    PedFireDrive(pfire, pflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -30945,13 +31334,13 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
-                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pflags);
+                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

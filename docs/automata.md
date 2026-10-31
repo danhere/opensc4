@@ -38,7 +38,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (2, done) (part em below counts 122; part em finished) |
-| Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3, ped4 (part ped below counts 111) |
+| Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3 (9, done), ped4a (1, done), ped4b (part ped below counts 111) |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
 | Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | 2 |
@@ -3839,7 +3839,7 @@ The pedestrian's allocator 0x00544890 gives 0x270 bytes from the pool and any ot
 - **ped1 (34, done):** the objects, the save and the small queries. Below.
 - **ped2 (the pedestrian's states and frames, 20, about 6,400 bytes):** Init 0x005444F0, the frame 72 0x00544580, 103 0x00544C90, 109 0x00546BC0, 110 0x00546A10, 111 0x005445F0, 135 0x00544C40, 155 0x00545360, 158 0x00544620, 165 0x00545160, 176 0x005457C0, and the helpers 0x00544950, 0x00545280, 0x00545690, 0x00545840, 0x00545B10, 0x00545D60, 0x00546150, 0x00546220 and 0x00546530 (the walks). Split in two: **ped2a (13, done)**, the states and the frame, below; **ped2b (7, done)**, the walks: the frames of the states 2 (0x00546150), 3 (0x00545B10), 6 (0x00544950), 8 (0x00546220) and 9 (0x00546530), and their helpers 0x00545840 and 0x00545D60.
 - **ped3 (the one-shot's and the riot police's, 9, about 3,100 bytes; done, below):** the one-shot's Init 0x00544DA0 and frame 0x00544E80; the riot police's Init 0x00547630, Shutdown 0x00546EF0, frame 0x00547530 and slot 74 0x00546CC0, the message helper 0x00546D20 (all three crews call it), the dispatch 0x00546F30 (1,530 bytes) and 0x00547930.
-- **ped4 (the fire crew's, 13, about 9,900 bytes):** Init 0x00549890 with 0x00548F10, Shutdown 0x00547D90, slots 9 0x00547A70 and 74 0x005479F0, the +0x38 slot 3 0x00548DC0, the frame 0x00549A50 with 0x00549000, 0x00548BD0, 0x00547AD0, 0x00547B50 and 0x00532E90, and the dispatch 0x00547EF0 (3,284 bytes). Could split: the dispatch alone, then the frame.
+- **ped4 (the fire crew's, 13, about 9,900 bytes):** Init 0x00549890 with 0x00548F10, Shutdown 0x00547D90, slots 9 0x00547A70 and 74 0x005479F0, the +0x38 slot 3 0x00548DC0, the frame 0x00549A50 with 0x00549000, 0x00548BD0, 0x00547AD0, 0x00547B50 and 0x00532E90, and the dispatch 0x00547EF0 (3,284 bytes). Split: **ped4a (1, done)**, the dispatch alone, below; **ped4b (12)**, the rest.
 
 Shared and not counted: the automaton base's and the core's code the classes call by address (0x0054D7F0, 0x00504E30, 0x00555310, 0x00509660, 0x0050E390), 0x0053D100 (in the path info's range), SC4AgentBase::MonthPassed and the other base's AddRef and Release. No NAM site and none of SC4UIScale's addresses is in the group.
 
@@ -4050,3 +4050,52 @@ A trial with 36 planted changes (the one-shot's 0.01, value count, range, early 
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's ped fields were the same on both sides (pcrews 535864B1, pflags 0x54F), and every B run installed and reached all 9. None of them ran before the test in any B run.
+
+### What is ours (ped4a)
+
+1 more function in `simulators.automata.pedestrians` (list kFireDispatch in [automata_pedestrians.cpp](../src/core/automata_pedestrians.cpp)), 3,284 bytes of the game's: the fire crew's dispatch 0x00547EF0, which the fire truck's crew sending (0x00532C40, part em3a) calls by address. Its beside-the-truck half is the riot police's mission 1 code (ped3's), shared as DispatchBeside.
+
+What it does:
+
+- **The map:** the city's (slot 40) held for the while; the truck (+0x270) asked for its mission (slot 26). On the mission 5 the crew goes to the hose; on any other, beside the truck. Then slot 33 (0, 0) and (1.0, the float 0x00B21C84), and the map let go of.
+- **The hose (the mission 5):** the points start from three copies of the float 0x00B228F0 and the position is the truck's (slot 7). With a state 0x10 on the truck (its slot 57) its heading (slot 15) is turned a quarter about y, the way chosen by a draw of the automata's generator (0x009139B9 on 0x00B21D78: below 0x7FFFFFFF the double 0x00A99090, pi/2; else 0x00A8EDD8, -pi/2), and the target is the position plus the turned heading times 16 times 3 (0x00A8D45C, 0x00A85074). Without the state the target is the truck's point (slot 143) and the heading the way there, normalised (1 0x00B0A05C over its length) when longer than 1e-5 (0x00A99F20), else the truck's heading. The crew is placed (slot 16) at the position plus the heading times the tuning float 0x00B21CC8, kept in the city (0x00547930) and on the map's height (slot 18), heading that way. The heading is then turned an eighth (the double 0x00A99F68, pi/4) and the point the tuning float 0x00B21CCC along it (kept and on the map the same way) given to the crew's second model (+0x110's second entry) by its slot 1; that model's virtual base gives its transform (slot 9, into one from the identity with a count and flags of 0), which gets the heading's matrix (SC4Matrix::FromDirection 0x0080B830, from nine copies of 0x00B228F0), the flag 4 and its count one up and goes back (slot 10); the view 0x00B43DD0 is told (its slot 30 with the model's slot 0). The target goes into +0x2A8 and +0x2B8, and the message 0xAA0F3F75 (the truck's +4, 0x00A9B2B8[+0x278], three zeros) is posted through the helper 0x00546D20.
+- **Beside the truck (any other mission):** as the riot police's mission 1 (ped3, above) with the float 0x00B228F0 for the points and the tuning float 0x00B21CCC for the 6.
+
+Left the game's: the automaton base's and the core's code, SC4Matrix::FromDirection, the generator, the map's, the city's, the view's and the model's code; the clamp and the message helper are ped3's (called at their addresses).
+
+Oddities kept:
+
+- **Any mission but 5** takes the beside path (the riot police's dispatch places only on 1 and 5), and a truck without an occupant leaves the crew where the side puts it instead of removing it. The cell the city's slot 95 may leave unset is read from the stack: its x from the slot that holds the map's address (ours passes that), its z unset (ours zero).
+- **The way to the truck's point** is normalised when longer than 1e-5 (the riot police's only when shorter), and unordered takes the truck's heading. The quarter turn's draw compares the generator's word with 0x7FFFFFFF unsigned, so 0x7FFFFFFF itself turns the other way.
+- **The second model** is read without a count or null test past its AddRef (slot 1, the transform and the Release are called through it as it is); neither the view nor the map is null-tested past the map's AddRef. The transform's bytes 2 and 3 are the game's unset (ours zero).
+- **+0x2B8** is copied from +0x2A8 as just written (the same values). The message's word at the level 3 is the fourth of 0x00A9B2B8, the next datum's (the float 75).
+- **The two turns** are the game's rotation about an axis written out with the axis (0, 1, 0) and its zero 0x00A81054, so most of their terms are zero products; they are kept term for term.
+
+Floats (53 bits): the sines and cosines are the x87's 64-bit FSIN and FCOS; each float of them is rounded once from 64 bits (FST), and their products with the zero at 53. The quarter turn keeps two of its sums unrounded (the x term's c - s0 and s + c0) and the eighth one (the z term's s0 + c); each turned component's three-term sum is rounded once. The target 48 out rounds x's and y's product once and z's 16 first; the way's x and z stay unrounded (y a float) in the length and in the normalising; each point along the heading keeps x's product unrounded and rounds y's and z's.
+
+Audit: the dispatch was read against the disassembly again after the test came out the same. No behaviour defect.
+
+### Test (ped4a)
+
+The ` V` token gains `,<pfire>` before pflags (57 fields); pflags 0x1000 when it ran, 0x2000 without a city or the factory. The log line is "ped4a pfire", with one line per section before it.
+
+One fire crew from its factory, on ped3's copy of its vtable (slots 13, 16 and 33 among the test's), with ped3's car as the truck (its slot 57 the test's too), a model of the test's as the second of +0x110 (slots 0 and 1; a virtual base with slots 1, 2, 9 and 10), the view 0x00B43DD0's vtable swapped for a copy whose slot 30 is the test's for its own thread, and ped3's city slots (40, 93, 94, 95), map, message server and camera direction. The tuning floats 0x00B21CC8 and 0x00B21CCC are set for the while on three cases in four (the game's own on the fourth). No game code is patched.
+
+- **64 cases:** the mission 5 with the state 0x10 over eight headings (a NaN, a zero, an infinity, -0 among them; both turns drawn by the game's generator, which the test seeds), and without it the truck's point far, within 1e-5, on the position, a NaN and straight above; the missions 1, 0, 3 and 7 over ped3's transforms (not written, the identity, turned, skewed and scaled, a NaN, an infinity), no occupant and the cell in and out of the rectangle; the model's transform answer (written or not, the count 0xFF, flags with 4 set).
+- **128 drawn** (positions, points, headings, transforms and rectangles from the test's own generator; the last 64 about the origin, the point within 1e-5 of the position on some).
+
+Each case mixes +0x2A8 and +0x2B8 (set to marks before), the map's and the model's counts; the record has every call's arguments (the transforms without their bytes 2 and 3, the messages as ped3's).
+
+A trial with 30 planted changes (the quarter turn's draw reversed, its sine rounded at 53 bits, its y without the heading's y, its x term's sign, its z term's sign; the target's z rounded, its x without the 3; the 1e-5 test reversed, the way's x rounded, its y unrounded, its length's order, the point's y from x, the state's type; the point along the heading's x rounded, its y from z, the first distance the second's; the eighth turn's cosine rounded at 53 bits, its x terms swapped, its z term's sign; the transform's flag, count and matrix; the view given the model; +0x2B8 the position; the message's word; the fade; the mission tested; a lone truck removing the crew, the 6 for its distance, the cell x zero) changed the token for 22 at first. Two more were seen once the test set the fade (1.0 in the saves) and gained the 64 cases from far off (the way's x rounding). The other six cannot show or are not seen: the y of the hose's point is replaced by the map's height before anything reads it; the float sine and cosine of pi/4 are the same float, so the eighth turn's x terms swapped give the same; the sines' and cosines' 64- and 53-bit roundings give the same floats for these three angles; the test's city slot 95 always writes the cell; and the length's order moves one 53-bit rounding that the float rounding hides (as ped2b's step). 24 of 30.
+
+### Parity (ped4a)
+
+2026-10-31. B = the five automata groups as for ped1 (env p4env-ped4a, snapshot ped4a-p1), with the trial finished:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same on the shared outcome after 2 pairs; the other differs only in ad3's chighlight (field 25), which has two outcomes on the original side too |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's ped fields were the same on both sides (pfire 4BEDEA6F, pflags 0x154F), and every B run installed and reached the dispatch. The game itself did not reach it before the test in any B run.

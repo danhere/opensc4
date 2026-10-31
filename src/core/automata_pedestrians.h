@@ -39,7 +39,8 @@
 //          saved
 //   +0x2A0 a word, +0x2A4 a byte, +0x2A8 a point (zero), +0x2B4 a float
 //          (not set at construction), +0x2B8 a point (three copies of the
-//          float 0x00B228F0): saved
+//          float 0x00B228F0): saved; the dispatch on the mission 5 sets both
+//          points to the hose's target
 #pragma once
 
 #include <cstddef>
@@ -234,6 +235,17 @@ inline constexpr std::uint32_t kLevelKeyType = 0x29A5D1EC, kLevelKeyGroup = 0x49
 inline constexpr std::uint32_t kDrawnKeyType = 0x5AD0E817, kDrawnKeyGroup = 0xBADB57F1; // the mission 1's models
 inline constexpr std::uint32_t kCountProperty = 0xEA958845; // the one-shot's count range (two bytes)
 inline constexpr std::uint32_t kMessageSize = 0x2C;           // a cGZMessage
+inline constexpr std::uint32_t kHoseState = 0x10;             // the fire crew's dispatch asks the truck for this state
 } // namespace crewdata
+
+// Part ped4a: the fire crew's dispatch's slots.
+namespace fslot {
+inline constexpr std::size_t kInState = 0xE4;         // the truck's 57: (type), ret 4: the stacked state or null
+inline constexpr std::size_t kModelDrawable = 0x00;   // a model's 0: its drawable (the view's argument)
+inline constexpr std::size_t kModelPoint = 0x04;      // a model's 1: (const float*), ret 4
+inline constexpr std::size_t kGetTransform = 0x24;    // the model's virtual base's 9: (transform* out), ret 4
+inline constexpr std::size_t kSetTransform = 0x28;    // its 10: (const transform*), ret 4
+inline constexpr std::size_t kViewMove = 0x78;        // the view's (0x00B43DD0) 30: (drawable), ret 4
+} // namespace fslot
 
 } // namespace opensc4::automata_pedestrians

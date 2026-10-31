@@ -12,7 +12,8 @@
 // (the frames of the states 2, 3, 6, 8 and 9, the bump 0x00545840 and the
 // step 0x00545D60). ped3: the one-shot's Init and frame and the riot
 // police's Init, Shutdown, frame, slot 74, message helper 0x00546D20, dispatch
-// 0x00546F30 and its clamp 0x00547930. The layout is in
+// 0x00546F30 and its clamp 0x00547930. ped4a: the fire crew's dispatch
+// 0x00547EF0. The layout is in
 // src/core/automata_pedestrians.h and the survey in docs/automata.md, "Part
 // ped". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
@@ -20,8 +21,8 @@
 //
 // Group, off by default:
 //   simulators.automata.pedestrians: the 34 detours in kObject (ped1), the
-//   13 in kStates (ped2a), the 7 in kWalks (ped2b) and the 9 in kCrews
-//   (ped3) below.
+//   13 in kStates (ped2a), the 7 in kWalks (ped2b), the 9 in kCrews (ped3)
+//   and the 1 in kFireDispatch (ped4a) below.
 //
 // What it does. A pedestrian is a 0x270-byte block of the pool 0x00B0A018
 // (0x00544890; the one-shot, the riot police and the fire crew, of other
@@ -2204,12 +2205,28 @@ float Negated(float value)
     return negated;
 }
 
-// Three copies of the float 0x00B228E4 (its bits).
-void DefaultPoint(float (&p)[3])
+// Three copies of the float at `address` (its bits): 0x00B228E4 the riot
+// police's, 0x00B228F0 the fire crew's.
+void DefaultPoint(float (&p)[3], std::uintptr_t address = addr::cSC4RiotPolice_DefaultFloat)
 {
-    const std::uint32_t bits = Global<std::uint32_t>(addr::cSC4RiotPolice_DefaultFloat);
+    const std::uint32_t bits = Global<std::uint32_t>(address);
     for (float& v : p)
         std::memcpy(&v, &bits, sizeof v);
+}
+
+// The float of an x87 value, rounded once (FSTP to a float).
+float X87ToFloat(const X87& value)
+{
+    float out = 0.0f;
+    float* const to = &out;
+    const X87* const in = &value;
+    __asm {
+        mov eax, in
+        mov edx, to
+        fld tbyte ptr [eax]
+        fstp dword ptr [edx]
+    }
+    return out;
 }
 
 // The map's height (slot 18) at the point's x and z, into its y.
@@ -2266,24 +2283,39 @@ void DispatchRiot(char* self, void* map)
          0u, 0u, 0u);
 }
 
-// The dispatch on the mission 1. The car's position (slot 7) and transform
-// (slot 12, from the identity, a count and flags of 0) turned by the double
-// 0x00A99090 (the matrix's columns 0 and 2 by its FCOS and FSIN at 64 bits,
-// each product at 53 bits, stored as floats where the game stores them);
-// the side is ((m1 + c0) x 0 - c2) x scale for the row (m1, m4, m7) and the
-// new column (c0, c1, c2) (x keeps c2 unrounded, y and z its float; 0x00A81054
-// and 0x00A81228 the zero and the one); the target the position plus 6
-// (0x00A90900) times it (x unrounded, y and z as floats). Without the car's
-// occupant (slot 137) Remove(1). Else when the target's cell (city slot 95,
-// the cells the game's unset locals; ours zero) is outside the rectangle of
-// the occupant's object (its slot 48, then slot 11, signed), the target is
-// 6 the other way (x and y as floats, z unrounded). Kept in the city, on the
-// map's height, placed (slot 16) heading against the camera view.
-void DispatchOne(char* self, void* map)
+// How the riot police's and the fire crew's dispatches place a crew beside
+// the car: the float its points start from, the distance, whether a car
+// without an occupant removes the crew, and the cell x when the city's slot
+// 95 leaves it (the game's local; the fire crew's holds the map).
+struct Beside {
+    std::uintptr_t start;
+    std::uintptr_t distance;
+    bool removeAlone;
+    std::int32_t cellX;
+};
+
+// The dispatch on the mission 1 (the riot police's) or any but 5 (the fire
+// crew's). The car's position (slot 7) and transform (slot 12, from the
+// identity, a count and flags of 0) turned by the double 0x00A99090 (the
+// matrix's columns 0 and 2 by its FCOS and FSIN at 64 bits, each product at
+// 53 bits, stored as floats where the game stores them); the side is
+// ((m1 + c0) x 0 - c2) x scale for the row (m1, m4, m7) and the new column
+// (c0, c1, c2) (x keeps c2 unrounded, y and z its float; 0x00A81054 and
+// 0x00A81228 the zero and the one); the target the position plus the
+// distance (the riot police's 6 0x00A90900, the fire crew's 0x00B21CCC)
+// times it (x unrounded, y and z as floats). Without the car's occupant
+// (slot 137) the riot police are removed (Remove(1)) and the fire crew goes
+// on. Else when the target's cell (city slot 95, the cells the game's unset
+// locals: ours zero, the fire crew's x the map's address as its stack holds
+// it) is outside the rectangle of the occupant's object (its slot 48, then
+// slot 11, signed), the target is the distance the other way (x and y as
+// floats, z unrounded). Kept in the city, on the map's height, placed (slot
+// 16) heading against the camera view.
+void DispatchBeside(char* self, void* map, const Beside& how)
 {
     float p[3], q[3];
-    DefaultPoint(p);
-    DefaultPoint(q);
+    DefaultPoint(p, how.start);
+    DefaultPoint(q, how.start);
     ModelTransform transform{};
     static constexpr float kIdentity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     std::memcpy(transform.m, kIdentity, sizeof kIdentity);
@@ -2330,7 +2362,7 @@ void DispatchOne(char* self, void* map)
     r[0] = static_cast<float>(v0 * scale);
     r[1] = static_cast<float>(v1 * scale);
     r[2] = static_cast<float>(static_cast<double>(v2) * scale);
-    const double six = Global<float>(addr::SC4_FloatSix);
+    const double six = Global<float>(how.distance);
     const double x6 = static_cast<double>(r[0]) * six;
     const float y6 = static_cast<float>(static_cast<double>(r[1]) * six);
     const float z6 = static_cast<float>(static_cast<double>(r[2]) * six);
@@ -2338,22 +2370,24 @@ void DispatchOne(char* self, void* map)
     q[0] = static_cast<float>(x6 + p[0]);
     q[1] = static_cast<float>(static_cast<double>(y6) + p[1]);
     char* const occupant = Virtual<char*>(At<char*>(self, crew::kVehicle), cslot::kCarOccupant);
-    if (!occupant) {
+    if (!occupant && how.removeAlone) {
         Virtual<std::uint32_t>(self, wslot::kRemove, 1u);
         return;
     }
-    void* const object = Virtual<void*>(occupant, wslot::kOccupantObject);
-    std::int32_t rect[4] = {};
-    Virtual<std::uint32_t>(object, wslot::kObjectRect, static_cast<std::int32_t*>(rect));
-    std::int32_t cellX = 0, cellZ = 0;
-    Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), wslot::kCellOf, q[0], q[2], &cellX, &cellZ);
-    if (!(cellX >= rect[0] && cellX <= rect[2] && cellZ >= rect[1] && cellZ <= rect[3])) {
-        const float nx = static_cast<float>(static_cast<double>(Negated(r[0])) * six);
-        const float ny = static_cast<float>(static_cast<double>(Negated(r[1])) * six);
-        const double nz = static_cast<double>(Negated(r[2])) * six;
-        q[2] = static_cast<float>(nz + p[2]);
-        q[0] = static_cast<float>(static_cast<double>(nx) + p[0]);
-        q[1] = static_cast<float>(static_cast<double>(ny) + p[1]);
+    if (occupant) {
+        void* const object = Virtual<void*>(occupant, wslot::kOccupantObject);
+        std::int32_t rect[4] = {};
+        Virtual<std::uint32_t>(object, wslot::kObjectRect, static_cast<std::int32_t*>(rect));
+        std::int32_t cellX = how.cellX, cellZ = 0;
+        Virtual<std::uint32_t>(Global<void*>(addr::SC4_City), wslot::kCellOf, q[0], q[2], &cellX, &cellZ);
+        if (!(cellX >= rect[0] && cellX <= rect[2] && cellZ >= rect[1] && cellZ <= rect[3])) {
+            const float nx = static_cast<float>(static_cast<double>(Negated(r[0])) * six);
+            const float ny = static_cast<float>(static_cast<double>(Negated(r[1])) * six);
+            const double nz = static_cast<double>(Negated(r[2])) * six;
+            q[2] = static_cast<float>(nz + p[2]);
+            q[0] = static_cast<float>(static_cast<double>(nx) + p[0]);
+            q[1] = static_cast<float>(static_cast<double>(ny) + p[1]);
+        }
     }
     CallThis<void>(addr::cSC4RiotPolice_ClampToCity, self, static_cast<float*>(q));
     OnMap(map, q);
@@ -2378,7 +2412,7 @@ void __fastcall RiotPoliceDispatch(char* self, void*)
         DispatchRiot(self, map);
         break;
     case 1:
-        DispatchOne(self, map);
+        DispatchBeside(self, map, Beside{addr::cSC4RiotPolice_DefaultFloat, addr::SC4_FloatSix, true, 0});
         break;
     default:
         break;
@@ -2387,6 +2421,212 @@ void __fastcall RiotPoliceDispatch(char* self, void*)
     Virtual<std::uint32_t>(self, cslot::kFade, 1.0f, 1.0f);
     if (map)
         Release(map);
+}
+
+// ====================================================================================
+// The fire crew's dispatch (ped4a)
+
+// A model's virtual base (its +4 table's second word past +4): the drawable
+// whose slots 1, 2, 9 and 10 the dispatch calls.
+char* ModelBase(char* model) { return model + 4 + At<std::int32_t>(At<char*>(model, 4), 4); }
+
+// The truck's heading turned a quarter about y (the hose's state): the
+// double 0x00A99090 (pi/2) or, on a draw of the core's generator at or above
+// 0x7FFFFFFF, 0x00A8EDD8 (-pi/2), FSIN and FCOS at 64 bits. The game's
+// rotation about the axis (0, 1, 0) as the zero 0x00A81054 leaves it: each
+// term stored as a float where the game stores it, the sums at 53 bits.
+void TurnHeading(float (&q)[3])
+{
+    const std::uint32_t draw = CallThis<std::uint32_t>(addr::cRZRandomSuper_Next,
+                                                       reinterpret_cast<void*>(addr::cSC4AutomatonCore_Random));
+    X87 sine, cosine;
+    X87SinCos(Global<double>(draw < 0x7FFFFFFFu ? addr::cSC4RiotPolice_QuarterTurn : addr::cSC4Vehicle_PlaceTurn),
+              &sine, &cosine);
+    const double zero = Zero();
+    const float zs = static_cast<float>(X87Times(sine, zero));
+    const float s = X87ToFloat(sine);
+    const float c = X87ToFloat(cosine);
+    const double cz = X87Times(cosine, zero);
+    const float czf = static_cast<float>(cz);
+    const double a0 = static_cast<double>(c) - zs;
+    const float a1 = static_cast<float>(cz - zs);
+    const float a2 = static_cast<float>(static_cast<double>(czf) - s);
+    const double b0 = static_cast<double>(czf) + s;
+    const float b1 = static_cast<float>(static_cast<double>(zs) + czf);
+    const float b2 = static_cast<float>(static_cast<double>(zs) + c);
+    const float y0 = static_cast<float>(static_cast<double>(q[1]) * zero);
+    const float x = static_cast<float>((q[0] * a0 + b0 * q[2]) + y0);
+    const float y = static_cast<float>((q[0] * static_cast<double>(a1) + static_cast<double>(b1) * q[2]) + q[1]);
+    const float z = static_cast<float>((static_cast<double>(a2) * q[0] + static_cast<double>(b2) * q[2]) + y0);
+    q[0] = x;
+    q[1] = y;
+    q[2] = z;
+}
+
+// The heading turned by the double 0x00A99F68 (pi/4) about y, as above: the
+// cosine and the sine's float rounded once from 64 bits, z's sine product
+// kept unrounded.
+void TurnEighth(float (&q)[3])
+{
+    X87 sine, cosine;
+    X87SinCos(Global<double>(addr::cSC4SimFireCrew_EighthTurn), &sine, &cosine);
+    const double zero = Zero();
+    const float c = X87ToFloat(cosine);
+    const double zs = X87Times(sine, zero);
+    const float zsf = static_cast<float>(zs);
+    const float s = X87ToFloat(sine);
+    const double cz = static_cast<double>(c) * zero;
+    const float czf = static_cast<float>(cz);
+    const float a0 = static_cast<float>(static_cast<double>(c) - zsf);
+    const float a1 = static_cast<float>(cz - zsf);
+    const float a2 = static_cast<float>(cz - s);
+    const float b0 = static_cast<float>(static_cast<double>(s) + czf);
+    const float b1 = static_cast<float>(static_cast<double>(zsf) + czf);
+    const double b2 = zs + c;
+    const float y0 = static_cast<float>(static_cast<double>(q[1]) * zero);
+    const float x = static_cast<float>((static_cast<double>(b0) * q[2] + static_cast<double>(a0) * q[0]) + y0);
+    const float y = static_cast<float>((q[0] * static_cast<double>(a1) + static_cast<double>(b1) * q[2]) + q[1]);
+    const float z = static_cast<float>((q[0] * static_cast<double>(a2) + b2 * q[2]) + y0);
+    q[0] = x;
+    q[1] = y;
+    q[2] = z;
+}
+
+// The position plus the heading times `distance` (x's product unrounded, y's
+// and z's floats), into `out`.
+void Ahead(const float (&p)[3], const float (&q)[3], double distance, float (&out)[3])
+{
+    const float y = static_cast<float>(static_cast<double>(q[1]) * distance);
+    const float z = static_cast<float>(static_cast<double>(q[2]) * distance);
+    out[2] = static_cast<float>(static_cast<double>(z) + p[2]);
+    out[0] = static_cast<float>(static_cast<double>(q[0]) * distance + p[0]);
+    out[1] = static_cast<float>(static_cast<double>(p[1]) + y);
+}
+
+// The dispatch on the mission 5: the crew at the truck's hose. The points
+// start from three copies of the float 0x00B228F0; the position is the
+// truck's (slot 7). With a state 0x10 stacked on the truck (its slot 57) the
+// heading (slot 15) is turned a quarter either way and the target is the
+// position plus it times 16 (0x00A8D45C) times 3 (0x00A85074) (x and y
+// rounded once, z's 16 first); else the target is the truck's point (slot
+// 143) and the heading the way to it (x and z unrounded, y a float; their
+// length squares x, z, then y) normalised by 1 (0x00B0A05C) / length when it
+// is longer than 1e-5 (0x00A99F20; else, or unordered, the truck's heading).
+// The crew is placed (slot 16) at the position plus the heading times the
+// float 0x00B21CC8, kept in the city (0x00547930) and on the map's height
+// (slot 18, no null test), heading that way. Then the heading is turned an
+// eighth and the point the float 0x00B21CCC along it (kept and on the map
+// the same way) given to the second model (+0x110's second entry; no count
+// or null test past its AddRef) by its slot 1; that model's virtual base
+// gets (its slot 9 into a transform from the identity, count and flags 0)
+// the matrix of the heading (SC4Matrix::FromDirection from nine copies of
+// 0x00B228F0) with the flag 4 and the count one up (slot 10), and the view
+// 0x00B43DD0 (no null test) is told of the model's drawable (its slot 30
+// with the model's slot 0). The target goes into +0x2A8 and +0x2B8, the
+// message 0xAA0F3F75 (the truck's +4, 0x00A9B2B8[+0x278], three zeros) is
+// posted and the model let go of (no null test).
+void DispatchHose(char* self, void* map)
+{
+    char* const truck = At<char*>(self, crew::kVehicle);
+    const std::uintptr_t start = addr::cSC4SimFireCrew_DefaultFloat;
+    float p[3], q[3], r[3], s[3], target[3];
+    DefaultPoint(p, start);
+    DefaultPoint(q, start);
+    DefaultPoint(r, start);
+    DefaultPoint(s, start);
+    Virtual<std::uint32_t>(truck, cslot::kCarPosition, static_cast<float*>(p));
+    if (Virtual<void*>(truck, fslot::kInState, crewdata::kHoseState)) {
+        Virtual<std::uint32_t>(truck, cslot::kCarHeading, static_cast<float*>(q));
+        TurnHeading(q);
+        const double cell = Global<float>(addr::SC4_FloatSixteen);
+        const double three = Global<float>(addr::cSC4AutomatonBase_FrontGap);
+        const float x = static_cast<float>(static_cast<double>(q[0]) * cell * three);
+        const float y = static_cast<float>(static_cast<double>(q[1]) * cell * three);
+        const float z = static_cast<float>(static_cast<double>(q[2]) * cell);
+        target[2] = static_cast<float>(static_cast<double>(z) * three + p[2]);
+        target[0] = static_cast<float>(static_cast<double>(x) + p[0]);
+        target[1] = static_cast<float>(static_cast<double>(p[1]) + y);
+    } else {
+        const float* const t = Virtual<const float*>(truck, cslot::kCarPoint);
+        target[0] = t[0];
+        target[1] = t[1];
+        target[2] = t[2];
+        const double dx = static_cast<double>(target[0]) - p[0];
+        const float dy = static_cast<float>(static_cast<double>(target[1]) - p[1]);
+        const double dz = static_cast<double>(target[2]) - p[2];
+        q[1] = dy;
+        q[0] = static_cast<float>(dx);
+        q[2] = static_cast<float>(dz);
+        const double length = std::sqrt((dx * dx + dz * dz) + static_cast<double>(dy) * dy);
+        if (length > static_cast<double>(Global<float>(addr::SC4_FloatHundredThousandth))) {
+            const double factor = static_cast<double>(Global<float>(addr::cSC4SimFireCrew_One)) / length;
+            q[0] = static_cast<float>(dx * factor);
+            q[1] = static_cast<float>(static_cast<double>(dy) * factor);
+            q[2] = static_cast<float>(dz * factor);
+        } else {
+            Virtual<std::uint32_t>(truck, cslot::kCarHeading, static_cast<float*>(q));
+        }
+    }
+    Ahead(p, q, Global<float>(addr::SC4AutomataTuning_CrewStep21CC8), r);
+    CallThis<void>(addr::cSC4RiotPolice_ClampToCity, self, static_cast<float*>(r));
+    OnMap(map, r);
+    Virtual<std::uint32_t>(self, wslot::kPlace, static_cast<const float*>(r), static_cast<const float*>(q));
+    TurnEighth(q);
+    Ahead(p, q, Global<float>(addr::SC4AutomataTuning_CrewSide21CCC), s);
+    CallThis<void>(addr::cSC4RiotPolice_ClampToCity, self, static_cast<float*>(s));
+    OnMap(map, s);
+
+    char* const model = At<char**>(self, base::kModels)[1];
+    if (model)
+        Virtual<std::uint32_t>(ModelBase(model), slot::kAddRef);
+    Virtual<std::uint32_t>(model, fslot::kModelPoint, static_cast<const float*>(s));
+    std::uint32_t m[9];
+    for (std::uint32_t& w : m)
+        w = Global<std::uint32_t>(start);
+    CallCdecl<void>(addr::SC4Matrix_FromDirection, static_cast<float*>(q), static_cast<void*>(m));
+    ModelTransform transform{};
+    static constexpr float kIdentity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    std::memcpy(transform.m, kIdentity, sizeof kIdentity);
+    transform.scale = 1.0f;
+    Virtual<std::uint32_t>(ModelBase(model), fslot::kGetTransform, static_cast<void*>(&transform));
+    std::memcpy(transform.m, m, sizeof m);
+    transform.flags = static_cast<std::uint8_t>(transform.flags | 4);
+    transform.count = static_cast<std::uint8_t>(transform.count + 1);
+    Virtual<std::uint32_t>(ModelBase(model), fslot::kSetTransform, static_cast<const void*>(&transform));
+    void* const view = Global<void*>(addr::SC4_View43DD0);
+    Virtual<std::uint32_t>(view, fslot::kViewMove, Virtual<void*>(model, fslot::kModelDrawable));
+    for (int i = 0; i < 3; ++i) {
+        At<float>(self, fire::kPoint2A8 + 4 * i) = target[i];
+        At<float>(self, fire::kPoint2B8 + 4 * i) = target[i];
+    }
+    Post(self, crewdata::kDispatchMessage, CarPart(self),
+         reinterpret_cast<const std::uint32_t*>(addr::cSC4SimFireCrew_MessageWords)[At<std::uint8_t>(self, crew::kByte)],
+         0u, 0u, 0u);
+    Virtual<std::uint32_t>(ModelBase(model), slot::kRelease);
+}
+
+// 0x00547EF0: the city's map (slot 40) held for the while (AddRef
+// null-tested, its slot 18 and the Release not); by the truck's mission
+// (slot 26, the truck not null-tested) 5 the crew at the hose, else beside
+// the truck (DispatchBeside with 0x00B228F0 and 0x00B21CCC; a truck without
+// an occupant does not remove it); then slot 33 (0, 0) and (1.0, the float
+// 0x00B21C84).
+void __fastcall FireCrewDispatch(char* self, void*)
+{
+    static bool logged;
+    FirstCall("FireCrewDispatch", logged);
+    void* const map = Virtual<void*>(Global<void*>(addr::SC4_City), wslot::kCityNetwork);
+    if (map)
+        Virtual<std::uint32_t>(map, slot::kAddRef);
+    if (Mission(self) == 5)
+        DispatchHose(self, map);
+    else
+        DispatchBeside(self, map,
+                       Beside{addr::cSC4SimFireCrew_DefaultFloat, addr::SC4AutomataTuning_CrewSide21CCC, false,
+                              static_cast<std::int32_t>(reinterpret_cast<std::uintptr_t>(map))});
+    Virtual<std::uint32_t>(self, cslot::kFade, 0u, 0u);
+    Virtual<std::uint32_t>(self, cslot::kFade, 0x3F800000u, Global<std::uint32_t>(addr::SC4AutomataTuning_Fade21C84));
+    Release(map);
 }
 
 // ====================================================================================
@@ -2511,6 +2751,11 @@ const Detour kCrews[] = {
     OPENSC4_DETOUR(addr::cSC4RiotPolice_ClampToCity, RiotPoliceClampToCity),
 };
 
+// Part ped4a.
+const Detour kFireDispatch[] = {
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_Dispatch, FireCrewDispatch),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -2518,7 +2763,8 @@ bool InstallObject(registry::Mode)
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kStates, sizeof kStates / sizeof kStates[0], "states") &&
            InstallList(kWalks, sizeof kWalks / sizeof kWalks[0], "walks") &&
-           InstallList(kCrews, sizeof kCrews / sizeof kCrews[0], "crews");
+           InstallList(kCrews, sizeof kCrews / sizeof kCrews[0], "crews") &&
+           InstallList(kFireDispatch, sizeof kFireDispatch / sizeof kFireDispatch[0], "fire dispatch");
 }
 
 const bool g_registered[] = {
@@ -2534,7 +2780,8 @@ const bool g_registered[] = {
                         "and 0xC (13 detours, part ped2a); the frames of the states 2, 3, 6, 8 and 9 (the walks) and "
                         "their bump and step (7 detours, part ped2b); the one-shot's Init and frame, the riot "
                         "police's Init, Shutdown, frame, slot 74, message helper, dispatch and its clamp to the city "
-                        "(9 detours, part ped3; src/core/automata_pedestrians.cpp)",
+                        "(9 detours, part ped3); the fire crew's dispatch (1 detour, part ped4a; "
+                        "src/core/automata_pedestrians.cpp)",
                         false, InstallObject}),
 };
 
