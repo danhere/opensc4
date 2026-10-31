@@ -15472,12 +15472,15 @@ uint32_t __fastcall PdPartStartNoted(char* self, void*, uint32_t a, uint32_t b)
 }
 OPENSC4_THUNK(TPdPartStart, PdPartStartNoted, 8)
 
+// The part's step by its own switch's mode ("The part's step" at the end);
+// this detour is that switch's too.
+uint32_t SdStepRun(char* part, uint32_t step);
+
 uint32_t __fastcall PdPartStepNoted(char* self, void*, uint32_t step)
 {
     if (!BNoting())
-        return g_PdPartStep(self, nullptr, step);
-    return BCallee(addr::SC4EffectPartB_Step, Word(self), Word(&step), 4,
-                   [&] { return g_PdPartStep(self, nullptr, step); });
+        return SdStepRun(self, step);
+    return BCallee(addr::SC4EffectPartB_Step, Word(self), Word(&step), 4, [&] { return SdStepRun(self, step); });
 }
 OPENSC4_THUNK(TPdPartStep, PdPartStepNoted, 4)
 
@@ -15756,7 +15759,8 @@ OPENSC4_THUNK(TDwSC4Effect_DrawParticles, PlPlainByMode, 4)
 // the frames of a model of more than one (no test city has one; flags
 // 0x20 and 0x40 and +0x1DC count only there), and the part's start and
 // step (flags 4 and 0x100), as the game's step (0x005AC200) reads through
-// a null pointer for a part that was not made for them. Recorded as
+// a null pointer for a part that was not made for them (the step is forced
+// on a made-up part instead, "The part's step" at the end). Recorded as
 // effects.draw_b.forced.
 constexpr float kDbForcedColours[9] = {1.0f, 0.25f, 0.5f, 0.0f, 0.75f, 0.125f, 0.5f, 0.5f, 1.0f};
 
@@ -21412,10 +21416,14 @@ void SdRestartForced(char* self, uint32_t k, const char* first)
         });
 }
 
+// The part's step forced twice (renderer.effects.step_b in compare mode;
+// "The part's step" at the end).
+void SdStepForcedTwice(char* self, uint32_t k);
+
 // Forcing, before each running effect's draw (DwEffectDrawByMode) of the
-// second class (with its render context): the check three times and the
-// restart twice, by a turn counter, with the effects manager swapped for
-// the made-up one and the generator put back after.
+// second class (with its render context): the check three times, the
+// restart and the part's step twice, by a turn counter, with the effects
+// manager swapped for the made-up one and the generator put back after.
 void SdForce(char* self, uint32_t context)
 {
     if (!g_sdForce || g_effectRecord || g_effectReplay || BBusy() || !At<uint8_t>(self, 9) ||
@@ -21441,6 +21449,7 @@ void SdForce(char* self, uint32_t context)
     if (g_restartBMode == StepMode::Compare && g_SC4EffectB_RestartParticle)
         for (uint32_t i = 0; i < 2; ++i)
             SdRestartForced(self, k * 2 + i, first);
+    SdStepForcedTwice(self, k);
     manager = real;
     std::memcpy(Ptr(kSetupGenerator), generator, sizeof generator);
 }
@@ -21453,8 +21462,8 @@ bool SdHookForce()
     if (!DwHookEffectDraw())
         return false;
     if (!g_sdForce)
-        log::Write("water effects: the second class's check whether a particle is in view and restart forced before "
-                   "each effect's draw");
+        log::Write("water effects: the second class's check whether a particle is in view, restart and part's step "
+                   "forced before each effect's draw");
     g_sdForce = true;
     return true;
 }
@@ -21503,6 +21512,222 @@ const bool g_registeredRestartB = registry::Register({
     "(docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallRestartB,
+});
+
+// --- The part's step ---------------------------------------------------------------------------
+//
+// The second class's part's step (0x005AC200, effects_second.h StepPartB,
+// part E16), which the second class's ported draw still called by address.
+// Its switch (renderer.effects.step_b): ours makes the detour the draw's
+// comparison already had of it run ours for every caller; while that
+// comparison notes, the detour notes it as its callee and runs it by the
+// switch.
+//
+// Compare mode, by the notes' engine: the model instance the part keeps
+// (+4) gets a noting table for its slot 0x10 (which answers where it keeps
+// its copy of a mesh), the game's runs with the call passed on and ours is
+// replayed. The bytes compared are the part (as the regions' "effect"),
+// the class's free list, the generator and the vertices of each copy the
+// step writes (found by asking the instance's slot 0x10 before, which only
+// answers). When the part's lists of three floats are empty they are made
+// first (0x00803370, which allocates), so neither run makes them. Not
+// reached in the test cities (docs/renderer.md): with
+// OPENSC4_EFFECT_FORCE_SECOND=1 (compare mode only) it is compared twice
+// before every running effect of the class's draw, dry, on a made-up part
+// (SdStepForced).
+StepMode g_stepBMode = StepMode::Original;
+constexpr uint32_t kSdPartInstanceRole = 0xE700;
+
+uint32_t __fastcall SdPartKeptStub(char* instance, void*, uint32_t index)
+{
+    const uint32_t real = BRealSlot(instance, 0x10);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, instance, index);
+    return BCallee(kSdPartInstance + 0x10, Word(instance), Word(&index), 4,
+                   [&] { return CallThis<uint32_t>(real, instance, index); });
+}
+
+uint32_t SdExpandedTwo()
+{
+    return reinterpret_cast<uint32_t(__cdecl*)(uint32_t)>(addr::GDVertexFormat_Expand)(2);
+}
+
+// The part, the free list, the generator and the vertices of the copies
+// of the meshes the step writes.
+std::vector<BRegion> SdStepRegions(char* part)
+{
+    std::vector<BRegion> regions{{part, 0x44}, {Ptr(kParticleFreeB), 4}, {Ptr(kSetupGenerator), kSetupGeneratorSize}};
+    char* const instance = At<char*>(part, 4);
+    const uint32_t meshes = static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(part, 0x10) - At<uint32_t>(part, 0xC)) >> 2);
+    for (uint32_t i = 0; i < meshes; ++i) {
+        char* const mesh = At<char**>(part, 0xC)[i];
+        if (At<uint32_t>(mesh, 0) != SdExpandedTwo() || !At<uint16_t>(mesh, 6))
+            continue;
+        const uint32_t kept = CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0x10), instance, i);
+        regions.push_back({At<char*>(M<char*>(kept), 8), At<uint16_t>(mesh, 6) * 0x18u});
+    }
+    return regions;
+}
+
+uint32_t SdStepRun(char* part, uint32_t step)
+{
+    const auto game = [&] { return g_PdPartStep(part, nullptr, step); };
+    const auto ours = [&] {
+        StepPartB(part, LfFloat(step));
+        return 0u;
+    };
+    if (g_stepBMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_stepBMode == StepMode::Ours)
+        return ours();
+    if (BBusy())
+        return game();
+    if (At<uint32_t>(part, 0x24) == At<uint32_t>(part, 0x28))
+        CallThis<void>(addr::SC4EffectPartB_MakeNormals, part);
+    std::vector<BRegion> regions = SdStepRegions(part);
+    BSwapRole(At<char*>(part, 4), kSdPartInstanceRole, {{0x10, reinterpret_cast<uint32_t>(&SdPartKeptStub)}});
+    return SdCompared("effects.step_b", std::move(regions), false, game, ours);
+}
+
+// The made-up part of the forced steps. Its instance's slot 0x10 notes the
+// call and answers one of four copies (by the index modulo 4), whose
+// vertices are the comparison's buffer; four meshes of up to six vertices
+// (counting places and texture coordinates), each with its three floats a
+// vertex (directions of length one, the last mesh's of 1.2) and a made-up
+// description.
+constexpr uint32_t kSpVertices = 6;
+uint32_t g_spInstanceTable[0x14 / 4] = {}, g_spInstance[1] = {}, g_spCopies[4][3] = {}, g_spKept[4] = {},
+         g_spMeshList[4] = {}, g_spNormalLists[4][3] = {};
+char g_spOut[4][kSpVertices * 0x18] = {}, g_spMeshes[4][0xC] = {}, g_spDescription[kDescriptionSize] = {};
+float g_spFrom[4][kSpVertices * 5] = {}, g_spNormals[4][kSpVertices * 3] = {};
+// The list at +0x12C, with a value before and two after it (read when the
+// three floats are longer than one); the records of the list at +0x108.
+float g_spCurve[8] = {0.9f, 0.0f, 0.25f, 1.0f, 1.5f, 0.375f, 0.3f, 0.6f};
+const float g_spMoves[2][7] = {{1.5f, 0.1f, 0.2f, 0.05f, 0.3f, -0.2f, 0.1f}, {0.25f, -0.3f, 0.0f, 0.7f, 0.0f, 0.5f, -0.25f}};
+
+uint32_t __fastcall SdFakeKept(char* object, void*, uint32_t index)
+{
+    return SdFakeNoted(kSdPartInstance + 0x10, object, Word(&index), 4, Word(&g_spKept[index % 4]));
+}
+
+void SdStepFakesMade()
+{
+    if (g_spInstance[0])
+        return;
+    g_spInstanceTable[0x10 / 4] = reinterpret_cast<uint32_t>(&SdFakeKept);
+    g_spInstance[0] = Word(g_spInstanceTable);
+    static const float kDirections[6][3] = {{0.0f, 1.0f, 0.0f},  {0.6f, 0.8f, 0.0f},   {0.0f, -0.6f, 0.8f},
+                                            {-1.0f, 0.0f, 0.0f}, {0.48f, 0.6f, 0.64f}, {0.0f, 0.0f, -1.0f}};
+    for (uint32_t k = 0; k < 4; ++k) {
+        g_spCopies[k][2] = Word(g_spOut[k]);
+        g_spKept[k] = Word(g_spCopies[k]);
+        g_spMeshList[k] = Word(g_spMeshes[k]);
+        At<uint32_t>(g_spMeshes[k], 8) = Word(g_spFrom[k]);
+        g_spNormalLists[k][0] = Word(g_spNormals[k]);
+        g_spNormalLists[k][1] = g_spNormalLists[k][2] = Word(g_spNormals[k] + kSpVertices * 3);
+        for (uint32_t j = 0; j < kSpVertices; ++j) {
+            const float fk = static_cast<float>(k), fj = static_cast<float>(j);
+            float* const from = g_spFrom[k] + j * 5;
+            from[0] = fk * 10.0f + fj * 1.25f - 7.0f;
+            from[1] = fj * 0.5f + fk;
+            from[2] = -3.5f + fk * fj;
+            from[3] = fj * 0.125f - 0.3f;
+            from[4] = fk * 0.75f + fj * 0.0625f;
+            for (uint32_t i = 0; i < 3; ++i)
+                g_spNormals[k][j * 3 + i] = kDirections[(j + k) % 6][i] * (k == 3 ? 1.2f : 1.0f);
+        }
+    }
+}
+
+// One forced step, by the turn k (each choice by the turn modulo a number
+// of its own): up to four meshes, one of another format every so often,
+// of up to six vertices; the description's step scale (+0x114) and
+// texture speeds (+0x118, +0x11C), none, one or two records of moves
+// (+0x108), a light's direction (+0x120) and a list of none to five
+// values (+0x12C); a step of 0.033, 1, 0, 250, -0.5, the effect's own or
+// (one turn in 29) a NaN. The copies' vertices start as counting bytes.
+void SdStepForced(char* self, uint32_t k)
+{
+    static const float kScales[7] = {1.0f, 0.5f, -2.0f, 0.0f, 1000.0f, 3.0f, 0.125f};
+    static const float kSpeeds[5] = {0.1f, -0.35f, 3.0f, 0.0f, 12.5f};
+    static const float kLights[4][3] = {{0.0f, 1.0f, 0.0f}, {0.6f, 0.0f, 0.8f}, {-0.48f, -0.6f, 0.64f}, {0.0f, 0.0f, 1.0f}};
+    char* const d = g_spDescription;
+    std::memset(d, 0, sizeof g_spDescription);
+    const uint32_t moves = k % 3;
+    At<uint32_t>(d, 0x108) = Word(g_spMoves);
+    At<uint32_t>(d, 0x10C) = At<uint32_t>(d, 0x110) = Word(g_spMoves) + moves * sizeof g_spMoves[0];
+    At<float>(d, 0x114) = kScales[k % 7];
+    At<float>(d, 0x118) = kSpeeds[k % 11 % 5];
+    At<float>(d, 0x11C) = kSpeeds[k % 13 % 5];
+    for (uint32_t i = 0; i < 3; ++i)
+        At<float>(d, 0x120 + i * 4) = kLights[k % 17 % 4][i];
+    const uint32_t values = k % 19 % 6;
+    At<uint32_t>(d, 0x12C) = Word(g_spCurve + 1);
+    At<uint32_t>(d, 0x130) = At<uint32_t>(d, 0x134) = Word(g_spCurve + 1 + values);
+    const uint32_t meshes = k % 5;
+    for (uint32_t m = 0; m < 4; ++m) {
+        At<uint32_t>(g_spMeshes[m], 0) = (k + m) % 7 == 3 ? reinterpret_cast<uint32_t(__cdecl*)(uint32_t)>(
+                                                                 addr::GDVertexFormat_Expand)(1)
+                                                           : SdExpandedTwo();
+        At<uint16_t>(g_spMeshes[m], 6) = static_cast<uint16_t>((k / 5 + m * 2) % (kSpVertices + 1));
+    }
+    for (uint32_t i = 0; i < sizeof g_spOut; ++i)
+        g_spOut[0][i] = static_cast<char>(i * 7 + k);
+    char part[0x44] = {};
+    At<uint32_t>(part, 4) = Word(g_spInstance);
+    At<uint32_t>(part, 0xC) = Word(g_spMeshList);
+    At<uint32_t>(part, 0x10) = Word(g_spMeshList + meshes);
+    At<uint32_t>(part, 0x24) = Word(g_spNormalLists);
+    At<uint32_t>(part, 0x28) = At<uint32_t>(part, 0x2C) = Word(g_spNormalLists + 4);
+    At<uint32_t>(part, 0x40) = Word(d);
+    const uint32_t nan = 0x7FC00000u;
+    float notANumber = 0.0f;
+    std::memcpy(&notANumber, &nan, 4);
+    const float kSteps[6] = {0.033f, 1.0f, 0.0f, 250.0f, -0.5f, static_cast<float>(At<double>(self, 0x110))};
+    const float step = k % 29 == 28 ? notANumber : kSteps[k % 23 % 6];
+    std::vector<BRegion> regions{{part, sizeof part},
+                                 {Ptr(kParticleFreeB), 4},
+                                 {Ptr(kSetupGenerator), kSetupGeneratorSize},
+                                 {g_spOut[0], sizeof g_spOut}};
+    SdCompared(
+        "effects.step_b.forced", std::move(regions), false,
+        [&] { return g_PdPartStep(part, nullptr, LfBits(step)); },
+        [&] {
+            StepPartB(part, step);
+            return 0u;
+        });
+}
+
+void SdStepForcedTwice(char* self, uint32_t k)
+{
+    if (g_stepBMode != StepMode::Compare || !g_PdPartStep)
+        return;
+    SdStepFakesMade();
+    for (uint32_t i = 0; i < 2; ++i)
+        SdStepForced(self, k * 2 + i);
+}
+
+bool InstallStepB(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_stepBMode, addr::SC4EffectPartB_Step, &TPdPartStep, &g_PdPartStep,
+                   "the second class's part's step"))
+        return false;
+    return mode != registry::Mode::Compare || SdHookForce();
+}
+
+const bool g_registeredStepB = registry::Register({
+    "renderer.effects.step_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectPartB_Step,
+    "The second class's part's step (0x005AC200): the model instance's copies of the meshes given the meshes' places "
+    "(moved by the description's sines), texture coordinates moved on by the step and an opacity by a light's "
+    "direction; compare mode notes the game's calls and answers ours from the notes, OPENSC4_EFFECT_FORCE_SECOND=1 "
+    "forces it on a made-up part before each running effect's draw (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallStepB,
 });
 
 } // namespace

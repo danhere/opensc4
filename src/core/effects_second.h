@@ -539,8 +539,9 @@ inline uint32_t SdRoundDown(double value)
 
 // A list of floats of the description (begin at `at`, end at `at` + 4)
 // read at `t` (0 to 1) of its length: its one value, or between the two
-// neighbours of t times the number of values less one.
-inline double SdCurve(char* description, uint32_t at, float t)
+// neighbours of t times the number of values less one. (The part's step
+// reads its list at an unrounded `t`; the other callers' are floats.)
+inline double SdCurve(char* description, uint32_t at, double t)
 {
     const float* const values = At<const float*>(description, at);
     const int32_t last = (static_cast<int32_t>(At<uint32_t>(description, at + 4) - At<uint32_t>(description, at)) >> 2) - 1;
@@ -980,4 +981,86 @@ inline void StepNotDrawnB(char* self)
     At<float>(self, 0x1AC) = static_cast<float>(grow + f(0x1AC));
     At<float>(self, 0x1B0) = static_cast<float>(grow + f(0x1B0));
     At<float>(self, 0x1B4) = static_cast<float>(grow + f(0x1B4));
+}
+
+// --- The part's step --------------------------------------------------------------------------
+//
+// 0x005AC200 (part E16): what the second class's draw still called by
+// address for an effect with +0x26C set and flag 0x100 of its
+// description's third word. The part (the effect's +0x228) keeps the
+// model instance it was given (+4), the model's meshes (+0xC to +0x10,
+// each with its vertex format at +0, its count of vertices as a word at +6
+// and its vertices at +8, 0x14 bytes each: a place and two texture
+// coordinates), for each mesh a list of three floats a vertex (+0x24, a
+// vector of vectors of 0xC bytes; made by 0x00803370 when empty) and its
+// description (+0x40). What the notes call the instance's slot 0x10, which
+// answers where it keeps its copy of a mesh (0xE700 and the slot).
+constexpr uint32_t kSdPartInstance = 0xE700;
+
+// A texture coordinate moved on by `by` less whole turns of 8: the whole
+// number nearest to an eighth of it less a half, one up when that is
+// exact, times 8 (as the game's integer) taken off.
+inline float SdTurnsOff(double by)
+{
+    return static_cast<float>(
+        by - static_cast<double>(static_cast<int32_t>(SdRoundDown(by * M<float>(0x00A867A8)) << 3)));
+}
+
+// 0x005AC200 (ret 4), with the step (the effect's +0x110 as a float).
+// When the part's lists of three floats are empty, 0x00803370 makes them.
+// With d its description and A the step times d+0x114 (unrounded), the
+// texture's moves are u = A times d+0x118 (rounded) and v = A times
+// d+0x11C (unrounded), each less whole turns of 8 (SdTurnsOff). For each
+// mesh (the count read again each time) whose format is the expanded
+// legacy format 2 (GDVertexFormat::Expand): the instance's copy of it
+// (its slot 0x10 with the mesh's index answers where the copy is kept;
+// the copy's vertices at its +8, 0x18 bytes each: a place, a colour and
+// two texture coordinates) and, while it has vertices left (the count read
+// again after each), each vertex of the copy gets the mesh's place (moved
+// by 0x005AC070 with the step and d's list at +0x108 when that is not
+// empty), its texture coordinates plus u and v and, when d's list at
+// +0x12C is not empty, the colour's last byte: that list read (SdCurve) at
+// ((the vertex's three floats along d+0x120 to d+0x128, z first) plus one)
+// times a half, unrounded, plus 49152 rounded to a float, the float's bits
+// less 0x47400000 and the byte below taken off the low byte.
+inline void StepPartB(char* part, float step)
+{
+    if (At<uint32_t>(part, 0x24) == At<uint32_t>(part, 0x28))
+        CallThis<void>(addr::SC4EffectPartB_MakeNormals, part);
+    char* description = At<char*>(part, 0x40);
+    const auto d = [&](uint32_t at) { return static_cast<double>(At<float>(description, at)); };
+    const double along = static_cast<double>(step) * d(0x114);
+    const float u = SdTurnsOff(static_cast<float>(along * d(0x118)));
+    const float v = SdTurnsOff(along * d(0x11C));
+    const auto meshes = [&] {
+        return static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(part, 0x10) - At<uint32_t>(part, 0xC)) >> 2);
+    };
+    const auto mesh = [&](uint32_t i) { return At<char**>(part, 0xC)[i]; };
+    for (uint32_t i = 0; i < meshes(); ++i) {
+        if (At<uint32_t>(mesh(i), 0) != reinterpret_cast<uint32_t(__cdecl*)(uint32_t)>(addr::GDVertexFormat_Expand)(2))
+            continue;
+        char* from = At<char*>(mesh(i), 8);
+        char* const instance = At<char*>(part, 4);
+        const uint32_t kept = BOurs(kSdPartInstance + 0x10, Word(instance), Word(&i), 4, [&] {
+            return CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0x10), instance, i);
+        });
+        char* to = At<char*>(M<char*>(kept), 8);
+        for (uint32_t j = 0; j < At<uint16_t>(mesh(i), 6); ++j, from += 0x14, to += 0x18) {
+            std::memcpy(to, from, 12);
+            description = At<char*>(part, 0x40);
+            if (At<uint32_t>(description, 0x108) != At<uint32_t>(description, 0x10C))
+                SdMovePlace(step, description + 0x108, reinterpret_cast<float*>(to));
+            At<float>(to, 0x10) = static_cast<float>(static_cast<double>(u) + At<float>(from, 0xC));
+            At<float>(to, 0x14) = static_cast<float>(static_cast<double>(v) + At<float>(from, 0x10));
+            description = At<char*>(part, 0x40);
+            if (At<uint32_t>(description, 0x12C) == At<uint32_t>(description, 0x130))
+                continue;
+            const float* const n = At<const float*>(At<char*>(part, 0x24), i * 0xC) + j * 3;
+            const double dot = (n[2] * d(0x128) + n[1] * d(0x124)) + n[0] * d(0x120);
+            const double at = (dot + M<float>(0x00A81228)) * M<double>(0x00A92D28);
+            const uint32_t bits =
+                LfBits(static_cast<float>(SdCurve(description, 0x12C, at) + M<float>(0x00AA0C00))) + 0xB8C00000u;
+            At<uint8_t>(to, 0xF) = static_cast<uint8_t>(static_cast<uint8_t>(bits) - static_cast<uint8_t>(bits >> 8));
+        }
+    }
 }
