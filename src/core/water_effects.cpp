@@ -13929,6 +13929,13 @@ const bool g_registeredDescriptionB = registry::Register({
 // put back, and the game's runs with detours on the three emitters noting
 // the same at their entry; the two notes (or, when neither emits, the
 // effects) must be the same.
+//
+// The three game functions those ported callers still called by address
+// (0x005B8020, 0x005B8290, 0x005AC070) are ours when their switches are
+// (renderer.effects.step_b1, .start_named and .move_place, at the end of
+// this file, which set these).
+bool g_stepB1Ours = false, g_startNamedOurs = false, g_movePlaceOurs = false;
+
 #include "core/effects_life.h"
 
 float LfFloat(uint32_t bits)
@@ -14323,15 +14330,18 @@ LfStartNote LfNoteStart(char* effect, uint32_t suffix, char* place)
     return note;
 }
 
+// The start itself by renderer.effects.start_named's mode (defined with it).
+uint32_t EnNamedRun(char* self, uint32_t suffix, uint32_t place);
+
 uint32_t __fastcall LfStartNamedNoted(char* self, void*, uint32_t suffix, uint32_t place)
 {
     if (!g_agesWatch || g_agesDepth > 0 || GetCurrentThreadId() != g_agesThread)
-        return g_SC4Effect_StartNamed(self, nullptr, suffix, place);
+        return EnNamedRun(self, suffix, place);
     g_agesGame.push_back(LfNoteStart(self, suffix, Ptr(place)));
     if (g_agesForced)
         return 0;
     ++g_agesDepth;
-    const uint32_t result = g_SC4Effect_StartNamed(self, nullptr, suffix, place);
+    const uint32_t result = EnNamedRun(self, suffix, place);
     --g_agesDepth;
     return result;
 }
@@ -14397,7 +14407,7 @@ uint32_t __fastcall LfAgesByMode(char* self, void*)
         return g_SC4Effect_StartAtAges(self, nullptr);
     if (g_agesMode == StepMode::Ours) {
         StartAtAges(self, [](char* effect, uint32_t suffix, char* place) {
-            CallThis<uint32_t>(addr::SC4Effect_StartNamed, effect, suffix, place);
+            LfStartNamed(effect, suffix, place);
         });
         return 0;
     }
@@ -14428,7 +14438,7 @@ uint32_t __fastcall LfBirthByMode(char* self, void*, uint32_t particle)
         return g_SC4Effect_StartAtBirth(self, nullptr, particle);
     if (g_birthMode == StepMode::Ours) {
         StartAtBirth(self, Ptr(particle), [](char* effect, uint32_t suffix, char* place) {
-            CallThis<uint32_t>(addr::SC4Effect_StartNamed, effect, suffix, place);
+            LfStartNamed(effect, suffix, place);
         });
         return 0;
     }
@@ -16529,9 +16539,12 @@ uint32_t DwEffectDrawRun(char* self, uint32_t step, uint32_t context)
     return result;
 }
 
+void EnForce(char* self);
+
 uint32_t __fastcall DwEffectDrawByMode(char* self, void*, uint32_t step, uint32_t context)
 {
     LfForceSteps(self);
+    EnForce(self);
     if (!DwNoting())
         return DwEffectDrawRun(self, step, context);
     DwAddNote(kDwEffect, self, step, context);
@@ -19741,6 +19754,416 @@ const bool g_registeredDrawC = registry::Register({
     "\"Water effects, sky and clouds\")",
     true,
     InstallDrawC,
+});
+
+// --- The three callees ------------------------------------------------------------------------
+//
+// The three game functions the ported code above still called by address
+// (effects_life.h and effects_second.h): the full step's end for
+// descriptions with bit 0 of +4 (0x005B8020), the start of another effect
+// named by the effect and a suffix (0x005B8290) and the move of a place by
+// a description's list (0x005AC070). Each has a switch: ours makes the
+// ported callers call ours and the detour run ours for the game's callers.
+//
+// The step's end and the move write only the particle or the place and
+// can run twice: the step's end is compared as the set-up is
+// (SuCompared, its occupant manager asked twice), the move on a copy of the
+// place. The start cannot run twice: its comparison runs both dry, ours
+// with the four calls it makes only noted and the game's with the effects
+// manager (0x00B43D1C) swapped for a made-up one whose make notes the name
+// and gives a made-up effect that notes its block, its start and its
+// release; each answer in turn (made and not made, the second recorded as
+// .none), and then the game's start runs for real. The block's third and
+// fourth bytes, which the game leaves as they were on its stack, are
+// noted as zero.
+//
+// The test cities may not reach all of them: OPENSC4_EFFECT_FORCE_CALLEES=1
+// (compare mode only) compares each switch in compare mode before every
+// running effect's draw on made-up arguments, with copies only (EnForce).
+StepMode g_stepB1Mode = StepMode::Original, g_namedMode = StepMode::Original, g_moveMode = StepMode::Original;
+Call1Fn g_SC4Effect_StepFlagB1 = nullptr;
+using MovePlaceFn = void(__cdecl*)(uint32_t, char*, float*);
+MovePlaceFn g_SC4Effect_MovePlace = nullptr;
+bool g_enForce = false;
+
+// The step's end compared on a particle; the particle's end (its first
+// byte cleared by the game's) recorded too as <id>.ended.
+void EnB1Compared(const char* id, char* self, char* particle)
+{
+    const uint8_t before = At<uint8_t>(particle, 0);
+    SuCompared(
+        id, self, particle,
+        [&] {
+            StepFlagB1(particle);
+            return 0u;
+        },
+        [&] {
+            g_SC4Effect_StepFlagB1(self, nullptr, Word(particle));
+            return 0u;
+        });
+    if (before && !At<uint8_t>(particle, 0))
+        compare::Record((std::string(id) + ".ended").c_str(), true, std::string(), std::string());
+}
+
+uint32_t __fastcall EnStepB1ByMode(char* self, void*, uint32_t particle)
+{
+    if (g_stepB1Mode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_StepFlagB1(self, nullptr, particle);
+    if (g_stepB1Mode == StepMode::Ours) {
+        StepFlagB1(Ptr(particle));
+        return 0;
+    }
+    EnB1Compared("effects.step_b1", self, Ptr(particle));
+    return 0;
+}
+OPENSC4_THUNK(TEnStepB1, EnStepB1ByMode, 4)
+
+// The move compared: ours on a copy of the place, the game's on the place.
+void EnMoveCompared(const char* id, uint32_t t, char* list, float* place)
+{
+    float mine[3];
+    std::memcpy(mine, place, sizeof mine);
+    MovePlace(LfFloat(t), list, mine);
+    g_SC4Effect_MovePlace(t, list, place);
+    const bool same = std::memcmp(mine, place, sizeof mine) == 0;
+    compare::Record(id, same, same ? std::string() : Hex(place, 12), same ? std::string() : Hex(mine, 12));
+}
+
+void __cdecl EnMoveByMode(uint32_t t, char* list, float* place)
+{
+    if (g_moveMode == StepMode::Ours)
+        MovePlace(LfFloat(t), list, place);
+    else if (g_moveMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        g_SC4Effect_MovePlace(t, list, place);
+    else
+        EnMoveCompared("effects.move_place", t, list, place);
+}
+OPENSC4_CDECL_THUNK(TEnMove, EnMoveByMode, 12)
+
+// The start's dry runs: the notes of the current run, the answer the make
+// gives, the made-up manager and effect (their tables filled at install).
+std::vector<std::string>* g_enNotes = nullptr;
+bool g_enMade = false;
+uint32_t g_enManagerTable[16] = {}, g_enEffectTable[16] = {};
+uint32_t g_enManager[4] = {}, g_enEffect[4] = {};
+
+void EnNote(const char* what, const std::string& data)
+{
+    if (g_enNotes)
+        g_enNotes->push_back(std::string(what) + " " + data);
+}
+
+std::string EnBlockText(const char* block)
+{
+    char copy[0x38];
+    std::memcpy(copy, block, sizeof copy);
+    copy[2] = copy[3] = 0;
+    return Hex(copy, sizeof copy);
+}
+
+std::string EnEffectText(char* effect)
+{
+    char text[16];
+    std::snprintf(text, sizeof text, "%s", effect == reinterpret_cast<char*>(g_enEffect) ? "made" : "other");
+    return text;
+}
+
+// What ours asks in the dry run, noted as the made-up objects note the
+// game's.
+struct EnDryOps {
+    bool Make(const char* name, char** out)
+    {
+        EnNote("make", name);
+        if (g_enMade)
+            *out = reinterpret_cast<char*>(g_enEffect);
+        return g_enMade;
+    }
+    void Block(char* effect, char* block) { EnNote("block", EnEffectText(effect) + " " + EnBlockText(block)); }
+    void Start(char* effect) { EnNote("start", EnEffectText(effect) + " 0"); }
+    void Release(char* effect) { EnNote("release", EnEffectText(effect)); }
+};
+
+uint32_t __fastcall EnFakeMake(char*, void*, uint32_t name, uint32_t out)
+{
+    EnNote("make", Ptr(name));
+    if (g_enMade)
+        *reinterpret_cast<uint32_t*>(Ptr(out)) = Word(g_enEffect);
+    return g_enMade ? 1u : 0u;
+}
+OPENSC4_THUNK(TEnFakeMake, EnFakeMake, 8)
+
+uint32_t __fastcall EnFakeBlock(char* effect, void*, uint32_t block)
+{
+    EnNote("block", EnEffectText(effect) + " " + EnBlockText(Ptr(block)));
+    return 0;
+}
+OPENSC4_THUNK(TEnFakeBlock, EnFakeBlock, 4)
+
+uint32_t __fastcall EnFakeStart(char* effect, void*, uint32_t value)
+{
+    char text[16];
+    std::snprintf(text, sizeof text, " %X", value);
+    EnNote("start", EnEffectText(effect) + text);
+    return 0;
+}
+OPENSC4_THUNK(TEnFakeStart, EnFakeStart, 4)
+
+uint32_t __fastcall EnFakeRelease(char* effect, void*)
+{
+    EnNote("release", EnEffectText(effect));
+    return 0;
+}
+OPENSC4_THUNK(TEnFakeRelease, EnFakeRelease, 0)
+
+std::string EnNotesText(const std::vector<std::string>& notes, std::size_t at)
+{
+    char text[48];
+    std::snprintf(text, sizeof text, "%zu calls", notes.size());
+    if (at >= notes.size())
+        return text;
+    std::snprintf(text, sizeof text, "%zu calls, #%zu ", notes.size(), at);
+    return text + notes[at];
+}
+
+// Both dry, for each answer of the make.
+void EnNamedCompared(const char* id, char* self, uint32_t suffix, uint32_t place)
+{
+    for (const bool made : {true, false}) {
+        std::vector<std::string> ours, game;
+        g_enMade = made;
+        g_enNotes = &ours;
+        StartNamed(self, reinterpret_cast<const char*>(Ptr(suffix)), reinterpret_cast<const float*>(Ptr(place)),
+                   EnDryOps{});
+        g_enNotes = &game;
+        char*& manager = M<char*>(kEffectsManager);
+        char* const real = manager;
+        manager = reinterpret_cast<char*>(g_enManager);
+        g_SC4Effect_StartNamed(self, nullptr, suffix, place);
+        manager = real;
+        g_enNotes = nullptr;
+        const bool same = ours == game;
+        std::string gameText, ourText;
+        if (!same) {
+            std::size_t at = 0;
+            while (at < ours.size() && at < game.size() && ours[at] == game[at])
+                ++at;
+            gameText = EnNotesText(game, at);
+            ourText = EnNotesText(ours, at);
+        }
+        compare::Record(made ? id : (std::string(id) + ".none").c_str(), same, gameText, ourText);
+    }
+}
+
+uint32_t EnNamedRun(char* self, uint32_t suffix, uint32_t place)
+{
+    if (g_namedMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_StartNamed(self, nullptr, suffix, place);
+    if (g_namedMode == StepMode::Ours) {
+        StartNamed(self, reinterpret_cast<const char*>(Ptr(suffix)), reinterpret_cast<const float*>(Ptr(place)),
+                   LfNamedOps{});
+        return 0;
+    }
+    EnNamedCompared("effects.start_named", self, suffix, place);
+    return g_SC4Effect_StartNamed(self, nullptr, suffix, place);
+}
+
+// Forcing, before each running effect's draw (DwEffectDrawByMode): for
+// each switch in compare mode, in turn of a counter (k).
+// - The move: the description's own list when it has one, else made-up
+//   lists of up to three records (values from the first running
+//   particle and the effect, a NaN, a sum out of FSIN's range, none) on a
+//   copy of a place (the particle's, zeros, large) at a time (the
+//   effect's +0x110 or +0x120 as floats, the particle's age).
+// - The start: a suffix of eight ("_water", "_terrain" as the game's
+//   strings, none, a long one, ones of no effect) at the first running
+//   particle's place or a made-up one.
+// - The step's end: copies of the first running particle, running, as it
+//   is, at its place through the effect's second block (the terrain's
+//   grid, where the occupants are) and at the block's own place; the
+//   copies that end are recorded as effects.step_b1.forced.ended.
+void EnForce(char* self)
+{
+    if (!g_enForce || g_effectRecord || g_effectReplay || !At<uint8_t>(self, 9) || !At<char*>(self, 0x24))
+        return;
+    char* const description = At<char*>(self, 0x24);
+    char* particle = nullptr;
+    for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14) && !particle;
+         node = At<char*>(node, 0)) {
+        if (At<uint8_t>(At<char*>(node, 8), 0))
+            particle = At<char*>(node, 8);
+    }
+    static uint32_t turn = 0;
+    const uint32_t k = turn++;
+    const float zeros[3] = {0.0f, 0.0f, 0.0f};
+    const float* const at = particle ? reinterpret_cast<const float*>(particle + 0xC) : zeros;
+    const float age = particle ? At<float>(particle, 4) : 0.0f;
+    if (g_moveMode == StepMode::Compare) {
+        const uint32_t nan = 0x7FC00000u;
+        float notANumber = 0.0f;
+        std::memcpy(&notANumber, &nan, 4);
+        const float v[3] = {particle ? At<float>(particle, 0x1C) : 0.25f, particle ? At<float>(particle, 0x20) : -0.5f,
+                            particle ? At<float>(particle, 0x24) : 2.0f};
+        float records[3][7] = {
+            {1.5f, 0.01f, 0.02f, -0.03f, v[0], v[1], v[2]},
+            {-0.7f, at[0] * 1.0e-3f, 0.5f, at[2] * 1.0e-3f, 0.3f, -0.2f, 0.1f},
+            {static_cast<float>(At<double>(self, 0x110)), 3.0f, -1.0f, 0.25f, 1.0f, 1.0f, 1.0f},
+        };
+        const uint32_t kind = k % 6;
+        if (kind == 3)
+            records[1][2] = notANumber;
+        if (kind == 4)
+            records[0][0] = 1.0e20f;
+        const uint32_t count = kind == 5 ? 0 : kind == 0 ? 1 : 3;
+        uint32_t list[3] = {Word(records[0]), Word(&records[0][0] + 7 * count), 0};
+        char* used = reinterpret_cast<char*>(list);
+        if (kind == 0 && At<uint32_t>(description, 0x108) != At<uint32_t>(description, 0x10C))
+            used = description + 0x108;
+        float place[3];
+        const uint32_t where = k / 6 % 3;
+        if (where == 0)
+            std::memcpy(place, at, sizeof place);
+        else if (where == 1)
+            std::memcpy(place, zeros, sizeof place);
+        else
+            place[0] = 1234.5f, place[1] = 270.25f, place[2] = -3.0e4f;
+        const uint32_t when = k / 18 % 3;
+        const float t = when == 0   ? static_cast<float>(At<double>(self, 0x110))
+                        : when == 1 ? static_cast<float>(At<double>(self, 0x120))
+                                    : age;
+        EnMoveCompared("effects.move_place.forced", LfFloatBits(t), used, place);
+    }
+    if (g_namedMode == StepMode::Compare) {
+        static const char* const suffixes[8] = {
+            reinterpret_cast<const char*>(0x00AA0F2Cu),
+            reinterpret_cast<const char*>(0x00AA0F20u),
+            "",
+            "_e11_a_suffix_long_enough_to_grow_the_string_past_what_it_held_before",
+            "_e11",
+            "_smoke",
+            "x",
+            "_water_e11",
+        };
+        float place[3];
+        std::memcpy(place, at, sizeof place);
+        if (k / 8 % 2)
+            place[0] = -1.0f, place[1] = 512.0f, place[2] = 8.0e3f;
+        EnNamedCompared("effects.start_named.forced", self, Word(suffixes[k % 8]), Word(place));
+    }
+    if (g_stepB1Mode == StepMode::Compare && particle) {
+        const auto f = [&](uint32_t offset) { return static_cast<double>(At<float>(self, offset)); };
+        char copy[kParticleBytes];
+        for (uint32_t which = 0; which < 3; ++which) {
+            std::memcpy(copy, particle, sizeof copy);
+            copy[0] = 1;
+            if (which == 1) {
+                // As the full step takes it to the terrain's grid.
+                const double x = At<float>(particle, 0xC), y = At<float>(particle, 0x10), z = At<float>(particle, 0x14);
+                const float gx0 = static_cast<float>((z * f(0xD0) + y * f(0xCC)) + x * f(0xC8));
+                const float gy0 = static_cast<float>((x * f(0xD4) + z * f(0xDC)) + y * f(0xD8));
+                const double gz0 = (z * f(0xE8) + y * f(0xE4)) + x * f(0xE0);
+                const double scale = f(0xF8);
+                At<float>(copy, 0xC) = static_cast<float>(static_cast<double>(static_cast<float>(gx0 * scale)) + f(0xEC));
+                At<float>(copy, 0x10) = static_cast<float>(static_cast<double>(static_cast<float>(gy0 * scale)) + f(0xF0));
+                At<float>(copy, 0x14) = static_cast<float>(gz0 * scale + f(0xF4));
+            } else if (which == 2) {
+                std::memcpy(copy + 0xC, self + 0xEC, 12);
+            }
+            EnB1Compared("effects.step_b1.forced", self, copy);
+        }
+    }
+}
+
+bool EnHookForce()
+{
+    const char* v = std::getenv("OPENSC4_EFFECT_FORCE_CALLEES");
+    if (!v || *v != '1')
+        return true;
+    if (!DwHookEffectDraw())
+        return false;
+    if (!g_enForce)
+        log::Write("water effects: the step's end, the named start and the move forced before each effect's draw");
+    g_enForce = true;
+    return true;
+}
+
+bool InstallStepB1(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_stepB1Mode, addr::SC4Effect_StepFlagB1, &TEnStepB1, &g_SC4Effect_StepFlagB1,
+                   "the end of a particle's other step (buildings and props)"))
+        return false;
+    g_stepB1Ours = mode == registry::Mode::Ours;
+    return mode != registry::Mode::Compare || EnHookForce();
+}
+
+bool InstallStartNamed(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_namedMode, addr::SC4Effect_StartNamed, &TLfStartNamed, &g_SC4Effect_StartNamed,
+                   "the start of an effect named by an effect and a suffix"))
+        return false;
+    const auto fill = [](uint32_t* table, std::initializer_list<std::pair<uint32_t, void (*)()>> slots) {
+        for (const auto& [slot, thunk] : slots)
+            table[slot / 4] = reinterpret_cast<uint32_t>(thunk);
+    };
+    fill(g_enManagerTable, {{0x1C, &TEnFakeMake}});
+    fill(g_enEffectTable, {{0x8, &TEnFakeRelease}, {0xC, &TEnFakeStart}, {0x20, &TEnFakeBlock}});
+    g_enManager[0] = Word(g_enManagerTable);
+    g_enEffect[0] = Word(g_enEffectTable);
+    g_startNamedOurs = mode == registry::Mode::Ours;
+    return mode != registry::Mode::Compare || EnHookForce();
+}
+
+bool InstallMovePlace(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(g_SC4Effect_MovePlace || Detour(addr::SC4Effect_MovePlace, &TEnMove, &g_SC4Effect_MovePlace)))
+        return false;
+    g_moveMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    g_movePlaceOurs = mode == registry::Mode::Ours;
+    log::Write("water effects: the move of a place by a description's list %s",
+               mode == registry::Mode::Compare ? "compared with the game's" : "ours");
+    return mode != registry::Mode::Compare || EnHookForce();
+}
+
+const bool g_registeredStepB1 = registry::Register({
+    "renderer.effects.step_b1",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StepFlagB1,
+    "The end of a particle's other step for descriptions with bit 0 of +4 (0x005B8020): the particle ends when a "
+    "building or a prop is within one of its place (the occupant manager's box); compare mode runs ours and the "
+    "game's on the same particle, OPENSC4_EFFECT_FORCE_CALLEES=1 forces it on copies of each running effect's first "
+    "particle (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallStepB1,
+});
+
+const bool g_registeredStartNamed = registry::Register({
+    "renderer.effects.start_named",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_StartNamed,
+    "The start of another effect named by the effect's name and a suffix at a place (0x005B8290; \"_water\", "
+    "\"_terrain\", the starts at set ages and at birth); compare mode runs ours and the game's dry with the effects "
+    "manager made up, each answer of its make, then the game's for real; OPENSC4_EFFECT_FORCE_CALLEES=1 forces it "
+    "on every running effect with made-up suffixes (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallStartNamed,
+});
+
+const bool g_registeredMovePlace = registry::Register({
+    "renderer.effects.move_place",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_MovePlace,
+    "The move of a particle's place by the sines of a description's list at +0x108 (0x005AC070), for the particle "
+    "draws and the second class's block; compare mode runs ours on a copy of the place, "
+    "OPENSC4_EFFECT_FORCE_CALLEES=1 forces it on every running effect with made-up lists (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallMovePlace,
 });
 
 } // namespace
