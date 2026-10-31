@@ -1326,3 +1326,438 @@ void SetPointAlongC(char* self, const float* at, const float* along)
     At<float>(self, 0x260) = PcF(static_cast<double>(sy) + at[1]);
     EcFree(begin);
 }
+
+// --- Its draws -----------------------------------------------------------------------------------
+//
+// The class's two draws: slot 0x44 (0x005A6990, ret 4, with the render
+// context), the model drawn whole until the emit has blown it apart, then
+// the pieces into the batches (+0x230, one for each drawn material's
+// texture); and slot 0x48 (0x005A77F0, ret 4, its context not used), the
+// pieces into the dynamic vertex buffer (+0x1EC). A piece's three corners
+// (a fourth for a batch of quads, +8 four) are the particle's place plus
+// the piece's way back to its first corner (that corner), plus its two
+// sides scaled by the size (turned by the turn). Neither grows the box
+// (+0x1A0), which starts at the point +0x194. The calls that cannot run
+// twice (the context's, the batch's draw and the buffer's lock, unlock and
+// draw) go through BOurs, so that the comparison's replay answers them
+// from the game's notes.
+
+// A list of floats of the description (begin at `at`) read at `t` as the
+// first draw reads it: the place and the part unrounded (EcRoundDown for
+// the rounding down), the answer unrounded.
+double EcCurve(char* description, uint32_t at, double t)
+{
+    const float* const values = At<const float*>(description, at);
+    const int32_t last =
+        (static_cast<int32_t>(At<uint32_t>(description, at + 4) - At<uint32_t>(description, at)) >> 2) - 1;
+    if (last == 0)
+        return values[0];
+    const double x = LfUnsignedF(static_cast<uint32_t>(last)) * t;
+    const uint32_t i = static_cast<uint32_t>(EcRoundDown(x));
+    const double part = x - LfUnsignedF(i);
+    if (part > M<float>(0x00A81054))
+        return (static_cast<double>(values[i + 1]) - values[i]) * part + values[i];
+    return values[i];
+}
+
+// The same list as the second draw reads it (BfCurve with the float at
+// 0x00AA0B20): the place kept as a float for the test of the rounding down
+// and the part, the part tested unrounded and multiplied rounded, the
+// answer a float.
+float EcCurveF(char* description, uint32_t at, float t)
+{
+    const float* const values = At<const float*>(description, at);
+    const int32_t last =
+        (static_cast<int32_t>(At<uint32_t>(description, at + 4) - At<uint32_t>(description, at)) >> 2) - 1;
+    if (last == 0)
+        return values[0];
+    const double x = LfUnsignedF(static_cast<uint32_t>(last)) * t;
+    const float place = PcF(x);
+    uint32_t i = LfBits(PcF((x - M<float>(0x00A84D2C)) + M<float>(0x00AA0B20))) + 0xB4C00000u;
+    if (static_cast<double>(place) == static_cast<double>(static_cast<int32_t>(i + 1)))
+        i += 1;
+    const double part = static_cast<double>(place) - LfUnsignedF(i);
+    if (part > M<float>(0x00A81054))
+        return PcF((static_cast<double>(values[i + 1]) - values[i]) * PcF(part) + values[i]);
+    return values[i];
+}
+
+// A colour's part (0 to 1) as a byte: the float at 0x00AA0B24 added, as
+// BfColourByte.
+uint8_t EcColourByte(double value)
+{
+    const uint32_t bits = LfBits(PcF(value + M<float>(0x00AA0B24))) + 0xB8C00000u;
+    return static_cast<uint8_t>(bits - (bits >> 8));
+}
+
+// The box (+0x1A0 to +0x1B4) started at the point +0x194.
+void EcStartBox(char* self)
+{
+    for (uint32_t i = 0; i < 3; ++i) {
+        At<uint32_t>(self, 0x1A0 + i * 4) = At<uint32_t>(self, 0x194 + i * 4);
+        At<uint32_t>(self, 0x1AC + i * 4) = At<uint32_t>(self, 0x194 + i * 4);
+    }
+}
+
+uint32_t EcBatches(char* self)
+{
+    return static_cast<uint32_t>((At<char*>(self, 0x234) - At<char*>(self, 0x230)) >> 6);
+}
+
+// What the context's model calls are noted with: the transform (two bytes,
+// two the game leaves as they were, then thirteen floats) and the
+// material's properties (two bytes, two left, four floats), those two
+// bytes cleared; the material before its properties.
+constexpr std::size_t kEcTransform = 0x38, kEcProperties = 0x14;
+
+void EcNoteBlock(char* to, const char* from, std::size_t size)
+{
+    std::memcpy(to, from, size);
+    to[2] = to[3] = 0;
+}
+
+// The model drawn whole (the first draw before the model is blown apart,
+// with materials): the context's model transform (0x007D3400) is the
+// second block (+0xC8: rows, place, scale; its byte +0xC5), or with the
+// first block's byte (+0x8D) set and the second's clear the first (+0x90,
+// its byte), or with both set the second taken after the first: the
+// first's place through the second's rows (each row's three products added
+// in its own order, the third row's sum rounded first), times its scale,
+// plus its place; the rows the second's times the first's; the scales
+// multiplied; the bytes or'd. Then each material (their count asked each
+// time, slot 0x18) set up (0x007D5310) with properties of two clear bytes,
+// the floats at 0x00B0A580 to 0x00B0A588 and one, and its mesh (slot 0x10)
+// drawn (0x007D4A80); +0x18 is cleared.
+void DrawModelC(char* self, char* context)
+{
+    alignas(4) char transform[kEcTransform] = {};
+    float* const m = reinterpret_cast<float*>(transform + 4);
+    const uint8_t first = At<uint8_t>(self, 0x8D), second = At<uint8_t>(self, 0xC5);
+    std::memcpy(m, self + 0xC8, 13 * 4);
+    uint8_t flag = second;
+    if (first && !second) {
+        std::memcpy(m, self + 0x90, 13 * 4);
+        flag = first;
+    } else if (first) {
+        const auto a = [&](uint32_t i) { return static_cast<double>(At<float>(self, 0x90 + i * 4)); };
+        const auto b = [&](uint32_t i) { return static_cast<double>(At<float>(self, 0xC8 + i * 4)); };
+        const double x = a(9), y = a(10), z = a(11), s = b(12);
+        const double px = (b(0) * x + b(1) * y) + b(2) * z;
+        const double py = (b(4) * y + b(3) * x) + b(5) * z;
+        const float pz = PcF((b(7) * y + b(6) * x) + b(8) * z);
+        const float sx = PcF(s * px), sy = PcF(py * s);
+        m[9] = PcF(b(9) + sx);
+        m[10] = PcF(static_cast<double>(sy) + b(10));
+        m[11] = PcF(static_cast<double>(pz) * s + b(11));
+        m[0] = PcF((b(0) * a(0) + b(2) * a(6)) + b(1) * a(3));
+        m[1] = PcF((b(0) * a(1) + b(1) * a(4)) + b(2) * a(7));
+        m[2] = PcF((b(0) * a(2) + b(1) * a(5)) + b(2) * a(8));
+        m[3] = PcF((b(3) * a(0) + b(5) * a(6)) + b(4) * a(3));
+        m[4] = PcF((b(4) * a(4) + b(3) * a(1)) + b(5) * a(7));
+        m[5] = PcF((b(4) * a(5) + b(3) * a(2)) + b(5) * a(8));
+        m[6] = PcF((b(6) * a(0) + b(8) * a(6)) + b(7) * a(3));
+        m[7] = PcF((b(7) * a(4) + b(6) * a(1)) + b(8) * a(7));
+        m[8] = PcF((b(7) * a(5) + b(6) * a(2)) + b(8) * a(8));
+        m[12] = PcF(s * a(12));
+        flag = static_cast<uint8_t>(second | first);
+    }
+    At<uint8_t>(transform, 0) = 0;
+    At<uint8_t>(transform, 1) = flag;
+    BOurs(addr::SC4RenderContext_SetModelTransform, Word(context), Word(transform), kEcTransform,
+          [&] { return CallThis<uint32_t>(addr::SC4RenderContext_SetModelTransform, context, transform); });
+    alignas(4) char properties[kEcProperties] = {};
+    for (uint32_t i = 0; i < 3; ++i)
+        At<uint32_t>(properties, 4 + i * 4) = M<uint32_t>(0x00B0A580 + i * 4);
+    At<uint32_t>(properties, 0x10) = 0x3F800000u;
+    for (uint32_t i = 0; i < SuSlot<uint32_t>(At<char*>(self, 0x254), 0xC); ++i) {
+        char* const material = reinterpret_cast<char*>(SuSlot<uint32_t>(At<char*>(self, 0x254), 0x18, i));
+        char* const mesh = reinterpret_cast<char*>(SuSlot<uint32_t>(At<char*>(self, 0x254), 0x10, i));
+        alignas(4) char noted[4 + kEcProperties];
+        At<char*>(noted, 0) = material;
+        EcNoteBlock(noted + 4, properties, kEcProperties);
+        BOurs(addr::SC4RenderContext_SetMaterial, Word(context), Word(noted), sizeof noted, [&] {
+            return CallThis<uint32_t>(addr::SC4RenderContext_SetMaterial, context, material, properties);
+        });
+        BOurs(addr::SC4RenderContext_DrawMesh, Word(context), Word(&mesh), 4,
+              [&] { return CallThis<uint32_t>(addr::SC4RenderContext_DrawMesh, context, mesh); });
+    }
+    At<uint32_t>(self, 0x18) = 0;
+}
+
+// 0x005A6990, slot 0x44 of the class (ret 4), with the render context.
+// Before the model is blown apart (+0x258 clear), with materials, the
+// model drawn whole (DrawModelC). Else every batch emptied (0x005EC4A0),
+// the box started at +0x194, and for each particle of the list (+0x14,
+// read again for every node) its batch (by its byte +0x18) given a quad's
+// indices (0x005EC850) and vertices (0x005EC8C0) and its piece (its word
+// +0x44) written as three 0x18-byte vertices (place, colour, place on the
+// texture), a fourth for a batch of quads (+8 four). With `t` its age over
+// its life as a float, the description's lists read at `t` (EcCurve) give
+// a turn (+0xC4 times the particle's +0x30), a size (+0xAC times the
+// float at 0x00A9A414), the colour (the list of three floats at +0x94, as
+// the plain draw reads it, times the effect's +0x1D4 to +0x1DC: the red
+// and blue rounded, the green not) and the opacity (+0xA0, unrounded). The
+// corner is the particle's place plus the piece's first three floats; its
+// sides the next three and the three after times the size, turned by the
+// turn times the float at 0x00AA0B2C (the sine and cosine rounded; each
+// side's first value turned unrounded) when the turn is not zero. The
+// vertices: the corner plus the first side (the piece's last place on the
+// texture), the corner (its first), the corner plus the second side (its
+// second; the x kept unrounded), and for a quad that plus the first side
+// (the second and third places less the first). The box is widened by the
+// corner. Last each batch with vertices (+0x24) has its texture's word
+// (+0x23C) bound (0x007D4070 with 0) and is drawn (0x005EC5D0).
+void DrawEffectC(char* self, char* context)
+{
+    if (!At<uint8_t>(self, 0x258) && At<char*>(self, 0x254)) {
+        DrawModelC(self, context);
+        return;
+    }
+    for (uint32_t i = 0; i < EcBatches(self); ++i)
+        CallThis<uint32_t>(addr::SC4IndexBatch_Clear, At<char*>(self, 0x230) + i * 0x40);
+    char* const description = At<char*>(self, 0x24);
+    const int32_t lastColour =
+        static_cast<int32_t>(At<uint32_t>(description, 0x98) - At<uint32_t>(description, 0x94)) / 12 - 1;
+    EcStartBox(self);
+    const double zero = M<float>(0x00A81054);
+    for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14); node = At<char*>(node, 0)) {
+        char* const p = At<char*>(node, 8);
+        char* const batch = At<char*>(self, 0x230) + static_cast<uint32_t>(At<uint8_t>(p, 0x18)) * 0x40;
+        const bool quad = At<uint32_t>(batch, 8) == 4;
+        CallThis<uint32_t>(addr::SC4IndexBatch_AddQuads, batch, 1u);
+        char* const out = Ptr(CallThis<uint32_t>(addr::SC4IndexBatch_AddVertices, batch, 1u));
+        const float t = PcF(static_cast<double>(At<float>(p, 4)) / At<float>(p, 8));
+        char* const d = At<char*>(self, 0x24);
+        const float turn = PcF(EcCurve(d, 0xC4, t) * At<float>(p, 0x30));
+        const float size = PcF(EcCurve(d, 0xAC, t) * M<float>(0x00A9A414));
+        const float* e = At<const float*>(d, 0x94);
+        double red = 0.0, green = 0.0;
+        float blue = 0.0f;
+        bool mixed = false;
+        if (lastColour != 0) {
+            const double x = LfUnsignedF(static_cast<uint32_t>(lastColour)) * t;
+            const uint32_t i = static_cast<uint32_t>(EcRoundDown(x));
+            const float part = PcF(x - LfUnsignedF(i));
+            e += i * 3;
+            if (part > zero) {
+                mixed = true;
+                const double nextRed = static_cast<double>(part) * e[3];
+                const float nextGreen = PcF(static_cast<double>(part) * e[4]);
+                const float nextBlue = PcF(static_cast<double>(part) * e[5]);
+                const double rest = static_cast<double>(M<float>(0x00A81228)) - part;
+                const float restRed = PcF(rest * e[0]), restGreen = PcF(rest * e[1]), restBlue = PcF(rest * e[2]);
+                red = nextRed + restRed;
+                green = static_cast<double>(restGreen) + nextGreen;
+                blue = PcF(static_cast<double>(restBlue) + nextBlue);
+            }
+        }
+        if (!mixed) {
+            red = e[0];
+            green = e[1];
+            blue = e[2];
+        }
+        const float r = PcF(red * At<float>(self, 0x1D4));
+        const double g = green * At<float>(self, 0x1D8);
+        const float b = PcF(static_cast<double>(blue) * At<float>(self, 0x1DC));
+        const double opacity = EcCurve(d, 0xA0, t);
+        const float* const piece =
+            reinterpret_cast<const float*>(At<char*>(self, 0x220) + At<uint32_t>(p, 0x44) * kPieceBytes);
+        const float place[3] = {PcF(static_cast<double>(At<float>(p, 0xC)) + piece[0]),
+                                PcF(static_cast<double>(At<float>(p, 0x10)) + piece[1]),
+                                PcF(static_cast<double>(At<float>(p, 0x14)) + piece[2])};
+        float second[3], first[3];
+        for (uint32_t i = 0; i < 3; ++i) {
+            second[i] = PcF(static_cast<double>(size) * piece[3 + i]);
+            first[i] = PcF(static_cast<double>(size) * piece[6 + i]);
+        }
+        if (!(static_cast<double>(turn) == M<double>(0x00A80990))) {
+            float sine, cosine;
+            BfSinCos(static_cast<double>(turn) * M<float>(0x00AA0B2C), &sine, &cosine);
+            const double s = sine, c = cosine;
+            const float g0 = PcF(second[0] * c + first[0] * s);
+            const float g1 = PcF(static_cast<double>(PcF(second[1] * c)) + PcF(first[1] * s));
+            const float g2 = PcF(static_cast<double>(PcF(second[2] * c)) + PcF(first[2] * s));
+            const float e0 = PcF(first[0] * c - second[0] * s);
+            const float e1 = PcF(static_cast<double>(PcF(first[1] * c)) - PcF(second[1] * s));
+            const float e2 = PcF(static_cast<double>(PcF(first[2] * c)) - PcF(second[2] * s));
+            second[0] = g0, second[1] = g1, second[2] = g2;
+            first[0] = e0, first[1] = e1, first[2] = e2;
+        }
+        BfWiden(self, place);
+        const uint32_t colour = EcColourByte(b) | EcColourByte(g) << 8 | EcColourByte(r) << 16 |
+                                static_cast<uint32_t>(EcColourByte(opacity)) << 24;
+        const double sideX = static_cast<double>(second[0]) + place[0];
+        const float sideY = PcF(static_cast<double>(second[1]) + place[1]);
+        const float sideZ = PcF(static_cast<double>(second[2]) + place[2]);
+        const auto vertex = [&](uint32_t n, float x, float y, float z, float u, float v) {
+            float* const to = reinterpret_cast<float*>(out + n * 0x18);
+            to[0] = x, to[1] = y, to[2] = z;
+            std::memcpy(to + 3, &colour, 4);
+            to[4] = u, to[5] = v;
+        };
+        vertex(0, PcF(static_cast<double>(first[0]) + place[0]), PcF(static_cast<double>(first[1]) + place[1]),
+               PcF(static_cast<double>(first[2]) + place[2]), piece[13], piece[14]);
+        vertex(1, place[0], place[1], place[2], piece[9], piece[10]);
+        vertex(2, PcF(sideX), sideY, sideZ, piece[11], piece[12]);
+        if (quad)
+            vertex(3, PcF(sideX + first[0]), PcF(static_cast<double>(sideY) + first[1]),
+                   PcF(static_cast<double>(sideZ) + first[2]),
+                   PcF((static_cast<double>(piece[11]) + piece[13]) - piece[9]),
+                   PcF(static_cast<double>(PcF(static_cast<double>(piece[12]) + piece[14])) - piece[10]));
+    }
+    for (uint32_t i = 0; i < EcBatches(self); ++i) {
+        char* const batch = At<char*>(self, 0x230) + i * 0x40;
+        if (!At<uint32_t>(batch, 0x24))
+            continue;
+        uint32_t* const word = At<uint32_t*>(self, 0x23C) + i;
+        BOurs(addr::SC4RenderContext_BindTexture, Word(context), Word(word), 4,
+              [&] { return CallThis<uint32_t>(addr::SC4RenderContext_BindTexture, context, *word, 0u); });
+        char* const drawn = At<char*>(self, 0x230) + i * 0x40;
+        if (g_bReplay)
+            PlKeepVertices(drawn, g_bfOurVertices);
+        BOurs(addr::SC4IndexBatch_Draw, Word(drawn), Word(&context), 4,
+              [&] { return CallThis<uint32_t>(addr::SC4IndexBatch_Draw, drawn, context); });
+    }
+}
+
+// 0x005A77F0, slot 0x48 of the class (ret 4, the context not used): the
+// pieces into the dynamic vertex buffer (+0x1EC). The box started at
+// +0x194. The count (+0x18) is drawn in runs of at most the buffer's
+// vertices (its slot 0x14 with 0) over four (a signed test; the count is
+// tested unsigned): the first batch emptied (0x005EC4A0) and given the
+// run's quads (0x005EC850), the buffer locked (slot 0x18 with 0) for the
+// batch's vertices a piece (+8) times the run (none, and the draw ends
+// there), so many pieces written as 0x20-byte vertices (place, colour,
+// place on the texture; the last eight bytes left as they were), the
+// buffer unlocked (slot 0x20 with 0) and drawn (slot 0x28 with two zeros,
+// the batch's index count +0x38 and its indices +0x2C). The game never
+// moves on from the list's first node: every piece written is the first
+// particle's. No texture is bound. A piece as the first draw's, but for
+// the arithmetic, kept to floats (the lists read by EcCurveF; the colour
+// as the buffered draw reads it, without the effect's scales; each side's
+// values turned on their own), the opacity a float too, and the place
+// first turned about the y axis around the effect's +0xB4 when the
+// description's +0x104 is not zero (by the height above +0xB8 times it;
+// the sine and cosine rounded), as the buffered draw turns it; the
+// vertices' sums each rounded.
+void DrawEffectCBuffered(char* self)
+{
+    uint32_t left = At<uint32_t>(self, 0x18);
+    const uint32_t room = SuSlot<uint32_t>(At<char*>(self, 0x1EC), 0x14, 0u) >> 2;
+    char* const description = At<char*>(self, 0x24);
+    const int32_t lastColour =
+        static_cast<int32_t>(At<uint32_t>(description, 0x98) - At<uint32_t>(description, 0x94)) / 12 - 1;
+    EcStartBox(self);
+    const bool quad = At<uint32_t>(At<char*>(self, 0x230), 8) == 4;
+    char* const node = At<char*>(At<char*>(self, 0x14), 0);
+    const double zero = M<float>(0x00A81054);
+    while (left) {
+        const uint32_t run = static_cast<int32_t>(room) < static_cast<int32_t>(left) ? room : left;
+        left -= run;
+        CallThis<uint32_t>(addr::SC4IndexBatch_Clear, At<char*>(self, 0x230));
+        CallThis<uint32_t>(addr::SC4IndexBatch_AddQuads, At<char*>(self, 0x230), run);
+        char* out = BfLock(At<char*>(self, 0x1EC), At<uint32_t>(At<char*>(self, 0x230), 8) * run);
+        if (!out)
+            return;
+        for (uint32_t n = 0; n < run; ++n) {
+            char* const p = At<char*>(node, 8);
+            const float t = PcF(static_cast<double>(At<float>(p, 4)) / At<float>(p, 8));
+            char* const d = At<char*>(self, 0x24);
+            const float turn = PcF(static_cast<double>(EcCurveF(d, 0xC4, t)) * At<float>(p, 0x30));
+            const float size = PcF(static_cast<double>(EcCurveF(d, 0xAC, t)) * M<float>(0x00A9A414));
+            const float* e = At<const float*>(d, 0x94);
+            float red = e[0], green = e[1], blue = e[2];
+            if (lastColour != 0) {
+                const double x = LfUnsignedF(static_cast<uint32_t>(lastColour)) * t;
+                const float place = PcF(x);
+                uint32_t i = LfBits(PcF((x - M<float>(0x00A84D2C)) + M<float>(0x00AA0B20))) + 0xB4C00000u;
+                if (static_cast<double>(place) == static_cast<double>(static_cast<int32_t>(i + 1)))
+                    i += 1;
+                const double between = static_cast<double>(place) - LfUnsignedF(i);
+                const float part = PcF(between);
+                e += i * 3;
+                red = e[0], green = e[1], blue = e[2];
+                if (between > zero) {
+                    const float nextBlue = PcF(static_cast<double>(part) * e[5]);
+                    const float nextGreen = PcF(static_cast<double>(part) * e[4]);
+                    const float nextRed = PcF(static_cast<double>(part) * e[3]);
+                    const double rest = static_cast<double>(M<float>(0x00A81228)) - part;
+                    const float restRounded = PcF(rest);
+                    const float restBlue = PcF(rest * e[2]);
+                    const float restGreen = PcF(static_cast<double>(restRounded) * e[1]);
+                    const float restRed = PcF(static_cast<double>(restRounded) * e[0]);
+                    blue = PcF(static_cast<double>(restBlue) + nextBlue);
+                    green = PcF(static_cast<double>(restGreen) + nextGreen);
+                    red = PcF(static_cast<double>(restRed) + nextRed);
+                }
+            }
+            const float opacity = EcCurveF(d, 0xA0, t);
+            const float* const piece =
+                reinterpret_cast<const float*>(At<char*>(self, 0x220) + At<uint32_t>(p, 0x44) * kPieceBytes);
+            float place[3] = {PcF(static_cast<double>(piece[0]) + At<float>(p, 0xC)),
+                              PcF(static_cast<double>(At<float>(p, 0x10)) + piece[1]),
+                              PcF(static_cast<double>(At<float>(p, 0x14)) + piece[2])};
+            float second[3], first[3];
+            for (uint32_t i = 0; i < 3; ++i) {
+                second[i] = PcF(static_cast<double>(size) * piece[3 + i]);
+                first[i] = PcF(static_cast<double>(size) * piece[6 + i]);
+            }
+            if (!(static_cast<double>(At<float>(d, 0x104)) == M<double>(0x00A80990))) {
+                const float dz = PcF(static_cast<double>(place[2]) - At<float>(self, 0xBC));
+                const float dy = PcF(static_cast<double>(place[1]) - At<float>(self, 0xB8));
+                const float dx = PcF(static_cast<double>(place[0]) - At<float>(self, 0xB4));
+                float sine, cosine;
+                BfSinCos(static_cast<double>(dy) * At<float>(d, 0x104), &sine, &cosine);
+                place[0] = PcF((static_cast<double>(dx) * cosine - static_cast<double>(dz) * sine) +
+                               At<float>(self, 0xB4));
+                place[2] = PcF((static_cast<double>(dx) * sine + static_cast<double>(dz) * cosine) +
+                               At<float>(self, 0xBC));
+            }
+            if (!(static_cast<double>(turn) == M<double>(0x00A80990))) {
+                float sine, cosine;
+                BfSinCos(static_cast<double>(turn) * M<float>(0x00AA0B2C), &sine, &cosine);
+                for (uint32_t i = 0; i < 3; ++i) {
+                    const float g = second[i], f = first[i];
+                    first[i] = PcF(static_cast<double>(PcF(static_cast<double>(f) * cosine)) -
+                                   PcF(static_cast<double>(g) * sine));
+                    second[i] = PcF(static_cast<double>(PcF(static_cast<double>(g) * cosine)) +
+                                    PcF(static_cast<double>(f) * sine));
+                }
+            }
+            BfWiden(self, place);
+            const uint32_t colour = EcColourByte(blue) | EcColourByte(green) << 8 | EcColourByte(red) << 16 |
+                                    static_cast<uint32_t>(EcColourByte(opacity)) << 24;
+            const auto vertex = [&](const float* at, float u, float v) {
+                float* const to = reinterpret_cast<float*>(out);
+                to[0] = at[0], to[1] = at[1], to[2] = at[2];
+                std::memcpy(to + 3, &colour, 4);
+                to[4] = u, to[5] = v;
+                out += 0x20;
+            };
+            float corner[3], side[3];
+            for (uint32_t i = 0; i < 3; ++i) {
+                corner[i] = PcF(static_cast<double>(first[i]) + place[i]);
+                side[i] = PcF(static_cast<double>(second[i]) + place[i]);
+            }
+            vertex(corner, piece[13], piece[14]);
+            vertex(place, piece[9], piece[10]);
+            vertex(side, piece[11], piece[12]);
+            if (quad) {
+                float last[3];
+                for (uint32_t i = 0; i < 3; ++i)
+                    last[i] = PcF(static_cast<double>(first[i]) + side[i]);
+                const float u = PcF(static_cast<double>(piece[11]) + piece[13]);
+                const float v = PcF(static_cast<double>(piece[12]) + piece[14]);
+                vertex(last, PcF(static_cast<double>(u) - piece[9]), PcF(static_cast<double>(v) - piece[10]));
+            }
+        }
+        BfUnlock(At<char*>(self, 0x1EC));
+        char* const buffer = At<char*>(self, 0x1EC);
+        char* const batch = At<char*>(self, 0x230);
+        const uint32_t indices = At<uint32_t>(batch, 0x2C), count = At<uint32_t>(batch, 0x38);
+        const uint32_t noted[4] = {0, 0, count, indices};
+        BOurs(kBfBuffer + 0x28, Word(buffer), Word(noted), sizeof noted, [&] {
+            return CallThis<uint32_t>(At<uint32_t>(At<char*>(buffer, 0), 0x28), buffer, 0u, 0u, count, indices);
+        });
+    }
+}
