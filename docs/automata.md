@@ -3973,7 +3973,21 @@ The ` V` token gains `,<pwalks>` before pflags (55 fields); pflags 0x100 when it
 One pedestrian from its factory, on ped2a's copy of its vtable with slots 5, 13, 16, 34, 87, 125, 129, 131, 134 and 174 the test's too; the city's slots 40 (the map, the test's: slots 14, 15, 16 and 44) and 95, and the lot manager, 0x00B43D54 and the occupant manager (slots 37 and 48, the nodes from the game's allocator) swapped for the test's. Unlike ped2a's no game code is patched: the walks call one another and the bump at their addresses.
 
 - **The bump:** five timers (one sum that rounds to 500 as a float, a NaN), eight lists (empty, itself alone or first, far, within 1, within 0.01, a NaN point first, two near), then 24 drawn.
-- **The step:** six directions (a zero, a NaN, tiny) by six cases (the flag 0x20000, slot 44 moving the target, bumped, the push zero or set, slot 44 setting the timer for a second bump), then 32 drawn.
-- **The state 2's frame** over five vectors (a zero, a NaN, large) and 16 drawn; **the state 3's** without a state or object and over 30 cases (the point on the position, the push, bumped or not, the models and names) and 24 drawn; **the state 6's** over 40 (each gate, the lot or the word's rectangle, outside, the sides 0 to 3 and 5 with a path at the first, second or third try or never); **the state 8's** over 24 (no cell or occupant, starting with the target 1/720 or not, the same cell, the sides open at each try or none, the side 5) and 24 drawn (negative positions among them); **the state 9's** over 24 (+0xB0 down six stacks, two found, held; no cell; the push; the target near and far; the target 1/360 or not) and 24 drawn.
+- **The step:** six directions (a zero, a NaN, tiny) by six cases (the flag 0x20000, slot 44 moving the target, bumped, the push zero or set, slot 44 setting the timer for a second bump), then 32 drawn (every other one near the origin, where the step's rounding shows; slot 44 setting the timer over 500, just under it or not at all).
+- **The state 2's frame** over five vectors (a zero, a NaN, large) and 16 drawn; **the state 3's** without a state or object and over 30 cases (the point on the position, the push, bumped or not, the models and names) and 24 drawn (points about the origin from positions far off, so the differences are not floats); **the state 6's** over 40 (each gate, the lot or the word's rectangle, outside, on the grown edge, the sides 0 to 3 and 5 with a path at the first, second or third try or never); **the state 8's** over 24 (no cell or occupant, starting with the target 1/720 or not, the same cell, the sides open at each try or none, the side 5) and 24 drawn (negative positions among them); **the state 9's** over 24 (+0xB0 down six stacks, two found, held; no cell; the push; the target near and far; the target 1/360 or not) and 24 drawn.
 
 The game leaves two points unset on its stack in the state 6's frame; the test does not mix what they held (a first run that did came out different run to run on the game's side).
+
+A trial with 31 planted changes (the bump's rounded timer, its timer not zeroed, its box's height, itself not skipped, the 0.01 test reversed, y and z swapped, every near one pushed; the step's product order, its z factor rounded, the flag 0x20000 reversed, slot 16 given the scaled copy, the push byte kept, the second bump's seconds; the state 2's y factor unrounded; the state 3's push rate, the names' count, the heading's z unrounded, the last frame; the state 6's key unswapped, the opposite side, the rectangle not grown in x, slot 158; the state 8's side order, start target, quarter and z rounded; the cell floored; the state 9's sway, distance, search from the bottom, target speed) changed the token for 26 at first. Of the other five, four were seen once the test gained the cases above (drawn points near the origin and far, a timer just under 500 for the second bump, the grown edge). The last (the step's slot 34 x (slot 125 x seconds) for (slot 34 x slot 125) x seconds) is not seen: slot 125 times the seconds is exact as a double, so the change moves one 53-bit rounding, which the step's float rounding hides unless the product sits on a float boundary. 30 of 31.
+
+### Parity (ped2b)
+
+2026-10-30. B = the five automata groups as for ped1 (env p4env-em1, snapshot ped2b-p1), with other threads' games running on the PC:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's ped fields were the same on both sides (pwalks 70CD77C8, pflags 0x14F), and every B run installed and reached all 7. None of the walks ran before the test in any B run.
