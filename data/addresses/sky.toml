@@ -1457,7 +1457,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* a, int32_t b)"
 expect = "81 EC 84 00 00 00 53 55"
-source = "Class and name ours, not analysed. SC4EffectB::DrawParticles calls it (0x005AE4C7) on the part of the effect at +0x228 with the pointer at 0x00B43DDC and 0, for effects with +0x26C set and flag 4 of the description's third word. The part keeps memory of its own. Not in the effects' code: other classes may use it."
+source = "Class and name ours (it lights rather than starts; the name kept). SC4EffectB::DrawParticles calls it (0x005AE4C7) on the part of the effect at +0x228 with the lighting object at 0x00B43DDC and 0, for effects with +0x26C set and flag 4 of the description's third word; six other callers (0x0046BAB3, 0x00509368, 0x0050B284, 0x0054C59B, 0x0054C86B, 0x00616CA6), the vehicles' highlights among them, call it too. The part's lists of three floats a vertex (+0x24) made first when empty (SC4EffectPartB::MakeNormals); the instance (+4) answers its slot 0x18 with 0 and the byte at the answer's +4 gets bit 8; the object the part was attached to (+0) fills a block of one on the diagonal (its slot 0x24), whose matrix, each float negated for the flag's low byte, is handed with each mesh (+0xC) of the expanded legacy format 2 (GDVertexFormat::Expand) to the lighting object's slot 0x6C: the mesh's list of three floats (count, list, 12), the colours of the instance's copy of the mesh (its slot 0x10 with the index; vertices of 0x18 bytes at its +8, the colour at +0xC; 0x18) and the matrix. Ret 8. Ours in renderer.effects.part_start_b (src/core/effects_second.h)."
 
 [[entry]]
 name = "SC4EffectPartB::Step"
@@ -1475,7 +1475,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "81 EC 9C 00 00 00 55 56"
-source = "Class and name ours, read only in part. SC4EffectPartB::Step calls it (0x005AC213) when the part's vector of vectors at +0x24 is empty: it sizes that vector to the part's meshes (+0xC) and fills, for each mesh, three floats a vertex, which the step reads along the description's +0x120 as a light's direction. Allocates; the game's."
+source = "Class and name ours, read only in part. SC4EffectPartB::Step (0x005AC213) and SC4EffectPartB::Start (0x00803E26) call it when the part's vector of vectors at +0x24 is empty: it sizes that vector to the part's meshes (+0xC) and fills, for each mesh, three floats a vertex, which the step reads along the description's +0x120 as a light's direction. Allocates; the game's."
 
 [[entry]]
 name = "SC4Effect::StartNamed"

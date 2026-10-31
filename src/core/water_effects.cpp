@@ -15462,13 +15462,17 @@ uint32_t __fastcall PdInViewNoted(char* self, void*, uint32_t depth, uint32_t ca
 }
 OPENSC4_THUNK(TPdInView, PdInViewNoted, 20)
 
+// The part's start by its own switch's mode ("The part's start" at the
+// end); this detour is that switch's too.
+uint32_t SdPartStartRun(char* part, uint32_t lighting, uint32_t flag);
+
 uint32_t __fastcall PdPartStartNoted(char* self, void*, uint32_t a, uint32_t b)
 {
     if (!BNoting())
-        return g_PdPartStart(self, nullptr, a, b);
+        return SdPartStartRun(self, a, b);
     const uint32_t noted[2] = {a, b};
     return BCallee(addr::SC4EffectPartB_Start, Word(self), Word(noted), sizeof noted,
-                   [&] { return g_PdPartStart(self, nullptr, a, b); });
+                   [&] { return SdPartStartRun(self, a, b); });
 }
 OPENSC4_THUNK(TPdPartStart, PdPartStartNoted, 8)
 
@@ -21416,14 +21420,17 @@ void SdRestartForced(char* self, uint32_t k, const char* first)
         });
 }
 
-// The part's step forced twice (renderer.effects.step_b in compare mode;
-// "The part's step" at the end).
+// The part's step and start forced twice (renderer.effects.step_b and
+// .part_start_b in compare mode; "The part's step" and "The part's start"
+// at the end).
 void SdStepForcedTwice(char* self, uint32_t k);
+void SdPartStartForcedTwice(uint32_t k);
 
 // Forcing, before each running effect's draw (DwEffectDrawByMode) of the
 // second class (with its render context): the check three times, the
-// restart and the part's step twice, by a turn counter, with the effects
-// manager swapped for the made-up one and the generator put back after.
+// restart and the part's step and start twice, by a turn counter, with
+// the effects manager swapped for the made-up one and the generator put
+// back after.
 void SdForce(char* self, uint32_t context)
 {
     if (!g_sdForce || g_effectRecord || g_effectReplay || BBusy() || !At<uint8_t>(self, 9) ||
@@ -21450,6 +21457,7 @@ void SdForce(char* self, uint32_t context)
         for (uint32_t i = 0; i < 2; ++i)
             SdRestartForced(self, k * 2 + i, first);
     SdStepForcedTwice(self, k);
+    SdPartStartForcedTwice(k);
     manager = real;
     std::memcpy(Ptr(kSetupGenerator), generator, sizeof generator);
 }
@@ -21463,7 +21471,7 @@ bool SdHookForce()
         return false;
     if (!g_sdForce)
         log::Write("water effects: the second class's check whether a particle is in view, restart and part's step "
-                   "forced before each effect's draw");
+                   "and start forced before each effect's draw");
     g_sdForce = true;
     return true;
 }
@@ -21596,7 +21604,7 @@ uint32_t SdStepRun(char* part, uint32_t step)
 // vertex (directions of length one, the last mesh's of 1.2) and a made-up
 // description.
 constexpr uint32_t kSpVertices = 6;
-uint32_t g_spInstanceTable[0x14 / 4] = {}, g_spInstance[1] = {}, g_spCopies[4][3] = {}, g_spKept[4] = {},
+uint32_t g_spInstanceTable[0x1C / 4] = {}, g_spInstance[1] = {}, g_spCopies[4][3] = {}, g_spKept[4] = {},
          g_spMeshList[4] = {}, g_spNormalLists[4][3] = {};
 char g_spOut[4][kSpVertices * 0x18] = {}, g_spMeshes[4][0xC] = {}, g_spDescription[kDescriptionSize] = {};
 float g_spFrom[4][kSpVertices * 5] = {}, g_spNormals[4][kSpVertices * 3] = {};
@@ -21728,6 +21736,270 @@ const bool g_registeredStepB = registry::Register({
     "clouds\")",
     true,
     InstallStepB,
+});
+
+// --- The part's start --------------------------------------------------------------------------
+//
+// The second class's part's start (0x00803E10, effects_second.h
+// StartPartB, part E17), which lights the instance's copies of the part's
+// meshes and which the second class's ported draw still called by address.
+// Its switch (renderer.effects.part_start_b): ours makes the detour the
+// draw's comparison already had of it run ours for every caller (the
+// vehicles' highlights too); while that comparison notes, the detour notes
+// it as its callee and runs it by the switch.
+//
+// Compare mode, by the notes' engine: the model instance the part keeps
+// (+4) gets a noting table for its slots 0x10 (where it keeps its copy of
+// a mesh) and 0x18 (what it answers with 0), the object the part was
+// attached to (+0) one for its slot 0x24 (the block it fills, noted and
+// given to ours as g_sdFilled) and the lighting object one for its slot
+// 0x6C (which writes the colours); the game's runs with the calls passed
+// on and ours is replayed. The bytes compared are the part (as the
+// regions' "effect"), the class's free list, the generator, the byte the
+// start marks and the vertices of each copy it lights (found by asking the
+// instance's slots 0x18 and 0x10 before, which only answer). When the
+// part's lists of three floats are empty they are made first (0x00803370,
+// which allocates), so neither run makes them. With
+// OPENSC4_EFFECT_FORCE_SECOND=1 (compare mode only) it is also compared
+// twice before every running effect of the class's draw, dry, on a made-up
+// part (SdPartStartForced).
+StepMode g_partStartBMode = StepMode::Original;
+constexpr uint32_t kSdPartLitRole = 0xE710, kSdPartOwnerRole = 0xE800, kSdLightingRole = 0xE900;
+
+uint32_t __fastcall SdPartMarkedStub(char* instance, void*, uint32_t which)
+{
+    const uint32_t real = BRealSlot(instance, 0x18);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, instance, which);
+    return BCallee(kSdPartInstance + 0x18, Word(instance), Word(&which), 4,
+                   [&] { return CallThis<uint32_t>(real, instance, which); });
+}
+
+uint32_t __fastcall SdPartOwnerStub(char* owner, void*, uint32_t block)
+{
+    const uint32_t real = BRealSlot(owner, 0x24);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, owner, block);
+    const uint32_t result = BCallee(kSdPartOwner + 0x24, Word(owner), block, kBBlock,
+                                    [&] { return CallThis<uint32_t>(real, owner, block); });
+    g_sdFilled.push_back({});
+    std::memcpy(g_sdFilled.back().bytes, Ptr(block), sizeof(SdFilled));
+    return result;
+}
+
+// The lighting object's slot 0x6C as StartPartB notes it: the count, the
+// list, its spacing, the colours, their spacing and the nine floats.
+uint32_t SdLightingNoted(char* lighting, const uint32_t (&args)[6], const std::function<uint32_t()>& real)
+{
+    if (!BNoting())
+        return real();
+    uint32_t noted[14] = {args[0], args[1], args[2], args[3], args[4]};
+    std::memcpy(noted + 5, Ptr(args[5]), 9 * 4);
+    return BCallee(kSdLighting + 0x6C, Word(lighting), Word(noted), sizeof noted, real);
+}
+
+uint32_t __fastcall SdLightingStub(char* lighting, void*, uint32_t count, uint32_t list, uint32_t listStep,
+                                   uint32_t colours, uint32_t colourStep, uint32_t matrix)
+{
+    const uint32_t real = BRealSlot(lighting, 0x6C);
+    return SdLightingNoted(lighting, {count, list, listStep, colours, colourStep, matrix}, [&] {
+        return CallThis<uint32_t>(real, lighting, count, list, listStep, colours, colourStep, matrix);
+    });
+}
+
+// The part, the free list, the generator, the byte the start marks and the
+// vertices of the copies it lights.
+std::vector<BRegion> SdPartStartRegions(char* part)
+{
+    std::vector<BRegion> regions{{part, 0x44}, {Ptr(kParticleFreeB), 4}, {Ptr(kSetupGenerator), kSetupGeneratorSize}};
+    char* const instance = At<char*>(part, 4);
+    regions.push_back({Ptr(CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0x18), instance, 0u)) + 4, 1});
+    const uint32_t meshes = static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(part, 0x10) - At<uint32_t>(part, 0xC)) >> 2);
+    for (uint32_t i = 0; i < meshes; ++i) {
+        char* const list = At<char*>(part, 0x24) + i * 0xC;
+        const uint32_t count =
+            static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(list, 4) - At<uint32_t>(list, 0)) / 12);
+        if (At<uint32_t>(At<char**>(part, 0xC)[i], 0) != SdExpandedTwo() || !count)
+            continue;
+        const uint32_t kept = CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0x10), instance, i);
+        regions.push_back({At<char*>(M<char*>(kept), 8), count * 0x18u});
+    }
+    return regions;
+}
+
+uint32_t SdPartStartRun(char* part, uint32_t lighting, uint32_t flag)
+{
+    const auto game = [&] { return g_PdPartStart(part, nullptr, lighting, flag); };
+    const auto ours = [&] {
+        StartPartB(part, Ptr(lighting), flag);
+        return 0u;
+    };
+    if (g_partStartBMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_partStartBMode == StepMode::Ours)
+        return ours();
+    if (BBusy())
+        return game();
+    if (At<uint32_t>(part, 0x24) == At<uint32_t>(part, 0x28))
+        CallThis<void>(addr::SC4EffectPartB_MakeNormals, part);
+    std::vector<BRegion> regions = SdPartStartRegions(part);
+    g_sdFilled.clear();
+    g_sdFilledAt = 0;
+    BSwapRole(At<char*>(part, 4), kSdPartLitRole,
+              {{0x10, reinterpret_cast<uint32_t>(&SdPartKeptStub)}, {0x18, reinterpret_cast<uint32_t>(&SdPartMarkedStub)}});
+    BSwapRole(At<char*>(part, 0), kSdPartOwnerRole, {{0x24, reinterpret_cast<uint32_t>(&SdPartOwnerStub)}});
+    BSwapRole(Ptr(lighting), kSdLightingRole, {{0x6C, reinterpret_cast<uint32_t>(&SdLightingStub)}});
+    return SdCompared("effects.part_start_b", std::move(regions), false, game, ours);
+}
+
+// The made-up objects of the forced starts (with the step's made-up
+// instance, meshes, three floats and copies): the object the part is
+// attached to, whose slot 0x24 fills the block with the turn's matrix and
+// counting bytes and floats; the pair of words the instance's slot 0x18
+// answers; a lighting object whose slot 0x6C writes each colour as a mix
+// of its three floats' and the matrix's bits.
+uint32_t g_ssOwnerTable[0x28 / 4] = {}, g_ssOwner[1] = {}, g_ssLightingTable[0x70 / 4] = {}, g_ssLighting[1] = {},
+         g_ssMarked[2] = {};
+// The matrices: one on the diagonal, a turn, a skew with a scale, minus
+// zeros and a smallest denormal, infinities, quiet NaNs of either sign and
+// signalling NaNs (which the x87 makes quiet when it negates them).
+const uint32_t g_ssMatrices[7][9] = {
+    {0x3F800000, 0, 0, 0, 0x3F800000, 0, 0, 0, 0x3F800000},
+    {0x3F4CCCCD, 0xBF19999A, 0, 0x3F19999A, 0x3F4CCCCD, 0, 0, 0, 0x3F800000},
+    {0x40000000, 0x3E800000, 0xBF000000, 0, 0x3FC00000, 0x3DCCCCCD, 0x3C23D70A, 0, 0xC0400000},
+    {0x80000000, 0x00000001, 0x80000001, 0x3F800000, 0x80000000, 0x007FFFFF, 0, 0x3F000000, 0x80000000},
+    {0x7F800000, 0xFF800000, 0x3F800000, 0, 0x7F7FFFFF, 0xFF7FFFFF, 0x3F800000, 0, 0},
+    {0x7FC00000, 0xFFC00000, 0x7FC00001, 0x3F800000, 0xFFFFFFFF, 0, 0, 0, 0x3F800000},
+    {0x7F800001, 0xFF800001, 0x7FBFFFFF, 0x3F800000, 0xFFA00000, 0, 0x3F800000, 0x7FA5A5A5, 0},
+};
+uint32_t g_ssTurn = 0;
+
+uint32_t __fastcall SdFakeMarked(char* object, void*, uint32_t which)
+{
+    return SdFakeNoted(kSdPartInstance + 0x18, object, Word(&which), 4, Word(g_ssMarked));
+}
+
+uint32_t __fastcall SdFakeOwnerBlock(char* object, void*, uint32_t block)
+{
+    const uint32_t result = SdFakeNoted(kSdPartOwner + 0x24, object, block, kBBlock, 0);
+    char* const filled = Ptr(block);
+    At<uint8_t>(filled, 0) = static_cast<uint8_t>(g_ssTurn);
+    At<uint8_t>(filled, 1) = static_cast<uint8_t>(g_ssTurn >> 3);
+    std::memcpy(filled + 4, g_ssMatrices[g_ssTurn % 13 % 7], 9 * 4);
+    for (uint32_t i = 9; i < 13; ++i)
+        At<float>(filled, 4 + i * 4) = 0.5f * static_cast<float>(i) - static_cast<float>(g_ssTurn % 5);
+    if (BNoting()) {
+        g_sdFilled.push_back({});
+        std::memcpy(g_sdFilled.back().bytes, filled, sizeof(SdFilled));
+    }
+    return result;
+}
+
+uint32_t __fastcall SdFakeLighting(char* lighting, void*, uint32_t count, uint32_t list, uint32_t listStep,
+                                   uint32_t colours, uint32_t colourStep, uint32_t matrix)
+{
+    return SdLightingNoted(lighting, {count, list, listStep, colours, colourStep, matrix}, [&] {
+        for (uint32_t j = 0; j < count; ++j) {
+            uint32_t colour = j * 0x9E3779B9u;
+            for (uint32_t i = 0; i < 3; ++i)
+                colour = colour * 31 + M<uint32_t>(list + j * listStep + i * 4);
+            for (uint32_t i = 0; i < 9; ++i)
+                colour = colour * 17 + M<uint32_t>(matrix + i * 4);
+            M<uint32_t>(colours + j * colourStep) = colour;
+        }
+        return 0u;
+    });
+}
+
+void SdPartStartFakesMade()
+{
+    SdStepFakesMade();
+    if (g_ssOwner[0])
+        return;
+    g_spInstanceTable[0x18 / 4] = reinterpret_cast<uint32_t>(&SdFakeMarked);
+    g_ssOwnerTable[0x24 / 4] = reinterpret_cast<uint32_t>(&SdFakeOwnerBlock);
+    g_ssOwner[0] = Word(g_ssOwnerTable);
+    g_ssLightingTable[0x6C / 4] = reinterpret_cast<uint32_t>(&SdFakeLighting);
+    g_ssLighting[0] = Word(g_ssLightingTable);
+}
+
+// One forced start, by the turn k (each choice by the turn modulo a number
+// of its own): up to four meshes, one of another format every so often,
+// each with a list of none to six three floats; one of the seven matrices;
+// a flag of 0, 1, 0x100, 0xFFFFFF01 or 0x80 (only its low byte counts);
+// the marked word with bit 8 set or not. The copies' vertices start as
+// counting bytes.
+void SdPartStartForced(uint32_t k)
+{
+    static const uint32_t kFlags[5] = {0, 1, 0x100, 0xFFFFFF01u, 0x80};
+    g_ssTurn = k;
+    const uint32_t meshes = k % 5;
+    uint32_t lists[4][3] = {};
+    for (uint32_t m = 0; m < 4; ++m) {
+        At<uint32_t>(g_spMeshes[m], 0) = (k + m) % 7 == 3 ? reinterpret_cast<uint32_t(__cdecl*)(uint32_t)>(
+                                                                 addr::GDVertexFormat_Expand)(1)
+                                                           : SdExpandedTwo();
+        lists[m][0] = Word(g_spNormals[m]);
+        lists[m][1] = lists[m][2] = lists[m][0] + (k / 3 + m * 3) % (kSpVertices + 1) * 12;
+    }
+    for (uint32_t i = 0; i < sizeof g_spOut; ++i)
+        g_spOut[0][i] = static_cast<char>(i * 5 + k);
+    g_ssMarked[0] = 0x5EED0000u + k;
+    g_ssMarked[1] = k * 0x01030507u;
+    char part[0x44] = {};
+    At<uint32_t>(part, 0) = Word(g_ssOwner);
+    At<uint32_t>(part, 4) = Word(g_spInstance);
+    At<uint32_t>(part, 0xC) = Word(g_spMeshList);
+    At<uint32_t>(part, 0x10) = Word(g_spMeshList + meshes);
+    At<uint32_t>(part, 0x24) = Word(lists);
+    At<uint32_t>(part, 0x28) = At<uint32_t>(part, 0x2C) = Word(lists + 4);
+    const uint32_t flag = kFlags[k % 11 % 5];
+    std::vector<BRegion> regions{{part, sizeof part},
+                                 {Ptr(kParticleFreeB), 4},
+                                 {Ptr(kSetupGenerator), kSetupGeneratorSize},
+                                 {reinterpret_cast<char*>(g_ssMarked), sizeof g_ssMarked},
+                                 {g_spOut[0], sizeof g_spOut}};
+    g_sdFilled.clear();
+    g_sdFilledAt = 0;
+    SdCompared(
+        "effects.part_start_b.forced", std::move(regions), false,
+        [&] { return g_PdPartStart(part, nullptr, Word(g_ssLighting), flag); },
+        [&] {
+            StartPartB(part, reinterpret_cast<char*>(g_ssLighting), flag);
+            return 0u;
+        });
+}
+
+void SdPartStartForcedTwice(uint32_t k)
+{
+    if (g_partStartBMode != StepMode::Compare || !g_PdPartStart)
+        return;
+    SdPartStartFakesMade();
+    for (uint32_t i = 0; i < 2; ++i)
+        SdPartStartForced(k * 2 + i);
+}
+
+bool InstallPartStartB(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_partStartBMode, addr::SC4EffectPartB_Start, &TPdPartStart, &g_PdPartStart,
+                   "the second class's part's start"))
+        return false;
+    return mode != registry::Mode::Compare || SdHookForce();
+}
+
+const bool g_registeredPartStartB = registry::Register({
+    "renderer.effects.part_start_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectPartB_Start,
+    "The second class's part's start (0x00803E10): the model instance's copies of the meshes lit, their colours from "
+    "the lists of three floats a vertex turned by the attached object's matrix (negated by a flag) through the "
+    "lighting object's slot 0x6C; compare mode notes the game's calls and answers ours from the notes, "
+    "OPENSC4_EFFECT_FORCE_SECOND=1 forces it on a made-up part before each running effect's draw (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallPartStartB,
 });
 
 } // namespace
