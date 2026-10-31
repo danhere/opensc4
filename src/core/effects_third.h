@@ -567,11 +567,11 @@ char* MakeParticleC(char* self, const float* at)
 {
     char* particle = Global<char*>(kParticleFreeC);
     if (!particle) {
-        CallThis<void>(addr::SC4ParticlePool_Grow, reinterpret_cast<void*>(kParticlePoolC));
+        PlGrowFor(kParticlePoolC);
         particle = Global<char*>(kParticleFreeC);
     }
     Global<uint32_t>(kParticleFreeC) = M<uint32_t>(Word(particle));
-    CallThis<void>(addr::SC4Particle_Clear, particle);
+    PlClearFor(particle);
     for (const std::size_t field : {std::size_t{0x1C}, std::size_t{0x20}, std::size_t{0x24}, std::size_t{0x38},
                                     std::size_t{0x3C}, std::size_t{0x40}})
         At<uint32_t>(particle, field) = M<uint32_t>(kPieceZero);

@@ -1126,6 +1126,13 @@ uint32_t __fastcall DSC4EffectPartB_SetDescription(char* part, void*, uint32_t d
 }
 OPENSC4_THUNK(TSC4EffectPartB_SetDescription, DSC4EffectPartB_SetDescription, 4)
 
+// The pool's grow and allocate and the particle's clear (effects_pool.h),
+// ours when their switches are ours (set at install, "The pool's three
+// parts" at the end).
+bool g_growOurs = false, g_clearOurs = false;
+
+#include "core/effects_pool.h"
+
 // --- The particle pool ---------------------------------------------------------------------
 
 // Particles are kept on a free list (0x00B0A688, linked through each one's
@@ -1180,10 +1187,10 @@ uint32_t g_takeStarted = 0;
 uint32_t TakeParticle(char* base)
 {
     if (!Global<uint32_t>(kParticleFree))
-        CallThis<void>(addr::SC4ParticlePool_Grow, reinterpret_cast<void*>(kParticlePool));
+        PlGrowFor(kParticlePool);
     const uint32_t particle = Global<uint32_t>(kParticleFree);
     Global<uint32_t>(kParticleFree) = M<uint32_t>(particle);
-    CallThis<void>(addr::SC4Particle_Clear, reinterpret_cast<void*>(particle));
+    PlClearFor(reinterpret_cast<void*>(particle));
     for (const uint32_t offset : {0x1Cu, 0x20u, 0x24u, 0x38u, 0x3Cu, 0x40u})
         M<uint32_t>(particle + offset) = Global<uint32_t>(kFloatZero);
     if (g_takeReplay)
@@ -16540,11 +16547,13 @@ uint32_t DwEffectDrawRun(char* self, uint32_t step, uint32_t context)
 }
 
 void EnForce(char* self);
+void PlForce(char* self);
 
 uint32_t __fastcall DwEffectDrawByMode(char* self, void*, uint32_t step, uint32_t context)
 {
     LfForceSteps(self);
     EnForce(self);
+    PlForce(self);
     if (!DwNoting())
         return DwEffectDrawRun(self, step, context);
     DwAddNote(kDwEffect, self, step, context);
@@ -20164,6 +20173,304 @@ const bool g_registeredMovePlace = registry::Register({
     "\"Water effects, sky and clouds\")",
     true,
     InstallMovePlace,
+});
+
+// --- The pool's three parts -------------------------------------------------------------------
+//
+// The pool's grow (0x005A61B0) and allocate (0x005A6290) and a particle's
+// clear (0x005B9DF0), written by hand in effects_pool.h. Each has a switch:
+// ours makes the ported callers call ours (the takes of the three effect
+// classes; the database files' records, packed_file_3.cpp and
+// save_file_2.cpp, reach the allocate by its address, so through the
+// detour) and the detour run ours for the game's callers.
+//
+// The clear writes only the particle: compare mode runs ours on a copy and
+// the game's on the particle. The allocate is compared on the pool: ours,
+// the pool's four words put back, then the game's; when the list is empty
+// the game's runs first and its grow is replayed for ours (the chunks as
+// the game's left them, the free list the block it answered), recorded as
+// <id>.grown. The grow cannot run twice (each takes memory): the game's runs
+// for real, the pool's words are put back and ours runs with its
+// allocation answered by the game's chunk. So that the bytes neither writes
+// still count, a block of the chunk's size is first taken from malloc,
+// filled with 0xA5 and given back: when the game's grow gets that block
+// (the usual case), ours runs on the chunk filled again with 0xA5 and the
+// chunk is compared up to the end of its last block (what follows may hold
+// the heap's own words); otherwise ours runs on what the game's left and the
+// whole chunk is compared, recorded as <id>.reused.
+//
+// OPENSC4_EFFECT_FORCE_POOL=1 (compare mode only) compares each switch in
+// compare mode before every running effect's draw on made-up pools and
+// particles (PlForce).
+StepMode g_growMode = StepMode::Original, g_allocateMode = StepMode::Original, g_clearMode = StepMode::Original;
+Call0Fn g_SC4Pool_Grow = nullptr, g_SC4Pool_Allocate = nullptr, g_SC4Particle_Clear = nullptr;
+bool g_plForce = false;
+
+std::string PlText(const uint32_t* words, uint32_t value, const char* what, const char* bytes, std::size_t at)
+{
+    char text[128];
+    std::snprintf(text, sizeof text, "pool %08X %08X %08X %08X, %s %08X", words[0], words[1], words[2], words[3], what,
+                  value);
+    std::string result = text;
+    if (bytes) {
+        std::snprintf(text, sizeof text, ", at +%zX ", at);
+        result += text + Hex(bytes + at, 16);
+    }
+    return result;
+}
+
+// The grow compared on `pool` (the game's chunk kept).
+void PlGrowCompared(const char* id, char* pool)
+{
+    uint32_t before[4], after[4], mine[4];
+    std::memcpy(before, pool, sizeof before);
+    const uint32_t bytes = before[1] + 8;
+    char* const probe = PlMalloc(bytes);
+    if (probe) {
+        std::memset(probe, 0xA5, bytes);
+        PlFree(probe);
+    }
+    g_SC4Pool_Grow(pool, nullptr);
+    std::memcpy(after, pool, sizeof after);
+    char* const chunk = reinterpret_cast<char*>(after[2]);
+    const std::vector<char> game(chunk, chunk + bytes);
+    const bool filled = probe && chunk == probe && (before[0] <= 4 || static_cast<uint8_t>(chunk[8]) == 0xA5);
+    const std::size_t compared = filled ? 4 + before[1] / before[0] * before[0] : bytes;
+    if (filled)
+        std::memset(chunk, 0xA5, bytes);
+    std::memcpy(pool, before, sizeof before);
+    uint32_t asked = 0;
+    PlGrowWith(pool, [&](uint32_t size) {
+        asked = size;
+        return chunk;
+    });
+    std::memcpy(mine, pool, sizeof mine);
+    std::size_t at = 0;
+    while (at < compared && chunk[at] == game[at])
+        ++at;
+    const bool same = asked == bytes && std::memcmp(mine, after, sizeof mine) == 0 && at == compared;
+    std::string gameText, ourText;
+    if (!same) {
+        at = at < compared ? at & ~std::size_t{3} : 0;
+        gameText = PlText(after, bytes, "asked", game.data(), at);
+        ourText = PlText(mine, asked, "asked", chunk, at);
+    }
+    std::memcpy(chunk, game.data(), bytes);
+    std::memcpy(pool, after, sizeof after);
+    compare::Record(filled ? id : (std::string(id) + ".reused").c_str(), same, gameText, ourText);
+}
+
+// The allocate compared on `pool`; answers the game's block.
+uint32_t PlAllocateCompared(const char* id, char* pool)
+{
+    uint32_t before[4], after[4], mine[4];
+    std::memcpy(before, pool, sizeof before);
+    bool grew = false;
+    uint32_t ours = 0, result = 0;
+    if (before[3]) {
+        ours = PlAllocateWith(pool, [&](char*) { grew = true; });
+        std::memcpy(mine, pool, sizeof mine);
+        std::memcpy(pool, before, sizeof before);
+        result = g_SC4Pool_Allocate(pool, nullptr);
+        std::memcpy(after, pool, sizeof after);
+    } else {
+        result = g_SC4Pool_Allocate(pool, nullptr);
+        std::memcpy(after, pool, sizeof after);
+        std::memcpy(pool, before, sizeof before);
+        ours = PlAllocateWith(pool, [&](char* grown) {
+            grew = true;
+            At<uint32_t>(grown, 8) = after[2];
+            At<uint32_t>(grown, 0xC) = result;
+        });
+        std::memcpy(mine, pool, sizeof mine);
+        std::memcpy(pool, after, sizeof after);
+    }
+    const bool same = grew == !before[3] && ours == result && std::memcmp(mine, after, sizeof mine) == 0;
+    compare::Record(before[3] ? id : (std::string(id) + ".grown").c_str(), same,
+                    same ? std::string() : PlText(after, result, before[3] ? "block" : "grown, block", nullptr, 0),
+                    same ? std::string() : PlText(mine, ours, grew ? "grown, block" : "block", nullptr, 0));
+    return result;
+}
+
+// The clear compared: ours on a copy, the game's on the particle.
+uint32_t PlClearCompared(const char* id, char* particle)
+{
+    char mine[kParticleBytes];
+    std::memcpy(mine, particle, sizeof mine);
+    const char* const answer = PlClear(mine);
+    const uint32_t result = g_SC4Particle_Clear(particle, nullptr);
+    const bool same = answer == mine && result == Word(particle) && std::memcmp(mine, particle, sizeof mine) == 0;
+    compare::Record(id, same, same ? std::string() : Hex(particle, sizeof mine),
+                    same ? std::string() : Hex(mine, sizeof mine) + (answer == mine ? "" : " (answer not the particle)"));
+    return result;
+}
+
+uint32_t __fastcall PlGrowByMode(char* pool, void*)
+{
+    if (g_growMode == StepMode::Ours)
+        return PlGrow(pool);
+    if (g_growMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Pool_Grow(pool, nullptr);
+    PlGrowCompared("effects.grow", pool);
+    return 0;
+}
+OPENSC4_THUNK(TPlGrow, PlGrowByMode, 0)
+
+uint32_t __fastcall PlAllocateByMode(char* pool, void*)
+{
+    if (g_allocateMode == StepMode::Ours)
+        return PlAllocateWith(pool, [](char* grown) { PlGrowFor(Word(grown)); });
+    if (g_allocateMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Pool_Allocate(pool, nullptr);
+    return PlAllocateCompared("effects.allocate", pool);
+}
+OPENSC4_THUNK(TPlAllocate, PlAllocateByMode, 0)
+
+uint32_t __fastcall PlClearByMode(char* particle, void*)
+{
+    if (g_clearMode == StepMode::Ours)
+        return Word(PlClear(particle));
+    if (g_clearMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Particle_Clear(particle, nullptr);
+    return PlClearCompared("effects.clear", particle);
+}
+OPENSC4_THUNK(TPlClear, PlClearByMode, 0)
+
+// Forcing, before each running effect's draw (DwEffectDrawByMode): for
+// each switch in compare mode, in turn of a counter (k).
+// - The grow: a made-up pool of blocks of 4 to 0x54 bytes, chunks of one
+//   to 64 of them and what is left of 0, 1 or a block less one byte; the
+//   chunk the game's took is given back after.
+// - The allocate: a made-up pool of 0x10-byte blocks with a list of three
+//   (from the first, the second or the last) or none, which grows (the
+//   chunk given back after).
+// - The clear: copies of the first running particle as it is and filled
+//   with 0xA5, 0xFF and counting bytes.
+void PlForce(char* self)
+{
+    if (!g_plForce || g_effectRecord || g_effectReplay || !At<uint8_t>(self, 9))
+        return;
+    static uint32_t turn = 0;
+    const uint32_t k = turn++;
+    constexpr uint32_t kMadeUpChunks = 0x0BADC0DEu;
+    if (g_growMode == StepMode::Compare) {
+        static const uint32_t sizes[7] = {4, 8, 0xC, 0x10, 0x30, 0x44, 0x54};
+        static const uint32_t counts[5] = {1, 2, 3, 7, 64};
+        const uint32_t size = sizes[k % 7], count = counts[k / 7 % 5];
+        const uint32_t left[3] = {0, 1, size - 1};
+        uint32_t pool[4] = {size, size * count + left[k / 35 % 3], kMadeUpChunks, 0xFFFFFFFFu};
+        PlGrowCompared("effects.grow.forced", reinterpret_cast<char*>(pool));
+        if (pool[2] != kMadeUpChunks)
+            PlFree(reinterpret_cast<void*>(pool[2]));
+    }
+    if (g_allocateMode == StepMode::Compare) {
+        uint32_t blocks[3][4] = {};
+        for (uint32_t i = 0; i < 3; ++i)
+            blocks[i][0] = i < 2 ? Word(blocks[i + 1]) : 0;
+        const uint32_t from = k % 4;
+        uint32_t pool[4] = {0x10, 0x10 * (1 + k / 4 % 3), kMadeUpChunks, from < 3 ? Word(blocks[from]) : 0};
+        PlAllocateCompared("effects.allocate.forced", reinterpret_cast<char*>(pool));
+        if (pool[2] != kMadeUpChunks)
+            PlFree(reinterpret_cast<void*>(pool[2]));
+    }
+    if (g_clearMode == StepMode::Compare) {
+        char* particle = nullptr;
+        if (At<char*>(self, 0x14))
+            for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14) && !particle;
+                 node = At<char*>(node, 0)) {
+                if (At<uint8_t>(At<char*>(node, 8), 0))
+                    particle = At<char*>(node, 8);
+            }
+        char copy[kParticleBytes];
+        const uint32_t kind = k % 4;
+        if (kind == 0 && particle)
+            std::memcpy(copy, particle, sizeof copy);
+        else if (kind == 3)
+            for (std::size_t i = 0; i < sizeof copy; ++i)
+                copy[i] = static_cast<char>(i + 1);
+        else
+            std::memset(copy, kind == 2 ? 0xFF : 0xA5, sizeof copy);
+        PlClearCompared("effects.clear.forced", copy);
+    }
+}
+
+bool PlHookForce()
+{
+    const char* v = std::getenv("OPENSC4_EFFECT_FORCE_POOL");
+    if (!v || *v != '1')
+        return true;
+    if (!DwHookEffectDraw())
+        return false;
+    if (!g_plForce)
+        log::Write("water effects: the pool's grow and allocate and the particle's clear forced before each effect's draw");
+    g_plForce = true;
+    return true;
+}
+
+bool InstallGrow(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_growMode, addr::SC4Pool_Grow, &TPlGrow, &g_SC4Pool_Grow, "the pool's grow"))
+        return false;
+    g_growOurs = mode == registry::Mode::Ours;
+    return mode != registry::Mode::Compare || PlHookForce();
+}
+
+bool InstallAllocate(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_allocateMode, addr::SC4Pool_Allocate, &TPlAllocate, &g_SC4Pool_Allocate,
+                   "the pool's allocate"))
+        return false;
+    return mode != registry::Mode::Compare || PlHookForce();
+}
+
+bool InstallClear(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_clearMode, addr::SC4Particle_Clear, &TPlClear, &g_SC4Particle_Clear,
+                   "a particle's clear"))
+        return false;
+    g_clearOurs = mode == registry::Mode::Ours;
+    return mode != registry::Mode::Compare || PlHookForce();
+}
+
+const bool g_registeredGrow = registry::Register({
+    "renderer.effects.grow",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Pool_Grow,
+    "The grow of a pool of fixed-size blocks (0x005A61B0): a chunk from malloc cut into blocks linked as the free "
+    "list (the particle pools, the database files' records); compare mode runs the game's for real and ours on its "
+    "chunk, OPENSC4_EFFECT_FORCE_POOL=1 forces it on made-up pools before each running effect's draw "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallGrow,
+});
+
+const bool g_registeredAllocate = registry::Register({
+    "renderer.effects.allocate",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Pool_Allocate,
+    "The allocate of a pool of fixed-size blocks (0x005A6290): the first block of the free list, grown when empty "
+    "(the database files' records); compare mode runs ours and the game's on the same pool, "
+    "OPENSC4_EFFECT_FORCE_POOL=1 forces it on made-up pools before each running effect's draw (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallAllocate,
+});
+
+const bool g_registeredClear = registry::Register({
+    "renderer.effects.clear",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Particle_Clear,
+    "A particle's clear (0x005B9DF0): its first 0x1C bytes zeroed, for the takes of the three effect classes; "
+    "compare mode runs ours on a copy, OPENSC4_EFFECT_FORCE_POOL=1 forces it on made-up particles before each "
+    "running effect's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallClear,
 });
 
 } // namespace

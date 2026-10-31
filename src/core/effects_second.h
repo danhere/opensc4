@@ -124,11 +124,11 @@ inline uint32_t TakeParticleB(char* base)
 {
     char* const self = base - 4;
     if (!Global<uint32_t>(kParticleFreeB))
-        CallThis<void>(addr::SC4ParticlePool_Grow, Ptr(kParticlePoolB));
+        PlGrowFor(kParticlePoolB);
     const uint32_t particle = Global<uint32_t>(kParticleFreeB);
     Global<uint32_t>(kParticleFreeB) = M<uint32_t>(particle);
     char* const p = Ptr(particle);
-    CallThis<void>(addr::SC4Particle_Clear, p);
+    PlClearFor(p);
     for (const uint32_t offset : {0x1Cu, 0x20u, 0x24u, 0x38u, 0x3Cu, 0x40u})
         At<uint32_t>(p, offset) = M<uint32_t>(0x00B22D4C);
     At<uint32_t>(p, 0x44) = 0;
