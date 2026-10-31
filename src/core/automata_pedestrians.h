@@ -21,7 +21,9 @@
 // The pedestrian's fields:
 //   +0x254 a word, +0x258 a byte, +0x25C a point (three copies of the float
 //          0x00B228DC at construction), +0x26C a float (0.01): all saved
-//   +0x268 a word (zero; not saved)
+//   +0x268 the bump's timer, a float (zero; not saved)
+//   (+0x258 and +0x25C are the push: set by another pedestrian's bump,
+//   used and cleared by the walks)
 // The one-shot's:
 //   +0x270 a byte (5; slots 177 and 178; not saved)
 // The riot police's:
@@ -145,5 +147,47 @@ inline constexpr std::size_t kBurnMode = 0x24;         // its 9: (word), ret 4
 
 inline constexpr std::uint32_t kBurnSimulator = 0x621CDA33, kBurnInterface = 0x49B43F57; // 0x00545280's
 inline constexpr std::uint32_t kSmoothTarget = 0x3AB60B61; // the float target (1/720) slot 110 gives SetSmoothedTarget
+
+// Part ped2b: the walks' fields, slots and objects.
+namespace walk {
+inline constexpr std::size_t kHeading = 0x58, kObjectB0 = 0xB0, kPlaced = 0x1F8;
+// The state 8's record: the cell it last found a side on and the side.
+inline constexpr std::size_t kCellX = 0x28, kCellZ = 0x2C, kSide = 0x30;
+inline constexpr std::size_t kNames = 0x24; // the state 3's record: the names (+0x10 begin, +0x14 end; 0x14 bytes each)
+// Another pedestrian's push as the bump sets it through its occupant part
+// (+4): the byte +0x258 and the point +0x25C.
+inline constexpr std::size_t kOtherByte = 0x254, kOtherPoint = 0x258;
+inline constexpr std::uint32_t kCanGoKind = 0xC49;       // the traffic network map's slot 44 third argument
+inline constexpr std::uint32_t kNearbyCount = 10;        // the bump's slot 37 count
+inline constexpr std::uint32_t kRunTarget = 0x3B360B61;  // 1/360: the state 9's smoothed speed
+inline constexpr std::uint32_t kTargetIid = 0xA9B40F05;  // +0xB0 as the state 9 asks for it
+} // namespace walk
+
+namespace wslot {
+inline constexpr std::size_t kAsOccupant = 0x14;      // 5: the occupant part (+4)
+inline constexpr std::size_t kRemove = 0x34;          // 13: (bool), ret 4
+inline constexpr std::size_t kPlace = 0x40;           // 16: 0x00544530 (ped1), (point, heading), ret 8
+inline constexpr std::size_t kSmoothedNow = 0x88;     // 34: a float in ST0
+inline constexpr std::size_t kSlot87 = 0x15C;         // 87: the flag 4 test (the end of the way)
+inline constexpr std::size_t kSlot125 = 0x1F4;        // 125: a float in ST0
+inline constexpr std::size_t kMoveOnPath = 0x204;     // 129: (seconds), ret 4
+inline constexpr std::size_t kPedestrianManager = 0x2B8; // 174: 0x00544D90 (ped1), the city's 44
+// Other objects'.
+inline constexpr std::size_t kCityNetwork = 0xA0;     // the city's 40: the traffic network map
+inline constexpr std::size_t kCellOf = 0x17C;         // the city's 95: (x, z, int* cell x, int* cell z), ret 0x10
+inline constexpr std::size_t kCellList = 0x38;        // the map's 14: (cell x, cell z), ret 8: the cell's first node or null
+inline constexpr std::size_t kNeighbour = 0x3C;       // the map's 15: (occupant, side, 0, 0), ret 0x10: an occupant's address
+inline constexpr std::size_t kAutomataOn = 0x40;      // the map's 16: (occupant), ret 4
+inline constexpr std::size_t kCanGo = 0xB0;           // the map's 44: (from, to, kind), ret 0xC (not read)
+inline constexpr std::size_t kCellOpen = 0x74;        // 0x00B43D54's 29: (x, z, 0xFF, side, 2), ret 0x14, a bool
+inline constexpr std::size_t kOccupantsInBox = 0x94;  // 0x00B43D0C's 37: (list, low, high, type, count), ret 0x14
+inline constexpr std::size_t kListDone = 0xC0;        // its 48: (list), ret 4
+inline constexpr std::size_t kGetLot = 0x18;          // the lot manager's 6: (cell x, cell z, bool), ret 0xC
+inline constexpr std::size_t kRect = 0x38;            // a lot's 14: (int rect out), ret 4
+inline constexpr std::size_t kObjectRect = 0x2C;      // the state 6's object's word's 11: (int rect out), ret 4
+inline constexpr std::size_t kOccupantPoint = 0x20;   // an occupant's 8: (float* out), ret 4
+inline constexpr std::size_t kOccupantObject = 0xC0;  // an occupant's 48: an object whose slot 8 gives a point
+inline constexpr std::size_t kTargetPoint = 0x1C;     // +0xB0's 7: (float* out), ret 4
+} // namespace wslot
 
 } // namespace opensc4::automata_pedestrians

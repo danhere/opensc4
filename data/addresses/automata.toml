@@ -14478,7 +14478,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, float seconds)"
 expect = "83 EC 10 56 8B F1 D9 86"
-source = "Name ours, not analysed. The state 2's frame (slot 109's), ret 4 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+source = "Name ours. The state 2's frame (slot 109's), ret 4: the vector +0xA4 normalised (its float factor for y and z, unrounded for x) walked (0x00545D60) when its length is above 0; slot 105. AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2b)."
 
 [[entry]]
 name = "cSC4Pedestrian::State3Frame"
@@ -14487,7 +14487,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, float seconds)"
 expect = "83 EC 30 53 56 8B F1 8B"
-source = "Name ours, not analysed. The state 3's frame (slot 109's), ret 4 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+source = "Name ours. The state 3's frame (slot 109's), ret 4: AL 0 without a state holding an object. The heading to the object's point (slot 11) in x and z; the position plus the push (+0x25C scaled to the seconds / 360 when +0x258 is set, then cleared) through the traffic network map's slot 44 and the bump (0x00545840); not bumped, slot 16 (there, the heading). The first model at its last frame: one of the state's +0x24 names drawn (SC4Random::Below) for slot 21 when there are two or more. Slot 105, AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2b)."
 
 [[entry]]
 name = "cSC4Pedestrian::State6Frame"
@@ -14496,7 +14496,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, float seconds)"
 expect = "83 EC 4C 56 8B F1 8B 86"
-source = "Name ours, not analysed. The state 6's frame (slot 109's), ret 4 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+source = "Name ours. The state 6's frame (slot 109's), ret 4: placed on the network (+0x1F8 or slot 134) or AL 0; slot 129 (seconds); at the end of the way (slot 87) the state's object's lot (its point's cell, the lot manager's slot 6 or the object's word's slot 11) grown by 1; the neighbour (the traffic network map's slots 16 and 15 by +0x1F4's low byte): outside the lot the path to it by the swapped key (slot 131) and slot 158, inside the other three sides tried in turn (slot 131). Slot 105 and AL 1 unless nothing found (AL 0). Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2b)."
 
 [[entry]]
 name = "cSC4Pedestrian::State8Frame"
@@ -14505,7 +14505,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, float seconds, bool start)"
 expect = "83 EC 20 53 55 56 57 8B"
-source = "Name ours, not analysed. The state 8's frame (slot 109's with (seconds, 0); slot 110 calls it with (0, 1) on entering the state), ret 8 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+source = "Name ours. The state 8's frame (slot 109's with (seconds, 0); slot 110 calls it with (0, 1) on entering the state), ret 8: no occupant on the position's cell (1/16) Remove(0) and AL 0; starting, a side drawn, the cell -1 and the smoothed speed to 1/720, AL 1; else the side kept or found (0x00B43D54's slot 29) on a new cell, the heading swayed by a draw of -1 to 1 and stepped a quarter towards the side, normalised and walked (0x00545D60); slot 105, AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2b)."
 
 [[entry]]
 name = "cSC4Pedestrian::State9Frame"
@@ -14514,7 +14514,120 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, float seconds)"
 expect = "55 8B EC 83 E4 F8 83 EC"
-source = "Name ours, not analysed. The state 9's frame (slot 109's), ret 4 (part ped2b). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+source = "Name ours. The state 9's frame (slot 109's), ret 4: +0xB0 from the top state 9's object's word (0xA9B40F05); without it slot 105. No occupant on the position's cell Remove(0) and AL 0; else the heading pushed (+0x258: two draws of -1 to 1) or swayed (-0.6 to 0.6), pulled 1/64 towards +0xB0's point beyond 10, normalised, the smoothed speed to 1/360 and walked (0x00545D60); slot 105, AL 1. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::Bump"
+address = 0x00545840
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const float* point, float seconds)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The walks' bump, ret 8: +0x268 gains the seconds; below 500 (0x00A9A3F8) AL 0. Else +0x268 zeroed and the other pedestrians (the occupant manager 0x00B43D0C's slot 37, type 0x496E5783, up to 10, into a list of the allocator 0x00B207E4) in the box of the point 1 out in x and z and 0 to 2 up, other than our occupant part (slot 5): the first closer than 1 is pushed (its occupant part's +0x254 byte 1 and +0x258 point the difference, or within 0.01 two draws of -0.5 to 0.5 in x and z); the manager's slot 48, the list emptied and its sentinel freed. AL whether one was pushed. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::Walk"
+address = 0x00545D60
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const float* direction, float seconds)"
+expect = "83 EC 1C 53 55 56 8B F1"
+source = "Name ours. The walks' step, ret 8: the direction scaled to slot 34 x slot 125 x seconds, from the position; the traffic network map's (city slot 40) slot 44 on it without the automata flag 0x20000; the bump (0x00545840); bumped and pushed (+0x258) again by the push point; not bumped, slot 16 (the target, the direction). The byte +0x258 cleared. EAX 1 when placed. Ours in simulators.automata.pedestrians (src/core/automata_pedestrians.cpp, part ped2b)."
+
+[[entry]]
+name = "SC4::UnpackGroups"
+address = 0x0053D100
+kind = "function"
+convention = "cdecl"
+signature = "void (uint32_t word, int* top, uint8_t* byte1, uint8_t* byte0, uint8_t* byte2)"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Splits a word into its top nibble (bits 24 to 27) and three bytes (bits 8, 0 and 16 into the second, third and fourth arguments). Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "SC4::PackGroups"
+address = 0x004ADE80
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t (int top, uint8_t a, uint8_t b, uint8_t c)"
+expect = "0F B6 4C 24 10 8B 44 24"
+source = "Name ours. (top << 24) | (c << 16) | (a << 8) | b. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::BumpInterval"
+address = 0x00A9A3F8
+kind = "data"
+expect = "00 00 FA 43"
+source = "Name ours. The float 500.0 the bump's timer +0x268 waits for. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::BumpNear"
+address = 0x00A9A3F0
+kind = "data"
+expect = "0A D7 23 3C"
+source = "Name ours. The float 0.01 within which the bump pushes by two draws. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::MinusHalfDouble"
+address = 0x00A9A5E0
+kind = "data"
+expect = "00 00 00 00 00 00 E0 BF"
+source = "Name ours. The double -0.5, the low end of the bump's draws (0.5 the high). Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::PushRate"
+address = 0x00A9A404
+kind = "data"
+expect = "61 0B 36 3B"
+source = "Name ours. The float 1/360 the state 3's frame scales the push by the seconds with. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::CellScale"
+address = 0x00A9A408
+kind = "data"
+expect = "00 00 80 3D"
+source = "Name ours. The float 0.0625 (1/16) the states 8's and 9's frames take the cell of the position with. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::SideZ"
+address = 0x00A9A9DC
+kind = "data"
+expect = "00 00 00 00 01 00 00 00 00 00 00 00 FF FF FF FF"
+source = "Name ours. Four ints (0, 1, 0, -1): the z step of the sides 0 to 3. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::SideX"
+address = 0x00A9A9EC
+kind = "data"
+expect = "01 00 00 00 00 00 00 00 FF FF FF FF 00 00 00 00"
+source = "Name ours. Four ints (1, 0, -1, 0): the x step of the sides 0 to 3. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::SideOrder"
+address = 0x00A9A9FC
+kind = "data"
+expect = "00 00 00 00 01 00 00 00 03 00 00 00 02 00 00 00"
+source = "Name ours. Four ints (0, 1, 3, 2): the order the state 8's frame tries the sides in from its own. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::SwayLow"
+address = 0x00A9AA10
+kind = "data"
+expect = "33 33 33 33 33 33 E3 BF"
+source = "Name ours. The double -0.6, the low end of the state 9's sideways draw (0x00A9AA18 the high). Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::SwayHigh"
+address = 0x00A9AA18
+kind = "data"
+expect = "33 33 33 33 33 33 E3 3F"
+source = "Name ours. The double 0.6. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
+
+[[entry]]
+name = "cSC4Pedestrian::TargetPull"
+address = 0x00A8F7B8
+kind = "data"
+expect = "00 00 80 3C"
+source = "Name ours. The float 1/64 the state 9's frame scales the way to its target by beyond 10. Called by address from src/core/automata_pedestrians.cpp (part ped2b)."
 
 [[entry]]
 name = "cSC4Pedestrian::One"

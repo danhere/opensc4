@@ -561,6 +561,24 @@
 //   state 0xC's (the city's slot 72 the test's) over six stacks. pflags 0x40
 //   when it ran, 0x80 without a city, the factory or the patches. Log line:
 //   "ped2a pstates".
+//   Part ped2b (the walks) adds `,<pwalks>` before pflags (55 fields): one
+//   pedestrian on ped2a's vtable copy with slots 5, 13, 16, 34, 87, 125,
+//   129, 131, 134 and 174 the test's too, the city's slots 40 (the traffic
+//   network map, the test's: slots 14, 15, 16 and 44) and 95 the test's, and
+//   the lot manager, 0x00B43D54 and the occupant manager (slots 37 and 48,
+//   the list's nodes from the game's allocator) swapped for the test's; the
+//   walks call one another and the bump at their addresses. The bump over
+//   its timer (one sum that rounds to 500 as a float, a NaN) and eight
+//   lists, the step over six directions and six cases (the flag 0x20000,
+//   the map's slot 44 moving the target and setting the timer, the push),
+//   the states 2, 3 (states, points, the push, models and names), 6 (each
+//   gate, the lot or the word's rectangle, the sides 0 to 3 and 5 with the
+//   paths found at each try or never), 8 (the cell, starting, the sides
+//   open at each try or none) and 9 (+0xB0 down the stack or held, the
+//   push byte, the target near and far, the smoothed target); each with
+//   inputs drawn from the test's own generator after the set cases. pflags
+//   0x100 when it ran, 0x200 without a city, the list allocator or the
+//   pedestrian. Log line: "ped2b pwalks".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -951,6 +969,7 @@
 #include <opensc4/addresses.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -28846,6 +28865,848 @@ void PedStatesDrive(Hash& pstates, uint32_t& pflags)
     g_ped2 = Ped2Answers{};
 }
 
+// ---- Part ped2b: the pedestrian's walks (src/core/automata_pedestrians.cpp).
+
+// What the ped2b test's slots and objects answer and record (the ped2a
+// slots it shares record into g_ped2.calls).
+struct WalkAnswers {
+    Hash calls;
+    void* mine = nullptr;          // slot 5
+    double smoothNow = 0.0;        // slot 34
+    double speed125 = 0.0;         // slot 125
+    uint8_t slot87 = 0;            // slot 87
+    uint8_t place134 = 0;          // slot 134
+    void* manager = nullptr;       // slot 174
+    uint32_t pathMask = 0;         // slot 131: bit k its k-th answer
+    int pathCalls = 0;
+    void** cell = nullptr;         // the map's slot 14
+    void** neighbour = nullptr;    // the map's slot 15
+    void* automataOn = nullptr;    // the map's slot 16
+    int canGoCalls = 0;
+    float canGoNudge = 0.0f;       // the map's slot 44 adds it to the target's x
+    float canGoTimer = -1.0f;      // and from its second call sets +0x268 to it (when not negative)
+    char* self = nullptr;
+    void* lot = nullptr;           // the lot manager's slot 6
+    uint32_t openMask = 0;         // 0x00B43D54's slot 29: bit k its k-th answer
+    int openCalls = 0;
+    void* nearby[6] = {};          // the occupant manager's slot 37 puts them in the list
+    int nearbyCount = 0;
+};
+WalkAnswers g_walk;
+
+// A test object of any kind: its vtable, a count, a word (an object), a
+// point, a rectangle and an inner object; the occupants' pushed fields fall
+// in `body` (+0x254 to +0x263 of the object).
+struct WalkObject {
+    void** vtable;
+    int32_t references;
+    uint8_t body[0x270];
+    void* word;
+    float point[3];
+    int32_t rect[4];
+    void* inner;
+    bool unset; // its point is asked into the game's stack unset: not mixed
+};
+static_assert(offsetof(WalkObject, body) == 8, "body");
+
+WalkObject WalkMake(void** vtable)
+{
+    WalkObject o{};
+    o.vtable = vtable;
+    o.references = 1;
+    return o;
+}
+
+uint32_t WalkName(const void* p)
+{
+    return p == g_walk.mine && p ? 1u : p == g_walk.self && p ? 2u : p ? 3u : 0u;
+}
+
+// The pedestrian's slots.
+void* __fastcall WalkAsOccupant(char*, void*)
+{
+    g_walk.calls.Mix(5);
+    return g_walk.mine;
+}
+uint32_t __fastcall WalkRemove(char*, void*, uint32_t flag)
+{
+    g_walk.calls.Mix(13);
+    g_walk.calls.Mix(flag & 0xFF);
+    return 0;
+}
+uint32_t __fastcall WalkPlace(char*, void*, const float* point, const float* heading)
+{
+    g_walk.calls.Mix(16);
+    g_walk.calls.MixBytes(point, 12);
+    g_walk.calls.MixBytes(heading, 12);
+    return 0;
+}
+double __fastcall WalkSmoothNow(char*, void*)
+{
+    g_walk.calls.Mix(34);
+    return g_walk.smoothNow;
+}
+uint8_t __fastcall WalkSlot87(char*, void*)
+{
+    g_walk.calls.Mix(87);
+    return g_walk.slot87;
+}
+double __fastcall WalkSlot125(char*, void*)
+{
+    g_walk.calls.Mix(125);
+    return g_walk.speed125;
+}
+uint32_t __fastcall WalkMoveOnPath(char*, void*, float seconds)
+{
+    g_walk.calls.Mix(129);
+    g_walk.calls.Mix(Bits(seconds));
+    return 0;
+}
+uint32_t __fastcall WalkPathTo(char*, void*, void* to, uint32_t key, uint32_t exact)
+{
+    g_walk.calls.Mix(131);
+    g_walk.calls.Mix(WalkName(to));
+    g_walk.calls.Mix(key);
+    g_walk.calls.Mix(exact & 0xFF);
+    const uint32_t answer = (g_walk.pathMask >> (g_walk.pathCalls++ & 31)) & 1u;
+    return 0x1300u | answer;
+}
+uint32_t __fastcall WalkPlaceOn(char*, void*)
+{
+    g_walk.calls.Mix(134);
+    return 0x3400u | g_walk.place134;
+}
+void* __fastcall WalkManager(char*, void*)
+{
+    g_walk.calls.Mix(174);
+    return g_walk.manager;
+}
+
+// The city's slots 40 and 95, the map's, the lot manager's and a lot's,
+// 0x00B43D54's and the occupant manager's.
+WalkObject g_walkNetwork{};
+void* __fastcall WalkCityNetwork(void*, void*)
+{
+    g_walk.calls.Mix(40);
+    return &g_walkNetwork;
+}
+uint32_t __fastcall WalkCellOf(void*, void*, float x, float z, int32_t* cellX, int32_t* cellZ)
+{
+    g_walk.calls.Mix(95);
+    g_walk.calls.Mix(Bits(x));
+    g_walk.calls.Mix(Bits(z));
+    *cellX = static_cast<int32_t>(std::floor(static_cast<double>(x) / 16.0));
+    *cellZ = static_cast<int32_t>(std::floor(static_cast<double>(z) / 16.0));
+    return 1;
+}
+void** __fastcall WalkCellList(WalkObject*, void*, int32_t x, int32_t z)
+{
+    g_walk.calls.Mix(0x314);
+    g_walk.calls.Mix(static_cast<uint32_t>(x));
+    g_walk.calls.Mix(static_cast<uint32_t>(z));
+    return g_walk.cell;
+}
+void** __fastcall WalkNeighbour(WalkObject*, void*, void* occupant, uint32_t side, uint32_t a, uint32_t b)
+{
+    g_walk.calls.Mix(0x315);
+    g_walk.calls.Mix(WalkName(occupant));
+    g_walk.calls.Mix(side & 0xFF); // three bytes of the game's stack above it
+    g_walk.calls.Mix(a);
+    g_walk.calls.Mix(b);
+    return g_walk.neighbour;
+}
+void* __fastcall WalkAutomataOn(WalkObject*, void*, void* occupant)
+{
+    g_walk.calls.Mix(0x316);
+    g_walk.calls.Mix(WalkName(occupant));
+    return g_walk.automataOn;
+}
+uint32_t __fastcall WalkCanGo(WalkObject*, void*, const float* from, float* to, uint32_t kind)
+{
+    g_walk.calls.Mix(0x344);
+    g_walk.calls.Mix(g_walk.self && from == &At<float>(g_walk.self, ped::base::kPosition) ? 1u : 2u);
+    g_walk.calls.MixBytes(to, 12);
+    g_walk.calls.Mix(kind);
+    to[0] += g_walk.canGoNudge;
+    if (g_walk.canGoCalls++ > 0 && g_walk.canGoTimer >= 0.0f && g_walk.self)
+        At<float>(g_walk.self, ped::ped::kWord268) = g_walk.canGoTimer;
+    return 0x4400u;
+}
+void* __fastcall WalkGetLot(WalkObject*, void*, int32_t x, int32_t z, uint32_t flag)
+{
+    g_walk.calls.Mix(0x406);
+    g_walk.calls.Mix(static_cast<uint32_t>(x));
+    g_walk.calls.Mix(static_cast<uint32_t>(z));
+    g_walk.calls.Mix(flag);
+    return g_walk.lot;
+}
+uint32_t __fastcall WalkRect(WalkObject* o, void*, int32_t* rect)
+{
+    g_walk.calls.Mix(0x414);
+    for (int i = 0; i < 4; ++i)
+        rect[i] = o->rect[i];
+    return 0;
+}
+uint8_t __fastcall WalkCellOpen(WalkObject*, void*, int32_t x, int32_t z, uint32_t ff, uint32_t side, uint32_t two)
+{
+    g_walk.calls.Mix(0x529);
+    for (const uint32_t w : {static_cast<uint32_t>(x), static_cast<uint32_t>(z), ff, side, two})
+        g_walk.calls.Mix(w);
+    return static_cast<uint8_t>((g_walk.openMask >> (g_walk.openCalls++ & 31)) & 1u);
+}
+uint8_t __fastcall WalkInBox(WalkObject*, void*, char** list, const float* low, const float* high, uint32_t type,
+                             uint32_t count)
+{
+    g_walk.calls.Mix(0x637);
+    g_walk.calls.MixBytes(low, 12);
+    g_walk.calls.MixBytes(high, 12);
+    g_walk.calls.Mix(type);
+    g_walk.calls.Mix(count);
+    char* const head = list[0];
+    void* const allocator = Global<void*>(addr::SC4List_NodeAllocator2);
+    for (int i = 0; i < g_walk.nearbyCount; ++i) {
+        char* const node = Virtual<char*>(allocator, 0x0C, 0xCu);
+        At<void*>(node, 8) = g_walk.nearby[i];
+        char* const last = At<char*>(head, 4);
+        At<char*>(node, 0) = head;
+        At<char*>(node, 4) = last;
+        At<char*>(last, 0) = node;
+        At<char*>(head, 4) = node;
+    }
+    return 1;
+}
+uint32_t __fastcall WalkListDone(WalkObject*, void*, char** list)
+{
+    g_walk.calls.Mix(0x648);
+    uint32_t n = 0;
+    for (char* node = At<char*>(list[0], 0); node != list[0] && n < 16; node = At<char*>(node, 0))
+        ++n;
+    g_walk.calls.Mix(n);
+    return 0;
+}
+
+// The objects' slots: a state's object (6 its word, 11 its point), the word
+// (0 QueryInterface into its inner, 11 its rectangle), the target (7 its
+// point), an occupant (8 its point, 48 its inner).
+uint32_t __fastcall WalkAddRef(WalkObject* o, void*) { return static_cast<uint32_t>(++o->references); }
+uint32_t __fastcall WalkRelease(WalkObject* o, void*) { return static_cast<uint32_t>(--o->references); }
+void* __fastcall WalkWord(WalkObject* o, void*)
+{
+    g_walk.calls.Mix(0x706);
+    return o->word;
+}
+uint32_t __fastcall WalkPointOut(WalkObject* o, void*, float* out)
+{
+    g_walk.calls.Mix(0x711);
+    if (!o->unset)
+        g_walk.calls.MixBytes(out, 12);
+    for (int i = 0; i < 3; ++i)
+        out[i] = o->point[i];
+    return 0;
+}
+uint32_t __fastcall WalkQuery(WalkObject* o, void*, uint32_t iid, void** out)
+{
+    g_walk.calls.Mix(0x700);
+    g_walk.calls.Mix(iid);
+    *out = o->inner;
+    if (o->inner)
+        ++static_cast<WalkObject*>(o->inner)->references;
+    return o->inner ? 1u : 0u;
+}
+void* __fastcall WalkInner(WalkObject* o, void*)
+{
+    g_walk.calls.Mix(0x748);
+    return o->inner;
+}
+
+template <int Kind>
+void** WalkVtable()
+{
+    static void* t[0x80] = {};
+    t[0] = reinterpret_cast<void*>(&WalkQuery);
+    t[1] = reinterpret_cast<void*>(&WalkAddRef);
+    t[2] = reinterpret_cast<void*>(&WalkRelease);
+    namespace w = ped::wslot;
+    switch (Kind) {
+    case 0: // the map
+        t[w::kCellList / 4] = reinterpret_cast<void*>(&WalkCellList);
+        t[w::kNeighbour / 4] = reinterpret_cast<void*>(&WalkNeighbour);
+        t[w::kAutomataOn / 4] = reinterpret_cast<void*>(&WalkAutomataOn);
+        t[w::kCanGo / 4] = reinterpret_cast<void*>(&WalkCanGo);
+        break;
+    case 1: // the lot manager
+        t[w::kGetLot / 4] = reinterpret_cast<void*>(&WalkGetLot);
+        break;
+    case 2: // a lot
+        t[w::kRect / 4] = reinterpret_cast<void*>(&WalkRect);
+        break;
+    case 3: // 0x00B43D54
+        t[w::kCellOpen / 4] = reinterpret_cast<void*>(&WalkCellOpen);
+        break;
+    case 4: // the occupant manager
+        t[w::kOccupantsInBox / 4] = reinterpret_cast<void*>(&WalkInBox);
+        t[w::kListDone / 4] = reinterpret_cast<void*>(&WalkListDone);
+        break;
+    case 5: // a state's object
+        t[ped::pslot::kStateObjectWord / 4] = reinterpret_cast<void*>(&WalkWord);
+        t[ped::pslot::kStateObjectPoint / 4] = reinterpret_cast<void*>(&WalkPointOut);
+        break;
+    case 6: // its word
+        t[w::kObjectRect / 4] = reinterpret_cast<void*>(&WalkRect);
+        break;
+    case 7: // the target
+        t[w::kTargetPoint / 4] = reinterpret_cast<void*>(&WalkPointOut);
+        break;
+    default: // an occupant
+        t[w::kOccupantPoint / 4] = reinterpret_cast<void*>(&WalkPointOut);
+        t[w::kOccupantObject / 4] = reinterpret_cast<void*>(&WalkInner);
+        break;
+    }
+    return t;
+}
+
+// The pedestrian's vtable: ped2a's copy with the walks' slots the test's.
+void** WalkTable(char* o)
+{
+    void** const t = Ped2Table(o);
+    namespace w = ped::wslot;
+    t[w::kAsOccupant / 4] = reinterpret_cast<void*>(&WalkAsOccupant);
+    t[w::kRemove / 4] = reinterpret_cast<void*>(&WalkRemove);
+    t[w::kPlace / 4] = reinterpret_cast<void*>(&WalkPlace);
+    t[w::kSmoothedNow / 4] = reinterpret_cast<void*>(&WalkSmoothNow);
+    t[w::kSlot87 / 4] = reinterpret_cast<void*>(&WalkSlot87);
+    t[w::kSlot125 / 4] = reinterpret_cast<void*>(&WalkSlot125);
+    t[w::kMoveOnPath / 4] = reinterpret_cast<void*>(&WalkMoveOnPath);
+    t[w::kPedestrianManager / 4] = reinterpret_cast<void*>(&WalkManager);
+    t[ped::pslot::kPathTo / 4] = reinterpret_cast<void*>(&WalkPathTo);
+    t[ped::pslot::kPlaceOnNetwork / 4] = reinterpret_cast<void*>(&WalkPlaceOn);
+    return t;
+}
+
+// The test's generator for the drawn inputs.
+struct WalkLcg {
+    uint32_t s;
+    uint32_t Next()
+    {
+        s = s * 1664525u + 1013904223u;
+        return s;
+    }
+    float In(float low, float high)
+    {
+        return low + (high - low) * static_cast<float>(Next() >> 8) * (1.0f / 16777216.0f);
+    }
+};
+
+// What a walk left on the pedestrian: the smoothed value, the push byte and
+// point, the bump's timer.
+void WalkMixSelf(Hash& h, char* o)
+{
+    h.MixBytes(o + ped::base::kSmoothed, 16);
+    h.Mix(At<uint8_t>(o, ped::ped::kByte));
+    h.MixBytes(o + ped::ped::kPoint, 12);
+    h.Mix(At<uint32_t>(o, ped::ped::kWord268));
+}
+
+// A section's hashes so far, for the log.
+void WalkSection(const char* name, const Hash& pwalks)
+{
+    log::Write("autotest: automata: vehicle: ped2b %s: pwalks %08X calls %08X %08X", name, pwalks.h, g_walk.calls.h,
+               g_ped2.calls.h);
+}
+
+void PedWalksDrive(Hash& pwalks, uint32_t& pflags)
+{
+    g_ped2 = Ped2Answers{};
+    g_walk = WalkAnswers{};
+    void* const city = Global<void*>(addr::SC4_City);
+    char* const o = city ? MakePed(0, pflags) : nullptr;
+    if (!o || !Global<void*>(addr::SC4List_NodeAllocator2)) {
+        pflags |= 0x200;
+        ReleasePed(o);
+        log::Write("autotest: automata: vehicle: ped2b: no city, list allocator or pedestrian");
+        return;
+    }
+    namespace b = ped::base;
+    namespace w = ped::walk;
+    g_ped2.self = o;
+    g_walk.self = o;
+    void** const real = At<void**>(o, 0);
+    At<void**>(o, 0) = WalkTable(o);
+    static void* cityTable[256];
+    void** const realCity = At<void**>(city, 0);
+    for (int i = 0; i < 256; ++i)
+        cityTable[i] = realCity[i];
+    cityTable[ped::wslot::kCityNetwork / 4] = reinterpret_cast<void*>(&WalkCityNetwork);
+    cityTable[ped::wslot::kCellOf / 4] = reinterpret_cast<void*>(&WalkCellOf);
+    At<void**>(city, 0) = cityTable;
+    g_walkNetwork = WalkMake(WalkVtable<0>());
+    WalkObject lotManager = WalkMake(WalkVtable<1>());
+    WalkObject service = WalkMake(WalkVtable<3>());
+    WalkObject occupants = WalkMake(WalkVtable<4>());
+    RfSwap swapLots(addr::SC4_LotManager, &lotManager);
+    RfSwap swapService(addr::SC4_Service43D54, &service);
+    RfSwap swapOccupants(addr::SC4_NetworkService, &occupants);
+    WalkObject others[6];
+    for (WalkObject& other : others)
+        other = WalkMake(WalkVtable<8>());
+    g_walk.mine = &others[5];
+    WalkLcg lcg{0x2B5EED};
+    alignas(4) static char records[4][0x40];
+    auto typed = [](int i, uint32_t type, void* object) {
+        std::memset(records[i], 0, sizeof records[i]);
+        At<uint32_t>(records[i], ped::state::kType) = type;
+        At<void*>(records[i], ped::state::kObject) = object;
+        return records[i];
+    };
+    auto mixOthers = [&](Hash& h) {
+        for (const WalkObject& other : others)
+            h.MixBytes(other.body + 0x254 - 8, 16);
+    };
+    auto clearOthers = [&]() {
+        for (WalkObject& other : others)
+            std::memset(other.body, 0, sizeof other.body);
+    };
+
+    // The bump at its address: the timer below, at and about 500 (one sum
+    // that rounds to 500 as a float), a NaN; the lists: empty, ours alone,
+    // far, within 1, within 0.01, a NaN point, two near (the first pushed),
+    // ours first; then drawn points.
+    {
+        const float timers[][2] = {{100.0f, 1.0f},     {499.5f, 0.5f},         {600.0f, 0.0f},
+                                   {499.99997f, 2e-5f}, {0.0f, std::numeric_limits<float>::quiet_NaN()}};
+        for (const auto& t : timers) {
+            At<float>(o, ped::ped::kWord268) = t[0];
+            g_walk.nearbyCount = 0;
+            const float at[3] = {10.0f, 1.0f, 20.0f};
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_Bump, o, at, t[1]) & 0xFF);
+            pwalks.Mix(At<uint32_t>(o, ped::ped::kWord268));
+        }
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const float points[][3] = {{100.3f, 5.7f, 200.1f}, {100.3f, 5.7f, 200.1f}, {101.5f, 5.7f, 200.1f},
+                                   {100.7f, 5.9f, 199.8f}, {100.301f, 5.7f, 200.102f}, {nan, 5.7f, 200.1f}};
+        for (int k = 0; k < 8; ++k) {
+            clearOthers();
+            int n = 0;
+            switch (k) {
+            case 0: // empty
+                break;
+            case 1: // ours alone
+                g_walk.nearby[n++] = &others[5];
+                break;
+            case 2: // far
+                g_walk.nearby[n++] = &others[2];
+                break;
+            case 3: // within 1
+                g_walk.nearby[n++] = &others[3];
+                break;
+            case 4: // within 0.01
+                g_walk.nearby[n++] = &others[4];
+                break;
+            case 5: // a NaN, then within 1
+                g_walk.nearby[n++] = &others[0];
+                g_walk.nearby[n++] = &others[3];
+                break;
+            case 6: // two near: the first pushed
+                g_walk.nearby[n++] = &others[3];
+                g_walk.nearby[n++] = &others[4];
+                break;
+            default: // ours first, far, then near
+                g_walk.nearby[n++] = &others[5];
+                g_walk.nearby[n++] = &others[2];
+                g_walk.nearby[n++] = &others[4];
+                break;
+            }
+            for (int i = 0; i < 5; ++i)
+                std::memcpy(others[i].point, points[i == 0 ? 5 : i], 12);
+            g_walk.nearbyCount = n;
+            At<float>(o, ped::ped::kWord268) = 499.0f;
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_Bump, o, points[0], 1.25f) & 0xFF);
+            pwalks.Mix(At<uint32_t>(o, ped::ped::kWord268));
+            mixOthers(pwalks);
+        }
+        for (int k = 0; k < 24; ++k) {
+            clearOthers();
+            const float at[3] = {lcg.In(-500.0f, 3000.0f), lcg.In(-10.0f, 300.0f), lcg.In(-500.0f, 3000.0f)};
+            const int n = 1 + static_cast<int>(lcg.Next() % 4);
+            for (int i = 0; i < n; ++i) {
+                const float reach = (lcg.Next() & 3) == 0 ? 0.008f : 1.2f;
+                others[i].point[0] = at[0] + lcg.In(-reach, reach);
+                others[i].point[1] = at[1] + lcg.In(-reach, reach);
+                others[i].point[2] = at[2] + lcg.In(-reach, reach);
+                g_walk.nearby[i] = &others[i];
+            }
+            g_walk.nearbyCount = n;
+            At<float>(o, ped::ped::kWord268) = lcg.In(450.0f, 520.0f);
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_Bump, o, at, lcg.In(0.0f, 60.0f)) & 0xFF);
+            pwalks.Mix(At<uint32_t>(o, ped::ped::kWord268));
+            mixOthers(pwalks);
+        }
+        g_walk.nearbyCount = 0;
+        clearOthers();
+    }
+
+    WalkSection("bump", pwalks);
+    // The step at its address: directions (a zero, a NaN, tiny), the flag
+    // 0x20000, bumped or not (the timer), the push (none, zero, set) and the
+    // second bump (the map's slot 44 sets the timer); then drawn.
+    {
+        SetPoint(o, b::kPosition, 300.25f, 12.5f, 700.75f);
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const float directions[][3] = {{1, 0, 0}, {0.6f, 0, 0.8f}, {0, 0, 0}, {nan, 0, 1}, {3e-20f, 1e-20f, -2e-20f},
+                                       {-0.3f, 0.1f, 0.95f}};
+        others[0].point[0] = 300.5f;
+        others[0].point[1] = 12.5f;
+        others[0].point[2] = 701.0f;
+        int run = 0;
+        for (const auto& d : directions)
+            for (int how = 0; how < 6; ++how) {
+                clearOthers();
+                g_ped2.flags = how == 1 ? 0x20000u : 0u;
+                g_walk.smoothNow = 1.0 / 720.0 + run * 1e-4;
+                g_walk.speed125 = 3.5 + run * 0.25;
+                g_walk.canGoCalls = 0;
+                g_walk.canGoNudge = how == 2 ? 0.5f : 0.0f;
+                g_walk.canGoTimer = how == 5 ? 700.0f : -1.0f;
+                g_walk.nearby[0] = &others[0];
+                g_walk.nearbyCount = 1;
+                At<float>(o, ped::ped::kWord268) = how >= 3 ? 600.0f : 0.0f;
+                At<uint8_t>(o, ped::ped::kByte) = static_cast<uint8_t>(how >= 4 ? 1 : 0);
+                SetPoint(o, ped::ped::kPoint, how == 4 ? 0.0f : 0.25f, 0.0f, how == 4 ? 0.0f : -0.5f);
+                pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_Walk, o, d, 0.125f + run * 0.03125f));
+                WalkMixSelf(pwalks, o);
+                mixOthers(pwalks);
+                ++run;
+            }
+        for (int k = 0; k < 32; ++k) {
+            clearOthers();
+            SetPoint(o, b::kPosition, lcg.In(-100.0f, 3000.0f), lcg.In(0.0f, 400.0f), lcg.In(-100.0f, 3000.0f));
+            const float d[3] = {lcg.In(-1.0f, 1.0f), lcg.In(-0.2f, 0.2f), lcg.In(-1.0f, 1.0f)};
+            g_ped2.flags = (lcg.Next() & 1) ? 0x20000u : 0u;
+            g_walk.smoothNow = lcg.In(0.0f, 0.01f);
+            g_walk.speed125 = lcg.In(0.5f, 900.0f);
+            g_walk.canGoCalls = 0;
+            g_walk.canGoNudge = 0.0f;
+            g_walk.canGoTimer = (lcg.Next() & 1) ? 800.0f : -1.0f;
+            for (int i = 0; i < 2; ++i) {
+                others[i].point[0] = At<float>(o, b::kPosition) + lcg.In(-1.5f, 1.5f);
+                others[i].point[1] = At<float>(o, b::kPosition + 4);
+                others[i].point[2] = At<float>(o, b::kPosition + 8) + lcg.In(-1.5f, 1.5f);
+                g_walk.nearby[i] = &others[i];
+            }
+            g_walk.nearbyCount = 2;
+            At<float>(o, ped::ped::kWord268) = lcg.In(400.0f, 600.0f);
+            At<uint8_t>(o, ped::ped::kByte) = static_cast<uint8_t>(lcg.Next() & 1);
+            SetPoint(o, ped::ped::kPoint, lcg.In(-1.0f, 1.0f), lcg.In(-0.1f, 0.1f), lcg.In(-1.0f, 1.0f));
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_Walk, o, d, lcg.In(0.01f, 2.0f)));
+            WalkMixSelf(pwalks, o);
+            mixOthers(pwalks);
+        }
+        g_ped2.flags = 0;
+        g_walk.nearbyCount = 0;
+        g_walk.canGoTimer = -1.0f;
+        clearOthers();
+    }
+
+    WalkSection("step", pwalks);
+    // The state 2's frame: the vector +0xA4 (a zero, a NaN, large, drawn),
+    // the step not bumped.
+    {
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const float vectors[][3] = {{3, 0, 4}, {0, 0, 0}, {nan, 1, 1}, {1e19f, -1e19f, 3e18f}, {0.1f, 0.2f, -0.3f}};
+        g_walk.smoothNow = 0.002;
+        g_walk.speed125 = 12.0;
+        for (int k = 0; k < 5 + 16; ++k) {
+            if (k < 5)
+                SetPoint(o, b::kVectorA4, vectors[k][0], vectors[k][1], vectors[k][2]);
+            else
+                SetPoint(o, b::kVectorA4, lcg.In(-2.0f, 2.0f), lcg.In(-0.5f, 0.5f), lcg.In(-2.0f, 2.0f));
+            At<float>(o, ped::ped::kWord268) = 0.0f;
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_State2Frame, o, 0.25f + k * 0.0625f) & 0xFF);
+            WalkMixSelf(pwalks, o);
+        }
+    }
+
+    WalkSection("state2", pwalks);
+    // The state 3's frame: no state, no object; with one, points (one on
+    // the position), the push (none, zero, set), bumped or not, the models
+    // (none, a null one, at and before the last frame) and the names (none,
+    // one, three); then drawn.
+    {
+        WalkObject object = WalkMake(WalkVtable<5>());
+        Ped2Object models[1] = {Ped2Make(Ped2ModelVtable(), 0, 1)};
+        char* modelList[2] = {nullptr, reinterpret_cast<char*>(&models[0])};
+        char* const savedModels[2] = {At<char*>(o, b::kModels), At<char*>(o, b::kModelsEnd)};
+        static const char texts[3][8] = {"walk", "talk", "wave"};
+        struct Name {
+            std::uintptr_t vtable;
+            const char* begin;
+            const char* end;
+            const char* capacity;
+            uint32_t word;
+        };
+        static Name names[3];
+        for (int i = 0; i < 3; ++i)
+            names[i] = Name{addr::SC4String_Vtable, texts[i], texts[i] + 4, texts[i] + 4, 0};
+        alignas(4) static char nameList[0x18];
+        g_ped2.current = nullptr;
+        pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_State3Frame, o, 0.5f) & 0xFF);
+        g_ped2.current = typed(0, 3, nullptr);
+        pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_State3Frame, o, 0.5f) & 0xFF);
+        g_ped2.current = typed(0, 3, &object);
+        SetPoint(o, b::kPosition, 50.0f, 2.0f, 60.0f);
+        const float points[][3] = {{53, 2, 64}, {50, 2, 60}, {49.9f, -3, 60.7f}, {1e6f, 2, -1e6f}, {0.001f, 2, 60.3f}};
+        g_walk.smoothNow = 0.0015;
+        g_walk.speed125 = 7.0;
+        for (int k = 0; k < 30 + 24; ++k) {
+            SetPoint(o, b::kPosition, 50.0f, 2.0f, 60.0f);
+            if (k < 30) {
+                std::memcpy(object.point, points[k % 5], 12);
+            } else {
+                object.point[0] = lcg.In(30.0f, 70.0f);
+                object.point[1] = lcg.In(-5.0f, 5.0f);
+                object.point[2] = lcg.In(40.0f, 80.0f);
+            }
+            const int how = k < 30 ? k / 5 : static_cast<int>(lcg.Next() % 6);
+            At<uint8_t>(o, ped::ped::kByte) = static_cast<uint8_t>(how >= 2 ? 1 : 0);
+            if (k < 30)
+                SetPoint(o, ped::ped::kPoint, how == 2 ? 0.0f : 0.3f, how == 2 ? 0.0f : -0.2f, how == 2 ? 0.0f : 0.4f);
+            else
+                SetPoint(o, ped::ped::kPoint, lcg.In(-1.0f, 1.0f), lcg.In(-1.0f, 1.0f), lcg.In(-1.0f, 1.0f));
+            At<float>(o, ped::ped::kWord268) = (how & 1) ? 0.0f : 600.0f;
+            clearOthers();
+            others[1].point[0] = 50.2f;
+            others[1].point[1] = 2.0f;
+            others[1].point[2] = 60.1f;
+            g_walk.nearby[0] = &others[1];
+            g_walk.nearbyCount = how == 5 ? 0 : 1;
+            // models: none, the null first, the first before and at its last frame
+            const int which = (k + how) % 4;
+            At<char**>(o, b::kModels) = which == 1 ? &modelList[0] : &modelList[1];
+            At<char**>(o, b::kModelsEnd) = which == 0 ? &modelList[1] : &modelList[2];
+            models[0].frames = 6;
+            models[0].frame = which == 2 ? 4 : 5;
+            const int count = k % 3 == 0 ? 0 : k % 3 == 1 ? 1 : 3;
+            At<const Name*>(nameList, 0x10) = &names[0];
+            At<const Name*>(nameList, 0x14) = &names[count];
+            At<void*>(g_ped2.current, w::kNames) = (k % 7 == 6) ? nullptr : static_cast<void*>(nameList);
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_State3Frame, o, 0.125f + k * 0.0625f) & 0xFF);
+            WalkMixSelf(pwalks, o);
+            mixOthers(pwalks);
+        }
+        g_walk.nearbyCount = 0;
+        clearOthers();
+        At<char*>(o, b::kModels) = savedModels[0];
+        At<char*>(o, b::kModelsEnd) = savedModels[1];
+        g_ped2.current = nullptr;
+    }
+
+    WalkSection("state3", pwalks);
+    // The state 6's frame: not placed (and placed by slot 134), before the
+    // end of the way, no object or word; the lot or the word's rectangle;
+    // no manager, occupant or automata; no neighbour; outside the rectangle;
+    // inside, the sides 0 to 3 (and 5) with the paths found at each try or
+    // none.
+    {
+        WalkObject target = WalkMake(WalkVtable<6>());
+        WalkObject object = WalkMake(WalkVtable<5>());
+        WalkObject lot = WalkMake(WalkVtable<2>());
+        WalkObject theirs = WalkMake(WalkVtable<8>());
+        WalkObject neighbour = WalkMake(WalkVtable<8>());
+        neighbour.inner = &theirs;
+        theirs.unset = true;
+        void* nextSlot = &neighbour;
+        void* emptySlot = nullptr;
+        WalkObject occupant = WalkMake(WalkVtable<8>());
+        WalkObject automata = WalkMake(WalkVtable<8>());
+        object.word = &target;
+        object.unset = true;
+        object.point[0] = 165.0f;
+        object.point[1] = 3.0f;
+        object.point[2] = 330.0f;
+        const int32_t lotRect[4] = {9, 19, 11, 21};
+        const int32_t wordRect[4] = {10, 20, 10, 20};
+        std::memcpy(lot.rect, lotRect, 16);
+        std::memcpy(target.rect, wordRect, 16);
+        void* const saved1F8 = At<void*>(o, w::kPlaced);
+        for (int k = 0; k < 40; ++k) {
+            g_ped2.current = typed(1, 6, k == 3 ? nullptr : &object);
+            object.word = k == 4 ? nullptr : &target;
+            At<void*>(o, w::kPlaced) = k == 0 || k == 1 ? nullptr : reinterpret_cast<void*>(&object);
+            g_walk.place134 = static_cast<uint8_t>(k == 1 ? 1 : 0);
+            g_walk.slot87 = static_cast<uint8_t>(k == 2 ? 0 : 1);
+            g_walk.lot = (k & 1) ? &lot : nullptr;
+            g_walk.manager = k == 5 ? nullptr : &lotManager;
+            At<void*>(o, b::kOccupant) = k == 6 ? nullptr : &occupant;
+            g_walk.automataOn = k == 7 ? nullptr : &automata;
+            g_walk.neighbour = k == 8 ? nullptr : k == 9 ? &emptySlot : reinterpret_cast<void**>(&nextSlot);
+            // the neighbour's point: outside (k 10 to 13) or inside the rectangle
+            theirs.point[0] = k >= 10 && k < 14 ? 250.0f + k : 170.0f;
+            theirs.point[1] = 1.0f;
+            theirs.point[2] = 335.0f;
+            const uint32_t sides[] = {0, 1, 2, 3, 5};
+            const uint32_t side = sides[k % 5];
+            g_ped2.groups = 0xF7AB0000u | (static_cast<uint32_t>(k) << 8) | side;
+            // the paths: found at the first, second or third try, or never
+            // (side 5 always found at once: its loop has no end else)
+            const uint32_t masks[] = {1u, 2u, 4u, 0u};
+            g_walk.pathMask = side > 3 ? 1u : masks[(k / 5) % 4];
+            g_walk.pathCalls = 0;
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_State6Frame, o, 0.5f + k * 0.125f) & 0xFF);
+        }
+        At<void*>(o, w::kPlaced) = saved1F8;
+        At<void*>(o, b::kOccupant) = nullptr;
+        g_ped2.current = nullptr;
+        g_walk.pathMask = 0;
+    }
+
+    WalkSection("state6", pwalks);
+    // The state 8's frame: no cell or none on it (Remove); starting (the
+    // smoothed target already 1/720 or not); the same cell; a new cell with
+    // the sides open at the first, second, fourth try or none (a draw); the
+    // side 5; headings; then drawn.
+    {
+        void* onCell = &others[1];
+        void* noneOnCell = nullptr;
+        char* const s = typed(2, 8, nullptr);
+        g_ped2.current = s;
+        g_walk.smoothNow = 0.003;
+        g_walk.speed125 = 5.0;
+        for (int k = 0; k < 24 + 24; ++k) {
+            const bool drawn = k >= 24;
+            SetPoint(o, b::kPosition, drawn ? lcg.In(-300.0f, 4000.0f) : 100.0f + k * 9.0f, 4.0f,
+                     drawn ? lcg.In(-300.0f, 4000.0f) : 250.0f - k * 14.0f);
+            if (drawn)
+                SetPoint(o, w::kHeading, lcg.In(-1.0f, 1.0f), lcg.In(-0.1f, 0.1f), lcg.In(-1.0f, 1.0f));
+            else
+                SetPoint(o, w::kHeading, k % 3 == 0 ? 0.0f : 0.6f, 0.0f, k % 3 == 0 ? 0.0f : -0.8f);
+            g_walk.cell = k == 0 ? nullptr : k == 1 ? &noneOnCell : &onCell;
+            const uint32_t start = k == 2 || k == 3 ? 1u : 0u;
+            At<uint32_t>(o, b::kSmoothed + 4) = k == 3 ? ped::kSmoothTarget : 0x3F000000u;
+            At<uint8_t>(s, w::kSide) = static_cast<uint8_t>(drawn ? lcg.Next() % 4 : (k % 6 == 5 ? 5 : k % 4));
+            const int32_t cellX = static_cast<int32_t>(static_cast<double>(At<float>(o, b::kPosition)) * 0.0625);
+            const int32_t cellZ = static_cast<int32_t>(static_cast<double>(At<float>(o, b::kPosition + 8)) * 0.0625);
+            const bool same = drawn ? (lcg.Next() & 3) == 0 : k % 5 == 4;
+            At<int32_t>(s, w::kCellX) = same ? cellX : cellX + 1;
+            At<int32_t>(s, w::kCellZ) = same ? cellZ : (k & 1 ? cellZ - 1 : cellZ);
+            const uint32_t masks[] = {1u, 2u, 8u, 0u, 5u};
+            g_walk.openMask = drawn ? lcg.Next() : masks[k % 5];
+            g_walk.openCalls = 0;
+            At<float>(o, ped::ped::kWord268) = 0.0f;
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_State8Frame, o, 0.25f + k * 0.0625f, start | 0x100u) & 0xFF);
+            pwalks.MixBytes(s + w::kCellX, 9);
+            WalkMixSelf(pwalks, o);
+        }
+        g_ped2.current = nullptr;
+        g_walk.cell = nullptr;
+    }
+
+    WalkSection("state8", pwalks);
+    // The state 9's frame: +0xB0 found down the stack (none, no object, a
+    // word of 0, below another type, no interface) or held; no cell; the
+    // push byte; the target near and far; the smoothed target 1/360 or not;
+    // then drawn.
+    {
+        void* onCell = &others[1];
+        WalkObject targetObject = WalkMake(WalkVtable<7>());
+        WalkObject word = WalkMake(WalkVtable<6>());
+        word.inner = &targetObject;
+        WalkObject wordless = WalkMake(WalkVtable<6>());
+        WalkObject objects[2] = {WalkMake(WalkVtable<5>()), WalkMake(WalkVtable<5>())};
+        objects[0].word = &word;
+        objects[1].word = nullptr;
+        WalkObject noInterface = WalkMake(WalkVtable<5>());
+        noInterface.word = &wordless;
+        WalkObject otherTarget = WalkMake(WalkVtable<7>());
+        WalkObject otherWord = WalkMake(WalkVtable<6>());
+        otherWord.inner = &otherTarget;
+        WalkObject otherObject = WalkMake(WalkVtable<5>());
+        otherObject.word = &otherWord;
+        char** const stack = &At<char*>(o, b::kStates);
+        char* const savedStack[2] = {stack[0], stack[1]};
+        static char* list[3];
+        g_walk.smoothNow = 0.004;
+        g_walk.speed125 = 6.0;
+        for (int k = 0; k < 24 + 24; ++k) {
+            const bool drawn = k >= 24;
+            int n = 0;
+            switch (drawn ? 6 : k % 8) {
+            case 0: // empty
+                break;
+            case 1: // a state 9 without an object
+                list[n++] = typed(0, 9, nullptr);
+                break;
+            case 2: // its object's word 0
+                list[n++] = typed(0, 9, &objects[1]);
+                break;
+            case 3: // found below another type
+                list[n++] = typed(0, 9, &objects[0]);
+                list[n++] = typed(1, 3, &objects[0]);
+                break;
+            case 4: // the word answers no interface
+                list[n++] = typed(0, 9, &noInterface);
+                break;
+            case 5: // two found: the top one's
+                list[n++] = typed(0, 9, &otherObject);
+                list[n++] = typed(1, 9, &objects[0]);
+                break;
+            default: // found on top of one whose word is 0
+                list[n++] = typed(0, 9, &objects[1]);
+                list[n++] = typed(1, 9, &objects[0]);
+                break;
+            }
+            stack[0] = reinterpret_cast<char*>(list);
+            stack[1] = reinterpret_cast<char*>(list + n);
+            if (k % 8 == 7 || drawn) {
+                ++targetObject.references;
+                At<void*>(o, w::kObjectB0) = &targetObject;
+            } else {
+                At<void*>(o, w::kObjectB0) = nullptr;
+            }
+            g_walk.cell = k == 6 ? nullptr : &onCell;
+            SetPoint(o, b::kPosition, drawn ? lcg.In(-300.0f, 3000.0f) : 400.0f, 6.0f,
+                     drawn ? lcg.In(-300.0f, 3000.0f) : 500.0f);
+            if (drawn) {
+                SetPoint(o, w::kHeading, lcg.In(-1.0f, 1.0f), lcg.In(-0.1f, 0.1f), lcg.In(-1.0f, 1.0f));
+                targetObject.point[0] = At<float>(o, b::kPosition) + lcg.In(-30.0f, 30.0f);
+                targetObject.point[1] = lcg.In(0.0f, 20.0f);
+                targetObject.point[2] = At<float>(o, b::kPosition + 8) + lcg.In(-30.0f, 30.0f);
+            } else {
+                SetPoint(o, w::kHeading, k % 3 == 0 ? 0.0f : 0.8f, 0.0f, k % 3 == 0 ? 0.0f : 0.6f);
+                targetObject.point[0] = (k / 8) % 2 ? 403.0f : 425.0f;
+                targetObject.point[1] = 9.0f;
+                targetObject.point[2] = (k / 8) % 2 ? 504.0f : 470.0f;
+            }
+            At<uint8_t>(o, ped::ped::kByte) = static_cast<uint8_t>(drawn ? lcg.Next() & 1 : (k / 4) & 1);
+            At<uint32_t>(o, b::kSmoothed + 4) = k % 5 == 2 ? ped::walk::kRunTarget : 0x3F000000u;
+            At<float>(o, ped::ped::kWord268) = 0.0f;
+            pwalks.Mix(This<uint32_t>(addr::cSC4Pedestrian_State9Frame, o, 0.5f + k * 0.0625f) & 0xFF);
+            pwalks.Mix(At<void*>(o, w::kObjectB0) == &targetObject ? 1u : At<void*>(o, w::kObjectB0) ? 2u : 0u);
+            WalkMixSelf(pwalks, o);
+            if (At<void*>(o, w::kObjectB0) == &targetObject)
+                --targetObject.references;
+            if (At<void*>(o, w::kObjectB0) == &otherTarget)
+                --otherTarget.references;
+            At<void*>(o, w::kObjectB0) = nullptr;
+        }
+        pwalks.Mix(static_cast<uint32_t>(targetObject.references));
+        stack[0] = savedStack[0];
+        stack[1] = savedStack[1];
+        g_walk.cell = nullptr;
+    }
+
+    WalkSection("state9", pwalks);
+    At<void**>(city, 0) = realCity;
+    At<void**>(o, 0) = real;
+    pwalks.Mix(g_walk.calls.h);
+    pwalks.Mix(g_ped2.calls.h);
+    pflags |= 0x100;
+    ReleasePed(o);
+    log::Write("autotest: automata: vehicle: ped2b pwalks %08X calls %08X %08X", pwalks.h, g_walk.calls.h,
+               g_ped2.calls.h);
+    g_walk = WalkAnswers{};
+    g_ped2 = Ped2Answers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -29179,6 +30040,10 @@ void VehicleDrive(cISC4City* city)
     Hash pstates;
     PedStatesDrive(pstates, pflags);
 
+    // ---- Part ped2b.
+    Hash pwalks;
+    PedWalksDrive(pwalks, pflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -29235,13 +30100,13 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
-                  pobject.h, psave.h, pstates.h, pflags);
+                  pobject.h, psave.h, pstates.h, pwalks.h, pflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
