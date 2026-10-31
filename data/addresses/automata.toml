@@ -13680,7 +13680,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "81 EC 2C 01 00 00 53 56"
-source = "Name ours, not analysed: sends the crew out from its truck (+0x270) by the truck's mission. Called by address from src/core/automata_emergency.cpp (part em3a)."
+source = "Name ours. Sends the fire crew out from its truck (+0x270): the city's map (slot 40) held for the while. The truck's mission (slot 26) 5: the crew at the hose: with a state 0x10 on the truck (slot 57) its heading (slot 15) turned a quarter either way by a draw (0x009139B9) and the target 48 along it, else the target the truck's point (slot 143) and the heading towards it (normalised when longer than 1e-5, else the truck's heading); the crew placed (slot 16) the float 0x00B21CC8 along the heading, kept in the city (0x00547930) on the map's height; the heading turned an eighth, the point 0x00B21CCC along it given to the second model (slot 1), its matrix (0x0080B830) to its virtual base (slots 9, 10) and the view 0x00B43DD0 told (slot 30); the target into +0x2A8 and +0x2B8; the message 0xAA0F3F75 (the truck's +4, 0x00A9B2B8[+0x278]). Any other mission: beside the truck as the riot police's mission 1 (0x00546F30) with 0x00B21CCC for 6 and no Remove without an occupant. Then slot 33 (0, 0) and (1, the float 0x00B21C84). Ours in src/core/automata_pedestrians.cpp (part ped4a); called by address from src/core/automata_emergency.cpp (part em3a)."
 
 [[entry]]
 name = "cSC4FireTruck::CrewWord"
@@ -14808,3 +14808,38 @@ name = "cSC4Pedestrian::Float200High"
 address = 0x00B21CEC
 kind = "data"
 source = "Name ours. A float, the high end of the draw of the pedestrian's slot 158 (filled at startup). Called by address from src/core/automata_pedestrians.cpp (part ped2a)."
+
+# Part ped4a: the fire crew's dispatch (src/core/automata_pedestrians.cpp, docs/automata.md "Part ped").
+
+[[entry]]
+name = "cSC4SimFireCrew::EighthTurn"
+address = 0x00A99F68
+kind = "data"
+expect = "00 00 00 60 FB 21 E9 3F"
+source = "Name ours. The double pi/4 (as a float's value) the fire crew's dispatch turns the heading by before placing the hose's point (FSIN, FCOS). Called by address from src/core/automata_pedestrians.cpp (part ped4a)."
+
+[[entry]]
+name = "cSC4SimFireCrew::One"
+address = 0x00B0A05C
+kind = "data"
+expect = "00 00 80 3F"
+source = "Name ours. The float 1 the fire crew's dispatch divides by the way's length. Called by address from src/core/automata_pedestrians.cpp (part ped4a)."
+
+[[entry]]
+name = "cSC4SimFireCrew::MessageWords"
+address = 0x00A9B2B8
+kind = "data"
+expect = "D6 8F DE 29 E4 8E DE C9 E4 8E DE C9 00 00 96 42"
+source = "Name ours. Four words: the first word of the fire crew's message 0xAA0F3F75 by +0x278 (the fourth is the next datum's, the float 75). Called by address from src/core/automata_pedestrians.cpp (part ped4a)."
+
+[[entry]]
+name = "SC4AutomataTuning::CrewStep21CC8"
+address = 0x00B21CC8
+kind = "data"
+source = "Name ours. The first of two floats of the tuning property 0xA9D6CC17 (filled at startup): how far along its heading the fire crew's dispatch places the crew on the mission 5. Called by address from src/core/automata_pedestrians.cpp (part ped4a)."
+
+[[entry]]
+name = "SC4AutomataTuning::CrewSide21CCC"
+address = 0x00B21CCC
+kind = "data"
+source = "Name ours. The second float of the tuning property 0xA9D6CC17 (filled at startup): the hose's point along the turned heading on the mission 5, and the distance beside the truck on any other. Called by address from src/core/automata_pedestrians.cpp (part ped4a)."
