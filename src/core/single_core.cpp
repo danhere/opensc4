@@ -4,18 +4,43 @@
 // increments with no lock (docs/crashes.md, 0x0096DA20), so threads on two
 // cores at once can lose an update. Applied at Phase::Attach, before the
 // game's static initialisers create any thread, so every thread inherits the
-// mask. The core is [fixes] core in opensc4.ini (default: the first core the
-// process may use).
+// mask. The core is [fixes] core in opensc4.ini. Without it each copy of the
+// game takes the first allowed core no other running copy holds (a named
+// mutex per core, kept until the process ends), so several copies at once
+// (harness.multi_instance, parallel parity jobs) don't all share core 0. When
+// every core is held it falls back to the first.
 #include "core/log.h"
 #include "core/registry.h"
 #include "core/settings.h"
 
 #include <windows.h>
 
+#include <cstdio>
 #include <cstdlib>
 
 namespace opensc4::single_core {
 namespace {
+
+// The first allowed core no other copy of the game holds, claimed for the
+// rest of this process by a named mutex (closed by Windows on exit, crash
+// included); 0 when every allowed core is held.
+DWORD_PTR ClaimFreeCore(DWORD_PTR processMask)
+{
+    for (unsigned index = 0; index < sizeof(DWORD_PTR) * 8; ++index) {
+        const DWORD_PTR bit = DWORD_PTR(1) << index;
+        if (!(processMask & bit))
+            continue;
+        char name[64];
+        std::snprintf(name, sizeof(name), "Local\\OpenSC4 core %u", index);
+        const HANDLE claim = CreateMutexA(nullptr, FALSE, name);
+        if (!claim)
+            continue;
+        if (GetLastError() != ERROR_ALREADY_EXISTS)
+            return bit; // kept open on purpose: the claim lasts until exit
+        CloseHandle(claim);
+    }
+    return 0;
+}
 
 bool Apply(registry::Mode)
 {
@@ -26,7 +51,12 @@ bool Apply(registry::Mode)
     }
     DWORD_PTR mask = processMask & (~processMask + 1); // lowest allowed core
     const std::string chosen = settings::Get("fixes", "core", "");
-    if (!chosen.empty()) {
+    if (chosen.empty()) {
+        if (const DWORD_PTR free = ClaimFreeCore(processMask))
+            mask = free;
+        else
+            log::Write("single_core: every allowed core is held by another copy; sharing the first");
+    } else {
         const unsigned long core = std::strtoul(chosen.c_str(), nullptr, 10);
         const DWORD_PTR wanted = core < sizeof(DWORD_PTR) * 8 ? DWORD_PTR(1) << core : 0;
         if (wanted & processMask)

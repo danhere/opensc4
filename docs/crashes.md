@@ -66,7 +66,7 @@ Still open: class records over 16,000,000 bytes, stored uncompressed and read ba
 
 **What players do:** run the game on one core, through Task Manager's affinity or the game's own `-CPUCount:1`. The game's handling of that option (0x0044FC3B in the command-line code) calls 0x005F8CD0, which sets the process affinity to CPUs 0 to N-1; without it the game never sets affinity. Why more cores crash is not established; the game's reference counts are plain increments with no lock (see 0x0096DA20), which threads on two cores can race.
 
-**Fix:** `fixes.single_core` ([src/core/single_core.cpp](../src/core/single_core.cpp), always on, a fix of the original's bug; README, "Original bugs fixed") sets the affinity to one core when core.dll attaches, before the game creates any thread, so it needs no shortcut or command line. The core is `[fixes] core` in opensc4.ini (default: the first core the process may use).
+**Fix:** `fixes.single_core` ([src/core/single_core.cpp](../src/core/single_core.cpp), always on, a fix of the original's bug; README, "Original bugs fixed") sets the affinity to one core when core.dll attaches, before the game creates any thread, so it needs no shortcut or command line. The core is `[fixes] core` in opensc4.ini (default: the first core the process may use that no other running copy of the game holds, so copies run side by side don't share one core).
 
 ## Out of memory
 
