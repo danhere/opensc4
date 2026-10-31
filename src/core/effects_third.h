@@ -885,3 +885,444 @@ void SplitTriangleC(char* self, char* points, char* places, const int32_t* corne
     SplitTriangleC(self, points, places, first, most, which);
     SplitTriangleC(self, points, places, second, most, which);
 }
+
+// --- Its emit and step ---------------------------------------------------------------------------
+//
+// The class's emit (slot 0x3C, 0x005AA5D0), which the first time blows the
+// model apart (0x005AA3A0 by triangles, 0x005A9E10 by quads when +0x22C is
+// set), its particles' step (slot 0x50, 0x005A6520: a front that grows
+// from the point +0x25C pushes the pieces out) and value 9's 0x005AA700
+// (the point +0x25C put along a direction at the middle of the model). The
+// model's materials (+0x254) answer their count (slot 0xC), each one's mesh
+// (slot 0x10) and each material (slot 0x18, the byte +0xB whether it is
+// drawn). A mesh: +0 its vertices (+0 their format, the word +4 their
+// stride, the word +6 their count, +8 the data), +8 its primitives (a
+// vector at +4 of 12-byte entries). The game's own code walks a
+// primitive's triangles (SC4MeshTriangles: 0x0080AE60 makes the walker,
+// 0x0080B320 starts it on a primitive, 0x0080B420 gives the next
+// triangle's three numbers, 0x0080AE70 ends it) and gathers one element of
+// each vertex (GDVertexFormat::Gather: 0 the place, 7 the place on the
+// texture).
+
+// e^x as the game takes it on the x87: x times log2(e), split at its
+// nearest whole number, 2 to the rest less one (F2XM1), one added and
+// scaled. F2XM1's last bits are the processor's own, so the same
+// instructions are run.
+double EcExp(double x)
+{
+    double result = 0.0;
+    __asm {
+        fld x
+        fldl2e
+        fmulp st(1), st(0)
+        fld st(0)
+        frndint
+        fxch st(1)
+        fsub st(0), st(1)
+        f2xm1
+        fld1
+        faddp st(1), st(0)
+        fscale
+        fstp st(1)
+        fstp result
+    }
+    return result;
+}
+
+// The whole number at or below `value`, as the step takes it: less the
+// float at 0x00A84D2C, the float at 0x00AA0B20 (1.5 times 2^23) added, the
+// float's bits less 0x4B400000, one up when the value is that one up.
+int32_t EcRoundDown(double value)
+{
+    uint32_t whole =
+        LfBits(static_cast<float>((value - M<float>(0x00A84D2C)) + M<float>(0x00AA0B20))) + 0xB4C00000u;
+    const uint32_t up = whole + 1;
+    if (value == static_cast<double>(static_cast<int32_t>(up)))
+        whole = up;
+    return static_cast<int32_t>(whole);
+}
+
+// 0x005A6520 (ret 8), slot 0x50 of the class: one particle stepped. With a
+// front speed of zero (the description's +0x1EC) the base class's step
+// (0x005B9BA0). Else, once a frame (while +0x270, last frame's front, is
+// +0x26C), the front +0x26C grows by the step times that speed and its
+// strength +0x274 is read off the description's curve (the floats of
+// +0x1F4, by the clock +0x120's fraction, between two of them). The
+// particle's distance from the point +0x25C (its square at least the
+// float at 0x00AA0B28, else 1e-4) leaves a particle not yet aged (+4) and
+// not yet reached by the front as it is (true). Else it ages (dead, its
+// first byte cleared and false, at its life +8); its velocity (+0x1C) gets
+// the step times the description's pull (+0xE0) and its wind (+0xEC times
+// the effect's +0x1B8); then a push away from the point, by the strength
+// over the distance times the difference of two fall-offs, at the front's
+// distance behind (+0x26C) and last frame's (+0x270) (each over the
+// description's +0x1F0, at least zero; with k the description's +0x200,
+// (1/k - 1 + d) e^(-kd) / k); then slowed by one less the step times the
+// description's +0x100; its place moves by half the step times the old
+// velocity and the new.
+uint32_t StepParticleC(char* self, char* particle, float step)
+{
+    char* d = At<char*>(self, 0x24);
+    const double zero = M<float>(0x00A81054);
+    if (At<float>(d, 0x1EC) == zero)
+        return CallThis<uint32_t>(addr::SC4Effect_StepParticle, self, particle, step);
+    const double s = step;
+    if (At<float>(self, 0x270) == At<float>(self, 0x26C)) {
+        At<float>(self, 0x26C) = PcF(s * At<float>(d, 0x1EC) + At<float>(self, 0x26C));
+        const double clock = At<double>(self, 0x120);
+        const int32_t whole = EcRoundDown(clock);
+        const float* const curve = At<float*>(d, 0x1F4);
+        const int32_t last = (static_cast<int32_t>(At<char*>(d, 0x1F8) - At<char*>(d, 0x1F4)) >> 2) - 1;
+        float strength = 0.0f;
+        if (last == 0) {
+            strength = curve[0];
+        } else {
+            const double x = (clock - whole) * LfUnsignedF(static_cast<uint32_t>(last));
+            const int32_t at = EcRoundDown(x);
+            const double part = x - LfUnsignedF(static_cast<uint32_t>(at));
+            if (part > zero)
+                strength = PcF((static_cast<double>(curve[at + 1]) - curve[at]) * part + curve[at]);
+            else
+                strength = curve[at];
+        }
+        At<float>(self, 0x274) = strength;
+    }
+    const float dx = PcF(static_cast<double>(At<float>(particle, 0xC)) - At<float>(self, 0x25C));
+    const float dy = PcF(static_cast<double>(At<float>(particle, 0x10)) - At<float>(self, 0x260));
+    const float dz = PcF(static_cast<double>(At<float>(particle, 0x14)) - At<float>(self, 0x264));
+    const double sum =
+        (static_cast<double>(dz) * dz + static_cast<double>(dy) * dy) + static_cast<double>(dx) * dx;
+    float square = PcF(sum);
+    if (sum < M<float>(0x00AA0B28)) {
+        const uint32_t least = 0x38D1B717;
+        std::memcpy(&square, &least, 4);
+    }
+    const float distance = PcF(std::sqrt(static_cast<double>(square)));
+    if (!(At<float>(particle, 4) > zero) && !(At<float>(self, 0x26C) > distance))
+        return 1;
+    const double age = s + At<float>(particle, 4);
+    At<float>(particle, 4) = PcF(age);
+    if (age >= At<float>(particle, 8)) {
+        At<uint8_t>(particle, 0) = 0;
+        return 0;
+    }
+    d = At<char*>(self, 0x24);
+    const double one = M<float>(0x00A81228);
+    const double k = At<float>(d, 0x200);
+    const float inverse = PcF(one / k);
+    const double reach = one / At<float>(d, 0x1F0);
+    float behind = PcF((static_cast<double>(At<float>(self, 0x270)) - distance) * reach);
+    double ahead = (static_cast<double>(At<float>(self, 0x26C)) - distance) * reach;
+    if (behind < zero)
+        behind = 0.0f;
+    if (ahead < zero)
+        ahead = zero;
+    // The pull: the first sum stored before the wind is added to it, the
+    // other two kept.
+    const float oldX = At<float>(particle, 0x1C), oldY = At<float>(particle, 0x20), oldZ = At<float>(particle, 0x24);
+    const double gx = s * At<float>(d, 0xE0), gy = s * At<float>(d, 0xE4);
+    const float gz = PcF(s * At<float>(d, 0xE8));
+    const double vx1 = gx + oldX;
+    const float vx1f = PcF(vx1);
+    At<float>(particle, 0x1C) = vx1f;
+    const double vy1 = gy + oldY;
+    At<float>(particle, 0x20) = PcF(vy1);
+    const double vz1 = static_cast<double>(gz) + oldZ;
+    At<float>(particle, 0x24) = PcF(vz1);
+    // The wind.
+    d = At<char*>(self, 0x24);
+    const double w = At<float>(d, 0xEC);
+    const double wx = w * At<float>(self, 0x1B8);
+    const float wy = PcF(w * At<float>(self, 0x1BC)), wz = PcF(w * At<float>(self, 0x1C0));
+    const double hx = wx * s, hy = static_cast<double>(wy) * s;
+    const float hz = PcF(static_cast<double>(wz) * s);
+    const float vx2 = PcF(static_cast<double>(vx1f) + hx);
+    At<float>(particle, 0x1C) = vx2;
+    const float vy2 = PcF(vy1 + hy);
+    At<float>(particle, 0x20) = vy2;
+    const float vz2 = PcF(vz1 + hz);
+    At<float>(particle, 0x24) = vz2;
+    // The push.
+    const float less = PcF(static_cast<double>(inverse) - one);
+    const double nearer = (static_cast<double>(less) + ahead) * EcExp(-(ahead * k)) * inverse;
+    const double farther =
+        (static_cast<double>(less) + behind) * EcExp(-(static_cast<double>(behind) * k)) * inverse;
+    const double push = (nearer - farther) * (static_cast<double>(At<float>(self, 0x274)) / distance);
+    const double px = static_cast<double>(dx) * push;
+    const float py = PcF(static_cast<double>(dy) * push), pz = PcF(static_cast<double>(dz) * push);
+    const double vx3 = static_cast<double>(vx2) + px;
+    At<float>(particle, 0x1C) = PcF(vx3);
+    const double vy3 = static_cast<double>(vy2) + py;
+    At<float>(particle, 0x20) = PcF(vy3);
+    const float vz3 = PcF(static_cast<double>(vz2) + pz);
+    At<float>(particle, 0x24) = vz3;
+    // Slowed.
+    const float keep = PcF(one - s * At<float>(At<char*>(self, 0x24), 0x100));
+    const float vx4 = PcF(vx3 * keep);
+    At<float>(particle, 0x1C) = vx4;
+    const double vy4 = vy3 * keep;
+    At<float>(particle, 0x20) = PcF(vy4);
+    const double vz4 = static_cast<double>(vz3) * keep;
+    At<float>(particle, 0x24) = PcF(vz4);
+    // The place.
+    const float sx = PcF(static_cast<double>(vx4) + oldX), sy = PcF(vy4 + oldY);
+    const double sz = vz4 + oldZ;
+    const double h = s * M<double>(0x00A92D28);
+    const float mx = PcF(static_cast<double>(sx) * h), my = PcF(static_cast<double>(sy) * h);
+    const double mz = sz * h;
+    At<float>(particle, 0xC) = PcF(static_cast<double>(mx) + At<float>(particle, 0xC));
+    At<float>(particle, 0x10) = PcF(static_cast<double>(my) + At<float>(particle, 0x10));
+    At<float>(particle, 0x14) = PcF(mz + At<float>(particle, 0x14));
+    return 1;
+}
+
+constexpr std::uintptr_t kPointFill = 0x00B216F8;
+
+void EcFree(void* storage)
+{
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(storage);
+}
+
+// A mesh's number of primitives (its vector's 12-byte entries, by a signed
+// division).
+uint32_t EcPrimitives(char* mesh)
+{
+    char* const list = At<char*>(mesh, 8);
+    return static_cast<uint32_t>(static_cast<int32_t>(At<char*>(list, 8) - At<char*>(list, 4)) / 12);
+}
+
+// One element of each of the vertices gathered at `out`.
+void EcGather(char* vertices, void* out, int32_t type)
+{
+    reinterpret_cast<void(__cdecl*)(uint32_t, uint32_t, void*, uint32_t, int32_t, uint32_t)>(
+        addr::GDVertexFormat_Gather)(At<uint16_t>(vertices, 6), At<uint32_t>(vertices, 8), out,
+                                     At<uint32_t>(vertices, 0), type, 0);
+}
+
+// A vector of `count` points, each three words of 0x00B216F8 (0x00490B80),
+// or of `count` texture places of zeros (0x00490C10, and 0x005AA3A0's own
+// loop); none made at a null place.
+void EcMakeVector(char* vector, uint32_t count, uint32_t bytes)
+{
+    char* const storage = count ? StlAllocate(count * bytes) : nullptr;
+    char* to = storage;
+    for (uint32_t i = 0; i < count; ++i, to += bytes) {
+        if (to) {
+            for (uint32_t at = 0; at < bytes; at += 4)
+                At<uint32_t>(to, at) = bytes == 12 ? M<uint32_t>(kPointFill) : 0;
+        }
+    }
+    At<char*>(vector, 0) = storage;
+    At<char*>(vector, 4) = to;
+    At<char*>(vector, 8) = storage + count * bytes;
+}
+
+// The size a piece is cut by: the root of the float +0x1E8 points at times
+// +0x1C4, times the description's +0x1D8.
+double EcSize(char* self)
+{
+    return std::sqrt(static_cast<double>(*At<float*>(self, 0x1E8)) * At<float>(self, 0x1C4)) *
+           At<float>(At<char*>(self, 0x24), 0x1D8);
+}
+
+// 0x005AA3A0: the pieces emptied (0x005A6480 assigning nothing), then for
+// each drawn material, for each primitive of its mesh (their count asked
+// again each time): a walker started on that primitive, the mesh's
+// vertices' places and texture places gathered into two new vectors, and
+// each triangle the walker gives halved (SplitTriangle, with the material's
+// number) until its sides are below the constant at 0x00A8D45C over the
+// size; the vectors freed (the texture places first).
+void CutTrianglesC(char* self)
+{
+    char* const pieces = self + 0x220;
+    At<char*>(pieces, 4) = PcAssignPieces(At<char*>(pieces, 4), At<char*>(pieces, 4), At<char*>(pieces, 0));
+    const uint32_t count = SuSlot<uint32_t>(At<char*>(self, 0x254), 0xC);
+    for (uint32_t i = 0; i < count; ++i) {
+        char* const material = reinterpret_cast<char*>(SuSlot<uint32_t>(At<char*>(self, 0x254), 0x18, i));
+        if (!At<uint8_t>(material, 0xB))
+            continue;
+        char* const mesh = reinterpret_cast<char*>(SuSlot<uint32_t>(At<char*>(self, 0x254), 0x10, i));
+        alignas(4) char triangles[0x30];
+        CallThis<uint32_t>(addr::SC4MeshTriangles_Construct, triangles);
+        for (uint32_t j = 0; j < EcPrimitives(mesh); ++j) {
+            char* const vertices = At<char*>(mesh, 0);
+            const uint32_t n = At<uint16_t>(vertices, 6);
+            CallThis<uint32_t>(addr::SC4MeshTriangles_Start, triangles, mesh, j);
+            alignas(4) char points[12], places[12];
+            EcMakeVector(points, n, 12);
+            EcMakeVector(places, n, 8);
+            EcGather(vertices, At<char*>(points, 0), 0);
+            EcGather(vertices, At<char*>(places, 0), 7);
+            const float most = PcF(M<float>(0x00A8D45C) / EcSize(self));
+            int32_t corner[3] = {};
+            while (CallThis<uint8_t>(addr::SC4MeshTriangles_Next, triangles, corner))
+                SplitTriangleC(self, points, places, corner, most, i);
+            if (At<char*>(places, 0))
+                EcFree(At<char*>(places, 0));
+            if (At<char*>(points, 0))
+                EcFree(At<char*>(points, 0));
+        }
+        CallThis<uint32_t>(addr::SC4MeshTriangles_Destruct, triangles);
+    }
+}
+
+// 0x005A9E10: the same by quads, for each primitive of a drawn material's
+// mesh whose vertices are a multiple of four (the primitive itself is not
+// looked at: each one cuts all the mesh's vertices again): every four of
+// them (a last short four too) a quad cut into a grid (CutGrid), as many a
+// side as the size (EcSize) truncated.
+void CutQuadsC(char* self)
+{
+    char* const pieces = self + 0x220;
+    At<char*>(pieces, 4) = PcAssignPieces(At<char*>(pieces, 4), At<char*>(pieces, 4), At<char*>(pieces, 0));
+    const uint32_t count = SuSlot<uint32_t>(At<char*>(self, 0x254), 0xC);
+    for (uint32_t i = 0; i < count; ++i) {
+        char* const material = reinterpret_cast<char*>(SuSlot<uint32_t>(At<char*>(self, 0x254), 0x18, i));
+        if (!At<uint8_t>(material, 0xB))
+            continue;
+        char* const mesh = reinterpret_cast<char*>(SuSlot<uint32_t>(At<char*>(self, 0x254), 0x10, i));
+        for (uint32_t j = 0; j < EcPrimitives(mesh); ++j) {
+            char* const vertices = At<char*>(mesh, 0);
+            const uint32_t n = At<uint16_t>(vertices, 6);
+            if (n & 3)
+                continue;
+            alignas(4) char points[12], places[12];
+            EcMakeVector(points, n, 12);
+            EcMakeVector(places, n, 8);
+            float* quad = At<float*>(points, 0);
+            EcGather(vertices, quad, 0);
+            EcGather(vertices, At<char*>(places, 0), 7);
+            const double size = EcSize(self);
+            const uint32_t made =
+                static_cast<uint32_t>(static_cast<int32_t>(At<char*>(points, 4) - At<char*>(points, 0)) / 12);
+            if (made) {
+                const uint32_t side = static_cast<uint32_t>(static_cast<int64_t>(size));
+                const float* place = At<float*>(places, 0);
+                for (uint32_t left = ((made - 1) >> 2) + 1; left; --left, quad += 12, place += 8)
+                    CutGridC(self, quad, place, side, static_cast<uint8_t>(i));
+            }
+            if (At<char*>(places, 0))
+                EcFree(At<char*>(places, 0));
+            if (At<char*>(points, 0))
+                EcFree(At<char*>(points, 0));
+        }
+    }
+}
+
+// 0x005AA5D0, slot 0x3C of the class: the emit. Without materials or with
+// +0x188 set, the effect is stopped (slot 4 with 0) once it says it is
+// done (slot 8). Else the step is the effect's +0x108; a wait (+0x190) is
+// counted down by it first (still waiting: +0x18 set, nothing more; done:
+// the step is what was left over). The first time (+0x258 clear and the
+// clock +0x120 at zero) the front and its strength are cleared and the
+// model is blown apart (by quads when +0x22C is set). Last frame's front
+// (+0x270) is kept, the clock moves by the step times its rate (+0x130),
+// held below one (0x00AA0BE0), and an effect with no particles (+0x18) is
+// stopped.
+void EmitEffectC(char* self)
+{
+    if (!At<char*>(self, 0x254) || At<uint32_t>(self, 0x188)) {
+        if (SuSlot<uint8_t>(self, 8))
+            SuSlot<uint32_t>(self, 4, 0u);
+        return;
+    }
+    float step = At<float>(self, 0x108);
+    const double zero = M<double>(0x00A80990);
+    if (At<float>(self, 0x190) > zero) {
+        const double left = static_cast<double>(At<float>(self, 0x190)) - step;
+        At<float>(self, 0x190) = PcF(left);
+        if (left > zero) {
+            At<uint32_t>(self, 0x18) = 1;
+            return;
+        }
+        step = PcF(-left);
+    }
+    if (!At<uint8_t>(self, 0x258) && At<double>(self, 0x120) == zero) {
+        At<uint32_t>(self, 0x26C) = 0;
+        At<uint32_t>(self, 0x274) = 0;
+        At<uint8_t>(self, 0x258) = 1;
+        if (At<uint8_t>(self, 0x22C))
+            CutQuadsC(self);
+        else
+            CutTrianglesC(self);
+    }
+    At<uint32_t>(self, 0x270) = At<uint32_t>(self, 0x26C);
+    const double clock = static_cast<double>(step) * At<double>(self, 0x130) + At<double>(self, 0x120);
+    At<double>(self, 0x120) = clock;
+    if (clock >= M<double>(0x00A80AB0))
+        At<double>(self, 0x120) = M<double>(0x00AA0BE0);
+    if (!At<uint32_t>(self, 0x18))
+        SuSlot<uint32_t>(self, 4, 0u);
+}
+
+// 0x005AA700 (ret 8), value 9 (from 0x005AAC90): the point +0x25C put on
+// the line through `at` along `along`, at the middle of the model along it
+// plus +0x278. Every material's mesh (drawn or not), once for each of its
+// primitives, adds its vertices' places to one vector (made as long by
+// SC4TripleVector::InsertN with points of 0x00B22D40, or cut down). The
+// effect's place: +0xB4 through the matrix at +0xC8 (by rows), times +0xF8,
+// plus +0xEC. Each vertex moved by it and taken along `along`; the least
+// and the most of those (the first one's unrounded value is the first
+// least compared, a NaN always taken), their middle less `at` along it.
+void SetPointAlongC(char* self, const float* at, const float* along)
+{
+    if (!At<char*>(self, 0x254))
+        return;
+    alignas(4) char points[12] = {};
+    uint32_t taken = 0;
+    const uint32_t count = SuSlot<uint32_t>(At<char*>(self, 0x254), 0xC);
+    for (uint32_t i = 0; i < count; ++i) {
+        char* const mesh = reinterpret_cast<char*>(SuSlot<uint32_t>(At<char*>(self, 0x254), 0x10, i));
+        for (uint32_t j = 0; j < EcPrimitives(mesh); ++j) {
+            char* const vertices = At<char*>(mesh, 0);
+            const uint32_t fill[3] = {M<uint32_t>(kPieceZero), M<uint32_t>(kPieceZero), M<uint32_t>(kPieceZero)};
+            const uint32_t size =
+                static_cast<uint32_t>(static_cast<int32_t>(At<char*>(points, 4) - At<char*>(points, 0)) / 12);
+            const uint32_t wanted = At<uint16_t>(vertices, 6) + taken;
+            if (wanted < size)
+                At<char*>(points, 4) = At<char*>(points, 0) + wanted * 12; // 0x00506280 copying nothing
+            else
+                CallThis<uint32_t>(addr::SC4TripleVector_InsertN, points, At<char*>(points, 4), wanted - size, fill);
+            EcGather(vertices, At<char*>(points, 0) + taken * 12, 0);
+            taken += At<uint16_t>(vertices, 6);
+        }
+    }
+    float* const begin = At<float*>(points, 0);
+    if (At<char*>(points, 0) == At<char*>(points, 4)) {
+        if (begin)
+            EcFree(begin);
+        return;
+    }
+    const double x = At<float>(self, 0xB4), y = At<float>(self, 0xB8), z = At<float>(self, 0xBC);
+    const auto row = [&](uint32_t from) {
+        return (z * At<float>(self, from + 8) + y * At<float>(self, from + 4)) + x * At<float>(self, from);
+    };
+    const double scale = At<float>(self, 0xF8);
+    const float q0 = PcF(static_cast<double>(PcF(static_cast<double>(PcF(row(0xC8))) * scale)) + At<float>(self, 0xEC));
+    const float q1 = PcF(static_cast<double>(PcF(static_cast<double>(PcF(row(0xD4))) * scale)) + At<float>(self, 0xF0));
+    const float q2 = PcF(row(0xE0) * scale + At<float>(self, 0xF4));
+    const auto along3 = [&](const float* v) {
+        return ((static_cast<double>(q0) + v[0]) * along[0] + (static_cast<double>(q2) + v[2]) * along[2]) +
+               (static_cast<double>(q1) + v[1]) * along[1];
+    };
+    const uint32_t made =
+        static_cast<uint32_t>(static_cast<int32_t>(At<char*>(points, 4) - At<char*>(points, 0)) / 12);
+    double least = along3(begin);
+    float leastF = PcF(least), most = leastF;
+    for (uint32_t i = 1; i < made; ++i) {
+        const float value = PcF(along3(begin + i * 3));
+        if (!(least < value))
+            leastF = value;
+        least = leastF;
+        if (!(value < most))
+            most = value;
+    }
+    const double onto = (static_cast<double>(at[0]) * along[0] + static_cast<double>(along[2]) * at[2]) +
+                        static_cast<double>(at[1]) * along[1];
+    const double h = ((least + most) * M<double>(0x00A92D28) - onto) + At<float>(self, 0x278);
+    const float sx = PcF(h * along[0]), sy = PcF(h * along[1]);
+    At<float>(self, 0x264) = PcF(h * along[2] + at[2]);
+    At<float>(self, 0x25C) = PcF(static_cast<double>(sx) + at[0]);
+    At<float>(self, 0x260) = PcF(static_cast<double>(sy) + at[1]);
+    EcFree(begin);
+}

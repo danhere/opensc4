@@ -1217,6 +1217,87 @@ expect = "55 8B EC 83 E4 F8 83 EC"
 source = "Name ours. ret 4: the first particle of the list at 0x00B0A5A0 (the pool 0x00B0A594 grown by SC4ParticlePool::Grow when empty), cleared (SC4Particle::Clear), placed at `at`; from the generator 0x00B22DF8 (SC4Random::Uniform) by the description (+0x24): a direction (+0x30..+0x44) made as long as a speed (+0x48..+0x4C), a push of +0xF0 away from its point +0xF4 (none within 1e-4 of it), its life +8 (+0xC..+0x10), +0x28 (+0x68, times the effect's +0x1C8), +0x2C (+0x6C), +0x30 (1 for a +0x70 of zero, else plus or minus it). Called by SC4EffectC::CutGrid and SC4EffectC::CutTriangle. Ours in renderer.effects.pieces_c."
 
 [[entry]]
+name = "SC4EffectC::StepParticle"
+address = 0x005A6520
+kind = "function"
+convention = "thiscall"
+signature = "bool (SC4Effect* this, SC4Particle* particle, float step)"
+expect = "8B 51 24 D9 05 54 10 A8"
+source = "Name ours. ret 8: slot 0x50 of the third effect class. With the description's front speed +0x1EC zero, SC4Effect::StepParticle. Else once a frame (+0x270 equal to +0x26C) the front +0x26C grows by the step times that speed and its strength +0x274 is read off the description's curve (+0x1F4..+0x1F8, by the clock +0x120's fraction); a particle not aged and not reached by the front (its distance from the point +0x25C) is left alone; else aged (ended at its life), pulled (+0xE0..+0xE8), blown (+0xEC times the effect's +0x1B8..+0x1C0), pushed from the point by two exponential fall-offs (FLDL2E, F2XM1, FSCALE; +0x1F0, +0x200), slowed (+0x100) and moved by half the step times the old velocity and the new. Ours in renderer.effects.emit_c (src/core/effects_third.h)."
+
+[[entry]]
+name = "SC4EffectC::Emit"
+address = 0x005AA5D0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "51 56 8B F1 8B 86 54 02"
+source = "Name ours. Slot 0x3C of the third effect class: without materials (+0x254) or with +0x188 set, slot 4 with 0 once slot 8 answers true; else the wait +0x190 counted down by the step +0x108, the first time (+0x258 clear, the clock +0x120 zero) the model blown apart (SC4EffectC::CutQuads when +0x22C is set, else SC4EffectC::CutTriangles), +0x270 the front +0x26C, the clock moved by the step times +0x130 and held below one (0x00AA0BE0), slot 4 with 0 when +0x18 is zero. Ours in renderer.effects.emit_c (src/core/effects_third.h)."
+
+[[entry]]
+name = "SC4EffectC::CutTriangles"
+address = 0x005AA3A0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this)"
+expect = "83 EC 64 55 56 57 6A 00"
+source = "Name ours. The pieces (+0x220) emptied; for each drawn material (byte +0xB) of the materials (+0x254: slot 0xC count, 0x10 mesh, 0x18 material), for each primitive of its mesh: the triangles walked (SC4MeshTriangles), the mesh's vertices' places and texture places gathered (GDVertexFormat::Gather 0 and 7), each triangle halved by SC4EffectC::SplitTriangle down to the float at 0x00A8D45C over the root of (*+0x1E8 times +0x1C4) times the description's +0x1D8. Only SC4EffectC::Emit calls it. Ours in renderer.effects.emit_c."
+
+[[entry]]
+name = "SC4EffectC::CutQuads"
+address = 0x005A9E10
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (SC4Effect* this)"
+expect = "83 EC 30 53 56 57 6A 00"
+source = "Name ours. As SC4EffectC::CutTriangles by quads: for each primitive of a drawn material's mesh whose vertex count is a multiple of four (the primitive itself not used), every four of the gathered vertices cut by SC4EffectC::CutGrid, as many a side as the size truncated (CRT::ftol). Only SC4EffectC::Emit calls it. Ours in renderer.effects.emit_c."
+
+[[entry]]
+name = "SC4EffectC::SetPointAlong"
+address = 0x005AA700
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, const float* at, const float* along)"
+expect = "83 EC 28 56 8B F1 8B 8E"
+source = "Name ours. ret 8: value 9 of SC4EffectC::SetValue (value, value + 0xC). Every material's mesh, once for each primitive, gathers its vertices' places into one vector (SC4TripleVector::InsertN); each moved by the effect's place (+0xB4 through +0xC8..+0xE8, times +0xF8, plus +0xEC) and taken along `along`; the point +0x25C put at `at` plus `along` times (the middle of the least and the most less `at` along it, plus +0x278). Ours in renderer.effects.emit_c."
+
+[[entry]]
+name = "SC4MeshTriangles::Construct"
+address = 0x0080AE60
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8B C1 C7 00 2C D9 AB 00"
+source = "Name ours. A mesh's triangle walker (table 0x00ABD92C): only its table set. SC4EffectC::CutTriangles makes one on its stack. Generic; called at its address."
+
+[[entry]]
+name = "SC4MeshTriangles::Destruct"
+address = 0x0080AE70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C7 01 2C D9 AB 00 C3 CC"
+source = "Name ours. The walker's table set back. Generic; called at its address."
+
+[[entry]]
+name = "SC4MeshTriangles::Start"
+address = 0x0080B320
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* mesh, uint32_t primitive)"
+expect = "8B 44 24 04 8B 50 08 8B"
+source = "Name ours. ret 8: the walker set on one primitive (12 bytes of the mesh's +8 vector: its kind, first and count) of the mesh's vertices (+0) and indices (+4, or none), its number of triangles from 0x0080AE80. Generic; called at its address."
+
+[[entry]]
+name = "SC4MeshTriangles::Next"
+address = 0x0080B420
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t* corner)"
+expect = "83 EC 0C 56 8B F1 8B 46"
+source = "Name ours. ret 4: the next triangle's three vertex numbers (0x0080AEF0, through the indices by 0x0080B090 when there are some); false after the last. Generic; called at its address."
+
+[[entry]]
 name = "SC4EffectPieceVector::Grow"
 address = 0x005A8D90
 kind = "function"
