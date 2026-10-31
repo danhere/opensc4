@@ -41,6 +41,11 @@
 //          (not set at construction), +0x2B8 a point (three copies of the
 //          float 0x00B228F0): saved; the dispatch on the mission 5 sets both
 //          points to the hose's target
+//   (ped4b: +0x27C the stream effect and +0x280 the splash, +0x284..+0x28C
+//   a vector of the hose's points (the model's "regpoint01"), +0x290 the
+//   water's target and +0x294 the foam's, +0x2A0 how many times the crew
+//   took one, +0x2A4 the message sent, +0x2A8 the point sprayed at, +0x2B4
+//   the stream's time, +0x2B8 the aim on the level 2)
 #pragma once
 
 #include <cstddef>
@@ -246,6 +251,41 @@ inline constexpr std::size_t kModelPoint = 0x04;      // a model's 1: (const flo
 inline constexpr std::size_t kGetTransform = 0x24;    // the model's virtual base's 9: (transform* out), ret 4
 inline constexpr std::size_t kSetTransform = 0x28;    // its 10: (const transform*), ret 4
 inline constexpr std::size_t kViewMove = 0x78;        // the view's (0x00B43DD0) 30: (drawable), ret 4
+// Part ped4b: the fire crew's frame, Init, Shutdown and the rest.
+inline constexpr std::size_t kPosition = 0x1C;        // the crew's 7: (float* out), ret 4
+inline constexpr std::size_t kFrame = 0x120;          // the crew's 72: (word, seconds), ret 8
+inline constexpr std::size_t kTruckSlot199 = 0x31C;   // the truck's 199, the crew gone
+inline constexpr std::size_t kModelRotate = 0x0C;     // a model's 3: (const float* angles), ret 4
+inline constexpr std::size_t kModelResource = 0x44;   // a model's 17: its resource (+0x18 a map of names)
+inline constexpr std::size_t kQueryInterface = 0x00;  // an occupant's 0: (iid, void** out), ret 8, AL
+inline constexpr std::size_t kTargetOccupant = 0x0C;  // the water's or the foam's target's 3: its occupant
+inline constexpr std::size_t kWaterAlive = 0x14;      // the water's target's 5: an int, 0 when gone
+inline constexpr std::size_t kWaterShare = 0x30;      // its 12: (int), ret 4: the crew's share added
+inline constexpr std::size_t kFoamShare = 0x14;       // the foam's target's 5: (int), ret 4
+inline constexpr std::size_t kFoamAlive = 0x18;       // its 6: AL, 0 when gone
+inline constexpr std::size_t kEffectStop = 0x0C;      // an effect's 3: (word), ret 4
+inline constexpr std::size_t kEffectEnd = 0x10;       // its 4: (word), ret 4
+inline constexpr std::size_t kEffectOn = 0x14;        // its 5: AL
+inline constexpr std::size_t kEffectTransform = 0x20; // its 8: (const transform*), ret 4
+inline constexpr std::size_t kEffectAim = 0x2C;       // its 11: (5, const float*, 1), ret 0xC
+inline constexpr std::size_t kMakeEffect = 0x1C;      // 0x00B43D1C's 7: (const char* name, void** out), ret 8
+inline constexpr std::size_t kNotify = 0x14;          // the message server's 5: (target, type), ret 8
+inline constexpr std::size_t kUnnotify = 0x18;        // its 6
+inline constexpr std::size_t kMessageGetType = 0x10;  // a message's 4: its type
+inline constexpr std::size_t kMessageWord1 = 0x28;    // its 10: its first word
+inline constexpr std::size_t kCityOccupants = 0x88;   // the city's 34: the occupant manager
+inline constexpr std::size_t kOccupantsInBox = 0x90;  // its 36: (list, low, high, filter, -1), ret 0x14, AL
 } // namespace fslot
+
+// Part ped4b: the fire crew's frame's data.
+namespace firedata {
+inline constexpr std::uint32_t kGoneMessage = 0x99EF1143; // an occupant gone: the crew's +0x38 part is told
+inline constexpr std::uint32_t kWaterIid = 0x69D25C60, kFoamIid = 0xABF98CB3; // the targets' interfaces
+inline constexpr std::size_t kPart38 = 0x38;               // the crew's message part
+inline constexpr std::size_t kPointsEnd = 0x288, kPointsCapacity = 0x28C; // the hose's points (+0x284, 12 bytes each)
+inline constexpr std::size_t kNamesMap = 0x18;             // the resource's map of names
+inline constexpr std::size_t kNodePoints = 0x24, kNodePointsEnd = 0x28, kNodePointSize = 0x1C; // a name's points
+inline constexpr std::size_t kStatePoint = 0x21C, kStateFloat = 0x9C; // the truck's state 0x10's hose point and gate
+} // namespace firedata
 
 } // namespace opensc4::automata_pedestrians

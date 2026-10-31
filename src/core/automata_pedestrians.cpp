@@ -13,7 +13,10 @@
 // step 0x00545D60). ped3: the one-shot's Init and frame and the riot
 // police's Init, Shutdown, frame, slot 74, message helper 0x00546D20, dispatch
 // 0x00546F30 and its clamp 0x00547930. ped4a: the fire crew's dispatch
-// 0x00547EF0. The layout is in
+// 0x00547EF0. ped4b: the rest of the fire crew (its Init, hose points,
+// Shutdown, slots 9 and 74, message part, frame, target search, hose
+// transform and target setters) and the fire truck's hose point
+// 0x00532E90. The layout is in
 // src/core/automata_pedestrians.h and the survey in docs/automata.md, "Part
 // ped". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
@@ -22,7 +25,7 @@
 // Group, off by default:
 //   simulators.automata.pedestrians: the 34 detours in kObject (ped1), the
 //   13 in kStates (ped2a), the 7 in kWalks (ped2b), the 9 in kCrews (ped3)
-//   and the 1 in kFireDispatch (ped4a) below.
+//   the 1 in kFireDispatch (ped4a) and the 12 in kFireFrame (ped4b) below.
 //
 // What it does. A pedestrian is a 0x270-byte block of the pool 0x00B0A018
 // (0x00544890; the one-shot, the riot police and the fire crew, of other
@@ -131,8 +134,21 @@
 // QueryInterface and the adjustor thunks the vtables hold, the occupant
 // filters' code, the stream helpers, the pool's growth and release, the
 // groups' split and pack (0x0053D100, 0x004ADE80), the jump 0x00544520 to
-// the base's Shutdown, the cGZMessage and string code, and the fire crew's
-// states, frames, Init and Shutdown (part ped4).
+// the base's Shutdown, the cGZMessage and string code, the effect service,
+// the occupant manager and the string map's and vectors' helpers.
+//
+// ped4b's oddities kept (docs/automata.md has them all): slot 74 runs the
+// frame with 0 seconds on any mission but 1; Shutdown ends the effects
+// without asking whether they are on; letting go of a target tests the
+// cleared field once more (dead); the message part ends the splash with 0;
+// the search tests the water's slot 5 as a word and the foam's slot 6 as
+// AL, keeps the best found after the list's sentinel on the stack, keeps
+// the last occupant's point for one whose slot 8 does not write, asks the
+// one taken for the foam's interface first; the frame stops with a target
+// but the state 0x10 and no hose point, gives the splash the stream again
+// when the second make fails, compares the stream's scale with 1 unrounded.
+// Floats (53 bits): SC4::NegatedAtan2's 64-bit FPATAN rounded once to a
+// float (x87 code); the rest as each function's comment says.
 
 #include "core/automata_pedestrians.h"
 
@@ -147,6 +163,7 @@
 #include <windows.h>
 
 #include <cmath>
+#include <limits>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -2630,6 +2647,810 @@ void __fastcall FireCrewDispatch(char* self, void*)
 }
 
 // ====================================================================================
+// The fire crew's frame and the rest (ped4b)
+
+// The crew's share of a target: 1 at the level (+0x278) 2, else 2, or 3
+// when `more` (the setters only).
+std::int32_t Share(char* self, bool more)
+{
+    if (At<std::uint8_t>(self, crew::kByte) == 2)
+        return 1;
+    return more ? 3 : 2;
+}
+
+// A target (+0x290 the water's, its slot 12; +0x294 the foam's, its slot 5)
+// let go of as the game inlines it: the share taken back, the field cleared
+// and the target released, then the share given to the field again if it
+// is not null (it is: the game's test is dead but kept).
+void DropTarget(char* self, std::size_t field, std::size_t shareSlot)
+{
+    const std::int32_t share = Share(self, false);
+    if (char* const target = At<char*>(self, field))
+        Virtual<std::uint32_t>(target, shareSlot, -share);
+    if (char* const target = At<char*>(self, field)) {
+        At<char*>(self, field) = nullptr;
+        Release(target);
+    }
+    if (char* const target = At<char*>(self, field))
+        Virtual<std::uint32_t>(target, shareSlot, share);
+}
+void DropWater(char* self) { DropTarget(self, fire::kHeld290, fslot::kWaterShare); }
+void DropFoam(char* self) { DropTarget(self, fire::kHeld294, fslot::kFoamShare); }
+
+// An effect (+0x27C, +0x280) ended (its slot 4 with `word`) when it is on
+// (its slot 5); false without one or when it is off.
+bool EndEffect(char* self, std::size_t field, std::uint32_t word)
+{
+    char* const effect = At<char*>(self, field);
+    if (!effect || !Virtual<std::uint8_t>(effect, fslot::kEffectOn))
+        return false;
+    Virtual<std::uint32_t>(At<char*>(self, field), fslot::kEffectEnd, word);
+    return true;
+}
+
+// 0x00547AD0 (target, more), ret 8, and 0x00547B50: the water's target
+// (+0x290, its slot 12) or the foam's (+0x294, its slot 5) set: the share
+// (Share) taken from the old one, the new one held and the old released
+// when they differ, the share given to the new one (each null-tested).
+void SetTarget(char* self, std::size_t field, std::size_t shareSlot, char* target, std::uint32_t more)
+{
+    const std::int32_t share = Share(self, (more & 0xFF) != 0);
+    if (char* const old = At<char*>(self, field))
+        Virtual<std::uint32_t>(old, shareSlot, -share);
+    char* const old = At<char*>(self, field);
+    if (target != old) {
+        if (target)
+            Virtual<std::uint32_t>(target, slot::kAddRef);
+        At<char*>(self, field) = target;
+        if (old)
+            Release(old);
+    }
+    if (char* const now = At<char*>(self, field))
+        Virtual<std::uint32_t>(now, shareSlot, share);
+}
+void __fastcall FireCrewSetWaterTarget(char* self, void*, char* target, std::uint32_t more)
+{
+    static bool logged;
+    FirstCall("FireCrewSetWaterTarget", logged);
+    SetTarget(self, fire::kHeld290, fslot::kWaterShare, target, more);
+}
+void __fastcall FireCrewSetFoamTarget(char* self, void*, char* target, std::uint32_t more)
+{
+    static bool logged;
+    FirstCall("FireCrewSetFoamTarget", logged);
+    SetTarget(self, fire::kHeld294, fslot::kFoamShare, target, more);
+}
+
+// 0x00532E90 (the truck as this; float* out), ret 4: with a state 0x10 on
+// the truck (its slot 57) whose float +0x9C is at or above 0 (0x00A81054;
+// a NaN not), its hose point (+0x21C) into `out`, AL 1; else AL 0.
+std::uint32_t __fastcall FireTruckHosePoint(char* truck, void*, std::uint32_t* out)
+{
+    static bool logged;
+    FirstCall("FireTruckHosePoint", logged);
+    char* const state = Virtual<char*>(truck, fslot::kInState, crewdata::kHoseState);
+    if (!state || !(static_cast<double>(At<float>(state, firedata::kStateFloat)) >= Zero()))
+        return 0;
+    for (int i = 0; i < 3; ++i)
+        out[i] = At<std::uint32_t>(state, firedata::kStatePoint + 4 * i);
+    return 1;
+}
+
+// 0x00548F10: with the first model's resource (the models not tested, the
+// model's slot 17 null-tested), its map of names (+0x18) asked (0x00662840)
+// for "regpoint01" (the text 0x00B0A054 points to, as an SC4String); when
+// found, the hose's points (+0x284) cleared (0x00506280) and each of the
+// name's points (0x1C bytes apart, their first 12 bytes) appended
+// (0x0050C3B0 when full). The string's text freed (SC4::Free).
+void __fastcall FireCrewReadHosePoints(char* self, void*)
+{
+    static bool logged;
+    FirstCall("FireCrewReadHosePoints", logged);
+    char* const model = *At<char**>(self, base::kModels);
+    char* const resource = Virtual<char*>(model, fslot::kModelResource);
+    if (!resource)
+        return;
+    GameString name{};
+    CallThis<void*>(addr::SC4String_FromText, static_cast<void*>(&name),
+                    Global<const char*>(addr::cSC4SimFireCrew_HosePointName));
+    char* const names = resource + firedata::kNamesMap;
+    char* const node = CallThis<char*>(addr::SC4StringMap_FindNode, static_cast<void*>(names), static_cast<void*>(&name));
+    if (node != At<char*>(names, 0)) {
+        char unused = 0;
+        char* const begin = At<char*>(self, fire::kBlock);
+        char* const end = At<char*>(self, firedata::kPointsEnd);
+        At<char*>(self, firedata::kPointsEnd) = CallCdecl<char*>(addr::cSC4PowerPoleOccupant_EraseTail, end, end, begin,
+                                                                 static_cast<void*>(&unused), 0u);
+        for (char* it = At<char*>(node, firedata::kNodePoints); it != At<char*>(node, firedata::kNodePointsEnd);
+             it += firedata::kNodePointSize) {
+            std::uint32_t point[3];
+            std::memcpy(point, it, sizeof point);
+            char* const last = At<char*>(self, firedata::kPointsEnd);
+            if (last == At<char*>(self, firedata::kPointsCapacity)) {
+                CallThis<void>(addr::SC4Float3Vector_Insert, self + fire::kBlock, last, static_cast<void*>(point),
+                               static_cast<void*>(&unused), 1u, 1u);
+            } else {
+                if (last)
+                    std::memcpy(last, point, sizeof point);
+                At<char*>(self, firedata::kPointsEnd) = last + sizeof point;
+            }
+        }
+    }
+    if (name.begin)
+        CallCdecl<void>(addr::SC4_Free, static_cast<void*>(name.begin));
+}
+
+// 0x00549890, the fire crew's slot 3: AL 1 when the occupant part (+4)
+// says the object is initialised (its slot 5). Else by the truck's mission
+// (slot 26, the truck not null-tested): 5: the level +0x278 as the riot
+// police's (0x00B21CD0; at 2 the message 0xA9E3B6E2 with the part, -1,
+// 0x40, 0, 0), the start models (SC4Automaton::SetStart) 0x5AD0E817,
+// 0xBADB57F1 with 0x00A9B294[level], then 0x00A9B2A0[level]; any other:
+// one of 0x00A9B2AC drawn below 3. The automata flags 0x2000 and 0x4000
+// on; with a start model (the first key's instance not 0), slot 174's
+// object's slot 44 (that key) and, when it finds one, its +0x30 given to
+// the +0x20 part's slot 3. The pedestrian's Init 0x005444F0; on the mission
+// 5 the hose's points read (0x00548F10); the message server (null-tested)
+// told to send the crew's +0x38 part the message 0x99EF1143 (its slot 5).
+// AL the pedestrian Init's (AL only in the game; ours zero-extends).
+std::uint32_t __fastcall FireCrewInit(char* self, void*)
+{
+    static bool logged;
+    FirstCall("FireCrewInit", logged);
+    if (Virtual<std::uint8_t>(self + 4, pslot::kIsInitialised))
+        return 1;
+    std::uint32_t key[3] = {};
+    const bool hose = Mission(self) == 5;
+    if (hose) {
+        std::uint8_t& level = At<std::uint8_t>(self, crew::kByte);
+        level = 0;
+        const float* const levels = reinterpret_cast<const float*>(addr::cSC4RiotPolice_Levels);
+        while (!(At<float>(self, crew::kWord) >= levels[level]))
+            if (++level >= 3)
+                break;
+        if (level == 2)
+            Post(self, crewdata::kRepulsorMessage, self + 4, 0xFFFFFFFFu, 0x40u, 0u, 0u);
+        key[0] = crewdata::kDrawnKeyType;
+        key[1] = crewdata::kDrawnKeyGroup;
+        key[2] = reinterpret_cast<const std::uint32_t*>(addr::cSC4SimFireCrew_LevelModels)[level];
+        CallThis<std::uint32_t>(addr::SC4Automaton_SetStart, self, static_cast<const void*>(key));
+        const std::uint32_t second[3] = {
+            crewdata::kDrawnKeyType, crewdata::kDrawnKeyGroup,
+            reinterpret_cast<const std::uint32_t*>(addr::cSC4SimFireCrew_LevelModels2)[level]};
+        CallThis<std::uint32_t>(addr::SC4Automaton_SetStart, self, static_cast<const void*>(second));
+    } else {
+        const std::uint32_t drawn = Below(3);
+        key[0] = crewdata::kDrawnKeyType;
+        key[1] = crewdata::kDrawnKeyGroup;
+        key[2] = reinterpret_cast<const std::uint32_t*>(addr::cSC4SimFireCrew_DrawnModels)[drawn];
+        CallThis<std::uint32_t>(addr::SC4Automaton_SetStart, self, static_cast<const void*>(key));
+    }
+    SetFlag(self, 0x2000u, 1u);
+    SetFlag(self, 0x4000u, 1u);
+    if (key[2])
+        if (void* const manager = Virtual<void*>(self, wslot::kPedestrianManager))
+            if (char* const found = Virtual<char*>(manager, cslot::kManagerFind, static_cast<void*>(key)))
+                Virtual<std::uint32_t>(self + 0x20, cslot::kPart20Set, At<std::uint32_t>(found, 0x30));
+    const std::uint8_t init = CallThis<std::uint8_t>(addr::cSC4Pedestrian_Init, self);
+    if (hose)
+        CallThis<void>(addr::cSC4SimFireCrew_ReadHosePoints, self);
+    if (void* const server = Global<void*>(addr::SC4_MessageServer))
+        Virtual<std::uint32_t>(server, fslot::kNotify, static_cast<void*>(self + firedata::kPart38),
+                               firedata::kGoneMessage);
+    return init;
+}
+
+// 0x00547D90, the fire crew's slot 4: when the occupant part (+4) says the
+// object is initialised, the message 0xA9E3B6E2 (the part, four zeros); the
+// stream (+0x27C) and the splash (+0x280) each ended (slot 4 with 1, no
+// test of slot 5) and let go of; the water's and the foam's targets let go
+// of (DropTarget); the message server (null-tested) told to stop (slot 6
+// with the +0x38 part and 0x99EF1143); the filters +0x298 and +0x29C let
+// go of. Then 0x00544520 (a jump to the base's Shutdown, a tail jump), its
+// EAX.
+std::uint32_t __fastcall FireCrewShutdown(char* self, void*)
+{
+    static bool logged;
+    FirstCall("FireCrewShutdown", logged);
+    if (Virtual<std::uint8_t>(self + 4, pslot::kIsInitialised)) {
+        Post(self, crewdata::kRepulsorMessage, self + 4, 0u, 0u, 0u, 0u);
+        for (const std::size_t field : {fire::kHeld27C, fire::kHeld280}) {
+            if (char* const effect = At<char*>(self, field)) {
+                Virtual<std::uint32_t>(effect, fslot::kEffectEnd, 1u);
+                if (char* const held = At<char*>(self, field)) {
+                    At<char*>(self, field) = nullptr;
+                    Release(held);
+                }
+            }
+        }
+        DropWater(self);
+        DropFoam(self);
+        if (void* const server = Global<void*>(addr::SC4_MessageServer))
+            Virtual<std::uint32_t>(server, fslot::kUnnotify, static_cast<void*>(self + firedata::kPart38),
+                                   firedata::kGoneMessage);
+        for (const std::size_t field : {fire::kFilter, fire::kFilter2})
+            if (char* const filter = At<char*>(self, field)) {
+                At<char*>(self, field) = nullptr;
+                Release(filter);
+            }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4Pedestrian_Shutdown, self);
+}
+
+// 0x00547A70, the fire crew's slot 9 (word), ret 4: the core's 0x0050E390;
+// when the word's low byte is 0, the stream and the splash ended (slot 4
+// with 1) where they are on (slot 5).
+void __fastcall FireCrewSlot9(char* self, void*, std::uint32_t word)
+{
+    static bool logged;
+    FirstCall("FireCrewSlot9", logged);
+    CallThis<void>(addr::cSC4AutomatonCore_Slot9, self, word);
+    if (word & 0xFF)
+        return;
+    EndEffect(self, fire::kHeld27C, 1u);
+    EndEffect(self, fire::kHeld280, 1u);
+}
+
+// 0x005479F0, the fire crew's slot 74 (zoom, rotation), ret 8: the core's
+// 0x00509660; on the truck's mission (slot 26) 1, slot 16 with no point and
+// the camera view's direction negated as the heading; else slot 72 (the
+// frame) with 0 and 0.
+void __fastcall FireCrewSetZoomAndRotation(char* self, void*, std::uint32_t zoom, std::uint32_t rotation)
+{
+    static bool logged;
+    FirstCall("FireCrewSetZoomAndRotation", logged);
+    CallThis<void>(addr::cSC4AutomatonCore_SetZoomAndRotation, self, zoom, rotation);
+    if (Mission(self) == 1) {
+        float heading[3];
+        AwayFromCamera(heading);
+        Virtual<std::uint32_t>(self, wslot::kPlace, static_cast<const float*>(nullptr),
+                               static_cast<const float*>(heading));
+        return;
+    }
+    Virtual<std::uint32_t>(self, fslot::kFrame, 0u, 0u);
+}
+
+// 0x00548DC0, the +0x38 part's slot 3 (message), ret 4: a message not of
+// the type 0x99EF1143 (its slot 4) goes to the core's 0x00507CD0, its EAX.
+// Else, when its first word (slot 10) is the water's or the foam's target's
+// occupant (their slot 3; each null-tested), both targets let go of and the
+// stream ended with 1, the splash with 0 (each where it is on). AL 1.
+std::uint32_t __fastcall FireCrewDoMessage(char* part, void*, void* message)
+{
+    static bool logged;
+    FirstCall("FireCrewDoMessage", logged);
+    if (Virtual<std::uint32_t>(message, fslot::kMessageGetType) != firedata::kGoneMessage)
+        return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_DoMessage, part, message);
+    char* const self = part - firedata::kPart38;
+    const std::uint32_t who = Virtual<std::uint32_t>(message, fslot::kMessageWord1);
+    char* const water = At<char*>(self, fire::kHeld290);
+    if (!water || who != Virtual<std::uint32_t>(water, fslot::kTargetOccupant)) {
+        char* const foam = At<char*>(self, fire::kHeld294);
+        if (!foam || who != Virtual<std::uint32_t>(foam, fslot::kTargetOccupant))
+            return 1;
+    }
+    DropWater(self);
+    DropFoam(self);
+    EndEffect(self, fire::kHeld27C, 1u);
+    EndEffect(self, fire::kHeld280, 0u);
+    return 1;
+}
+
+// 0x00548BD0 (transform* out), ret 4: the hose's transform. A transform
+// with flags is first reset (the identity, no point, the scale 1, flags 0,
+// the count one up). With hose points (+0x284; none: nothing more), the
+// first model's (not tested) frame (its slot 11, signed) picks one (the last
+// past their count); the model's virtual base's transform (slot 9, into one
+// from the identity, a count and flags of 0) adds its point, then its
+// matrix turns the hose point and its scale scales it, and that is added
+// too (each step the flag 1 and the count one up). Floats (53 bits): each
+// row's sum (the third term first) a float but z's, the scaled x unrounded,
+// y and z floats; each sum with the point a float.
+void __fastcall FireCrewHoseTransform(char* self, void*, ModelTransform* out)
+{
+    static bool logged;
+    FirstCall("FireCrewHoseTransform", logged);
+    static constexpr float kIdentity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    char* const model = *At<char**>(self, base::kModels);
+    if (out->flags) {
+        std::memcpy(out->m, kIdentity, sizeof kIdentity);
+        out->point[0] = out->point[1] = out->point[2] = 0.0f;
+        out->scale = 1.0f;
+        out->flags = 0;
+        ++out->count;
+    }
+    std::int32_t frame = Virtual<std::int32_t>(model, pslot::kModelFrame);
+    const char* const begin = At<char*>(self, fire::kBlock);
+    const std::int32_t count =
+        static_cast<std::int32_t>(reinterpret_cast<std::uintptr_t>(At<char*>(self, firedata::kPointsEnd)) -
+                                  reinterpret_cast<std::uintptr_t>(begin)) /
+        12;
+    if (!count)
+        return;
+    if (frame >= count)
+        frame = count - 1;
+    ModelTransform m{};
+    std::memcpy(m.m, kIdentity, sizeof kIdentity);
+    m.scale = 1.0f;
+    Virtual<std::uint32_t>(ModelBase(model), fslot::kGetTransform, static_cast<void*>(&m));
+    for (int i = 0; i < 3; ++i)
+        out->point[i] = static_cast<float>(static_cast<double>(m.point[i]) + out->point[i]);
+    out->flags = static_cast<std::uint8_t>(out->flags | 1);
+    ++out->count;
+    const float* const r = reinterpret_cast<const float*>(At<char*>(self, fire::kBlock) + 12 * frame);
+    const double r0 = r[0], r1 = r[1], r2 = r[2];
+    const float vx = static_cast<float>((m.m[2] * r2 + m.m[1] * r1) + m.m[0] * r0);
+    const float vy = static_cast<float>((m.m[5] * r2 + m.m[4] * r1) + m.m[3] * r0);
+    const double vz = (m.m[8] * r2 + m.m[7] * r1) + m.m[6] * r0;
+    const double scale = m.scale;
+    const double sx = scale * vx;
+    const float sy = static_cast<float>(static_cast<double>(vy) * scale);
+    const float sz = static_cast<float>(vz * scale);
+    out->point[0] = static_cast<float>(sx + out->point[0]);
+    out->point[1] = static_cast<float>(static_cast<double>(sy) + out->point[1]);
+    out->point[2] = static_cast<float>(static_cast<double>(sz) + out->point[2]);
+    out->flags = static_cast<std::uint8_t>(out->flags | 1);
+    ++out->count;
+}
+
+// SC4::NegatedAtan2 (0x007F82F0) of two floats, its ST0 (64 bits: FPATAN
+// does not round to the precision control) rounded once to a float.
+float NegatedAtan2(float a, float b)
+{
+    float out = 0.0f;
+    float* const to = &out;
+    const std::uintptr_t fn = addr::SC4_NegatedAtan2;
+    __asm {
+        push b
+        push a
+        call dword ptr [fn]
+        add esp, 8
+        mov edx, to
+        fstp dword ptr [edx]
+    }
+    return out;
+}
+
+// The list the target search fills, as the game keeps it on the stack: the
+// sentinel, then the best occupant found (held).
+struct TargetList {
+    char* head;
+    char* best;
+};
+
+// One of the target search's two passes: the occupants in the box (the city
+// occupant manager's slot 36 with the filter `filter`, -1) asked for `iid`;
+// those whose interface says so (the water's slot 5 an int, the foam's slot
+// 6 AL) are taken when nearer than the best so far (the length as a float,
+// strictly less), and when the search has no point of the truck's
+// (`ahead` false) only those in front (the direction's dot with the way to
+// them above 0). Floats (53 bits): x's and z's differences unrounded, y's a
+// float; the water's length squares x, z, then y, the foam's z, y, then x;
+// 1 / length unrounded, the way's x and y floats, z not; the dot sums x, z,
+// then y. The water's pass holds the best through SC4RefPtr::Assign, the
+// foam's inline. Answers whether the manager's slot 36 answered AL true.
+bool SearchPass(char* self, void* occupants, TargetList& list, const float (&low)[3], const float (&high)[3],
+                const float (&from)[3], const float (&direction)[3], bool ahead, bool foam, char*& ref, float& best,
+                float (&point)[3], std::uint8_t& found)
+{
+    if (!Virtual<std::uint8_t>(occupants, fslot::kOccupantsInBox, static_cast<void*>(&list),
+                               static_cast<const void*>(low), static_cast<const void*>(high),
+                               At<void*>(self, foam ? fire::kFilter2 : fire::kFilter), 0xFFFFFFFFu))
+        return false;
+    const double zero = Zero();
+    const double one = Global<float>(addr::cSC4SimFireCrew_One);
+    for (char* node = At<char*>(list.head, 0); node != list.head; node = At<char*>(node, 0)) {
+        char* const occupant = At<char*>(node, 8);
+        bool wanted = false;
+        if (char* const held = ref) {
+            ref = nullptr;
+            Release(held);
+        }
+        if (Virtual<std::uint8_t>(occupant, fslot::kQueryInterface, foam ? firedata::kFoamIid : firedata::kWaterIid,
+                                  static_cast<void*>(&ref))) {
+            wanted = foam ? Virtual<std::uint8_t>(ref, fslot::kFoamAlive) != 0
+                          : Virtual<std::uint32_t>(ref, fslot::kWaterAlive) != 0;
+        }
+        if (char* const held = ref) {
+            ref = nullptr;
+            Release(held);
+        }
+        if (!wanted)
+            continue;
+        Virtual<std::uint32_t>(occupant, wslot::kOccupantPoint, static_cast<float*>(point));
+        const double dx = static_cast<double>(point[0]) - from[0];
+        const float dy = static_cast<float>(static_cast<double>(point[1]) - from[1]);
+        const double dz = static_cast<double>(point[2]) - from[2];
+        const double square = foam ? (dz * dz + static_cast<double>(dy) * dy) + dx * dx
+                                   : (dx * dx + dz * dz) + static_cast<double>(dy) * dy;
+        const double length = std::sqrt(square);
+        const float lengthf = static_cast<float>(length);
+        if (!(lengthf < best))
+            continue;
+        const double inverse = one / length;
+        const float nx = static_cast<float>(dx * inverse);
+        const float ny = static_cast<float>(static_cast<double>(dy) * inverse);
+        const double nz = dz * inverse;
+        if (!ahead) {
+            const double dot = (static_cast<double>(direction[0]) * nx + direction[2] * nz) +
+                               static_cast<double>(direction[1]) * ny;
+            if (!(dot > zero))
+                continue;
+        }
+        found = 1;
+        if (foam) {
+            char* const old = list.best;
+            if (occupant != old) {
+                Virtual<std::uint32_t>(occupant, slot::kAddRef);
+                list.best = occupant;
+                if (old)
+                    Release(old);
+            }
+        } else {
+            CallThis<void*>(addr::SC4RefPtr_Assign, static_cast<void*>(&list.best), static_cast<void*>(occupant));
+        }
+        best = lengthf;
+    }
+    Virtual<std::uint32_t>(occupants, wslot::kListDone, static_cast<void*>(&list));
+    return true;
+}
+
+// 0x00549000 (const float* point or null), ret 4: the crew's targets. A
+// water's target (+0x290) whose slot 5 answers 0 and a foam's (+0x294)
+// whose slot 6 answers AL 0 are let go of (DropTarget); with one left, AL
+// 1. Else the search: a list of the allocator 0x00B207E4 (fetched from the
+// framework when unset), from the point or the crew's position (slot 7),
+// the box the float 0x00B21CDC about it in x and z (each a float) and all of
+// y, the direction to the truck's point (slot 143; x and y unrounded, z a
+// float; the length squares x, z, then y; times the float of 1 / length,
+// each a float); the water's pass (the filter +0x298) and when it finds none
+// the foam's (+0x29C) through the city's occupant manager (its slot 34,
+// held; its slots 36 and 48). The best found asked for the foam's interface
+// first: then the water's target let go of and the foam's set (0x00547B50,
+// with whether there was a point); else for the water's: the foam's let go
+// of and the water's set (0x00547AD0); neither: both let go of (the foam's
+// first). Nothing found: both let go of (the water's first). With a target
+// +0x2A0 one up. The manager (no null test), the interfaces, the list
+// (0x00413FE0) and the best let go of. AL whether a pass took one.
+std::uint32_t __fastcall FireCrewFindTarget(char* self, void*, const float* given)
+{
+    static bool logged;
+    FirstCall("FireCrewFindTarget", logged);
+    const bool ahead = given != nullptr;
+    std::uint8_t found = 0;
+    if (char* const water = At<char*>(self, fire::kHeld290))
+        if (!Virtual<std::uint32_t>(water, fslot::kWaterAlive))
+            DropWater(self);
+    if (char* const foam = At<char*>(self, fire::kHeld294))
+        if (!Virtual<std::uint8_t>(foam, fslot::kFoamAlive))
+            DropFoam(self);
+    if (At<char*>(self, fire::kHeld290) || At<char*>(self, fire::kHeld294))
+        return 1;
+    // The point and each occupant's (slot 8 writes it; one that does not
+    // leaves the last one's): three copies of 0x00B228F0 to start.
+    float from[3], point[3];
+    DefaultPoint(from, addr::cSC4SimFireCrew_DefaultFloat);
+    DefaultPoint(point, addr::cSC4SimFireCrew_DefaultFloat);
+    if (!Global<void*>(addr::SC4List_NodeAllocator2)) {
+        void* allocator = nullptr;
+        if (void* const framework = CallCdecl<void*>(addr::RZGetFramework))
+            Virtual<std::uint8_t>(framework, 0x14, std::uint32_t{0x3AE4BEA3}, std::uint32_t{0x3AE4BEAB},
+                                  static_cast<void*>(&allocator));
+        *reinterpret_cast<void**>(addr::SC4List_NodeAllocator2) = allocator;
+        CallThis<void>(addr::SC4_ReleaseRef, static_cast<void*>(&allocator));
+    }
+    TargetList list{Virtual<char*>(Global<void*>(addr::SC4List_NodeAllocator2), 0x0C, std::uint32_t{0xC}), nullptr};
+    At<char*>(list.head, 0) = list.head;
+    At<char*>(list.head, 4) = list.head;
+    const double reach = Global<float>(addr::cSC4FireTruck_HoseReach);
+    float best = std::numeric_limits<float>::max();
+    if (ahead)
+        std::memcpy(from, given, sizeof from);
+    else
+        Virtual<std::uint32_t>(self, fslot::kPosition, static_cast<float*>(from));
+    const float low[3] = {static_cast<float>(static_cast<double>(from[0]) - reach), -std::numeric_limits<float>::max(),
+                          static_cast<float>(static_cast<double>(from[2]) - reach)};
+    const float high[3] = {static_cast<float>(static_cast<double>(from[0]) + reach), std::numeric_limits<float>::max(),
+                           static_cast<float>(static_cast<double>(from[2]) + reach)};
+    const float* const t = Virtual<const float*>(At<char*>(self, crew::kVehicle), cslot::kCarPoint);
+    const double dx = static_cast<double>(t[0]) - from[0];
+    const double dy = static_cast<double>(t[1]) - from[1];
+    const float dz = static_cast<float>(static_cast<double>(t[2]) - from[2]);
+    char* foamRef = nullptr;
+    char* waterRef = nullptr;
+    const float inverse = static_cast<float>(static_cast<double>(Global<float>(addr::cSC4SimFireCrew_One)) /
+                                             std::sqrt((dx * dx + static_cast<double>(dz) * dz) + dy * dy));
+    const float direction[3] = {static_cast<float>(dx * inverse), static_cast<float>(dy * inverse),
+                                static_cast<float>(static_cast<double>(dz) * inverse)};
+    void* const occupants = Virtual<void*>(Global<void*>(addr::SC4_City), fslot::kCityOccupants);
+    if (occupants)
+        Virtual<std::uint32_t>(occupants, slot::kAddRef);
+    if (!SearchPass(self, occupants, list, low, high, from, direction, ahead, false, waterRef, best, point, found) ||
+        !list.best)
+        SearchPass(self, occupants, list, low, high, from, direction, ahead, true, foamRef, best, point, found);
+    if (char* const chosen = list.best) {
+        if (char* const held = foamRef) {
+            foamRef = nullptr;
+            Release(held);
+        }
+        if (Virtual<std::uint8_t>(chosen, fslot::kQueryInterface, firedata::kFoamIid, static_cast<void*>(&foamRef))) {
+            DropWater(self);
+            CallThis<void>(addr::cSC4SimFireCrew_SetFoamTarget, self, static_cast<void*>(foamRef),
+                           static_cast<std::uint32_t>(ahead));
+        } else {
+            if (char* const held = waterRef) {
+                waterRef = nullptr;
+                Release(held);
+            }
+            if (Virtual<std::uint8_t>(chosen, fslot::kQueryInterface, firedata::kWaterIid,
+                                      static_cast<void*>(&waterRef))) {
+                DropFoam(self);
+                CallThis<void>(addr::cSC4SimFireCrew_SetWaterTarget, self, static_cast<void*>(waterRef),
+                               static_cast<std::uint32_t>(ahead));
+            } else {
+                DropFoam(self);
+                DropWater(self);
+            }
+        }
+    } else {
+        DropWater(self);
+        DropFoam(self);
+    }
+    if (At<char*>(self, fire::kHeld290) || At<char*>(self, fire::kHeld294))
+        ++At<std::int32_t>(self, fire::kWord2A0);
+    Release(occupants);
+    if (foamRef)
+        Release(foamRef);
+    if (waterRef)
+        Release(waterRef);
+    CallThis<void>(addr::SC4List_Destroy2, static_cast<void*>(&list));
+    if (list.best)
+        Release(list.best);
+    return found;
+}
+
+// The crew turned to face away from `q` (its position, +0x40, less q; x and
+// y unrounded, z a float; the length squares z unrounded by its float, y,
+// then x; times the float of 1 / length, each a float): the first model's
+// slot 3 (the models not tested) with (0, SC4::NegatedAtan2(x, z), 0).
+void FacePoint(char* self, const float (&q)[3])
+{
+    const float* const p = &At<float>(self, base::kPosition);
+    const double dx = static_cast<double>(p[0]) - q[0];
+    const double dy = static_cast<double>(p[1]) - q[1];
+    const double dz = static_cast<double>(p[2]) - q[2];
+    const float dzf = static_cast<float>(dz);
+    const float inverse = static_cast<float>(static_cast<double>(Global<float>(addr::cSC4SimFireCrew_One)) /
+                                             std::sqrt((dz * dzf + dy * dy) + dx * dx));
+    const float ax = static_cast<float>(dx * inverse);
+    const float az = static_cast<float>(static_cast<double>(dzf) * inverse);
+    const float angles[3] = {0.0f, NegatedAtan2(ax, az), 0.0f};
+    Virtual<std::uint32_t>(*At<char**>(self, base::kModels), fslot::kModelRotate, static_cast<const float*>(angles));
+}
+
+// The stream (+0x27C) and the splash (+0x280) made by name through the
+// service 0x00B43D1C (held, AddRef null-tested; its slot 7, then
+// SC4RefPtr::Assign): with a foam's target 0x00B0A040[+0x278] and
+// 0x00B0A050 ("foam_stream", "foam_sputter"; "foam_splash"), else
+// 0x00B0A034[+0x278] and 0x00B0A04C ("water_..."). The answer's local is
+// not cleared between the two.
+void MakeEffects(char* self)
+{
+    void* const service = Global<void*>(addr::SC4_Service43D1C);
+    if (service)
+        Virtual<std::uint32_t>(service, slot::kAddRef);
+    void* made = nullptr;
+    const std::uint8_t level = At<std::uint8_t>(self, crew::kByte);
+    const char* const* const streams = reinterpret_cast<const char* const*>(
+        At<char*>(self, fire::kHeld294) ? addr::cSC4SimFireCrew_FoamStreams : addr::cSC4SimFireCrew_WaterStreams);
+    Virtual<std::uint32_t>(service, fslot::kMakeEffect, streams[level], static_cast<void*>(&made));
+    CallThis<void*>(addr::SC4RefPtr_Assign, static_cast<void*>(self + fire::kHeld27C), made);
+    const char* const splash = Global<const char*>(At<char*>(self, fire::kHeld294) ? addr::cSC4SimFireCrew_FoamSplash
+                                                                                   : addr::cSC4SimFireCrew_WaterSplash);
+    Virtual<std::uint32_t>(service, fslot::kMakeEffect, splash, static_cast<void*>(&made));
+    CallThis<void*>(addr::SC4RefPtr_Assign, static_cast<void*>(self + fire::kHeld280), made);
+    Release(service);
+}
+
+// The stream aimed: the hose's transform's scale the length from its point
+// to q times 0.25 (0x00A8821C; the flag 2 set unless that is 1 unrounded,
+// the count one up) given to the stream (slot 8). On the level 2, the aim
+// +0x2B8 moved by seconds x 0.002 (0x00A9561C, a float) towards the crew's
+// position (slot 7) plus two draws of the core's generator from -75 to 75
+// (0x00A9B348, 0x00A9B350) in x and z, and q is the aim; else q moves by the
+// hose's point less the crew's position. Kept in the city (0x00547930), the
+// stream told (slot 11 with 5, q, 1); the splash (null-tested) given a
+// transform at q (the identity, the count and flags 1). The stream off
+// (slot 5): stopped (slot 3 with 0) and +0x2B4 zero; else +0x2B4 counts
+// seconds x 0.001 (0x00A867A4). The splash stopped when +0x2B4 is at or
+// past 0.8 (0x00A9B2C8) and it is off. Floats (53 bits): the length's
+// differences unrounded (z squared first, then y, then x); on the level 2
+// the first draw's sum a float, the second's not, x's difference and its
+// product unrounded, y's and z's floats; else x's and y's differences
+// unrounded, z's a float.
+void AimStream(char* self, ModelTransform& t, float (&q)[3], float seconds)
+{
+    char* const stream = At<char*>(self, fire::kHeld27C);
+    {
+        const double dx = static_cast<double>(q[0]) - t.point[0];
+        const double dy = static_cast<double>(q[1]) - t.point[1];
+        const double dz = static_cast<double>(q[2]) - t.point[2];
+        const double scale = std::sqrt((dz * dz + dy * dy) + dx * dx) *
+                             static_cast<double>(Global<float>(addr::cSC4AutomatonBase_Quarter));
+        t.scale = static_cast<float>(scale);
+        if (scale == static_cast<double>(Global<float>(addr::SC4_FloatOneA81228)))
+            t.flags = static_cast<std::uint8_t>(t.flags & ~2);
+        else
+            t.flags = static_cast<std::uint8_t>(t.flags | 2);
+        ++t.count;
+    }
+    Virtual<std::uint32_t>(stream, fslot::kEffectTransform, static_cast<const void*>(&t));
+    float* const aim = &At<float>(self, fire::kPoint2B8);
+    if (At<std::uint8_t>(self, crew::kByte) == 2) {
+        float r[3];
+        DefaultPoint(r, addr::cSC4SimFireCrew_DefaultFloat);
+        Virtual<std::uint32_t>(self, fslot::kPosition, static_cast<float*>(r));
+        const double low = Global<double>(addr::cSC4SimFireCrew_AimLow);
+        const double high = Global<double>(addr::cSC4SimFireCrew_AimHigh);
+        r[0] = static_cast<float>(Draw(low, high) + r[0]);
+        const double z = Draw(low, high) + r[2];
+        const double ex = static_cast<double>(r[0]) - aim[0];
+        r[1] = static_cast<float>(static_cast<double>(r[1]) - aim[1]);
+        r[2] = static_cast<float>(z - aim[2]);
+        const float k = static_cast<float>(static_cast<double>(seconds) *
+                                           static_cast<double>(Global<float>(addr::cSC4SimFireCrew_AimRate)));
+        const double x = ex * k + aim[0];
+        const float yk = static_cast<float>(static_cast<double>(r[1]) * k);
+        const float zk = static_cast<float>(static_cast<double>(r[2]) * k);
+        const double y = static_cast<double>(yk) + aim[1];
+        const double zn = static_cast<double>(zk) + aim[2];
+        q[0] = static_cast<float>(x);
+        q[1] = static_cast<float>(y);
+        q[2] = static_cast<float>(zn);
+        aim[2] = q[2];
+        aim[0] = q[0];
+        aim[1] = q[1];
+    } else {
+        const float* const p = &At<float>(self, base::kPosition);
+        const double a = static_cast<double>(t.point[0]) - p[0];
+        const double b = static_cast<double>(t.point[1]) - p[1];
+        const float c = static_cast<float>(static_cast<double>(t.point[2]) - p[2]);
+        q[0] = static_cast<float>(a + q[0]);
+        q[1] = static_cast<float>(b + q[1]);
+        q[2] = static_cast<float>(static_cast<double>(c) + q[2]);
+    }
+    CallThis<void>(addr::cSC4RiotPolice_ClampToCity, self, static_cast<float*>(q));
+    Virtual<std::uint32_t>(At<char*>(self, fire::kHeld27C), fslot::kEffectAim, 5u, static_cast<const float*>(q), 1u);
+    if (char* const splash = At<char*>(self, fire::kHeld280)) {
+        ModelTransform u{};
+        static constexpr float kIdentity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        std::memcpy(u.m, kIdentity, sizeof kIdentity);
+        std::memcpy(u.point, q, sizeof u.point);
+        u.scale = 1.0f;
+        u.count = 1;
+        u.flags = 1;
+        Virtual<std::uint32_t>(splash, fslot::kEffectTransform, static_cast<const void*>(&u));
+    }
+    if (!Virtual<std::uint8_t>(At<char*>(self, fire::kHeld27C), fslot::kEffectOn)) {
+        Virtual<std::uint32_t>(At<char*>(self, fire::kHeld27C), fslot::kEffectStop, 0u);
+        At<std::uint32_t>(self, fire::kFloat2B4) = 0;
+    } else {
+        At<float>(self, fire::kFloat2B4) = static_cast<float>(
+            static_cast<double>(seconds) * static_cast<double>(Global<float>(addr::cSC4AutomatonBase_Milli)) +
+            At<float>(self, fire::kFloat2B4));
+    }
+    if (char* const splash = At<char*>(self, fire::kHeld280))
+        if (At<float>(self, fire::kFloat2B4) >= Global<float>(addr::cSC4SimFireCrew_SplashTime) &&
+            !Virtual<std::uint8_t>(splash, fslot::kEffectOn))
+            Virtual<std::uint32_t>(At<char*>(self, fire::kHeld280), fslot::kEffectStop, 0u);
+}
+
+// 0x00549A50, the fire crew's slot 72 (word, seconds), ret 8: the
+// pedestrian's frame 0x00544580; the city's map (slot 40) held for the
+// while (null-tested both ways). With the automata flag 1, or without a
+// state 0x10 on the truck (slot 57, asked first) on a mission (slot 26)
+// other than 5: the message 0x8A0F3F7B (the truck's +4 or null,
+// 0x00A9B2B8[+0x278], three zeros) and the stream and the splash ended
+// (slot 4 with 1) where they are on. Else the hose's point (0x00532E90, from
+// three copies of 0x00B228F0) and the targets (0x00549000 with it or null).
+// Neither a hose point nor (a target without the state): the stream ended
+// (and +0x2B4 zero) and the splash, where on; with +0x2A0 above 0 (signed)
+// and +0x2A4 clear the message 0xA9E3B6E2 (the part, 1, 0x50, 0, 0) and
+// +0x2A4 set; the truck's slot 199 (without a truck Remove(0)). Else: the
+// hose's transform (0x00548BD0) and the point sprayed at (+0x2A8): the hose
+// point, else the foam's or the water's target's occupant's point (slots 3
+// and 8), as it was without one. With a hose point, without the state when
+// the water's target changed, or when the foam's did, the crew faces it and
+// with no stream yet makes its effects; with a stream, it aims. Then on the
+// mission 1 (the flag 1 clear, with models) the first model at its last
+// frame swapped (SwapModel) for the riot police's drawn key with
+// 0x00A9B2AC[a draw below 3]. AL the pedestrian frame's (AL only in the
+// game; ours zero-extends).
+std::uint32_t __fastcall FireCrewFrame(char* self, void*, std::uint32_t word, float seconds)
+{
+    static bool logged;
+    FirstCall("FireCrewFrame", logged);
+    const std::uint8_t framed = CallThis<std::uint8_t>(addr::cSC4Pedestrian_Frame, self, word, seconds);
+    void* const map = Virtual<void*>(Global<void*>(addr::SC4_City), wslot::kCityNetwork);
+    if (map)
+        Virtual<std::uint32_t>(map, slot::kAddRef);
+    const bool inState =
+        Virtual<void*>(At<char*>(self, crew::kVehicle), fslot::kInState, crewdata::kHoseState) != nullptr;
+    if (CheckFlag(self, 1u) || (!inState && Mission(self) != 5)) {
+        Post(self, crewdata::kFrameMessage, CarPart(self),
+             reinterpret_cast<const std::uint32_t*>(addr::cSC4SimFireCrew_MessageWords)[At<std::uint8_t>(self, crew::kByte)],
+             0u, 0u, 0u);
+        EndEffect(self, fire::kHeld27C, 1u);
+        EndEffect(self, fire::kHeld280, 1u);
+    } else {
+        char* const oldWater = At<char*>(self, fire::kHeld290);
+        char* const oldFoam = At<char*>(self, fire::kHeld294);
+        float hose[3];
+        DefaultPoint(hose, addr::cSC4SimFireCrew_DefaultFloat);
+        const bool atHose = (CallThis<std::uint32_t>(addr::cSC4FireTruck_HosePoint, At<char*>(self, crew::kVehicle),
+                                                     static_cast<float*>(hose)) &
+                             0xFF) != 0;
+        const bool found = (CallThis<std::uint32_t>(addr::cSC4SimFireCrew_FindTarget, self,
+                                                    atHose ? static_cast<const float*>(hose) : nullptr) &
+                            0xFF) != 0;
+        if (!atHose && (!found || inState)) {
+            if (EndEffect(self, fire::kHeld27C, 1u))
+                At<std::uint32_t>(self, fire::kFloat2B4) = 0;
+            EndEffect(self, fire::kHeld280, 1u);
+            if (At<std::int32_t>(self, fire::kWord2A0) > 0 && !At<std::uint8_t>(self, fire::kByte2A4)) {
+                Post(self, crewdata::kRepulsorMessage, self + 4, 1u, 0x50u, 0u, 0u);
+                At<std::uint8_t>(self, fire::kByte2A4) = 1;
+            }
+            if (char* const truck = At<char*>(self, crew::kVehicle))
+                Virtual<std::uint32_t>(truck, fslot::kTruckSlot199);
+            else
+                Virtual<std::uint32_t>(self, wslot::kRemove, 0u);
+        } else {
+            ModelTransform t{};
+            static constexpr float kIdentity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+            std::memcpy(t.m, kIdentity, sizeof kIdentity);
+            t.scale = 1.0f;
+            CallThis<void>(addr::cSC4SimFireCrew_HoseTransform, self, static_cast<void*>(&t));
+            float q[3];
+            std::memcpy(q, &At<float>(self, fire::kPoint2A8), sizeof q);
+            if (atHose) {
+                std::memcpy(q, hose, sizeof q);
+            } else {
+                char* const target =
+                    At<char*>(self, fire::kHeld294) ? At<char*>(self, fire::kHeld294) : At<char*>(self, fire::kHeld290);
+                if (target) {
+                    char* const occupant = Virtual<char*>(target, fslot::kTargetOccupant);
+                    Virtual<std::uint32_t>(occupant, wslot::kOccupantPoint, static_cast<float*>(q));
+                }
+            }
+            std::memcpy(&At<float>(self, fire::kPoint2A8), q, sizeof q);
+            if (atHose || (!inState && oldWater != At<char*>(self, fire::kHeld290)) ||
+                oldFoam != At<char*>(self, fire::kHeld294)) {
+                FacePoint(self, q);
+                if (!At<char*>(self, fire::kHeld27C))
+                    MakeEffects(self);
+            }
+            if (At<char*>(self, fire::kHeld27C))
+                AimStream(self, t, q, seconds);
+        }
+    }
+    if (!CheckFlag(self, 1u) && Mission(self) == 1 && At<char**>(self, base::kModels) != At<char**>(self, base::kModelsEnd)) {
+        char* const model = *At<char**>(self, base::kModels);
+        const std::int32_t last = Virtual<std::int32_t>(model, pslot::kModelFrames) - 1;
+        if (Virtual<std::int32_t>(model, pslot::kModelFrame) >= last) {
+            const std::uint32_t drawn = Below(3);
+            const std::uint32_t key[3] = {crewdata::kDrawnKeyType, crewdata::kDrawnKeyGroup,
+                                          reinterpret_cast<const std::uint32_t*>(addr::cSC4SimFireCrew_DrawnModels)[drawn]};
+            CallThis<void>(addr::cSC4AutomatonCore_SwapModel, self, static_cast<void*>(model),
+                           static_cast<const void*>(key));
+        }
+    }
+    if (map)
+        Release(map);
+    return framed;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -2756,6 +3577,22 @@ const Detour kFireDispatch[] = {
     OPENSC4_DETOUR(addr::cSC4SimFireCrew_Dispatch, FireCrewDispatch),
 };
 
+// Part ped4b.
+const Detour kFireFrame[] = {
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_Init, FireCrewInit),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_ReadHosePoints, FireCrewReadHosePoints),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_Shutdown, FireCrewShutdown),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_Slot9, FireCrewSlot9),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_SetZoomAndRotation, FireCrewSetZoomAndRotation),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_DoMessage, FireCrewDoMessage),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_Frame, FireCrewFrame),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_FindTarget, FireCrewFindTarget),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_HoseTransform, FireCrewHoseTransform),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_SetWaterTarget, FireCrewSetWaterTarget),
+    OPENSC4_DETOUR(addr::cSC4SimFireCrew_SetFoamTarget, FireCrewSetFoamTarget),
+    OPENSC4_DETOUR(addr::cSC4FireTruck_HosePoint, FireTruckHosePoint),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -2764,7 +3601,8 @@ bool InstallObject(registry::Mode)
            InstallList(kStates, sizeof kStates / sizeof kStates[0], "states") &&
            InstallList(kWalks, sizeof kWalks / sizeof kWalks[0], "walks") &&
            InstallList(kCrews, sizeof kCrews / sizeof kCrews[0], "crews") &&
-           InstallList(kFireDispatch, sizeof kFireDispatch / sizeof kFireDispatch[0], "fire dispatch");
+           InstallList(kFireDispatch, sizeof kFireDispatch / sizeof kFireDispatch[0], "fire dispatch") &&
+           InstallList(kFireFrame, sizeof kFireFrame / sizeof kFireFrame[0], "fire frame");
 }
 
 const bool g_registered[] = {
@@ -2780,8 +3618,10 @@ const bool g_registered[] = {
                         "and 0xC (13 detours, part ped2a); the frames of the states 2, 3, 6, 8 and 9 (the walks) and "
                         "their bump and step (7 detours, part ped2b); the one-shot's Init and frame, the riot "
                         "police's Init, Shutdown, frame, slot 74, message helper, dispatch and its clamp to the city "
-                        "(9 detours, part ped3); the fire crew's dispatch (1 detour, part ped4a; "
-                        "src/core/automata_pedestrians.cpp)",
+                        "(9 detours, part ped3); the fire crew's dispatch (1 detour, part ped4a); the fire crew's "
+                        "Init, Shutdown, slots 9, 74 and 72 (the frame), its message part's slot 3, its hose points, "
+                        "hose transform, target search and target setters and the truck's hose point (12 detours, "
+                        "part ped4b; src/core/automata_pedestrians.cpp)",
                         false, InstallObject}),
 };
 
