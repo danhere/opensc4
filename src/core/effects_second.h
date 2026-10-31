@@ -272,6 +272,257 @@ inline void GiveBackParticleB(char* base, uint32_t particle)
     }
 }
 
+// --- The check whether a particle is in view and the restart of one --------------------------
+//
+// 0x005AD890 and 0x005AF060 (part E15): what the second class's draw and
+// its give back still called by address. What the notes call the calls on
+// the object at the effect's +0x278 (0xE500 and the slot), on its
+// sub-object (0xE600 and the slot) and the holds of the model instance and
+// of the model (0x1004, as BAddRef notes them).
+constexpr uint32_t kSdObject = 0xE500, kSdSub = 0xE600, kSdHold = 0x1004;
+
+// The blocks a particle's own effect filled (its slots 0x38 and 0x3C) in
+// the game's run, in order (the replay's answers).
+struct SdFilled {
+    char bytes[0x38];
+};
+std::vector<SdFilled> g_sdFilled;
+std::size_t g_sdFilledAt = 0;
+
+// Its slot 0x38 or 0x3C, which fills a block.
+inline void SdOwnFill(char* object, uint32_t slot, char* block)
+{
+    BOurs(kSdOwn + slot, Word(object), Word(block), kBBlock,
+          [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(object, 0), slot), object, block); });
+    if (g_bReplay && g_sdFilledAt < g_sdFilled.size())
+        std::memcpy(block, g_sdFilled[g_sdFilledAt++].bytes, sizeof(SdFilled));
+}
+
+// A block of one on the diagonal at `place` (zero without one), its scale
+// one and both bytes `flag`.
+inline void SdPlainBlock(char* block, uint8_t flag, const float* place)
+{
+    At<uint8_t>(block, 0) = flag;
+    At<uint8_t>(block, 1) = flag;
+    for (uint32_t i = 0; i < 9; ++i)
+        At<uint32_t>(block, 4 + i * 4) = i % 4 ? 0u : 0x3F800000u;
+    for (uint32_t i = 0; i < 3; ++i)
+        At<float>(block, 0x28 + i * 4) = place ? place[i] : 0.0f;
+    At<uint32_t>(block, 0x34) = 0x3F800000u;
+}
+
+// An object held through the counting part of a model (its virtual base:
+// the offset at its +4's +4, from its +4).
+inline char* SdCounted(char* model)
+{
+    return model + 4 + At<int32_t>(At<char*>(model, 4), 4);
+}
+
+inline void SdHold(char* object)
+{
+    BOurs(kSdHold, Word(object), 0, 0, [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(object, 0), 4), object); });
+}
+
+// 0x005AD890 (ret 0x14), with the depth of the camera's plane, the camera
+// (+0x3C to +0x44 its place, +0x54 to +0x5C its direction, +0x60 to +0x68
+// and +0x6C to +0x74 its two other axes), the particle, its place and its
+// scale. With the floats at the effect's +0x1E8 (+0x20 to +0x30, v below)
+// and D the place along the direction plus the depth (kept unrounded):
+// the scale becomes v+0x30 over D times the scale (s, unrounded, stored as
+// a float); a and b are the place less the camera's along its two other
+// axes (floats). r = (s - v+0x20) / v+0x24 (stored as a float, compared
+// unrounded): above zero, r at most one, the place moves toward the
+// camera's axes by s less one, then by the stored scale less one, each
+// times r and a or b, the sums kept as the game keeps them. A particle
+// whose D is not below the scale's size is in view. Otherwise it bounces
+// off the camera when D is above zero, its velocity (+0x1C) going toward
+// the camera (d, along the direction, below zero) and a and b within
+// v+0x28: the velocity loses twice d along the direction and gains v+0x2C
+// times a and b along the two axes, the manager makes "camera_collision"
+// (0x00AA0CB0) which, when made, is placed (slot 0x20 with a block of one
+// at the place, both bytes 1) and started (slot 0xC with +0x188), and what
+// it left is let go; in view. Otherwise the particle's own effect (+0x44),
+// when it answers its slot 0x14, is stopped (slot 0x10 with +0x18C) and,
+// read again, let go with +0x44 cleared first; not in view.
+inline bool ParticleInViewB(char* self, float depth, char* camera, char* p, float* place, float* scale)
+{
+    const auto c = [&](uint32_t at) { return static_cast<double>(At<float>(camera, at)); };
+    const auto v = [&](uint32_t at) { return static_cast<double>(At<float>(At<char*>(self, 0x1E8), at)); };
+    const double d0 = ((c(0x58) * place[1] + c(0x5C) * place[2]) + c(0x54) * place[0]) + depth;
+    const double s = v(0x30) / d0 * *scale;
+    *scale = static_cast<float>(s);
+    const double x = place[0] - c(0x3C), y = place[1] - c(0x40), z = place[2] - c(0x44);
+    const float a = static_cast<float>((z * c(0x68) + y * c(0x64)) + x * c(0x60));
+    const float b = static_cast<float>((z * c(0x74) + y * c(0x70)) + x * c(0x6C));
+    const double toward = (s - v(0x20)) / v(0x24);
+    if (toward > M<float>(0x00A81054)) {
+        float r = static_cast<float>(toward);
+        if (r > M<float>(0x00A81228))
+            r = 1.0f;
+        const double q = s - M<float>(0x00A81228);
+        const float q1 = static_cast<float>(q * c(0x64));
+        const float q2 = static_cast<float>(static_cast<float>(q * c(0x68)) * static_cast<double>(r));
+        const float px = static_cast<float>(static_cast<double>(static_cast<float>(((q * c(0x60)) * r) * a)) + place[0]);
+        const float py = static_cast<float>((static_cast<double>(q1) * r) * a + place[1]);
+        const double pz = static_cast<double>(q2) * a + place[2];
+        place[0] = px;
+        place[1] = py;
+        place[2] = static_cast<float>(pz);
+        const double t = static_cast<double>(*scale) - M<float>(0x00A81228);
+        const float t1 = static_cast<float>(t * c(0x70));
+        const float t2 = static_cast<float>(static_cast<float>(t * c(0x74)) * static_cast<double>(r));
+        place[0] = static_cast<float>(static_cast<double>(px) + static_cast<float>(((t * c(0x6C)) * r) * b));
+        place[1] = static_cast<float>(static_cast<double>(py) + (static_cast<double>(t1) * r) * b);
+        place[2] = static_cast<float>(pz + static_cast<float>(static_cast<double>(t2) * b));
+    }
+    if (!(d0 < std::fabs(static_cast<double>(*scale))))
+        return true;
+    const float d = static_cast<float>((c(0x5C) * At<float>(p, 0x24) + c(0x58) * At<float>(p, 0x20)) +
+                                       c(0x54) * At<float>(p, 0x1C));
+    const double reach = At<float>(At<char*>(self, 0x1E8), 0x28);
+    if (d0 > M<float>(0x00A81054) && d < M<float>(0x00A81054) && std::fabs(a) < reach && std::fabs(b) < reach) {
+        const double twice = static_cast<double>(d) + d;
+        const float n1 = static_cast<float>(twice * c(0x58)), n2 = static_cast<float>(twice * c(0x5C));
+        At<float>(p, 0x1C) = static_cast<float>(At<float>(p, 0x1C) - twice * c(0x54));
+        At<float>(p, 0x20) = static_cast<float>(static_cast<double>(At<float>(p, 0x20)) - n1);
+        At<float>(p, 0x24) = static_cast<float>(static_cast<double>(At<float>(p, 0x24)) - n2);
+        for (const auto& [axis, along] : {std::pair<uint32_t, float>{0x60, a}, {0x6C, b}}) {
+            const double k = v(0x2C);
+            const float k1 = static_cast<float>(k * c(axis + 4)), k2 = static_cast<float>(k * c(axis + 8));
+            At<float>(p, 0x1C) = static_cast<float>((k * c(axis)) * along + At<float>(p, 0x1C));
+            At<float>(p, 0x20) = static_cast<float>(static_cast<double>(k1) * along + At<float>(p, 0x20));
+            At<float>(p, 0x24) =
+                static_cast<float>(static_cast<double>(static_cast<float>(static_cast<double>(k2) * along)) +
+                                   At<float>(p, 0x24));
+        }
+        // What the make leaves is emptied first (SC4RefPtr::Reset, 0x004F20A0),
+        // which for the empty one does nothing.
+        uint32_t made = 0;
+        const char* const name = reinterpret_cast<const char*>(0x00AA0CB0);
+        char* const manager = M<char*>(kEffectsManager);
+        const bool answered =
+            BOurs(kSdMake, 0, Word(name), kBString,
+                  [&] {
+                      return CallThis<uint32_t>(At<uint32_t>(At<char*>(manager, 0), 0x1C), manager, name, &made);
+                  },
+                  Word(&made)) &
+            0xFF;
+        if (answered) {
+            char block[0x38];
+            SdPlainBlock(block, 1, place);
+            SdOwnBlock(Ptr(made), 0x20, block);
+            SdOwnCall(Ptr(made), 0xC, At<uint32_t>(self, 0x188));
+        }
+        if (made)
+            SdRelease(Ptr(made));
+        return true;
+    }
+    if (At<char*>(p, 0x44) && SdOwnAsks(At<char*>(p, 0x44))) {
+        SdOwnCall(At<char*>(p, 0x44), 0x10, At<uint32_t>(self, 0x18C));
+        if (char* const own = At<char*>(p, 0x44)) {
+            At<uint32_t>(p, 0x44) = 0;
+            SdRelease(own);
+        }
+    }
+    return false;
+}
+
+// 0x005AF060 (ret 4), with the particle, for an effect with an object at
+// +0x278 (another effect of the class; its description, read once, d
+// below). The particle's age is zeroed, its life drawn from d's +0xC to
+// +0x10 (SC4Random::Uniform) and it runs again. When d names an effect
+// (+0x160) other than the effect's description's, the particle's own
+// effect (+0x44, read again for each call) fills two blocks of one on the
+// diagonal (slots 0x38 and 0x3C), is stopped (slot 0x10 with +0x18C) and
+// let go with +0x44 cleared first; the manager makes the one d names with
+// "_slave" into +0x44 and, when it did, it is given the first block
+// (slots 0x1C and 0x20), slot 0x34 with 0xD, +0x270 and 1 for an effect
+// whose byte +0x26F is set, and slot 0xC with +0x188. An effect with a
+// model instance (+0x220) gives the object one when it has none: the
+// instance held and kept there (SC4RefPtr::AssignFrom, 0x0054DB10), then
+// the model (+0x224) as 0x00420220 does it, the new one held and the old
+// let go through their counting parts. The object is started (slot 0 with
+// 0) unless it answers its slot 8 (whether it runs); for flag 0x200 of
+// d's third word it starts the particle (SC4Effect::StartParticle), for
+// flag 0x800000 of its first it takes the particle's velocity as its own
+// (+0x150 to +0x158, +0x154 then zeroed), its timer +0x148 zeroed, and
+// wanders (SC4Effect::StepFlag800000 with 0); last its sub-object (+4)
+// takes the particle (slot 0x2C).
+inline void RestartParticleB(char* self, char* p)
+{
+    char* const object = At<char*>(self, 0x278);
+    char* const described = At<char*>(object, 0x24);
+    At<uint32_t>(p, 4) = 0;
+    At<float>(p, 8) = static_cast<float>(SuUniform(At<float>(described, 0xC), At<float>(described, 0x10)));
+    At<uint8_t>(p, 0) = 1;
+    const char* const name = At<const char*>(described, 0x160);
+    const uint32_t length = At<uint32_t>(described, 0x164) - At<uint32_t>(described, 0x160);
+    char* const mine = At<char*>(self, 0x24);
+    const bool same = At<uint32_t>(mine, 0x164) - At<uint32_t>(mine, 0x160) == length &&
+                      std::memcmp(name, At<const char*>(mine, 0x160), length) == 0;
+    if (length && !same) {
+        char block[0x38], other[0x38];
+        SdPlainBlock(block, 0, nullptr);
+        SdPlainBlock(other, 0, nullptr);
+        if (At<char*>(p, 0x44)) {
+            SdOwnFill(At<char*>(p, 0x44), 0x38, block);
+            SdOwnFill(At<char*>(p, 0x44), 0x3C, other);
+            SdOwnCall(At<char*>(p, 0x44), 0x10, At<uint32_t>(self, 0x18C));
+            if (char* const own = At<char*>(p, 0x44)) {
+                At<uint32_t>(p, 0x44) = 0;
+                SdRelease(own);
+            }
+        }
+        if (char* const own = At<char*>(p, 0x44)) {
+            At<uint32_t>(p, 0x44) = 0;
+            SdRelease(own);
+        }
+        if (SdMakeNamed(described, reinterpret_cast<const char*>(0x00A9EFA0), Word(p + 0x44))) {
+            SdOwnBlock(At<char*>(p, 0x44), 0x1C, block);
+            SdOwnBlock(At<char*>(p, 0x44), 0x20, block);
+            if (At<uint8_t>(self, 0x26F))
+                SdOwnValue(At<char*>(p, 0x44), 0x34, 0xD, &At<uint32_t>(self, 0x270), 1);
+            SdOwnCall(At<char*>(p, 0x44), 0xC, At<uint32_t>(self, 0x188));
+        }
+    }
+    if (char* const instance = At<char*>(self, 0x220); instance && !At<uint32_t>(object, 0x220)) {
+        SdHold(instance);
+        At<char*>(object, 0x220) = instance;
+        char* const model = At<char*>(self, 0x224);
+        char* const old = At<char*>(object, 0x224);
+        if (model != old) {
+            if (model)
+                SdHold(SdCounted(model));
+            At<char*>(object, 0x224) = model;
+            if (old)
+                SdRelease(SdCounted(old));
+        }
+    }
+    const bool runs = BOurs(kSdObject + 8, Word(object), 0, 0, [&] {
+                          return CallThis<uint32_t>(At<uint32_t>(At<char*>(object, 0), 8), object);
+                      }) &
+                      0xFF;
+    if (!runs) {
+        const uint32_t zero = 0;
+        BOurs(kSdObject, Word(object), Word(&zero), 4,
+              [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(object, 0), 0), object, zero); });
+    }
+    if (At<uint32_t>(described, 8) >> 9 & 1)
+        CallThis<void>(addr::SC4Effect_StartParticle, object, Word(p));
+    if (At<uint32_t>(described, 0) >> 23 & 1) {
+        At<uint32_t>(object, 0x150) = At<uint32_t>(p, 0x1C);
+        At<uint32_t>(object, 0x154) = At<uint32_t>(p, 0x20);
+        At<uint32_t>(object, 0x158) = At<uint32_t>(p, 0x24);
+        At<uint32_t>(object, 0x154) = 0;
+        At<uint32_t>(object, 0x148) = 0;
+        CallThis<void>(addr::SC4Effect_StepFlag800000, object, 0u);
+    }
+    char* const sub = object + 4;
+    const uint32_t particle = Word(p);
+    BOurs(kSdSub + 0x2C, Word(sub), Word(&particle), 4,
+          [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(sub, 0), 0x2C), sub, particle); });
+}
+
 // The whole number nearest to `value` less the float at 0x00A84D2C, by the
 // float at 0x00AA0BFC (1.5 times 2^23) added and taken off the float's
 // bits, one up when the value is that one up (LfRoundDown's, the game's
