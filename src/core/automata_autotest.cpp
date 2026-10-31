@@ -29956,8 +29956,8 @@ uint32_t __fastcall CrewValueCount(CrewObject*, void*)
     return g_crew.count;
 }
 // The message server's slot 4: what the setters wrote into the message (its
-// flags +8, the type +0xC, the four words +0x10 to +0x1C, the object +0x24
-// by name).
+// flags, the byte +8: the three above it are the message's unset; the type
+// +0xC, the four words +0x10 to +0x1C, the object +0x24 by name).
 uint32_t __fastcall CrewPost(CrewObject*, void*, char* message, uint32_t word)
 {
     if (CrewForeign())
@@ -29966,7 +29966,8 @@ uint32_t __fastcall CrewPost(CrewObject*, void*, char* message, uint32_t word)
     g_crew.calls.Mix(0xCC);
     g_crew.calls.Mix(message ? 1u : 0u);
     if (message) {
-        g_crew.calls.MixBytes(message + 8, 0x18);
+        g_crew.calls.Mix(At<uint8_t>(message, 8));
+        g_crew.calls.MixBytes(message + 0xC, 0x14);
         g_crew.calls.Mix(CrewName(At<void*>(message, 0x24)));
     }
     g_crew.calls.Mix(word);
