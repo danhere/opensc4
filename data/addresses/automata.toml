@@ -14843,3 +14843,224 @@ name = "SC4AutomataTuning::CrewSide21CCC"
 address = 0x00B21CCC
 kind = "data"
 source = "Name ours. The second float of the tuning property 0xA9D6CC17 (filled at startup): the hose's point along the turned heading on the mission 5, and the distance beside the truck on any other. Called by address from src/core/automata_pedestrians.cpp (part ped4a)."
+
+# Part ped4b: the fire crew's frame, Init, Shutdown and the rest (src/core/automata_pedestrians.cpp, docs/automata.md "Part ped").
+
+[[entry]]
+name = "cSC4SimFireCrew::Init"
+address = 0x00549890
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 1C 53 56 8B F1 8B"
+source = "Name ours. The fire crew's slot 3: AL 1 when the occupant part (+4) says the object is initialised. Else by the truck's (+0x270, not null-tested) mission (slot 26): 5, the level +0x278 as the riot police's (0x00B21CD0; at 2 the message 0xA9E3B6E2), the start models 0x5AD0E817/0xBADB57F1 with 0x00A9B294[level] then 0x00A9B2A0[level]; any other, 0x00A9B2AC[a draw below 3]. The automata flags 0x2000 and 0x4000; the first key's model looked up through slot 174's slot 44 for the +0x20 part's slot 3; the pedestrian's Init 0x005444F0; on the mission 5 the hose's points (0x00548F10); the message server's slot 5 with the +0x38 part and 0x99EF1143. AL the pedestrian Init's. Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::ReadHosePoints"
+address = 0x00548F10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 24 56 8B F1 8B 86"
+source = "Name ours. The first model's resource (its slot 17, null-tested) asked for the name 0x00B0A054 (\"regpoint01\") in its map (+0x18, 0x00662840); when found the vector +0x284 cleared (0x00506280) and the name's points (0x1C bytes apart, their first 12) appended (0x0050C3B0 when full). Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Shutdown"
+address = 0x00547D90
+kind = "function"
+convention = "thiscall"
+signature = "int (void* this)"
+expect = "56 8B F1 8B 46 04 57 8D"
+source = "Name ours. The fire crew's slot 4: when initialised (the occupant part's slot 5), the message 0xA9E3B6E2 (the part, four zeros), the stream (+0x27C) and the splash (+0x280) ended (slot 4 with 1) and released, the water's (+0x290) and the foam's (+0x294) targets let go of, the message server's slot 6 (the +0x38 part, 0x99EF1143), the filters +0x298 and +0x29C released. Then a tail jump to 0x00544520. Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Slot9"
+address = 0x00547A70
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, bool on)"
+expect = "53 8B 5C 24 08 56 53 8B"
+source = "Name ours. The fire crew's slot 9, ret 4: the core's 0x0050E390; when the byte is 0 the stream (+0x27C) and the splash (+0x280) ended (slot 4 with 1) where on (slot 5). Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::SetZoomAndRotation"
+address = 0x005479F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int zoom, int rotation)"
+expect = "8B 44 24 08 83 EC 0C 56"
+source = "Name ours. The fire crew's slot 74, ret 8: the core's 0x00509660; on the truck's mission (slot 26) 1, slot 16 with no point and the camera view's direction negated; else slot 72 (the frame) with 0 and 0. Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::DoMessage"
+address = 0x00548DC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* message)"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Name ours. The +0x38 part's slot 3, ret 4: a message of another type than 0x99EF1143 (its slot 4) to the core's 0x00507CD0; else when its first word (slot 10) is the water's or the foam's target's occupant (slot 3) both targets let go of, the stream ended with 1 and the splash with 0 (where on). AL 1. Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::Frame"
+address = 0x00549A50
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int word, float seconds)"
+expect = "81 EC AC 00 00 00 8B 84"
+source = "Name ours. The fire crew's slot 72, ret 8: the pedestrian's frame 0x00544580; the city's map held. The automata flag 1 or neither the truck's state 0x10 (slot 57) nor the mission 5: the message 0x8A0F3F7B and the effects ended. Else the hose point (0x00532E90) and the targets (0x00549000): neither the point nor (a target without the state) stops the effects, sends 0xA9E3B6E2 once after a target (+0x2A0, +0x2A4) and calls the truck's slot 199; else the hose's transform (0x00548BD0), the point sprayed at (+0x2A8), the crew turned to it and the effects made (0x00B43D1C's slot 7) when it changed, the stream aimed (+0x2B8 on the level 2) and timed (+0x2B4). On the mission 1 the first model swapped at its last frame. AL the pedestrian frame's. Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::FindTarget"
+address = 0x00549000
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const float* point)"
+expect = "83 EC 7C 53 55 8B AC 24"
+source = "Name ours. Ret 4. Lets go of a gone water's (+0x290, slot 5 an int) or foam's (+0x294, slot 6) target; with one left AL 1. Else the city's occupant manager (slot 34; slots 36 and 48) searched in the box 0x00B21CDC about the point (or the crew's position) through the filter +0x298 for 0x69D25C60, then +0x29C for 0xABF98CB3: the nearest (in front of the way to the truck's point without a point); the target set (0x00547B50 or 0x00547AD0) and +0x2A0 one up. AL whether one was taken. Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::HoseTransform"
+address = 0x00548BD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* transform)"
+expect = "83 EC 44 53 55 56 8B 74"
+source = "Name ours. Ret 4. Resets a transform with flags to the identity (count one up); with hose points (+0x284) the first model's frame (slot 11) picks one, the model's virtual base's transform (slot 9) adds its point and the turned, scaled hose point (flag 1, count up each). Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::SetWaterTarget"
+address = 0x00547AD0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* target, bool more)"
+expect = "55 56 8B F1 80 BE 78 02"
+source = "Name ours. Ret 8. +0x290 set: the share (1 at the level 2, else 3 with the byte, else 2) taken from the old target (slot 12 with -share), the new one held and the old released when they differ, the share given to the new one. Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::SetFoamTarget"
+address = 0x00547B50
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* target, bool more)"
+expect = "55 56 8B F1 80 BE 78 02"
+source = "Name ours. Ret 8. As 0x00547AD0 for +0x294 with the target's slot 5. Ours in src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4FireTruck::HosePoint"
+address = 0x00532E90
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float* out)"
+expect = "8B 01 6A 10 FF 90 E4 00"
+source = "Name ours. Ret 4. The truck's state 0x10 (slot 57) with its float +0x9C at or above 0: its point +0x21C into out, AL 1; else AL 0. Ours in src/core/automata_pedestrians.cpp (part ped4b; the fire crew's frame calls it)."
+
+[[entry]]
+name = "cSC4AutomatonCore::Slot9"
+address = 0x0050E390
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, bool on)"
+expect = "53 8B 5C 24 08 56 57 8B"
+source = "Name ours, not analysed. The automaton core's slot 9, ret 4 (the occupant part's slot 18 with the byte first). Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4AutomatonCore::DoMessage"
+address = 0x00507CD0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* message)"
+expect = "53 56 57 8B 7C 24 10 8B"
+source = "Name ours, not analysed. The +0x38 part's slot 3 of the automaton core, ret 4 (the message 0x09D92FC3 first). Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "SC4StringMap::FindNode"
+address = 0x00662840
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* key)"
+expect = "83 EC 10 55 56 8B 31 8B"
+source = "Name ours. Ret 4. A tree's find by game string key: the node, or the header when not found (as 0x00662A00 without the result's pointer). Called by address from src/core/automata_pedestrians.cpp (part ped4b) and src/core/font_system.cpp."
+
+[[entry]]
+name = "cSC4SimFireCrew::LevelModels"
+address = 0x00A9B294
+kind = "data"
+expect = "00 00 01 21 00 00 01 21 00 00 03 21"
+source = "Name ours. Three words: the instance of the fire crew's first start model on the mission 5 by its level +0x278. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::LevelModels2"
+address = 0x00A9B2A0
+kind = "data"
+expect = "00 00 02 21 00 00 02 21 00 00 04 21"
+source = "Name ours. Three words: the second start model's instance on the mission 5 by the level. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::DrawnModels"
+address = 0x00A9B2AC
+kind = "data"
+expect = "00 00 05 21 00 00 06 21 00 00 07 21"
+source = "Name ours. Three words: the start model's instance on other missions (drawn below 3), and the model the frame swaps in on the mission 1. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::WaterStreams"
+address = 0x00B0A034
+kind = "data"
+expect = "38 B3 A9 00 38 B3 A9 00 28 B3 A9 00"
+source = "Name ours. Three text pointers by the level: \"water_stream\", \"water_stream\", \"water_sputter\" (the stream effect made without a foam's target). Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::FoamStreams"
+address = 0x00B0A040
+kind = "data"
+expect = "1C B3 A9 00 1C B3 A9 00 0C B3 A9 00"
+source = "Name ours. Three text pointers by the level: \"foam_stream\", \"foam_stream\", \"foam_sputter\". Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::WaterSplash"
+address = 0x00B0A04C
+kind = "data"
+expect = "FC B2 A9 00"
+source = "Name ours. A text pointer: \"water_splash\" (the splash effect without a foam's target). Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::FoamSplash"
+address = 0x00B0A050
+kind = "data"
+expect = "F0 B2 A9 00"
+source = "Name ours. A text pointer: \"foam_splash\". Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::HosePointName"
+address = 0x00B0A054
+kind = "data"
+expect = "E4 B2 A9 00"
+source = "Name ours. A text pointer: \"regpoint01\", the name of the hose's points in the first model's resource. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::AimRate"
+address = 0x00A9561C
+kind = "data"
+expect = "6F 12 03 3B"
+source = "Name ours. The float 0.002: the fire crew's frame moves its aim (+0x2B8) by seconds times it on the level 2. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::AimLow"
+address = 0x00A9B348
+kind = "data"
+expect = "00 00 00 00 00 C0 52 C0"
+source = "Name ours. The double -75: the low end of the frame's two draws about the crew's position on the level 2. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::AimHigh"
+address = 0x00A9B350
+kind = "data"
+expect = "00 00 00 00 00 C0 52 40"
+source = "Name ours. The double 75: the high end of those draws. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+[[entry]]
+name = "cSC4SimFireCrew::SplashTime"
+address = 0x00A9B2C8
+kind = "data"
+expect = "CD CC 4C 3F"
+source = "Name ours. The float 0.8: the stream's time (+0x2B4) past which the frame stops a splash that is off. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."

@@ -621,6 +621,28 @@
 //   from far off), each mixing +0x2A8 and +0x2B8 and the
 //   counts. pflags 0x1000 when it ran, 0x2000 without a city or the
 //   factory. Log line: "ped4a pfire".
+//   Part ped4b (the fire crew's frame and the rest) adds `,<pfire2>` before
+//   pflags (58 fields): one fire crew from its factory on ped3's vtable copy
+//   (slots 7 and 72 the test's too), a truck of the test's (ped3's car with
+//   slot 199), a model of the test's (slots 3, 11, 12 and 17 and the
+//   virtual base), the city's slots 34 (an occupant manager of the test's:
+//   slots 36 and 48, the list's nodes from the game's allocator) and ped3's,
+//   the message server (slots 4, 5 and 6) and the effect service 0x00B43D1C
+//   (slot 7) the test's for its own thread, and the base's Init and
+//   Shutdown, the pedestrian's frame, SetStart, SwapModel, the core's slots
+//   74 and 9 and its message part's slot 3 jumped to the test's stubs for
+//   the while. The truck's hose point over six gates; the target setters
+//   over 48 holders, levels and bytes; slot 9, slot 74 and the message
+//   part over the effects and the targets; the hose's points over a
+//   resource of the test's (a one-node string tree: no resource, empty,
+//   other names, 0 to 6 points); the hose's transform over 40; the target
+//   search over 96 (occupants, interfaces, passes, a NaN and a tie, 32
+//   about the origin) and the frame over 192 (the flag 1, the state and the
+//   missions, the hose point, the targets, the effects made, on and off,
+//   the levels, the counts, the models; 64 about the origin); Init over 24
+//   and Shutdown over 16. Each case mixes the crew's fields and the objects'
+//   counts. pflags 0x4000 when it ran, 0x8000 without a city, the factory
+//   or the patches. Log line: "ped4b pfire2".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -30933,6 +30955,940 @@ void PedFireDrive(Hash& pfire, uint32_t& pflags)
     g_fire = FireAnswers{};
 }
 
+// ---- Part ped4b: the fire crew's frame and the rest (src/core/automata_pedestrians.cpp).
+
+// A test object of the ped4b test's: its vtable, its count, its name and
+// what its slots answer (each kind reads the fields it needs).
+struct Fire2Object {
+    void** vtable;
+    int32_t references;
+    uint32_t name;
+    uint32_t answer;     // a target's alive answer, an effect's on, a message's type
+    uint32_t word;       // a message's first word
+    Fire2Object* water;  // an occupant's interfaces
+    Fire2Object* foam;
+    Fire2Object* occupant; // a target's occupant
+    float point[3];      // an occupant's point
+    bool writes;
+};
+
+// What the ped4b test's slots and stubs answer and record (into g_crew.calls).
+struct Fire2Answers {
+    Fire2Object* inBox[2][6] = {}; // the occupant manager's slot 36, pass by pass (the water's, the foam's)
+    int inBoxCount[2] = {};
+    uint8_t inBoxAnswer[2] = {1, 1};
+    int pass = 0;
+    Fire2Object* made[4] = {};     // 0x00B43D1C's slot 7 answers, in turn (null leaves the local)
+    int makes = 0;
+    float position[3] = {};        // the crew's slot 7
+    int32_t frame = 0, frames = 0; // the first model's slots 11 and 12
+    char* resource = nullptr;      // its slot 17
+    void* realService = nullptr;
+    void** realOccupants = nullptr;
+    int32_t occupantsReferences = 0;
+};
+Fire2Answers g_fire2;
+Fire2Object* g_fire2Objects[24] = {};
+Fire2Object Fire2New(void** vtable, uint32_t name)
+{
+    Fire2Object o{};
+    o.vtable = vtable;
+    o.references = 1;
+    o.name = name;
+    return o;
+}
+
+uint32_t Fire2Name(const void* p)
+{
+    if (!p)
+        return 0;
+    for (Fire2Object* o : g_fire2Objects)
+        if (o && p == o)
+            return o->name;
+    if (g_crew.self && p == g_crew.self + 4)
+        return 0x101;
+    if (g_crew.self && p == g_crew.self + ped::firedata::kPart38)
+        return 0x138;
+    return 0xFF;
+}
+
+uint32_t __fastcall Fire2AddRef(Fire2Object* o, void*) { return static_cast<uint32_t>(++o->references); }
+uint32_t __fastcall Fire2Release(Fire2Object* o, void*) { return static_cast<uint32_t>(--o->references); }
+// A target's: 3 its occupant, 5 (water: alive; foam: the share), 6 (foam:
+// alive), 12 (water: the share).
+void* __fastcall Fire2TargetOccupant(Fire2Object* o, void*)
+{
+    g_crew.calls.Mix(0xB03);
+    g_crew.calls.Mix(o->name);
+    return o->occupant;
+}
+uint32_t __fastcall Fire2WaterAlive(Fire2Object* o, void*)
+{
+    g_crew.calls.Mix(0xB05);
+    g_crew.calls.Mix(o->name);
+    return o->answer;
+}
+uint32_t __fastcall Fire2Share(Fire2Object* o, void*, int32_t share)
+{
+    g_crew.calls.Mix(0xB0C);
+    g_crew.calls.Mix(o->name);
+    g_crew.calls.Mix(static_cast<uint32_t>(share));
+    return 0;
+}
+uint8_t __fastcall Fire2FoamAlive(Fire2Object* o, void*)
+{
+    g_crew.calls.Mix(0xB06);
+    g_crew.calls.Mix(o->name);
+    return static_cast<uint8_t>(o->answer);
+}
+// An occupant's: 0 QueryInterface, 8 its point.
+uint8_t __fastcall Fire2Query(Fire2Object* o, void*, uint32_t iid, void** out)
+{
+    g_crew.calls.Mix(0xB00);
+    g_crew.calls.Mix(o->name);
+    g_crew.calls.Mix(iid);
+    Fire2Object* const found =
+        iid == ped::firedata::kWaterIid ? o->water : iid == ped::firedata::kFoamIid ? o->foam : nullptr;
+    if (!found)
+        return 0;
+    ++found->references;
+    *out = found;
+    return 1;
+}
+uint32_t __fastcall Fire2Point(Fire2Object* o, void*, float* out)
+{
+    g_crew.calls.Mix(0xB08);
+    g_crew.calls.Mix(o->name);
+    g_crew.calls.MixBytes(out, 12);
+    if (o->writes)
+        std::memcpy(out, o->point, sizeof o->point);
+    return 0;
+}
+// An effect's: 3 stop, 4 end, 5 on, 8 transform, 11 aim.
+uint32_t __fastcall Fire2EffectWord(Fire2Object* o, uint32_t what, uint32_t word)
+{
+    g_crew.calls.Mix(what);
+    g_crew.calls.Mix(o->name);
+    g_crew.calls.Mix(word);
+    return 0;
+}
+uint32_t __fastcall Fire2EffectStop(Fire2Object* o, void*, uint32_t word) { return Fire2EffectWord(o, 0xE03, word); }
+uint32_t __fastcall Fire2EffectEnd(Fire2Object* o, void*, uint32_t word) { return Fire2EffectWord(o, 0xE04, word); }
+uint8_t __fastcall Fire2EffectOn(Fire2Object* o, void*)
+{
+    g_crew.calls.Mix(0xE05);
+    g_crew.calls.Mix(o->name);
+    return static_cast<uint8_t>(o->answer);
+}
+uint32_t __fastcall Fire2EffectTransform(Fire2Object* o, void*, const uint8_t* t)
+{
+    g_crew.calls.Mix(0xE08);
+    g_crew.calls.Mix(o->name);
+    FireMixTransform(t);
+    return 0;
+}
+uint32_t __fastcall Fire2EffectAim(Fire2Object* o, void*, uint32_t five, const float* point, uint32_t one)
+{
+    g_crew.calls.Mix(0xE0B);
+    g_crew.calls.Mix(o->name);
+    g_crew.calls.Mix(five);
+    g_crew.calls.MixBytes(point, 12);
+    g_crew.calls.Mix(one);
+    return 0;
+}
+// A message's: 4 its type, 10 its first word.
+uint32_t __fastcall Fire2MessageType(Fire2Object* o, void*)
+{
+    g_crew.calls.Mix(0xC04);
+    return o->answer;
+}
+uint32_t __fastcall Fire2MessageWord(Fire2Object* o, void*)
+{
+    g_crew.calls.Mix(0xC0A);
+    return o->word;
+}
+// The occupant manager (the city's slot 34): 36 fills the list with the
+// pass's occupants (nodes of the game's allocator), 48 counts them.
+uint32_t __fastcall Fire2ManagerAddRef(Fire2Object*, void*) { return static_cast<uint32_t>(++g_fire2.occupantsReferences); }
+uint32_t __fastcall Fire2ManagerRelease(Fire2Object*, void*) { return static_cast<uint32_t>(--g_fire2.occupantsReferences); }
+char* g_fire2Filters[2] = {};
+uint8_t __fastcall Fire2InBox(Fire2Object*, void*, char** list, const float* low, const float* high, void* filter,
+                              uint32_t count)
+{
+    const int pass = g_fire2.pass++ & 1;
+    g_crew.calls.Mix(0xD24);
+    g_crew.calls.MixBytes(low, 12);
+    g_crew.calls.MixBytes(high, 12);
+    g_crew.calls.Mix(filter == g_fire2Filters[0] ? 1u : filter == g_fire2Filters[1] ? 2u : filter ? 3u : 0u);
+    g_crew.calls.Mix(count);
+    g_crew.calls.Mix(list[1] ? Fire2Name(list[1]) : 0u); // the best so far, after the list on the stack
+    if (!g_fire2.inBoxAnswer[pass])
+        return 0;
+    char* const head = list[0];
+    void* const allocator = Global<void*>(addr::SC4List_NodeAllocator2);
+    for (int i = 0; i < g_fire2.inBoxCount[pass]; ++i) {
+        char* const node = Virtual<char*>(allocator, 0x0C, 0xCu);
+        At<void*>(node, 8) = g_fire2.inBox[pass][i];
+        char* const last = At<char*>(head, 4);
+        At<char*>(node, 0) = head;
+        At<char*>(node, 4) = last;
+        At<char*>(last, 0) = node;
+        At<char*>(head, 4) = node;
+    }
+    return 1;
+}
+uint32_t __fastcall Fire2ListDone(Fire2Object*, void*, char** list)
+{
+    g_crew.calls.Mix(0xD30);
+    uint32_t n = 0;
+    for (char* node = At<char*>(list[0], 0); node != list[0] && n < 16; node = At<char*>(node, 0))
+        ++n;
+    g_crew.calls.Mix(n);
+    return 0;
+}
+// The effect service (0x00B43D1C): 7 makes an effect by name. Calls from
+// another thread go to the real one (the global is swapped for everyone).
+uint32_t __fastcall Fire2ServiceAddRef(Fire2Object* o, void*)
+{
+    if (CrewForeign())
+        return Virtual<uint32_t>(g_fire2.realService, ped::slot::kAddRef);
+    return static_cast<uint32_t>(++o->references);
+}
+uint32_t __fastcall Fire2ServiceRelease(Fire2Object* o, void*)
+{
+    if (CrewForeign())
+        return Virtual<uint32_t>(g_fire2.realService, ped::slot::kRelease);
+    return static_cast<uint32_t>(--o->references);
+}
+uint32_t __fastcall Fire2Make(Fire2Object*, void*, const char* name, void** out)
+{
+    if (CrewForeign())
+        return Virtual<uint32_t>(g_fire2.realService, ped::fslot::kMakeEffect, name, out);
+    g_crew.calls.Mix(0xF07);
+    const std::size_t n = name ? std::strlen(name) : 0;
+    g_crew.calls.Mix(static_cast<uint32_t>(n));
+    if (n && n < 32)
+        g_crew.calls.MixBytes(name, n);
+    g_crew.calls.Mix(*out ? Fire2Name(*out) : 0u);
+    Fire2Object* const made = g_fire2.made[g_fire2.makes++ & 3];
+    if (made) {
+        ++made->references;
+        *out = made;
+    }
+    return 0;
+}
+// The message server's 5 and 6 (4 is ped3's CrewPost).
+void* g_fire2RealServer = nullptr;
+uint32_t __fastcall Fire2Notify(Fire2Object*, void*, void* target, uint32_t type)
+{
+    if (CrewForeign())
+        return Virtual<uint32_t>(g_fire2RealServer, ped::fslot::kNotify, target, type);
+    g_crew.calls.Mix(0xA05);
+    g_crew.calls.Mix(Fire2Name(target));
+    g_crew.calls.Mix(type);
+    return 1;
+}
+uint32_t __fastcall Fire2Unnotify(Fire2Object*, void*, void* target, uint32_t type)
+{
+    if (CrewForeign())
+        return Virtual<uint32_t>(g_fire2RealServer, ped::fslot::kUnnotify, target, type);
+    g_crew.calls.Mix(0xA06);
+    g_crew.calls.Mix(Fire2Name(target));
+    g_crew.calls.Mix(type);
+    return 1;
+}
+// The city's slot 34.
+Fire2Object g_fire2Occupants{};
+void* __fastcall Fire2CityOccupants(void* city, void*)
+{
+    if (CrewForeign())
+        return CrewRealCity<void*>(city, ped::fslot::kCityOccupants);
+    g_crew.calls.Mix(34);
+    return &g_fire2Occupants;
+}
+// The crew's slots 7 and 72 (the frame through the vtable, for slot 74).
+uint32_t __fastcall Fire2Position(char*, void*, float* out)
+{
+    g_crew.calls.Mix(0x707);
+    g_crew.calls.MixBytes(out, 12);
+    std::memcpy(out, g_fire2.position, sizeof g_fire2.position);
+    return 0;
+}
+uint32_t __fastcall Fire2FrameSlot(char*, void*, uint32_t word, float seconds)
+{
+    g_crew.calls.Mix(0x772);
+    g_crew.calls.Mix(word);
+    g_crew.calls.Mix(Bits(seconds));
+    return 0;
+}
+// The truck's slot 199.
+uint32_t __fastcall Fire2TruckGone(CrewObject*, void*)
+{
+    g_crew.calls.Mix(0x8C7);
+    return 0;
+}
+// The model's: 3 its angles, 11 its frame, 12 its frames, 17 its resource.
+uint32_t __fastcall Fire2ModelRotate(FireModel*, void*, const float* angles)
+{
+    g_crew.calls.Mix(0xA03);
+    g_crew.calls.MixBytes(angles, 12);
+    return 0;
+}
+int32_t __fastcall Fire2ModelFrame(FireModel*, void*)
+{
+    g_crew.calls.Mix(0xA0B);
+    return g_fire2.frame;
+}
+int32_t __fastcall Fire2ModelFrames(FireModel*, void*)
+{
+    g_crew.calls.Mix(0xA0C);
+    return g_fire2.frames;
+}
+char* __fastcall Fire2ModelResource(FireModel*, void*)
+{
+    g_crew.calls.Mix(0xA11);
+    return g_fire2.resource;
+}
+// The stubs jumped to from the game's code.
+void __fastcall Fire2CoreSlot9(char*, void*, uint32_t word)
+{
+    g_crew.calls.Mix(0x509);
+    g_crew.calls.Mix(word);
+}
+uint32_t __fastcall Fire2CoreMessage(char* part, void*, void* message)
+{
+    g_crew.calls.Mix(0x5CD);
+    g_crew.calls.Mix(Fire2Name(part));
+    g_crew.calls.Mix(Fire2Name(message));
+    return 0x77;
+}
+void __fastcall Fire2SwapModel(char*, void*, void* model, const uint32_t* key)
+{
+    g_crew.calls.Mix(0x620);
+    g_crew.calls.Mix(model ? 1u : 0u);
+    g_crew.calls.MixBytes(key, 12);
+}
+
+template <int Kind>
+void** Fire2Vtable()
+{
+    static void* t[24] = {};
+    t[1] = reinterpret_cast<void*>(&Fire2AddRef);
+    t[2] = reinterpret_cast<void*>(&Fire2Release);
+    namespace f = ped::fslot;
+    switch (Kind) {
+    case 0: // the water's target
+        t[f::kTargetOccupant / 4] = reinterpret_cast<void*>(&Fire2TargetOccupant);
+        t[f::kWaterAlive / 4] = reinterpret_cast<void*>(&Fire2WaterAlive);
+        t[f::kWaterShare / 4] = reinterpret_cast<void*>(&Fire2Share);
+        break;
+    case 1: // the foam's
+        t[f::kTargetOccupant / 4] = reinterpret_cast<void*>(&Fire2TargetOccupant);
+        t[f::kFoamShare / 4] = reinterpret_cast<void*>(&Fire2Share);
+        t[f::kFoamAlive / 4] = reinterpret_cast<void*>(&Fire2FoamAlive);
+        break;
+    case 2: // an occupant
+        t[f::kQueryInterface / 4] = reinterpret_cast<void*>(&Fire2Query);
+        t[ped::wslot::kOccupantPoint / 4] = reinterpret_cast<void*>(&Fire2Point);
+        break;
+    case 3: // an effect
+        t[f::kEffectStop / 4] = reinterpret_cast<void*>(&Fire2EffectStop);
+        t[f::kEffectEnd / 4] = reinterpret_cast<void*>(&Fire2EffectEnd);
+        t[f::kEffectOn / 4] = reinterpret_cast<void*>(&Fire2EffectOn);
+        t[f::kEffectTransform / 4] = reinterpret_cast<void*>(&Fire2EffectTransform);
+        t[f::kEffectAim / 4] = reinterpret_cast<void*>(&Fire2EffectAim);
+        break;
+    case 4: // a message
+        t[f::kMessageGetType / 4] = reinterpret_cast<void*>(&Fire2MessageType);
+        t[f::kMessageWord1 / 4] = reinterpret_cast<void*>(&Fire2MessageWord);
+        break;
+    case 5: // the effect service
+        t[1] = reinterpret_cast<void*>(&Fire2ServiceAddRef);
+        t[2] = reinterpret_cast<void*>(&Fire2ServiceRelease);
+        t[f::kMakeEffect / 4] = reinterpret_cast<void*>(&Fire2Make);
+        break;
+    case 6: // the message server
+        t[1] = reinterpret_cast<void*>(&CrewAddRef);
+        t[2] = reinterpret_cast<void*>(&CrewRelease);
+        t[ped::cslot::kPost / 4] = reinterpret_cast<void*>(&CrewPost);
+        t[f::kNotify / 4] = reinterpret_cast<void*>(&Fire2Notify);
+        t[f::kUnnotify / 4] = reinterpret_cast<void*>(&Fire2Unnotify);
+        break;
+    default: // a filter
+        break;
+    }
+    return t;
+}
+void** Fire2ManagerVtable()
+{
+    static void* t[56] = {};
+    t[1] = reinterpret_cast<void*>(&Fire2ManagerAddRef);
+    t[2] = reinterpret_cast<void*>(&Fire2ManagerRelease);
+    t[ped::fslot::kOccupantsInBox / 4] = reinterpret_cast<void*>(&Fire2InBox);
+    t[ped::wslot::kListDone / 4] = reinterpret_cast<void*>(&Fire2ListDone);
+    return t;
+}
+void** Fire2ModelVtable()
+{
+    static void* t[24] = {};
+    t[ped::fslot::kModelDrawable / 4] = reinterpret_cast<void*>(&FireModelDrawable);
+    t[ped::fslot::kModelPoint / 4] = reinterpret_cast<void*>(&FireModelPoint);
+    t[ped::fslot::kModelRotate / 4] = reinterpret_cast<void*>(&Fire2ModelRotate);
+    t[ped::pslot::kModelFrame / 4] = reinterpret_cast<void*>(&Fire2ModelFrame);
+    t[ped::pslot::kModelFrames / 4] = reinterpret_cast<void*>(&Fire2ModelFrames);
+    t[ped::fslot::kModelResource / 4] = reinterpret_cast<void*>(&Fire2ModelResource);
+    return t;
+}
+// The truck: ped3's car's slots and slot 199.
+void** Fire2TruckVtable()
+{
+    static void* t[224] = {};
+    void** const car = CrewVtable<7>();
+    for (int i = 0; i < 160; ++i)
+        t[i] = car[i];
+    t[ped::fslot::kTruckSlot199 / 4] = reinterpret_cast<void*>(&Fire2TruckGone);
+    return t;
+}
+
+// A tree of the game's string map with one node (STLport: the header's +4
+// the root; a node's +8 and +0xC its children, +0x10 the key string, +0x24
+// and +0x28 the points, 0x1C bytes each) or none.
+struct Fire2Tree {
+    char header[0x30];
+    char node[0x30];
+    char text[16];
+    char points[6][0x1C];
+};
+void Fire2SetTree(Fire2Tree& tree, char* resource, const char* key, int count, WalkLcg& lcg)
+{
+    std::memset(&tree, 0, sizeof tree);
+    At<char*>(resource, ped::firedata::kNamesMap) = tree.header;
+    if (!key)
+        return; // empty: no root
+    std::strncpy(tree.text, key, sizeof tree.text - 1);
+    At<char*>(tree.header, 4) = tree.node;
+    At<char*>(tree.header, 8) = tree.node;
+    At<char*>(tree.header, 0xC) = tree.node;
+    At<char*>(tree.node, 4) = tree.header;
+    At<char*>(tree.node, 0x14) = tree.text;
+    At<char*>(tree.node, 0x18) = tree.text + std::strlen(tree.text);
+    At<char*>(tree.node, 0x1C) = tree.text + std::strlen(tree.text);
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 7; ++j)
+            At<float>(tree.points[i], 4 * j) = lcg.In(-3.0f, 3.0f);
+    At<char*>(tree.node, ped::firedata::kNodePoints) = tree.points[0];
+    At<char*>(tree.node, ped::firedata::kNodePointsEnd) = tree.points[count];
+}
+
+// A model transform as the crew's code fills it: a count and flags, a 3x3
+// matrix, a point and a scale.
+struct Fire2Transform {
+    uint8_t count, flags;
+    uint8_t unused[2];
+    float m[9];
+    float point[3];
+    float scale;
+};
+static_assert(sizeof(Fire2Transform) == 0x38, "a model transform");
+
+void Fire2Section(const char* name, const Hash& pfire2)
+{
+    log::Write("autotest: automata: vehicle: ped4b %s: pfire2 %08X calls %08X %08X posts %u", name, pfire2.h,
+               g_crew.calls.h, g_ped2.calls.h, g_crew.posts);
+}
+
+void PedFire2Drive(Hash& pfire2, uint32_t& pflags)
+{
+    g_ped2 = Ped2Answers{};
+    g_walk = WalkAnswers{};
+    g_crew = CrewAnswers{};
+    g_fire = FireAnswers{};
+    g_fire2 = Fire2Answers{};
+    void* const city = Global<void*>(addr::SC4_City);
+    char* const fire = city ? MakePed(3, pflags) : nullptr;
+    if (!fire) {
+        pflags |= 0x8000;
+        log::Write("autotest: automata: vehicle: ped4b: no city or the factory failed");
+        return;
+    }
+    namespace b = ped::base;
+    namespace c = ped::crew;
+    namespace cs = ped::cslot;
+    namespace f = ped::fire;
+    void** const realFire[3] = {At<void**>(fire, 0), At<void**>(fire, 4), At<void**>(fire, 0x20)};
+    char* const savedModels[2] = {At<char*>(fire, b::kModels), At<char*>(fire, b::kModelsEnd)};
+    char* const savedFilters[2] = {At<char*>(fire, f::kFilter), At<char*>(fire, f::kFilter2)};
+    g_fire2Filters[0] = savedFilters[0];
+    g_fire2Filters[1] = savedFilters[1];
+    bool ran = false;
+    {
+        Em4Jump jumps[] = {
+            {addr::cSC4AutomatonBase_Init, reinterpret_cast<void*>(&Ped2BaseInit)},
+            {addr::cSC4Pedestrian_Frame, reinterpret_cast<void*>(&CrewPedFrame)},
+            {addr::SC4Automaton_SetStart, reinterpret_cast<void*>(&CrewSetStart)},
+            {addr::cSC4AutomatonCore_SwapModel, reinterpret_cast<void*>(&Fire2SwapModel)},
+            {addr::cSC4AutomatonCore_SetZoomAndRotation, reinterpret_cast<void*>(&CrewZoom)},
+            {addr::cSC4AutomatonBase_Shutdown, reinterpret_cast<void*>(&CrewBaseShutdown)},
+            {addr::cSC4AutomatonCore_Slot9, reinterpret_cast<void*>(&Fire2CoreSlot9)},
+            {addr::cSC4AutomatonCore_DoMessage, reinterpret_cast<void*>(&Fire2CoreMessage)},
+        };
+        bool patched = true;
+        for (const Em4Jump& j : jumps)
+            patched = patched && j.written;
+        if (patched) {
+            ran = true;
+            void** parts[2];
+            void** const table = CrewTable(fire, 177, parts);
+            table[ped::fslot::kPosition / 4] = reinterpret_cast<void*>(&Fire2Position);
+            table[ped::fslot::kFrame / 4] = reinterpret_cast<void*>(&Fire2FrameSlot);
+            At<void**>(fire, 0) = table;
+            At<void**>(fire, 4) = parts[0];
+            At<void**>(fire, 0x20) = parts[1];
+            static void* cityTable[256];
+            void** const realCity = At<void**>(city, 0);
+            for (int i = 0; i < 256; ++i)
+                cityTable[i] = realCity[i];
+            cityTable[ped::wslot::kCityNetwork / 4] = reinterpret_cast<void*>(&CrewCityMap);
+            cityTable[cs::kCityCellsX / 4] = reinterpret_cast<void*>(&CrewCellsX);
+            cityTable[cs::kCityCellsZ / 4] = reinterpret_cast<void*>(&CrewCellsZ);
+            cityTable[ped::fslot::kCityOccupants / 4] = reinterpret_cast<void*>(&Fire2CityOccupants);
+            g_crewThread = GetCurrentThreadId();
+            g_crewRealCity = realCity;
+            g_crewRealServer = Global<void*>(addr::SC4_MessageServer);
+            g_fire2RealServer = g_crewRealServer;
+            g_fire2.realService = Global<void*>(addr::SC4_Service43D1C);
+            At<void**>(city, 0) = cityTable;
+            g_crewMap = CrewMake(CrewVtable<0>());
+            Fire2Object server = Fire2New(Fire2Vtable<6>(), 0x60);
+            Fire2Object service = Fire2New(Fire2Vtable<5>(), 0x61);
+            g_fire2Occupants = Fire2New(Fire2ManagerVtable(), 0x62);
+            CrewObject manager = CrewMake(CrewVtable<2>());
+            CrewCar car{Fire2TruckVtable(), CrewPartVtable(), 1};
+            RfSwap swapServer(addr::SC4_MessageServer, &server);
+            RfSwap swapService(addr::SC4_Service43D1C, &service);
+            alignas(4) static char cameraBuffer[0x60];
+            char* const camera =
+                Global<char*>(addr::SC4_CameraView) ? Global<char*>(addr::SC4_CameraView) : cameraBuffer;
+            RfSwap swapCamera(addr::SC4_CameraView, camera);
+            float savedDirection[3];
+            std::memcpy(savedDirection, camera + cs::kCameraDirection, sizeof savedDirection);
+            At<float>(camera, cs::kCameraDirection) = -0.3f;
+            At<float>(camera, cs::kCameraDirection + 4) = -0.9f;
+            At<float>(camera, cs::kCameraDirection + 8) = 0.4f;
+            float* const reach = reinterpret_cast<float*>(addr::cSC4FireTruck_HoseReach);
+            const float savedReach = *reach;
+            float* const levels = reinterpret_cast<float*>(addr::cSC4RiotPolice_Levels);
+            const float savedLevels[3] = {levels[0], levels[1], levels[2]};
+            log::Write("autotest: automata: vehicle: ped4b: reach %08X levels %08X %08X %08X", Bits(savedReach),
+                       Bits(levels[0]), Bits(levels[1]), Bits(levels[2]));
+            g_crew.self = fire;
+            g_crew.car = &car;
+            g_ped2.self = fire;
+            At<CrewCar*>(fire, c::kVehicle) = &car;
+            g_crew.cells[0] = 64;
+            g_crew.cells[1] = 64;
+            static const int32_t bases[2] = {0, 4};
+            FireModel model{Fire2ModelVtable(), bases, FireBaseVtable(), 1};
+            static void* list[2];
+            list[0] = &model;
+            list[1] = nullptr;
+            At<void**>(fire, b::kModels) = list;
+            At<void**>(fire, b::kModelsEnd) = list + 1;
+            alignas(4) static char state[0x230];
+            alignas(4) static char resource[0x20];
+            static Fire2Tree tree;
+            // The test's objects: two water targets, two foam targets, five
+            // occupants, four effects, two messages, two filters.
+            Fire2Object water[2] = {Fire2New(Fire2Vtable<0>(), 0x10), Fire2New(Fire2Vtable<0>(), 0x11)};
+            Fire2Object foam[2] = {Fire2New(Fire2Vtable<1>(), 0x20), Fire2New(Fire2Vtable<1>(), 0x21)};
+            Fire2Object occupants[5] = {Fire2New(Fire2Vtable<2>(), 0x30), Fire2New(Fire2Vtable<2>(), 0x31),
+                                        Fire2New(Fire2Vtable<2>(), 0x32), Fire2New(Fire2Vtable<2>(), 0x33),
+                                        Fire2New(Fire2Vtable<2>(), 0x34)};
+            Fire2Object effects[4] = {Fire2New(Fire2Vtable<3>(), 0x40), Fire2New(Fire2Vtable<3>(), 0x41),
+                                      Fire2New(Fire2Vtable<3>(), 0x42), Fire2New(Fire2Vtable<3>(), 0x43)};
+            Fire2Object messages[2] = {Fire2New(Fire2Vtable<4>(), 0x50), Fire2New(Fire2Vtable<4>(), 0x51)};
+            Fire2Object filters[2] = {Fire2New(Fire2Vtable<7>(), 0x70), Fire2New(Fire2Vtable<7>(), 0x71)};
+            {
+                int n = 0;
+                for (Fire2Object* group : {water, foam})
+                    for (int i = 0; i < 2; ++i)
+                        g_fire2Objects[n++] = &group[i];
+                for (Fire2Object& o : occupants)
+                    g_fire2Objects[n++] = &o;
+                for (Fire2Object& o : effects)
+                    g_fire2Objects[n++] = &o;
+                for (Fire2Object& o : messages)
+                    g_fire2Objects[n++] = &o;
+                for (Fire2Object& o : filters)
+                    g_fire2Objects[n++] = &o;
+                g_fire2Objects[n++] = &server;
+                g_fire2Objects[n++] = &service;
+                g_fire2Objects[n++] = &g_fire2Occupants;
+            }
+            const float nan = std::numeric_limits<float>::quiet_NaN();
+            WalkLcg lcg{0x4FB4E1};
+            auto set3 = [](float* to, float x, float y, float z) {
+                to[0] = x;
+                to[1] = y;
+                to[2] = z;
+            };
+            auto mixSelf = [&](uint32_t answer) {
+                pfire2.Mix(answer & 0xFF);
+                for (const std::size_t at : {f::kHeld27C, f::kHeld280, f::kHeld290, f::kHeld294})
+                    pfire2.Mix(Fire2Name(At<void*>(fire, at)));
+                pfire2.Mix(At<uint32_t>(fire, f::kWord2A0));
+                pfire2.Mix(At<uint8_t>(fire, f::kByte2A4));
+                pfire2.MixBytes(fire + f::kPoint2A8, 12);
+                pfire2.Mix(At<uint32_t>(fire, f::kFloat2B4));
+                pfire2.MixBytes(fire + f::kPoint2B8, 12);
+                pfire2.Mix(At<uint8_t>(fire, c::kByte));
+                for (Fire2Object* o : g_fire2Objects)
+                    if (o)
+                        pfire2.Mix(static_cast<uint32_t>(o->references));
+            };
+            auto setHeld = [&](std::size_t at, Fire2Object* o) { At<Fire2Object*>(fire, at) = o; };
+
+            // ---- The small ones at their addresses.
+            // The truck's hose point: no state, the gate below 0, 0, -0, a
+            // NaN, above.
+            g_crew.calls.Mix(0x1);
+            {
+                const float gates[6] = {1.0f, -1.0f, 0.0f, -0.0f, nan, 7.5f};
+                for (int k = 0; k < 6; ++k) {
+                    g_crew.inState = k == 0 ? nullptr : state;
+                    At<float>(state, ped::firedata::kStateFloat) = gates[k];
+                    set3(&At<float>(state, ped::firedata::kStatePoint), 10.0f + k, -2.0f, 3.25f * k);
+                    uint32_t out[3] = {0xA1A1A1A1u, 0xA2A2A2A2u, 0xA3A3A3A3u};
+                    pfire2.Mix(This<uint32_t>(addr::cSC4FireTruck_HosePoint, &car, static_cast<void*>(out)) & 0xFF);
+                    pfire2.MixBytes(out, sizeof out);
+                }
+            }
+            // The setters: old and new over null, the same and others, the
+            // level 2 and others, more as 0, 1 and 0x100.
+            for (int k = 0; k < 48; ++k) {
+                const bool waterKind = k % 2 == 0;
+                Fire2Object* const pool = waterKind ? water : foam;
+                Fire2Object* const choices[3] = {nullptr, &pool[0], &pool[1]};
+                const std::size_t at = waterKind ? f::kHeld290 : f::kHeld294;
+                setHeld(at, choices[(k / 2) % 3]);
+                Fire2Object* const target = choices[(k / 6) % 3];
+                At<uint8_t>(fire, c::kByte) = static_cast<uint8_t>(k % 5 == 0 ? 2 : k % 3);
+                const uint32_t more = k % 4 == 1 ? 1u : k % 4 == 2 ? 0x100u : k % 4 == 3 ? 0xFFu : 0u;
+                This<void>(waterKind ? addr::cSC4SimFireCrew_SetWaterTarget : addr::cSC4SimFireCrew_SetFoamTarget, fire,
+                           static_cast<void*>(target), more);
+                mixSelf(0);
+            }
+            setHeld(f::kHeld290, nullptr);
+            setHeld(f::kHeld294, nullptr);
+            // Slot 9: the byte 0, 1 and 0x100 over the effects null, on and off.
+            for (int k = 0; k < 18; ++k) {
+                setHeld(f::kHeld27C, k % 3 == 0 ? nullptr : &effects[0]);
+                setHeld(f::kHeld280, k % 2 == 0 ? &effects[1] : nullptr);
+                effects[0].answer = (k / 3) % 2;
+                effects[1].answer = (k / 2) % 3 != 0;
+                This<void>(addr::cSC4SimFireCrew_Slot9, fire, k % 6 < 2 ? 0u : k % 6 < 4 ? 1u : 0x100u);
+                mixSelf(0);
+            }
+            // Slot 74: the missions 1 and others.
+            for (int k = 0; k < 4; ++k) {
+                g_crew.mission = k % 2 ? 1u : k == 0 ? 5u : 3u;
+                This<void>(addr::cSC4SimFireCrew_SetZoomAndRotation, fire, 0x30u + k, 0x40u + k);
+                mixSelf(0);
+            }
+            // The message part: another type, the gone message for the
+            // water's or the foam's occupant, another, no targets.
+            for (int k = 0; k < 24; ++k) {
+                setHeld(f::kHeld290, k % 4 == 3 ? nullptr : &water[0]);
+                setHeld(f::kHeld294, k % 3 == 2 ? nullptr : &foam[0]);
+                water[0].occupant = &occupants[0];
+                foam[0].occupant = &occupants[1];
+                setHeld(f::kHeld27C, k % 5 == 4 ? nullptr : &effects[0]);
+                setHeld(f::kHeld280, k % 7 == 6 ? nullptr : &effects[1]);
+                effects[0].answer = k % 2;
+                effects[1].answer = (k / 2) % 2;
+                messages[0].answer = k % 6 == 0 ? 0x12345678u : ped::firedata::kGoneMessage;
+                const uint32_t whos[4] = {0, 1, 2, 3};
+                const uint32_t who = whos[(k / 3) % 4];
+                messages[0].word = who == 1   ? static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&occupants[0]))
+                                   : who == 2 ? static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&occupants[1]))
+                                   : who == 3 ? 0u
+                                              : 0x5151u;
+                pfire2.Mix(This<uint32_t>(addr::cSC4SimFireCrew_DoMessage, fire + ped::firedata::kPart38,
+                                          static_cast<void*>(&messages[0])) &
+                           0xFF);
+                mixSelf(0);
+            }
+            setHeld(f::kHeld290, nullptr);
+            setHeld(f::kHeld294, nullptr);
+            setHeld(f::kHeld27C, nullptr);
+            setHeld(f::kHeld280, nullptr);
+            Fire2Section("small", pfire2);
+
+            // ---- The hose's points: no resource, an empty tree, another
+            // name, "regpoint01" with 0 to 6 points (the vector grown by the
+            // game's insert, then filled within it).
+            g_fire2.resource = nullptr;
+            for (int k = 0; k < 12; ++k) {
+                g_fire2.resource = k == 0 ? nullptr : resource;
+                if (k == 1)
+                    Fire2SetTree(tree, resource, nullptr, 0, lcg);
+                else if (k == 2)
+                    Fire2SetTree(tree, resource, "regpoint00", 3, lcg);
+                else if (k == 3)
+                    Fire2SetTree(tree, resource, "regpoint010", 3, lcg);
+                else if (k >= 4)
+                    Fire2SetTree(tree, resource, "regpoint01", (k * 5) % 7, lcg);
+                This<void>(addr::cSC4SimFireCrew_ReadHosePoints, fire);
+                const char* const begin = At<char*>(fire, f::kBlock);
+                const char* const end = At<char*>(fire, ped::firedata::kPointsEnd);
+                const uint32_t n = static_cast<uint32_t>(end - begin);
+                pfire2.Mix(n);
+                if (begin && n <= 0x60)
+                    pfire2.MixBytes(begin, n);
+            }
+            Fire2Section("points", pfire2);
+
+            // ---- The hose's transform: flags set and clear, the frame below,
+            // at and past the points (and none), the base's answers.
+            auto answerTransform = [&](int k) {
+                float t[13] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+                g_fire.transform[0] = static_cast<uint8_t>(k % 5 == 3 ? 0xFF : k % 3);
+                g_fire.transform[1] = static_cast<uint8_t>(k % 4 == 1 ? 0x05 : 0x00);
+                for (int i = 0; i < 13; ++i)
+                    t[i] = k % 2 ? lcg.In(-2.0f, 2.0f) : t[i];
+                if (k % 11 == 5)
+                    t[12] = nan;
+                std::memcpy(g_fire.transform + 4, t, sizeof t);
+                g_fire.writes = k % 7 != 6;
+            };
+            for (int k = 0; k < 40; ++k) {
+                if (k == 0 || k == 20) {
+                    Fire2SetTree(tree, resource, "regpoint01", k == 0 ? 5 : 0, lcg);
+                    g_fire2.resource = resource;
+                    This<void>(addr::cSC4SimFireCrew_ReadHosePoints, fire);
+                }
+                answerTransform(k);
+                g_fire2.frame = k % 6 == 0 ? -1 : k % 6 == 1 ? 4 : k % 6 == 2 ? 9 : k % 6;
+                Fire2Transform t{};
+                t.count = static_cast<uint8_t>(k * 37);
+                t.flags = static_cast<uint8_t>(k % 3 == 0 ? 0 : k % 3 == 1 ? 6 : 1);
+                for (int i = 0; i < 9; ++i)
+                    t.m[i] = lcg.In(-1.0f, 1.0f);
+                set3(t.point, lcg.In(-50.0f, 50.0f), lcg.In(0.0f, 5.0f), lcg.In(-50.0f, 50.0f));
+                t.scale = lcg.In(0.5f, 2.0f);
+                This<void>(addr::cSC4SimFireCrew_HoseTransform, fire, static_cast<void*>(&t));
+                FireMixTransform(reinterpret_cast<const uint8_t*>(&t));
+                pfire2.MixBytes(&t, 2);
+                pfire2.MixBytes(reinterpret_cast<const char*>(&t) + 4, sizeof t - 4);
+            }
+            Fire2Section("transform", pfire2);
+
+            // ---- The target search at its address, then the frame. The
+            // occupants' points, interfaces and answers, the passes' lists.
+            auto setTargets = [&](int k, bool tiny) {
+                const float s = tiny ? 0.004f : 40.0f;
+                for (int i = 0; i < 5; ++i) {
+                    Fire2Object& o = occupants[i];
+                    set3(o.point, g_fire2.position[0] + lcg.In(-s, s), g_fire2.position[1] + lcg.In(-1.0f, 1.0f) * s / 40,
+                         g_fire2.position[2] + lcg.In(-s, s));
+                    o.writes = (k + i) % 9 != 4;
+                    const uint32_t kind = (lcg.Next() >> 29) % 4;
+                    o.water = kind == 1 || kind == 3 ? &water[i % 2] : nullptr;
+                    o.foam = kind == 2 || kind == 3 ? &foam[i % 2] : nullptr;
+                }
+                if (k % 13 == 7)
+                    occupants[1].point[0] = nan;
+                if (k % 17 == 3)
+                    std::memcpy(occupants[2].point, occupants[0].point, 12); // a tie
+                for (int i = 0; i < 2; ++i) {
+                    water[i].answer = (lcg.Next() >> 30) != 0 ? 1u : 0u;
+                    foam[i].answer = (lcg.Next() >> 30) != 0 ? 1u : 0u;
+                    water[i].occupant = &occupants[i];
+                    foam[i].occupant = &occupants[i + 2];
+                }
+                for (int pass = 0; pass < 2; ++pass) {
+                    g_fire2.inBoxAnswer[pass] = (lcg.Next() >> 28) != 0 ? 1 : 0;
+                    g_fire2.inBoxCount[pass] = static_cast<int>(lcg.Next() >> 29) % 6;
+                    for (int i = 0; i < g_fire2.inBoxCount[pass]; ++i)
+                        g_fire2.inBox[pass][i] = &occupants[(lcg.Next() >> 24) % 5];
+                }
+                g_fire2.pass = 0;
+                const uint32_t held = (lcg.Next() >> 28) % 8;
+                setHeld(f::kHeld290, held == 1 ? &water[0] : held == 3 ? &water[1] : nullptr);
+                setHeld(f::kHeld294, held == 2 ? &foam[0] : held == 3 ? &foam[1] : nullptr);
+                At<uint8_t>(fire, c::kByte) = static_cast<uint8_t>((lcg.Next() >> 30) % 3);
+            };
+            for (int k = 0; k < 96; ++k) {
+                const bool tiny = k >= 64;
+                set3(g_fire2.position, tiny ? lcg.In(0.0f, 0.01f) : lcg.In(100.0f, 900.0f), tiny ? 0.001f : 20.0f,
+                     tiny ? lcg.In(0.0f, 0.01f) : lcg.In(100.0f, 900.0f));
+                set3(g_crew.point, g_fire2.position[0] + lcg.In(-30.0f, 30.0f) * (tiny ? 0.001f : 1.0f),
+                     g_fire2.position[1], g_fire2.position[2] + lcg.In(-30.0f, 30.0f) * (tiny ? 0.001f : 1.0f));
+                *reach = k % 5 == 0 ? savedReach : tiny ? 0.02f : 45.0f;
+                setTargets(k, tiny);
+                float point[3];
+                set3(point, g_fire2.position[0] + 0.5f, g_fire2.position[1], g_fire2.position[2] - 0.25f);
+                const bool given = k % 3 == 1;
+                pfire2.Mix(This<uint32_t>(addr::cSC4SimFireCrew_FindTarget, fire,
+                                          given ? static_cast<void*>(point) : nullptr) &
+                           0xFF);
+                mixSelf(0);
+                setHeld(f::kHeld290, nullptr);
+                setHeld(f::kHeld294, nullptr);
+            }
+            // One square across the way to the truck's point: the dot exactly 0.
+            set3(g_fire2.position, 500.0f, 20.0f, 500.0f);
+            set3(g_crew.point, 510.0f, 20.0f, 500.0f);
+            set3(occupants[0].point, 500.0f, 20.0f, 505.0f);
+            occupants[0].writes = true;
+            occupants[0].water = &water[0];
+            occupants[0].foam = nullptr;
+            water[0].answer = 1;
+            g_fire2.inBoxAnswer[0] = g_fire2.inBoxAnswer[1] = 1;
+            g_fire2.inBoxCount[0] = 1;
+            g_fire2.inBoxCount[1] = 0;
+            g_fire2.inBox[0][0] = &occupants[0];
+            g_fire2.pass = 0;
+            pfire2.Mix(This<uint32_t>(addr::cSC4SimFireCrew_FindTarget, fire, nullptr) & 0xFF);
+            mixSelf(0);
+            setHeld(f::kHeld290, nullptr);
+            setHeld(f::kHeld294, nullptr);
+            Fire2Section("find", pfire2);
+
+            // The frame: the flag 1, the state and the missions, the hose
+            // point, the targets, the effects (made, on and off), the levels,
+            // the counts and the message, the models' frames.
+            for (int k = 0; k < 192; ++k) {
+                const bool tiny = k >= 128;
+                g_ped2.flags = k % 23 == 5 ? 1u : 0u;
+                g_crew.mission = k % 11 == 3 ? 1u : k % 13 == 4 ? 2u : 5u;
+                g_crew.inState = k % 4 == 1 ? nullptr : state;
+                At<float>(state, ped::firedata::kStateFloat) = k % 3 == 0 ? -1.0f : 1.0f;
+                set3(g_fire2.position, tiny ? lcg.In(0.0f, 0.01f) : lcg.In(100.0f, 900.0f), tiny ? 0.002f : 20.0f,
+                     tiny ? lcg.In(0.0f, 0.01f) : lcg.In(100.0f, 900.0f));
+                std::memcpy(fire + b::kPosition, g_fire2.position, 12);
+                const float s = tiny ? 0.003f : 25.0f;
+                set3(&At<float>(state, ped::firedata::kStatePoint), g_fire2.position[0] + lcg.In(-s, s),
+                     g_fire2.position[1], g_fire2.position[2] + lcg.In(-s, s));
+                set3(g_crew.point, g_fire2.position[0] + lcg.In(-s, s), g_fire2.position[1],
+                     g_fire2.position[2] + lcg.In(-s, s));
+                *reach = tiny ? 0.02f : 45.0f;
+                setTargets(k, tiny);
+                At<int32_t>(fire, f::kWord2A0) = static_cast<int32_t>(k % 7) - 2;
+                At<uint8_t>(fire, f::kByte2A4) = static_cast<uint8_t>(k % 5 == 0);
+                set3(&At<float>(fire, f::kPoint2A8), lcg.In(-1.0f, 1.0f), 2.0f, lcg.In(-1.0f, 1.0f));
+                set3(&At<float>(fire, f::kPoint2B8), g_fire2.position[0] + lcg.In(-s, s), g_fire2.position[1],
+                     g_fire2.position[2] + lcg.In(-s, s));
+                At<float>(fire, f::kFloat2B4) = k % 9 == 2 ? 0.8f : lcg.In(0.0f, 1.2f); // 0.8 itself with 0 seconds
+                const uint32_t fx = (lcg.Next() >> 28) % 4;
+                setHeld(f::kHeld27C, fx == 0 ? nullptr : &effects[0]);
+                setHeld(f::kHeld280, fx == 1 || fx == 0 ? nullptr : &effects[1]);
+                effects[0].answer = (lcg.Next() >> 31);
+                effects[1].answer = (lcg.Next() >> 31);
+                effects[2].answer = 1;
+                effects[3].answer = (lcg.Next() >> 31);
+                g_fire2.made[0] = k % 10 == 9 ? nullptr : &effects[2];
+                g_fire2.made[1] = k % 8 == 7 ? nullptr : &effects[3];
+                g_fire2.makes = 0;
+                answerTransform(k);
+                g_fire2.frame = static_cast<int32_t>(k % 6);
+                g_fire2.frames = k % 4 == 0 ? 3 : 6;
+                g_crew.pedFrame = static_cast<uint8_t>(k % 3);
+                const float seconds = k % 10 == 0 ? 0.0f : lcg.In(0.01f, 2.0f);
+                pfire2.Mix(This<uint32_t>(addr::cSC4SimFireCrew_Frame, fire, 0x90u + k, seconds) & 0xFF);
+                mixSelf(0);
+                pfire2.Mix(static_cast<uint32_t>(g_crewMap.references));
+                pfire2.Mix(static_cast<uint32_t>(g_fire2.occupantsReferences));
+                setHeld(f::kHeld290, nullptr);
+                setHeld(f::kHeld294, nullptr);
+                setHeld(f::kHeld27C, nullptr);
+                setHeld(f::kHeld280, nullptr);
+                if (k == 127)
+                    Fire2Section("frame", pfire2);
+            }
+            Fire2Section("frame-tiny", pfire2);
+
+            // ---- Init and Shutdown at their addresses: initialised or not,
+            // the missions 5 (the level's bounds) and others, the manager and
+            // what it finds, the server's presence; Shutdown with effects,
+            // targets and the test's filters.
+            levels[0] = 10.0f;
+            levels[1] = 5.0f;
+            levels[2] = 1.0f;
+            alignas(4) static char found[0x40];
+            At<uint32_t>(found, 0x30) = 0x31313131u;
+            Fire2SetTree(tree, resource, "regpoint01", 2, lcg);
+            g_fire2.resource = resource;
+            for (int k = 0; k < 24; ++k) {
+                g_crew.initialised = static_cast<uint8_t>(k % 6 == 5);
+                g_ped2.base = static_cast<uint8_t>(k % 4 != 3);
+                g_crew.mission = k % 3 == 0 ? 2u : 5u;
+                const float words[5] = {12.0f, 7.0f, 2.0f, 0.5f, nan};
+                At<float>(fire, c::kWord) = words[k % 5];
+                g_crew.manager = k % 4 == 2 ? nullptr : &manager;
+                g_crew.found = k % 3 == 1 ? nullptr : found;
+                // No server only where nothing is posted (the message helper
+                // calls through it unchecked).
+                RfSwap noServer(addr::SC4_MessageServer, k % 6 == 3 ? nullptr : static_cast<void*>(&server));
+                pfire2.Mix(This<uint32_t>(addr::cSC4SimFireCrew_Init, fire) & 0xFF);
+                mixSelf(0);
+                pfire2.Mix(static_cast<uint32_t>(At<char*>(fire, ped::firedata::kPointsEnd) - At<char*>(fire, f::kBlock)));
+            }
+            for (int k = 0; k < 16; ++k) {
+                g_crew.initialised = static_cast<uint8_t>(k % 4 != 3);
+                setHeld(f::kHeld27C, k % 3 == 0 ? nullptr : &effects[0]);
+                setHeld(f::kHeld280, k % 5 == 0 ? nullptr : &effects[1]);
+                setHeld(f::kHeld290, k % 2 ? &water[0] : nullptr);
+                setHeld(f::kHeld294, k % 3 == 1 ? &foam[1] : nullptr);
+                At<uint8_t>(fire, c::kByte) = static_cast<uint8_t>(k % 3);
+                setHeld(f::kFilter, k % 7 == 6 ? nullptr : &filters[0]);
+                setHeld(f::kFilter2, &filters[1]);
+                RfSwap noServer(addr::SC4_MessageServer, k % 8 == 3 ? nullptr : static_cast<void*>(&server));
+                pfire2.Mix(This<uint32_t>(addr::cSC4SimFireCrew_Shutdown, fire));
+                mixSelf(0);
+                pfire2.Mix(Fire2Name(At<void*>(fire, f::kFilter)));
+                pfire2.Mix(Fire2Name(At<void*>(fire, f::kFilter2)));
+            }
+            Fire2Section("life", pfire2);
+
+            for (int i = 0; i < 3; ++i)
+                levels[i] = savedLevels[i];
+            *reach = savedReach;
+            std::memcpy(camera + cs::kCameraDirection, savedDirection, sizeof savedDirection);
+            pfire2.Mix(static_cast<uint32_t>(car.references));
+            pfire2.Mix(static_cast<uint32_t>(model.references));
+            pfire2.Mix(g_crew.posts);
+            for (Fire2Object*& o : g_fire2Objects)
+                o = nullptr;
+            setHeld(f::kHeld290, nullptr);
+            setHeld(f::kHeld294, nullptr);
+            setHeld(f::kHeld27C, nullptr);
+            setHeld(f::kHeld280, nullptr);
+            At<void**>(city, 0) = realCity;
+        }
+    }
+    At<char*>(fire, f::kFilter) = savedFilters[0];
+    At<char*>(fire, f::kFilter2) = savedFilters[1];
+    At<void**>(fire, 0) = realFire[0];
+    At<void**>(fire, 4) = realFire[1];
+    At<void**>(fire, 0x20) = realFire[2];
+    At<char*>(fire, b::kModels) = savedModels[0];
+    At<char*>(fire, b::kModelsEnd) = savedModels[1];
+    At<void*>(fire, c::kVehicle) = nullptr;
+    ReleasePed(fire);
+    pfire2.Mix(g_crew.calls.h);
+    pfire2.Mix(g_ped2.calls.h);
+    pfire2.Mix(g_walk.calls.h);
+    pflags |= ran ? 0x4000u : 0x8000u;
+    log::Write("autotest: automata: vehicle: ped4b pfire2 %08X calls %08X %08X %08X posts %u", pfire2.h,
+               g_crew.calls.h, g_ped2.calls.h, g_walk.calls.h, g_crew.posts);
+    g_crew = CrewAnswers{};
+    g_walk = WalkAnswers{};
+    g_ped2 = Ped2Answers{};
+    g_fire = FireAnswers{};
+    g_fire2 = Fire2Answers{};
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -31278,6 +32234,10 @@ void VehicleDrive(cISC4City* city)
     Hash pfire;
     PedFireDrive(pfire, pflags);
 
+    // ---- Part ped4b.
+    Hash pfire2;
+    PedFire2Drive(pfire2, pflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -31334,13 +32294,13 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
-                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pflags);
+                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
