@@ -467,8 +467,8 @@ inline void PlMovePlace(char* self, float* place)
     if (At<uint32_t>(description, 0x108) == At<uint32_t>(description, 0x10C))
         return;
     char* const d = At<char*>(self, 0x24);
-    reinterpret_cast<void(__cdecl*)(float, char*, float*)>(addr::SC4Effect_MovePlace)(
-        static_cast<float>(static_cast<double>(At<float>(d, 0x14)) * At<double>(self, 0x120)), d + 0x108, place);
+    SdMovePlace(static_cast<float>(static_cast<double>(At<float>(d, 0x14)) * At<double>(self, 0x120)), d + 0x108,
+                place);
 }
 
 // 0x005B4B90 (slot 0x48 of both classes, ret 4), with the render context:

@@ -388,6 +388,38 @@ inline float SdFloat(const SdX87& value)
     return rounded;
 }
 
+// 0x005AC070 (cdecl), with a time, a description's list at +0x108 (a
+// vector of 0x1C-byte records) and a place (three floats): each record
+// moves the place by the sine (FSIN) of the place as it was on entry
+// along the record's second to fourth floats plus the time times its
+// first, times its last three floats. The sum is ((z d2 + x d0) + t r) +
+// y d1; the sine times the first value is added to x as it is, the other
+// two products are rounded to floats first. Writes only the place.
+inline void MovePlace(float t, char* list, float* place)
+{
+    const double x = place[0], y = place[1], z = place[2];
+    for (const float* e = At<const float*>(list, 0); e != At<const float*>(list, 4); e += 7) {
+        SdX87 sine, cosine;
+        SdSinCos(((z * e[3] + x * e[1]) + static_cast<double>(t) * e[0]) + y * e[2], &sine, &cosine);
+        const float b = static_cast<float>(SdTimes(sine, e[5]));
+        const float c = static_cast<float>(SdTimes(sine, e[6]));
+        place[0] = static_cast<float>(SdTimes(sine, e[4]) + place[0]);
+        place[1] = static_cast<float>(static_cast<double>(b) + place[1]);
+        place[2] = static_cast<float>(static_cast<double>(c) + place[2]);
+    }
+}
+
+// The move as the ported callers make it: ours when
+// renderer.effects.move_place is, else the game's by its address (so
+// through its detour in compare mode).
+inline void SdMovePlace(float t, char* list, float* place)
+{
+    if (g_movePlaceOurs)
+        MovePlace(t, list, place);
+    else
+        reinterpret_cast<void(__cdecl*)(float, char*, float*)>(addr::SC4Effect_MovePlace)(t, list, place);
+}
+
 // 0x005ACA30 (ret 0x14), with the particle, a point of its life (0 to 1,
 // a float), a scale, its place (three floats, which 0x005AC070 may move)
 // and the block to fill: two bytes and thirteen floats, the particle's
@@ -538,8 +570,7 @@ inline void ParticleBlockB(char* self, char* p, float t, float scale, float* pla
     const float s01 = q01, s11 = q11, s21 = q21;
     if (At<uint32_t>(description, 0x108) != At<uint32_t>(description, 0x10C) &&
         !(At<uint32_t>(description, 8) >> 8 & 1))
-        reinterpret_cast<void(__cdecl*)(float, char*, float*)>(0x005AC070)(f(At<double>(self, 0x110)),
-                                                                           description + 0x108, place);
+        SdMovePlace(f(At<double>(self, 0x110)), description + 0x108, place);
     float out[13];
     const uint8_t second = At<uint8_t>(self, 0xC5);
     if (second) {

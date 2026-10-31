@@ -540,6 +540,167 @@ void StartAtBirth(char* self, char* particle, Start&& start)
     }
 }
 
+// 0x005B8290 (ret 8), with a suffix (a string's address) and a place
+// (three floats): another effect started there, named by the
+// description's name (+0x160, the game's string, from its first character
+// to its end) and the suffix. The game joins the two in a string of its
+// own (at 0x00B22D5C, made once and kept, read nowhere else). The effects
+// manager (0x00B43D1C) makes the effect of that name (slot 0x1C, the name
+// and where to put it; the answer in AL). A made effect gets a block of
+// two bytes (both 1; the game leaves the two after them as they were on
+// its stack) and thirteen floats: the identity matrix by rows, the place
+// and the scale 1 (slot 0x20); it is started (slot 0xC with 0). Whatever
+// was put where the manager was asked to put it is let go (slot 8).
+// `ops` makes, gives the block, starts and lets go (LfNamedOps for the
+// game's objects).
+template <typename Ops>
+void StartNamed(char* self, const char* suffix, const float* place, Ops&& ops)
+{
+    char* const description = At<char*>(self, 0x24);
+    std::string name(At<const char*>(description, 0x160), At<const char*>(description, 0x164));
+    name += suffix;
+    char* effect = nullptr;
+    if (ops.Make(name.c_str(), &effect)) {
+        char block[0x38] = {};
+        block[0] = 1;
+        block[1] = 1;
+        for (const uint32_t at : {4u, 0x14u, 0x24u, 0x34u})
+            At<uint32_t>(block, at) = 0x3F800000u;
+        std::memcpy(block + 0x28, place, 12);
+        ops.Block(effect, block);
+        ops.Start(effect);
+    }
+    if (effect)
+        ops.Release(effect);
+}
+
+struct LfNamedOps {
+    bool Make(const char* name, char** out)
+    {
+        char* const manager = M<char*>(0x00B43D1C);
+        return SuSlot<uint32_t>(manager, 0x1C, name, out) & 0xFF;
+    }
+    void Block(char* effect, char* block) { SuSlot<uint32_t>(effect, 0x20, block); }
+    void Start(char* effect) { SuSlot<uint32_t>(effect, 0xC, 0u); }
+    void Release(char* effect) { SuSlot<uint32_t>(effect, 8); }
+};
+
+// The game's list allocator at 0x00B207E4, got from the framework
+// (0x3AE4BEA3, 0x3AE4BEAB, the holder released after) when there is none.
+inline char* LfNodeAllocator()
+{
+    if (!M<char*>(addr::SC4List_NodeAllocator2)) {
+        char* allocator = nullptr;
+        if (char* const framework = reinterpret_cast<char*(__cdecl*)()>(addr::RZGetFramework)())
+            SuSlot<uint32_t>(framework, 0x14, 0x3AE4BEA3u, 0x3AE4BEABu, &allocator);
+        M<char*>(addr::SC4List_NodeAllocator2) = allocator;
+        CallThis<uint32_t>(addr::SC4_ReleaseRef, &allocator);
+    }
+    return M<char*>(addr::SC4List_NodeAllocator2);
+}
+
+// 0x005B8020 (ret 4; the effect in ECX is not read), with a particle, for
+// descriptions with bit 0 of their +4 at the end of the full step: a
+// particle that meets a building or a prop ends. The box of one (the float
+// at 0x00A81228) each way around its place (+0xC, as it is, not through
+// the effect's blocks) is asked of the occupant manager (0x00B43D0C, slot
+// 0x90 with the list, the two corners, 0 and -1) into a list whose head
+// (0xC bytes, itself both ways) the allocator gives (slot 0xC). An
+// occupant filter (0xC bytes: vtable 0x00A93628, cRZBaseUnknown's
+// construct on its +4, then vtables 0x00AA0E28 and 0x00AA0E40) is made
+// after the ask, kept in the list's second word and held (slot 4), and
+// never used. The first occupant of the list, in order, of type 0x278128A0
+// or 0xA823821E (slot 0x1C) gives its cells (slot 0x2C, four words); a
+// cell region of them filled with ones is made (0x004422A0) and its rows
+// freed at once; the particle's first byte is cleared and the walk ends.
+// Last the list goes back to the manager (slot 0xC0), the filter is let
+// go (slot 8), the list is cleared (0x00413E60) and its head freed (the
+// allocator's slot 0x10).
+inline void StepFlagB1(char* particle)
+{
+    const double one = M<float>(0x00A81228);
+    float box[6];
+    for (uint32_t i = 0; i < 3; ++i) {
+        box[i] = static_cast<float>(static_cast<double>(At<float>(particle, 0xC + 4 * i)) - one);
+        box[3 + i] = static_cast<float>(static_cast<double>(At<float>(particle, 0xC + 4 * i)) + one);
+    }
+    struct {
+        char* head;
+        char* filter;
+    } list = {nullptr, nullptr};
+    char* const head = SuSlot<char*>(LfNodeAllocator(), 0xC, 0xCu);
+    At<char*>(head, 0) = head;
+    At<char*>(head, 4) = head;
+    list.head = head;
+    SuSlot<uint32_t>(M<char*>(addr::SC4_NetworkService), 0x90, &list, box, box + 3, 0u, 0xFFFFFFFFu);
+    char* const end = list.head;
+    char* node = At<char*>(end, 0);
+    char* const filter = reinterpret_cast<char*(__cdecl*)(uint32_t)>(addr::SC4_operator_new)(0xC);
+    if (filter) {
+        At<uint32_t>(filter, 0) = 0x00A93628u;
+        CallThis<uint32_t>(addr::cRZBaseUnknown_Construct, filter + 4);
+        At<uint32_t>(filter, 0) = 0x00AA0E28u;
+        At<uint32_t>(filter, 4) = 0x00AA0E40u;
+        list.filter = filter;
+        SuSlot<uint32_t>(filter, 4);
+    }
+    for (; node != end; node = At<char*>(node, 0)) {
+        char* const occupant = At<char*>(node, 8);
+        const uint32_t type = SuSlot<uint32_t>(occupant, 0x1C);
+        if (type != 0x278128A0u && type != 0xA823821Eu)
+            continue;
+        int32_t rect[4] = {};
+        SuSlot<uint32_t>(occupant, 0x2C, rect);
+        struct {
+            int32_t x0, z0, x1, z1;
+            char cells[0x14];
+        } region;
+        region.x0 = rect[0];
+        region.z0 = rect[1];
+        region.x1 = rect[2];
+        region.z1 = rect[3];
+        const uint8_t fill = 1;
+        CallThis<uint32_t>(addr::SC4CellRegion_ConstructCells, region.cells,
+                           static_cast<uint32_t>(rect[2]) - static_cast<uint32_t>(rect[0]) + 1u,
+                           static_cast<uint32_t>(rect[3]) - static_cast<uint32_t>(rect[1]) + 1u, &fill);
+        At<uint8_t>(particle, 0) = 0;
+        char** const rows = At<char**>(region.cells, 0x10);
+        if (rows) {
+            const uint32_t count = At<uint32_t>(region.cells, 4);
+            for (uint32_t i = 0; i < count; ++i)
+                reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(rows[i]);
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(rows);
+        }
+        break;
+    }
+    SuSlot<uint32_t>(M<char*>(addr::SC4_NetworkService), 0xC0, &list);
+    if (list.filter)
+        SuSlot<uint32_t>(list.filter, 8);
+    CallThis<uint32_t>(addr::SC4List_Clear2, &list);
+    char* const freed = list.head;
+    SuSlot<uint32_t>(LfNodeAllocator(), 0x10, freed);
+}
+
+// The calls the ported code makes of the two: ours when their switches
+// (renderer.effects.step_b1, renderer.effects.start_named) are ours, else
+// the game's by its address (so through its detour in compare mode).
+inline void LfStepB1(char* self, char* particle)
+{
+    if (g_stepB1Ours)
+        StepFlagB1(particle);
+    else
+        CallThis<uint32_t>(addr::SC4Effect_StepFlagB1, self, particle);
+}
+
+inline void LfStartNamed(char* self, uint32_t suffix, void* place)
+{
+    if (g_startNamedOurs)
+        StartNamed(self, reinterpret_cast<const char*>(static_cast<std::uintptr_t>(suffix)),
+                   static_cast<const float*>(place), LfNamedOps{});
+    else
+        CallThis<uint32_t>(addr::SC4Effect_StartNamed, self, suffix, place);
+}
+
 // 0x005B9790 (ret 8): a particle's full step, which the plain step
 // (0x005B9BA0) hands over to for descriptions with a flag of the mask at
 // 0x00B22E14; the effect, the particle and the step. The particle's age
@@ -685,7 +846,7 @@ uint32_t StepParticleFull(char* self, char* particle, float step)
             break;
     }
     if (At<uint8_t>(At<char*>(self, 0x24), 4) & 1)
-        CallThis<uint32_t>(0x005B8020, self, particle);
+        LfStepB1(self, particle);
     return At<uint8_t>(particle, 0);
 }
 
@@ -752,7 +913,7 @@ uint32_t ParticleMeetsGround(char* self, char* particle, float* grid, float part
     if (grid[1] < At<float>(self, 0x1FC) && ends(description, 0x154)) {
         if (At<uint8_t>(self, 0x219)) {
             float at[3] = {grid[0], At<float>(self, 0x1FC), grid[2]};
-            CallThis<uint32_t>(0x005B8290, self, 0x00AA0F2Cu, at);
+            LfStartNamed(self, 0x00AA0F2Cu, at);
         }
         return 0;
     }
@@ -899,7 +1060,7 @@ uint32_t ParticleMeetsGround(char* self, char* particle, float* grid, float part
     const float height = static_cast<float>(SuSlot<double>(At<char*>(self, 0x1F0), 0x34, gxBits, gzBits));
     if (At<uint8_t>(self, 0x218)) {
         float at[3] = {grid[0], height, grid[2]};
-        CallThis<uint32_t>(0x005B8290, self, 0x00AA0F20u, at);
+        LfStartNamed(self, 0x00AA0F20u, at);
     }
     description = At<char*>(self, 0x24);
     if (ends(description, 0x150))
