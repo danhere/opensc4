@@ -30,6 +30,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -719,7 +720,10 @@ uint32_t g_hash = 2166136261u;
 
 bool AnyOurs()
 {
-    for (const char* id : {"ui.html.parser.tokens", "ui.html.parser.names", "ui.html.parser.document", "ui.html.parser.blocks", "ui.html.parser.table", "ui.html.parser.inline"})
+    for (const char* id : {"ui.html.parser.tokens", "ui.html.parser.names", "ui.html.parser.document",
+                           "ui.html.parser.blocks", "ui.html.parser.table", "ui.html.parser.inline",
+                           "ui.html.nodes.ctors", "ui.html.nodes.ctors.text", "ui.html.nodes.dtors", "ui.html.colors",
+                           "ui.html.chars"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -1968,6 +1972,570 @@ void PaintFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kPaintFingerprint{"html paint", 5, &PaintFingerprint};
 const DayHook kPaintDrive{"html paint", 5, &DrivePaintDay};
+
+// ====================================================================================
+// The nodes test
+
+// OPENSC4_TEST_HTML_NODES=<day> (fingerprint `hn`): the node constructors
+// and destructors, the colours and the character helpers of h5c
+// (html_nodes.cpp), each called on its own:
+//
+//  - each constructor on memory filled with a pattern, the object's bytes
+//    hashed (a heap pointer by whether it is one the test made), then
+//    deleted through its deleting destructor;
+//  - each destructor on an object whose strings, pictures, fonts and
+//    children are stand-ins that record their calls (slot 0, 2 or 28 and
+//    the argument) and whose storage is the test's own, the object hashed
+//    after and each block checked for being freed (the same blocks handed
+//    out again by the game's allocator); the deleting destructors with
+//    flags 1 and 0;
+//  - the colour parser on every name in three cases, `#` and hex variants
+//    and bad input, the body's three link colours;
+//  - the character helpers at every position of ASCII and UTF-8 strings
+//    (two and three bytes, broken sequences, the zero width space), the
+//    prefix, start and end tests, numbers and lengths;
+//  - pages of its own parsed (fonts by family lists, entities at their
+//    edges, PRE's line ends, UTF-8 text), the tree hashed as the parser test
+//    hashes it.
+//
+// With any parser group or h5c group ours, each item is run through the
+// game's functions and through ours and compared.
+
+const char* const kNodePages[] = {
+    // Font families: lists, a face that is a blank, styles that ask the
+    // document for a family.
+    "<HTML><BODY><FONT FACE=\"NoSuchFace, Arial\">two faces</FONT><FONT FACE=\",\">blank faces</FONT>"
+    "<FONT FACE=\"Arial,\">trailing comma</FONT><TT>tt <B>bold tt</B></TT><CODE>code</CODE><KBD>kbd</KBD>"
+    "<PRE>pre <I>italic</I></PRE><FONT FACE=\"Times New Roman, Courier New, Arial\" SIZE=5>three</FONT>"
+    "</BODY></HTML>",
+    // Entities at their edges.
+    "<HTML><BODY>&;&#;&#x;&#X41;&#x7a;&#255;&#256;&#-1;&#0065;&amp&amp;&&lt;&nbsp;&nbsp &#38;#38; a&b;c "
+    "&unknownentity; &AMP; &Amp; &#xFFFF; &#4294967297; &;;&&&</BODY></HTML>",
+    // PRE's line ends: CR, LF, CR LF, LF CR, at the ends.
+    "<HTML><BODY><PRE>\r\na\rb\nc\r\nd\n\re\r\r\nf\n</PRE><PRE>\r</PRE><PRE>\n\n</PRE><PRE></PRE></BODY></HTML>",
+    // Spaces of every kind and UTF-8 text.
+    "<HTML><BODY>  lead\t\ttab\f\fff\r\rcr\n\nlf  trail  <B> \xC3\xA9t\xC3\xA9 \xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E"
+    "\xE2\x80\x8Bzw\xE2\x80\x8B \xC3 \xFF\x80 end </B>\xC2\xA0nbsp\xC2\xA0</BODY></HTML>",
+    // Colours in every attribute that takes one.
+    "<HTML><BODY BGCOLOR=teal TEXT=\"#abcdef\" LINK=Fuchsia VLINK=\"#12345\" ALINK=\"lime \"><FONT COLOR=maroon>m"
+    "</FONT><FONT COLOR=\"#GGGGGG\">g</FONT><FONT COLOR=\"\">e</FONT><TABLE BGCOLOR=silver><TR BGCOLOR=\"#0a0B0c\">"
+    "<TD BGCOLOR=olive WIDTH=\"25%\">c</TD><TD BGCOLOR=\"#\" WIDTH=33>d</TD></TR></TABLE><HR COLOR=navy>"
+    "<A HREF=\"x\">link</A></BODY></HTML>",
+    // Every node class with its strings, as a page.
+    "<HTML><HEAD><TITLE>t</TITLE><LINK REL=a HREF=b TYPE=c><LINK><META NAME=n CONTENT=c HTTP-EQUIV=h><META>"
+    "</HEAD><BODY BACKGROUND=\"bg.png\"><A HREF=\"a.html\" NAME=\"an\">a</A><A NAME=\"only\">n</A>"
+    "<IMG SRC=\"i.png\" WIDTH=4 HEIGHT=5 ALIGN=left><IMG><UL><LI>u<OL><LI>o</OL></UL>"
+    "<TABLE BORDER=2 WIDTH=\"50%\" CELLPADDING=1 CELLSPACING=0><TR><TD>x</TD></TR></TABLE></BODY></HTML>",
+};
+
+// A stand-in a node owns (a string, a picture, a font, a child): each call
+// of slot 0 (a child's deleting destructor), 1, 2 (AddRef and Release) or
+// 28 (a string's deleting destructor) is recorded with its argument; any
+// other slot ends the run.
+struct NodeStand {
+    void** vtable;
+    uint32_t id;
+};
+
+Fnv g_standRecord;
+uint32_t g_standCalls = 0;
+
+template <int Slot>
+uint32_t __fastcall StandNoArgument(NodeStand* self, void*)
+{
+    g_standRecord.Word(self->id);
+    g_standRecord.Word(Slot);
+    ++g_standCalls;
+    return 1;
+}
+
+template <int Slot>
+uint32_t __fastcall StandArgument(NodeStand* self, void*, uint32_t argument)
+{
+    g_standRecord.Word(self->id);
+    g_standRecord.Word(Slot);
+    g_standRecord.Word(argument);
+    ++g_standCalls;
+    return static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(self));
+}
+
+template <int Slot>
+uint32_t __fastcall StandOther(NodeStand*, void*)
+{
+    log::Write("autotest: html nodes: a stand-in's slot %d was called; stopping", Slot);
+    TerminateProcess(GetCurrentProcess(), 3);
+    return 0;
+}
+
+template <int... Slots>
+void FillStand(void** vtable, std::integer_sequence<int, Slots...>)
+{
+    ((vtable[Slots] = reinterpret_cast<void*>(&StandOther<Slots>)), ...);
+}
+
+void* g_nodeStandVtable[40] = {};
+NodeStand g_nodeStands[32] = {};
+
+void SetUpNodeStands()
+{
+    FillStand(g_nodeStandVtable, std::make_integer_sequence<int, 40>{});
+    g_nodeStandVtable[0] = reinterpret_cast<void*>(&StandArgument<0>);
+    g_nodeStandVtable[1] = reinterpret_cast<void*>(&StandNoArgument<1>);
+    g_nodeStandVtable[2] = reinterpret_cast<void*>(&StandNoArgument<2>);
+    g_nodeStandVtable[28] = reinterpret_cast<void*>(&StandArgument<28>);
+    for (uint32_t i = 0; i < std::size(g_nodeStands); ++i)
+        g_nodeStands[i] = {g_nodeStandVtable, 0x5700 + i};
+}
+
+uint32_t StandAt(int i) { return static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(&g_nodeStands[i])); }
+
+void* GameNew(std::size_t size) { return reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(size); }
+void GameDelete(void* p) { reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(p); }
+void* GameAllocate(std::size_t size) { return reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_stl_allocate)(size); }
+void GameFree(void* p) { reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(p); }
+
+uint32_t g_blocksChecked = 0;
+uint32_t g_blocksFreed = 0;
+
+// The blocks a test object owns: their sizes, and after its destructor
+// whether the game's allocator hands each out again (it was freed).
+struct Blocks {
+    std::vector<void*> blocks;
+    std::vector<std::size_t> sizes;
+    std::vector<bool> viaNew;
+
+    uint32_t Add(std::size_t size, bool useNew = false)
+    {
+        void* const p = useNew ? GameNew(size) : GameAllocate(size);
+        std::memset(p, 0xAB, size);
+        blocks.push_back(p);
+        sizes.push_back(size);
+        viaNew.push_back(useNew);
+        return static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(p));
+    }
+
+    void Track(void* p, std::size_t size, bool useNew)
+    {
+        blocks.push_back(p);
+        sizes.push_back(size);
+        viaNew.push_back(useNew);
+    }
+
+    int IndexOf(uint32_t value) const
+    {
+        for (std::size_t i = 0; i < blocks.size(); ++i)
+            if (static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(blocks[i])) == value)
+                return static_cast<int>(i);
+        return -1;
+    }
+
+    // Each block's size asked for again (the last first): a block freed
+    // comes back. The blocks handed out are freed again; a block not freed
+    // stays (the test's leak, only when a destructor fails to free).
+    void HashFreed(Fnv& f)
+    {
+        std::vector<void*> again;
+        for (std::size_t i = blocks.size(); i-- > 0;)
+            again.push_back(viaNew[i] ? GameNew(sizes[i]) : GameAllocate(sizes[i]));
+        for (void* p : blocks) {
+            const bool freed = std::find(again.begin(), again.end(), p) != again.end();
+            f.Byte(freed ? 1 : 0);
+            ++g_blocksChecked;
+            g_blocksFreed += freed ? 1 : 0;
+        }
+        for (std::size_t j = 0; j < again.size(); ++j) {
+            const std::size_t i = blocks.size() - 1 - j;
+            if (viaNew[i])
+                GameDelete(again[j]);
+            else
+                GameFree(again[j]);
+        }
+    }
+};
+
+bool IsHeap(uint32_t value)
+{
+    if (value < 0x00010000u || value >= 0x80000000u)
+        return false;
+    MEMORY_BASIC_INFORMATION info{};
+    return VirtualQuery(reinterpret_cast<void*>(static_cast<uintptr_t>(value)), &info, sizeof info) &&
+           info.State == MEM_COMMIT && info.Type == MEM_PRIVATE;
+}
+
+// An object's bytes, dword by dword: a stand-in by its number, a block of
+// the test's own by its index, any other heap pointer as one, the rest as
+// they are (the vtables are the game's).
+void HashObject(Fnv& f, const char* object, std::size_t size, const Blocks* blocks)
+{
+    for (std::size_t at = 0; at + 4 <= size; at += 4) {
+        const uint32_t value = *reinterpret_cast<const uint32_t*>(object + at);
+        const int index = blocks ? blocks->IndexOf(value) : -1;
+        const uint32_t first = StandAt(0);
+        if (value >= first && value < first + sizeof g_nodeStands && (value - first) % sizeof(NodeStand) == 0) {
+            f.Byte(0xB3);
+            f.Word((value - first) / static_cast<uint32_t>(sizeof(NodeStand)));
+        } else if (index >= 0) {
+            f.Byte(0xB1);
+            f.Word(static_cast<uint32_t>(index));
+        } else if (IsHeap(value)) {
+            f.Byte(0xB2);
+        } else {
+            f.Word(value);
+        }
+    }
+}
+
+template <typename R, typename... A>
+R CallGameThis(std::uintptr_t fn, void* self, A... a)
+{
+    return reinterpret_cast<R(__thiscall*)(void*, A...)>(fn)(self, a...);
+}
+
+constexpr uint8_t kPattern = 0xCD;
+
+// The constructors on patterned memory, then the deleting destructor.
+uint32_t ConstructorItem(int which)
+{
+    struct Ctor {
+        std::uintptr_t fn;
+        uint32_t size;
+        int arguments;
+        uint32_t a[3];
+    };
+    const Ctor ctors[] = {
+        {addr::HTMLNode_Construct, 0x1C, 1, {0x55}},
+        {addr::HTMLImageNode_Construct, 0x38, 0, {}},
+        {addr::HTMLHeadLinkNode_Construct, 0x2C, 0, {}},
+        {addr::HTMLMetaNode_Construct, 0x28, 0, {}},
+        {addr::HTMLListNode_Construct, 0x2C, 2, {6, 3}},
+        {addr::HTMLListNode_Construct, 0x2C, 2, {7, 0}},
+        {addr::HTMLTableNode_Construct, 0x94, 0, {}},
+        {addr::HTMLCellNode_Construct, 0x3C, 0, {}},
+        {addr::HTMLLinkNode_Construct, 0x34, 0, {}},
+        {addr::HTMLBodyNode_Construct, 0x44, 3, {0x81223344, 0x95667788, 0xA9AABBCC}},
+    };
+    const Ctor& c = ctors[which];
+    char* const object = static_cast<char*>(GameNew(c.size));
+    std::memset(object, kPattern, c.size);
+    char* result = nullptr;
+    switch (c.arguments) {
+    case 0: result = CallGameThis<char*>(c.fn, object); break;
+    case 1: result = CallGameThis<char*>(c.fn, object, c.a[0]); break;
+    case 2: result = CallGameThis<char*>(c.fn, object, c.a[0], c.a[1]); break;
+    default: result = CallGameThis<char*>(c.fn, object, c.a[0], c.a[1], c.a[2]); break;
+    }
+    Fnv f;
+    f.Byte(result == object ? 1 : 0);
+    HashObject(f, object, c.size, nullptr);
+    // A field the constructor left as it was (LINK's +0x28) cleared before
+    // the destructor reads it.
+    for (std::size_t at = 0; at + 4 <= c.size; at += 4)
+        if (At<uint32_t>(object, at) == 0xCDCDCDCDu)
+            At<uint32_t>(object, at) = 0;
+    Virtual<char*>(object, 0x0, uint32_t{1});
+    return f.h;
+}
+
+constexpr int kConstructorItems = 10;
+
+// The destructors: an object made by its constructor (a text run by hand),
+// its fields given stand-ins and blocks, then the destructor (way 0), the
+// deleting one with flags 1 (way 1) or with 0 (way 2).
+uint32_t DestructorItem(int which, int way)
+{
+    struct Dtor {
+        std::uintptr_t construct; // 0: a text run, made by hand
+        std::uintptr_t destruct;
+        std::uintptr_t remove;
+        uint32_t size;
+    };
+    const Dtor dtors[] = {
+        {addr::HTMLContainerNode_Construct, addr::HTMLContainerNode_Destruct, addr::HTMLContainerNode_Delete, 0x28},
+        {addr::HTMLImageNode_Construct, addr::HTMLImageNode_Destruct, addr::HTMLImageNode_Delete, 0x38},
+        {addr::HTMLHeadLinkNode_Construct, addr::HTMLHeadLinkNode_Destruct, addr::HTMLHeadLinkNode_Delete, 0x2C},
+        {addr::HTMLMetaNode_Construct, addr::HTMLMetaNode_Destruct, addr::HTMLMetaNode_Delete, 0x28},
+        {addr::HTMLLinkNode_Construct, addr::HTMLLinkNode_Destruct, addr::HTMLLinkNode_Delete, 0x34},
+        {addr::HTMLBodyNode_Construct, addr::HTMLBodyNode_Destruct, addr::HTMLBodyNode_Delete, 0x44},
+        {addr::HTMLTableNode_Construct, addr::HTMLTableNode_Destruct, addr::HTMLTableNode_Delete, 0x94},
+        {0, addr::HTMLTextNode_Destruct, addr::HTMLTextNode_Delete, 0x58},
+    };
+    const Dtor& d = dtors[which];
+    char* const object = static_cast<char*>(GameNew(d.size));
+    std::memset(object, kPattern, d.size);
+    Blocks blocks;
+    if (which == 0)
+        CallGameThis<char*>(d.construct, object, uint32_t{8});
+    else if (which == 5)
+        CallGameThis<char*>(d.construct, object, uint32_t{1}, uint32_t{2}, uint32_t{3});
+    else if (d.construct)
+        CallGameThis<char*>(d.construct, object);
+    // A container's children: stand-ins and a null among them.
+    auto children = [&](std::initializer_list<int> stands) {
+        const uint32_t storage = blocks.Add(4 * stands.size());
+        uint32_t* const at = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(storage));
+        std::size_t n = 0;
+        for (int s : stands)
+            at[n++] = s < 0 ? 0 : StandAt(s);
+        At<uint32_t>(object, 0x1C) = storage;
+        At<uint32_t>(object, 0x20) = storage + static_cast<uint32_t>(4 * n);
+        At<uint32_t>(object, 0x24) = storage + static_cast<uint32_t>(4 * n);
+    };
+    auto vector = [&](std::size_t at, std::size_t bytes) {
+        const uint32_t storage = bytes ? blocks.Add(bytes) : 0;
+        At<uint32_t>(object, at) = storage;
+        At<uint32_t>(object, at + 4) = storage;
+        At<uint32_t>(object, at + 8) = storage + static_cast<uint32_t>(bytes);
+    };
+    switch (which) {
+    case 0: children({0, -1, 1, 2}); break;
+    case 1: At<uint32_t>(object, 0x24) = StandAt(3); At<uint32_t>(object, 0x28) = StandAt(4); break;
+    case 2: At<uint32_t>(object, 0x1C) = StandAt(5); At<uint32_t>(object, 0x28) = StandAt(6);
+            At<uint32_t>(object, 0x24) = 0; break;
+    case 3: At<uint32_t>(object, 0x1C) = StandAt(7); At<uint32_t>(object, 0x20) = StandAt(8);
+            At<uint32_t>(object, 0x24) = StandAt(9); break;
+    case 4: children({10}); At<uint32_t>(object, 0x28) = StandAt(11); At<uint32_t>(object, 0x30) = StandAt(12); break;
+    case 5: children({13, 14}); At<uint32_t>(object, 0x2C) = blocks.Add(12, true);
+            At<uint32_t>(object, 0x3C) = StandAt(15); break;
+    case 6: children({16}); vector(0x70, 28); vector(0x7C, 40); vector(0x88, 12); vector(0x4C, 20); vector(0x58, 0);
+            vector(0x64, 44); break;
+    case 7:
+        std::memset(object, kPattern, d.size);
+        At<uint32_t>(object, 0x0) = 0x00ACE300;
+        At<uint32_t>(object, 0x1C) = 0x00ACE2EC;
+        MakeText(reinterpret_cast<GameText*>(object + 0x20), "a run of text");
+        At<uint32_t>(object, 0x34) = StandAt(17);
+        vector(0x4C, 48);
+        break;
+    }
+    Fnv f;
+    g_standRecord = Fnv{};
+    if (way == 0)
+        CallGameThis<void>(d.destruct, object);
+    else
+        f.Byte(CallGameThis<char*>(d.remove, object, uint32_t{way == 1 ? 1u : 0u}) == object ? 1 : 0);
+    f.Word(g_standRecord.h);
+    if (way != 1)
+        HashObject(f, object, d.size, &blocks);
+    else
+        blocks.Track(object, d.size, true);
+    blocks.HashFreed(f);
+    if (way != 1)
+        GameDelete(object);
+    return f.h;
+}
+
+constexpr int kDestructorItems = 8 * 3;
+
+// The colour parser: each input into a colour set beforehand.
+const char* const kColourInputs[] = {
+    "", "#", "##", "#000000", "#FFFFFF", "#ffffff", "#00ff7F", "00FF7f", "abcdef", "#0F0", "#1234567", "#12345G",
+    "#12345", " #123456", "#123456 ", "#-12345", "#+12345", "0x1234", "#0x1234", "red ", " red", "Red", "rEd", "#red",
+    "GRAYish", "grey", "Gray", "#C0C0C0", "\xC3\xA9\xC3\xA9\xC3\xA9", "123456", "\x80\x81\x82\x83\x84\x85", "#ABCDEF00",
+};
+
+uint32_t ColourItem(int which)
+{
+    static std::vector<std::string> inputs = [] {
+        std::vector<std::string> all(std::begin(kColourInputs), std::end(kColourInputs));
+        const char* const names[] = {"BLACK", "SILVER", "GRAY", "WHITE", "MAROON", "RED", "PURPLE", "FUCHSIA",
+                                     "GREEN", "LIME", "OLIVE", "YELLOW", "NAVY", "BLUE", "TEAL", "AQUA"};
+        for (const char* name : names) {
+            std::string upper = name, lower = name, mixed = name;
+            for (std::size_t i = 0; i < upper.size(); ++i) {
+                lower[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(lower[i])));
+                if (i % 2)
+                    mixed[i] = lower[i];
+            }
+            all.push_back(upper);
+            all.push_back(lower);
+            all.push_back(mixed);
+        }
+        return all;
+    }();
+    if (static_cast<std::size_t>(which) >= inputs.size())
+        return 0;
+    GameText text;
+    MakeText(&text, inputs[static_cast<std::size_t>(which)].c_str());
+    Fnv f;
+    for (const uint32_t start : {0x12345678u, 0u}) {
+        uint32_t colour = start;
+        reinterpret_cast<void(__cdecl*)(const GameText*, uint32_t*)>(addr::HTMLColor_Parse)(&text, &colour);
+        f.Word(colour);
+    }
+    // The body's link colours, into a body made by its constructor.
+    char* const body = static_cast<char*>(GameNew(0x44));
+    std::memset(body, kPattern, 0x44);
+    CallGameThis<char*>(addr::HTMLBodyNode_Construct, body, uint32_t{1}, uint32_t{2}, uint32_t{3});
+    const std::uintptr_t setters[] = {addr::HTMLBodyNode_SetLink, addr::HTMLBodyNode_SetActiveLink,
+                                      addr::HTMLBodyNode_SetVisitedLink};
+    CallGameThis<void>(setters[which % 3], body, static_cast<const GameText*>(&text));
+    for (const std::size_t at : {0x30u, 0x34u, 0x38u})
+        HashWord(f, At<uint32_t>(body, at));
+    Virtual<char*>(body, 0x0, uint32_t{1});
+    DestroyText(&text);
+    return f.h;
+}
+
+int ColourItems() { return static_cast<int>(std::size(kColourInputs)) + 16 * 3; }
+
+// The character helpers over strings of every kind.
+const char* const kCharStrings[] = {
+    "",
+    "a",
+    " ",
+    "  a  b\t\tc\r\nd\fe\vf  ",
+    "h\xC3\xA9llo w\xC3\xB6rld",
+    "\xE6\x97\xA5\xE6\x9C\xAC \xE8\xAA\x9E",
+    "\x80\xFF\xC3",
+    "x\xE2\x80\x8By \xE2\x80\x8B",
+    "\xC3",
+    "\xF0\x9F\x98\x80 four",
+    "#x41;",
+    "#X7a",
+    "50%",
+    "%",
+    "100%%",
+    "7px",
+    " 3",
+    "-12",
+    "4294967296",
+    "abc",
+};
+
+uint32_t CharItem(int which)
+{
+    std::string s;
+    if (which < static_cast<int>(std::size(kCharStrings))) {
+        s = kCharStrings[which];
+    } else {
+        for (int c = 1; c < 128; ++c)
+            s += static_cast<char>(c);
+    }
+    GameText text;
+    MakeText(&text, s.c_str());
+    Fnv f;
+    const uint32_t n = static_cast<uint32_t>(text.end - text.begin);
+    using PositionFn = uint32_t(__cdecl*)(const GameText*, uint32_t);
+    using TestFn = uint8_t(__cdecl*)(const GameText*, uint32_t);
+    for (uint32_t i = 0; i <= n; ++i) {
+        if (i < n)
+            f.Word(reinterpret_cast<PositionFn>(addr::HTMLText_NextChar)(&text, i));
+        if (i > 0)
+            f.Word(reinterpret_cast<PositionFn>(addr::HTMLText_PreviousChar)(&text, i));
+        f.Byte(reinterpret_cast<TestFn>(addr::HTMLText_IsSpaceAt)(&text, i) & 1);
+        for (const int32_t left : {static_cast<int32_t>(n - i), 0, -1, 1})
+            f.Byte(reinterpret_cast<uint8_t(__cdecl*)(const char*, int32_t)>(addr::HTMLText_IsSpace)(text.begin + i,
+                                                                                                   left) &
+                   1);
+    }
+    using PrefixFn = uint8_t(__cdecl*)(const GameText*, uint32_t, const char*);
+    for (const char* prefix : {"#x", "#X", "", "abc", "a", "  "})
+        for (uint32_t count = 0; count <= 3; ++count)
+            f.Byte(reinterpret_cast<PrefixFn>(addr::HTMLText_HasPrefix)(&text, count, prefix) & 1);
+    using CharFn = uint32_t(__cdecl*)(const GameText*, char);
+    for (const char c : {'#', '%', 'a', ' ', '\0', '\xC3'}) {
+        f.Word(reinterpret_cast<CharFn>(addr::HTMLText_StartsWith)(&text, c));
+        f.Word(reinterpret_cast<CharFn>(addr::HTMLText_EndsWith)(&text, c));
+    }
+    uint32_t number = 0x5A5A5A5A;
+    reinterpret_cast<void(__cdecl*)(const GameText*, uint32_t*)>(addr::HTMLText_ParseNumber)(&text, &number);
+    f.Word(number);
+    uint32_t length[2] = {0x5A5A5A5A, 0x5A5A5A5A};
+    reinterpret_cast<void(__cdecl*)(const GameText*, uint32_t*)>(addr::HTMLText_ParseLength)(&text, length);
+    f.Word(length[0]);
+    f.Word(length[1]);
+    DestroyText(&text);
+    return f.h;
+}
+
+int CharItems() { return static_cast<int>(std::size(kCharStrings)) + 1; }
+
+bool g_nodesOn = false;
+uint32_t g_nodesHash = 2166136261u;
+
+void DriveNodesDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_HTML_NODES") || !game::IsBuild641())
+        return;
+    SetUpService();
+    SetUpNodeStands();
+    void* const face = MakeWindow("html nodes");
+    if (!face)
+        return;
+    char* const window = static_cast<char*>(face) - 0xD8;
+    const bool compare = AnyOurs();
+    Fnv total;
+    int items = 0;
+    int differ = 0;
+    uint32_t sectionHash[5] = {};
+    const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages"};
+    // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
+    const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
+    auto item = [&](int section, int index, auto run) {
+        if (trace)
+            log::Write("autotest: html nodes: %s %d", sections[section], index);
+        uint32_t game = 0;
+        uint32_t gameIdentity = 0;
+        if (compare) {
+            html_parser::g_useGame = true;
+            g_identity = Fnv{};
+            game = run();
+            gameIdentity = g_identity.h;
+            html_parser::g_useGame = false;
+        }
+        g_identity = Fnv{};
+        const uint32_t ours = run();
+        ++items;
+        if (trace)
+            log::Write("autotest: html nodes: %s %d: %08X", sections[section], index, ours);
+        total.Word(ours);
+        Fnv s;
+        s.Word(sectionHash[section]);
+        s.Word(ours);
+        sectionHash[section] = s.h;
+        if (compare && (game != ours || gameIdentity != g_identity.h)) {
+            ++differ;
+            log::Write("autotest: html nodes: %s %d differs: game %08X ours %08X", sections[section], index, game,
+                       ours);
+        }
+    };
+    for (int i = 0; i < kConstructorItems; ++i)
+        item(0, i, [&] { return ConstructorItem(i); });
+    for (int i = 0; i < kDestructorItems; ++i)
+        item(1, i, [&] { return DestructorItem(i / 3, i % 3); });
+    for (int i = 0; i < ColourItems(); ++i)
+        item(2, i, [&] { return ColourItem(i); });
+    for (int i = 0; i < CharItems(); ++i)
+        item(3, i, [&] { return CharItem(i); });
+    for (std::size_t i = 0; i < std::size(kNodePages); ++i)
+        item(4, static_cast<int>(i), [&] {
+            bool parsed = false;
+            return ParsePage(window, kNodePages[i], parsed) ^ (parsed ? 0 : 0x80000000u);
+        });
+    Virtual<uint32_t>(face, 0x8);
+
+    g_nodesHash = total.h;
+    g_nodesOn = true;
+    log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
+               "pages %08X), %u stand-in calls, %u of %u blocks freed; %s; hash %08X",
+               items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], g_standCalls,
+               g_blocksFreed, g_blocksChecked,
+               compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
+    if (compare)
+        log::Write("autotest: html nodes: %d differences in %d items", differ, items);
+}
+
+void NodesFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_nodesOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | hn %08X", g_nodesHash);
+    line += text;
+}
+
+const FingerprintPart kNodesFingerprint{"html nodes", 5, &NodesFingerprint};
+const DayHook kNodesDrive{"html nodes", 5, &DriveNodesDay};
 
 } // namespace
 } // namespace opensc4::autotest
