@@ -14943,6 +14943,21 @@ uint32_t __fastcall SdOwnValueStub(char* object, void*, uint32_t kind, uint32_t 
                    [&] { return CallThis<uint32_t>(real, object, kind, value, flag); });
 }
 
+// Slots 0x38 and 0x3C fill a block, which the notes keep for the replay
+// (g_sdFilled, effects_second.h).
+template <uint32_t Slot>
+uint32_t __fastcall SdOwnFillStub(char* object, void*, uint32_t block)
+{
+    const uint32_t real = BRealSlot(object, Slot);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, block);
+    const uint32_t result =
+        BCallee(kSdOwn + Slot, Word(object), block, kBBlock, [&] { return CallThis<uint32_t>(real, object, block); });
+    g_sdFilled.push_back({});
+    std::memcpy(g_sdFilled.back().bytes, Ptr(block), sizeof(SdFilled));
+    return result;
+}
+
 void SdWatch(char* object)
 {
     BSwapRole(object, kSdOwnRole,
@@ -14953,7 +14968,9 @@ void SdWatch(char* object)
                {0x1C, reinterpret_cast<uint32_t>(&SdOwnBlockStub<0x1C>)},
                {0x20, reinterpret_cast<uint32_t>(&SdOwnBlockStub<0x20>)},
                {0x30, reinterpret_cast<uint32_t>(&SdOwnValueStub<0x30>)},
-               {0x34, reinterpret_cast<uint32_t>(&SdOwnValueStub<0x34>)}});
+               {0x34, reinterpret_cast<uint32_t>(&SdOwnValueStub<0x34>)},
+               {0x38, reinterpret_cast<uint32_t>(&SdOwnFillStub<0x38>)},
+               {0x3C, reinterpret_cast<uint32_t>(&SdOwnFillStub<0x3C>)}});
 }
 
 // The manager's make: noted with the name, and what it made watched.
@@ -14976,12 +14993,16 @@ uint32_t __fastcall SdHeldStub(char* object, void*, uint32_t value)
     return BCallee(kSdHeld, Word(object), Word(&value), 4, [&] { return CallThis<uint32_t>(real, object, value); });
 }
 
+// The restart by its own switch's mode ("The check whether a particle is in
+// view and the restart of one" at the end); this detour is that switch's
+// too.
+uint32_t SdRestartRun(char* self, uint32_t particle);
+
 uint32_t __fastcall SdRestartNoted(char* self, void*, uint32_t particle)
 {
     if (!BNoting())
-        return g_SC4EffectB_RestartParticle(self, nullptr, particle);
-    return BCallee(addr::SC4EffectB_RestartParticle, particle, 0, 0,
-                   [&] { return g_SC4EffectB_RestartParticle(self, nullptr, particle); });
+        return SdRestartRun(self, particle);
+    return BCallee(addr::SC4EffectB_RestartParticle, particle, 0, 0, [&] { return SdRestartRun(self, particle); });
 }
 OPENSC4_THUNK(TSdRestart, SdRestartNoted, 4)
 
@@ -15420,16 +15441,19 @@ uint32_t __fastcall PdBatchDrawNoted(char* self, void*, uint32_t context)
 }
 OPENSC4_THUNK(TPdBatchDraw, PdBatchDrawNoted, 4)
 
+// The check by its own switch's mode (with the restart at the end); this
+// detour is that switch's too.
+uint32_t SdInViewRun(char* self, uint32_t depth, uint32_t camera, uint32_t particle, uint32_t place, uint32_t scale);
+
 uint32_t __fastcall PdInViewNoted(char* self, void*, uint32_t depth, uint32_t camera, uint32_t particle,
                                   uint32_t place, uint32_t scale)
 {
     if (!BNoting())
-        return g_PdInView(self, nullptr, depth, camera, particle, place, scale);
+        return SdInViewRun(self, depth, camera, particle, place, scale);
     float* const where = reinterpret_cast<float*>(place);
     const uint32_t noted[6] = {depth, camera, LfBits(where[0]), LfBits(where[1]), LfBits(where[2]), M<uint32_t>(scale)};
-    const uint32_t answer = BCallee(addr::SC4EffectB_ParticleInView, particle, Word(noted), sizeof noted, [&] {
-        return g_PdInView(self, nullptr, depth, camera, particle, place, scale);
-    });
+    const uint32_t answer = BCallee(addr::SC4EffectB_ParticleInView, particle, Word(noted), sizeof noted,
+                                    [&] { return SdInViewRun(self, depth, camera, particle, place, scale); });
     DbLeft left{};
     std::memcpy(left.place, where, 12);
     left.scale = M<uint32_t>(scale);
@@ -15448,12 +15472,15 @@ uint32_t __fastcall PdPartStartNoted(char* self, void*, uint32_t a, uint32_t b)
 }
 OPENSC4_THUNK(TPdPartStart, PdPartStartNoted, 8)
 
+// The part's step by its own switch's mode ("The part's step" at the end);
+// this detour is that switch's too.
+uint32_t SdStepRun(char* part, uint32_t step);
+
 uint32_t __fastcall PdPartStepNoted(char* self, void*, uint32_t step)
 {
     if (!BNoting())
-        return g_PdPartStep(self, nullptr, step);
-    return BCallee(addr::SC4EffectPartB_Step, Word(self), Word(&step), 4,
-                   [&] { return g_PdPartStep(self, nullptr, step); });
+        return SdStepRun(self, step);
+    return BCallee(addr::SC4EffectPartB_Step, Word(self), Word(&step), 4, [&] { return SdStepRun(self, step); });
 }
 OPENSC4_THUNK(TPdPartStep, PdPartStepNoted, 4)
 
@@ -15732,7 +15759,8 @@ OPENSC4_THUNK(TDwSC4Effect_DrawParticles, PlPlainByMode, 4)
 // the frames of a model of more than one (no test city has one; flags
 // 0x20 and 0x40 and +0x1DC count only there), and the part's start and
 // step (flags 4 and 0x100), as the game's step (0x005AC200) reads through
-// a null pointer for a part that was not made for them. Recorded as
+// a null pointer for a part that was not made for them (the step is forced
+// on a made-up part instead, "The part's step" at the end). Recorded as
 // effects.draw_b.forced.
 constexpr float kDbForcedColours[9] = {1.0f, 0.25f, 0.5f, 0.0f, 0.75f, 0.125f, 0.5f, 0.5f, 1.0f};
 
@@ -16560,6 +16588,7 @@ uint32_t DwEffectDrawRun(char* self, uint32_t step, uint32_t context)
 void EnForce(char* self);
 void PlForce(char* self);
 void IbForce(char* self);
+void SdForce(char* self, uint32_t context);
 
 uint32_t __fastcall DwEffectDrawByMode(char* self, void*, uint32_t step, uint32_t context)
 {
@@ -16567,6 +16596,7 @@ uint32_t __fastcall DwEffectDrawByMode(char* self, void*, uint32_t step, uint32_
     EnForce(self);
     PlForce(self);
     IbForce(self);
+    SdForce(self, context);
     if (!DwNoting())
         return DwEffectDrawRun(self, step, context);
     DwAddNote(kDwEffect, self, step, context);
@@ -20969,6 +20999,735 @@ const bool g_registeredBatchDraw = registry::Register({
     "effect's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallBatchDraw,
+});
+
+// --- The check whether a particle is in view and the restart of one ----------------------------
+//
+// The two game functions the second class's ported draw and give back still
+// called by address (effects_second.h, part E15): the check whether a
+// particle is in view (0x005AD890) and the restart of a particle for an
+// effect with an object at +0x278 (0x005AF060). Each has a switch
+// (renderer.effects.in_view_b, .restart_b): ours makes the detour the
+// draw's and the give back's comparisons already had of it run ours for
+// every caller; while those comparisons note, the detour notes it as their
+// callee and runs it by the switch.
+//
+// Neither can run twice (the manager makes effects, the own effects are
+// stopped and let go, the object is started and given the particle), so
+// compare mode compares them as the class's take and give back are, by the
+// notes' engine: the manager, the particle's own effect (now also its
+// slots 0x38 and 0x3C, which fill a block the replay is given), the
+// object at +0x278 (slots 0 and 8), its sub-object (slot 0x2C), the
+// model instance's and the model's counting parts (their holds and
+// releases) get noting tables, the game's runs with the calls passed on,
+// ours is replayed. The bytes compared are the effect, the class's free
+// list, the generator and the particle, and the place and scale (the
+// check) or the object (the restart). Not reached in the test cities
+// (docs/renderer.md): OPENSC4_EFFECT_FORCE_SECOND=1 (compare mode only)
+// compares each switch in compare mode before every running effect of the
+// class's draw, on copies of the effect with made-up objects (SdForce).
+StepMode g_inViewBMode = StepMode::Original, g_restartBMode = StepMode::Original;
+bool g_sdForce = false;
+constexpr uint32_t kSdObjectRole = 0xE500, kSdSubRole = 0xE600;
+
+uint32_t __fastcall SdObjectStartStub(char* object, void*, uint32_t value)
+{
+    const uint32_t real = BRealSlot(object, 0);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object, value);
+    return BCallee(kSdObject, Word(object), Word(&value), 4, [&] { return CallThis<uint32_t>(real, object, value); });
+}
+
+uint32_t __fastcall SdObjectRunsStub(char* object, void*)
+{
+    const uint32_t real = BRealSlot(object, 8);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, object);
+    return BCallee(kSdObject + 8, Word(object), 0, 0, [&] { return CallThis<uint32_t>(real, object); });
+}
+
+uint32_t __fastcall SdSubAddStub(char* sub, void*, uint32_t particle)
+{
+    const uint32_t real = BRealSlot(sub, 0x2C);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, sub, particle);
+    return BCallee(kSdSub + 0x2C, Word(sub), Word(&particle), 4, [&] { return CallThis<uint32_t>(real, sub, particle); });
+}
+
+// The noted comparison, its filled blocks emptied first.
+template <typename Game, typename Ours>
+uint32_t SdCalleeCompared(const char* id, std::vector<BRegion> regions, bool checkResult, Game&& game, Ours&& ours)
+{
+    g_sdFilled.clear();
+    g_sdFilledAt = 0;
+    return SdCompared(id, std::move(regions), checkResult, std::forward<Game>(game), std::forward<Ours>(ours));
+}
+
+std::vector<BRegion> SdInViewRegions(char* self, char* particle, float* place, float* scale)
+{
+    std::vector<BRegion> regions = SdRegions(self, {particle});
+    regions.push_back({reinterpret_cast<char*>(place), 12});
+    regions.push_back({reinterpret_cast<char*>(scale), 4});
+    return regions;
+}
+
+uint32_t SdInViewRun(char* self, uint32_t depth, uint32_t camera, uint32_t particle, uint32_t place, uint32_t scale)
+{
+    const auto game = [&] { return g_PdInView(self, nullptr, depth, camera, particle, place, scale) & 0xFF; };
+    const auto ours = [&] {
+        return static_cast<uint32_t>(ParticleInViewB(self, LfFloat(depth), Ptr(camera), Ptr(particle),
+                                                     reinterpret_cast<float*>(place), reinterpret_cast<float*>(scale)));
+    };
+    if (g_inViewBMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_PdInView(self, nullptr, depth, camera, particle, place, scale);
+    if (g_inViewBMode == StepMode::Ours)
+        return ours();
+    if (BBusy())
+        return g_PdInView(self, nullptr, depth, camera, particle, place, scale);
+    SdWatchManager();
+    SdWatch(At<char*>(Ptr(particle), 0x44));
+    return SdCalleeCompared("effects.in_view_b",
+                            SdInViewRegions(self, Ptr(particle), reinterpret_cast<float*>(place),
+                                            reinterpret_cast<float*>(scale)),
+                            true, game, ours);
+}
+
+std::vector<BRegion> SdRestartRegions(char* self, char* particle)
+{
+    std::vector<BRegion> regions = SdRegions(self, {particle});
+    regions.push_back({At<char*>(self, 0x278), kEffectSizeB});
+    return regions;
+}
+
+// The objects the restart calls, given noting tables.
+void SdWatchRestart(char* self, char* particle)
+{
+    SdWatchManager();
+    SdWatch(At<char*>(particle, 0x44));
+    char* const object = At<char*>(self, 0x278);
+    BSwapRole(object, kSdObjectRole,
+              {{0x0, reinterpret_cast<uint32_t>(&SdObjectStartStub)},
+               {0x8, reinterpret_cast<uint32_t>(&SdObjectRunsStub)}});
+    BSwapRole(object + 4, kSdSubRole, {{0x2C, reinterpret_cast<uint32_t>(&SdSubAddStub)}});
+    char* const instance = At<char*>(self, 0x220);
+    if (!instance || At<uint32_t>(object, 0x220))
+        return;
+    BSwap(instance, 0x4, reinterpret_cast<uint32_t>(&BAddRef));
+    char* const model = At<char*>(self, 0x224);
+    char* const old = At<char*>(object, 0x224);
+    if (model == old)
+        return;
+    if (model)
+        BSwap(SdCounted(model), 0x4, reinterpret_cast<uint32_t>(&BAddRef));
+    if (old)
+        BSwap(SdCounted(old), 0x8, reinterpret_cast<uint32_t>(&BRelease));
+}
+
+uint32_t SdRestartRun(char* self, uint32_t particle)
+{
+    const auto game = [&] { return g_SC4EffectB_RestartParticle(self, nullptr, particle); };
+    const auto ours = [&] {
+        RestartParticleB(self, Ptr(particle));
+        return 0u;
+    };
+    if (g_restartBMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_restartBMode == StepMode::Ours)
+        return ours();
+    if (BBusy())
+        return game();
+    SdWatchRestart(self, Ptr(particle));
+    return SdCalleeCompared("effects.restart_b", SdRestartRegions(self, Ptr(particle)), false, game, ours);
+}
+
+// The made-up objects of the forced runs: their slots note the calls as
+// the watching tables' stubs do and answer what the turn chose. The
+// manager's make gives the made-up effect (or nothing); the own effects'
+// fills write counting floats. The make's answer: 0 nothing made, 1 made,
+// 2 an effect left at its out with the answer false.
+uint32_t g_sdFakeAsks = 0, g_sdFakeMade = 0, g_sdFakeRuns = 0;
+uint32_t g_sdFakeOwnTable[0x40 / 4] = {}, g_sdFakeManagerTable[0x20 / 4] = {}, g_sdFakeObjectTable[0x10 / 4] = {},
+         g_sdFakeSubTable[0x30 / 4] = {}, g_sdFakeCountedTable[0x10 / 4] = {};
+uint32_t g_sdFakeOwn[2] = {}, g_sdFakeMadeEffect[2] = {}, g_sdFakeManager[2] = {}, g_sdFakeInstance[2] = {},
+         g_sdFakeInstance2[2] = {};
+// Two models: their +4 a table of virtual bases whose second word (4) puts
+// the counting part at +8.
+const uint32_t g_sdFakeBases[2] = {0, 4};
+uint32_t g_sdFakeModel[3] = {}, g_sdFakeModel2[3] = {};
+
+uint32_t SdFakeNoted(uint32_t target, char* object, uint32_t data, std::size_t size, uint32_t answer)
+{
+    return BNoting() ? BCallee(target, Word(object), data, size, [&] { return answer; }) : answer;
+}
+
+uint32_t __fastcall SdFakeRelease(char* object, void*)
+{
+    return SdFakeNoted(0x8, object, 0, 0, 0);
+}
+
+uint32_t __fastcall SdFakeHold(char* object, void*)
+{
+    return SdFakeNoted(kSdHold, object, 0, 0, 0);
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall SdFakeWord(char* object, void*, uint32_t value)
+{
+    return SdFakeNoted(kSdOwn + Slot, object, Word(&value), 4, 0);
+}
+
+uint32_t __fastcall SdFakeAsks(char* object, void*)
+{
+    return SdFakeNoted(kSdOwn + 0x14, object, 0, 0, g_sdFakeAsks);
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall SdFakeBlock(char* object, void*, uint32_t block)
+{
+    return SdFakeNoted(kSdOwn + Slot, object, block, kBBlock, 0);
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall SdFakeValue(char* object, void*, uint32_t kind, uint32_t value, uint32_t flag)
+{
+    const uint32_t noted[4] = {kind, M<uint32_t>(value), flag, Slot == 0x34 ? value : 0u};
+    return SdFakeNoted(kSdOwn + Slot, object, Word(noted), sizeof noted, 0);
+}
+
+template <uint32_t Slot>
+uint32_t __fastcall SdFakeFill(char* object, void*, uint32_t block)
+{
+    const uint32_t result = SdFakeNoted(kSdOwn + Slot, object, block, kBBlock, 0);
+    char* const filled = Ptr(block);
+    At<uint8_t>(filled, 0) = Slot == 0x38 ? 1 : 2;
+    At<uint8_t>(filled, 1) = 3;
+    for (uint32_t i = 0; i < 13; ++i)
+        At<float>(filled, 4 + i * 4) = (Slot == 0x38 ? 1.5f : -2.0f) + 0.25f * static_cast<float>(i);
+    if (BNoting()) {
+        g_sdFilled.push_back({});
+        std::memcpy(g_sdFilled.back().bytes, filled, sizeof(SdFilled));
+    }
+    return result;
+}
+
+uint32_t __fastcall SdFakeMake(char*, void*, uint32_t name, uint32_t out)
+{
+    const auto make = [&] {
+        if (g_sdFakeMade)
+            M<uint32_t>(out) = Word(g_sdFakeMadeEffect);
+        return g_sdFakeMade == 1 ? 1u : 0u;
+    };
+    return BNoting() ? BCallee(kSdMake, 0, name, kBString, make, out) : make();
+}
+
+uint32_t __fastcall SdFakeStart(char* object, void*, uint32_t value)
+{
+    return SdFakeNoted(kSdObject, object, Word(&value), 4, 0);
+}
+
+uint32_t __fastcall SdFakeRuns(char* object, void*)
+{
+    return SdFakeNoted(kSdObject + 8, object, 0, 0, g_sdFakeRuns);
+}
+
+uint32_t __fastcall SdFakeAdd(char* sub, void*, uint32_t particle)
+{
+    return SdFakeNoted(kSdSub + 0x2C, sub, Word(&particle), 4, 0);
+}
+
+void SdFakesMade()
+{
+    if (g_sdFakeOwn[0])
+        return;
+    const auto at = [](auto* function) { return reinterpret_cast<uint32_t>(function); };
+    uint32_t* const own = g_sdFakeOwnTable;
+    own[0x8 / 4] = at(&SdFakeRelease);
+    own[0xC / 4] = at(&SdFakeWord<0xC>);
+    own[0x10 / 4] = at(&SdFakeWord<0x10>);
+    own[0x14 / 4] = at(&SdFakeAsks);
+    own[0x1C / 4] = at(&SdFakeBlock<0x1C>);
+    own[0x20 / 4] = at(&SdFakeBlock<0x20>);
+    own[0x30 / 4] = at(&SdFakeValue<0x30>);
+    own[0x34 / 4] = at(&SdFakeValue<0x34>);
+    own[0x38 / 4] = at(&SdFakeFill<0x38>);
+    own[0x3C / 4] = at(&SdFakeFill<0x3C>);
+    g_sdFakeManagerTable[0x1C / 4] = at(&SdFakeMake);
+    g_sdFakeObjectTable[0] = at(&SdFakeStart);
+    g_sdFakeObjectTable[8 / 4] = at(&SdFakeRuns);
+    g_sdFakeSubTable[0x2C / 4] = at(&SdFakeAdd);
+    g_sdFakeCountedTable[4 / 4] = at(&SdFakeHold);
+    g_sdFakeCountedTable[8 / 4] = at(&SdFakeRelease);
+    g_sdFakeOwn[0] = g_sdFakeMadeEffect[0] = Word(own);
+    g_sdFakeManager[0] = Word(g_sdFakeManagerTable);
+    g_sdFakeInstance[0] = g_sdFakeInstance2[0] = Word(g_sdFakeCountedTable);
+    for (uint32_t* const model : {g_sdFakeModel, g_sdFakeModel2}) {
+        model[1] = Word(g_sdFakeBases);
+        model[2] = Word(g_sdFakeCountedTable);
+    }
+}
+
+// The check forced: a copy of the effect with made-up floats at its
+// +0x1E8, three made-up cameras (along the axes, turned, and skewed with
+// axes not of length one), a place near the camera's plane (behind it,
+// just before it, within and beyond the scale), a scale (one of them
+// negative, one a NaN), a velocity toward the camera, away from it or
+// along it, with or without an own effect (answering its slot 0x14 or
+// not), the make answering, not, or not with an effect left. Each choice
+// by the turn modulo a prime of its own. Every fourth turn with a render
+// context is the draw's own case instead: the context's camera, the depth
+// as the draw makes it, the effect's own floats at +0x1E8 and the first
+// running particle's place and size.
+void SdInViewForced(char* self, uint32_t k, const char* first, const char* real)
+{
+    char copy[kEffectSizeB];
+    std::memcpy(copy, self, sizeof copy);
+    static const float kViews[5][5] = {{0.0f, 1.0f, 1.0f, 0.5f, 1.0f},
+                                       {0.75f, 0.5f, 0.4f, 0.0f, 2.5f},
+                                       {-1.0f, -2.0f, 10.0f, -1.25f, 0.1f},
+                                       {0.25f, 0.125f, 3.0f, 2.0f, 4.0f},
+                                       {2.0f, 1.0f, 0.05f, 0.75f, 0.5f}};
+    float view[13] = {};
+    std::memcpy(view + 8, kViews[k % 17 % 5], sizeof kViews[0]);
+    At<uint32_t>(copy, 0x1E8) = Word(view);
+    static const float kFrames[3][4][3] = {
+        {{100.5f, 270.25f, -40.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+        {{-3.0e3f, 512.0f, 8.0e3f}, {0.6f, -0.48f, 0.64f}, {0.8f, 0.36f, -0.48f}, {0.0f, 0.8f, 0.6f}},
+        {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -2.0f}, {0.5f, 0.0f, 0.0f}, {0.0f, 3.0f, 0.1f}}};
+    const auto& frame = kFrames[k % 3];
+    float camera[0x78 / 4] = {};
+    for (uint32_t i = 0; i < 3; ++i) {
+        camera[0x3C / 4 + i] = frame[0][i];
+        camera[0x54 / 4 + i] = frame[1][i];
+        camera[0x60 / 4 + i] = frame[2][i];
+        camera[0x6C / 4 + i] = frame[3][i];
+    }
+    float depth =
+        -static_cast<float>(frame[1][0] * frame[0][0] + frame[1][1] * frame[0][1] + frame[1][2] * frame[0][2]);
+    static const float kAlong[7] = {-3.0f, 0.25f, 0.75f, 1.5f, 6.0f, 40.0f, 0.0f};
+    static const float kAcross[5] = {0.0f, 0.2f, -0.6f, 2.5f, 0.05f};
+    const float t = kAlong[k % 7], u = kAcross[k % 5], w = kAcross[k % 11 % 5];
+    float place[3];
+    for (uint32_t i = 0; i < 3; ++i)
+        place[i] = frame[0][i] + frame[1][i] * t + frame[2][i] * u + frame[3][i] * w;
+    const uint32_t nan = 0x7FC00000u;
+    float notANumber = 0.0f;
+    std::memcpy(&notANumber, &nan, 4);
+    const float kScales[7] = {1.0f, 2.0f, 0.5f, -3.0f, 8.0f, 0.01f, notANumber};
+    float scale = kScales[k % 13 % 7];
+    if (real && first && k % 4 == 3) {
+        std::memcpy(camera, real, sizeof camera);
+        At<uint32_t>(copy, 0x1E8) = At<uint32_t>(self, 0x1E8);
+        const auto c = [&](uint32_t at) { return static_cast<double>(camera[at / 4]); };
+        depth = static_cast<float>((c(0x40) / c(0x58) - ((c(0x44) * c(0x5C) + c(0x40) * c(0x58)) + c(0x3C) * c(0x54))) +
+                                   At<float>(At<char*>(self, 0x1E8), 0x30));
+        std::memcpy(place, first + 0xC, sizeof place);
+        std::memcpy(&scale, first + 0x28, sizeof scale);
+    }
+    char particle[kParticleBytesB] = {};
+    if (first)
+        std::memcpy(particle, first, sizeof particle);
+    const float speed = k % 23 % 4 == 3 ? 0.5f : -2.0f;
+    for (uint32_t i = 0; i < 3; ++i) {
+        const uint32_t kind = k % 23 % 4;
+        At<float>(particle, 0x1C + i * 4) = kind == 2 ? frame[2][i] : frame[1][i] * speed + (kind == 1 ? frame[3][i] : 0.0f);
+    }
+    const uint32_t own = k % 19 % 3;
+    At<uint32_t>(particle, 0x44) = own ? Word(g_sdFakeOwn) : 0u;
+    g_sdFakeAsks = own == 2;
+    g_sdFakeMade = k % 29 % 3;
+    SdCalleeCompared(
+        "effects.in_view_b.forced", SdInViewRegions(copy, particle, place, &scale), true,
+        [&] {
+            return g_PdInView(copy, nullptr, LfBits(depth), Word(camera), Word(particle), Word(place), Word(&scale)) &
+                   0xFF;
+        },
+        [&] { return static_cast<uint32_t>(ParticleInViewB(copy, depth, reinterpret_cast<char*>(camera), particle, place, &scale)); });
+}
+
+// The restart forced: copies of the effect and of its description (the
+// object at +0x278 a copy of the effect too, with made-up tables for
+// itself and its sub-object) and of a particle. The object's description
+// names nothing, the effect's own name, another one, one as long with
+// another last letter, or a longer one; it has flag 0x200 of its third
+// word or not and flag 0x800000 of its first or not; the effect has a
+// model instance or not and the object one or not, models (none, one,
+// the other or the same); the byte +0x26F set or not; the particle an own
+// effect or not; the make answering, not, or not with an effect left; the
+// object running or not.
+void SdRestartForced(char* self, uint32_t k, const char* first)
+{
+    char copy[kEffectSizeB], object[kEffectSizeB], described[kDescriptionSize];
+    std::memcpy(copy, self, sizeof copy);
+    std::memcpy(object, self, sizeof object);
+    char* const description = At<char*>(self, 0x24);
+    std::memcpy(described, description, sizeof described);
+    static char names[3][40];
+    const char* const mine = At<const char*>(description, 0x160);
+    const uint32_t length = At<uint32_t>(description, 0x164) - At<uint32_t>(description, 0x160);
+    const uint32_t kept = length < 30 ? length : 30;
+    std::memcpy(names[0], "e15_other", 9);
+    std::memcpy(names[1], mine, kept);
+    if (kept)
+        names[1][kept - 1] ^= 0x20;
+    else
+        names[1][0] = 'y';
+    std::memcpy(names[2], mine, kept);
+    std::memcpy(names[2] + kept, "_x", 2);
+    const uint32_t kind = k % 5;
+    const char* begin = names[0];
+    uint32_t size = 0;
+    if (kind == 1)
+        begin = mine, size = length;
+    else if (kind == 2)
+        size = 9;
+    else if (kind == 3)
+        begin = names[1], size = kept ? kept : 1;
+    else if (kind == 4)
+        begin = names[2], size = kept + 2;
+    At<uint32_t>(described, 0x160) = Word(begin);
+    At<uint32_t>(described, 0x164) = Word(begin) + size;
+    At<uint32_t>(described, 0x168) = Word(begin) + size;
+    At<uint32_t>(described, 8) = (At<uint32_t>(described, 8) & ~0x200u) | (k % 7 % 2 ? 0x200u : 0u);
+    At<uint32_t>(described, 0) = (At<uint32_t>(described, 0) & ~0x800000u) | (k % 11 % 2 ? 0x800000u : 0u);
+    At<uint32_t>(object, 0) = Word(g_sdFakeObjectTable);
+    At<uint32_t>(object, 4) = Word(g_sdFakeSubTable);
+    At<uint32_t>(object, 0x24) = Word(described);
+    At<uint32_t>(copy, 0x278) = Word(object);
+    At<uint32_t>(copy, 0x220) = k % 3 % 2 ? 0u : Word(g_sdFakeInstance);
+    At<uint32_t>(object, 0x220) = k % 13 % 3 == 2 ? Word(g_sdFakeInstance2) : 0u;
+    At<uint32_t>(copy, 0x224) = k % 17 % 2 ? Word(g_sdFakeModel) : 0u;
+    const uint32_t models[3] = {0u, Word(g_sdFakeModel), Word(g_sdFakeModel2)};
+    At<uint32_t>(object, 0x224) = models[k % 19 % 3];
+    At<uint8_t>(copy, 0x26F) = k % 23 % 2;
+    At<uint32_t>(copy, 0x270) = 0x00E15E15u + k;
+    char particle[kParticleBytesB] = {};
+    if (first)
+        std::memcpy(particle, first, sizeof particle);
+    At<float>(particle, 4) = 3.0f;
+    At<uint32_t>(particle, 0x44) = k % 29 % 2 ? Word(g_sdFakeOwn) : 0u;
+    g_sdFakeMade = k % 31 % 3;
+    g_sdFakeRuns = k % 37 % 2;
+    SdCalleeCompared(
+        "effects.restart_b.forced", SdRestartRegions(copy, particle), false,
+        [&] { return g_SC4EffectB_RestartParticle(copy, nullptr, Word(particle)); },
+        [&] {
+            RestartParticleB(copy, particle);
+            return 0u;
+        });
+}
+
+// The part's step forced twice (renderer.effects.step_b in compare mode;
+// "The part's step" at the end).
+void SdStepForcedTwice(char* self, uint32_t k);
+
+// Forcing, before each running effect's draw (DwEffectDrawByMode) of the
+// second class (with its render context): the check three times, the
+// restart and the part's step twice, by a turn counter, with the effects
+// manager swapped for the made-up one and the generator put back after.
+void SdForce(char* self, uint32_t context)
+{
+    if (!g_sdForce || g_effectRecord || g_effectReplay || BBusy() || !At<uint8_t>(self, 9) ||
+        At<uint32_t>(self, 0) != 0x00AA0C58u || !At<char*>(self, 0x24))
+        return;
+    SdFakesMade();
+    const char* first = nullptr;
+    for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14) && !first;
+         node = At<char*>(node, 0)) {
+        if (At<uint8_t>(At<char*>(node, 8), 0))
+            first = At<char*>(node, 8);
+    }
+    static uint32_t turn = 0;
+    const uint32_t k = turn++;
+    char generator[kSetupGeneratorSize];
+    std::memcpy(generator, Ptr(kSetupGenerator), sizeof generator);
+    char*& manager = M<char*>(kEffectsManager);
+    char* const real = manager;
+    manager = reinterpret_cast<char*>(g_sdFakeManager);
+    if (g_inViewBMode == StepMode::Compare && g_PdInView)
+        for (uint32_t i = 0; i < 3; ++i)
+            SdInViewForced(self, k * 3 + i, first, context ? At<const char*>(Ptr(context), 0x24) : nullptr);
+    if (g_restartBMode == StepMode::Compare && g_SC4EffectB_RestartParticle)
+        for (uint32_t i = 0; i < 2; ++i)
+            SdRestartForced(self, k * 2 + i, first);
+    SdStepForcedTwice(self, k);
+    manager = real;
+    std::memcpy(Ptr(kSetupGenerator), generator, sizeof generator);
+}
+
+bool SdHookForce()
+{
+    const char* v = std::getenv("OPENSC4_EFFECT_FORCE_SECOND");
+    if (!v || *v != '1')
+        return true;
+    if (!DwHookEffectDraw())
+        return false;
+    if (!g_sdForce)
+        log::Write("water effects: the second class's check whether a particle is in view, restart and part's step "
+                   "forced before each effect's draw");
+    g_sdForce = true;
+    return true;
+}
+
+bool InstallInViewB(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_inViewBMode, addr::SC4EffectB_ParticleInView, &TPdInView, &g_PdInView,
+                   "the second class's check whether a particle is in view"))
+        return false;
+    return mode != registry::Mode::Compare || SdHookForce();
+}
+
+bool InstallRestartB(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_restartBMode, addr::SC4EffectB_RestartParticle, &TSdRestart,
+                   &g_SC4EffectB_RestartParticle, "the second class's restart of a particle"))
+        return false;
+    return mode != registry::Mode::Compare || SdHookForce();
+}
+
+const bool g_registeredInViewB = registry::Register({
+    "renderer.effects.in_view_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_ParticleInView,
+    "The second class's check whether a particle is in view (0x005AD890): its scale by its distance from the "
+    "camera's plane, its place moved toward the camera's axes, and a particle nearer than its size bounced off the "
+    "camera (a \"camera_collision\" effect made) or its own effect stopped; compare mode notes the game's calls and "
+    "answers ours from the notes, OPENSC4_EFFECT_FORCE_SECOND=1 forces it on copies with made-up objects before "
+    "each running effect's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallInViewB,
+});
+
+const bool g_registeredRestartB = registry::Register({
+    "renderer.effects.restart_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectB_RestartParticle,
+    "The second class's restart of a particle for an effect with an object at +0x278 (0x005AF060): a new life, a "
+    "new own effect when the object's description names another, the model given to the object, the object started "
+    "and given the particle; compare mode notes the game's calls and answers ours from the notes, "
+    "OPENSC4_EFFECT_FORCE_SECOND=1 forces it on copies with made-up objects before each running effect's draw "
+    "(docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallRestartB,
+});
+
+// --- The part's step ---------------------------------------------------------------------------
+//
+// The second class's part's step (0x005AC200, effects_second.h StepPartB,
+// part E16), which the second class's ported draw still called by address.
+// Its switch (renderer.effects.step_b): ours makes the detour the draw's
+// comparison already had of it run ours for every caller; while that
+// comparison notes, the detour notes it as its callee and runs it by the
+// switch.
+//
+// Compare mode, by the notes' engine: the model instance the part keeps
+// (+4) gets a noting table for its slot 0x10 (which answers where it keeps
+// its copy of a mesh), the game's runs with the call passed on and ours is
+// replayed. The bytes compared are the part (as the regions' "effect"),
+// the class's free list, the generator and the vertices of each copy the
+// step writes (found by asking the instance's slot 0x10 before, which only
+// answers). When the part's lists of three floats are empty they are made
+// first (0x00803370, which allocates), so neither run makes them. Not
+// reached in the test cities (docs/renderer.md): with
+// OPENSC4_EFFECT_FORCE_SECOND=1 (compare mode only) it is compared twice
+// before every running effect of the class's draw, dry, on a made-up part
+// (SdStepForced).
+StepMode g_stepBMode = StepMode::Original;
+constexpr uint32_t kSdPartInstanceRole = 0xE700;
+
+uint32_t __fastcall SdPartKeptStub(char* instance, void*, uint32_t index)
+{
+    const uint32_t real = BRealSlot(instance, 0x10);
+    if (!BNoting())
+        return CallThis<uint32_t>(real, instance, index);
+    return BCallee(kSdPartInstance + 0x10, Word(instance), Word(&index), 4,
+                   [&] { return CallThis<uint32_t>(real, instance, index); });
+}
+
+uint32_t SdExpandedTwo()
+{
+    return reinterpret_cast<uint32_t(__cdecl*)(uint32_t)>(addr::GDVertexFormat_Expand)(2);
+}
+
+// The part, the free list, the generator and the vertices of the copies
+// of the meshes the step writes.
+std::vector<BRegion> SdStepRegions(char* part)
+{
+    std::vector<BRegion> regions{{part, 0x44}, {Ptr(kParticleFreeB), 4}, {Ptr(kSetupGenerator), kSetupGeneratorSize}};
+    char* const instance = At<char*>(part, 4);
+    const uint32_t meshes = static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(part, 0x10) - At<uint32_t>(part, 0xC)) >> 2);
+    for (uint32_t i = 0; i < meshes; ++i) {
+        char* const mesh = At<char**>(part, 0xC)[i];
+        if (At<uint32_t>(mesh, 0) != SdExpandedTwo() || !At<uint16_t>(mesh, 6))
+            continue;
+        const uint32_t kept = CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0x10), instance, i);
+        regions.push_back({At<char*>(M<char*>(kept), 8), At<uint16_t>(mesh, 6) * 0x18u});
+    }
+    return regions;
+}
+
+uint32_t SdStepRun(char* part, uint32_t step)
+{
+    const auto game = [&] { return g_PdPartStep(part, nullptr, step); };
+    const auto ours = [&] {
+        StepPartB(part, LfFloat(step));
+        return 0u;
+    };
+    if (g_stepBMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return game();
+    if (g_stepBMode == StepMode::Ours)
+        return ours();
+    if (BBusy())
+        return game();
+    if (At<uint32_t>(part, 0x24) == At<uint32_t>(part, 0x28))
+        CallThis<void>(addr::SC4EffectPartB_MakeNormals, part);
+    std::vector<BRegion> regions = SdStepRegions(part);
+    BSwapRole(At<char*>(part, 4), kSdPartInstanceRole, {{0x10, reinterpret_cast<uint32_t>(&SdPartKeptStub)}});
+    return SdCompared("effects.step_b", std::move(regions), false, game, ours);
+}
+
+// The made-up part of the forced steps. Its instance's slot 0x10 notes the
+// call and answers one of four copies (by the index modulo 4), whose
+// vertices are the comparison's buffer; four meshes of up to six vertices
+// (counting places and texture coordinates), each with its three floats a
+// vertex (directions of length one, the last mesh's of 1.2) and a made-up
+// description.
+constexpr uint32_t kSpVertices = 6;
+uint32_t g_spInstanceTable[0x14 / 4] = {}, g_spInstance[1] = {}, g_spCopies[4][3] = {}, g_spKept[4] = {},
+         g_spMeshList[4] = {}, g_spNormalLists[4][3] = {};
+char g_spOut[4][kSpVertices * 0x18] = {}, g_spMeshes[4][0xC] = {}, g_spDescription[kDescriptionSize] = {};
+float g_spFrom[4][kSpVertices * 5] = {}, g_spNormals[4][kSpVertices * 3] = {};
+// The list at +0x12C, with a value before and two after it (read when the
+// three floats are longer than one); the records of the list at +0x108.
+float g_spCurve[8] = {0.9f, 0.0f, 0.25f, 1.0f, 1.5f, 0.375f, 0.3f, 0.6f};
+const float g_spMoves[2][7] = {{1.5f, 0.1f, 0.2f, 0.05f, 0.3f, -0.2f, 0.1f}, {0.25f, -0.3f, 0.0f, 0.7f, 0.0f, 0.5f, -0.25f}};
+
+uint32_t __fastcall SdFakeKept(char* object, void*, uint32_t index)
+{
+    return SdFakeNoted(kSdPartInstance + 0x10, object, Word(&index), 4, Word(&g_spKept[index % 4]));
+}
+
+void SdStepFakesMade()
+{
+    if (g_spInstance[0])
+        return;
+    g_spInstanceTable[0x10 / 4] = reinterpret_cast<uint32_t>(&SdFakeKept);
+    g_spInstance[0] = Word(g_spInstanceTable);
+    static const float kDirections[6][3] = {{0.0f, 1.0f, 0.0f},  {0.6f, 0.8f, 0.0f},   {0.0f, -0.6f, 0.8f},
+                                            {-1.0f, 0.0f, 0.0f}, {0.48f, 0.6f, 0.64f}, {0.0f, 0.0f, -1.0f}};
+    for (uint32_t k = 0; k < 4; ++k) {
+        g_spCopies[k][2] = Word(g_spOut[k]);
+        g_spKept[k] = Word(g_spCopies[k]);
+        g_spMeshList[k] = Word(g_spMeshes[k]);
+        At<uint32_t>(g_spMeshes[k], 8) = Word(g_spFrom[k]);
+        g_spNormalLists[k][0] = Word(g_spNormals[k]);
+        g_spNormalLists[k][1] = g_spNormalLists[k][2] = Word(g_spNormals[k] + kSpVertices * 3);
+        for (uint32_t j = 0; j < kSpVertices; ++j) {
+            const float fk = static_cast<float>(k), fj = static_cast<float>(j);
+            float* const from = g_spFrom[k] + j * 5;
+            from[0] = fk * 10.0f + fj * 1.25f - 7.0f;
+            from[1] = fj * 0.5f + fk;
+            from[2] = -3.5f + fk * fj;
+            from[3] = fj * 0.125f - 0.3f;
+            from[4] = fk * 0.75f + fj * 0.0625f;
+            for (uint32_t i = 0; i < 3; ++i)
+                g_spNormals[k][j * 3 + i] = kDirections[(j + k) % 6][i] * (k == 3 ? 1.2f : 1.0f);
+        }
+    }
+}
+
+// One forced step, by the turn k (each choice by the turn modulo a number
+// of its own): up to four meshes, one of another format every so often,
+// of up to six vertices; the description's step scale (+0x114) and
+// texture speeds (+0x118, +0x11C), none, one or two records of moves
+// (+0x108), a light's direction (+0x120) and a list of none to five
+// values (+0x12C); a step of 0.033, 1, 0, 250, -0.5, the effect's own or
+// (one turn in 29) a NaN. The copies' vertices start as counting bytes.
+void SdStepForced(char* self, uint32_t k)
+{
+    static const float kScales[7] = {1.0f, 0.5f, -2.0f, 0.0f, 1000.0f, 3.0f, 0.125f};
+    static const float kSpeeds[5] = {0.1f, -0.35f, 3.0f, 0.0f, 12.5f};
+    static const float kLights[4][3] = {{0.0f, 1.0f, 0.0f}, {0.6f, 0.0f, 0.8f}, {-0.48f, -0.6f, 0.64f}, {0.0f, 0.0f, 1.0f}};
+    char* const d = g_spDescription;
+    std::memset(d, 0, sizeof g_spDescription);
+    const uint32_t moves = k % 3;
+    At<uint32_t>(d, 0x108) = Word(g_spMoves);
+    At<uint32_t>(d, 0x10C) = At<uint32_t>(d, 0x110) = Word(g_spMoves) + moves * sizeof g_spMoves[0];
+    At<float>(d, 0x114) = kScales[k % 7];
+    At<float>(d, 0x118) = kSpeeds[k % 11 % 5];
+    At<float>(d, 0x11C) = kSpeeds[k % 13 % 5];
+    for (uint32_t i = 0; i < 3; ++i)
+        At<float>(d, 0x120 + i * 4) = kLights[k % 17 % 4][i];
+    const uint32_t values = k % 19 % 6;
+    At<uint32_t>(d, 0x12C) = Word(g_spCurve + 1);
+    At<uint32_t>(d, 0x130) = At<uint32_t>(d, 0x134) = Word(g_spCurve + 1 + values);
+    const uint32_t meshes = k % 5;
+    for (uint32_t m = 0; m < 4; ++m) {
+        At<uint32_t>(g_spMeshes[m], 0) = (k + m) % 7 == 3 ? reinterpret_cast<uint32_t(__cdecl*)(uint32_t)>(
+                                                                 addr::GDVertexFormat_Expand)(1)
+                                                           : SdExpandedTwo();
+        At<uint16_t>(g_spMeshes[m], 6) = static_cast<uint16_t>((k / 5 + m * 2) % (kSpVertices + 1));
+    }
+    for (uint32_t i = 0; i < sizeof g_spOut; ++i)
+        g_spOut[0][i] = static_cast<char>(i * 7 + k);
+    char part[0x44] = {};
+    At<uint32_t>(part, 4) = Word(g_spInstance);
+    At<uint32_t>(part, 0xC) = Word(g_spMeshList);
+    At<uint32_t>(part, 0x10) = Word(g_spMeshList + meshes);
+    At<uint32_t>(part, 0x24) = Word(g_spNormalLists);
+    At<uint32_t>(part, 0x28) = At<uint32_t>(part, 0x2C) = Word(g_spNormalLists + 4);
+    At<uint32_t>(part, 0x40) = Word(d);
+    const uint32_t nan = 0x7FC00000u;
+    float notANumber = 0.0f;
+    std::memcpy(&notANumber, &nan, 4);
+    const float kSteps[6] = {0.033f, 1.0f, 0.0f, 250.0f, -0.5f, static_cast<float>(At<double>(self, 0x110))};
+    const float step = k % 29 == 28 ? notANumber : kSteps[k % 23 % 6];
+    std::vector<BRegion> regions{{part, sizeof part},
+                                 {Ptr(kParticleFreeB), 4},
+                                 {Ptr(kSetupGenerator), kSetupGeneratorSize},
+                                 {g_spOut[0], sizeof g_spOut}};
+    SdCompared(
+        "effects.step_b.forced", std::move(regions), false,
+        [&] { return g_PdPartStep(part, nullptr, LfBits(step)); },
+        [&] {
+            StepPartB(part, step);
+            return 0u;
+        });
+}
+
+void SdStepForcedTwice(char* self, uint32_t k)
+{
+    if (g_stepBMode != StepMode::Compare || !g_PdPartStep)
+        return;
+    SdStepFakesMade();
+    for (uint32_t i = 0; i < 2; ++i)
+        SdStepForced(self, k * 2 + i);
+}
+
+bool InstallStepB(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_stepBMode, addr::SC4EffectPartB_Step, &TPdPartStep, &g_PdPartStep,
+                   "the second class's part's step"))
+        return false;
+    return mode != registry::Mode::Compare || SdHookForce();
+}
+
+const bool g_registeredStepB = registry::Register({
+    "renderer.effects.step_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectPartB_Step,
+    "The second class's part's step (0x005AC200): the model instance's copies of the meshes given the meshes' places "
+    "(moved by the description's sines), texture coordinates moved on by the step and an opacity by a light's "
+    "direction; compare mode notes the game's calls and answers ours from the notes, OPENSC4_EFFECT_FORCE_SECOND=1 "
+    "forces it on a made-up part before each running effect's draw (docs/renderer.md, \"Water effects, sky and "
+    "clouds\")",
+    true,
+    InstallStepB,
 });
 
 } // namespace

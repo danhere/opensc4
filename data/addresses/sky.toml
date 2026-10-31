@@ -268,7 +268,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (SC4Effect* this, float depth, void* camera, SC4Particle* particle, float* place, float* scale)"
 expect = "83 EC 54 55 8B E9 8B 4C"
-source = "Name ours, read only in part. SC4EffectB::DrawParticles calls it (0x005AE018) for descriptions with flag 2 of their third word, with the depth of the camera's plane, the camera (the context's +0x24), the particle, its place and its scale: it scales the scale by the effect's +0x1E8's +0x30 over the place's distance along the camera's direction, may change the place and the particle, may have the effects manager make an effect (slot 0x1C) and may stop and let go of the particle's own effect (+0x44); the answer in AL."
+source = "Name ours. SC4EffectB::DrawParticles calls it (0x005AE018) for descriptions with flag 2 of their third word, with the depth of the camera's plane, the camera (the context's +0x24), the particle, its place and its scale: the scale by the effect's +0x1E8's +0x30 over the place's distance D along the camera's direction plus the depth; the place moved toward the camera's two other axes when (that scale less +0x20) over +0x24 is above zero; a particle with D not below the scale's size in view; else, with D above zero, its velocity toward the camera and its offsets along both axes within +0x28, bounced off the camera (twice its velocity along the direction taken off, +0x2C times the offsets added) and the effects manager's \"camera_collision\" (0x00AA0CB0) made (slot 0x1C), placed (slot 0x20) and started (slot 0xC with +0x188), in view; otherwise the particle's own effect (+0x44), when it answers its slot 0x14, stopped (slot 0x10 with +0x18C) and let go, not in view. The answer in AL. Ours in renderer.effects.in_view_b (src/core/effects_second.h)."
 
 [[entry]]
 name = "SC4Effect::MovePlace"
@@ -675,7 +675,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (SC4Effect* this, SC4Particle* particle)"
 expect = "81 EC 80 00 00 00 53 55"
-source = "Name ours, not analysed. SC4EffectBaseB::GiveBackParticle calls it (0x005AF3C3) in place of giving the particle back, for an effect with an object at +0x278 whose particle is within its life: the particle's age set back and a new random life, and more."
+source = "Name ours. SC4EffectBaseB::GiveBackParticle calls it (0x005AF3C3) in place of giving the particle back, for an effect with an object at +0x278 (another effect of the class) whose particle has reached its life: the age zeroed, a new life from the object's description (+0xC to +0x10, SC4Random::Uniform) and the particle running; when that description names an effect other than the effect's own description, the particle's own effect fills two blocks (slots 0x38, 0x3C), is stopped and let go, and the manager makes the one named with \"_slave\" (placed, slots 0x1C and 0x20; slot 0x34 for +0x26F; started, slot 0xC); the object given the model instance and model (0x0054DB10, 0x00420220) when it has no instance, started (slot 0) unless it runs (slot 8), the particle started by it (SC4Effect::StartParticle) for flag 0x200 of the description's third word, its velocity taken and the object's wander run (SC4Effect::StepFlag800000) for flag 0x800000, and the particle added to the object's list (sub-object slot 0x2C). Ours in renderer.effects.restart_b (src/core/effects_second.h)."
 
 [[entry]]
 name = "SC4Effect::SetObject"
@@ -1466,7 +1466,16 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, float step)"
 expect = "83 EC 1C 53 55 56 8B F1"
-source = "Class and name ours, not analysed. SC4EffectB::DrawParticles calls it (0x005AE4EA) on the part of the effect at +0x228 with the effect's +0x110 as a float, for effects with +0x26C set and flag 0x100 of the description's third word."
+source = "Class and name ours. SC4EffectB::DrawParticles calls it (0x005AE4EA) on the part of the effect at +0x228 with the effect's +0x110 as a float, for effects with +0x26C set and flag 0x100 of the description's third word. The part's lists of three floats a vertex (+0x24) made first when empty (SC4EffectPartB::MakeNormals); with the part's description d (+0x40) and A the step times d+0x114, the texture's moves u = A times d+0x118 and v = A times d+0x11C, less whole turns of 8; for each mesh (+0xC) of the expanded legacy format 2 (GDVertexFormat::Expand), the model instance's (+4) copy of it (its slot 0x10 with the index answers where it is kept; vertices of 0x18 bytes at its +8) gets each vertex's place (moved by SC4Effect::MovePlace with d's list at +0x108), its texture coordinates plus u and v and, for a list at d+0x12C, the colour's last byte from that list read at (the vertex's three floats along d+0x120 plus one) over two. Ours in renderer.effects.step_b (src/core/effects_second.h)."
+
+[[entry]]
+name = "SC4EffectPartB::MakeNormals"
+address = 0x00803370
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "81 EC 9C 00 00 00 55 56"
+source = "Class and name ours, read only in part. SC4EffectPartB::Step calls it (0x005AC213) when the part's vector of vectors at +0x24 is empty: it sizes that vector to the part's meshes (+0xC) and fills, for each mesh, three floats a vertex, which the step reads along the description's +0x120 as a light's direction. Allocates; the game's."
 
 [[entry]]
 name = "SC4Effect::StartNamed"
