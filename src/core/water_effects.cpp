@@ -17158,6 +17158,7 @@ uint32_t DwManagerForced(char* self, char* context)
 void TcForce(char* self);
 void McForce(char* self);
 void PcForce(char* self);
+void EcForce(char* self);
 
 uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
 {
@@ -17165,6 +17166,7 @@ uint32_t __fastcall DwManagerByMode(char* self, void*, uint32_t context)
     TcForce(self);
     McForce(self);
     PcForce(self);
+    EcForce(self);
     if (g_dwManagerMode == StepMode::Original || g_dwTrace != DwTrace::Off || g_depth > 0) {
         const uint32_t result = g_SC4EffectsManager_Draw(self, nullptr, context);
         // The flash and the shake are forced after the manager's draw (the
@@ -18987,6 +18989,450 @@ const bool g_registeredPiecesC = registry::Register({
     "and clouds\")",
     true,
     InstallPiecesC,
+});
+
+// --- The third class's emit and step ---------------------------------------------------------------
+//
+// The class's emit (0x005AA5D0) with the two ways it blows the model apart
+// (0x005AA3A0 by triangles, 0x005A9E10 by quads), its particles' step
+// (0x005A6520) and value 9's 0x005AA700, effects_third.h
+// (renderer.effects.emit_c). No test city makes an effect of the class, so
+// in compare mode they run as the game's and are compared only when forced
+// (OPENSC4_EFFECT_FORCE_THIRD=1): before the manager's draw, one turn a
+// frame of three, on a pair of new effects of the class set up as for the
+// pieces (PcSetUp: the same matrix, place, scale and made-up description,
+// with the step's and the emit's fields added by turn; the sub-object's
+// slot 0x2C noting the particles; the generator put back), a second matrix
+// at +0xC8, a point at +0x25C and the same materials at +0x254 (held once
+// for each), by turn: a real model's (the one the descriptions' forcing
+// loads, McDescriptions, kept held), or two sets made of its first mesh:
+// for triangles three materials (the real mesh drawn, not drawn, and with
+// its primitives twice), for quads two meshes with the vertices cut to a
+// multiple of four (with the real primitives and with the first twice).
+// The steps, the game's on the first and ours on the second, compared as
+// the pieces are (PcStep: the effect's bytes, its pieces, the particles
+// made, the generator after):
+// 0. the emit: the first time (+0x22C clear: triangles; set: quads), again
+//    (the front grown: last frame's kept; the clock moves), waiting (+0x190 above the step), done waiting (the
+//    first time again, with the step left over), the clock reaching one,
+//    with +0x188 set and with no materials (each told it is done, +9);
+// 1. the step on a made-up particle of each effect (compared by its 0x48
+//    bytes and the answer too): the front grown (at a fraction of the
+//    clock, a whole clock, near its end), not grown, a particle not reached,
+//    one reached while new, one ending, one on the point, one within a hair
+//    of it, one far behind (both fall-offs at zero); the curve of one value or four by turn, and
+//    in one turn of four a front speed of zero (the base class's step);
+// 2. value 9's point along two directions, with +0x278 zero and not, and
+//    with no materials; then value 9 asked of the first through the class's
+//    table (SC4EffectC::SetValue, so that renderer.effects.third, when
+//    compared, sees its call).
+// Not reached: the cut of value 9's vector (it only grows) and an emit
+// with materials whose mesh has no primitives.
+StepMode g_emitCMode = StepMode::Original;
+Call2Fn g_SC4EffectC_StepParticle = nullptr, g_SC4EffectC_SetPointAlong = nullptr;
+Call0Fn g_SC4EffectC_Emit = nullptr, g_SC4EffectC_CutTriangles = nullptr, g_SC4EffectC_CutQuads = nullptr;
+
+uint32_t __fastcall StepCByMode(char* self, void*, uint32_t particle, uint32_t step)
+{
+    if (g_emitCMode != StepMode::Ours)
+        return g_SC4EffectC_StepParticle(self, nullptr, particle, step);
+    float s = 0.0f;
+    std::memcpy(&s, &step, 4);
+    return StepParticleC(self, Ptr(particle), s);
+}
+OPENSC4_THUNK(TSC4EffectC_StepParticle, StepCByMode, 8)
+
+uint32_t __fastcall EmitCByMode(char* self, void*)
+{
+    if (g_emitCMode != StepMode::Ours)
+        return g_SC4EffectC_Emit(self, nullptr);
+    EmitEffectC(self);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_Emit, EmitCByMode, 0)
+
+uint32_t __fastcall TrianglesCByMode(char* self, void*)
+{
+    if (g_emitCMode != StepMode::Ours)
+        return g_SC4EffectC_CutTriangles(self, nullptr);
+    CutTrianglesC(self);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_CutTriangles, TrianglesCByMode, 0)
+
+uint32_t __fastcall QuadsCByMode(char* self, void*)
+{
+    if (g_emitCMode != StepMode::Ours)
+        return g_SC4EffectC_CutQuads(self, nullptr);
+    CutQuadsC(self);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_CutQuads, QuadsCByMode, 0)
+
+uint32_t __fastcall PointCByMode(char* self, void*, uint32_t at, uint32_t along)
+{
+    if (g_emitCMode != StepMode::Ours)
+        return g_SC4EffectC_SetPointAlong(self, nullptr, at, along);
+    SetPointAlongC(self, PcFloats(at), PcFloats(along));
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_SetPointAlong, PointCByMode, 8)
+
+// The made-up materials: slots 4 and 8 count their holders, slot 0xC their
+// number, slot 0x10 a mesh, slot 0x18 a material.
+struct EcList {
+    uint32_t first;
+    char* begin;
+    char* end;
+    char* room;
+};
+struct EcMesh {
+    char* vertices;
+    uint32_t indices;
+    EcList* list;
+};
+struct EcMaterials {
+    uint32_t table;
+    int32_t held;
+    uint32_t count;
+    McMaterial* materials[3];
+    char* meshes[3];
+};
+
+uint32_t __fastcall EcMeshAt(char* self, void*, uint32_t index)
+{
+    return Word(reinterpret_cast<EcMaterials*>(self)->meshes[index]);
+}
+
+uint32_t __fastcall EcMaterialAt(char* self, void*, uint32_t index)
+{
+    return Word(reinterpret_cast<EcMaterials*>(self)->materials[index]);
+}
+
+bool g_ecForce = false;
+float g_ecScale = 1.0f;
+float g_ecCurve[4] = {1.0f, 2.5f, 0.5f, 3.0f};
+char* g_ecReal = nullptr;
+bool g_ecTried = false;
+uint32_t g_ecTable[16] = {};
+McMaterial g_ecMaterial[2] = {};
+uint32_t g_ecEntries[6] = {};
+EcList g_ecList = {};
+alignas(4) char g_ecVertices[0x10] = {};
+EcMesh g_ecMeshes[3] = {};
+EcMaterials g_ecFakes[2] = {};
+
+// The model the descriptions' forcing loads (one a description of the
+// second class names).
+uint32_t McFindModel(char* manager)
+{
+    for (char** it = At<char**>(manager, 0xC30); it != At<char**>(manager, 0xC34) && !g_mcModel; ++it) {
+        char* const description = *it ? At<char*>(*it, 0x24) : nullptr;
+        const uint32_t which = description ? At<uint32_t>(description, 0xD0) : 0;
+        if (which && which != 0xFFFFFFFF)
+            g_mcModel = which;
+    }
+    return g_mcModel;
+}
+
+// The real materials, loaded once on an effect of the class made for it
+// (SC4EffectC::LoadModel) and held for good; the made-up sets made of
+// their first mesh.
+void EcLoad(char* manager)
+{
+    if (g_ecTried || !McFindModel(manager))
+        return;
+    g_ecTried = true;
+    char* const scratch = TcNew();
+    CallThis<uint32_t>(addr::SC4EffectC_LoadModel, scratch, g_mcModel);
+    char* const real = At<char*>(scratch, 0x254);
+    if (real)
+        SuSlot<uint32_t>(real, 4);
+    TcDelete(scratch);
+    if (!real)
+        return;
+    g_ecReal = real;
+    const uint32_t count = SuSlot<uint32_t>(real, 0xC);
+    char* const mesh = count ? reinterpret_cast<char*>(SuSlot<uint32_t>(real, 0x10, 0u)) : nullptr;
+    char* const vertices = mesh ? At<char*>(mesh, 0) : nullptr;
+    const uint32_t n = vertices ? At<uint16_t>(vertices, 6) : 0;
+    const uint32_t primitives = mesh ? EcPrimitives(mesh) : 0;
+    log::Write("water effects: the third class's forced emit: model %08X, %u materials, the first's mesh %u vertices, "
+               "%u primitives",
+               g_mcModel, count, n, primitives);
+    if (n < 4 || !primitives)
+        return;
+    for (uint32_t& slot : g_ecTable)
+        slot = Word(reinterpret_cast<void*>(&McNothing));
+    g_ecTable[1] = Word(reinterpret_cast<void*>(&McHold));
+    g_ecTable[2] = Word(reinterpret_cast<void*>(&McRelease));
+    g_ecTable[3] = Word(reinterpret_cast<void*>(&McCount));
+    g_ecTable[4] = Word(reinterpret_cast<void*>(&EcMeshAt));
+    g_ecTable[6] = Word(reinterpret_cast<void*>(&EcMaterialAt));
+    g_ecMaterial[0].bytes[0xB] = 1;
+    std::memcpy(g_ecVertices, vertices, sizeof g_ecVertices);
+    At<uint16_t>(g_ecVertices, 6) = static_cast<uint16_t>(n & ~3u);
+    char* const list = At<char*>(mesh, 8);
+    std::memcpy(g_ecEntries, At<char*>(list, 4), 12);
+    std::memcpy(g_ecEntries + 3, At<char*>(list, 4), 12);
+    char* const entries = reinterpret_cast<char*>(g_ecEntries);
+    g_ecList = {At<uint32_t>(list, 0), entries, entries + 24, entries + 24};
+    g_ecMeshes[0] = {vertices, At<uint32_t>(mesh, 4), &g_ecList};
+    g_ecMeshes[1] = {g_ecVertices, At<uint32_t>(mesh, 4), At<EcList*>(mesh, 8)};
+    g_ecMeshes[2] = {g_ecVertices, At<uint32_t>(mesh, 4), &g_ecList};
+    char* const made[3] = {reinterpret_cast<char*>(&g_ecMeshes[0]), reinterpret_cast<char*>(&g_ecMeshes[1]),
+                           reinterpret_cast<char*>(&g_ecMeshes[2])};
+    g_ecFakes[0] = {Word(g_ecTable), 1, 3, {&g_ecMaterial[0], &g_ecMaterial[1], &g_ecMaterial[0]}, {mesh, mesh, made[0]}};
+    g_ecFakes[1] = {Word(g_ecTable), 1, 2, {&g_ecMaterial[0], &g_ecMaterial[0], nullptr}, {made[1], made[2], nullptr}};
+}
+
+// The step's and the emit's fields of the made-up description: a pull, a
+// wind, a slowing, the size, the front's speed (zero for kind 3), reach
+// and fall-off, and its curve (one value for odd kinds, else four).
+void EcDescribe(uint32_t kind, float size)
+{
+    PcDescribe(kind);
+    const auto set = [](uint32_t at, float value) { std::memcpy(g_pcDescription + at, &value, 4); };
+    set(0xE0, 0.25f);
+    set(0xE4, -9.8f);
+    set(0xE8, 0.125f);
+    set(0xEC, 0.3f);
+    set(0x100, 0.05f);
+    set(0x1D8, size);
+    set(0x1EC, kind == 3 ? 0.0f : 3.5f);
+    set(0x1F0, 4.0f);
+    set(0x200, 0.75f);
+    At<float*>(g_pcDescription, 0x1F4) = g_ecCurve;
+    At<float*>(g_pcDescription, 0x1F8) = g_ecCurve + (kind % 2 ? 1 : 4);
+}
+
+void EcSetUp(char* effect, uint32_t kind, char* materials)
+{
+    PcSetUp(effect, kind);
+    At<float*>(effect, 0x1E8) = &g_ecScale;
+    const float wind[4] = {2.0f, 0.0f, -1.0f, 1.0f};
+    std::memcpy(effect + 0x1B8, wind, sizeof wind);
+    At<float>(effect, 0x108) = 0.05f;
+    At<double>(effect, 0x130) = 0.5;
+    const float point[3] = {101.0f, 21.5f, -299.0f};
+    std::memcpy(effect + 0x25C, point, sizeof point);
+    const float frame[13] = {0.9211f, 0.0413f, -0.3871f, -0.0327f, 0.9991f, 0.0288f, 0.3879f, -0.0141f, 0.9216f,
+                             -12.5f, 3.25f, 77.125f, kind % 2 ? 1.0f : 0.8125f};
+    std::memcpy(effect + 0xC8, frame, sizeof frame);
+    At<float>(effect, 0x278) = 0.0f;
+    At<uint32_t>(effect, 0x188) = 0;
+    if (materials)
+        SuSlot<uint32_t>(materials, 4);
+    At<char*>(effect, 0x254) = materials;
+}
+
+// A made-up particle: its age, life, place and velocity.
+struct EcCase {
+    float front, last;
+    double clock;
+    float age, life, place[3], velocity[3];
+};
+
+void EcRun(char* manager, uint32_t turn)
+{
+    EcLoad(manager);
+    const uint32_t kind = turn % 4, which = turn % 3;
+    char* materials = nullptr;
+    bool quads = false;
+    if (which == 0) {
+        materials = g_ecReal;
+        quads = turn / 3 % 2 != 0;
+    } else if (g_ecTable[0]) {
+        materials = reinterpret_cast<char*>(&g_ecFakes[which - 1]);
+        quads = which == 2;
+    }
+    // Triangles cut below 3 or 6 (the constant over the size), grids of 2
+    // or 1 a side.
+    const float size = quads ? (kind % 2 ? 1.25f : 2.5f) : M<float>(0x00A8D45C) / (kind % 2 ? 6.0f : 3.0f);
+    EcDescribe(kind, size);
+    McPair pair = McMakePair();
+    const std::vector<char> made(pair.game, pair.game + kEffectSizeC), madeOurs(pair.ours, pair.ours + kEffectSizeC);
+    EcSetUp(pair.game, kind, materials);
+    EcSetUp(pair.ours, kind, materials);
+    const auto both = [&](auto&& set) {
+        set(pair.game);
+        set(pair.ours);
+    };
+    const auto emit = [&](const char* id) {
+        PcStep(id, pair, false, [](char* effect) { CallThis<uint32_t>(addr::SC4EffectC_Emit, effect); },
+               [](char* effect) { EmitEffectC(effect); });
+    };
+    // 0. The emit.
+    if (materials) {
+        both([&](char* e) {
+            At<uint8_t>(e, 0x22C) = quads ? 1 : 0;
+            At<uint8_t>(e, 0x258) = 0;
+            At<double>(e, 0x120) = 0.0;
+            At<float>(e, 0x190) = 0.0f;
+            At<uint32_t>(e, 0x18) = 0;
+        });
+        emit("effects.emit_c");
+        static bool told[6] = {};
+        if (!told[which * 2 + quads]) {
+            told[which * 2 + quads] = true;
+            log::Write("water effects: the third class's forced emit cut the %s by %s into %d pieces",
+                       which ? "made-up materials" : "real model", quads ? "quads" : "triangles",
+                       static_cast<int>((At<char*>(pair.game, 0x224) - At<char*>(pair.game, 0x220)) / 0x3C));
+        }
+        both([](char* e) { At<float>(e, 0x26C) = 3.25f; });
+        emit("effects.emit_c");
+        both([](char* e) { At<float>(e, 0x190) = 5.0f; });
+        emit("effects.emit_c.wait");
+        both([](char* e) {
+            At<float>(e, 0x190) = 0.01f;
+            At<uint8_t>(e, 0x258) = 0;
+            At<double>(e, 0x120) = 0.0;
+            At<uint32_t>(e, 0x18) = 0;
+        });
+        emit("effects.emit_c");
+        both([](char* e) {
+            At<double>(e, 0x120) = 0.99;
+            At<double>(e, 0x130) = 1.0;
+        });
+        emit("effects.emit_c");
+        both([](char* e) {
+            At<uint32_t>(e, 0x188) = 1;
+            At<uint8_t>(e, 9) = 1;
+        });
+        emit("effects.emit_c.stopped");
+        both([](char* e) { At<uint32_t>(e, 0x188) = 0; });
+    }
+    both([](char* e) {
+        At<uint8_t>(e, 9) = 1;
+        At<char*>(e, 0x254) = nullptr;
+    });
+    emit("effects.emit_c.stopped");
+    both([&](char* e) { At<char*>(e, 0x254) = materials; });
+    // 1. The step.
+    static const EcCase cases[] = {
+        {2.0f, 2.0f, 0.37, 0.5f, 3.0f, {103.0f, 22.0f, -298.0f}, {1.0f, 2.0f, 3.0f}},
+        {2.0f, 2.0f, 1.0, 0.5f, 3.0f, {99.5f, 24.0f, -300.5f}, {-1.0f, 0.5f, 0.25f}},
+        {2.0f, 2.0f, 0.999, 0.75f, 3.0f, {101.5f, 21.0f, -297.25f}, {0.0f, 0.0f, 0.0f}},
+        {6.0f, 5.5f, 0.5, 0.5f, 3.0f, {103.0f, 22.0f, -298.0f}, {1.0f, 2.0f, 3.0f}},
+        {0.5f, 0.25f, 0.5, 0.0f, 3.0f, {103.0f, 22.0f, -298.0f}, {1.0f, 2.0f, 3.0f}},
+        {5.0f, 4.0f, 0.5, 0.0f, 3.0f, {103.0f, 22.0f, -298.0f}, {1.0f, 2.0f, 3.0f}},
+        {5.0f, 4.0f, 0.5, 2.99f, 3.0f, {103.0f, 22.0f, -298.0f}, {1.0f, 2.0f, 3.0f}},
+        {5.0f, 5.0f, 0.25, 1.0f, 3.0f, {101.0f, 21.5f, -299.0f}, {0.5f, -0.5f, 0.125f}},
+        {5.0f, 4.0f, 0.25, 1.0f, 3.0f, {101.003f, 21.5f, -299.0f}, {0.5f, -0.5f, 0.125f}},
+        {0.1f, 0.05f, 0.5, 1.0f, 3.0f, {131.0f, 1.5f, -259.0f}, {7.0f, -2.0f, 3.5f}},
+    };
+    alignas(4) static char particles[2][0x48];
+    uint32_t answers[2] = {};
+    const auto particleOf = [&](char* effect) { return particles[effect == pair.game ? 0 : 1]; };
+    for (const EcCase& c : cases) {
+        both([&](char* e) {
+            At<float>(e, 0x26C) = c.front;
+            At<float>(e, 0x270) = c.last;
+            At<float>(e, 0x274) = 1.75f;
+            At<double>(e, 0x120) = c.clock;
+            char* const p = particleOf(e);
+            std::memset(p, 0, 0x48);
+            At<uint8_t>(p, 0) = 1;
+            At<float>(p, 4) = c.age;
+            At<float>(p, 8) = c.life;
+            std::memcpy(p + 0xC, c.place, sizeof c.place);
+            std::memcpy(p + 0x1C, c.velocity, sizeof c.velocity);
+        });
+        const float step = 0.05f;
+        PcStep(
+            "effects.step_c", pair, false,
+            [&](char* effect) {
+                answers[0] = CallThis<uint32_t>(addr::SC4EffectC_StepParticle, effect, particleOf(effect), step) & 0xFF;
+            },
+            [&](char* effect) { answers[1] = StepParticleC(effect, particleOf(effect), step) & 0xFF; },
+            [&](char* effect, McPrint& print) {
+                char* const p = particleOf(effect);
+                for (uint32_t at = 0; at < 0x48; at += 4)
+                    print.push_back({0x600000 + at, At<uint32_t>(p, at)});
+                print.push_back({0x600100, answers[effect == pair.game ? 0 : 1]});
+            });
+    }
+    // 2. Value 9's point.
+    const float values[2][6] = {{3.0f, -1.5f, 40.0f, 0.0f, 1.0f, 0.0f}, {-7.25f, 2.0f, 15.5f, 0.6f, 0.0f, 0.8f}};
+    const auto point = [&](const char* id, const float* value) {
+        PcStep(id, pair, false,
+               [&](char* effect) { CallThis<uint32_t>(addr::SC4EffectC_SetPointAlong, effect, value, value + 3); },
+               [&](char* effect) { SetPointAlongC(effect, value, value + 3); });
+    };
+    for (const float extra : {0.0f, 2.5f}) {
+        both([&](char* e) { At<float>(e, 0x278) = extra; });
+        for (const auto& value : values)
+            point(materials ? "effects.point_c" : "effects.point_c.none", value);
+    }
+    if (materials) {
+        both([](char* e) { At<char*>(e, 0x254) = nullptr; });
+        point("effects.point_c.none", values[0]);
+        both([&](char* e) { At<char*>(e, 0x254) = materials; });
+        CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(pair.game, 0) + 0x14), pair.game, 9u, Word(values[1]), 0u);
+    }
+    // Put back as made, but for the pieces and the materials (each effect
+    // lets go of its hold).
+    for (const auto& [effect, bytes] : {std::pair<char*, const std::vector<char>*>{pair.game, &made},
+                                        std::pair<char*, const std::vector<char>*>{pair.ours, &madeOurs}}) {
+        char keep[0xC];
+        std::memcpy(keep, effect + 0x220, sizeof keep);
+        char* const held = At<char*>(effect, 0x254);
+        std::memcpy(effect, bytes->data(), kEffectSizeC);
+        std::memcpy(effect + 0x220, keep, sizeof keep);
+        At<char*>(effect, 0x254) = held;
+    }
+    TcDelete(pair.game);
+    TcDelete(pair.ours);
+}
+
+void EcForce(char* self)
+{
+    if (!g_ecForce || g_dwTrace != DwTrace::Off || g_depth > 0)
+        return;
+    static uint32_t turn = 0;
+    const uint32_t now = turn++;
+    if (now % 3 == 1)
+        EcRun(self - 4, now / 3);
+}
+
+bool InstallEmitC(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectC_StepParticle, &TSC4EffectC_StepParticle, &g_SC4EffectC_StepParticle) &&
+          Detour(addr::SC4EffectC_Emit, &TSC4EffectC_Emit, &g_SC4EffectC_Emit) &&
+          Detour(addr::SC4EffectC_CutTriangles, &TSC4EffectC_CutTriangles, &g_SC4EffectC_CutTriangles) &&
+          Detour(addr::SC4EffectC_CutQuads, &TSC4EffectC_CutQuads, &g_SC4EffectC_CutQuads) &&
+          Detour(addr::SC4EffectC_SetPointAlong, &TSC4EffectC_SetPointAlong, &g_SC4EffectC_SetPointAlong)))
+        return false;
+    if (mode == registry::Mode::Compare) {
+        const char* v = std::getenv("OPENSC4_EFFECT_FORCE_THIRD");
+        if (v && *v == '1') {
+            if (!g_SC4EffectsManager_Draw &&
+                !Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
+                return false;
+            g_ecForce = true;
+            log::Write("water effects: the third class's emit and step forced before the manager's draw");
+        }
+    }
+    g_emitCMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the third class's emit and step %s",
+               mode == registry::Mode::Compare ? "compared with the game's when forced" : "ours");
+    return true;
+}
+
+const bool g_registeredEmitC = registry::Register({
+    "renderer.effects.emit_c",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectC_Emit,
+    "The third effect class's emit (its model blown apart by triangles or quads the first time), its particles' "
+    "step (a growing front pushing them out) and value 9's point along a direction; no test city makes such an "
+    "effect, so compare mode compares them only when forced, OPENSC4_EFFECT_FORCE_THIRD=1 running the game's and "
+    "ours on pairs of new effects of the class before the manager's draw (docs/renderer.md, \"Water effects, sky "
+    "and clouds\")",
+    true,
+    InstallEmitC,
 });
 
 } // namespace
