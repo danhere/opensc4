@@ -33,8 +33,12 @@ vsync = on
 EOF
 fi
 
-if tasklist //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe"; then
-    echo "SimCity 4 is already running; close it first" >&2
+# Test runs may be going in their own folders (harness.multi_instance gives
+# each its own lock); only a game already playing in this folder stops us.
+# The folder's last log names that game's pid.
+pid="$(sed -n 's/.*core\.dll .* attached: pid \([0-9]*\),.*/\1/p' "$playenv/Plugins/opensc4.log" 2>/dev/null | head -1 || true)"
+if [ -n "$pid" ] && tasklist //FI "PID eq $pid" //FI "IMAGENAME eq SimCity 4.exe" //NH | grep -q "SimCity 4.exe"; then
+    echo "SimCity 4 is already running from this play folder; close it first" >&2
     read -rp "Press Enter to close this window" _
     exit 1
 fi
