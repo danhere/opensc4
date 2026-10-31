@@ -643,6 +643,25 @@
 //   and Shutdown over 16. Each case mixes the crew's fields and the objects'
 //   counts. pflags 0x4000 when it ran, 0x8000 without a city, the factory
 //   or the patches. Log line: "ped4b pfire2".
+//   Part pi1 (the path information's objects, queries and building) adds
+//   `,<pinfo>,<piflags>` at the end (60 fields), all at the game's
+//   addresses: the factory's class ID, Create, CreateInstance over three
+//   types and four interfaces (each made one released through its count)
+//   and its deleting destructor; QueryInterface at its address, through the
+//   vtable, the +4 adjustor and on a null object over five interfaces; paths
+//   added by parts (types 1 to 7, sides 0 to 3 and 0xFF, numbers 0 to 2, a
+//   fourth again, high bytes in the parts) and by key, their points
+//   reserved in steps and filled (a third grown again), a run of numbers
+//   0 to 26; stops by parts (first and second, the flag's low byte), by key
+//   and of the type nibbles 8 and 9 on an object of their own; slots 3, 4, 10, 11 and the free number over
+//   every key and five more, slot 13 over the types, slots 16 and 17, slot
+//   36 over 240 keys with and without wild cards; Clone, slot 24 and the
+//   copy constructor asked for every key, the deleting destructor; a pool
+//   block given back by PoolFree (the count's change, the head) and a new
+//   page's chain by offsets. Pointers and the pool's counts (the game makes
+//   path information as the view draws pieces) are not mixed. piflags 1
+//   when it ran, 2 when the factory failed. Log line: "pi1 pinfo", with one
+//   line per section before it.
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -31889,6 +31908,363 @@ void PedFire2Drive(Hash& pfire2, uint32_t& pflags)
     g_fire2 = Fire2Answers{};
 }
 
+
+// ---- Part pi1: the path information's objects, queries and building
+// (src/core/automata_pathinfo.cpp). Every call goes to the game's addresses,
+// so the same test runs on both sides.
+namespace pi {
+
+constexpr uint32_t kType = 0x296678F7u, kIidResource = 0x456B8F1Du, kIidPathInfo = 0xA9667793u;
+// The object's fields: the resource part +4 (its count +8), the table's
+// buckets +0x20, +0x24, the count +0x2C, the flags +0x30, the type bytes
+// +0x31.
+constexpr std::size_t kPart4 = 0x04, kRefs = 0x08, kBuckets = 0x20, kBucketsEnd = 0x24, kCount = 0x2C,
+                      kFlags = 0x30, kTypes = 0x31;
+
+using Cdecl0 = void* (*)();
+
+uint32_t Key(uint32_t type, uint32_t from, uint32_t to, uint32_t number)
+{
+    return (type << 24) | ((number & 0xFFu) << 16) | ((from & 0xFFu) << 8) | (to & 0xFFu);
+}
+
+// What an out pointer holds: null, the object, its +4 part, another.
+uint32_t Kind(void* out, char* object)
+{
+    return !out ? 0u : out == object ? 1u : out == object + kPart4 ? 2u : 3u;
+}
+
+// The object's fields that do not follow memory: the vtables, the count, the
+// table's size, the flags, the type bytes.
+void MixObject(Hash& h, char* o)
+{
+    h.Mix(At<uint32_t>(o, 0) == addr::cSC4PathInfo_Vtable ? 1u : 0u);
+    h.Mix(At<uint32_t>(o, kPart4) == addr::cSC4PathInfo_Vtable4 ? 1u : 0u);
+    h.Mix(At<uint32_t>(o, kRefs));
+    h.Mix(static_cast<uint32_t>((At<char*>(o, kBucketsEnd) - At<char*>(o, kBuckets)) >> 2));
+    h.Mix(At<uint32_t>(o, kCount));
+    h.Mix(At<uint8_t>(o, kFlags));
+    h.MixBytes(o + kTypes, 8);
+}
+
+// A record (points vector, length +0xC, byte +0x10): its points and fields.
+void MixRecord(Hash& h, char* record)
+{
+    if (!record) {
+        h.Mix(0xFFFFFFFFu);
+        return;
+    }
+    char* const begin = At<char*>(record, 0);
+    const uint32_t size = static_cast<uint32_t>((At<char*>(record, 4) - begin) / 12);
+    const uint32_t capacity = static_cast<uint32_t>((At<char*>(record, 8) - begin) / 12);
+    h.Mix(size);
+    h.Mix(capacity);
+    if (size)
+        h.MixBytes(begin, size * 12);
+    h.Mix(At<uint32_t>(record, 0xC));
+    h.Mix(At<uint8_t>(record, 0x10));
+}
+
+char* MakeInfo(uint32_t iid, uint32_t& answer)
+{
+    void* out = nullptr;
+    answer = This<uint32_t>(addr::cSC4PathInfoFactory_CreateInstance, nullptr, kType, iid, &out) & 0xFF;
+    return static_cast<char*>(out);
+}
+
+void Section(const char* name, const Hash& h)
+{
+    log::Write("autotest: automata: vehicle: pi1 %s: pinfo %08X", name, h.h);
+}
+
+} // namespace pi
+
+void PathInfoDrive(Hash& pinfo, uint32_t& piflags)
+{
+    using namespace pi;
+    void* const pool = reinterpret_cast<void*>(addr::cSC4PathInfo_Pool);
+
+    // ---- The factory: its class ID, Create, CreateInstance over the types
+    // and interfaces, its deleting destructor.
+    pinfo.Mix(reinterpret_cast<uint32_t (*)()>(addr::cSC4PathInfoFactory_GetClassId)());
+    char* const factory = static_cast<char*>(reinterpret_cast<Cdecl0>(addr::cSC4PathInfoFactory_Create)());
+    if (!factory) {
+        piflags |= 2;
+        log::Write("autotest: automata: vehicle: pi1: the factory failed");
+        return;
+    }
+    pinfo.Mix(At<uint32_t>(factory, 0) == addr::cSC4PathInfoFactory_Vtable ? 1u : 0u);
+    pinfo.Mix(At<uint32_t>(factory, 4));
+    for (const uint32_t type : {kType, 0x296678F6u, 0u})
+        for (const uint32_t iid : {kIidPathInfo, kIidResource, 0x12345678u, 1u}) {
+            void* out = &pinfo;
+            const uint32_t answer = This<uint32_t>(addr::cSC4PathInfoFactory_CreateInstance, factory, type, iid,
+                                                   &out) & 0xFF;
+            pinfo.Mix(answer);
+            pinfo.Mix(out ? (out == &pinfo ? 9u : 1u) : 0u);
+            if (answer && out) {
+                char* const o = iid == kIidResource ? static_cast<char*>(out) - kPart4 : static_cast<char*>(out);
+                pinfo.Mix(Kind(out, o));
+                MixObject(pinfo, o);
+                pinfo.Mix(Virtual<uint32_t>(o, 8));
+            }
+        }
+    This<void*>(addr::cSC4PathInfoFactory_DeletingDestructor, factory, 1u);
+    Section("factory", pinfo);
+
+    uint32_t made = 0;
+    char* const o = MakeInfo(kIidPathInfo, made);
+    if (!made || !o) {
+        piflags |= 2;
+        log::Write("autotest: automata: vehicle: pi1: no path information");
+        return;
+    }
+
+    // ---- QueryInterface at its address, through the vtable and through the
+    // +4 part (the game's adjustor), and on a null object.
+    for (const uint32_t iid : {kIidPathInfo, kIidResource, 0x12345678u, 1u, 0u}) {
+        void* out = &pinfo;
+        uint32_t answer = This<uint32_t>(addr::cSC4PathInfo_QueryInterface, o, iid, &out) & 0xFF;
+        pinfo.Mix(answer);
+        pinfo.Mix(Kind(out, o));
+        pinfo.Mix(At<uint32_t>(o, kRefs));
+        if (answer)
+            Virtual<uint32_t>(o, 8);
+        out = &pinfo;
+        answer = Virtual<uint32_t>(o + kPart4, 0, iid, &out) & 0xFF;
+        pinfo.Mix(answer);
+        pinfo.Mix(Kind(out, o));
+        if (answer)
+            Virtual<uint32_t>(o, 8);
+        out = &pinfo;
+        pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_QueryInterface, nullptr, iid, &out) & 0xFF);
+        pinfo.Mix(out ? 1u : 0u);
+    }
+    Section("interfaces", pinfo);
+
+    // ---- The building: paths by parts (types 1 to 7, sides 0 to 3 and 0xFF,
+    // numbers 0 to 2; a fourth of them twice), paths by key, stops by parts
+    // (first and second, the flag's low byte) and by key, each with a point.
+    std::vector<uint32_t> keys;
+    uint32_t n = 0;
+    for (uint32_t type = 1; type < 8; ++type)
+        for (const uint32_t from : {0u, 1u, 2u, 3u, 0xFFu})
+            for (const uint32_t to : {0u, 2u, 3u, 0xFFu})
+                for (uint32_t number = 0; number < 3; ++number) {
+                    if (((type * 7 + from * 3 + to + number) % 5) != 0)
+                        continue;
+                    ++n;
+                    const uint32_t big = (n % 4 == 0) ? 0x100u : 0u;
+                    char* const record = This<char*>(addr::cSC4PathInfo_AddPathByParts, o, type | (big << 4),
+                                                     from | big, to | big, number | big);
+                    pinfo.Mix(record ? 1u : 0u);
+                    if (!record)
+                        continue;
+                    keys.push_back(Key(type, from, to, number));
+                    // The points: reserved in steps (0, the count, fewer, more),
+                    // at least one, filled, the length set.
+                    const uint32_t count = 1 + n % 5;
+                    for (const uint32_t want : {0u, count, count / 2, count + 2u, count}) {
+                        This<void>(addr::cSC4PathInfo_ReservePoints, record, want);
+                        MixRecord(pinfo, record);
+                    }
+                    float* const p = At<float*>(record, 0);
+                    for (uint32_t i = 0; i < count; ++i) {
+                        p[i * 3] = static_cast<float>(type) * 4.0f + static_cast<float>(i);
+                        p[i * 3 + 1] = static_cast<float>(from) * 0.5f;
+                        p[i * 3 + 2] = -static_cast<float>(to) - 0.25f * static_cast<float>(i);
+                    }
+                    At<char*>(record, 4) = At<char*>(record, 0) + count * 12;
+                    if (n % 3 == 0) {
+                        This<void>(addr::cSC4PathInfo_ReservePoints, record, count + 3u);
+                        MixRecord(pinfo, record);
+                    }
+                    At<float>(record, 0xC) = 1.5f * static_cast<float>(n);
+                    At<uint8_t>(record, 0x10) = static_cast<uint8_t>(n);
+                    if (n % 4 == 1) {
+                        pinfo.Mix(This<char*>(addr::cSC4PathInfo_AddPathByParts, o, type, from, to, number) ? 1u : 0u);
+                        pinfo.Mix(This<char*>(addr::cSC4PathInfo_AddPath, o, Key(type, from, to, number)) ? 1u : 0u);
+                    }
+                }
+    for (const uint32_t key : {0x01020304u, 0x07FFFF00u, 0x00000000u, 0x0F000000u}) {
+        char* const record = This<char*>(addr::cSC4PathInfo_AddPath, o, key);
+        pinfo.Mix(record ? 1u : 0u);
+        if (!record)
+            continue;
+        keys.push_back(key);
+        This<void>(addr::cSC4PathInfo_ReservePoints, record, 1u);
+        At<float>(At<char*>(record, 0), 0) = static_cast<float>(key & 0xFF);
+        At<float>(At<char*>(record, 0), 4) = 2.0f;
+        At<float>(At<char*>(record, 0), 8) = -3.0f;
+        At<char*>(record, 4) = At<char*>(record, 0) + 12;
+    }
+    // A run of numbers 0 to 26 of one type and sides, for the free number's
+    // bound.
+    for (uint32_t number = 0; number <= 26; ++number) {
+        char* const record = This<char*>(addr::cSC4PathInfo_AddPathByParts, o, 6u, 1u, 1u, number);
+        pinfo.Mix(record ? 1u : 0u);
+        if (!record)
+            continue;
+        keys.push_back(Key(6, 1, 1, number));
+        This<void>(addr::cSC4PathInfo_ReservePoints, record, 1u);
+        At<float>(At<char*>(record, 0), 0) = static_cast<float>(number);
+        At<float>(At<char*>(record, 0), 4) = 0.0f;
+        At<float>(At<char*>(record, 0), 8) = 1.0f;
+        At<char*>(record, 4) = At<char*>(record, 0) + 12;
+        for (const uint32_t from : {0u, 20u, 24u, 25u, 26u})
+            pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_FreePathNumber, o, 6u, 1u, 1u, from));
+    }
+    MixObject(pinfo, o);
+    Section("paths", pinfo);
+    // Stops of the type nibbles 8 and 9 on an object of their own: the game
+    // writes their type bytes past the eight (+0x39, +0x3A, the block's
+    // padding), not mixed; the eight are.
+    {
+        uint32_t other = 0;
+        char* const o2 = MakeInfo(kIidPathInfo, other);
+        if (other && o2) {
+            const float point[3] = {4.0f, 5.0f, 6.0f};
+            for (const uint32_t key : {0x18000000u, 0x29010203u})
+                pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_AddStop, o2, point, key) & 0xFF);
+            MixObject(pinfo, o2);
+            Virtual<uint32_t>(o2, 8);
+        }
+    }
+    {
+        float point[3] = {1.0f, 2.0f, 3.0f};
+        uint32_t i = 0;
+        for (const uint32_t type : {1u, 2u, 5u, 7u})
+            for (const uint32_t second : {0u, 1u, 2u, 0x100u})
+                for (const uint32_t to : {0u, 3u, 0xFFu}) {
+                    ++i;
+                    point[0] = static_cast<float>(i) * 0.75f;
+                    point[2] = -static_cast<float>(type);
+                    pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_AddStopByParts, o, point, type, i % 4, to, i % 3,
+                                             second) &
+                              0xFF);
+                    keys.push_back(Key((((second & 0xFF) ? 2u : 1u) << 4) | type, i % 4, to, i % 3));
+                    MixObject(pinfo, o);
+                }
+        for (const uint32_t key : {0x13010203u, 0x13010203u, 0x26000000u, 0x17000000u}) {
+            point[1] = static_cast<float>(key >> 24);
+            pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_AddStop, o, point, key) & 0xFF);
+            keys.push_back(key);
+        }
+        MixObject(pinfo, o);
+    }
+    Section("stops", pinfo);
+
+    // ---- The queries over every key made and some not: slots 3 and 4, 10
+    // and 11, 13, 16 and 17, 36, the free number.
+    std::vector<uint32_t> asked = keys;
+    for (const uint32_t key : {0x01000000u, 0x02FF00FFu, 0x11FFFFFFu, 0x7F7F7F7Fu, 0x12000000u})
+        asked.push_back(key);
+    for (const uint32_t key : asked) {
+        uint32_t length = 0xABCDEF01u;
+        char* record = This<char*>(addr::cSC4PathInfo_GetPath, o, key, &length);
+        MixRecord(pinfo, record);
+        pinfo.Mix(length);
+        record = Virtual<char*>(o, 0xC, key, static_cast<uint32_t*>(nullptr));
+        pinfo.Mix(record ? 1u : 0u);
+        length = 0x12345678u;
+        record = This<char*>(addr::cSC4PathInfo_GetPathByParts, o, key >> 24, (key >> 8) & 0xFF, key & 0xFF,
+                             (key >> 16) & 0xFF, &length);
+        pinfo.Mix(record ? 1u : 0u);
+        pinfo.Mix(length);
+        pinfo.Mix(Bits(This<float>(addr::cSC4PathInfo_GetPathLength, o, key)));
+        pinfo.Mix(Bits(This<float>(addr::cSC4PathInfo_GetPathLengthByParts, o, key >> 24, (key >> 8) & 0xFF,
+                                   key & 0xFF, (key >> 16) & 0xFF)));
+        pinfo.Mix(Bits(Virtual<float>(o, 0x2C, key >> 24, (key >> 8) & 0xFF, key & 0xFF, (key >> 16) & 0xFF)));
+        for (const uint32_t number : {(key >> 16) & 0xFF, 0u, 25u, 26u, 0xFFFFFFFFu, 0x7FFFFFFFu})
+            pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_FreePathNumber, o, key >> 24, (key >> 8) & 0xFF,
+                                     key & 0xFF, number));
+    }
+    for (uint32_t type = 0; type < 8; ++type) {
+        pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_HasPaths, o, type) & 0xFF);
+        pinfo.Mix(Virtual<uint32_t>(o, 13 * 4, type) & 0xFF);
+    }
+    for (const uint32_t on : {1u, 0u, 0x100u, 0xFF00u, 0x101u, 0u, 1u}) {
+        pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, on) & 0xFF);
+        pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_GetFlag, o));
+        pinfo.Mix(Virtual<uint32_t>(o, 16 * 4));
+    }
+    // Slot 36 over the stops by parts, wild cards and misses (every record
+    // has a point, so the wild card's search reads one).
+    for (const uint32_t type : {1u, 2u, 5u, 7u, 3u})
+        for (const uint32_t from : {0u, 1u, 3u, 0xFFu})
+            for (const uint32_t to : {0u, 3u, 0xFFu})
+                for (const uint32_t number : {0u, 1u, 2u, 0xFFu}) {
+                    float point[3] = {-9.0f, -9.0f, -9.0f};
+                    pinfo.Mix(This<uint32_t>(addr::cSC4PathInfo_GetStopPointByParts, o, point, type, from, to,
+                                             number) &
+                              0xFF);
+                    pinfo.MixBytes(point, sizeof point);
+                }
+    Section("queries", pinfo);
+
+    // ---- The copies: Clone at its address and through slot 24, the copy
+    // constructor into a pool block of the test's, each asked for every key;
+    // then the deleting destructors (flag 1) and the releases.
+    {
+        char* const clone = This<char*>(addr::cSC4PathInfo_Clone, o);
+        char* const clone2 = Virtual<char*>(o, 24 * 4);
+        char* block = At<char*>(Global<char*>(addr::cSC4PathInfo_Pool + 4), 8);
+        if (!block)
+            block = This<char*>(addr::SC4EdgePool_Grow, pool);
+        At<char*>(Global<char*>(addr::cSC4PathInfo_Pool + 4), 8) = At<char*>(block, 0);
+        ++At<uint32_t>(Global<char*>(addr::cSC4PathInfo_Pool + 4), 0xC);
+        char* const copy = This<char*>(addr::cSC4PathInfo_CopyConstruct, block, o);
+        for (char* c : {clone, clone2, copy}) {
+            MixObject(pinfo, c);
+            for (const uint32_t key : keys) {
+                uint32_t length = 0;
+                MixRecord(pinfo, This<char*>(addr::cSC4PathInfo_GetPath, c, key, &length));
+                pinfo.Mix(length);
+            }
+        }
+        This<void*>(addr::cSC4PathInfo_DeletingDestructor, copy, 1u);
+        pinfo.Mix(Virtual<uint32_t>(clone, 8));
+        pinfo.Mix(Virtual<uint32_t>(clone2, 8));
+    }
+    Section("copies", pinfo);
+
+    // ---- The pool: a block taken and given back through PoolFree (the
+    // count's change, the head), a null; a new page (its chain by offsets)
+    // given back through the pool's slot 3.
+    {
+        char* block = At<char*>(Global<char*>(addr::cSC4PathInfo_Pool + 4), 8);
+        if (!block)
+            block = This<char*>(addr::SC4EdgePool_Grow, pool);
+        char* const page = reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(block) & 0xFFFFF000u);
+        At<char*>(Global<char*>(addr::cSC4PathInfo_Pool + 4), 8) = At<char*>(block, 0);
+        ++At<uint32_t>(Global<char*>(addr::cSC4PathInfo_Pool + 4), 0xC);
+        const uint32_t before = At<uint32_t>(page, 0xC);
+        This<void>(addr::cSC4PathInfo_PoolFree, pool, block);
+        if (before > 1) {
+            pinfo.Mix(before - At<uint32_t>(page, 0xC));
+            pinfo.Mix(At<char*>(page, 8) == block ? 1u : 0u);
+        }
+        This<void>(addr::cSC4PathInfo_PoolFree, pool, static_cast<char*>(nullptr));
+        char* const fresh = This<char*>(addr::cSC4PathInfo_PoolNewPage, pool);
+        pinfo.Mix(fresh ? 1u : 0u);
+        if (fresh) {
+            pinfo.Mix(At<uint32_t>(fresh, 0xC));
+            uint32_t links = 0;
+            for (char* b = At<char*>(fresh, 8); b && links < 0x100; b = At<char*>(b, 0), ++links)
+                pinfo.Mix(static_cast<uint32_t>(b - fresh));
+            pinfo.Mix(links);
+            Virtual<void>(pool, 0xC, fresh);
+        }
+    }
+    Section("pool", pinfo);
+
+    // ---- The last release: the +4 part's slot 12 through the count.
+    pinfo.Mix(Virtual<uint32_t>(o, 8));
+    piflags |= 1;
+    log::Write("autotest: automata: vehicle: pi1 pinfo %08X keys %u flags %X", pinfo.h,
+               static_cast<unsigned>(keys.size()), piflags);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -32238,6 +32614,11 @@ void VehicleDrive(cISC4City* city)
     Hash pfire2;
     PedFire2Drive(pfire2, pflags);
 
+    // ---- Part pi1.
+    Hash pinfo;
+    uint32_t piflags = 0;
+    PathInfoDrive(pinfo, piflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -32294,13 +32675,13 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
-                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags);
+                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

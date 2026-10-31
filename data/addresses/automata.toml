@@ -15064,3 +15064,327 @@ address = 0x00A9B2C8
 kind = "data"
 expect = "CD CC 4C 3F"
 source = "Name ours. The float 0.8: the stream's time (+0x2B4) past which the frame stops a splash that is off. Called by address from src/core/automata_pedestrians.cpp (part ped4b)."
+
+# The path information (cSC4PathInfo, resource type 0x296678F7, interface 0xA9667793) and its resource factory (class ID 0x496678FE): part pi1 (src/core/automata_pathinfo.cpp, docs/automata.md "Part pi").
+
+[[entry]]
+name = "cSC4PathInfoFactory::GetClassId"
+address = 0x0053CF90
+kind = "function"
+convention = "cdecl"
+signature = "uint32_t ()"
+expect = "B8 FE 78 66 49 C3 CC CC"
+source = "Name ours. No arguments: the factory's class ID 0x496678FE in EAX (only EAX touched). The class registration calls it directly at 0x0046032D, beside the factory's address (0x00460328). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfoFactory::Create"
+address = 0x0053D130
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "56 6A 10 E8 A8 84 0A 00"
+source = "The factory of the path information resource factory (registered with the class ID 0x496678FE at 0x00460328): SC4::operator_new(0x10), the factory base's constructor 0x0097564D, the vtable 0x00A99D34; null when the allocation fails. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfoFactory::DeletingDestructor"
+address = 0x0053D570
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 C7 06 34 9D A9"
+source = "Name ours. Slot 7, ret 4: the vtable 0x00A99D34, the factory base's destructor 0x00975428, SC4::operator_delete with the flag 1. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfoFactory::CreateInstance"
+address = 0x00542800
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t type, uint32_t iid, void** out)"
+expect = "81 7C 24 04 F7 78 66 29"
+source = "Name ours. Slot 9, ret 0xC: for the resource type 0x296678F7 a block of the pool 0x00B09FEC constructed (0x005407D0) and asked for the interface (slot 0); on failure released through the +4 part's slot 12 (the deleting destructor, flag 1). *out 0 and AL 0 otherwise. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::PoolFree"
+address = 0x0053DC10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* pool, void* block)"
+expect = "8B 54 24 04 85 D2 74 34"
+source = "Name ours. Slot 1 of the pools' vtables 0x00A99D64 and 0x00A99E24 (0x3C-byte blocks in 4 KB pages), ret 4: the block back on its page's free list; the page let go (SC4Pool::ReleaseBlock) at count 0, reopened (SC4Pool::ReopenBlock) at 0x40000033; tail jumps with ECX the pool. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::PoolNewPage"
+address = 0x0053D0C0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* pool)"
+expect = "56 57 6A 0C E8 17 08 3D"
+source = "Name ours. Slot 2 of the pools' vtables 0x00A99D64 and 0x00A99E24 (SC4EdgePool::Grow calls it), no arguments: a page of SC4::AllocatePoolPage(0xC), 0x44 blocks of 0x3C bytes from +0x10 to +0xFC4 chained upwards, the free head +8 at +0x10, the count +0xC zero. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::Construct"
+address = 0x005407D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "53 56 8B F1 57 8D 7E 04"
+source = "Name ours. The path information's constructor (0x3C bytes): the interface vtable 0x00A99D78, the resource part at +4 (0x00975633), the vtables 0x00A99E70 and 0x00A99E38, the path table at +0x1C (100 buckets, 0x00829BC0), the flags +0x30 and the eight type bytes +0x31 zero. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::DeletingDestructor"
+address = 0x00540820
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "53 56 8B F1 57 8D 7E 1C"
+source = "Name ours. Ret 4 (the +4 part's slot 12 through the adjustor 0x005403E0): the vtables, the path table cleared (0x00584660) and its buckets freed, the resource part's destructor 0x0097538E; with the flag 1 the block back to the pool 0x00B09FEC (PoolFree inlined). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::CopyConstruct"
+address = 0x005408B0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 8B F1 57 8D 7E 04 8B"
+source = "Name ours. Ret 4: as the constructor, the path table copied (0x00540160) instead of made, the flags and the eight type bytes copied; the resource key not. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::Clone"
+address = 0x00540910
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "A1 F0 9F B0 00 8B 40 08"
+source = "Name ours. Slot 24, no arguments: a block of the pool 0x00B09FEC copy-constructed from this (0x005408B0) and held (slot 1). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::QueryInterface"
+address = 0x0053CFA0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 54 24 04 81 FA 1D 8F"
+source = "Name ours. Slot 0, ret 8: 0x456B8F1D the resource part (+4, null for a null this), 0xA9667793 the object; held through this object's slot 1. The +4 part's slot 0 is the adjustor 0x005403D0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::GetPath"
+address = 0x0053DD30
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t key, float* length)"
+expect = "83 EC 08 53 8B 59 24 83"
+source = "Name ours. Slot 3, ret 8: the path record of the key (node + 8: points vector, length +0xC, byte +0x10) or null; the length through the pointer when found and given. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::GetPathByParts"
+address = 0x0053CFF0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t type, uint32_t from, uint32_t to, uint32_t number, float* length)"
+expect = "8B 54 24 14 8B 01 56 0F"
+source = "Name ours. Slot 4, ret 0x14: slot 3 with the key type << 24 | number << 16 | from << 8 | to (bytes). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::GetPathLength"
+address = 0x0053DD90
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this, uint32_t key)"
+expect = "56 D9 05 54 10 A8 00 8B"
+source = "Name ours. Slot 10, ret 4: the record's length (+0x14 of the node), the float 0x00A81054 (0) without one; in ST0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::GetPathLengthByParts"
+address = 0x0053D030
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this, uint32_t type, uint32_t from, uint32_t to, uint32_t number)"
+expect = "8B 54 24 04 8B 01 56 0F"
+source = "Name ours. Slot 11, ret 0x10: slot 10 with the key packed as slot 4's. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::HasPaths"
+address = 0x0053D0A0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t type)"
+expect = "8B 44 24 04 85 C0 74 07"
+source = "Name ours. Slot 13, ret 4: the type's byte +0x31 + type (not bounded), or for 0 the flag 2 of +0x30 (stops). AL only. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::GetFlag"
+address = 0x005403A0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "33 C0 8A 41 30 83 E0 01"
+source = "Name ours. Slot 16: the flag 1 of +0x30 (EAX zero-extended). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::SetFlag"
+address = 0x005403B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, bool on)"
+expect = "8A 44 24 04 84 C0 0F B6"
+source = "Name ours. Slot 17, ret 4: the flag 1 of +0x30 set or cleared by the argument's low byte. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::GetStopPointByParts"
+address = 0x0053D060
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float* point, uint32_t type, uint32_t from, uint32_t to, uint32_t number)"
+expect = "8B 54 24 08 8B 01 83 CA"
+source = "Name ours. Slot 36, ret 0x14: slot 35 (0x0053E740) with the key (type | 0x10) << 24 | number << 16 | from << 8 | to (bytes). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::AddPath"
+address = 0x00540960
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t key)"
+expect = "83 EC 2C 8B 44 24 30 53"
+source = "Name ours. Ret 4: insert_unique (0x0053FF10) of an empty record for the key after the table's resize for one more; the new record (node + 8) or null when the key was there. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::AddStop"
+address = 0x00540A00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const float* point, uint32_t key)"
+expect = "83 EC 34 53 55 56 8B 74"
+source = "Name ours. Ret 8: as AddPath; a new record gets the length and byte zero and the one point (0x004FC6B0), the type byte +0x31 + (key >> 24 & 0xF) 1 and the flag 2 of +0x30. AL the insert's answer. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::AddPathByParts"
+address = 0x00542880
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t type, uint32_t from, uint32_t to, uint32_t number)"
+expect = "0F B6 54 24 10 8B 44 24"
+source = "Name ours. Ret 0x10: AddPath with the key packed as slot 4's (the SC4PATHS reader 0x00542900 calls it). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::AddStopByParts"
+address = 0x005428B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const float* point, uint32_t type, uint32_t from, uint32_t to, uint32_t number, bool second)"
+expect = "8A 54 24 18 33 C0 84 D2"
+source = "Name ours. Ret 0x18: AddStop with the key ((second ? 2 : 1) << 4 | type) << 24 | number << 16 | from << 8 | to (bytes; the SC4PATHS reader 0x00542900 calls it). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::FreePathNumber"
+address = 0x0053DDE0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t type, uint32_t from, uint32_t to, uint32_t number)"
+expect = "0F B6 44 24 08 0F B6 54"
+source = "Name ours. Ret 0x10: the packed key (as slot 4's) with the first number from the given one up whose key is not in the table, up to 26 (the number compared signed). Called by 0x00541670 and 0x00541AE0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::ReservePoints"
+address = 0x0053DC50
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, uint32_t count)"
+expect = "55 8B 6C 24 08 56 8B F1"
+source = "Name ours. On a record's points vector (12-byte items), ret 4: reserve; a vector with storage copies into a new one (0x0053D5A0) and frees the old, an empty one gets SC4::stl_allocate. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::GetStopPoint"
+address = 0x0053E740
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float* point, uint32_t key)"
+expect = "83 EC 10 56 8B 71 20 83"
+source = "Name ours. Slot 35, ret 8: the first point of the stop record of the key, else of the first record whose key matches it with 0xFF bytes as wild cards and the type's high nibble 1. Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::CopyPaths"
+address = 0x00540160
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* from)"
+expect = "83 EC 0C 53 55 56 57 8B"
+source = "Name ours. On the path table, ret 4: the copy of another table's buckets and nodes (the copy constructor's). Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::InsertUnique"
+address = 0x0053FF10
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table, void* result, const void* value)"
+expect = "51 8B 44 24 0C 53 55 56"
+source = "Name ours. On the path table, ret 8: insert_unique of {key, points, length, byte} without a resize; result {node, table, inserted}. Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::AllocateCopy"
+address = 0x0053D5A0
+kind = "function"
+convention = "stdcall"
+signature = "void* (uint32_t count, const void* begin, const void* end)"
+expect = "8B 44 24 04 85 C0 74 11"
+source = "Name ours. Ret 0xC: storage for count 12-byte items (0x0090CF54, none for 0) with the range copied in; also called by 0x0050C540. Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "SC4Float3Vector::ResizeFill"
+address = 0x004FC6B0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t count, const float* value)"
+expect = "53 56 8B F1 8B 1E 57 8B"
+source = "Name ours. Ret 8: resize of a list of 12-byte items to count, new items copies of the value. Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cRZResourceFactory::Destruct"
+address = 0x00975428
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C7 01 20 8C AD 00 83 C1"
+source = "Name ours. The resource factory base's destructor: its vtable 0x00AD8C20, then the member at +8 (a tail jump to 0x00930B02). Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cRZResource::Destruct"
+address = 0x0097538E
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "C7 01 EC 8B AD 00 C3 8B"
+source = "Name ours. The resource base's destructor: its vtable 0x00AD8BEC (the constructor is 0x00975633). Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cSC4PathInfoFactory::Vtable"
+address = 0x00A99D34
+kind = "data"
+expect = "36 54 97 00 CF 56 97 00"
+source = "The path information resource factory's vtable (12 slots: 7 the deleting destructor 0x0053D570, 9 CreateInstance 0x00542800, 10 the SC4PATHS reader 0x00542900). Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::Vtable"
+address = 0x00A99E70
+kind = "data"
+expect = "A0 CF 53 00 00 86 80 00"
+source = "The path information's main vtable (cISC4PathInfo, 41 slots, 0x0053CFA0 first). Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::Vtable4"
+address = 0x00A99E38
+kind = "data"
+expect = "D0 03 54 00 D0 89 80 00"
+source = "The path information's resource part (+4) vtable (13 slots: 0 the adjustor 0x005403D0, 12 the adjustor 0x005403E0 to the deleting destructor). Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::InterfaceVtable"
+address = 0x00A99D78
+kind = "data"
+expect = "10 4A 5D 00 10 4A 5D 00"
+source = "The path information interface's vtable (pure calls) the constructors set first. Called by address from src/core/automata_pathinfo.cpp (part pi1)."
+
+[[entry]]
+name = "cSC4PathInfo::Pool"
+address = 0x00B09FEC
+kind = "data"
+source = "Name ours. The path information pool (0x3C-byte blocks; its current page at +4 = 0x00B09FF0: the free head at +8, the count at +0xC). Called by address from src/core/automata_pathinfo.cpp (part pi1)."
