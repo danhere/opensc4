@@ -1,6 +1,7 @@
-// Our node constructors and destructors, colours and character helpers of
-// the game's HTML viewer (docs/html.md, "Ours: nodes, colours and
-// characters"): the rest of piece h5, written by hand from the disassembly.
+// Our node constructors and destructors, colours, character helpers,
+// pictures and children of the game's HTML viewer (docs/html.md, "Ours:
+// nodes, colours and characters"): the rest of piece h5, written by hand
+// from the disassembly.
 // Each function is a detour on the game's, in groups, off by default:
 //
 //   ui.html.nodes.ctors       the base node's constructor, IMG's, LINK's,
@@ -18,6 +19,10 @@
 //   ui.html.chars             the character helpers (the next and previous
 //                             character, whether one is a space) and the
 //                             small string tests and numbers the parser uses
+//   ui.html.nodes.pictures    the body's picture and IMG's set, IMG's size
+//                             taken from its picture
+//   ui.html.nodes.children    the containers' AddChild (slot 1) and TABLE's
+//                             WIDTH
 //
 // The game's strings are STLport's, through the game's own helpers (body
 // erase, find, assign and append, the string constructors), and the heap is
@@ -827,6 +832,56 @@ void ParseLength(const Text* text, uint32_t* out)
 }
 
 // ====================================================================================
+// Pictures, children and WIDTH
+
+// The body's picture set (0x009081BB, slot 0 of its image item at +0x28,
+// ret 4: the picture): kept (+0x3C, the item's +0x14) and AddRef'd (slot
+// 1); nothing to lay out again. The picture it had is not released.
+uint8_t SetBodyPicture(char* item, char* picture)
+{
+    At<char*>(item, 0x14) = picture;
+    if (picture)
+        Virtual<uint32_t>(picture, 0x4);
+    return 0;
+}
+
+// IMG's picture set (0x009082FB, slot 0 of its image item at +0x20, ret 4):
+// the picture kept (+0x24, the item's +4) and AddRef'd; WIDTH and HEIGHT
+// (+0x2C, +0x30) when none was given taken from it (slots 9 and 10), each
+// asked of the picture as kept. 1 when either changed. The picture it had
+// is not released.
+uint32_t SetImagePicture(char* item, char* picture)
+{
+    const uint32_t height = At<uint32_t>(item, 0x10);
+    const uint32_t width = At<uint32_t>(item, 0xC);
+    At<char*>(item, 0x4) = picture;
+    if (picture) {
+        Virtual<uint32_t>(picture, 0x4);
+        if (At<uint32_t>(item, 0xC) == 0)
+            At<uint32_t>(item, 0xC) = Virtual<uint32_t>(At<char*>(item, 0x4), 0x24);
+        if (At<uint32_t>(item, 0x10) == 0)
+            At<uint32_t>(item, 0x10) = Virtual<uint32_t>(At<char*>(item, 0x4), 0x28);
+    }
+    return width != At<uint32_t>(item, 0xC) || height != At<uint32_t>(item, 0x10) ? 1 : 0;
+}
+
+// The containers' AddChild (0x0090888C, slot 1, ret 4: the child): the
+// child pushed onto the children (+0x1C) by the game's push_back
+// (0x008FF785), whose EAX it returns.
+uint32_t AddChild(char* self, char* child)
+{
+    return CallThis<uint32_t>(addr::SC4PtrVector_PushBack8FF785, self + 0x1C, &child);
+}
+
+// TABLE's WIDTH (0x009083C5, ret 4: the attribute): a length (0x0090A9EE)
+// into +0x2C.
+void SetTableWidth(char* self, const Text* text)
+{
+    GameFn<void(__cdecl*)(const Text*, uint32_t*)>(addr::HTMLText_ParseLength)(
+        text, reinterpret_cast<uint32_t*>(self + 0x2C));
+}
+
+// ====================================================================================
 // The detours
 
 #define OPENSC4_UNPAREN(...) __VA_ARGS__
@@ -959,6 +1014,12 @@ OPENSC4_CDECL_DETOUR(uint32_t, EndsWith, 0x0090A9CB, EndsWith, (const Text* text
 OPENSC4_CDECL_DETOUR(void, ParseNumber, 0x0090A915, ParseNumber, (const Text* text, uint32_t* out), (text, out))
 OPENSC4_CDECL_DETOUR(void, ParseLength, 0x0090A9EE, ParseLength, (const Text* text, uint32_t* out), (text, out))
 
+// Pictures, children and WIDTH.
+OPENSC4_THIS_DETOUR(uint8_t, SetBodyPicture, 0x009081BB, SetBodyPicture, (, char* picture), (, picture))
+OPENSC4_THIS_DETOUR(uint32_t, SetImagePicture, 0x009082FB, SetImagePicture, (, char* picture), (, picture))
+OPENSC4_THIS_DETOUR(uint32_t, AddChild, 0x0090888C, AddChild, (, char* child), (, child))
+OPENSC4_THIS_DETOUR(void, SetTableWidth, 0x009083C5, SetTableWidth, (, const Text* text), (, text))
+
 // ====================================================================================
 // Installation
 
@@ -1067,6 +1128,24 @@ bool InstallChars(registry::Mode)
     return InstallAll("characters", detours);
 }
 
+bool InstallPictures(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(SetBodyPicture, addr::HTMLBodyNode_SetPicture),
+        OPENSC4_D(SetImagePicture, addr::HTMLImageNode_SetPicture),
+    };
+    return InstallAll("pictures", detours);
+}
+
+bool InstallChildren(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(AddChild, addr::HTMLContainerNode_AddChild),
+        OPENSC4_D(SetTableWidth, addr::HTMLTableNode_SetWidth),
+    };
+    return InstallAll("children and WIDTH", detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"ui.html.nodes.ctors", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
                         addr::HTMLNode_Construct,
@@ -1091,6 +1170,15 @@ const bool g_registered[] = {
                         "Our HTML character helpers: the next and previous character, spaces, prefixes, numbers "
                         "and lengths (9 detours; docs/html.md)",
                         false, InstallChars}),
+    registry::Register({"ui.html.nodes.pictures", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLImageNode_SetPicture,
+                        "Our HTML pictures set: the body's background and IMG's, with IMG's size (2 detours; "
+                        "docs/html.md)",
+                        false, InstallPictures}),
+    registry::Register({"ui.html.nodes.children", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLContainerNode_AddChild,
+                        "Our HTML containers' AddChild and TABLE's WIDTH (2 detours; docs/html.md)", false,
+                        InstallChildren}),
 };
 
 } // namespace

@@ -723,7 +723,7 @@ bool AnyOurs()
     for (const char* id : {"ui.html.parser.tokens", "ui.html.parser.names", "ui.html.parser.document",
                            "ui.html.parser.blocks", "ui.html.parser.table", "ui.html.parser.inline",
                            "ui.html.nodes.ctors", "ui.html.nodes.ctors.text", "ui.html.nodes.dtors", "ui.html.colors",
-                           "ui.html.chars"})
+                           "ui.html.chars", "ui.html.nodes.pictures", "ui.html.nodes.children"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -2029,9 +2029,9 @@ const char* const kNodePages[] = {
 };
 
 // A stand-in a node owns (a string, a picture, a font, a child): each call
-// of slot 0 (a child's deleting destructor), 1, 2 (AddRef and Release) or
-// 28 (a string's deleting destructor) is recorded with its argument; any
-// other slot ends the run.
+// of slot 0 (a child's deleting destructor), 1, 2 (AddRef and Release), 9,
+// 10 (a picture's width and height) or 28 (a string's deleting destructor)
+// is recorded with its argument; any other slot ends the run.
 struct NodeStand {
     void** vtable;
     uint32_t id;
@@ -2059,6 +2059,17 @@ uint32_t __fastcall StandArgument(NodeStand* self, void*, uint32_t argument)
     return static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(self));
 }
 
+// A picture's width and height (slots 9 and 10): from its number, 0 for
+// every third stand-in.
+template <int Slot>
+uint32_t __fastcall StandSize(NodeStand* self, void*)
+{
+    g_standRecord.Word(self->id);
+    g_standRecord.Word(Slot);
+    ++g_standCalls;
+    return (self->id & 0xFF) % 3 * (Slot == 9 ? 7u : 11u);
+}
+
 template <int Slot>
 uint32_t __fastcall StandOther(NodeStand*, void*)
 {
@@ -2082,6 +2093,8 @@ void SetUpNodeStands()
     g_nodeStandVtable[0] = reinterpret_cast<void*>(&StandArgument<0>);
     g_nodeStandVtable[1] = reinterpret_cast<void*>(&StandNoArgument<1>);
     g_nodeStandVtable[2] = reinterpret_cast<void*>(&StandNoArgument<2>);
+    g_nodeStandVtable[9] = reinterpret_cast<void*>(&StandSize<9>);
+    g_nodeStandVtable[10] = reinterpret_cast<void*>(&StandSize<10>);
     g_nodeStandVtable[28] = reinterpret_cast<void*>(&StandArgument<28>);
     for (uint32_t i = 0; i < std::size(g_nodeStands); ++i)
         g_nodeStands[i] = {g_nodeStandVtable, 0x5700 + i};
@@ -2450,6 +2463,104 @@ uint32_t CharItem(int which)
 
 int CharItems() { return static_cast<int>(std::size(kCharStrings)) + 1; }
 
+// The pictures set (slot 0 of the body's and IMG's image items), the
+// containers' AddChild (slot 1) and TABLE's WIDTH, each on an object made by
+// its constructor: the object hashed after, with the stand-ins' calls and
+// what the function returned.
+const char* const kWidthInputs[] = {"", "50%", "33", "abc", "7px", "%", "100%%", " 3"};
+
+constexpr int kBodyPictureItems = 3;
+constexpr int kImagePictureItems = 4 * 3 + 1;
+constexpr int kChildItems = 6;
+
+uint32_t ChildrenItem(int which)
+{
+    Fnv f;
+    g_standRecord = Fnv{};
+    if (which < kBodyPictureItems) {
+        // The body's: none, one picture, then a second over it.
+        char* const body = static_cast<char*>(GameNew(0x44));
+        std::memset(body, kPattern, 0x44);
+        CallGameThis<char*>(addr::HTMLBodyNode_Construct, body, uint32_t{1}, uint32_t{2}, uint32_t{3});
+        const std::vector<uint32_t> pictures[] = {{0}, {StandAt(18)}, {StandAt(19), StandAt(20)}};
+        for (const uint32_t picture : pictures[which])
+            f.Byte(CallGameThis<uint8_t>(addr::HTMLBodyNode_SetPicture, body + 0x28, picture));
+        HashObject(f, body, 0x44, nullptr);
+        f.Word(g_standRecord.h);
+        Virtual<char*>(body, 0x0, uint32_t{1});
+        return f.h;
+    }
+    which -= kBodyPictureItems;
+    if (which < kImagePictureItems) {
+        // IMG's: WIDTH and HEIGHT given or not, with no picture, a picture
+        // with a size and one of 0 by 0; then two pictures, one over the
+        // other.
+        char* const image = static_cast<char*>(GameNew(0x38));
+        std::memset(image, kPattern, 0x38);
+        CallGameThis<char*>(addr::HTMLImageNode_Construct, image);
+        const uint32_t sizes[][2] = {{0, 0}, {4, 0}, {0, 5}, {4, 5}};
+        std::vector<uint32_t> pictures;
+        if (which < 12) {
+            At<uint32_t>(image, 0x2C) = sizes[which / 3][0];
+            At<uint32_t>(image, 0x30) = sizes[which / 3][1];
+            const uint32_t choice[] = {0, StandAt(22 + which / 3), StandAt(21)};
+            pictures.push_back(choice[which % 3]);
+        } else {
+            pictures = {StandAt(26), StandAt(28)};
+        }
+        for (const uint32_t picture : pictures)
+            f.Word(CallGameThis<uint32_t>(addr::HTMLImageNode_SetPicture, image + 0x20, picture));
+        HashObject(f, image, 0x38, nullptr);
+        f.Word(g_standRecord.h);
+        Virtual<char*>(image, 0x0, uint32_t{1});
+        return f.h;
+    }
+    which -= kImagePictureItems;
+    if (which < kChildItems) {
+        // A container's children: 1, 2, 3, 5 and 9 of them (the vector grown
+        // on the way), then 4 with a null among them; what AddChild returned
+        // by where it points in the children's storage.
+        char* const container = static_cast<char*>(GameNew(0x28));
+        std::memset(container, kPattern, 0x28);
+        CallGameThis<char*>(addr::HTMLContainerNode_Construct, container, uint32_t{8});
+        const int counts[] = {1, 2, 3, 5, 9, 4};
+        std::vector<uint32_t> returned;
+        for (int i = 0; i < counts[which]; ++i) {
+            const uint32_t child = which == 5 && i == 1 ? 0 : StandAt(i);
+            returned.push_back(CallGameThis<uint32_t>(addr::HTMLContainerNode_AddChild, container, child));
+        }
+        const uint32_t begin = At<uint32_t>(container, 0x1C);
+        const uint32_t end = At<uint32_t>(container, 0x20);
+        const uint32_t storage = At<uint32_t>(container, 0x24);
+        f.Word((end - begin) / 4);
+        f.Word((storage - begin) / 4);
+        for (const uint32_t r : returned)
+            f.Word(r >= begin && r <= storage ? 0xC0000000u | (r - begin) : IsHeap(r) ? 0xB2u : r);
+        HashObject(f, reinterpret_cast<const char*>(static_cast<uintptr_t>(begin)), end - begin, nullptr);
+        HashObject(f, container, 0x1C, nullptr);
+        f.Word(g_standRecord.h);
+        Virtual<char*>(container, 0x0, uint32_t{1});
+        return f.h;
+    }
+    which -= kChildItems;
+    // TABLE's WIDTH.
+    char* const table = static_cast<char*>(GameNew(0x94));
+    std::memset(table, kPattern, 0x94);
+    CallGameThis<char*>(addr::HTMLTableNode_Construct, table);
+    GameText text;
+    MakeText(&text, kWidthInputs[which]);
+    CallGameThis<void>(addr::HTMLTableNode_SetWidth, table, static_cast<const GameText*>(&text));
+    DestroyText(&text);
+    HashObject(f, table, 0x4C, nullptr);
+    Virtual<char*>(table, 0x0, uint32_t{1});
+    return f.h;
+}
+
+int ChildrenItems()
+{
+    return kBodyPictureItems + kImagePictureItems + kChildItems + static_cast<int>(std::size(kWidthInputs));
+}
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -2467,8 +2578,8 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[5] = {};
-    const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages"};
+    uint32_t sectionHash[6] = {};
+    const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -2512,13 +2623,16 @@ void DriveNodesDay(const Day& day)
             bool parsed = false;
             return ParsePage(window, kNodePages[i], parsed) ^ (parsed ? 0 : 0x80000000u);
         });
+    for (int i = 0; i < ChildrenItems(); ++i)
+        item(5, i, [&] { return ChildrenItem(i); });
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
-               "pages %08X), %u stand-in calls, %u of %u blocks freed; %s; hash %08X",
-               items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], g_standCalls,
+               "pages %08X, children %08X), %u stand-in calls, %u of %u blocks freed; %s; hash %08X",
+               items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
+               g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)

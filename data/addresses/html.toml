@@ -950,7 +950,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, const void* text)"
 expect = "83 C1 2C 51 FF 74 24 08"
-source = "Name ours. `ret 4`. A table's WIDTH. Name ours. Called by ours; still the game's (docs/html.md, h5)."
+source = "Name ours. Ours in ui.html.nodes.children. `ret 4`. A table's WIDTH: a length (0x0090A9EE) into +0x2C (kind, number). Called by the parser's TABLE handler (docs/html.md, h5)."
 
 [[entry]]
 name = "HTMLCellNode::SetNoWrap"
@@ -1167,6 +1167,33 @@ convention = "thiscall"
 signature = "void (void* this, const void* text)"
 expect = "55 8B EC 51 51 56 8D 45"
 source = "Name ours. Ours in ui.html.colors. `ret 4`. The body's VLINK colour (+0x34), as 0x009081D2 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBodyNode::SetPicture"
+address = 0x009081BB
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* picture)"
+expect = "8B 44 24 04 85 C0 89 41"
+source = "Name ours. Ours in ui.html.nodes.pictures. `ret 4`. Slot 0 of the body's image item (+0x28, vtable 0x00ACE2BC): BACKGROUND's picture kept at the item's +0x14 (the body's +0x3C) and AddRef'd (slot 1), the old one not released; returns false (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLImageNode::SetPicture"
+address = 0x009082FB
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* picture)"
+expect = "53 56 8B F1 8B 4C 24 0C"
+source = "Name ours. Ours in ui.html.nodes.pictures. `ret 4`. Slot 0 of IMG's image item (+0x20, vtables 0x00ACE170 and 0x00ACE158's slot 6): the picture kept at the item's +4 (IMG's +0x24) and AddRef'd, the old one not released; WIDTH and HEIGHT (+0x2C, +0x30) when 0 taken from the picture's slots 9 and 10; returns whether either changed (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLContainerNode::AddChild"
+address = 0x0090888C
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* child)"
+expect = "8D 44 24 04 50 83 C1 1C"
+source = "Name ours. Ours in ui.html.nodes.children. `ret 4`. Slot 1 of the containers (vtable 0x00ACD5E8 and the per-tag ones): the child pushed onto the children at +0x1C (0x008FF785), its EAX returned (docs/html.md, h5)."
 
 [[entry]]
 name = "HTMLDocument::SkipSpaces"
