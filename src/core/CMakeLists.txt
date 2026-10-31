@@ -352,6 +352,7 @@ add_library(opensc4_core SHARED
   pixels.cpp
   pixels_autotest.cpp
   html_layout.cpp
+  html_nodes.cpp
   html_paint.cpp
   html_parser.cpp
   html_parser_autotest.cpp
