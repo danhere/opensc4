@@ -1,12 +1,14 @@
 // The index batch an effect draws its quads with, written by hand from the
 // game's code: its clear (0x005EC4A0), its add of quads' indices
-// (0x005EC850) and its add of quads' vertices (0x005EC8C0). Included by
-// water_effects.cpp before the particle pool; the draws that call them are
-// in effects_particles_draw.h and effects_third.h; the switches are at the
-// end of water_effects.cpp ("The index batch's three parts").
+// (0x005EC850), its add of quads' vertices (0x005EC8C0) and its draw
+// (0x005EC5D0). Included by water_effects.cpp before the particle pool; the
+// draws that call them are in effects_particles_draw.h and effects_third.h;
+// the switches are at the end of water_effects.cpp ("The index batch's three
+// parts", "The index batch's draw").
 //
-// A batch is 0x40 bytes: +8 the vertices of a quad, +0xC the indices of a
-// quad, +0x14 to +0x1C a vector of bytes (the vertices, +0x20 bytes each),
+// A batch is 0x40 bytes: +4 the primitive it is drawn as, +8 the vertices of
+// a quad, +0xC the indices of a quad, +0x10 the vertices' format, +0x14 to
+// +0x1C a vector of bytes (the vertices, +0x20 bytes each),
 // +0x24 the vertex count, +0x28 a function that fills vertices, +0x2C to
 // +0x34 a vector of 16-bit indices, +0x38 the index count and +0x3C a
 // function that fills indices. The two fill functions are cdecl
@@ -100,6 +102,54 @@ inline uint32_t IbAddVertices(char* batch, uint32_t quads)
     return IbAddVerticesWith(batch, quads, &IbResizeVertices, &IbFill);
 }
 
+// 0x005EC5D0 (ret 4): the batch drawn. Its vertices handed over first
+// (`vertices`: the format at +0x10, the vertex count and the vertices at
+// +0x14). With an index count (+0x38), while it is above 0x600, runs of
+// 0x600 indices from its end (`indexed`: the primitive at +4, 0x600, the
+// indices at +0x2C and the count less 0x600, as 16-bit words), the count
+// lowered by 0x600 after each; then the rest from the first index. With
+// none, the same on the vertex count (+0x24) with runs of vertices
+// (`ranged`: the primitive, the first vertex, 0x600) and the rest from the
+// first vertex (the primitive, zero, the count). The counts are read from
+// the batch again after each call and are left at the last run's, as the
+// game's leaves them; all of it unsigned. The calls' answers are not used.
+template <typename Vertices, typename Indexed, typename Ranged>
+void IbDrawWith(char* batch, Vertices vertices, Indexed indexed, Ranged ranged)
+{
+    constexpr uint32_t kRun = 0x600;
+    vertices(At<uint32_t>(batch, 0x10), At<uint32_t>(batch, 0x24), At<uint32_t>(batch, 0x14));
+    if (At<uint32_t>(batch, 0x38)) {
+        while (At<uint32_t>(batch, 0x38) > kRun) {
+            indexed(At<uint32_t>(batch, 4), kRun, At<uint32_t>(batch, 0x2C) + At<uint32_t>(batch, 0x38) * 2 - kRun * 2);
+            At<uint32_t>(batch, 0x38) -= kRun;
+        }
+        indexed(At<uint32_t>(batch, 4), At<uint32_t>(batch, 0x38), At<uint32_t>(batch, 0x2C));
+    } else {
+        while (At<uint32_t>(batch, 0x24) > kRun) {
+            ranged(At<uint32_t>(batch, 4), At<uint32_t>(batch, 0x24) - kRun, kRun);
+            At<uint32_t>(batch, 0x24) -= kRun;
+        }
+        ranged(At<uint32_t>(batch, 4), 0u, At<uint32_t>(batch, 0x24));
+    }
+}
+
+// The render context's three, as ours calls them (0x007D2970, 0x007D29F0
+// and 0x007FC2D0, each passing on to the driver).
+inline void IbDraw(char* batch, char* context)
+{
+    IbDrawWith(
+        batch,
+        [&](uint32_t format, uint32_t count, uint32_t at) {
+            CallThis<void>(addr::SC4RenderContext_SetVertexArray, context, format, count, at);
+        },
+        [&](uint32_t primitive, uint32_t count, uint32_t at) {
+            CallThis<void>(addr::SC4RenderContext_DrawElements, context, primitive, count, at);
+        },
+        [&](uint32_t primitive, uint32_t first, uint32_t count) {
+            CallThis<void>(addr::SC4RenderContext_DrawVertexRange, context, primitive, first, count);
+        });
+}
+
 // The ported callers: ours when the switch is ours (set at install), else
 // the game's by its address (through the detour when the switch compares).
 inline void IbClearFor(char* batch)
@@ -120,4 +170,13 @@ inline uint32_t IbAddVerticesFor(char* batch, uint32_t quads)
 {
     return g_batchAddVerticesOurs ? IbAddVertices(batch, quads)
                                   : CallThis<uint32_t>(addr::SC4IndexBatch_AddVertices, batch, quads);
+}
+
+// The draw answers nothing the callers use; 0 for ours.
+inline uint32_t IbDrawFor(char* batch, char* context)
+{
+    if (!g_batchDrawOurs)
+        return CallThis<uint32_t>(addr::SC4IndexBatch_Draw, batch, context);
+    IbDraw(batch, context);
+    return 0;
 }
