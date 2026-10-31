@@ -725,7 +725,8 @@ bool AnyOurs()
                            "ui.html.nodes.ctors", "ui.html.nodes.ctors.text", "ui.html.nodes.dtors", "ui.html.colors",
                            "ui.html.chars", "ui.html.nodes.pictures", "ui.html.nodes.children",
                            "ui.html.document.ctors", "ui.html.document.dtors", "ui.html.document.attributes",
-                           "ui.html.document.handlers", "ui.html.document.tokenizer"})
+                           "ui.html.document.handlers", "ui.html.document.tokenizer", "ui.html.document.slots",
+                           "ui.html.document.life", "ui.html.document.glue", "ui.html.document.fonts"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -2954,6 +2955,701 @@ uint32_t DocPageItem(char* window, int which)
 
 constexpr int kDocPageItems = static_cast<int>(std::size(kDocPages)) * 2;
 
+// h2b1's: the document's slots, its Init, base and destructors, the parser's
+// glue (text nodes, the flow, the tag sets, the alignment stack's push) and
+// the font stack.
+
+// A document as ShowHTML makes one, with a reference, Init (the window, the
+// stand-in service, the base) and a page with anchors, fonts and an aligned
+// block parsed.
+const char* const kSlotPage =
+    "<HTML><BODY><A NAME=top>t</A><A NAME=\"Second\">s</A><A HREF=x NAME=third>3</A><A HREF=y>n</A>"
+    "<FONT SIZE=2 FACE=\"times\"><B>bold<I>it</I></B></FONT><CENTER>c<DIV ALIGN=right>r</DIV></CENTER></BODY></HTML>";
+
+char* NewDocument()
+{
+    using NewFn = void*(__cdecl*)(std::size_t);
+    using ThisFn = void*(__thiscall*)(void*);
+    char* const doc = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x1C4));
+    reinterpret_cast<ThisFn>(addr::HTMLDocument_Construct)(doc);
+    Virtual<uint32_t>(doc, 0x4);
+    return doc;
+}
+
+char* MakeSlotDocument(char* window, const char* base, const char* page = kSlotPage)
+{
+    using InitFn = uint8_t(__thiscall*)(void*, void*, void*, const GameText*);
+    char* const doc = NewDocument();
+    GameText text;
+    MakeText(&text, base);
+    reinterpret_cast<InitFn>(addr::HTMLDocument_Init)(doc, window, &g_service, &text);
+    DestroyText(&text);
+    if (page) {
+        MakeText(&text, page);
+        Virtual<uint8_t>(doc, 0x20, &text);
+        DestroyText(&text);
+    }
+    return doc;
+}
+
+// A window of the test's own for the document's slot 17: its slot 92
+// counted.
+uint32_t g_redraws = 0;
+uint32_t __fastcall FakeRedraw(void*, void*)
+{
+    ++g_redraws;
+    return 0x1234;
+}
+void* g_fakeWindowVtable[96] = {};
+struct FakeWindow {
+    void** vtable;
+} g_fakeWindow{g_fakeWindowVtable};
+
+const uint32_t kQueryIds[] = {1, 0x452294AAu, 0xE0ECA23Au, 0x12345678u, 0};
+const int32_t kStepCounts[] = {0, 1, 4, 7, 8, 12};
+const int32_t kSetCounts[] = {0, 1, 3, 4, 7, 9};
+const char* const kAnchorNames[] = {"top", "TOP", "Second", "third", "none", "", "n"};
+const uint8_t kFlags29[] = {0, 1, 0x80};
+
+constexpr int kSlotQueryItems = static_cast<int>(std::size(kQueryIds)) * 2;
+constexpr int kSlotItems = kSlotQueryItems + 2 + static_cast<int>(std::size(kStepCounts)) +
+                           static_cast<int>(std::size(kSetCounts)) + static_cast<int>(std::size(kAnchorNames)) +
+                           static_cast<int>(std::size(kFlags29)) + 1 + 2 + 3 + 2;
+
+uint32_t DocSlotItem(char* window, int which)
+{
+    Fnv f;
+    char* const doc = MakeSlotDocument(window, which % 2 ? "http://maxis.com/a/" : "");
+    if (which < kSlotQueryItems) {
+        // QueryInterface through the document and its part at +4.
+        char* const self = which % 2 ? doc + 4 : doc;
+        void* out = reinterpret_cast<void*>(0x77);
+        const uint8_t r = Virtual<uint8_t>(self, 0x0, kQueryIds[which / 2], &out);
+        f.Byte(r & 1);
+        f.Word(out == reinterpret_cast<void*>(0x77) ? 0xEEEEu
+                                                    : out ? static_cast<uint32_t>(static_cast<char*>(out) - doc)
+                                                          : 0xFFFFFFFFu);
+        f.Word(At<uint32_t>(doc, 0x1C));
+        if (r & 1)
+            Virtual<uint32_t>(doc, 0x8);
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= kSlotQueryItems;
+    if (which == 0) {
+        // AddRef and Release through both parts; the last release deletes.
+        f.Word(Virtual<uint32_t>(doc, 0x4));
+        f.Word(Virtual<uint32_t>(doc + 4, 0x4));
+        f.Word(Virtual<uint32_t>(doc + 4, 0x8));
+        f.Word(Virtual<uint32_t>(doc, 0x8));
+        f.Word(Virtual<uint32_t>(doc + 4, 0x8));
+        return f.h;
+    }
+    if (which == 1) {
+        f.Word(static_cast<uint32_t>(Virtual<char*>(doc, 0x10) - doc));
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= 2;
+    if (which < static_cast<int>(std::size(kStepCounts))) {
+        int32_t out[12];
+        for (int32_t& v : out)
+            v = 0x5A5A5A5A;
+        f.Word(Virtual<uint32_t>(doc, 0x18, out, kStepCounts[which]));
+        for (const int32_t v : out)
+            f.Word(static_cast<uint32_t>(v));
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= static_cast<int>(std::size(kStepCounts));
+    if (which < static_cast<int>(std::size(kSetCounts))) {
+        const int32_t steps[] = {5, 6, 7, 8, 9, 10, 11, 12, 13};
+        f.Word(Virtual<uint32_t>(doc, 0x1C, steps, kSetCounts[which]));
+        for (std::size_t at = 0x1A8; at < 0x1C4; at += 4)
+            f.Word(At<uint32_t>(doc, at));
+        f.Word(At<uint32_t>(doc, 0x54));
+        f.Word(At<uint32_t>(doc, 0x6C));
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= static_cast<int>(std::size(kSetCounts));
+    if (which < static_cast<int>(std::size(kAnchorNames))) {
+        GameText name;
+        MakeText(&name, kAnchorNames[which]);
+        char* const node = Virtual<char*>(doc, 0x34, &name);
+        DestroyText(&name);
+        int index = -1;
+        char** const first = At<char**>(doc, 0xC8);
+        for (char** at = first; at && at < At<char**>(doc, 0xCC); ++at)
+            if (*at == node)
+                index = static_cast<int>(at - first);
+        f.Byte(node != nullptr);
+        f.Word(static_cast<uint32_t>(index));
+        f.Word(static_cast<uint32_t>(At<char**>(doc, 0xCC) - first));
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= static_cast<int>(std::size(kAnchorNames));
+    if (which < static_cast<int>(std::size(kFlags29))) {
+        Virtual<void>(doc, 0x3C, kFlags29[which]);
+        f.Byte(At<uint8_t>(doc, 0x29));
+        f.Byte(At<uint8_t>(doc, 0x2A));
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= static_cast<int>(std::size(kFlags29));
+    if (which == 0) {
+        f.Word(Virtual<uint32_t>(doc, 0x48));
+        f.Word(Virtual<uint32_t>(doc, 0x4C));
+        f.Byte(Virtual<uint8_t>(doc, 0x50));
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= 1;
+    if (which < 2) {
+        // Slot 17 with a window of the test's own, and with none.
+        g_fakeWindowVtable[92] = reinterpret_cast<void*>(&FakeRedraw);
+        char* const kept = At<char*>(doc, 0x2C);
+        At<FakeWindow*>(doc, 0x2C) = which == 0 ? &g_fakeWindow : nullptr;
+        g_redraws = 0;
+        const uint32_t r = Virtual<uint32_t>(doc, 0x44);
+        f.Word(which == 0 ? r : 0);
+        f.Word(g_redraws);
+        At<char*>(doc, 0x2C) = kept;
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= 2;
+    if (which < 3) {
+        // The base: the two documents' and none.
+        char* const kept = At<char*>(doc, 0xB8);
+        if (which == 2)
+            At<char*>(doc, 0xB8) = nullptr;
+        GameText out;
+        MakeText(&out, "was");
+        f.Byte(Virtual<uint8_t>(doc, 0x54, &out) & 1);
+        f.Bytes(out.begin, out.end);
+        DestroyText(&out);
+        At<char*>(doc, 0xB8) = kept;
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= 3;
+    // The two faces.
+    GameText out;
+    MakeText(&out, "was");
+    uint32_t size = 0x99;
+    f.Word(Virtual<uint32_t>(doc, which == 0 ? 0x58 : 0x5C, &out, &size));
+    f.Bytes(out.begin, out.end);
+    f.Word(size);
+    DestroyText(&out);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+// Init on new documents (two bases, the service or none), then again; the
+// base set from none and over one; the destructors.
+constexpr int kLifeItems = 4 + 2 + 3;
+
+// Whether each block was freed, asking the allocator for up to 256 blocks of
+// its size (a small block freed early in a destructor sits under the ones
+// freed after it in the allocator's free list); the blocks handed out are
+// freed again, the last first.
+void HashFreedDeep(Fnv& f, const Blocks& blocks)
+{
+    for (std::size_t i = blocks.blocks.size(); i-- > 0;) {
+        std::vector<void*> again;
+        bool freed = false;
+        for (int n = 0; n < 256 && !freed; ++n) {
+            void* const p = blocks.viaNew[i] ? GameNew(blocks.sizes[i]) : GameAllocate(blocks.sizes[i]);
+            again.push_back(p);
+            freed = p == blocks.blocks[i];
+        }
+        f.Byte(freed ? 1 : 0);
+        ++g_blocksChecked;
+        g_blocksFreed += freed ? 1 : 0;
+        for (std::size_t j = again.size(); j-- > 0;) {
+            if (blocks.viaNew[i])
+                GameDelete(again[j]);
+            else
+                GameFree(again[j]);
+        }
+    }
+}
+
+void HashInit(Fnv& f, char* doc, char* window)
+{
+    f.Byte(At<uint8_t>(doc, 0x18));
+    f.Byte(At<char*>(doc, 0x2C) == window);
+    f.Byte(At<void*>(doc, 0x30) == &g_service);
+    HashField(f, doc, {0xB8, Field::TextPtr});
+    for (std::size_t at = 0x144; at <= 0x150; at += 4)
+        f.Word(At<uint32_t>(doc, at));
+    f.Byte(At<uint8_t>(doc, 0x154));
+    f.Byte(At<uint8_t>(doc, 0x155));
+}
+
+uint32_t DocLifeItem(char* window, int which)
+{
+    using InitFn = uint8_t(__thiscall*)(void*, void*, void*, const GameText*);
+    using BaseFn = uint8_t(__thiscall*)(void*, const GameText*);
+    Fnv f;
+    if (which < 4) {
+        char* const doc = NewDocument();
+        GameText base;
+        MakeText(&base, which % 2 ? "http://example.com/x/y.html" : "");
+        f.Byte(reinterpret_cast<InitFn>(addr::HTMLDocument_Init)(doc, window, which < 2 ? &g_service : nullptr,
+                                                                  &base) &
+               1);
+        DestroyText(&base);
+        HashInit(f, doc, window);
+        MakeText(&base, "other");
+        f.Byte(reinterpret_cast<InitFn>(addr::HTMLDocument_Init)(doc, window, &g_service, &base) & 1);
+        DestroyText(&base);
+        HashInit(f, doc, window);
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= 4;
+    if (which < 2) {
+        // The base from none (a new string), then assigned; or assigned only.
+        char* const doc = MakeSlotDocument(window, "start", nullptr);
+        char* const kept = At<char*>(doc, 0xB8);
+        if (which == 0)
+            At<char*>(doc, 0xB8) = nullptr;
+        for (const char* text : {"a/b.html", "", "http://e.com/"}) {
+            GameText base;
+            MakeText(&base, text);
+            f.Byte(reinterpret_cast<BaseFn>(addr::HTMLDocument_SetBase)(doc, &base) & 1);
+            DestroyText(&base);
+            HashField(f, doc, {0xB8, Field::TextPtr});
+        }
+        if (which == 0) {
+            GameText* const made = At<GameText*>(doc, 0xB8);
+            DestroyText(made);
+            GameDelete(made);
+            At<char*>(doc, 0xB8) = kept;
+        }
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= 2;
+    // The destructors: the deleting one through Release, with the
+    // document's block and its vectors' storage checked for being freed; the
+    // destructor alone and the deleting one with flag 0, the document hashed
+    // after.
+    char* const doc = MakeSlotDocument(window, "http://maxis.com/");
+    Blocks blocks;
+    for (const std::size_t at : {0xACu, 0xBCu, 0xC8u, 0x15Cu, 0x168u, 0x174u}) {
+        char* const first = At<char*>(doc, at);
+        if (first)
+            blocks.Track(first, static_cast<std::size_t>(At<char*>(doc, at + 8) - first), false);
+    }
+    f.Word(static_cast<uint32_t>(blocks.blocks.size()));
+    if (which == 0) {
+        blocks.Track(doc, 0x1C4, true);
+        f.Word(Virtual<uint32_t>(doc, 0x8));
+    } else {
+        if (which == 1)
+            CallGameThis<void>(addr::HTMLDocument_Destruct, doc);
+        else
+            f.Byte(CallGameThis<char*>(addr::HTMLDocument_Delete, doc, uint32_t{0}) == doc ? 1 : 0);
+        // The vtables put back (the document's and its strings'); the rest
+        // is freed pointers and the lock's handles.
+        for (const std::size_t at : {0x0u, 0x4u, 0x40u, 0x58u, 0x70u, 0x84u, 0x98u, 0xD4u, 0xECu, 0x100u, 0x130u,
+                                     0x180u})
+            f.Word(At<uint32_t>(doc, at));
+        f.Byte(At<uint8_t>(doc, 0x18));
+        f.Word(At<uint32_t>(doc, 0x1C));
+    }
+    HashFreedDeep(f, blocks);
+    if (which != 0)
+        GameDelete(doc);
+    return f.h;
+}
+
+// The tag sets: each one's membership of every ID; the flow with IDs in no
+// set and with text; text nodes; the sets filled again into new sets; the
+// alignment stack's push.
+const uint32_t kTagSets[] = {0x00B624B8, 0x00B624C4, 0x00B624D0, 0x00B624DC, 0x00B624E8,
+                             0x00B624F4, 0x00B62500, 0x00B6250C, 0x00B62518};
+const char* const kAddTexts[] = {"plain words", "a &amp; b &lt;c&gt;", ""};
+
+constexpr int kGlueItems = static_cast<int>(std::size(kTagSets)) + 1 + static_cast<int>(std::size(kAddTexts)) + 1 + 2;
+
+void HashTree(Fnv& f, char* node, int depth)
+{
+    if (!node || depth > 64) {
+        f.Byte(0xD0);
+        return;
+    }
+    f.Byte(At<uint8_t>(node, 0x0));
+    f.Word(At<uint32_t>(node, 0x10));
+    HashTree(f, At<char*>(node, 0x8), depth + 1);
+    HashTree(f, At<char*>(node, 0xC), depth + 1);
+}
+
+void FreeTree(char* node, int depth)
+{
+    if (!node || depth > 64)
+        return;
+    FreeTree(At<char*>(node, 0x8), depth + 1);
+    FreeTree(At<char*>(node, 0xC), depth + 1);
+    GameFree(node);
+}
+
+char* NewParagraph()
+{
+    char* const node = static_cast<char*>(GameNew(0x28));
+    CallGameThis<char*>(addr::HTMLParagraphNode_Construct, node);
+    return node;
+}
+
+uint32_t DocGlueItem(char* window, int which)
+{
+    Fnv f;
+    if (which < static_cast<int>(std::size(kTagSets))) {
+        char* const set = reinterpret_cast<char*>(static_cast<std::uintptr_t>(kTagSets[which]));
+        for (uint32_t id = 0; id < 0xA4; ++id)
+            f.Byte(reinterpret_cast<uint8_t(__cdecl*)(uint32_t, char*)>(addr::HTMLTagSet_Contains)(id, set) & 1);
+        return f.h;
+    }
+    which -= static_cast<int>(std::size(kTagSets));
+    if (which == 0) {
+        char* const doc = MakeSlotDocument(window, "");
+        char* const parent = NewParagraph();
+        for (const uint32_t id : {0u, 0xA2u, 0x100u, 3u}) {
+            At<uint32_t>(doc, 0xE8) = id;
+            f.Byte(CallGameThis<uint8_t>(addr::HTMLDocument_ParseFlow, doc, parent) & 1);
+            f.Word(At<uint32_t>(doc, 0xE8));
+        }
+        HashNode(f, parent, 0);
+        Virtual<char*>(parent, 0x0, uint32_t{1});
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= 1;
+    if (which < static_cast<int>(std::size(kAddTexts))) {
+        char* const doc = MakeSlotDocument(window, "", nullptr);
+        char* const parent = NewParagraph();
+        GameText text;
+        MakeText(&text, kAddTexts[which]);
+        CallGameThis<void>(addr::HTMLDocument_AddText, doc, static_cast<const GameText*>(&text), parent);
+        CallGameThis<void>(addr::HTMLDocument_AddText, doc, static_cast<const GameText*>(&text), parent);
+        DestroyText(&text);
+        HashNode(f, parent, 0);
+        Virtual<char*>(parent, 0x0, uint32_t{1});
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= static_cast<int>(std::size(kAddTexts));
+    if (which == 0) {
+        // The sets filled again into new, empty sets (the game's put back
+        // after): each one's count and tree.
+        uint8_t saved[std::size(kTagSets)][12];
+        for (std::size_t i = 0; i < std::size(kTagSets); ++i) {
+            char* const set = reinterpret_cast<char*>(static_cast<std::uintptr_t>(kTagSets[i]));
+            std::memcpy(saved[i], set, 12);
+            char* const header = static_cast<char*>(GameAllocate(0x14));
+            At<uint32_t>(header, 0x0) = At<uint32_t>(At<char*>(set, 0x0), 0x0);
+            At<char*>(header, 0x4) = nullptr;
+            At<char*>(header, 0x8) = header;
+            At<char*>(header, 0xC) = header;
+            At<char*>(set, 0x0) = header;
+            At<uint32_t>(set, 0x4) = 0;
+        }
+        reinterpret_cast<void(__cdecl*)()>(addr::HTMLTagSets_Init)();
+        for (std::size_t i = 0; i < std::size(kTagSets); ++i) {
+            char* const set = reinterpret_cast<char*>(static_cast<std::uintptr_t>(kTagSets[i]));
+            char* const header = At<char*>(set, 0x0);
+            f.Word(At<uint32_t>(set, 0x4));
+            f.Word(At<char*>(header, 0x8) ? At<uint32_t>(At<char*>(header, 0x8), 0x10) : 0xFFFFFFFFu);
+            f.Word(At<char*>(header, 0xC) ? At<uint32_t>(At<char*>(header, 0xC), 0x10) : 0xFFFFFFFFu);
+            HashTree(f, At<char*>(header, 0x4), 0);
+            FreeTree(At<char*>(header, 0x4), 0);
+            GameFree(header);
+            std::memcpy(set, saved[i], 12);
+        }
+        return f.h;
+    }
+    which -= 1;
+    // The alignment stack's push: from no storage, and with room for four.
+    char* vector[3] = {};
+    if (which == 1) {
+        vector[0] = static_cast<char*>(GameAllocate(16));
+        vector[1] = vector[0];
+        vector[2] = vector[0] + 16;
+    }
+    for (int32_t value = 1; value <= 9; ++value) {
+        CallGameThis<void>(addr::HTMLIntVector_PushBack, vector, static_cast<const int32_t*>(&value));
+        f.Word(static_cast<uint32_t>(vector[1] - vector[0]));
+        f.Word(static_cast<uint32_t>(vector[2] - vector[0]));
+        for (const int32_t* at = reinterpret_cast<int32_t*>(vector[0]); at < reinterpret_cast<int32_t*>(vector[1]);
+             ++at)
+            f.Word(static_cast<uint32_t>(*at));
+    }
+    if (vector[0])
+        GameFree(vector[0]);
+    return f.h;
+}
+
+// The font stack: a record's copy and assignment; ranges copied, filled and
+// destroyed; a stack of the test's own pushed, grown and destroyed; the
+// document's pop.
+struct GameFont {
+    GameText face;
+    uint32_t words[4];
+    uint8_t flags[2];
+    uint8_t spare[2];
+};
+static_assert(sizeof(GameFont) == 0x28);
+
+const char* const kFaces[] = {"Arial, Helvetica", "courier new", "", "times", "\xC3\xA9 face"};
+
+void MakeFont(GameFont* font, int i)
+{
+    MakeText(&font->face, kFaces[i % std::size(kFaces)]);
+    for (int w = 0; w < 4; ++w)
+        font->words[w] = 0x100u * static_cast<uint32_t>(i + 1) + static_cast<uint32_t>(w);
+    font->flags[0] = static_cast<uint8_t>(i & 1);
+    font->flags[1] = static_cast<uint8_t>(i * 3);
+    font->spare[0] = 0x11;
+    font->spare[1] = 0x22;
+}
+
+void HashFont(Fnv& f, const GameFont* font)
+{
+    f.Bytes(font->face.begin, font->face.end);
+    for (const uint32_t w : font->words)
+        f.Word(w);
+    f.Byte(font->flags[0]);
+    f.Byte(font->flags[1]);
+}
+
+void HashFontStack(Fnv& f, char** stack)
+{
+    const GameFont* const first = reinterpret_cast<GameFont*>(stack[0]);
+    const GameFont* const last = reinterpret_cast<GameFont*>(stack[1]);
+    f.Word(static_cast<uint32_t>(last - first));
+    f.Word(static_cast<uint32_t>(reinterpret_cast<GameFont*>(stack[2]) - first));
+    for (const GameFont* at = first; at < last; ++at)
+        HashFont(f, at);
+}
+
+constexpr int kFontItems = 2 + 3 + 4 + 1 + 3 + 1;
+
+uint32_t DocFontItem(char* window, int which)
+{
+    using RangeFn = GameFont*(__cdecl*)(GameFont*, GameFont*, GameFont*, void*);
+    using FillFn = GameFont*(__cdecl*)(GameFont*, uint32_t, const GameFont*, void*);
+    using DestroyFn = void(__cdecl*)(GameFont*, GameFont*);
+    Fnv f;
+    uint8_t tag = 0;
+    if (which < 2) {
+        GameFont from;
+        MakeFont(&from, 0);
+        GameFont to;
+        if (which == 0) {
+            std::memset(&to, kPattern, sizeof to);
+            f.Byte(CallGameThis<GameFont*>(addr::HTMLFont_Copy, &to, static_cast<const GameFont*>(&from)) == &to);
+        } else {
+            MakeFont(&to, 1);
+            f.Byte(CallGameThis<GameFont*>(addr::HTMLFont_Assign, &to, static_cast<const GameFont*>(&from)) == &to);
+        }
+        HashFont(f, &to);
+        DestroyText(&to.face);
+        DestroyText(&from.face);
+        return f.h;
+    }
+    which -= 2;
+    GameFont from[3];
+    for (int i = 0; i < 3; ++i)
+        MakeFont(&from[i], i + 2);
+    if (which < 3) {
+        // Copied into a patterned range, one into none (only the first copy
+        // is skipped for a null `to`: the next would go to 0x28), and an
+        // empty range.
+        GameFont to[3];
+        std::memset(to, kPattern, sizeof to);
+        GameFont* const end = reinterpret_cast<RangeFn>(addr::HTMLFont_CopyRange)(
+            from, which == 2 ? from : which == 1 ? from + 1 : from + 3, which == 1 ? nullptr : to, &tag);
+        f.Word(which == 1 ? static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(end))
+                          : static_cast<uint32_t>(end - to));
+        if (which == 0)
+            for (GameFont& font : to) {
+                HashFont(f, &font);
+                DestroyText(&font.face);
+            }
+        for (GameFont& font : from)
+            DestroyText(&font.face);
+        return f.h;
+    }
+    which -= 3;
+    if (which < 4) {
+        // 0, 1 and 4 copies into a patterned range, and 1 into none.
+        const uint32_t counts[] = {0, 1, 4, 1};
+        GameFont to[4];
+        std::memset(to, kPattern, sizeof to);
+        GameFont* const end =
+            reinterpret_cast<FillFn>(addr::HTMLFont_FillN)(which == 3 ? nullptr : to, counts[which], &from[1], &tag);
+        f.Word(which == 3 ? static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(end))
+                          : static_cast<uint32_t>(end - to));
+        if (which != 3)
+            for (uint32_t i = 0; i < counts[which]; ++i) {
+                HashFont(f, &to[i]);
+                DestroyText(&to[i].face);
+            }
+        for (GameFont& font : from)
+            DestroyText(&font.face);
+        return f.h;
+    }
+    which -= 4;
+    if (which == 0) {
+        reinterpret_cast<DestroyFn>(addr::HTMLFont_DestroyRange)(from, from + 3);
+        HashObject(f, reinterpret_cast<const char*>(from), sizeof from, nullptr);
+        return f.h;
+    }
+    which -= 1;
+    if (which < 3) {
+        // A stack of the test's own: six pushed (grown on the way), then
+        // grown by hand (three in the middle, two at the end, one at the
+        // front, by variant), then destroyed with its storage checked.
+        char* stack[3] = {};
+        for (int i = 0; i < 6; ++i) {
+            GameFont font;
+            MakeFont(&font, i);
+            CallGameThis<void>(addr::HTMLFontStack_Push, stack, static_cast<const GameFont*>(&font));
+            DestroyText(&font.face);
+            HashFontStack(f, stack);
+        }
+        GameFont* const first = reinterpret_cast<GameFont*>(stack[0]);
+        GameFont* const at = which == 0 ? first + 2 : which == 1 ? reinterpret_cast<GameFont*>(stack[1]) : first;
+        const uint32_t count = which == 0 ? 3 : which == 1 ? 2 : 1;
+        CallGameThis<void>(addr::HTMLFontStack_Grow, stack, at, static_cast<const GameFont*>(&from[0]),
+                           static_cast<void*>(&tag), count, static_cast<uint32_t>(which == 1 ? 1 : 0));
+        HashFontStack(f, stack);
+        Blocks blocks;
+        blocks.Track(stack[0], static_cast<std::size_t>(stack[2] - stack[0]), false);
+        CallGameThis<void>(addr::HTMLFontStack_Destroy, stack);
+        blocks.HashFreed(f);
+        for (GameFont& font : from)
+            DestroyText(&font.face);
+        return f.h;
+    }
+    // The document's pop: three pushed, then five popped.
+    for (GameFont& font : from)
+        DestroyText(&font.face);
+    char* const doc = MakeSlotDocument(window, "", nullptr);
+    for (int i = 0; i < 3; ++i) {
+        GameFont font;
+        MakeFont(&font, i + 1);
+        CallGameThis<void>(addr::HTMLFontStack_Push, doc + 0x15C, static_cast<const GameFont*>(&font));
+        DestroyText(&font.face);
+    }
+    for (int i = 0; i < 5; ++i) {
+        CallGameThis<void>(addr::HTMLDocument_PopFont, doc);
+        HashFont(f, reinterpret_cast<const GameFont*>(doc + 0x130));
+        HashFontStack(f, reinterpret_cast<char**>(doc + 0x15C));
+    }
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+// DOCTYPE pages: parsed, the tree and the version strings (+0x70, +0x84)
+// hashed.
+const char* const kDoctypePages[] = {
+    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"><HTML><BODY>a</BODY></HTML>",
+    "<!doctype html public \"-//IETF//DTD HTML 2.0//EN\"><html><body>b</body></html>",
+    "<!DOCTYPE HTML><HTML><BODY>c</BODY></HTML>",
+    "<!DOCTYPE XHTML PUBLIC \"x\"><HTML><BODY>d</BODY></HTML>",
+    "<!DOCTYPE HTML PUBLIC \"DTD HTML   3.2.1x//\">e",
+    "<!DOCTYPE HTML SYSTEM DTD_HTML_4// \"dtd html 5.0//\"><BODY>f</BODY>",
+    "<!DOCTYPE HTM><HTML>g</HTML>",
+    "<!DOCTYPE HTML DTD HTML//><P>h",
+    "<!DOCTYPE>i",
+    "<!DOCTYPE html PUBLIC 'DTD HTML 3.2 Final//EN' x=\"DTD HTML 9//\"><HTML><BODY>j</BODY></HTML>",
+};
+
+// Slot 9 on its own: `<!DOCTYPE` leaves the attribute map as the tag before
+// left it, and the parser's names stop at a space, so a page never gives it
+// a name with `DTD HTML` in it. Here the map holds names of the test's own
+// (each node as the map's insert makes one: next, name, value), the tag's
+// text after its name is set, and the page after it is a short one.
+struct DoctypeCase {
+    const char* rest;
+    const char* names[2];
+};
+const DoctypeCase kDoctypeCases[] = {
+    {"HTML PUBLIC", {"PUBLIC", "-//W3C//DTD HTML 4.01//EN"}},
+    {"html", {"dtd html 2.0//en", nullptr}},
+    {"HTML", {"DTD HTML 3.2", "DTD HTML 5//X"}},
+    {"HTM", {"DTD HTML 4//EN", nullptr}},
+    {"XHTML 1.0", {"DTD HTML 4//EN", nullptr}},
+    {"HTML", {"NOTHING", "DTD HTMX"}},
+    {"HTML", {"DTD HTML", nullptr}},
+    {"HTML SYSTEM", {"DTD HTML    .5.//ab", "x"}},
+};
+
+constexpr int kDoctypeItems =
+    static_cast<int>(std::size(kDoctypePages)) + static_cast<int>(std::size(kDoctypeCases));
+
+void PutAttribute(char* doc, const char* name)
+{
+    char* const map = doc + 0x114;
+    char* const node = static_cast<char*>(GameAllocate(0x2C));
+    MakeText(reinterpret_cast<GameText*>(node + 0x4), name);
+    MakeText(reinterpret_cast<GameText*>(node + 0x18), "value");
+    const uint32_t bucket =
+        CallGameThis<uint32_t>(addr::HTMLStringHash_Bucket, map, reinterpret_cast<const GameText*>(node + 0x4));
+    char** const buckets = At<char**>(map, 0x4);
+    At<char*>(node, 0x0) = buckets[bucket];
+    buckets[bucket] = node;
+    ++At<uint32_t>(map, 0x10);
+}
+
+uint32_t DoctypeCaseItem(char* window, int which)
+{
+    const DoctypeCase& c = kDoctypeCases[which];
+    char* const doc = MakeSlotDocument(window, "", nullptr);
+    Fnv f;
+    if (At<char**>(doc, 0x11C) == At<char**>(doc, 0x118)) {
+        f.Byte(0xFF);
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    for (const char* name : c.names)
+        if (name)
+            PutAttribute(doc, name);
+    GameText text;
+    MakeText(&text, c.rest);
+    reinterpret_cast<void(__thiscall*)(void*, const GameText*)>(addr::cRZBaseString_Assign)(doc + 0xEC, &text);
+    DestroyText(&text);
+    MakeText(&text, "<HTML><BODY>v</BODY></HTML>");
+    reinterpret_cast<void(__thiscall*)(void*, const GameText*)>(addr::cRZBaseString_Assign)(doc + 0x180, &text);
+    DestroyText(&text);
+    At<uint32_t>(doc, 0x194) = 0;
+    f.Byte(Virtual<uint8_t>(doc, 0x24) & 1);
+    HashDocument(f, doc);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+uint32_t DocDoctypeItem(char* window, int which)
+{
+    if (which >= static_cast<int>(std::size(kDoctypePages)))
+        return DoctypeCaseItem(window, which - static_cast<int>(std::size(kDoctypePages)));
+    char* const doc = MakeSlotDocument(window, "", nullptr);
+    GameText text;
+    MakeText(&text, kDoctypePages[which]);
+    const bool parsed = Virtual<uint8_t>(doc, 0x20, &text) != 0;
+    DestroyText(&text);
+    Fnv f;
+    f.Byte(parsed ? 1 : 0);
+    HashDocument(f, doc);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -2971,9 +3667,9 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[7] = {};
+    uint32_t sectionHash[8] = {};
     const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children",
-                                    "document"};
+                                    "document", "slots"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -3034,14 +3730,30 @@ void DriveNodesDay(const Day& day)
         for (int i = 0; i < kDocPageItems; ++i)
             item(6, at++, [&] { return DocPageItem(window, i); });
     }
+    // h2b1's: the document's slots, its life, the parser's glue, the font
+    // stack, DOCTYPE pages.
+    {
+        int at = 0;
+        for (int i = 0; i < kSlotItems; ++i)
+            item(7, at++, [&] { return DocSlotItem(window, i); });
+        for (int i = 0; i < kLifeItems; ++i)
+            item(7, at++, [&] { return DocLifeItem(window, i); });
+        for (int i = 0; i < kGlueItems; ++i)
+            item(7, at++, [&] { return DocGlueItem(window, i); });
+        for (int i = 0; i < kFontItems; ++i)
+            item(7, at++, [&] { return DocFontItem(window, i); });
+        for (int i = 0; i < kDoctypeItems; ++i)
+            item(7, at++, [&] { return DocDoctypeItem(window, i); });
+    }
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
-               "pages %08X, children %08X, document %08X), %u stand-in calls, %u of %u blocks freed; %s; hash %08X",
+               "pages %08X, children %08X, document %08X, slots %08X), %u stand-in calls, %u of %u blocks freed; %s; "
+               "hash %08X",
                items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
-               sectionHash[6], g_standCalls,
+               sectionHash[6], sectionHash[7], g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)

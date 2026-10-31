@@ -1,4 +1,4 @@
-# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups, the layout (h4 and the layout side of h5) in ui.html.layout and the ui.html.nodes.layout.* groups, and the nodes' paint, hit tests and links (h5b) in the ui.html.nodes.paint.* groups, ui.html.nodes.hit and ui.html.nodes.links, and the nodes' constructors and destructors, colours and character helpers (h5c) in ui.html.nodes.ctors, ui.html.nodes.ctors.text, ui.html.nodes.dtors, ui.html.colors and ui.html.chars, with h5d's in ui.html.nodes.pictures and ui.html.nodes.children; the document's node constructors and destructors outside h5, attribute setters, small tag handlers and tokenizer helpers (h2a) in the ui.html.document.* groups; the rest is not hooked.
+# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups, the layout (h4 and the layout side of h5) in ui.html.layout and the ui.html.nodes.layout.* groups, and the nodes' paint, hit tests and links (h5b) in the ui.html.nodes.paint.* groups, ui.html.nodes.hit and ui.html.nodes.links, and the nodes' constructors and destructors, colours and character helpers (h5c) in ui.html.nodes.ctors, ui.html.nodes.ctors.text, ui.html.nodes.dtors, ui.html.colors and ui.html.chars, with h5d's in ui.html.nodes.pictures and ui.html.nodes.children; the document's node constructors and destructors outside h5, attribute setters, small tag handlers and tokenizer helpers (h2a) and the document's slots, Init, base and destructors, the parser's glue in h2 and the font stack (h2b1) in the ui.html.document.* groups; the rest is not hooked.
 
 [[entry]]
 name = "HTMLDirector::Construct"
@@ -455,7 +455,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* window, void* service, const void* base)"
 expect = "56 8B F1 80 7E 18 00 75"
-source = "Name ours, not hooked. `ret 0xC`. Once per document (flag +0x18): keeps the window (+0x2C) and the Internet service (+0x30, may be null), each with a reference, and the base address (0x00900302); the link colour from 0x00B62494. The HTML window's ShowHTML (0x008FBDE4) calls it before Parse; so does the parser test (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.life. `ret 0xC`. Once per document (flag +0x18): keeps the window (+0x2C) and the Internet service (+0x30, may be null), each with a reference, and the base address (0x00900302); the font record's size (+0x148, the fourth step), the link colour from 0x00B62494 (+0x14C) and the rest of it reset. True either way. The HTML window's ShowHTML (0x008FBDE4) calls it before Parse; so does the parser test (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::ParseFromHTML"
@@ -842,7 +842,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, const void* text, void* parent)"
 expect = "56 6A 58 8B F1 E8 F4 6E"
-source = "Name ours. `ret 8`. A text node (0x58 bytes, 0x00908CA6) of the text in the current font (+0x130) and alignment (+0x158), given to the parent (slot 1). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.glue. `ret 8`. A text node (0x58 bytes, 0x00908CA6) of the text in the current font (+0x130) and alignment (+0x158), given to the parent (slot 1; null when the allocation failed) (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLTagSet::Contains"
@@ -851,7 +851,7 @@ kind = "function"
 convention = "cdecl"
 signature = "bool (uint32_t id, const void* set)"
 expect = "56 8B 74 24 0C 8D 44 24"
-source = "Name ours. Whether a tag ID is in one of the tag sets at 0x00B624B8 to 0x00B62518 (trees made by 0x008FF1B9). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.glue. Whether a tag ID is in one of the tag sets at 0x00B624B8 to 0x00B62518 (trees made by 0x008FF1B9): the set's find (0x0094C8F5) against its header (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::ParseFlow"
@@ -860,7 +860,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, void* parent)"
 expect = "56 57 8B F1 8B BE E8 00"
-source = "Name ours. `ret 4`. The current tag as inline content (0x00907CCA) or a block (0x00907135); false for anything else. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.glue. `ret 4`. The current tag as inline content (0x00907CCA) or a block (0x00907135); false for anything else (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::GetAttribute"
@@ -878,7 +878,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "56 8D B1 5C 01 00 00 8B"
-source = "Name ours. Plain ret. The font record (+0x130) back from the top of the font stack (+0x15C). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.fonts. Plain ret. The font record (+0x130) given the top of the font stack (+0x15C, 0x009002C9), which is then taken off; nothing when it is empty (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::CheckAttributes"
@@ -896,7 +896,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, const int32_t* value)"
 expect = "55 8B EC 8B 41 04 3B 41"
-source = "Name ours. `ret 4`. push_back of a dword vector: the alignment stack (+0x168). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.glue. `ret 4`. push_back of a dword vector, the alignment stack (+0x168): in place when there is room, else the insert when full (0x008FEF8F, one at the end) (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::MakeBullet"
@@ -1247,7 +1247,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, const void* font)"
 expect = "56 57 8B 7C 24 0C 6A FF"
-source = "Name ours. `ret 4`. A font record copied (its face string and the rest). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.fonts. `ret 4`. A font record (0x28 bytes) made a copy of another: its face string (Substring) and the four dwords and two bytes after it (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLFontStack::Grow"
@@ -1256,7 +1256,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* at, const void* font, const void* tag, uint32_t count, bool atEnd)"
 expect = "55 8B EC 51 51 53 56 8B"
-source = "Name ours. `ret 0x14`. The font stack's insert when full. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.fonts. `ret 0x14`. The font stack's insert when full: storage for the size plus the larger of the size and `count` (0x009B3537), the records before `at`, `count` copies of the font, the rest unless at the end, the old storage destroyed (0x00900492) (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDDNode::Construct"
@@ -1463,16 +1463,16 @@ kind = "function"
 convention = "cdecl"
 signature = "void ()"
 expect = "55 8B EC 83 EC 0C 53 56"
-source = "Name ours. Fills the tag sets at 0x00B624B8 to 0x00B62518 once, from the first document's constructor. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.glue. Fills the tag sets at 0x00B624B8 to 0x00B62518 once, from the first document's constructor: 55 IDs put in one by one (0x008FEF47) and 9 sets into others (0x008FF187), in a fixed order (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::SetFontSteps"
 address = 0x008FEEB8
 kind = "function"
 convention = "thiscall"
-signature = "void (void* this, const int32_t* steps, uint32_t count)"
+signature = "uint32_t (void* this, const int32_t* steps, int32_t count)"
 expect = "55 8B EC 51 56 6A 07 58"
-source = "Name ours. `ret 8`. Up to seven font steps into +0x1A8, the fourth into the faces' sizes. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.slots. `ret 8`. Slot 7: at most seven font steps into +0x1A8 (0x00462D10), the fourth into the faces' sizes (+0x54, +0x6C). The window's slot 33 and the document's constructor call it (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLDocument::Vtable"
@@ -2653,9 +2653,9 @@ name = "HTMLDocument::SetBase"
 address = 0x00900302
 kind = "function"
 convention = "thiscall"
-signature = "void (void* this, const void* text)"
+signature = "bool (void* this, const void* text)"
 expect = "56 8B F1 8B 8E B8 00 00"
-source = "Name ours, not hooked. `ret 4`. The document's base address (+0xB8, a new string the first time) given the text. Called by Init (0x009007CA) and BASE (0x0090092D, ours) (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.life. `ret 4`. The document's base address (+0xB8, a new string the first time) given the text, then the window's +0xD8 interface told (slot 19); true. Called by Init (0x009007CA) and BASE (0x0090092D) (docs/html.md, h2)."
 
 [[entry]]
 name = "SC4StringPair::Destroy"
@@ -2674,3 +2674,309 @@ convention = "thiscall"
 signature = "bool (void* this, const void* a, const void* b)"
 expect = "8B 44 24 08 85 C0 74 05"
 source = "Name ours, not hooked. `ret 8`, ECX not read. Whether two game strings (their bodies at +4) hold the same text. Called by the HTML hash maps' find 0x008FEAD9 (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::QueryInterface"
+address = 0x008FE759
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "55 8B EC 83 7D 08 01 74"
+source = "Name ours. Ours in ui.html.document.slots. `ret 8`. Slot 0 of 0x00ACD938: IDs 1 and 0xE0ECA23A give the document, 0x452294AA its part at +4 (null for no document), each with a reference through slot 1; false for anything else (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::AddRef"
+address = 0x008FE79A
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "FF 41 1C 8B 41 1C C3 8B"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 1: the count at +0x1C raised and answered (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::Release"
+address = 0x008FE7A1
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 1C 83 F8 01 75 0A"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 2: the count lowered and answered; at 1 the document deleted (slot 3, 1) and 0 answered (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::QueryInterface4"
+address = 0x009006DA
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "83 E9 04 E9 77 E0 FF FF"
+source = "Name ours. Ours in ui.html.document.slots. `ret 8`. Slot 0 of the part at +4 (0x00ACD928): `this` 4 lower, then a jump to 0x008FE759 (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::AddRef4"
+address = 0x009006E2
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 E9 04 E9 B0 E0 FF FF"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 1 of the part at +4: `this` 4 lower, then a jump to 0x008FE79A (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::Release4"
+address = 0x009006EA
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 E9 04 E9 AF E0 FF FF"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 2 of the part at +4: `this` 4 lower, then a jump to 0x008FE7A1 (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::GetText"
+address = 0x009006B4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "8D 81 80 01 00 00 C3 8B"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 4: the page's text (+0x180) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::GetFontSteps"
+address = 0x008FEE66
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, int32_t* out, int32_t count)"
+expect = "55 8B EC 51 53 8B 5D 0C"
+source = "Name ours. Ours in ui.html.document.slots. `ret 8`. Slot 6: at most seven font steps (+0x1A8, counts compared signed) copied out by 0x00462D10, the rest of `count` zero; the number copied (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::FindAnchor"
+address = 0x008FE89E
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* name)"
+expect = "53 8B 99 CC 00 00 00 56"
+source = "Name ours. Ours in ui.html.document.slots. `ret 4`. Slot 13: the first anchor (+0xC8, A's nodes with a NAME) whose NAME (+0x30) says it is `name` (the string's slot 10 with 1), or null (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::SetFlag29"
+address = 0x009006C0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, bool value)"
+expect = "8A 44 24 04 88 41 29 C2"
+source = "Name ours. Ours in ui.html.document.slots. `ret 4`. Slot 15: the byte at +0x29 (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::Redraw"
+address = 0x008FE6D0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "83 79 2C 00 74 0B 8B 49"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 17: a jump to the window's (+0x2C) slot 92 (0x0099BED1, no arguments); nothing without a window (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::GetActiveColour"
+address = 0x009006CA
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "A1 9C 24 B6 00 C3 A1 98"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 18: the active link colour every document shares (0x00B6249C) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::GetVisitedColour"
+address = 0x009006D0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "A1 98 24 B6 00 C3 8A 41"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 19: the visited link colour (0x00B62498) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::GetBase"
+address = 0x009007A1
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* out)"
+expect = "8B 81 B8 00 00 00 85 C0"
+source = "Name ours. Ours in ui.html.document.slots. `ret 4`. Slot 21: the base address (+0xB8) into `out`; false and `out` emptied when there is none (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::GetProportionalFace"
+address = 0x009006F2
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* out, uint32_t* size)"
+expect = "56 8B F1 8B 4C 24 08 8D"
+source = "Name ours. Ours in ui.html.document.slots. `ret 8`. Slot 22: the proportional face (+0x40, `arial`) and its size (+0x54) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::GetFixedFace"
+address = 0x0090070F
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* out, uint32_t* size)"
+expect = "56 8B F1 8B 4C 24 08 8D"
+source = "Name ours. Ours in ui.html.document.slots. `ret 8`. Slot 23: the fixed face (+0x58, `courier new`) and its size (+0x6C) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseDoctype"
+address = 0x008FFF91
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 34 53 56"
+source = "Name ours. Ours in ui.html.document.slots. Plain ret. Slot 9, `<!DOCTYPE`: false unless the text after the name (+0xEC) starts with HTML; the first attribute whose name holds `DTD HTML` gives the version (+0x70, from one past where it starts: nothing, as the game has it) and, when its fourth and third characters from the end are slashes, its last two (+0x84); then the page parsed (slot 10) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::Destruct"
+address = 0x009005AD
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 80 7E 18 00 C7"
+source = "Name ours. Ours in ui.html.document.life. Plain ret. The document's destructor: both vtables put back, the waiting images released (0x00900357, only after Init), the image map (0x009001FF), the strings and vectors, the attribute map (0x009001E7), the font stack (0x00900492), the lock (+0x34), then a jump to the entity map's destructor (+8, 0x00662B30). The base address is not freed (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::Delete"
+address = 0x009010E1
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 C4 F4 FF FF"
+source = "Name ours. Ours in ui.html.document.life. `ret 4`. Slot 3: 0x009005AD, then operator delete with flag 1 (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLTagSet::InsertAll"
+address = 0x008FF187
+kind = "function"
+convention = "cdecl"
+signature = "void (void* to, const void* from)"
+expect = "55 8B EC 51 51 8B 45 0C"
+source = "Name ours. Ours in ui.html.document.glue. Every ID of one tag set put into another (0x008FEF47), in order (0x0040D4C0). Called by 0x008FF1B9 (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFont::Assign"
+address = 0x009002C9
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* font)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours. Ours in ui.html.document.fonts. `ret 4`. A font record given another's face (cRZBaseString::Assign) and the rest (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFont::CopyRange"
+address = 0x00900278
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* to, void* tag)"
+expect = "56 8B 74 24 10 57 8B 7C"
+source = "Name ours. Ours in ui.html.document.fonts. A range of font records copied (0x008FFE11) to `to`; a null `to` skips the copies; where the copies end (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFont::FillN"
+address = 0x009002A1
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* to, uint32_t count, const void* font, void* tag)"
+expect = "56 8B 74 24 08 57 8B 7C"
+source = "Name ours. Ours in ui.html.document.fonts. `count` copies of one font record at `to` (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFont::DestroyRange"
+address = 0x0090025F
+kind = "function"
+convention = "cdecl"
+signature = "void (void* first, void* last)"
+expect = "56 8B 74 24 08 EB 0A 8B"
+source = "Name ours. Ours in ui.html.document.fonts. A range of font records destroyed: each face (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFontStack::Destroy"
+address = 0x00900492
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 FF 76 04 FF 36"
+source = "Name ours. Ours in ui.html.document.fonts. Plain ret. The font stack's destructor: its records (0x0090025F), then its storage freed. Called by the document's destructor and by the stack's insert (docs/html.md, h2)."
+
+[[entry]]
+name = "SC4::CopyDwords"
+address = 0x00462D10
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* first, const void* last, void* to)"
+expect = "8B 4C 24 08 8B 54 24 04"
+source = "Name ours, not hooked. std::copy of dwords (memmove); where the copy ends. Called by the HTML document's font steps 0x008FEE66 and 0x008FEEB8 (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "SC4IntSet::Find"
+address = 0x0094C8F5
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const int32_t* key)"
+expect = "8B 11 8B 4A 04 85 C9 57"
+source = "Name ours, not hooked. `ret 4`. find of an STLport set of ints: the node, or the header for none. Called by the HTML tag sets' 0x008FEE4A (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "SC4IntSet::Insert"
+address = 0x008FEF47
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, const int32_t* key)"
+expect = "55 8B EC 51 51 FF 75 0C"
+source = "Name ours, not hooked. `ret 8`. insert of an STLport set of ints (0x008FEC39): the node and whether it is new into `result`. Called by the HTML tag sets' filling 0x008FF1B9 and 0x008FF187 (ours) and from elsewhere (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLIntVector::InsertOverflow"
+address = 0x008FEF8F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* at, const int32_t* value, const void* tag, uint32_t count, bool atEnd)"
+expect = "55 8B EC 51 53 56 8B F1"
+source = "Name ours, not hooked. `ret 0x14`. The dword vector's insert when full. Called by 0x008FF7B6 (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLFontStack::Allocate"
+address = 0x009B3537
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t count, const void* hint)"
+expect = "8B 44 24 04 85 C0 74 0F"
+source = "Name ours, not hooked. `ret 8`. Storage for `count` font records (0x28 bytes each). Called by the font stack's insert 0x00900E91 (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ReleaseImages"
+address = 0x00900357
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 80 7E 18 00 0F"
+source = "Name ours, not hooked. Plain ret. The images still waiting for their pictures released and cancelled with the Internet service. Called by the document's destructor (ours) and the window (0x008FBDE4) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageMap::Destroy"
+address = 0x009001FF
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 48 FB FF FF"
+source = "Name ours, not hooked. Plain ret. The image map's destructor (document +0x198). Called by the document's destructor (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLAttributes::Destroy"
+address = 0x009001E7
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 D9 FB FF FF"
+source = "Name ours, not hooked. Plain ret. The attribute map's destructor (document +0x114): cleared (0x008FFDC8), its buckets freed. Called by the document's destructor (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLEntityMap::Destroy"
+address = 0x00662B30
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 04 85 C0"
+source = "Name ours, not hooked. Plain ret. The entity map's destructor (a tree, document +8). The document's destructor (ours) ends with it (docs/html.md, h2)."
