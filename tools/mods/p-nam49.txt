@@ -1,0 +1,5 @@
+# P-nam49: NAM 49 (the last NAM without a DLL), to tell DLL problems from data
+# problems when P-nam fails. Same choices as P-nam otherwise.
+include p-nam
+variant nam:network-addon-mod:version legacy
+drop nam:dll

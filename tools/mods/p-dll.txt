@@ -1,0 +1,17 @@
+# P-dll: the DLL plugins of plans/research/mod-test-list.md (#2-#10), no
+# content. Answers "do the DLLs load and patch cleanly with our hooks on?"
+# Format: scripts/fetch-mods.sh. "st" marks a package that needs a Simtropolis
+# token (it is skipped without one).
+pkg simmaster07:sc4fix
+pkg memo:submenus-dll
+pkg null-45:sc4-resource-loading-hooks
+pkg null-45:startup-performance-optimization-dll
+pkg null-45:query-tool-ui-extensions-dll
+pkg null-45:allow-more-building-styles-dll st
+pkg simmaster07:extra-cheats-dll st
+variant config:sc4-edition:edition Windows-digital
+# Not in sc4pac. Pin the release asset and its sha256 on the first run on
+# TurboToaster, then turn these into "direct" lines:
+#   direct <name> <asset url> <sha256>
+# Bulldoze Extensions (#8): github.com/0xC0000054/sc4-bulldoze-extensions/releases
+# UI Modernization (#10): github.com/Drexel-Macintosh/SimCity4_UI_Modernization

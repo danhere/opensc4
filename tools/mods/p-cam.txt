@@ -1,0 +1,6 @@
+# P-cam: P-content plus the CAM (#15). Its own region. Never with SPAM.
+include p-content
+pkg cam:colossus-addon-mod st
+variant CAM yes
+variant cam:colossus-addon-mod:version current
+variant cam:universal-commercial-cap-fix:cap standard
