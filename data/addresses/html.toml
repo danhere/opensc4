@@ -268,7 +268,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, void* context)"
 expect = "55 8B EC 83 EC 3C 53 56"
-source = "Name ours, not hooked. Slot 3 of 0x00ACE238; `ret 4`. Lays out the rows and their cells with the table's padding and spacing (953 bytes, the largest layout function) (docs/html.md, h5)."
+source = "Name ours. Ours in ui.html.nodes.layout.tables. Slot 3 of 0x00ACE238; `ret 4`. Lays out the rows (+0x4C, 0x00909FF2) in columns (+0x70, 0x1C bytes each) as wide as their cells' narrowest, the width left shared by how much wider each could be; again while a column's narrowest grows; then the rows' heights (+0x7C) and tops (+0x88) and the cells where they go. BORDER, WIDTH, CELLPADDING and CELLSPACING are not read (953 bytes, the largest layout function) (docs/html.md, h5)."
 
 [[entry]]
 name = "HTMLImageNode::DrawImage"
@@ -1972,3 +1972,66 @@ convention = "cdecl"
 signature = "uint32_t (const void* text, uint32_t position)"
 expect = "8B 44 24 04 8B 40 04 56"
 source = "Name ours. The position of the character before `position` of a game string (0x0091073C). Called by ours; still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLRowNode::LayoutCells"
+address = 0x00909FF2
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* layout, void* table, int32_t row, bool placed, bool final)"
+expect = "55 8D 6C 24 9C 81 EC 94"
+source = "Name ours. Ours in ui.html.nodes.layout.tables. `ret 0x14`. A table row's cells (+0x28), each in a copy of the context. Not `placed` (the first pass): each cell's Layout (slot 3), a cell with a fixed width (+0x2C 0, +0x30) between margins at the page's left and that width; the row's height, the column's widest and (fixed width) narrowest taken from the cell's box. `placed`: each cell between its column's left (+0x14) and the next column's, from the row's top (+0x88); with `final` laid out there (0x00909837), else its Layout; the row's height, and a cell wider than its column the column's narrowest; the row's box the union of its cells', laid out (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTableNode::GrowRowHeight"
+address = 0x009097D9
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t row, int32_t height)"
+expect = "8B 41 7C 8B 4C 24 04 8D"
+source = "Name ours. Ours in ui.html.nodes.layout.tables. `ret 8`; keeps EDX, which the rows' layout relies on (ours through a thunk). The row's height (+0x7C) at least `height` (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTableNode::MaxCells"
+address = 0x009097F8
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this)"
+expect = "55 8B EC 51 51 83 65 FC"
+source = "Name ours. Ours in ui.html.nodes.layout.tables. Plain ret. The most cells (TD; +0x28 of each row) of any row (+0x4C): the table's columns (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTableNode::GrowColumnMin"
+address = 0x00909A47
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t column, int32_t width)"
+expect = "8B 44 24 04 6B C0 1C 03"
+source = "Name ours. Ours in ui.html.nodes.layout.tables. `ret 8`. The column's narrowest (+0 of its 0x1C bytes at +0x70) at least `width`, its widest (+4) at least that (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTableNode::GrowColumnMax"
+address = 0x00909A6D
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t column, int32_t width)"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Ours in ui.html.nodes.layout.tables. `ret 8`. The column's widest (+4) at least `width` and at least its narrowest (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTableNode::ColumnWidth"
+address = 0x00909A93
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, int32_t column, int32_t width)"
+expect = "8B 44 24 04 8B 54 24 08"
+source = "Name ours. Ours in ui.html.nodes.layout.tables. `ret 8`. A cell's fixed width into the column: +8 at least it, +0xC at most it; neither is read by the layout (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTableColumns::Resize"
+address = 0x0090A422
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, uint32_t count)"
+expect = "55 8B EC 83 EC 1C 57 6A"
+source = "Name ours. `ret 4`. STLport vector resize of 0x1C-byte elements, new ones zero (0x0090A3DA). Called by ours (the table's columns, +0x70); still the game's (docs/html.md, h5)."

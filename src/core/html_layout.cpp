@@ -19,6 +19,8 @@
 //   ui.html.nodes.layout.images an image's Layout (floats left and right, or
 //                               an item of the line) and its line item
 //   ui.html.nodes.layout.cells  a table cell's Layout and its box
+//   ui.html.nodes.layout.tables a table's Layout (its columns' widths, its
+//                               rows' heights and tops) and its rows' cells
 //
 // The STLport containers' code (the context's list and vectors) and the
 // rectangle helpers stay the game's; ours call them with the same arguments
@@ -969,7 +971,7 @@ bool ImagePlace(char* item, char* ctx)
 }
 
 // ====================================================================================
-// Table cells (the table's own layout, 0x0090A448, is still the game's)
+// Table cells
 
 // The game's 0x00909089 (ret 4): a cell with nothing at +0x2C gets a box of
 // one pixel at the pen if it has none, and at least the width at +0x30.
@@ -1021,6 +1023,286 @@ void LayOutCell(char* node, char* ctx)
     FitCell(node, copy);
     At<uint8_t>(node, kLaidOut) = 1;
     DestroyContext(copy);
+}
+
+// ====================================================================================
+// Tables
+
+// A table (vtable 0x00ACE238): its rows (+0x4C, a vector of TR nodes), its
+// columns (+0x70, a vector of Column, one more than the columns: the last
+// one's x is the table's right), the rows' heights (+0x7C) and tops (+0x88,
+// one more than the rows), vectors of ints. BORDER (+0x28), WIDTH,
+// CELLPADDING (+0x34) and CELLSPACING (+0x3C) are not read by the layout.
+// A row's cells are its TD nodes (+0x28; TH cells are not among them); a
+// cell has a fixed width when +0x2C is 0, the width at +0x30.
+constexpr std::size_t kRows = 0x4C;
+constexpr std::size_t kColumns = 0x70;
+constexpr std::size_t kHeights = 0x7C;
+constexpr std::size_t kTops = 0x88;
+constexpr std::size_t kCells = 0x28;
+
+struct Column {
+    int32_t narrowest;  // the widest of its cells that cannot be narrower
+    int32_t widest;     // the widest of its cells as they came, at least narrowest
+    int32_t fixedMost;  // the most of its fixed widths (not read here)
+    int32_t fixedLeast; // the least of them, from the width between the margins (not read here)
+    int32_t before;     // narrowest when the widths were last shared
+    int32_t x;          // its left, in the page's coordinates
+    int32_t slack;      // widest less narrowest
+};
+static_assert(sizeof(Column) == 0x1C);
+
+Column* Columns(char* table) { return At<Column*>(table, kColumns); }
+
+void LayOutRowCells(char* row, char* ctx, char* table, int32_t index, bool placed, bool final)
+{
+    CallThis<void>(addr::HTMLRowNode_LayoutCells, row, ctx, table, index, static_cast<uint8_t>(placed),
+                   static_cast<uint8_t>(final));
+}
+void GrowRowHeight(char* table, int32_t row, int32_t height)
+{
+    CallThis<void>(addr::HTMLTableNode_GrowRowHeight, table, row, height);
+}
+void GrowColumnMin(char* table, int32_t column, int32_t width)
+{
+    CallThis<void>(addr::HTMLTableNode_GrowColumnMin, table, column, width);
+}
+void GrowColumnMax(char* table, int32_t column, int32_t width)
+{
+    CallThis<void>(addr::HTMLTableNode_GrowColumnMax, table, column, width);
+}
+void ColumnWidth(char* table, int32_t column, int32_t width)
+{
+    CallThis<void>(addr::HTMLTableNode_ColumnWidth, table, column, width);
+}
+
+// The game's 0x009097D9 (ret 8): the row's height at least `height`.
+void GrowRowHeightOf(char* table, int32_t row, int32_t height)
+{
+    int32_t& h = At<int32_t*>(table, kHeights)[row];
+    h = h < height ? height : h;
+}
+
+// The game's 0x009097F8 (plain ret): the most cells of any row.
+int32_t MaxCellsOf(char* table)
+{
+    int32_t most = 0;
+    char** const first = At<char**>(table, kRows);
+    char** const last = At<char**>(table, kRows + 4);
+    for (char** row = first; row != last; ++row) {
+        const int32_t count = static_cast<int32_t>(At<char**>(*row, kCells + 4) - At<char**>(*row, kCells));
+        most = most < count ? count : most;
+    }
+    return most;
+}
+
+// The game's 0x00909A47 (ret 8): the column's narrowest at least `width`,
+// its widest at least that.
+void GrowColumnMinOf(char* table, int32_t column, int32_t width)
+{
+    Column& c = Columns(table)[column];
+    if (c.narrowest < width)
+        c.narrowest = width;
+    c.widest = c.widest < c.narrowest ? c.narrowest : c.widest;
+}
+
+// The game's 0x00909A6D (ret 8): the column's widest at least `width` and
+// at least its narrowest.
+void GrowColumnMaxOf(char* table, int32_t column, int32_t width)
+{
+    Column& c = Columns(table)[column];
+    if (c.widest < width)
+        c.widest = width;
+    c.widest = c.widest < c.narrowest ? c.narrowest : c.widest;
+}
+
+// The game's 0x00909A93 (ret 8): a fixed width into the column's most and
+// least.
+void ColumnWidthOf(char* table, int32_t column, int32_t width)
+{
+    Column& c = Columns(table)[column];
+    c.fixedMost = c.fixedMost < width ? width : c.fixedMost;
+    c.fixedLeast = width < c.fixedLeast ? width : c.fixedLeast;
+}
+
+// The game's 0x00909FF2 (ret 0x14): a row's cells, each in a copy of the
+// context. Not `placed` (the first pass, to measure): each cell's Layout
+// (slot 3) where the pen is, a cell of fixed width between margins at the
+// page's left (the pen there, its line as it is) and that width; its box
+// gives the row's height and the column's widest, and for a fixed width its
+// narrowest. `placed`: each cell between its column's left and the next
+// one's, at the row's top, laid out there (0x00909837) when `final`, else
+// by its Layout; its box gives the row's height, and when wider than the
+// column the column's narrowest; the row's box is its cells' together.
+void LayOutRowCellsOf(char* row, char* ctx, char* table, int32_t index, bool placed, bool final)
+{
+    char** const first = At<char**>(row, kCells);
+    char** const last = At<char**>(row, kCells + 4);
+    alignas(4) char copy[0x68];
+    if (!placed) {
+        int32_t column = 0;
+        for (char** at = first; at != last; ++at) {
+            char* const cell = *at;
+            CopyContext(copy, ctx);
+            if (I(cell, 0x2C) == 0) {
+                const int32_t width = I(cell, 0x30);
+                const int32_t left = I(ctx, kClient) - I(ctx, kView);
+                ColumnWidth(table, column, width);
+                FloatLeft(copy, left, kForever);
+                FloatRight(copy, width + left, kForever);
+                I(copy, kPenX) = left;
+            }
+            NodeLayout(cell, copy);
+            GrowRowHeight(table, index, Box(cell).bottom - Box(cell).top);
+            GrowColumnMax(table, column, Box(cell).right - Box(cell).left);
+            if (I(cell, 0x2C) == 0)
+                GrowColumnMin(table, column, Box(cell).right - Box(cell).left);
+            ++column;
+            DestroyContext(copy);
+        }
+        return;
+    }
+    const int32_t dx = I(ctx, kClient) - I(ctx, kView);
+    const int32_t* const tops = At<int32_t*>(table, kTops);
+    const int32_t dy = I(ctx, kClient + 4) - I(ctx, kView + 4);
+    const int32_t bottom = tops[index + 1] + dy;
+    const int32_t top = tops[index] + dy;
+    At<uint8_t>(row, kBoxSet) = 0;
+    int32_t column = 0;
+    for (char** at = first; at != last; ++at) {
+        char* const cell = *at;
+        const Column* const c = Columns(table) + column;
+        const int32_t left = c[0].x + dx;
+        const int32_t right = c[1].x + dx;
+        CopyContext(copy, ctx);
+        FloatLeft(copy, left, kForever);
+        FloatRight(copy, right, kForever);
+        I(copy, kPenX) = left;
+        I(copy, kPenY) = top;
+        if (final) {
+            const Rect r{left, top, right, bottom};
+            CallThis<void>(addr::HTMLCellNode_LayoutIn, cell, copy, &r);
+        } else {
+            NodeLayout(cell, copy);
+        }
+        GrowRowHeight(table, index, Box(cell).bottom - Box(cell).top);
+        const int32_t width = Box(cell).right - Box(cell).left;
+        if (width > right - left)
+            GrowColumnMin(table, column, width);
+        AddToBox(row, &Box(cell));
+        ++column;
+        DestroyContext(copy);
+    }
+    At<uint8_t>(row, kLaidOut) = 1;
+}
+
+// The game's 0x0090A448 (slot 3 of TABLE, ret 4): the table at the pen. The
+// rows measured (the first pass); each column as wide as its narrowest, the
+// width between the margins left over shared by how much wider each could
+// be (its slack, rounded up, from the first column on); the rows laid out
+// in their columns, and while that made a column's narrowest grow, the
+// widths shared again and the rows again. Then the heights from nothing,
+// the rows once more, their tops, and each row laid out in place with the
+// pen's line at its top; the pen's line ends at the table's bottom, its x
+// as it was. The table's box is the columns' left and right and the rows'
+// top and bottom.
+void LayOutTable(char* table, char* ctx)
+{
+    Flush(ctx, true);
+    char** const firstRow = At<char**>(table, kRows);
+    char** const lastRow = At<char**>(table, kRows + 4);
+    const int32_t rows = static_cast<int32_t>(lastRow - firstRow);
+    const int32_t columns = CallThis<int32_t>(addr::HTMLTableNode_MaxCells, table);
+    const int32_t x0 = I(ctx, kPenX) - I(ctx, kClient) + I(ctx, kView);
+    const int32_t y0 = I(ctx, kPenY) - I(ctx, kClient + 4) + I(ctx, kView + 4);
+    CallThis<void>(addr::SC4Save_F5DB490, table + kHeights, static_cast<uint32_t>(rows));
+    CallThis<void>(addr::SC4Save_F5DB490, table + kTops, static_cast<uint32_t>(rows + 1));
+    CallThis<void>(addr::HTMLTableColumns_Resize, table + kColumns, static_cast<uint32_t>(columns + 1));
+    for (int32_t* h = Begin<int32_t>(table, kHeights); h != End<int32_t>(table, kHeights); ++h)
+        *h = 0;
+    for (int32_t* t = Begin<int32_t>(table, kTops); t != End<int32_t>(table, kTops); ++t)
+        *t = 0;
+    for (int32_t i = 0; i < columns; ++i) {
+        Column& c = Columns(table)[i];
+        c.narrowest = 0;
+        c.widest = 0;
+        c.fixedMost = 0;
+        c.fixedLeast = I(ctx, kRight) - I(ctx, kLeft);
+        c.x = 0;
+    }
+    for (int32_t k = 0; k < rows; ++k)
+        LayOutRowCells(At<char**>(table, kRows)[k], ctx, table, k, false, false);
+    for (;;) {
+        int32_t least = 0;
+        int32_t slack = 0;
+        for (int32_t i = 0; i < columns; ++i) {
+            Column& c = Columns(table)[i];
+            const int32_t s = c.widest - c.narrowest;
+            slack += s;
+            least += c.narrowest;
+            c.slack = s;
+            c.before = c.narrowest;
+        }
+        const int32_t width = I(ctx, kRight) - I(ctx, kLeft);
+        int32_t extra = width - least;
+        if (extra <= 0)
+            extra = 0;
+        int32_t slackLeft = slack;
+        int32_t x = x0;
+        for (int32_t i = 0; i < columns; ++i) {
+            Column& c = Columns(table)[i];
+            int32_t share = 0;
+            if (c.slack != 0) {
+                // imul and lea in 32 bits, then idiv.
+                const int32_t part = static_cast<int32_t>(static_cast<uint32_t>(c.slack) * static_cast<uint32_t>(extra) +
+                                                          static_cast<uint32_t>(slackLeft) - 1u);
+                share = part / slackLeft;
+                slackLeft -= c.slack;
+                extra -= share;
+            }
+            c.x = x;
+            x += c.narrowest + share;
+        }
+        Columns(table)[columns].x = x;
+        int32_t y = y0;
+        int32_t* const tops = At<int32_t*>(table, kTops);
+        int32_t k = 0;
+        for (; k < rows; ++k) {
+            tops[k] = y;
+            y += At<int32_t*>(table, kHeights)[k];
+        }
+        tops[k] = y;
+        if (least > width || slack == 0)
+            break;
+        for (k = 0; k < rows; ++k)
+            LayOutRowCells(At<char**>(table, kRows)[k], ctx, table, k, true, false);
+        int32_t i = 0;
+        while (i < columns && Columns(table)[i].narrowest <= Columns(table)[i].before)
+            ++i;
+        if (i >= columns)
+            break;
+    }
+    for (int32_t* h = Begin<int32_t>(table, kHeights); h != End<int32_t>(table, kHeights); ++h)
+        *h = 0;
+    for (int32_t k = 0; k < rows; ++k)
+        LayOutRowCells(At<char**>(table, kRows)[k], ctx, table, k, true, false);
+    CallThis<void*>(addr::cSC4Advisor_F40E490, table + kTops, Begin<int32_t>(table, kTops),
+                    End<int32_t>(table, kTops));
+    int32_t y = y0;
+    for (int32_t k = 0; k < rows; ++k) {
+        CallThis<void>(addr::SC4PtrVector_PushBack, table + kTops, &y);
+        y += At<int32_t*>(table, kHeights)[k];
+    }
+    CallThis<void>(addr::SC4PtrVector_PushBack, table + kTops, &y);
+    for (int32_t k = 0; k < rows; ++k) {
+        I(ctx, kPenY) = At<int32_t*>(table, kTops)[k] - I(ctx, kView + 4) + I(ctx, kClient + 4);
+        LayOutRowCells(At<char**>(table, kRows)[k], ctx, table, k, true, true);
+    }
+    const int32_t* const tops = At<int32_t*>(table, kTops);
+    I(ctx, kPenY) = tops[rows] - I(ctx, kView + 4) + I(ctx, kClient + 4);
+    At<uint8_t>(table, kBoxSet) = 1;
+    Box(table) = Rect{Columns(table)[0].x, tops[0], Columns(table)[columns].x, tops[rows]};
+    At<uint8_t>(table, kLaidOut) = 1;
 }
 
 // ====================================================================================
@@ -1120,6 +1402,35 @@ OPENSC4_LAYOUT_DETOUR(uint8_t, ImagePlace, 0x0090962B, ImagePlace, (, char* ctx)
 OPENSC4_LAYOUT_DETOUR(void, FitCell, 0x00909089, FitCellOf, (, char* ctx), (, ctx))
 OPENSC4_LAYOUT_DETOUR(void, LayOutCellIn, 0x00909837, LayOutCellIn, (, char* ctx, const Rect* r), (, ctx, r))
 OPENSC4_LAYOUT_DETOUR(void, LayOutCell, 0x0090A34F, LayOutCell, (, char* ctx), (, ctx))
+
+// Tables.
+OPENSC4_LAYOUT_DETOUR(void, LayOutTable, 0x0090A448, LayOutTable, (, char* ctx), (, ctx))
+OPENSC4_LAYOUT_DETOUR(void, LayOutRowCells, 0x00909FF2, LayOutRowCellsOf,
+                      (, char* ctx, char* table, int32_t index, uint8_t placed, uint8_t final),
+                      (, ctx, table, index, placed != 0, final != 0))
+OPENSC4_LAYOUT_DETOUR(void, GrowRowHeight, 0x009097D9, GrowRowHeightOf, (, int32_t row, int32_t height),
+                      (, row, height))
+OPENSC4_LAYOUT_DETOUR(int32_t, MaxCells, 0x009097F8, MaxCellsOf, (), ())
+OPENSC4_LAYOUT_DETOUR(void, GrowColumnMin, 0x00909A47, GrowColumnMinOf, (, int32_t column, int32_t width),
+                      (, column, width))
+OPENSC4_LAYOUT_DETOUR(void, GrowColumnMax, 0x00909A6D, GrowColumnMaxOf, (, int32_t column, int32_t width),
+                      (, column, width))
+OPENSC4_LAYOUT_DETOUR(void, ColumnWidth, 0x00909A93, ColumnWidthOf, (, int32_t column, int32_t width),
+                      (, column, width))
+
+// The game's rows (0x00909FF2) read EDX (the cell's box) after
+// GrowRowHeight: it keeps ECX and EDX.
+__declspec(naked) void GrowRowHeightThunk()
+{
+    __asm push ecx
+    __asm push edx
+    __asm push dword ptr [esp + 0x10]
+    __asm push dword ptr [esp + 0x10]
+    __asm call DGrowRowHeight
+    __asm pop edx
+    __asm pop ecx
+    __asm ret 8
+}
 
 // ====================================================================================
 // Installation
@@ -1229,6 +1540,20 @@ bool InstallCells(registry::Mode)
     return InstallAll("cells", detours);
 }
 
+bool InstallTables(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(LayOutTable, addr::HTMLTableNode_Layout),
+        OPENSC4_D(LayOutRowCells, addr::HTMLRowNode_LayoutCells),
+        {addr::HTMLTableNode_GrowRowHeight, reinterpret_cast<void*>(&GrowRowHeightThunk), Slot(&g_GrowRowHeight)},
+        OPENSC4_D(MaxCells, addr::HTMLTableNode_MaxCells),
+        OPENSC4_D(GrowColumnMin, addr::HTMLTableNode_GrowColumnMin),
+        OPENSC4_D(GrowColumnMax, addr::HTMLTableNode_GrowColumnMax),
+        OPENSC4_D(ColumnWidth, addr::HTMLTableNode_ColumnWidth),
+    };
+    return InstallAll("tables", detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"ui.html.layout", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
                         addr::HTMLLayout_Flush,
@@ -1252,6 +1577,11 @@ const bool g_registered[] = {
     registry::Register({"ui.html.nodes.layout.cells", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
                         addr::HTMLCellNode_Layout,
                         "Our HTML table cells' layout (3 detours; docs/html.md)", false, InstallCells}),
+    registry::Register({"ui.html.nodes.layout.tables", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLTableNode_Layout,
+                        "Our HTML tables' layout: the columns' widths, the rows' heights and tops, each row's "
+                        "cells (7 detours; docs/html.md)",
+                        false, InstallTables}),
 };
 
 } // namespace
