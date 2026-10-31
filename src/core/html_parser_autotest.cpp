@@ -953,6 +953,53 @@ const char* const kLayoutPages[] = {
     "<HTML><BODY><P ALIGN=center>Pneumonoultramicroscopicsilicovolcanoconiosisandthensomemoreletters "
     "short</P><P ALIGN=right>Pneumonoultramicroscopicsilicovolcanoconiosisandthensomemoreletters short</P>"
     "<DIV ALIGN=center>Antidisestablishmentarianismistic</DIV></BODY></HTML>",
+    // Tables (0x0090A448): columns sharing the width left by how much wider
+    // each could be, a short and a long column, more columns than fit
+    // (their narrowest past the width), a table after text in a line.
+    "<HTML><BODY><TABLE><TR><TD>short</TD><TD>a much longer cell whose words go on and on past the width of "
+    "the page at either size</TD></TR><TR><TD>second row, also with some words</TD><TD>x</TD></TR></TABLE>"
+    "words before <TABLE><TR><TD>one</TD><TD>two</TD><TD>three</TD></TR></TABLE>after<TABLE><TR><TD>"
+    "Incomprehensibilities</TD><TD>Counterrevolutionaries</TD><TD>Uncharacteristically</TD><TD>"
+    "Electroencephalograph</TD><TD>Interdisciplinary</TD></TR></TABLE>end</BODY></HTML>",
+    // Nested tables, three deep, beside cells of text; a word longer than
+    // its column (the widths shared again).
+    "<HTML><BODY><TABLE><TR><TD>outer text that wraps a little</TD><TD><TABLE><TR><TD>mid</TD><TD><TABLE>"
+    "<TR><TD>inner one</TD><TD>inner two words</TD></TR><TR><TD>i3</TD></TR></TABLE></TD></TR><TR><TD>"
+    "Supercalifragilisticexpialidocious</TD><TD>m</TD></TR></TABLE></TD><TD>last</TD></TR></TABLE>"
+    "<TABLE><TR><TD>a b c d e f g h i j k l m n o p q r s t u v w x y z</TD><TD>Pseudopseudohypoparathyroidism"
+    "</TD></TR></TABLE></BODY></HTML>",
+    // Cell widths in pixels (narrower and wider than their words, wider
+    // than the page) and in percent; BORDER, CELLPADDING, CELLSPACING and
+    // the table's WIDTH (none read by the layout).
+    "<HTML><BODY><TABLE BORDER=2 CELLPADDING=5 CELLSPACING=3 WIDTH=80%><TR><TD WIDTH=40>forty pixels of "
+    "words</TD><TD WIDTH=120>one hundred and twenty</TD><TD WIDTH=50%>half</TD></TR><TR><TD WIDTH=10>ten"
+    "</TD><TD WIDTH=600>wider than the page</TD><TD>plain</TD></TR></TABLE><TABLE WIDTH=200 BORDER=0>"
+    "<TR><TD WIDTH=30>Thirtypixelsisnotenoughforthis</TD><TD WIDTH=0>zero</TD><TD WIDTH=-4>minus</TD>"
+    "</TR></TABLE></BODY></HTML>",
+    // Rows of 1, 3 and 2 cells, empty cells, TH mixed with TD (TH is not a
+    // cell of the row's), COLSPAN and ROWSPAN (not read), a row of TH only,
+    // a table of no rows, a table of a row of TH only (no columns).
+    "<HTML><BODY><TABLE><TR><TD>one</TD></TR><TR><TD>a</TD><TD></TD><TD>c c c</TD></TR><TR><TD></TD>"
+    "<TD>2</TD></TR><TR><TH>head</TH><TD>d</TD><TH>h2</TH><TD>e</TD></TR><TR><TD COLSPAN=3>spans three"
+    "</TD></TR><TR><TD ROWSPAN=2>two rows</TD><TD>r</TD></TR><TR><TH>only a head</TH></TR></TABLE>x"
+    "<TABLE></TABLE>y<TABLE><TR><TH>no cells</TH></TR></TABLE>z</BODY></HTML>",
+    // Tables beside a left float and a right one, in a centred block, with
+    // images and breaks in cells, VALIGN and NOWRAP, text after on the line.
+    // No list in a cell: with the groups off, a run did not get through
+    // this page with a UL in its last cell (an indent's bottom again,
+    // html_layout.cpp, IndentOf).
+    "<HTML><BODY><IMG SRC=a.png WIDTH=50 HEIGHT=60 ALIGN=left><IMG SRC=b.png WIDTH=40 HEIGHT=90 ALIGN=right>"
+    "<TABLE><TR><TD VALIGN=top>top<BR>two<BR>three</TD><TD VALIGN=bottom><IMG SRC=c.png WIDTH=30 HEIGHT=30>"
+    "</TD><TD NOWRAP>no wrap here</TD></TR></TABLE>beside<CENTER><TABLE><TR><TD>centred table cell</TD><TD>"
+    "<IMG SRC=d.png WIDTH=70 HEIGHT=10 ALIGN=right>float</TD></TR></TABLE></CENTER><TABLE><TR><TD><P>para "
+    "in a cell</P><HR WIDTH=50%><H2>head</H2></TD><TD>listed</TD></TR></TABLE>after</BODY></HTML>",
+    // Fonts of different sizes across a row, a table in a quote (short
+    // words: an indent's bottom stays out of it), many short columns.
+    "<HTML><BODY><TABLE><TR><TD><FONT SIZE=7>big</FONT></TD><TD><FONT SIZE=1>small text in a small font "
+    "that wraps</FONT></TD></TR></TABLE><BLOCKQUOTE><TABLE><TR><TD>in a</TD><TD>quote</TD></TR></TABLE>"
+    "</BLOCKQUOTE><TABLE><TR><TD>1</TD><TD>2</TD><TD>3</TD><TD>4</TD><TD>5</TD><TD>6</TD><TD>7</TD><TD>8</TD>"
+    "<TD>9</TD><TD>10</TD><TD>11</TD><TD>12</TD></TR><TR><TD>a b</TD><TD>c d e</TD><TD>f</TD></TR></TABLE>"
+    "</BODY></HTML>",
 };
 
 // The text page dialog's font steps (SC4UI::TextPageFontSizes).
@@ -1038,6 +1085,21 @@ void HashLayoutNode(Fnv& f, char* ctx, char* node, int depth)
         Trace(" td %X", At<uint32_t>(node, 0x2C));
         Trace(" %X", At<uint32_t>(node, 0x30));
         break;
+    case 0x00ACE238: { // TABLE: its columns (7 words each), the rows'
+                       // heights and tops
+        for (const std::size_t vector : {std::size_t{0x70}, std::size_t{0x7C}, std::size_t{0x88}}) {
+            const uint32_t* first = At<const uint32_t*>(node, vector);
+            const uint32_t* last = At<const uint32_t*>(node, vector + 4);
+            const uint32_t count = first && first <= last ? static_cast<uint32_t>(last - first) : 0;
+            f.Word(count);
+            Trace(vector == 0x70 ? " cols" : (vector == 0x7C ? " heights" : " tops"), 0);
+            for (uint32_t i = 0; i < count && i < 60000; ++i) {
+                f.Word(first[i]);
+                Trace(" %d", first[i]);
+            }
+        }
+        break;
+    }
     default:
         break;
     }
@@ -1139,7 +1201,8 @@ uint32_t g_layoutHash = 2166136261u;
 bool AnyLayoutOurs()
 {
     for (const char* id : {"ui.html.layout", "ui.html.nodes.layout.blocks", "ui.html.nodes.layout.text",
-                           "ui.html.nodes.layout.images", "ui.html.nodes.layout.cells"})
+                           "ui.html.nodes.layout.images", "ui.html.nodes.layout.cells",
+                           "ui.html.nodes.layout.tables"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return AnyOurs();
@@ -1157,6 +1220,13 @@ void DriveLayoutDay(const Day& day)
 
     std::vector<std::string> mine(std::begin(kPages), std::end(kPages));
     mine.insert(mine.end(), std::begin(kLayoutPages), std::end(kLayoutPages));
+    // Cells of every fixed width from 20 to 80 pixels with the same two
+    // words: at one of them the words just fit (a fixed width's margins are
+    // seen only to the pixel).
+    std::string sweep = "<HTML><BODY>";
+    for (int width = 20; width <= 80; ++width)
+        sweep += "<TABLE><TR><TD WIDTH=" + std::to_string(width) + ">ab ab</TD><TD>x</TD></TR></TABLE>";
+    mine.push_back(sweep + "</BODY></HTML>");
     std::size_t own = 0;
     const std::vector<std::string> pages = AllPages(std::move(mine), own);
 
