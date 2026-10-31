@@ -286,7 +286,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "33 C0 89 41 24 89 41 38"
-source = "Class and name ours. The batch an effect keeps at +0x28: its vertex count (+0x24) and index count (+0x38) set to zero."
+source = "Class and name ours (3 instructions, answers 0). The batch an effect keeps at +0x28: its vertex count (+0x24) and index count (+0x38) set to zero. Called by the particle draws 0x005B3DA0 and 0x005B4B90 and the third class's draws (0x005A6EB8, 0x005A78FE). Ours in renderer.effects.batch_clear (src/core/effects_index_batch.h)."
 
 [[entry]]
 name = "SC4IndexBatch::AddQuads"
@@ -295,7 +295,7 @@ kind = "function"
 convention = "thiscall"
 signature = "uint16_t* (void* this, uint32_t quads)"
 expect = "51 53 8B D9 8B 4B 0C 0F"
-source = "Class and name ours. Adds the indices of so many quads (+0xC each) to the batch's count (+0x38), growing its indices (+0x2C to +0x34, 0x00465710) and filling them (the function at +0x3C) when there is no room; answers where they start."
+source = "Class and name ours (48 instructions). Adds the indices of so many quads (+0xC each) to the batch's count (+0x38); when the indices' size (+0x2C to +0x30, the bytes shifted right as a signed word; not the capacity +0x34) is below the count and those, resizes them (0x00465710, SC4Uint16Vector::Resize, with a zero) and, when the batch has one, calls the fill at +0x3C (cdecl: the new start, the old size, the new size); answers where the added indices start. Ours in renderer.effects.batch_add_quads (src/core/effects_index_batch.h)."
 
 [[entry]]
 name = "SC4IndexBatch::AddVertices"
@@ -304,7 +304,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, uint32_t quads)"
 expect = "53 56 8B F1 8B 5E 08 0F"
-source = "Class and name ours. Adds the vertices of so many quads (+8 each, +0x20 bytes each) to the batch's count (+0x24), growing its vertices (+0x14 to +0x1C, 0x004610A0) and filling them (the function at +0x28) when there is no room; answers where they start."
+source = "Class and name ours (43 instructions). Adds the vertices of so many quads (+8 each, +0x20 bytes each) to the batch's count (+0x24); when the vertices' bytes (+0x14 to +0x18; not the capacity +0x1C) are below those of the count and them, resizes them (0x004610A0, SC4ByteVector::Resize2, with a zero byte) and, when the batch has one, calls the fill at +0x28 (cdecl: the new start, the count, the count and those added); answers where the added vertices start. Ours in renderer.effects.batch_add_vertices (src/core/effects_index_batch.h)."
 
 [[entry]]
 name = "SC4IndexBatch::Draw"
