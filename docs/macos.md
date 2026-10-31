@@ -8,12 +8,13 @@ Written 2026-10-26. Nothing here has been started; this page records what a Mac 
 - **Current Macs can't run 32-bit code natively**, and Apple Silicon isn't x86. The only way to run the game there today is Wine (CrossOver, Whisky) with x86 emulation (Rosetta 2).
 - **Mac is not a dev or test machine** ([decisions.md, "Platform roles"](decisions.md#platform-roles), [dev-environment.md](dev-environment.md)). Wine on macOS is never a parity reference.
 
-## Two routes
+## Two routes, and one we ruled out
 
 | Route | What it is | Distance |
 |---|---|---|
 | A. Wine on Mac | The Windows game plus `core.dll`, run in CrossOver or Whisky | Close: untested, but nothing in the design rules it out |
 | B. Native Mac app | Our own 64-bit macOS executable, no original exe | Far: needs exe independence (P9) first |
+| C. Hook the Mac game | `core.dll`'s work as a dylib inside Aspyr's Mac SC4 | Ruled out 2026-10-31: see below |
 
 ## Route A: Wine on Mac
 
@@ -42,6 +43,18 @@ Each step depends on the one before.
 6. **Mac renderer backend.** D3D11 sits behind an internal render interface. Add Metal, or Vulkan and use MoltenVK on Mac (one backend for Linux and Mac).
 7. **Mac toolchain and packaging.** A CMake preset for Apple clang (arm64 and x86_64), an app bundle, code signing and notarization, a way to point at the player's own SC4 data files.
 8. **DLL mods.** Plugin DLLs (NAM's DLL and others) are Windows x86 code and can't load on a native Mac build. They'd need Mac builds by their authors, or our own versions of what they do.
+
+## Route C ruled out: hooking the Mac game
+
+Assessed 2026-10-31. Porting `core.dll` to hook the Mac game (SC4 Deluxe for macOS, Aspyr v1.2.1 build 185949, Steam) would be a second project as big as this one, not an address remap.
+
+- **It's 64-bit.** The Mac build is x86_64, so every pointer is 8 bytes. Our code reads the game's objects by 32-bit offsets: about 14,000 field accesses (`At<T>(self, 0x..)`) and 24,000 vtable calls by byte offset (`Virtual<T>(obj, 0x1C, ...)`). Almost all of them change and would have to be found again one by one.
+- **It uses a different compiler and ABI.** Itanium C++ ABI and System V calls, not MSVC with `__thiscall` / `__fastcall` (616 files). `src/common/abi.h` rejects anything except 32-bit MSVC on purpose. Inlining differs too, so a function we replace on Windows may not exist as its own function on Mac.
+- **It's a different build.** Version 1.2.1 vs Windows 1.1.641, so parity would need its own reference runs. Its float code uses SSE, not x87, so results that match on Windows would not match there.
+- **It draws differently.** Aspyr's build draws through OpenGL, not D3D7, so our D3D11 renderer doesn't apply.
+- **Injection isn't the problem.** Loading a dylib (`DYLD_INSERT_LIBRARIES`, or re-signing the app) and patching `__TEXT` are both doable. The ABI and layout gap is what makes this route too big.
+
+One useful thing about the Mac binary: it isn't stripped (about 49,500 C++ symbols and 1,318 vtables, per the DeSCAi4 project). It could be used to name Windows functions we only know by address.
 
 ## Smallest useful next steps
 
