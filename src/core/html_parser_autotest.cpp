@@ -3151,6 +3151,32 @@ uint32_t DocSlotItem(char* window, int which)
 // base set from none and over one; the destructors.
 constexpr int kLifeItems = 4 + 2 + 3;
 
+// Whether each block was freed, asking the allocator for up to 256 blocks of
+// its size (a small block freed early in a destructor sits under the ones
+// freed after it in the allocator's free list); the blocks handed out are
+// freed again, the last first.
+void HashFreedDeep(Fnv& f, const Blocks& blocks)
+{
+    for (std::size_t i = blocks.blocks.size(); i-- > 0;) {
+        std::vector<void*> again;
+        bool freed = false;
+        for (int n = 0; n < 256 && !freed; ++n) {
+            void* const p = blocks.viaNew[i] ? GameNew(blocks.sizes[i]) : GameAllocate(blocks.sizes[i]);
+            again.push_back(p);
+            freed = p == blocks.blocks[i];
+        }
+        f.Byte(freed ? 1 : 0);
+        ++g_blocksChecked;
+        g_blocksFreed += freed ? 1 : 0;
+        for (std::size_t j = again.size(); j-- > 0;) {
+            if (blocks.viaNew[i])
+                GameDelete(again[j]);
+            else
+                GameFree(again[j]);
+        }
+    }
+}
+
 void HashInit(Fnv& f, char* doc, char* window)
 {
     f.Byte(At<uint8_t>(doc, 0x18));
@@ -3236,7 +3262,7 @@ uint32_t DocLifeItem(char* window, int which)
         f.Byte(At<uint8_t>(doc, 0x18));
         f.Word(At<uint32_t>(doc, 0x1C));
     }
-    blocks.HashFreed(f);
+    HashFreedDeep(f, blocks);
     if (which != 0)
         GameDelete(doc);
     return f.h;
@@ -3544,10 +3570,74 @@ const char* const kDoctypePages[] = {
     "<!DOCTYPE html PUBLIC 'DTD HTML 3.2 Final//EN' x=\"DTD HTML 9//\"><HTML><BODY>j</BODY></HTML>",
 };
 
-constexpr int kDoctypeItems = static_cast<int>(std::size(kDoctypePages));
+// Slot 9 on its own: `<!DOCTYPE` leaves the attribute map as the tag before
+// left it, and the parser's names stop at a space, so a page never gives it
+// a name with `DTD HTML` in it. Here the map holds names of the test's own
+// (each node as the map's insert makes one: next, name, value), the tag's
+// text after its name is set, and the page after it is a short one.
+struct DoctypeCase {
+    const char* rest;
+    const char* names[2];
+};
+const DoctypeCase kDoctypeCases[] = {
+    {"HTML PUBLIC", {"PUBLIC", "-//W3C//DTD HTML 4.01//EN"}},
+    {"html", {"dtd html 2.0//en", nullptr}},
+    {"HTML", {"DTD HTML 3.2", "DTD HTML 5//X"}},
+    {"HTM", {"DTD HTML 4//EN", nullptr}},
+    {"XHTML 1.0", {"DTD HTML 4//EN", nullptr}},
+    {"HTML", {"NOTHING", "DTD HTMX"}},
+    {"HTML", {"DTD HTML", nullptr}},
+    {"HTML SYSTEM", {"DTD HTML    .5.//ab", "x"}},
+};
+
+constexpr int kDoctypeItems =
+    static_cast<int>(std::size(kDoctypePages)) + static_cast<int>(std::size(kDoctypeCases));
+
+void PutAttribute(char* doc, const char* name)
+{
+    char* const map = doc + 0x114;
+    char* const node = static_cast<char*>(GameAllocate(0x2C));
+    MakeText(reinterpret_cast<GameText*>(node + 0x4), name);
+    MakeText(reinterpret_cast<GameText*>(node + 0x18), "value");
+    const uint32_t bucket =
+        CallGameThis<uint32_t>(addr::HTMLStringHash_Bucket, map, reinterpret_cast<const GameText*>(node + 0x4));
+    char** const buckets = At<char**>(map, 0x4);
+    At<char*>(node, 0x0) = buckets[bucket];
+    buckets[bucket] = node;
+    ++At<uint32_t>(map, 0x10);
+}
+
+uint32_t DoctypeCaseItem(char* window, int which)
+{
+    const DoctypeCase& c = kDoctypeCases[which];
+    char* const doc = MakeSlotDocument(window, "", nullptr);
+    Fnv f;
+    if (At<char**>(doc, 0x11C) == At<char**>(doc, 0x118)) {
+        f.Byte(0xFF);
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    for (const char* name : c.names)
+        if (name)
+            PutAttribute(doc, name);
+    GameText text;
+    MakeText(&text, c.rest);
+    reinterpret_cast<void(__thiscall*)(void*, const GameText*)>(addr::cRZBaseString_Assign)(doc + 0xEC, &text);
+    DestroyText(&text);
+    MakeText(&text, "<HTML><BODY>v</BODY></HTML>");
+    reinterpret_cast<void(__thiscall*)(void*, const GameText*)>(addr::cRZBaseString_Assign)(doc + 0x180, &text);
+    DestroyText(&text);
+    At<uint32_t>(doc, 0x194) = 0;
+    f.Byte(Virtual<uint8_t>(doc, 0x24) & 1);
+    HashDocument(f, doc);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
 
 uint32_t DocDoctypeItem(char* window, int which)
 {
+    if (which >= static_cast<int>(std::size(kDoctypePages)))
+        return DoctypeCaseItem(window, which - static_cast<int>(std::size(kDoctypePages)));
     char* const doc = MakeSlotDocument(window, "", nullptr);
     GameText text;
     MakeText(&text, kDoctypePages[which]);
