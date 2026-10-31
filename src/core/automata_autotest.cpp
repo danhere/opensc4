@@ -29918,7 +29918,8 @@ void* __fastcall CrewSoundsMake(CrewObject*, void*, void* occupant, char* text, 
 {
     g_crew.calls.Mix(0x475);
     g_crew.calls.Mix(CrewName(occupant));
-    g_crew.calls.Mix(At<std::uintptr_t>(text, 0) == addr::SC4String_Vtable ? 1u : 0u);
+    // SC4String::FromText leaves the string's first word (its vtable) as the
+    // game's stack held it: not mixed.
     const char* const begin = At<const char*>(text, 4);
     const char* const end = At<const char*>(text, 8);
     g_crew.calls.Mix(static_cast<uint32_t>(end - begin));
