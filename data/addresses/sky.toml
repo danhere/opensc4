@@ -1262,6 +1262,24 @@ expect = "83 EC 28 56 8B F1 8B 8E"
 source = "Name ours. ret 8: value 9 of SC4EffectC::SetValue (value, value + 0xC). Every material's mesh, once for each primitive, gathers its vertices' places into one vector (SC4TripleVector::InsertN); each moved by the effect's place (+0xB4 through +0xC8..+0xE8, times +0xF8, plus +0xEC) and taken along `along`; the point +0x25C put at `at` plus `along` times (the middle of the least and the most less `at` along it, plus +0x278). Ours in renderer.effects.emit_c."
 
 [[entry]]
+name = "SC4EffectC::Draw"
+address = 0x005A6990
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4RenderContext* context)"
+expect = "81 EC 6C 01 00 00 53 55"
+source = "Name ours. ret 4: slot 0x44 of the third effect class. Before the model is blown apart (+0x258 clear), with materials, the model drawn whole: the context's model transform (0x007D3400) from the second block (+0xC8), the first (+0x90) or the second after the first by the bytes +0x8D and +0xC5, then each material set up (0x007D5310) and its mesh drawn (0x007D4A80), +0x18 cleared. Else the batches (+0x230) emptied and each particle's piece (+0x220 by its +0x44) written into its batch (by its byte +0x18) as three vertices, four for a batch of quads, from the description's lists (+0x94, +0xA0, +0xAC, +0xC4) at its age over its life, the colour scaled by +0x1D4..+0x1DC; the box +0x1A0 started at +0x194 and widened; each batch with vertices bound to its texture's word (+0x23C, 0x007D4070) and drawn (0x005EC5D0). Ours in renderer.effects.draw_c (src/core/effects_third.h)."
+
+[[entry]]
+name = "SC4EffectC::DrawBuffered"
+address = 0x005A77F0
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4RenderContext* context)"
+expect = "55 8B EC 6A FF 68 30 0B"
+source = "Name ours. ret 4 (the context not used): slot 0x48 of the third effect class. The count (+0x18) in runs of the dynamic vertex buffer's (+0x1EC) vertices over four: the first batch (+0x230) emptied and given the run's quads, the buffer locked (slot 0x18; none ends the draw), the pieces written as 0x20-byte vertices, unlocked (slot 0x20) and drawn (slot 0x28 with the batch's indices). It never moves on from the list's first node, so every piece written is the first particle's. The arithmetic kept to floats, the colour without the effect's scales, the place turned about y by the description's +0x104. Ours in renderer.effects.draw_c (src/core/effects_third.h)."
+
+[[entry]]
 name = "SC4MeshTriangles::Construct"
 address = 0x0080AE60
 kind = "function"

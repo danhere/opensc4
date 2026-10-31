@@ -915,6 +915,10 @@ struct BCall {
 };
 Call1Fn g_SC4EffectPartB_SetDescription = nullptr;
 bool g_bRecord = false, g_bReplay = false;
+// A dry run: the render context's noted calls (and the batch's draw) are
+// noted but not made (the third class's forced draws, on made-up effects
+// with a made-up context).
+bool g_bDry = false;
 int g_bNested = 0;
 // The memory whose bytes a noted call may change, one piece after another.
 struct BRegion {
@@ -15374,7 +15378,7 @@ uint32_t __fastcall PdBindTextureNoted(char* self, void*, uint32_t texture, uint
     if (!BNoting())
         return g_PdBindTexture(self, nullptr, texture, stage);
     return BCallee(addr::SC4RenderContext_BindTexture, Word(self), Word(&texture), 4,
-                   [&] { return g_PdBindTexture(self, nullptr, texture, stage); });
+                   [&] { return g_bDry ? 0u : g_PdBindTexture(self, nullptr, texture, stage); });
 }
 OPENSC4_THUNK(TPdBindTexture, PdBindTextureNoted, 8)
 
@@ -15384,7 +15388,7 @@ uint32_t __fastcall PdBatchDrawNoted(char* self, void*, uint32_t context)
         return g_PdBatchDraw(self, nullptr, context);
     PlKeepVertices(self, g_bfGameVertices);
     return BCallee(addr::SC4IndexBatch_Draw, Word(self), Word(&context), 4,
-                   [&] { return g_PdBatchDraw(self, nullptr, context); });
+                   [&] { return g_bDry ? 0u : g_PdBatchDraw(self, nullptr, context); });
 }
 OPENSC4_THUNK(TPdBatchDraw, PdBatchDrawNoted, 4)
 
@@ -15513,11 +15517,11 @@ uint32_t __fastcall BfDrawStub(char* object, void*, uint32_t a, uint32_t b, uint
 }
 
 // The comparison of the two base class draws: the notes' engine's with the
-// effect but for its batch, and the vertices handed over.
+// effect but for its batch, and the vertices handed over. `size` is the
+// effect's.
 template <typename Game, typename Ours>
-uint32_t BfCompared(const char* id, char* self, Game&& game, Ours&& ours)
+uint32_t BfComparedSized(const char* id, char* self, std::size_t size, Game&& game, Ours&& ours)
 {
-    const std::size_t size = At<uint32_t>(self, 0) == kEffectTableB ? kEffectSizeB : kEffectSize;
     g_bSelf = nullptr;
     g_bRegions = {{self, 0x28}, {self + 0x68, size - 0x68}};
     g_bThread = GetCurrentThreadId();
@@ -15578,6 +15582,12 @@ uint32_t BfCompared(const char* id, char* self, Game&& game, Ours&& ours)
     compare::Record(id, theirs.empty() && text.empty(), theirs, text);
     SdCount(id);
     return result;
+}
+
+template <typename Game, typename Ours>
+uint32_t BfCompared(const char* id, char* self, Game&& game, Ours&& ours)
+{
+    return BfComparedSized(id, self, At<uint32_t>(self, 0) == kEffectTableB ? kEffectSizeB : kEffectSize, game, ours);
 }
 
 // With OPENSC4_EFFECT_FORCE_DRAWS=1 (compare mode of the two base class
@@ -19233,6 +19243,10 @@ struct EcCase {
     float age, life, place[3], velocity[3];
 };
 
+// The draws' switch (renderer.effects.draw_c, at the end of the file).
+StepMode g_drawCMode = StepMode::Original;
+void EdRun(char* effect, char* materials, bool quads, uint32_t turn);
+
 void EcRun(char* manager, uint32_t turn)
 {
     EcLoad(manager);
@@ -19370,16 +19384,17 @@ void EcRun(char* manager, uint32_t turn)
         both([&](char* e) { At<char*>(e, 0x254) = materials; });
         CallThis<uint32_t>(M<uint32_t>(At<uint32_t>(pair.game, 0) + 0x14), pair.game, 9u, Word(values[1]), 0u);
     }
-    // Put back as made, but for the pieces and the materials (each effect
-    // lets go of its hold).
+    // 3. The draws (renderer.effects.draw_c), on the first.
+    if (g_drawCMode == StepMode::Compare)
+        EdRun(pair.game, materials, quads, turn);
+    // Put back as made, but for the pieces, the batches, the words, the
+    // textures and the materials (each effect lets go of them and its hold).
     for (const auto& [effect, bytes] : {std::pair<char*, const std::vector<char>*>{pair.game, &made},
                                         std::pair<char*, const std::vector<char>*>{pair.ours, &madeOurs}}) {
-        char keep[0xC];
+        char keep[0x38];
         std::memcpy(keep, effect + 0x220, sizeof keep);
-        char* const held = At<char*>(effect, 0x254);
         std::memcpy(effect, bytes->data(), kEffectSizeC);
         std::memcpy(effect + 0x220, keep, sizeof keep);
-        At<char*>(effect, 0x254) = held;
     }
     TcDelete(pair.game);
     TcDelete(pair.ours);
@@ -19433,6 +19448,299 @@ const bool g_registeredEmitC = registry::Register({
     "and clouds\")",
     true,
     InstallEmitC,
+});
+
+// --- The third class's draws -----------------------------------------------------------------------
+//
+// The class's two draws (0x005A6990, slot 0x44; 0x005A77F0, slot 0x48),
+// effects_third.h (renderer.effects.draw_c). No test city makes an effect
+// of the class, so in compare mode they run as the game's and are
+// compared only when forced (OPENSC4_EFFECT_FORCE_THIRD=1, as for the emit
+// and step; EcRun's last part, after the emit has cut the pieces): on the
+// first effect of the pair, its materials kept and their batches made
+// (SetEffectMaterialsC, as SC4EffectC::SetMaterials; kept, with the
+// textures held, for the effect's destructor), a made-up list of five particles (ages, lives,
+// places, a batch each by turn and a piece each, one without a turn) in
+// place of its own, the description's lists of colours (one or three),
+// opacities (one or four), sizes (one or three) and turns (one or two) by
+// turn and its turn about y (+0x104) in one turn of two, colour scales
+// (+0x1D4), a box point (+0x194) and the blocks' bytes (+0x8D, +0xC5) by
+// turn. Each compared as the base class's draws are (BfComparedSized, the
+// game's run noting its calls, ours answered from the notes), dry: the
+// render context is made up and none of its calls (the model transform,
+// the material, the mesh, the texture) nor the batch's draw is made. The
+// first draw: the model whole (+0x258 clear), the pieces (set), the
+// pieces without materials, no particles. The second, with a made-up
+// dynamic vertex buffer of five quads' room (its lock answering memory of
+// its own): five particles' count, thirteen (three runs), none, and five
+// with the lock answering nothing.
+Call1Fn g_SC4EffectC_Draw = nullptr, g_SC4EffectC_DrawBuffered = nullptr;
+Call1Fn g_EdTransform = nullptr, g_EdMesh = nullptr;
+Call2Fn g_EdMaterial = nullptr;
+
+uint32_t __fastcall DrawCByMode(char* self, void*, uint32_t context)
+{
+    if (g_drawCMode != StepMode::Ours)
+        return g_SC4EffectC_Draw(self, nullptr, context);
+    DrawEffectC(self, Ptr(context));
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_Draw, DrawCByMode, 4)
+
+uint32_t __fastcall DrawBufferedCByMode(char* self, void*, uint32_t context)
+{
+    if (g_drawCMode != StepMode::Ours)
+        return g_SC4EffectC_DrawBuffered(self, nullptr, context);
+    DrawEffectCBuffered(self);
+    return 0;
+}
+OPENSC4_THUNK(TSC4EffectC_DrawBuffered, DrawBufferedCByMode, 4)
+
+// The context's model calls, noted in the game's run.
+uint32_t __fastcall EdTransformNoted(char* self, void*, uint32_t transform)
+{
+    if (!BNoting())
+        return g_EdTransform(self, nullptr, transform);
+    alignas(4) char noted[kEcTransform];
+    EcNoteBlock(noted, Ptr(transform), kEcTransform);
+    return BCallee(addr::SC4RenderContext_SetModelTransform, Word(self), Word(noted), kEcTransform,
+                   [&] { return g_bDry ? 0u : g_EdTransform(self, nullptr, transform); });
+}
+OPENSC4_THUNK(TEdTransform, EdTransformNoted, 4)
+
+uint32_t __fastcall EdMaterialNoted(char* self, void*, uint32_t material, uint32_t properties)
+{
+    if (!BNoting())
+        return g_EdMaterial(self, nullptr, material, properties);
+    alignas(4) char noted[4 + kEcProperties];
+    At<uint32_t>(noted, 0) = material;
+    EcNoteBlock(noted + 4, Ptr(properties), kEcProperties);
+    return BCallee(addr::SC4RenderContext_SetMaterial, Word(self), Word(noted), sizeof noted,
+                   [&] { return g_bDry ? 0u : g_EdMaterial(self, nullptr, material, properties); });
+}
+OPENSC4_THUNK(TEdMaterial, EdMaterialNoted, 8)
+
+uint32_t __fastcall EdMeshNoted(char* self, void*, uint32_t mesh)
+{
+    if (!BNoting())
+        return g_EdMesh(self, nullptr, mesh);
+    return BCallee(addr::SC4RenderContext_DrawMesh, Word(self), Word(&mesh), 4,
+                   [&] { return g_bDry ? 0u : g_EdMesh(self, nullptr, mesh); });
+}
+OPENSC4_THUNK(TEdMesh, EdMeshNoted, 4)
+
+// The made-up dynamic vertex buffer: slot 0x14 its room in vertices,
+// slot 0x18 its lock (memory of its own, or nothing), slot 0x20 its unlock
+// and slot 0x28 its draw (neither does anything). The notes' engine swaps
+// in its stubs for slots 0x18 to 0x28 (BSwapRole), as for a real one.
+constexpr uint32_t kEdRoom = 20;
+uint32_t g_edBufferTable[kBSlots] = {};
+uint32_t g_edBuffer[0x10] = {};
+alignas(4) char g_edLocked[0x1000] = {};
+alignas(4) char g_edContext[0x100] = {};
+bool g_edNoLock = false;
+
+uint32_t __fastcall EdRoom(char*, void*, uint32_t)
+{
+    return kEdRoom;
+}
+
+uint32_t __fastcall EdLock(char*, void*, uint32_t, uint32_t count)
+{
+    if (g_edNoLock || count * 0x20 > sizeof g_edLocked)
+        return 0;
+    std::memset(g_edLocked, 0x5A, sizeof g_edLocked);
+    return Word(g_edLocked);
+}
+
+uint32_t __fastcall EdNothing(char*, void*, uint32_t)
+{
+    return 0;
+}
+
+uint32_t __fastcall EdDrawNothing(char*, void*, uint32_t, uint32_t, uint32_t, uint32_t)
+{
+    return 0;
+}
+
+char* EdBuffer()
+{
+    if (!g_edBufferTable[0]) {
+        for (uint32_t& slot : g_edBufferTable)
+            slot = Word(reinterpret_cast<void*>(&EdNothing));
+        g_edBufferTable[0x14 / 4] = Word(reinterpret_cast<void*>(&EdRoom));
+        g_edBufferTable[0x18 / 4] = Word(reinterpret_cast<void*>(&EdLock));
+        g_edBufferTable[0x28 / 4] = Word(reinterpret_cast<void*>(&EdDrawNothing));
+        g_edBuffer[0] = Word(g_edBufferTable);
+    }
+    return reinterpret_cast<char*>(g_edBuffer);
+}
+
+// A node of an effect's list of particles.
+struct EdNode {
+    EdNode* next;
+    EdNode* prev;
+    char* particle;
+};
+
+struct EdParticle {
+    float age, life, place[3], spin;
+};
+
+void EdLink(EdNode* nodes, std::size_t count)
+{
+    for (std::size_t i = 0; i <= count; ++i) {
+        nodes[i].next = &nodes[(i + 1) % (count + 1)];
+        nodes[(i + 1) % (count + 1)].prev = &nodes[i];
+    }
+}
+
+void EdRun(char* effect, char* materials, bool quads, uint32_t turn)
+{
+    const uint32_t pieces =
+        static_cast<uint32_t>((At<char*>(effect, 0x224) - At<char*>(effect, 0x220)) / static_cast<int32_t>(kPieceBytes));
+    if (!materials || !pieces || !g_SC4EffectC_Draw)
+        return;
+    SetEffectMaterialsC(effect, materials);
+    const uint32_t batches = EcBatches(effect);
+    if (!batches)
+        return;
+    // The description's lists, by turn.
+    static const float colours[9] = {1.0f, 0.5f, 0.25f, 0.2f, 0.9f, 0.6f, 0.75f, 0.125f, 1.0f};
+    static const float opacities[4] = {1.0f, 0.75f, 0.3f, 0.0f};
+    static const float sizes[3] = {1.5f, 0.75f, 2.25f};
+    static const float turns[2] = {0.0f, 0.375f};
+    const bool many = turn % 2 == 0;
+    const auto list = [](uint32_t at, const float* begin, std::size_t count) {
+        At<const float*>(g_pcDescription, at) = begin;
+        At<const float*>(g_pcDescription, at + 4) = begin + count;
+    };
+    list(0x94, colours, many ? 9 : 3);
+    list(0xA0, opacities, many ? 4 : 1);
+    list(0xAC, sizes, turn % 3 ? 3 : 1);
+    list(0xC4, many ? turns : turns + 1, many ? 2 : 1);
+    At<float>(g_pcDescription, 0x104) = turn / 2 % 2 ? 0.002f : 0.0f;
+    // The particles and their list.
+    static const EdParticle made[5] = {{0.25f, 2.0f, {1.0f, 2.0f, 3.0f}, 1.0f},
+                                       {1.0f, 4.0f, {-3.0f, 0.5f, 7.0f}, 0.0f},
+                                       {0.0f, 1.5f, {10.0f, -2.0f, 0.25f}, -2.0f},
+                                       {2.9f, 3.0f, {0.0f, 0.0f, 0.0f}, 0.5f},
+                                       {0.6f, 1.2f, {-1.0f, 4.0f, -6.0f}, 1.5f}};
+    alignas(4) static char particles[5][0x48];
+    static EdNode nodes[6];
+    for (uint32_t k = 0; k < 5; ++k) {
+        char* const p = particles[k];
+        std::memset(p, 0, sizeof particles[k]);
+        At<uint8_t>(p, 0) = 1;
+        At<float>(p, 4) = made[k].age;
+        At<float>(p, 8) = made[k].life;
+        std::memcpy(p + 0xC, made[k].place, sizeof made[k].place);
+        At<uint8_t>(p, 0x18) = static_cast<uint8_t>((k + turn) % batches);
+        At<float>(p, 0x30) = made[k].spin;
+        At<uint32_t>(p, 0x44) = (k * 7 + turn) % pieces;
+        nodes[k + 1].particle = p;
+    }
+    EdLink(nodes, 5);
+    char* const list14 = At<char*>(effect, 0x14);
+    char* const buffer = At<char*>(effect, 0x1EC);
+    At<char*>(effect, 0x14) = reinterpret_cast<char*>(nodes);
+    const float scales[3] = {0.9f, 0.75f, 1.0f}, point[3] = {100.5f, 20.25f, -300.0f};
+    std::memcpy(effect + 0x1D4, scales, sizeof scales);
+    std::memcpy(effect + 0x194, point, sizeof point);
+    At<uint8_t>(effect, 0x8D) = turn / 4 % 4 & 1;
+    At<uint8_t>(effect, 0xC5) = turn / 4 % 4 >> 1 & 1;
+    At<uint32_t>(effect, 0x18) = 5;
+    char* const context = g_edContext;
+    const auto draw = [&](const char* id) {
+        BfComparedSized(
+            id, effect, kEffectSizeC, [&] { return g_SC4EffectC_Draw(effect, nullptr, Word(context)); },
+            [&] { DrawEffectC(effect, context); });
+    };
+    const auto buffered = [&](const char* id, uint32_t count) {
+        At<uint32_t>(effect, 0x18) = count;
+        BSwapRole(At<char*>(effect, 0x1EC), kBfBuffer,
+                  {{0x18, reinterpret_cast<uint32_t>(&BfLockStub)},
+                   {0x20, reinterpret_cast<uint32_t>(&BfUnlockStub)},
+                   {0x28, reinterpret_cast<uint32_t>(&BfDrawStub)}});
+        BfComparedSized(
+            id, effect, kEffectSizeC, [&] { return g_SC4EffectC_DrawBuffered(effect, nullptr, Word(context)); },
+            [&] { DrawEffectCBuffered(effect); });
+    };
+    g_bDry = true;
+    At<uint8_t>(effect, 0x258) = 0;
+    draw("effects.draw_c.model");
+    At<uint8_t>(effect, 0x258) = 1;
+    draw("effects.draw_c");
+    At<uint8_t>(effect, 0x258) = 0;
+    At<char*>(effect, 0x254) = nullptr;
+    draw("effects.draw_c");
+    At<char*>(effect, 0x254) = materials;
+    At<uint8_t>(effect, 0x258) = 1;
+    nodes[0].next = nodes[0].prev = &nodes[0];
+    draw("effects.draw_c.empty");
+    EdLink(nodes, 5);
+    At<char*>(effect, 0x1EC) = EdBuffer();
+    buffered("effects.draw_c.buffered", 5);
+    buffered("effects.draw_c.buffered", 13);
+    buffered("effects.draw_c.buffered", 0);
+    g_edNoLock = true;
+    buffered("effects.draw_c.buffered.none", 5);
+    g_edNoLock = false;
+    g_bDry = false;
+    static bool told[6] = {};
+    const uint32_t which = (materials == g_ecReal ? 0 : materials == reinterpret_cast<char*>(&g_ecFakes[0]) ? 1 : 2) * 2 +
+                           (quads ? 1 : 0);
+    if (!told[which]) {
+        told[which] = true;
+        log::Write("water effects: the third class's forced draws: %s by %s, %u pieces, %u batches (kind %u)",
+                   which / 2 ? "made-up materials" : "real model", quads ? "quads" : "triangles", pieces, batches,
+                   At<uint32_t>(At<char*>(effect, 0x230), 8));
+    }
+    At<char*>(effect, 0x14) = list14;
+    At<char*>(effect, 0x1EC) = buffer;
+}
+
+bool InstallDrawC(registry::Mode mode)
+{
+    if (!game::IsBuild641() ||
+        !(Detour(addr::SC4EffectC_Draw, &TSC4EffectC_Draw, &g_SC4EffectC_Draw) &&
+          Detour(addr::SC4EffectC_DrawBuffered, &TSC4EffectC_DrawBuffered, &g_SC4EffectC_DrawBuffered)))
+        return false;
+    if (mode == registry::Mode::Compare) {
+        const char* v = std::getenv("OPENSC4_EFFECT_FORCE_THIRD");
+        if (v && *v == '1') {
+            if (!(PdHookBindTexture() &&
+                  (g_PdBatchDraw || Detour(addr::SC4IndexBatch_Draw, &TPdBatchDraw, &g_PdBatchDraw)) &&
+                  Detour(addr::SC4RenderContext_SetModelTransform, &TEdTransform, &g_EdTransform) &&
+                  Detour(addr::SC4RenderContext_SetMaterial, &TEdMaterial, &g_EdMaterial) &&
+                  Detour(addr::SC4RenderContext_DrawMesh, &TEdMesh, &g_EdMesh)))
+                return false;
+            if (!g_SC4EffectsManager_Draw &&
+                !Detour(addr::SC4EffectsManager_Draw, &TDwManager, &g_SC4EffectsManager_Draw))
+                return false;
+            g_ecForce = true;
+            log::Write("water effects: the third class's draws forced before the manager's draw");
+        }
+    }
+    g_drawCMode = mode == registry::Mode::Compare ? StepMode::Compare : StepMode::Ours;
+    log::Write("water effects: the third class's draws %s",
+               mode == registry::Mode::Compare ? "compared with the game's when forced" : "ours");
+    return true;
+}
+
+const bool g_registeredDrawC = registry::Register({
+    "renderer.effects.draw_c",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectC_Draw,
+    "The third effect class's two draws: the model whole until it is blown apart, then its pieces into the "
+    "batches, a texture each (slot 0x44), or into the dynamic vertex buffer (slot 0x48); no test city makes such "
+    "an effect, so compare mode compares them only when forced, OPENSC4_EFFECT_FORCE_THIRD=1 drawing pairs of new "
+    "effects of the class dry, the game's calls noted and ours answered from the notes (docs/renderer.md, "
+    "\"Water effects, sky and clouds\")",
+    true,
+    InstallDrawC,
 });
 
 } // namespace
