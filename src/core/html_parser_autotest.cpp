@@ -723,7 +723,9 @@ bool AnyOurs()
     for (const char* id : {"ui.html.parser.tokens", "ui.html.parser.names", "ui.html.parser.document",
                            "ui.html.parser.blocks", "ui.html.parser.table", "ui.html.parser.inline",
                            "ui.html.nodes.ctors", "ui.html.nodes.ctors.text", "ui.html.nodes.dtors", "ui.html.colors",
-                           "ui.html.chars", "ui.html.nodes.pictures", "ui.html.nodes.children"})
+                           "ui.html.chars", "ui.html.nodes.pictures", "ui.html.nodes.children",
+                           "ui.html.document.ctors", "ui.html.document.dtors", "ui.html.document.attributes",
+                           "ui.html.document.handlers", "ui.html.document.tokenizer"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -2561,6 +2563,397 @@ int ChildrenItems()
     return kBodyPictureItems + kImagePictureItems + kChildItems + static_cast<int>(std::size(kWidthInputs));
 }
 
+// h2a's items: the document's node constructors and destructors, attribute
+// setters, small handlers and tokenizer helpers (html_document.cpp), each
+// on an object of its own or on pages of the test's own.
+
+// The constructors outside h5 on patterned memory, then slot 0.
+uint32_t DocConstructorItem(int which)
+{
+    struct Ctor {
+        std::uintptr_t fn;
+        uint32_t size;
+    };
+    const Ctor ctors[] = {
+        {addr::HTMLBreakNode_Construct, 0x1C},     {addr::HTMLRuleNode_Construct, 0x2C},
+        {addr::HTMLInputNode_Construct, 0x1C},     {addr::HTMLContainerNode_Construct, 0x28},
+        {addr::HTMLAreaNode_Construct, 0x2C},      {addr::HTMLBlinkNode_Construct, 0x28},
+        {addr::HTMLQuoteNode_Construct, 0x28},     {addr::HTMLDDNode_Construct, 0x28},
+        {addr::HTMLAlignNode_Construct, 0x28},     {addr::HTMLDTNode_Construct, 0x28},
+        {addr::HTMLFormNode_Construct, 0x28},      {addr::HTMLHeadingNode_Construct, 0x2C},
+        {addr::HTMLItemNode_Construct, 0x28},      {addr::HTMLItemBodyNode_Construct, 0x28},
+        {addr::HTMLMapNode_Construct, 0x2C},       {addr::HTMLOptionNode_Construct, 0x28},
+        {addr::HTMLParagraphNode_Construct, 0x28}, {addr::HTMLSelectNode_Construct, 0x28},
+        {addr::HTMLSpanNode_Construct, 0x28},      {addr::HTMLRowNode_Construct, 0x3C},
+        {addr::HTMLHeaderCellNode_Construct, 0x28},
+    };
+    const Ctor& c = ctors[which];
+    char* const object = static_cast<char*>(GameNew(c.size));
+    std::memset(object, kPattern, c.size);
+    char* const result = c.fn == addr::HTMLContainerNode_Construct
+                             ? CallGameThis<char*>(c.fn, object, uint32_t{0x55})
+                             : CallGameThis<char*>(c.fn, object);
+    Fnv f;
+    f.Byte(result == object ? 1 : 0);
+    HashObject(f, object, c.size, nullptr);
+    for (std::size_t at = 0; at + 4 <= c.size; at += 4)
+        if (At<uint32_t>(object, at) == 0xCDCDCDCDu)
+            At<uint32_t>(object, at) = 0;
+    Virtual<char*>(object, 0x0, uint32_t{1});
+    return f.h;
+}
+
+constexpr int kDocConstructorItems = 21;
+
+// The leaves' deleting destructor (BR, HR and INPUT, flags 1 and 0) and TR's
+// destructor and deleting destructor (flags 1 and 0) on a row with cells'
+// storage and children of the test's own.
+uint32_t DocDestructorItem(int which)
+{
+    Fnv f;
+    g_standRecord = Fnv{};
+    Blocks blocks;
+    if (which < 4) {
+        const std::uintptr_t ctors[] = {addr::HTMLBreakNode_Construct, addr::HTMLRuleNode_Construct,
+                                        addr::HTMLInputNode_Construct, addr::HTMLBreakNode_Construct};
+        const uint32_t sizes[] = {0x1C, 0x2C, 0x1C, 0x1C};
+        char* const object = static_cast<char*>(GameNew(sizes[which]));
+        std::memset(object, kPattern, sizes[which]);
+        CallGameThis<char*>(ctors[which], object);
+        const uint32_t flags = which == 3 ? 0u : 1u;
+        f.Byte(Virtual<char*>(object, 0x0, flags) == object ? 1 : 0);
+        if (flags) {
+            blocks.Track(object, sizes[which], true);
+        } else {
+            HashObject(f, object, sizes[which], nullptr);
+            GameDelete(object);
+        }
+        blocks.HashFreed(f);
+        return f.h;
+    }
+    const int way = which - 4;
+    char* const row = static_cast<char*>(GameNew(0x3C));
+    std::memset(row, kPattern, 0x3C);
+    CallGameThis<char*>(addr::HTMLRowNode_Construct, row);
+    const uint32_t storage = blocks.Add(12);
+    uint32_t* const children = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(storage));
+    children[0] = StandAt(29);
+    children[1] = 0;
+    children[2] = StandAt(30);
+    At<uint32_t>(row, 0x1C) = storage;
+    At<uint32_t>(row, 0x20) = storage + 12;
+    At<uint32_t>(row, 0x24) = storage + 12;
+    if (way != 1) {
+        const uint32_t cells = blocks.Add(8);
+        At<uint32_t>(row, 0x28) = cells;
+        At<uint32_t>(row, 0x2C) = cells + 4;
+        At<uint32_t>(row, 0x30) = cells + 8;
+    }
+    if (way == 0)
+        CallGameThis<void>(addr::HTMLRowNode_Destruct, row);
+    else
+        f.Byte(CallGameThis<char*>(addr::HTMLRowNode_Delete, row, uint32_t{way == 1 ? 1u : 0u}) == row ? 1 : 0);
+    f.Word(g_standRecord.h);
+    if (way != 1)
+        HashObject(f, row, 0x3C, &blocks);
+    else
+        blocks.Track(row, 0x3C, true);
+    blocks.HashFreed(f);
+    if (way != 1)
+        GameDelete(row);
+    return f.h;
+}
+
+constexpr int kDocDestructorItems = 7;
+
+// The attribute setters' inputs.
+const char* const kDocColours[] = {"red", "#00ff7f", "", "#", "Teal", "#12345", "nothing", "#ABCDEF"};
+const char* const kDocAligns[] = {"left", "LEFT", "Right", "center", "CENTER ", "top", "Top", "bottom", "middle",
+                                  "MIDDLE", "justify", "", " left", "\xC3\xA9", "absmiddle", "baseline"};
+const char* const kDocStrings[] = {"", "a.html", "Name with spaces", "\xC3\xA9t\xC3\xA9", "nowrap"};
+
+constexpr int kDocBackgroundItems = static_cast<int>(std::size(kDocColours)) * 3;
+constexpr int kDocAlignItems = static_cast<int>(std::size(kDocAligns));
+constexpr int kDocStringItems = static_cast<int>(std::size(kDocStrings));
+
+uint32_t DocAttributeItem(int which)
+{
+    Fnv f;
+    if (which < kDocBackgroundItems) {
+        // BGCOLOR into a TABLE, a TR and a TD.
+        const int kind = which % 3;
+        const std::uintptr_t ctors[] = {addr::HTMLTableNode_Construct, addr::HTMLRowNode_Construct,
+                                        addr::HTMLCellNode_Construct};
+        const uint32_t sizes[] = {0x94, 0x3C, 0x3C};
+        char* const node = static_cast<char*>(GameNew(sizes[kind]));
+        std::memset(node, kPattern, sizes[kind]);
+        CallGameThis<char*>(ctors[kind], node);
+        GameText text;
+        MakeText(&text, kDocColours[which / 3]);
+        CallGameThis<void>(kind == 0 ? addr::HTMLTableNode_SetBackground : addr::HTMLNode_SetBackground, node,
+                           static_cast<const GameText*>(&text));
+        DestroyText(&text);
+        const std::size_t at = kind == 0 ? 0x44 : 0x34;
+        HashWord(f, At<uint32_t>(node, at));
+        f.Byte(At<uint8_t>(node, at + 4));
+        Virtual<char*>(node, 0x0, uint32_t{1});
+        return f.h;
+    }
+    which -= kDocBackgroundItems;
+    if (which < kDocAlignItems) {
+        // Both ALIGN parsers, each on its own copy: the number and the text.
+        for (const std::uintptr_t fn : {addr::HTMLText_ParseAlign, addr::HTMLText_ParseImageAlign}) {
+            GameText text;
+            MakeText(&text, kDocAligns[which]);
+            f.Word(reinterpret_cast<int32_t(__cdecl*)(GameText*)>(fn)(&text));
+            f.Bytes(text.begin, text.end);
+            DestroyText(&text);
+        }
+        return f.h;
+    }
+    which -= kDocAlignItems;
+    GameText text;
+    MakeText(&text, kDocStrings[which]);
+    const GameText* const value = &text;
+    // A's three strings.
+    char* const link = static_cast<char*>(GameNew(0x34));
+    std::memset(link, kPattern, 0x34);
+    CallGameThis<char*>(addr::HTMLLinkNode_Construct, link);
+    CallGameThis<void>(addr::HTMLLinkNode_SetHref, link, value);
+    CallGameThis<void>(addr::HTMLLinkNode_SetAddress, link, value);
+    CallGameThis<void>(addr::HTMLLinkNode_SetName, link, value);
+    for (const uint16_t at : {0x28, 0x2C, 0x30})
+        HashField(f, link, {at, Field::TextPtr});
+    Virtual<char*>(link, 0x0, uint32_t{1});
+    // TD's NOWRAP.
+    char* const cell = static_cast<char*>(GameNew(0x3C));
+    std::memset(cell, kPattern, 0x3C);
+    CallGameThis<char*>(addr::HTMLCellNode_Construct, cell);
+    CallGameThis<void>(addr::HTMLCellNode_SetNoWrap, cell, value);
+    f.Byte(At<uint8_t>(cell, 0x39));
+    f.Bytes(text.begin, text.end);
+    Virtual<char*>(cell, 0x0, uint32_t{1});
+    // MAP's NAME (IMG's ALT is the same function).
+    char* const map = static_cast<char*>(GameNew(0x2C));
+    std::memset(map, kPattern, 0x2C);
+    CallGameThis<char*>(addr::HTMLMapNode_Construct, map);
+    CallGameThis<void>(addr::HTMLMapNode_SetName, map, value);
+    HashField(f, map, {0x28, Field::TextPtr});
+    Virtual<char*>(map, 0x0, uint32_t{1});
+    // META's three.
+    char* const meta = static_cast<char*>(GameNew(0x28));
+    std::memset(meta, kPattern, 0x28);
+    CallGameThis<char*>(addr::HTMLMetaNode_Construct, meta);
+    CallGameThis<void>(addr::HTMLMetaNode_SetName, meta, value);
+    CallGameThis<void>(addr::HTMLMetaNode_SetContent, meta, value);
+    CallGameThis<void>(addr::HTMLMetaNode_SetHttpEquiv, meta, value);
+    for (const uint16_t at : {0x1C, 0x20, 0x24})
+        HashField(f, meta, {at, Field::TextPtr});
+    Virtual<char*>(meta, 0x0, uint32_t{1});
+    DestroyText(&text);
+    return f.h;
+}
+
+constexpr int kDocAttributeItems = kDocBackgroundItems + kDocAlignItems + kDocStringItems;
+
+// The tokenizer's helpers: the hash code, trimming and the tag's name split
+// on strings; the tag table's find and bucket on names; the attribute map
+// of tags read by NextTag, its values taken and left, cleared; spaces
+// skipped at every position of a page.
+const char* const kDocTokenStrings[] = {"",          "IMG SRC=a",   "img",        "  p  ",      "a\tb",
+                                        "td  align=left  ", "\xC3\xA9 x", "br/",  " x",         "x ",
+                                        "\xFF\x80 \xFF", "A\r\nB",   "  ",         "\xE2\x80\x8B x", "TABLE  "};
+const char* const kDocTagNames[] = {"IMG", "img", "TABLE", "TD", "/TD", "NOBR", "!DOCTYPE", "BLINK", "NOSUCH", "",
+                                    "A",   "B",   "ba",    "HTML", "/HTML", "\xC3\xA9"};
+const char* const kDocTags[] = {
+    "<IMG SRC=\"a\" ALT='b c' WIDTH=3 AB=1 BA=2 CA=3 AC=4 X Y=\" y \" Z='' src=low>",
+    "<TD ALIGN=left NOWRAP BGCOLOR=\"#fff\" VALIGN=top WIDTH=\"5%\" ab ba aab aba baa>",
+    "<P>",
+    "<A HREF=x HREF=y NAME=n>",
+};
+const char* const kDocAttributeNames[] = {"SRC", "ALT", "AB", "BA", "CA", "AC", "X", "Y", "Z", "NONE", "src",
+                                          "ALIGN", "NOWRAP", "AAB", "ABA", "BAA", "HREF", "NAME", ""};
+
+constexpr int kDocStringTokenItems = static_cast<int>(std::size(kDocTokenStrings));
+constexpr int kDocTagItems = static_cast<int>(std::size(kDocTagNames));
+constexpr int kDocAttributeMapItems = static_cast<int>(std::size(kDocTags)) * 2;
+
+uint32_t DocTokenItem(int which)
+{
+    Fnv f;
+    if (which < kDocStringTokenItems) {
+        GameText text;
+        MakeText(&text, kDocTokenStrings[which]);
+        f.Word(CallGameThis<uint32_t>(addr::HTMLStringHash_Hash, nullptr, static_cast<const GameText*>(&text)));
+        reinterpret_cast<void(__cdecl*)(GameText*)>(addr::HTMLText_Trim)(&text);
+        f.Bytes(text.begin, text.end);
+        DestroyText(&text);
+        GameText tag;
+        GameText rest;
+        MakeText(&tag, kDocTokenStrings[which]);
+        MakeText(&rest, "left over");
+        reinterpret_cast<void(__cdecl*)(GameText*, GameText*)>(addr::HTMLDocument_SplitTagName)(&tag, &rest);
+        f.Bytes(tag.begin, tag.end);
+        f.Bytes(rest.begin, rest.end);
+        DestroyText(&tag);
+        DestroyText(&rest);
+        return f.h;
+    }
+    which -= kDocStringTokenItems;
+    if (which < kDocTagItems) {
+        GameText name;
+        MakeText(&name, kDocTagNames[which]);
+        char* const table = reinterpret_cast<char*>(addr::HTMLTags_Table);
+        f.Word(CallGameThis<uint32_t>(addr::HTMLStringHash_Bucket, table, static_cast<const GameText*>(&name)));
+        char* const node =
+            CallGameThis<char*>(addr::HTMLTagTable_Find, table, static_cast<const GameText*>(&name));
+        f.Word(node ? At<uint32_t>(node, 0x18) : 0xFFFFFFFFu);
+        DestroyText(&name);
+        return f.h;
+    }
+    which -= kDocTagItems;
+    using NewFn = void*(__cdecl*)(std::size_t);
+    using ThisFn = void*(__thiscall*)(void*);
+    char* const doc = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x1C4));
+    reinterpret_cast<ThisFn>(addr::HTMLDocument_Construct)(doc);
+    Virtual<uint32_t>(doc, 0x4);
+    GameText text;
+    if (which < kDocAttributeMapItems) {
+        // A tag's attributes, each asked for (taken or left by variant),
+        // the map hashed after each, then checked and cleared.
+        MakeText(&text, kDocTags[which / 2]);
+        reinterpret_cast<void(__thiscall*)(void*, const GameText*)>(addr::cRZBaseString_Assign)(doc + 0x180, &text);
+        DestroyText(&text);
+        At<uint32_t>(doc, 0x194) = 0;
+        reinterpret_cast<void(__thiscall*)(void*, uint8_t)>(addr::HTMLDocument_NextTag)(doc, 0);
+        HashAttributes(f, doc);
+        int n = 0;
+        for (const char* name : kDocAttributeNames) {
+            GameText value;
+            MakeText(&value, "was");
+            const uint8_t take = static_cast<uint8_t>((which % 2) ? (n++ % 2) : 1);
+            f.Byte(CallGameThis<uint8_t>(addr::HTMLDocument_GetAttribute, doc, name, &value, take) & 1);
+            f.Bytes(value.begin, value.end);
+            DestroyText(&value);
+            HashAttributes(f, doc);
+        }
+        CallGameThis<void>(addr::HTMLDocument_CheckAttributes, doc, "handler", "tag");
+        // An iterator at no node, erased: nothing happens.
+        CallGameThis<void>(addr::HTMLAttributes_Erase, doc + 0x114, static_cast<char*>(nullptr), doc + 0x114);
+        CallGameThis<void>(addr::HTMLAttributes_Clear, doc + 0x114);
+        HashAttributes(f, doc);
+    } else {
+        // Spaces skipped from every position.
+        MakeText(&text, "  \t\r\n x\f\vy \xC3\xA9  \xE2\x80\x8B z ");
+        reinterpret_cast<void(__thiscall*)(void*, const GameText*)>(addr::cRZBaseString_Assign)(doc + 0x180, &text);
+        const uint32_t n = static_cast<uint32_t>(text.end - text.begin);
+        DestroyText(&text);
+        for (uint32_t i = 0; i <= n; ++i) {
+            At<uint32_t>(doc, 0x194) = i;
+            CallGameThis<void>(addr::HTMLDocument_SkipSpaces, doc);
+            f.Word(At<uint32_t>(doc, 0x194));
+        }
+    }
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+constexpr int kDocTokenItems = kDocStringTokenItems + kDocTagItems + kDocAttributeMapItems + 1;
+
+// The small handlers, as pages: each parsed as the parser test parses it,
+// and the document's base, LINK's and META's nodes and IMG's ALT hashed
+// with the tree.
+const char* const kDocPages[] = {
+    // BR and HR.
+    "<HTML><BODY>a<BR>b<BR CLEAR=all><HR><HR ALIGN=left SIZE=3 WIDTH=50%><HR ALIGN=RIGHT WIDTH=200>"
+    "<HR align=center size=0 width=\"%\"><HR ALIGN=top SIZE=x WIDTH=12%3><HR ALIGN=Middle><HR ALIGN=bottom>"
+    "<HR ALIGN=nowhere SIZE=\"\" WIDTH=\"\"><P>p<BR></P></BODY></HTML>",
+    // INPUT, MAP's AREAs.
+    "<HTML><BODY><FORM><INPUT TYPE=text NAME=a VALUE=b><INPUT></FORM>x<INPUT CHECKED>"
+    "<MAP NAME=m><AREA SHAPE=rect COORDS=\"0,0,1,1\" HREF=a><AREA SHAPE=CIRCLE><AREA SHAPE=poly><AREA SHAPE=default>"
+    "<AREA SHAPE=oval><AREA><AREA SHAPE=\"Rect\" NOHREF></MAP><IMG SRC=a.png USEMAP=#m></BODY></HTML>",
+    // IMG in every form, and in aligned blocks.
+    "<HTML><BODY><IMG SRC=\"a.png\" ALT=\"an image\" WIDTH=10 HEIGHT=20 ALIGN=left><IMG SRC=b.gif ALIGN=RIGHT>"
+    "<IMG SRC=\"\" ALT=><IMG ALT=nosrc WIDTH=3><IMG SRC=c.jpg ALIGN=top WIDTH=x HEIGHT=-5><IMG SRC=d ALIGN=middle>"
+    "<IMG SRC=e ALIGN=bottom><IMG SRC=f ALIGN=center><CENTER><IMG SRC=g></CENTER><DIV ALIGN=right><IMG SRC=h>"
+    "</DIV><A HREF=x><IMG SRC=\"sub/i.png\" ALT=\"\xC3\xA9\"></A></BODY></HTML>",
+    // The head with a base.
+    "<HTML><HEAD><BASE HREF=\"http://example.com/dir/\"><LINK REL=stylesheet HREF=\"s.css\" TITLE=t>"
+    "<LINK REV=made HREF=\"mailto:x\"><LINK TITLE=only><META NAME=a CONTENT=b><META HTTP-EQUIV=refresh CONTENT=\"5\">"
+    "<META NAME=nocontent><META></HEAD><BODY><IMG SRC=\"rel.png\"><A HREF=\"r.html\">r</A></BODY></HTML>",
+    // A base with no HREF, LINK and META with odd values.
+    "<HTML><HEAD><BASE><BASE TARGET=x><LINK HREF=a.css><LINK HREF=\"\" REV=\"\" TITLE=\"\">"
+    "<META CONTENT=c><META CONTENT=\"\" NAME=\"\"></HEAD><BODY><IMG SRC=x.png></BODY></HTML>",
+    // Tables' and cells' attributes.
+    "<HTML><BODY><TABLE BGCOLOR=red><TR BGCOLOR=\"#00ff00\" ALIGN=center><TD BGCOLOR=blue ALIGN=RIGHT NOWRAP>a</TD>"
+    "<TD NOWRAP=nowrap ALIGN=left>b</TD><TD ALIGN=CENTER VALIGN=top>c</TD><TD ALIGN=justify BGCOLOR=\"\">d</TD></TR>"
+    "<TR BGCOLOR=nothing><TD>e</TD></TR></TABLE><A HREF=\"h.html\" NAME=\"n\">l</A><A NAME=only>m</A></BODY></HTML>",
+};
+
+void HashDocLists(Fnv& f, char* doc)
+{
+    HashField(f, doc, {0xB8, Field::TextPtr});
+    char** const metas = At<char**>(doc, 0xAC);
+    for (char** at = metas; at && at < At<char**>(doc, 0xB0); ++at) {
+        f.Byte(0xC1);
+        for (const uint16_t field : {0x1C, 0x20, 0x24})
+            HashField(f, *at, {field, Field::TextPtr});
+    }
+    char** const links = At<char**>(doc, 0xBC);
+    for (char** at = links; at && at < At<char**>(doc, 0xC0); ++at) {
+        f.Byte(0xC2);
+        HashField(f, *at, {0x1C, Field::TextPtr});
+        f.Byte(At<uint8_t>(*at, 0x20));
+        HashField(f, *at, {0x24, Field::TextPtr});
+        HashField(f, *at, {0x28, Field::TextPtr});
+    }
+}
+
+// Every IMG's ALT (+0x28) in the tree.
+void HashAlts(Fnv& f, char* node, int depth)
+{
+    if (!node || depth > 64)
+        return;
+    const uint32_t vtable = At<uint32_t>(node, 0);
+    if (vtable == 0x00ACE188) {
+        f.Byte(0xC3);
+        HashField(f, node, {0x28, Field::TextPtr});
+        return;
+    }
+    const NodeClass* const c = ClassOf(vtable);
+    if (!c || !c->container)
+        return;
+    for (char** at = At<char**>(node, 0x1C); at && at < At<char**>(node, 0x20); ++at)
+        HashAlts(f, *at, depth + 1);
+}
+
+uint32_t DocPageItem(char* window, int which)
+{
+    using NewFn = void*(__cdecl*)(std::size_t);
+    using ThisFn = void*(__thiscall*)(void*);
+    using InitFn = uint8_t(__thiscall*)(void*, void*, void*, const GameText*);
+    char* const doc = static_cast<char*>(reinterpret_cast<NewFn>(addr::SC4_operator_new)(0x1C4));
+    reinterpret_cast<ThisFn>(addr::HTMLDocument_Construct)(doc);
+    Virtual<uint32_t>(doc, 0x4);
+    GameText base;
+    MakeText(&base, which % 2 ? "http://maxis.com/a/b.html" : "");
+    reinterpret_cast<InitFn>(addr::HTMLDocument_Init)(doc, window, &g_service, &base);
+    DestroyText(&base);
+    GameText text;
+    MakeText(&text, kDocPages[which / 2]);
+    const bool parsed = Virtual<uint8_t>(doc, 0x20, &text) != 0;
+    DestroyText(&text);
+    Fnv f;
+    f.Byte(parsed ? 1 : 0);
+    HashDocument(f, doc);
+    HashDocLists(f, doc);
+    HashAlts(f, At<char*>(doc, 0x14), 0);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+constexpr int kDocPageItems = static_cast<int>(std::size(kDocPages)) * 2;
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -2578,8 +2971,9 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[6] = {};
-    const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children"};
+    uint32_t sectionHash[7] = {};
+    const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children",
+                                    "document"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -2625,14 +3019,29 @@ void DriveNodesDay(const Day& day)
         });
     for (int i = 0; i < ChildrenItems(); ++i)
         item(5, i, [&] { return ChildrenItem(i); });
+    // h2a's: constructors, destructors, attributes, the tokenizer's helpers,
+    // the handlers' pages.
+    {
+        int at = 0;
+        for (int i = 0; i < kDocConstructorItems; ++i)
+            item(6, at++, [&] { return DocConstructorItem(i); });
+        for (int i = 0; i < kDocDestructorItems; ++i)
+            item(6, at++, [&] { return DocDestructorItem(i); });
+        for (int i = 0; i < kDocAttributeItems; ++i)
+            item(6, at++, [&] { return DocAttributeItem(i); });
+        for (int i = 0; i < kDocTokenItems; ++i)
+            item(6, at++, [&] { return DocTokenItem(i); });
+        for (int i = 0; i < kDocPageItems; ++i)
+            item(6, at++, [&] { return DocPageItem(window, i); });
+    }
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
-               "pages %08X, children %08X), %u stand-in calls, %u of %u blocks freed; %s; hash %08X",
+               "pages %08X, children %08X, document %08X), %u stand-in calls, %u of %u blocks freed; %s; hash %08X",
                items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
-               g_standCalls,
+               sectionHash[6], g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)
