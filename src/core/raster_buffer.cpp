@@ -3,27 +3,33 @@
 // draw into (vtable 0x00AC1550, docs/ui-scaling.md, "Panels get tiles of
 // their own"), made by the factory's MakeContextBuffer 0x0082B980 together
 // with a drawing context. It keeps a plain buffer of its own (+0x14, the
-// pixels) and the context (+0x10) that draws into it. Every method of it
-// that ran, all detours here, off by default:
+// pixels) and the context (+0x10) that draws into it. Its methods, all
+// detours here, off by default:
 //
 //   renderer.raster.buffer  the constructor 0x0082B780 and destructor
 //                           0x0082B7D0; the cIGZBuffer's QueryInterface,
 //                           Lock and Unlock (slots 6, 7), IsLocked (8), the
 //                           sizes and the rectangle (9 to 11), the formats
-//                           (14 to 16), FillRect (20), the colour key (23,
-//                           26, 27), Blt (29), a colour's pixel value and a
-//                           pixel's colour (30, 31) and the cache (37, 38);
-//                           the side interface's (+0x0C, vtable 0x00AC1510,
-//                           interface 0xAB300B2B) GetContext, LockContext,
-//                           UnlockContext, SetContext and UseColourOf (slots
-//                           4 to 7 and 9); and the pixel-to-colour helper
-//                           0x0082ABF0; 27 detours
+//                           (14 to 16), FillClip (18), FillSides (19),
+//                           FillRect (20), GetPixel and SetPixel (21, 22),
+//                           the colour key (23, 26, 27), IsKeyAt (25),
+//                           DrawLine (28), Blt (29), a colour's pixel value
+//                           and a pixel's colour (30, 31) and the cache
+//                           (37, 38); the side interface's (+0x0C, vtable
+//                           0x00AC1510, interface 0xAB300B2B) GetContext,
+//                           LockContext, UnlockContext, SetContext, Retarget
+//                           and UseColourOf (slots 4 to 9); and the
+//                           pixel-to-colour helper 0x0082ABF0; 34 detours
+//
+// Slots 18, 19, 21, 22, 25 and 28 and the side's 8 never ran in the game's
+// runs; the autotest is what reaches them. Slot 19 (0x0082B2F0) is also
+// slot 19 of the plain buffer (0x00AC1400) and of 0x00ADB464's class, so
+// theirs is ours too with the group on (it calls its own slot 20).
 //
 // Left the game's: AddRef and Release and the other slots shared with other
 // classes (slots 1 to 5, 12, 13, 17, 24, 32 to 36 and 39 of 0x00AC1550; 1
 // and 2 of the side's), the counted base's methods (+0x04, vtable
-// 0x00AC1538) and the slots that never ran (18, 19, 21, 22, 25, 28; the
-// side's 0, 3 and 8).
+// 0x00AC1538) and the side's 0 and 3, which never ran.
 //
 // The plain buffer is reached through its vtable (0x00AC1400 in the game):
 // 0 QueryInterface, 1 AddRef, 2 Release, 12 its rectangle, 15 the format
@@ -37,6 +43,10 @@
 // UnlockContext, and SetContext, whose last call is the context's SetTarget
 // with EAX the width), a few instructions are assembly, the game's own, in
 // front of a body here or the whole method.
+//
+// DrawLine's integers become floats on the x87 under the game's 53-bit
+// precision control; its sums are worked out in doubles here and rounded to
+// float once, which is what the x87 gives.
 //
 // No compare mode: the results are calls on the context and the plain
 // buffer. The autotest (raster_autotest.cpp, "The buffer") drives every
@@ -53,6 +63,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 namespace opensc4::raster {
 namespace {
@@ -114,6 +125,9 @@ enum BufferSlot {
     kRectOf = 12,
     kFormat = 15,
     kPixelBytes = 17,
+    kOwnFillRect = 20,
+    kGetPixel = 21,
+    kGetColourKey = 26,
 };
 
 // The context's slots used here.
@@ -121,16 +135,22 @@ enum ContextSlot {
     kPushTransform = 3,
     kClipTo = 5,
     kPopTransform = 9,
+    kGetOrigin = 14,
     kHasTarget = 16,
     kSetTarget = 17,
     kSetColour = 20,
     kSetForeColour = 21,
+    kSetPenWidth = 25,
+    kFillClip = 32,
+    kPlot = 33,
+    kFrameRect = 34,
     kFillRect = 35,
     kBlt = 38,
     kSlot40 = 40,
     kIsBatching = 41,
     kBeginBatch = 42,
     kEndBatch = 43,
+    kDraw = 44,
     kGetSurface = 46,
 };
 
@@ -399,6 +419,145 @@ uint32_t __fastcall Blt(ContextBuffer* b, void*, void* source, const Rect* from,
     return WithAl(Call<uint32_t>(b->context, kSlot40), 1);
 }
 
+// Slot 18, 0x0082B330 (ret 8): the context's clip filled with a pixel
+// value (its FillClip), inside clip when one is given. AL 1 over the
+// context's slot 40's answer.
+uint32_t __fastcall FillClip(ContextBuffer* b, void*, uint32_t pixel, const Rect* clip)
+{
+    Call<uint32_t>(b->context, kPushTransform);
+    if (clip)
+        Call<uint32_t>(b->context, kClipTo, clip);
+    Call<uint32_t>(b->context, kSetColour, uint32_t{0}, ToArgb(b, nullptr, pixel));
+    Call<uint32_t>(b->context, kFillClip);
+    Call<uint32_t>(b->context, kPopTransform);
+    return WithAl(Call<uint32_t>(b->context, kSlot40), 1);
+}
+
+// Slot 19, 0x0082B2F0 (ret 0x18): FillRect (its own slot 20) by the
+// rectangle's four sides; answers its answer. Shared with the plain buffer.
+uint32_t __fastcall FillSides(void* self, void*, uint32_t pixel, int32_t left, int32_t top, int32_t right,
+                              int32_t bottom, const Rect* clip)
+{
+    const Rect r{left, top, right, bottom};
+    return Call<uint32_t>(self, kOwnFillRect, pixel, &r, clip);
+}
+
+// Slot 21, 0x0082B390 (ret 8): the pixel value at x, y of the context's
+// surface (its slot 46, whole), by its bytes a pixel (1 to 4; three bytes
+// low first); 0 for any other or when the surface is not given.
+uint32_t __fastcall GetPixel(ContextBuffer* b, void*, int32_t x, int32_t y)
+{
+    uint32_t surface[6];
+    if (static_cast<uint8_t>(Call<uint32_t>(b->context, kGetSurface, surface, uint32_t{1})) == 0)
+        return 0;
+    const uintptr_t row = surface[1] * static_cast<uint32_t>(y) + surface[0];
+    const uint32_t at = static_cast<uint32_t>(x);
+    const uint8_t* const p = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(row + at * surface[5]));
+    switch (surface[5]) {
+    case 1:
+        return p[0];
+    case 2: {
+        uint16_t v;
+        std::memcpy(&v, p, sizeof v);
+        return v;
+    }
+    case 3:
+        return uint32_t{p[2]} << 16 | uint32_t{p[1]} << 8 | p[0];
+    case 4: {
+        uint32_t v;
+        std::memcpy(&v, p, sizeof v);
+        return v;
+    }
+    default:
+        return 0;
+    }
+}
+
+// Slot 22, 0x0082B460 (ret 0xC): the context's slot 33 at x, y in the
+// pixel value's colour. Answers the context's slot 40's answer.
+uint32_t __fastcall SetPixel(ContextBuffer* b, void*, int32_t x, int32_t y, uint32_t pixel)
+{
+    Call<uint32_t>(b->context, kSetColour, uint32_t{0}, ToArgb(b, nullptr, pixel));
+    Call<uint32_t>(b->context, kPlot, x, y);
+    return Call<uint32_t>(b->context, kSlot40);
+}
+
+// 0x00825C90 (the format in EAX): the bits of a pixel value that a colour
+// key compares, by the format.
+uint32_t KeyMask(uint32_t format)
+{
+    switch (format) {
+    case 4:
+    case 6:
+        return 0x7FFF;
+    case 5:
+        return 0xFFFF;
+    case 7:
+        return 0xFFF;
+    case 8:
+    case 9:
+        return 0xFFFFFF;
+    default:
+        return 0xFFFFFFFF;
+    }
+}
+
+// Slot 25, 0x0082B4C0 (ret 8): whether the pixel at x, y moved by the
+// context's origin (its slot 14) is the plain buffer's colour key (its
+// slot 26) in the bits the surface's format (+0x40) compares; 0 without a
+// key or outside the surface's width and height (unsigned). The pixel is
+// read through its own slot 21. Answers 1 or 0.
+uint32_t __fastcall IsKeyAt(ContextBuffer* b, void*, int32_t x, int32_t y)
+{
+    int32_t origin[2];
+    Call<uint32_t>(b->context, kGetOrigin, origin);
+    const uint32_t atX = static_cast<uint32_t>(x) + static_cast<uint32_t>(origin[0]);
+    const uint32_t atY = static_cast<uint32_t>(y) + static_cast<uint32_t>(origin[1]);
+    uint32_t key;
+    if (static_cast<uint8_t>(Call<uint32_t>(b->inner, kGetColourKey, &key)) == 0 || atX >= b->surface[2] ||
+        atY >= b->surface[3])
+        return 0;
+    const uint32_t mask = KeyMask(b->surface[4]);
+    const uint32_t pixel = Call<uint32_t>(b, kGetPixel, atX, atY);
+    return ((pixel ^ key) & mask) == 0 ? 1 : 0;
+}
+
+// The game's integer difference's size: CDQ, XOR, SUB (the lowest stays
+// negative).
+int32_t Size(int32_t from, int32_t to)
+{
+    const uint32_t d = static_cast<uint32_t>(to) - static_cast<uint32_t>(from);
+    const uint32_t sign = static_cast<int32_t>(d) < 0 ? 0xFFFFFFFFu : 0;
+    return static_cast<int32_t>((d ^ sign) - sign);
+}
+
+// Slot 28, 0x0082B560 (ret 0x18): a line in the pixel value's colour, the
+// pen the width (unsigned, as a float). At most 1 wide it is the context's
+// slot 34 with the four ends; wider, the ends as floats moved by half of
+// one less than the width, across the line (y when it is at least as wide
+// as it is tall, else x), go to the context's Draw (kind 1, 2 points). AL
+// 1 over the context's slot 40's answer.
+uint32_t __fastcall DrawLine(ContextBuffer* b, void*, int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel,
+                             uint32_t width)
+{
+    Call<uint32_t>(b->context, kPushTransform);
+    Call<uint32_t>(b->context, kSetColour, uint32_t{0}, ToArgb(b, nullptr, pixel));
+    Call<uint32_t>(b->context, kSetPenWidth, static_cast<float>(static_cast<double>(width)));
+    if (width <= 1) {
+        Call<uint32_t>(b->context, kFrameRect, x0, y0, x1, y1);
+    } else {
+        float points[4] = {static_cast<float>(x0), static_cast<float>(y0), static_cast<float>(x1),
+                           static_cast<float>(y1)};
+        const double half = static_cast<double>(width - 1) * 0.5;
+        const int first = Size(x0, x1) >= Size(y0, y1) ? 1 : 0;
+        points[first] = static_cast<float>(points[first] + half);
+        points[first + 2] = static_cast<float>(points[first + 2] + half);
+        Call<uint32_t>(b->context, kDraw, uint32_t{1}, static_cast<const float*>(points), uint32_t{2});
+    }
+    Call<uint32_t>(b->context, kPopTransform);
+    return WithAl(Call<uint32_t>(b->context, kSlot40), 1);
+}
+
 // ====================================================================================
 // The plain buffer's own: the game's jumps, so its answers (which can be
 // the EAX they were reached with: the plain buffer's vtable) go back.
@@ -526,6 +685,18 @@ __declspec(naked) void SetContext()
     __asm ret 8
 }
 
+// Slot 8, 0x0082B030: the plain buffer's rectangle again, the context
+// pointed at nothing and then back at the plain buffer, and its batch
+// begun (the game's tail jump). Answers BeginBatch's answer.
+uint32_t __fastcall Retarget(void* side, void*)
+{
+    ContextBuffer* const b = FromSide(side);
+    b->rect = *Call<const Rect*>(b->inner, kRectOf);
+    Call<uint32_t>(b->context, kSetTarget, static_cast<void*>(nullptr));
+    Call<uint32_t>(b->context, kSetTarget, b->inner);
+    return Call<uint32_t>(b->context, kBeginBatch);
+}
+
 // Slot 9 (ret 4): the context's fore colour from a source that has a
 // colour (interface 0x86D72B57, its slot 4 the red, green, blue and alpha
 // bytes), else 0xFFFFFFFF. Answers the context's answer, or with the
@@ -580,7 +751,13 @@ bool Install(registry::Mode)
         {addr::GZContextBuffer_ToArgb, reinterpret_cast<void*>(&ToArgb)},
         {addr::GZContextBuffer_PixelOf, reinterpret_cast<void*>(&PixelOf)},
         {addr::GZContextBuffer_ColourOf, reinterpret_cast<void*>(&ColourOf)},
+        {addr::GZContextBuffer_FillClip, reinterpret_cast<void*>(&FillClip)},
+        {addr::GZContextBuffer_FillSides, reinterpret_cast<void*>(&FillSides)},
         {addr::GZContextBuffer_FillRect, reinterpret_cast<void*>(&FillRect)},
+        {addr::GZContextBuffer_GetPixel, reinterpret_cast<void*>(&GetPixel)},
+        {addr::GZContextBuffer_SetPixel, reinterpret_cast<void*>(&SetPixel)},
+        {addr::GZContextBuffer_IsKeyAt, reinterpret_cast<void*>(&IsKeyAt)},
+        {addr::GZContextBuffer_DrawLine, reinterpret_cast<void*>(&DrawLine)},
         {addr::GZContextBuffer_Blt, reinterpret_cast<void*>(&Blt)},
         {addr::GZContextBuffer_SetColourKey, reinterpret_cast<void*>(&SetColourKey)},
         {addr::GZContextBuffer_GetColourKey, reinterpret_cast<void*>(&GetColourKey)},
@@ -591,6 +768,7 @@ bool Install(registry::Mode)
         {addr::GZContextBuffer_LockContext, reinterpret_cast<void*>(&LockContext)},
         {addr::GZContextBuffer_UnlockContext, reinterpret_cast<void*>(&UnlockContext)},
         {addr::GZContextBuffer_SetContext, reinterpret_cast<void*>(&SetContext)},
+        {addr::GZContextBuffer_Retarget, reinterpret_cast<void*>(&Retarget)},
         {addr::GZContextBuffer_UseColourOf, reinterpret_cast<void*>(&UseColourOf)},
     };
     for (const Detour& d : detours) {
@@ -607,8 +785,8 @@ const bool g_registered = registry::Register(
     {"renderer.raster.buffer", "renderer/raster", registry::Kind::Detour, registry::Phase::Attach,
      addr::GZContextBuffer_GZContextBuffer,
      "Our buffer with a drawing context of the software rasterizer (vtable 0x00AC1550, the panels' buffer): its "
-     "constructor and destructor, QueryInterface, the lock, sizes, formats and colours, FillRect, Blt, the colour "
-     "key and cache, and the side interface's context methods (27 detours; docs/renderer.md)",
+     "constructor and destructor, QueryInterface, the lock, sizes, formats and colours, the fills, pixels and lines, "
+     "Blt, the colour key and cache, and the side interface's context methods (34 detours; docs/renderer.md)",
      false, Install});
 
 } // namespace

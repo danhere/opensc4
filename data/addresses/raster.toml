@@ -21,7 +21,7 @@ name = "GZRasterizerFactory::vftable"
 address = 0x00AC1668
 kind = "vtable"
 expect = "90 B8 82 00 30 0C 80 00"
-source = "Name ours. The rasterizer factory (interface 0x4B2EA3B3; the system service of class 0xEB2EA3CB, priority 1500000, that a drawing context asks for in SetTarget; docs/renderer.md, \"The software rasterizer\"): 0x34 bytes, constructor 0x0082BBF0. +0x04 the system service base (vtable 0x00AC1694), +0x08 a third table (0x00AC1650), +0x20 the rasterizer makers (a std::list, held), +0x24 the tracked objects (a std::list, not held), +0x28 the tick count, +0x2C an RZCriticalSection. 11 slots: 0 QueryInterface 0x0082B890, 1 and 2 AddRef and Release (shared thunks to the service part's), 3 AddMaker 0x0082BD30 (never ran), 4 MakeRasterizer 0x0082BAB0, 5 MakeContextBuffer 0x0082B980, 6 Track 0x0082BD90, 7 Untrack 0x0082BAF0, 8 ReleaseIdle 0x0082BB40, 9 ReleaseAll 0x0082BBB0 (never ran), 10 the tick count 0x0060FB80 (shared). Ours in renderer.raster.factory."
+source = "Name ours. The rasterizer factory (interface 0x4B2EA3B3; the system service of class 0xEB2EA3CB, priority 1500000, that a drawing context asks for in SetTarget; docs/renderer.md, \"The software rasterizer\"): 0x34 bytes, constructor 0x0082BBF0. +0x04 the system service base (vtable 0x00AC1694), +0x08 a third table (0x00AC1650), +0x20 the rasterizer makers (a std::list, held), +0x24 the tracked objects (a std::list, not held), +0x28 the tick count, +0x2C an RZCriticalSection. 11 slots: 0 QueryInterface 0x0082B890, 1 and 2 AddRef and Release (shared thunks to the service part's), 3 AddMaker 0x0082BD30, 4 MakeRasterizer 0x0082BAB0, 5 MakeContextBuffer 0x0082B980, 6 Track 0x0082BD90, 7 Untrack 0x0082BAF0, 8 ReleaseIdle 0x0082BB40, 9 ReleaseAll 0x0082BBB0, 10 the tick count 0x0060FB80 (shared). Ours in renderer.raster.factory."
 
 [[entry]]
 name = "GZRasterizerFactory::vftable_4"
@@ -35,7 +35,7 @@ name = "GZRasterizerFactory::vftable_8"
 address = 0x00AC1650
 kind = "vtable"
 expect = "70 BC 82 00 B0 0C 80 00"
-source = "Name ours. The rasterizer factory's third table at +0x08 (in place of the base service's second): 0 QueryInterface 0x0082BC70 (this less 8, a jump to 0x0082B890), 1 and 2 shared, 3 0x0082BC80 (this less 8, a jump to the destructor 0x0082BE00), then a copy of the first table's slots."
+source = "Name ours. The rasterizer factory's third table at +0x08 (in place of the base service's second): 0 QueryInterface 0x0082BC70 (this less 8, a jump to 0x0082B890), 1 and 2 shared, 3 0x0082BC80 (this less 8, a jump to the destructor 0x0082BE00), 4 and 5 the base service's, then slots 0 to 7 of the first table (6 is 0x0082B890 itself, with this the third part). Ours in renderer.raster.factory."
 
 [[entry]]
 name = "GZRasterizerFactory::vftable_base"
@@ -60,7 +60,16 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, uint32_t flags)"
 expect = "53 56 8B F1 8D 5E 04 57"
-source = "Name ours. The three tables back, the lock released, both lists cleared and their sentinels freed (the makers let go), the base service's destructor; with flag 1 the memory freed (0x005E5620). Answers this. Never ran; left the game's."
+source = "Name ours. The three tables back, the lock released, the tracked list destroyed (0x005650A0: its nodes and sentinel), the makers let go (SC4RefList::Clear) and their sentinel freed (SC4::Free), the base service's destructor (0x0091DD53); with flag 1 the memory freed (0x005E5620). Answers this. Never ran in the game's runs. Ours in renderer.raster.factory."
+
+[[entry]]
+name = "GZRasterizerFactory::ThirdDestroy"
+address = 0x0082BC80
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* third, uint32_t flags)"
+expect = "83 E9 08 E9 78 01 00 00"
+source = "Name ours. The third part's (+0x08, vtable 0x00AC1650) slot 3: this less 8, a jump to the destructor 0x0082BE00. Never ran in the game's runs. Ours in renderer.raster.factory."
 
 [[entry]]
 name = "GZRasterizerFactory::QueryInterface"
@@ -81,13 +90,22 @@ expect = "83 E9 04 E9 28 FC FF FF"
 source = "Name ours. The service part's slot 0: this less 4, a jump to 0x0082B890. Ours in renderer.raster.factory."
 
 [[entry]]
+name = "GZRasterizerFactory::ThirdQueryInterface"
+address = 0x0082BC70
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* third, uint32_t iid, void** out)"
+expect = "83 E9 08 E9 18 FC FF FF"
+source = "Name ours. The third part's (+0x08, vtable 0x00AC1650) slot 0: this less 8, a jump to 0x0082B890. Never ran in the game's runs. Ours in renderer.raster.factory."
+
+[[entry]]
 name = "GZRasterizerFactory::AddMaker"
 address = 0x0082BD30
 kind = "function"
 convention = "thiscall"
 signature = "void (void* this, cIGZUnknown* maker)"
 expect = "53 8B 5C 24 08 85 DB 56"
-source = "Name ours. Slot 3 (ret 4): the maker to the makers' front, held (no lock). Never ran; left the game's."
+source = "Name ours. Slot 3 (ret 4): the maker held (slot 1), a node from SC4::stl_allocate holding it to the makers' front, held again while linking, then released (slot 2): held once by the list; no lock. Answers that Release's answer, or with no maker the node before the front (the sentinel). Never ran in the game's runs. Ours in renderer.raster.factory."
 
 [[entry]]
 name = "GZRasterizerFactory::MakeRasterizer"
@@ -141,7 +159,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "53 56 8B F1 8B 46 2C 8D"
-source = "Name ours. Slot 9: under the lock, every tracked object's slot 6; the Unlock a jump. Never ran; left the game's."
+source = "Name ours. Slot 9: under the lock, every tracked object's slot 6 (let go of what it holds), idle or not, the next node read after; the Unlock a jump, whose answer it answers. Never ran in the game's runs. Ours in renderer.raster.factory."
 
 [[entry]]
 name = "GZRasterizerFactory::Init"
@@ -175,7 +193,7 @@ name = "GZRasterizerMaker::vftable"
 address = 0x00AC162C
 kind = "vtable"
 expect = "50 B8 82 00 E0 E3 5B 00"
-source = "Name ours. The rasterizer maker GZRasterizerFactory::Init puts on the makers' list: 0xC bytes, a counted object (its counted base at +4, vtable 0x00AC163C). 0 QueryInterface 0x0082B850 (1 and 0x6B2EA76C), 1 and 2 the counted base's (shared), 3 GZRasterizer::Make 0x0082B910."
+source = "Name ours. The rasterizer maker GZRasterizerFactory::Init puts on the makers' list: 0xC bytes, a counted object (its counted base at +4, vtable 0x00AC163C). 0 QueryInterface 0x0082B850 (1 and 0x6B2EA76C; ours in renderer.raster.factory), 1 and 2 the counted base's (shared), 3 GZRasterizer::Make 0x0082B910 (ours in renderer.raster.rasterizer)."
 
 [[entry]]
 name = "GZRasterizerMaker::vftable_4"
@@ -190,6 +208,15 @@ address = 0x00AC161C
 kind = "vtable"
 expect = "10 4A 5D 00 10 4A 5D 00"
 source = "Name ours. The table Init puts at the maker's +0 before its counted base is made: abstract slots, then a copy of the maker's."
+
+[[entry]]
+name = "GZRasterizerMaker::QueryInterface"
+address = 0x0082B850
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 48 74 1C 2D"
+source = "Name ours. Slot 0 of 0x00AC162C (ret 8): itself for 1 and 0x6B2EA76C, AddRef (slot 1) and AL 1 over its answer; any other AL 0 over the interface less 0x6B2EA76C. Ours in renderer.raster.factory."
 
 [[entry]]
 name = "GZRasterizer::vftable"
@@ -919,7 +946,7 @@ name = "GZContextBuffer::vftable"
 address = 0x00AC1550
 kind = "vtable"
 expect = "A0 AE 82 00 E0 E3 5B 00"
-source = "Name ours. The buffer with a drawing context (0x4C bytes, made by GZRasterizerFactory::MakeContextBuffer 0x0082B980 and by 0x0082B820; docs/renderer.md, \"The software rasterizer\"): a cIGZBuffer of 40 slots. +0x04 the counted base (vtable 0x00AC1538), +0x0C a side interface (0x00AC1510, interface 0xAB300B2B), +0x10 the drawing context, +0x14 a plain buffer with the pixels (vtable 0x00AC1400), +0x18 its rectangle, +0x28 the lock count, +0x2C the format, +0x30 the context's six surface words, +0x48 and +0x49 flags. Slots 1 to 5, 12, 13, 17, 24, 32 to 36 and 39 are shared with other classes; 18, 19, 21, 22, 25 and 28 never ran. The rest are ours in renderer.raster.buffer."
+source = "Name ours. The buffer with a drawing context (0x4C bytes, made by GZRasterizerFactory::MakeContextBuffer 0x0082B980 and by its class's maker 0x0082B820; docs/renderer.md, \"The software rasterizer\"): a cIGZBuffer of 40 slots. +0x04 the counted base (vtable 0x00AC1538), +0x0C a side interface (0x00AC1510, interface 0xAB300B2B), +0x10 the drawing context, +0x14 a plain buffer with the pixels (vtable 0x00AC1400), +0x18 its rectangle, +0x28 the lock count, +0x2C the format, +0x30 the context's six surface words, +0x48 and +0x49 flags. Slots 1 to 5, 12, 13, 17, 24, 32 to 36 and 39 are shared with other classes (and 19, ours); 18, 19, 21, 22, 25 and 28 never ran in the game's runs. The rest are ours in renderer.raster.buffer."
 
 [[entry]]
 name = "GZContextBuffer::vftable_4"
@@ -933,7 +960,7 @@ name = "GZContextBuffer::vftable_C"
 address = 0x00AC1510
 kind = "vtable"
 expect = "70 B7 82 00 50 18 76 00"
-source = "Name ours. The buffer with a drawing context's side interface at +0x0C (interface 0xAB300B2B): 0 QueryInterface (this less 0x0C, a jump to 0x0082AEA0), 1 and 2 shared, 3 the buffer (this less 0x0C), 4 GetContext, 5 LockContext, 6 UnlockContext, 7 SetContext, 8 0x0082B030 (never ran), 9 UseColourOf."
+source = "Name ours. The buffer with a drawing context's side interface at +0x0C (interface 0xAB300B2B): 0 QueryInterface (this less 0x0C, a jump to 0x0082AEA0), 1 and 2 shared, 3 the buffer (this less 0x0C), 4 GetContext, 5 LockContext, 6 UnlockContext, 7 SetContext, 8 Retarget 0x0082B030, 9 UseColourOf."
 
 [[entry]]
 name = "GZContextBuffer::vftable_base"
@@ -966,6 +993,15 @@ convention = "thiscall"
 signature = "void* (void* this, uint32_t flags)"
 expect = "56 8B F1 57 8D 7E 04 C7"
 source = "Name ours. Ret 4: the three tables, the plain buffer (+0x14) then the context (+0x10) released, the counted base's destructor (0x0090D964), and with flag 1 operator delete (0x005E5620). Answers this. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::New"
+address = 0x0082B820
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "6A 4C E8 B9 9D DB FF 83"
+source = "Name ours. The class's maker for the framework's DLL director (added by 0x00825B60 under the class ID 0x0082ABD0 answers): 0x4C bytes from SC4::operator_new and the constructor 0x0082B780, not held. Answers the side interface (+0x0C), or 0 when the memory is not given. Ours in renderer.raster.factory."
 
 [[entry]]
 name = "GZContextBuffer::QueryInterface"
@@ -1094,6 +1130,60 @@ expect = "53 56 8B F1 8B 4E 10 8B"
 source = "Name ours. Slot 20, ret 0xC: through the context: PushTransform (3), ClipTo (5) when clip is given, SetColour(0, ToArgb(pixel)) (20), FillRect (35), PopTransform (9), slot 40. AL 1 over slot 40's answer. Ours in renderer.raster.buffer."
 
 [[entry]]
+name = "GZContextBuffer::FillClip"
+address = 0x0082B330
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t pixel, const void* clip)"
+expect = "53 56 8B F1 8B 4E 10 8B"
+source = "Name ours. Slot 18, ret 8: through the context: PushTransform (3), ClipTo (5) when clip is given, SetColour(0, ToArgb(pixel)) (20), FillClip (32), PopTransform (9), slot 40. AL 1 over slot 40's answer. Never ran in the game's runs. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::FillSides"
+address = 0x0082B2F0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t pixel, int32_t left, int32_t top, int32_t right, int32_t bottom, const void* clip)"
+expect = "83 EC 10 8B 54 24 1C 8B"
+source = "Name ours. Slot 19, ret 0x18: its own slot 20 (FillRect) with the pixel, the four sides as a rectangle and the clip; answers its answer. Also slot 19 of the plain buffer's table 0x00AC1400 and of 0x00ADB464. Never ran in the game's runs. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::GetPixel"
+address = 0x0082B390
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, int32_t x, int32_t y)"
+expect = "8B 49 10 8B 01 83 EC 18"
+source = "Name ours. Slot 21, ret 8: the context's surface (slot 46, second argument 1); the pixel at bits + stride * y + x * bytes a pixel, for 1, 2, 3 (low byte first) and 4 bytes; 0 for any other or when the surface's answer is AL 0. Never ran in the game's runs. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::SetPixel"
+address = 0x0082B460
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, int32_t x, int32_t y, uint32_t pixel)"
+expect = "8B 44 24 0C 53 56 57 8B"
+source = "Name ours. Slot 22, ret 0xC: through the context: SetColour(0, ToArgb(pixel)) (20), slot 33 with x and y, slot 40, whose answer it answers. Never ran in the game's runs. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::IsKeyAt"
+address = 0x0082B4C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t x, int32_t y)"
+expect = "83 EC 0C 53 56 8B F1 8B"
+source = "Name ours. Slot 25, ret 8: x and y plus the context's origin (slot 14); the plain buffer's colour key (slot 26); with a key and the point inside the surface's width and height (+0x38, +0x3C, unsigned), its own slot 21 at the point compared with the key under the format's mask (0x00825C90 with EAX the surface's format +0x40). Answers 1 when they agree, else 0 (the whole of EAX). Never ran in the game's runs. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::DrawLine"
+address = 0x0082B560
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel, uint32_t width)"
+expect = "83 EC 10 53 56 8B F1 8B"
+source = "Name ours. Slot 28, ret 0x18: through the context: PushTransform (3), SetColour(0, ToArgb(pixel)) (20), SetPenWidth (25) with the width (unsigned) as a float; at most 1 wide slot 34 with the four ends; wider, the ends as floats with half of the width less one (0x00A84D2C, 0.5) added to both ys when the line is at least as wide as tall (|dx| >= |dy|, signed) or else to both xs, through Draw (44: kind 1, 2 points); PopTransform (9), slot 40. AL 1 over slot 40's answer. Never ran in the game's runs. Ours in renderer.raster.buffer."
+
+[[entry]]
 name = "GZContextBuffer::Blt"
 address = 0x0082B690
 kind = "function"
@@ -1182,6 +1272,24 @@ convention = "thiscall"
 signature = "void (void* side, void* context, void* inner)"
 expect = "83 EC 08 53 8B 5C 24 10"
 source = "Name ours. Side slot 7, ret 8: the context and the plain buffer held (each AddRef'd before the old one is released), the plain buffer's rectangle (slot 12), format (15, an 8-byte record) and bytes a pixel (17), the width and height into the surface (+0x38, +0x3C); last the context's SetTarget(0) with EAX the width, whose answer it answers. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::Retarget"
+address = 0x0082B030
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* side)"
+expect = "56 8B F1 8B 4E 08 8B 01"
+source = "Name ours. Side slot 8: the plain buffer's rectangle (slot 12) copied to +0x18, the context's SetTarget (17) with 0 and then the plain buffer, then a jump to its BeginBatch (42), whose answer it answers. Never ran in the game's runs. Ours in renderer.raster.buffer."
+
+[[entry]]
+name = "GZContextBuffer::KeyMask"
+address = 0x00825C90
+kind = "function"
+convention = "custom"
+signature = "uint32_t (uint32_t format)"
+expect = "83 C0 FC 83 F8 05 77 1F"
+source = "Name ours. The format in EAX (not a standard convention), answers in EAX the bits of a pixel value a colour key compares: 0x7FFF for 4 and 6, 0xFFFF for 5, 0xFFF for 7, 0xFFFFFF for 8 and 9, else 0xFFFFFFFF. Called by IsKeyAt 0x0082B4C0; ours inlines it. Stays the game's."
 
 [[entry]]
 name = "GZContextBuffer::UseColourOf"
