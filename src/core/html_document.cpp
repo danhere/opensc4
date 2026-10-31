@@ -36,8 +36,20 @@
 //                                ranges copied, filled and destroyed, the
 //                                font stack's growth, destructor and pop
 //
-// Slot 5 (0x009006BB, shared with three vtables outside the viewer) and slot
-// 20 (0x009006D6, four bytes, too short for a detour) stay the game's.
+// and h2b2's (docs/html.md, "Ours: the document's images, image map,
+// bullets and last slots"):
+//
+//   ui.html.document.images      an image loaded, the picture reader, the
+//                                Internet service's answer, the document's
+//                                release
+//   ui.html.document.imagemap    an image entry made and destroyed, the
+//                                map's insert, erase, clear and destructor
+//   ui.html.document.bullets     a list item's bullet
+//   ui.html.document.vslots      slot 5 (0x009006BB, shared with three
+//                                vtables outside the viewer) and slot 20
+//                                (0x009006D6, four bytes, too short for a
+//                                detour), as swaps of the document's vtable
+//                                slots
 //
 // The game's strings and containers are STLport's, through the game's own
 // helpers (the string constructors, Substring, the bodies' erase, find,
@@ -58,9 +70,11 @@
 #include "core/registry.h"
 
 #include <opensc4/addresses.h>
+#include <windows.h>
 
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 
 namespace opensc4::html_parser {
 extern bool g_useGame;
@@ -1343,6 +1357,322 @@ void PopFont(char* doc)
 }
 
 // ====================================================================================
+// The image fetching (h2b2)
+
+constexpr std::size_t kRoot = 0x14;    // the root node (the body)
+constexpr std::size_t kLock = 0x34;    // the document's lock
+constexpr std::size_t kImages = 0x198; // the image map
+constexpr std::size_t kReader = 0x1A4; // the picture reader, made on first use
+
+// The image map is an STLport map of addresses (game strings) to image
+// records: the header node, the count, the compare at +8. A node (0x38
+// bytes) is the colour, the parent, left and right, then the entry: the
+// address (+0x10), the picture (+0x24), the nodes waiting for it (+0x28, a
+// vector of the image items' parts that take a picture, slot 0) and the
+// request (+0x34).
+
+// The picture reader reads a file (0x008FE71C, ret 8): made the first time
+// (RZGetCOM's slot 3, class 0xA2FFB5D3, interface 0x02FFBB60), then its
+// slot 4 with 1. Without a reader the answer is the slot 3's.
+uint32_t ReadPicture(char* doc, const Text* path, void** picture)
+{
+    void** const reader = &At<void*>(doc, kReader);
+    if (!*reader) {
+        void* const com = CallPlain<void*>(addr::RZGetCOM);
+        const uint32_t made = Virtual<uint32_t>(com, 0xC, 0xA2FFB5D3u, 0x02FFBB60u, reader);
+        if (!*reader)
+            return made;
+    }
+    return Virtual<uint32_t>(*reader, 0x10, path, picture, uint32_t{1});
+}
+
+// An image the Internet service answered (0x008FFBFC, ret 4). The request's
+// text (+0x30, begin and end) is a file's path when the flag at +0x2C is
+// set, else the image's bytes, which go to a temporary file first. Under the
+// lock, the address's entry (+8) gets the picture read from the file, the
+// temporary file is removed, and with a picture each node waiting is given it
+// (slot 0) and the waiting list erased. An address not in the map does
+// nothing.
+void LoadImage(char* doc, char* request)
+{
+    Text path;
+    CallThis<Text*>(addr::cSC4Advice_F408B90, &path, request + 0x30);
+    alignas(4) char guard[8];
+    CallThis<void*>(addr::SC4LockGuard_Construct, guard, doc + kLock);
+    char* const map = doc + kImages;
+    char* const node = CallThis<char*>(addr::HTMLImageMap_Find, map, request + 0x8);
+    if (node != At<char*>(map, 0x0)) {
+        void** const picture = &At<void*>(node, 0x24);
+        if (At<uint8_t>(request, 0x2C) == 0) {
+            Text bytes;
+            MakeEmpty(&bytes);
+            CallThis<void>(addr::cGZDBSegmentPackedFile_VectorSwap, &bytes.body, &path.body);
+            CallPlain<uint8_t>(addr::RZFile_MakeTempName, &path, nullptr);
+            alignas(4) char file[0x80];
+            CallThis<void*>(addr::cRZFile_Construct, file, &path);
+            if (CallThis<uint8_t>(addr::cRZFile_Open, file, uint32_t{2}, uint32_t{1}, uint32_t{0}) != 0) {
+                CallThis<uint8_t>(addr::cRZFile_Write, file, static_cast<const void*>(bytes.body.begin),
+                                  Length(bytes.body));
+                CallThis<void>(addr::cRZFile_Close, file);
+            }
+            CallThis<void>(addr::cRZFile_Destruct, file);
+            if (bytes.body.begin)
+                Free(bytes.body.begin);
+        }
+        CallThis<uint32_t>(addr::HTMLDocument_ReadPicture, doc, static_cast<const Text*>(&path), picture);
+        if (At<uint8_t>(request, 0x2C) == 0)
+            CallPlain<uint8_t>(addr::RZFile_Remove, &path);
+        if (*picture) {
+            char* const waiting = node + 0x28;
+            char** const last = At<char**>(waiting, 0x4);
+            for (char** at = At<char**>(waiting, 0x0); at != last; ++at)
+                Virtual<uint32_t>(*at, 0x0, *picture);
+            CallThis<void>(addr::SC4PtrVector_EraseRange, waiting, At<char**>(waiting, 0x0), At<char**>(waiting, 0x4));
+        }
+    }
+    Virtual<void>(At<char*>(guard, 0x4), 0x8);
+    Release(&path);
+}
+
+// Slot 3 of the part at +4 (0x008FFF4E, ret 4; `this` the document +4): a
+// message of type 0x75758483 (slot 4) is the service's answer, its request
+// (slot 20, asked either way) loaded when it succeeded (slot 14); true. Any
+// other message false.
+bool OnMessage(char* self, char* message)
+{
+    if (Virtual<uint32_t>(message, 0x10) != 0x75758483u)
+        return false;
+    const bool succeeded = Virtual<uint32_t>(message, 0x38) != 0;
+    char* const request = Virtual<char*>(message, 0x50);
+    if (succeeded)
+        CallThis<void>(addr::HTMLDocument_LoadImage, self - 4, request);
+    return true;
+}
+
+uint32_t CountOf(char* vector)
+{
+    return static_cast<uint32_t>((At<char*>(vector, 0x4) - At<char*>(vector, 0x0)) >> 2);
+}
+
+// The document's release (0x00900357), once after Init (the flag cleared):
+// the root, the base (slot 28 with 1) and META's and LINK's nodes deleted
+// (their lists' count read again after each); each image map entry's
+// picture released or, still waiting, its request cancelled (the service's
+// slot 22); the map cleared; the picture reader, the service and the window
+// released. True.
+bool ReleaseImages(char* doc)
+{
+    if (At<uint8_t>(doc, kInited) == 0)
+        return true;
+    char* const root = At<char*>(doc, kRoot);
+    At<uint8_t>(doc, kInited) = 0;
+    if (root)
+        Virtual<char*>(root, 0x0, uint32_t{1});
+    At<char*>(doc, kRoot) = nullptr;
+    if (Text* const base = At<Text*>(doc, kBase))
+        Virtual<void>(base, 0x70, uint32_t{1});
+    At<Text*>(doc, kBase) = nullptr;
+    for (const std::size_t at : {kMetas, kHeadLinks}) {
+        char* const vector = doc + at;
+        for (uint32_t i = 0; i < CountOf(vector); ++i)
+            if (char* const node = At<char**>(vector, 0x0)[i])
+                Virtual<char*>(node, 0x0, uint32_t{1});
+        CallThis<void>(addr::SC4PtrVector_EraseRange, vector, At<char**>(vector, 0x0), At<char**>(vector, 0x4));
+    }
+    char* const map = doc + kImages;
+    char* const header = At<char*>(map, 0x0);
+    for (char* node = At<char*>(header, 0x8); node != header; node = CallPlain<char*>(addr::SC4Tree_Next, node)) {
+        if (void* const picture = At<void*>(node, 0x24))
+            Virtual<uint32_t>(picture, 0x8);
+        else
+            Virtual<uint32_t>(At<void*>(doc, kService), 0x58, At<uint32_t>(node, 0x34));
+    }
+    CallThis<void>(addr::HTMLImageMap_Clear, map);
+    for (const std::size_t at : {kReader, kService, kWindow})
+        if (void* const p = At<void*>(doc, at)) {
+            Virtual<uint32_t>(p, 0x8);
+            At<void*>(doc, at) = nullptr;
+        }
+    return true;
+}
+
+// ====================================================================================
+// The image map
+
+// An entry made (0x008FFD2D, ret 8): the address copied, then the image
+// record (0x008FEF6A: the picture, the waiting nodes' vector, the request).
+char* ConstructEntry(char* self, const Text* address, const void* record)
+{
+    Substring(reinterpret_cast<Text*>(self), address, 0, kAll);
+    CallThis<void*>(addr::HTMLImageRecord_Copy, self + 0x14, record);
+    return self;
+}
+
+// An entry's destructor (0x008FF76C): the waiting nodes' storage freed,
+// then the address.
+void DestroyEntry(char* self)
+{
+    if (void* const waiting = At<void*>(self, 0x18))
+        Free(waiting);
+    DestroyText(self);
+}
+
+// A subtree freed (0x008FFA71, ret 4): the right one first, then the
+// node's entry and the node, on down the left.
+void EraseNodes(char* map, char* node)
+{
+    while (node) {
+        CallThis<void>(addr::HTMLImageMap_Erase, map, At<char*>(node, 0xC));
+        char* const left = At<char*>(node, 0x8);
+        CallThis<void>(addr::HTMLImageEntry_Destroy, node + 0x10);
+        Free(node);
+        node = left;
+    }
+}
+
+// The map cleared (0x008FFD4F): with a count, the tree erased from the root
+// and the header made its own leftmost and rightmost again.
+void ClearMap(char* map)
+{
+    if (At<uint32_t>(map, 0x4) == 0)
+        return;
+    CallThis<void>(addr::HTMLImageMap_Erase, map, At<char*>(At<char*>(map, 0x0), 0x4));
+    char* const header = At<char*>(map, 0x0);
+    At<char*>(header, 0x8) = header;
+    At<char*>(header, 0x4) = nullptr;
+    At<char*>(header, 0xC) = header;
+    At<uint32_t>(map, 0x4) = 0;
+}
+
+// The map's destructor (0x009001FF): cleared, the header freed.
+void DestroyMap(char* map)
+{
+    CallThis<void>(addr::HTMLImageMap_Clear, map);
+    if (char* const header = At<char*>(map, 0x0))
+        Free(header);
+}
+
+// A node inserted under `parent` (0x0090104C, ret 0x14; STLport's
+// _M_insert): on the left when the parent is the header, when `where` is
+// null and `x` is not, or when the entry is before the parent's (the
+// compare at +8), else on the right; the header's root, leftmost and
+// rightmost kept, the tree rebalanced, the count raised.
+char** InsertNode(char* map, char** result, char* x, char* parent, const char* entry, char* where)
+{
+    char* node = nullptr;
+    if (parent == At<char*>(map, 0x0) ||
+        (!where && (x || CallThis<uint8_t>(addr::SC4String_Less, map + 0x8, entry, parent + 0x10) != 0))) {
+        node = CallThis<char*>(addr::HTMLImageMap_CreateNode, map, entry);
+        At<char*>(parent, 0x8) = node;
+        char* const header = At<char*>(map, 0x0);
+        if (parent == header) {
+            At<char*>(header, 0x4) = node;
+            At<char*>(header, 0xC) = node;
+        } else if (parent == At<char*>(header, 0x8)) {
+            At<char*>(header, 0x8) = node;
+        }
+    } else {
+        node = CallThis<char*>(addr::HTMLImageMap_CreateNode, map, entry);
+        At<char*>(parent, 0xC) = node;
+        char* const header = At<char*>(map, 0x0);
+        if (parent == At<char*>(header, 0xC))
+            At<char*>(header, 0xC) = node;
+    }
+    At<char*>(node, 0x8) = nullptr;
+    At<char*>(node, 0xC) = nullptr;
+    At<char*>(node, 0x4) = parent;
+    CallPlain<void>(addr::SC4Tree_RebalanceForInsert, node, &At<char*>(At<char*>(map, 0x0), 0x4));
+    ++At<uint32_t>(map, 0x4);
+    *result = node;
+    return result;
+}
+
+// ====================================================================================
+// The bullets
+
+// The bullets made so far (a vector at 0x00B62524 that every document
+// shares): the size, the kind, the colour, the picture.
+struct Bullet {
+    int32_t size;
+    uint32_t kind;
+    uint32_t colour;
+    void* picture;
+};
+static_assert(sizeof(Bullet) == 0x10);
+
+constexpr std::uintptr_t kBullets = 0x00B62524;
+
+// A list item's bullet (0x008FF8AB, ret 4): an IMG node with a picture half
+// the font size (+0x148, at least 1) in the font colour (+0x14C), from the
+// bullets made so far or made now: a picture from the framework's 0x00913C1A
+// (its slot 3), 4 wider and 2 taller in colour type 3, filled with the
+// root's BGCOLOR (+0x2C, a colour of its own: red, green and blue from its
+// bytes 2, 1 and 0) or grey, and for kind 0 a disc drawn in the font
+// colour. A string is made and
+// freed unused, as the game has it. Null when no picture could be made or
+// no node allocated; the node's +0x38 is the document's +0x158.
+char* MakeBullet(char* doc, uint32_t kind)
+{
+    int32_t size = static_cast<int32_t>(At<uint32_t>(doc, 0x148) >> 1);
+    const uint32_t colour = At<uint32_t>(doc, 0x14C);
+    if (size <= 0)
+        size = 1;
+    void* picture = nullptr;
+    Bullet* const last = *reinterpret_cast<Bullet**>(kBullets + 4);
+    for (Bullet* at = *reinterpret_cast<Bullet**>(kBullets); at != last; ++at)
+        if (at->kind == kind && at->size == size && at->colour == colour) {
+            picture = at->picture;
+            break;
+        }
+    if (!picture) {
+        Text unused;
+        MakeEmpty(&unused);
+        void* const system = CallPlain<void*>(addr::SC4_Singleton913C1A);
+        if (Virtual<uint8_t>(system, 0xC, &picture) == 0) {
+            if (unused.body.begin)
+                Free(unused.body.begin);
+            return nullptr;
+        }
+        uint32_t type[2];
+        CallThis<void*>(addr::SC4BufferColorType_Construct, type, int32_t{3});
+        Virtual<uint32_t>(picture, 0xC, size + 4, size + 2, type[0], type[1]);
+        char* const root = At<char*>(doc, kRoot);
+        const uint8_t* const rgb = root ? At<const uint8_t*>(root, 0x2C) : nullptr;
+        const uint32_t fill = rgb ? Virtual<uint32_t>(picture, 0x78, uint32_t{rgb[2]}, uint32_t{rgb[1]}, uint32_t{rgb[0]})
+                                  : Virtual<uint32_t>(picture, 0x78, 0xC0u, 0xC0u, 0xC0u);
+        if (Virtual<uint8_t>(picture, 0x18, 0x8001u) != 0) {
+            Virtual<uint32_t>(picture, 0x48, fill, uint32_t{0});
+            Virtual<uint32_t>(picture, 0x1C, 0x8001u);
+        }
+        if (kind == 0 && Virtual<uint8_t>(picture, 0x18, 0x8100u) != 0) {
+            CallPlain<void>(addr::SC4Image_FillEllipse, picture, int32_t{0}, int32_t{0}, size - 1, size - 1, colour,
+                            uint32_t{1});
+            Virtual<uint32_t>(picture, 0x1C, 0x8100u);
+        }
+        const Bullet made{size, kind, colour, picture};
+        CallThis<void>(addr::HTMLLayout_PushLeftEntry, reinterpret_cast<void*>(kBullets), &made);
+        if (unused.body.begin)
+            Free(unused.body.begin);
+    }
+    char* const memory = NewObject(0x3C);
+    char* const node = memory ? CallThis<char*>(addr::HTMLImageNode_Construct, memory) : nullptr;
+    if (!node)
+        return nullptr;
+    At<uint32_t>(node, 0x38) = At<uint32_t>(doc, kAlign);
+    Virtual<uint8_t>(node + 0x20, 0x0, picture);
+    return node;
+}
+
+// ====================================================================================
+// Slots 5 and 20 (vtable swaps)
+
+// Slot 5 (0x009006BB): slot 8 (Parse) with the same argument.
+uint32_t ParseSlot5(char* doc, void* text) { return Virtual<uint32_t>(doc, 0x20, text); }
+
+// Slot 20 (0x009006D6): the byte at +0x2A, as it is (BLINK seen).
+uint8_t HasBlink(char* doc) { return At<uint8_t>(doc, 0x2A); }
+
+// ====================================================================================
 // The detours
 
 #define OPENSC4_UNPAREN(...) __VA_ARGS__
@@ -1493,6 +1823,31 @@ OPENSC4_THIS_DETOUR(void, GrowFontStack, 0x00900E91, GrowFontStack,
                     (, Font* at, const Font* font, void* tag, uint32_t count, uint8_t atEnd),
                     (, at, font, tag, count, atEnd))
 OPENSC4_THIS_DETOUR(void, PopFont, 0x00900E5F, PopFont, (), ())
+
+// The image fetching.
+OPENSC4_THIS_DETOUR(void, LoadImage, 0x008FFBFC, LoadImage, (, char* request), (, request))
+OPENSC4_THIS_DETOUR(uint32_t, ReadPicture, 0x008FE71C, ReadPicture, (, const Text* path, void** picture),
+                    (, path, picture))
+OPENSC4_THIS_DETOUR(bool, OnMessage, 0x008FFF4E, OnMessage, (, char* message), (, message))
+OPENSC4_THIS_DETOUR(bool, ReleaseImages, 0x00900357, ReleaseImages, (), ())
+
+// The image map.
+OPENSC4_THIS_DETOUR(char*, ConstructEntry, 0x008FFD2D, ConstructEntry, (, const Text* address, const void* record),
+                    (, address, record))
+OPENSC4_THIS_DETOUR(void, DestroyEntry, 0x008FF76C, DestroyEntry, (), ())
+OPENSC4_THIS_DETOUR(void, EraseNodes, 0x008FFA71, EraseNodes, (, char* node), (, node))
+OPENSC4_THIS_DETOUR(void, ClearMap, 0x008FFD4F, ClearMap, (), ())
+OPENSC4_THIS_DETOUR(void, DestroyMap, 0x009001FF, DestroyMap, (), ())
+OPENSC4_THIS_DETOUR(char**, InsertNode, 0x0090104C, InsertNode,
+                    (, char** result, char* x, char* parent, const char* entry, char* where),
+                    (, result, x, parent, entry, where))
+
+// The bullets.
+OPENSC4_THIS_DETOUR(char*, MakeBullet, 0x008FF8AB, MakeBullet, (, uint32_t kind), (, kind))
+
+// Slots 5 and 20, through the document's vtable.
+OPENSC4_THIS_DETOUR(uint32_t, ParseSlot5, 0x009006BB, ParseSlot5, (, void* text), (, text))
+OPENSC4_THIS_DETOUR(uint8_t, HasBlink, 0x009006D6, HasBlink, (), ())
 
 // ====================================================================================
 // Installation
@@ -1680,6 +2035,74 @@ bool InstallFonts(registry::Mode)
     return InstallAll("fonts", detours);
 }
 
+bool InstallImages(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(LoadImage, addr::HTMLDocument_LoadImage),
+        OPENSC4_D(ReadPicture, addr::HTMLDocument_ReadPicture),
+        OPENSC4_D(OnMessage, addr::HTMLDocument_OnMessage),
+        OPENSC4_D(ReleaseImages, addr::HTMLDocument_ReleaseImages),
+    };
+    return InstallAll("images", detours);
+}
+
+bool InstallImageMap(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(ConstructEntry, addr::HTMLImageEntry_Construct),
+        OPENSC4_D(DestroyEntry, addr::HTMLImageEntry_Destroy),
+        OPENSC4_D(EraseNodes, addr::HTMLImageMap_Erase),
+        OPENSC4_D(ClearMap, addr::HTMLImageMap_Clear),
+        OPENSC4_D(DestroyMap, addr::HTMLImageMap_Destroy),
+        OPENSC4_D(InsertNode, addr::HTMLImageMap_Insert),
+    };
+    return InstallAll("image map", detours);
+}
+
+bool InstallBullets(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(MakeBullet, addr::HTMLDocument_MakeBullet),
+    };
+    return InstallAll("bullets", detours);
+}
+
+// Slot 5's code is shared with three vtables outside the viewer and slot
+// 20's is four bytes, too short for a detour: the document's vtable slots
+// are swapped instead, the game's functions kept as the originals.
+bool InstallVtableSlots(registry::Mode)
+{
+    if (!game::IsBuild641())
+        return false;
+    struct VtableSlot {
+        int index;
+        std::uintptr_t original;
+        void* ours;
+        void** kept;
+    };
+    const VtableSlot slots[] = {
+        {5, addr::HTMLDocument_ParseSlot5, reinterpret_cast<void*>(&DParseSlot5), Slot(&g_ParseSlot5)},
+        {20, addr::HTMLDocument_HasBlink, reinterpret_cast<void*>(&DHasBlink), Slot(&g_HasBlink)},
+    };
+    auto* const vtable = reinterpret_cast<std::uintptr_t*>(addr::HTMLDocument_Vtable);
+    for (const VtableSlot& slot : slots)
+        if (!addr_check::Find(slot.original) || vtable[slot.index] != slot.original) {
+            log::Write("html document: slot %d of the vtable holds %08X, expected %08X; not installing", slot.index,
+                       static_cast<unsigned>(vtable[slot.index]), static_cast<unsigned>(slot.original));
+            return false;
+        }
+    for (const VtableSlot& slot : slots) {
+        *slot.kept = reinterpret_cast<void*>(slot.original);
+        DWORD old = 0;
+        if (!VirtualProtect(&vtable[slot.index], sizeof(vtable[slot.index]), PAGE_READWRITE, &old))
+            return false;
+        vtable[slot.index] = reinterpret_cast<std::uintptr_t>(slot.ours);
+        VirtualProtect(&vtable[slot.index], sizeof(vtable[slot.index]), old, &old);
+    }
+    log::Write("html document: vtable slots: %zu slots ours", std::size(slots));
+    return true;
+}
+
 const bool g_registered[] = {
     registry::Register({"ui.html.document.ctors", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
                         addr::HTMLContainerNode_Construct,
@@ -1725,6 +2148,23 @@ const bool g_registered[] = {
                         "Our HTML font stack: a record's copy and assignment, ranges copied, filled and destroyed, "
                         "the stack's growth, destructor and pop (8 detours; docs/html.md)",
                         false, InstallFonts}),
+    registry::Register({"ui.html.document.images", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_LoadImage,
+                        "Our HTML image fetching: an image loaded, the picture reader, the service's answer, the "
+                        "document's release (4 detours; docs/html.md)",
+                        false, InstallImages}),
+    registry::Register({"ui.html.document.imagemap", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLImageMap_Insert,
+                        "Our HTML image map: an entry made and destroyed, the tree's insert, erase, clear and "
+                        "destructor (6 detours; docs/html.md)",
+                        false, InstallImageMap}),
+    registry::Register({"ui.html.document.bullets", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDocument_MakeBullet, "Our HTML list bullets (1 detour; docs/html.md)", false,
+                        InstallBullets}),
+    registry::Register({"ui.html.document.vslots", "ui/html", registry::Kind::Vtable, registry::Phase::Attach,
+                        addr::HTMLDocument_HasBlink,
+                        "Our HTML document's slots 5 and 20 (2 vtable slots of 0x00ACD938; docs/html.md)", false,
+                        InstallVtableSlots}),
 };
 
 } // namespace

@@ -905,7 +905,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, uint32_t kind)"
 expect = "55 8B EC 83 EC 3C 83 65"
-source = "Name ours. `ret 4`. A list item's bullet: an image node. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.bullets. `ret 4`. A list item's bullet: an IMG node (0x0090850E) of a picture half the font size (at least 1) in the font colour, kept in the cache at 0x00B62524 by size, kind and colour: made by the framework's 0x00913C1A (slot 3), 4 wider and 2 taller (slot 3, type 3), filled with the root's BGCOLOR (+0x2C) or grey 0xC0 (slots 30, 6, 18, 7) and for kind 0 a disc drawn (0x008D6CF0); null when no picture is made. The node's +0x38 from +0x158. LI's handler (ours) calls it with 0 (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLText::ParseLength"
@@ -1220,7 +1220,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, const void* address, const void* image)"
 expect = "56 6A FF 6A 00 FF 74 24"
-source = "Name ours. `ret 8`. An image map entry: the address and the image record (0x14 bytes, 0x008FEF6A). Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.imagemap. `ret 8`. An image map entry: the address copied (Substring) and the image record (0x14 bytes: picture, waiting nodes, request) by 0x008FEF6A (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLImageEntry::Destroy"
@@ -1229,7 +1229,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "56 8B F1 8B 46 18 85 C0"
-source = "Name ours. An image map entry's destructor. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.imagemap. Plain ret. An image map entry's destructor: the waiting nodes' storage (+0x18) freed, then the address (a jump to 0x00414250) (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLImageMap::Insert"
@@ -1238,7 +1238,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, void* result, void* x, void* parent, const void* entry, void* where)"
 expect = "55 8B EC 53 8B 5D 10 56"
-source = "Name ours. `ret 0x14`. The image map's node inserted under `parent`. Name ours. Called by ours; still the game's (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.imagemap. `ret 0x14`. STLport _M_insert: a new node (0x009004F8) left of `parent` when it is the header, when `where` is null and `x` is not, or by the order (0x004B5E10), else right; leftmost and rightmost kept, the tree rebalanced (0x0040D5E0), the count raised; the node into `result` (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLFont::Copy"
@@ -2950,9 +2950,9 @@ name = "HTMLDocument::ReleaseImages"
 address = 0x00900357
 kind = "function"
 convention = "thiscall"
-signature = "void (void* this)"
+signature = "bool (void* this)"
 expect = "56 8B F1 80 7E 18 00 0F"
-source = "Name ours, not hooked. Plain ret. The images still waiting for their pictures released and cancelled with the Internet service. Called by the document's destructor (ours) and the window (0x008FBDE4) (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.images. Plain ret. Once after Init (+0x18, cleared): the root (+0x14), the base (+0xB8, slot 28 with 1), META's and LINK's nodes (+0xAC, +0xBC) deleted; each entry of the image map released (its picture's slot 2) or its request cancelled (the service's slot 22 with +0x34); the map cleared; the picture reader, the service and the window released. True. Called by the document's destructor (ours) and the window (0x008FBDE4) (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLImageMap::Destroy"
@@ -2961,7 +2961,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "56 8B F1 E8 48 FB FF FF"
-source = "Name ours, not hooked. Plain ret. The image map's destructor (document +0x198). Called by the document's destructor (ours) (docs/html.md, h2)."
+source = "Name ours. Ours in ui.html.document.imagemap. Plain ret. The image map's destructor (document +0x198): cleared (0x008FFD4F), the header freed (docs/html.md, h2)."
 
 [[entry]]
 name = "HTMLAttributes::Destroy"
@@ -2980,3 +2980,102 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "56 8B F1 8B 46 04 85 C0"
 source = "Name ours, not hooked. Plain ret. The entity map's destructor (a tree, document +8). The document's destructor (ours) ends with it (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::LoadImage"
+address = 0x008FFBFC
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* request)"
+expect = "55 8D 6C 24 8C 81 EC B0"
+source = "Name ours. Ours in ui.html.document.images. `ret 4`. An image the Internet service answered (the request: its address +8, a flag +0x2C that the text at +0x30 is a file's path, else the image's bytes): under the lock (+0x34), the image map's entry for the address (0x008FEB1E); bytes are written to a temporary file (RZFile::MakeTempName, cRZFile) first; the picture read into the entry (0x008FE71C) and the temporary file removed; with a picture, each node waiting gets it (slot 0) and the waiting list is erased (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ReadPicture"
+address = 0x008FE71C
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* path, void** picture)"
+expect = "56 8D B1 A4 01 00 00 83"
+source = "Name ours. Ours in ui.html.document.images. `ret 8`. The picture reader (+0x1A4, class 0xA2FFB5D3 interface 0x02FFBB60 from RZGetCOM's slot 3 the first time) reads `path` into `picture` (its slot 4 with 1). Called by 0x008FFBFC (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::OnMessage"
+address = 0x008FFF4E
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* message)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. Ours in ui.html.document.images. `ret 4`. Slot 3 of the part at +4 (0x00ACD928), so `this` is the document +4: a message of type 0x75758483 (slot 4) is the Internet service's answer: when it succeeded (slot 14) its request (slot 20, called either way) goes to 0x008FFBFC; true. Any other type false (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageMap::Erase"
+address = 0x008FFA71
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node)"
+expect = "53 56 8B 74 24 0C 85 F6"
+source = "Name ours. Ours in ui.html.document.imagemap. `ret 4`. STLport _M_erase: a subtree of the image map freed, right first (itself), then the node's entry (0x008FF76C) and the node, on down the left (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageMap::Clear"
+address = 0x008FFD4F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 83 7E 04 00 74"
+source = "Name ours. Ours in ui.html.document.imagemap. Plain ret. With a count (+4), the tree erased (0x008FFA71) from the root and the header made empty again (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::ParseSlot5"
+address = 0x009006BB
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* text)"
+expect = "8B 01 FF 60"
+source = "Name ours. Ours in ui.html.document.vslots. `ret 4` (of slot 8). Slot 5 of 0x00ACD938: a jump to slot 8 (Parse). Three vtables outside the viewer share the code, so ours is a swap of the document's vtable slot (0x00ACD94C), not a detour (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLDocument::HasBlink"
+address = 0x009006D6
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "8A 41 2A C3"
+source = "Name ours. Ours in ui.html.document.vslots. Plain ret. Slot 20 of 0x00ACD938: the byte at +0x2A (BLINK seen), which has the window start its 500 ms timer. Four bytes, so ours is a swap of the vtable slot (0x00ACD988), not a detour (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageMap::CreateNode"
+address = 0x009004F8
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* entry)"
+expect = "56 6A 38 E8 54 CA 00 00"
+source = "Name ours, not hooked. `ret 4`. STLport _M_create_node: 0x38 bytes (0x0090CF54), the entry copied in at +0x10 (0x008FFE6A). Called by the image map's insert 0x0090104C (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "HTMLImageRecord::Copy"
+address = 0x008FEF6A
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 8B 07"
+source = "Name ours, not hooked. `ret 4`. An image record's copy (0x14 bytes): the picture, the waiting nodes' vector (0x008FEC00), the request. Called by the image entry's constructor 0x008FFD2D (ours) (docs/html.md, h2)."
+
+[[entry]]
+name = "SC4BufferColorType::Construct"
+address = 0x0044A490
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, int32_t kind)"
+expect = "8B 44 24 04 56 8B F1 50"
+source = "Name ours, not hooked. `ret 4`. An image colour type (8 bytes): the kind and its bits per pixel (0x00449500). Called by the HTML bullets 0x008FF8AB (ours) and elsewhere (docs/html.md, h2)."
+
+[[entry]]
+name = "SC4Image::FillEllipse"
+address = 0x008D6CF0
+kind = "function"
+convention = "cdecl"
+signature = "void (void* image, int32_t left, int32_t top, int32_t right, int32_t bottom, uint32_t colour, uint32_t filled)"
+expect = "B8 70 00 01 00 E8 96 8B"
+source = "Name ours, not hooked. Name a guess. 6,749 bytes: an ellipse drawn into a 16-bit image (its slots 9, 10, 34 and 35: width, height, pixels, pitch). Called by the HTML bullets 0x008FF8AB (ours), 0x0099EF11 and 0x009B6AE5 (docs/html.md, h2)."

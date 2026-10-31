@@ -394,7 +394,13 @@ uint8_t __fastcall ServiceRequest(Service*, void*, void*, void*, uint32_t, uint3
     ++g_serviceRequests;
     return 0;
 }
-uint8_t __fastcall ServiceCancel(Service*, void*, uint32_t) { return 1; }
+// The requests cancelled (the images section hashes them).
+Fnv g_serviceCancels;
+uint8_t __fastcall ServiceCancel(Service*, void*, uint32_t request)
+{
+    g_serviceCancels.Word(request);
+    return 1;
+}
 uint8_t __fastcall ServiceVisited(Service*, void*, const void*) { return 0; }
 
 template <int Slot>
@@ -726,7 +732,9 @@ bool AnyOurs()
                            "ui.html.chars", "ui.html.nodes.pictures", "ui.html.nodes.children",
                            "ui.html.document.ctors", "ui.html.document.dtors", "ui.html.document.attributes",
                            "ui.html.document.handlers", "ui.html.document.tokenizer", "ui.html.document.slots",
-                           "ui.html.document.life", "ui.html.document.glue", "ui.html.document.fonts"})
+                           "ui.html.document.life", "ui.html.document.glue", "ui.html.document.fonts",
+                           "ui.html.document.images", "ui.html.document.imagemap", "ui.html.document.bullets",
+                           "ui.html.document.vslots"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -3650,6 +3658,755 @@ uint32_t DocDoctypeItem(char* window, int which)
     return f.h;
 }
 
+// h2b2's: the image fetching, the image map, the bullets and slots 5 and
+// 20.
+
+// A stand-in's number, 0 for none and 0xEEEE for anything else (a pointer
+// of the game's, which changes from run to run).
+uint32_t StandNumber(const void* p)
+{
+    if (!p)
+        return 0;
+    for (const NodeStand& stand : g_nodeStands)
+        if (p == &stand)
+            return stand.id;
+    return 0xEEEEu;
+}
+
+void* StandPtr(int i) { return &g_nodeStands[i]; }
+
+// A picture reader of the test's own (the document's +0x1A4): its slot 4
+// reads a file, recording the path (mode 1) or the file's bytes and whether
+// it is there (mode 2), then gives the picture `answer` (null leaves the
+// picture as it was) and answers `result`. AddRef and Release are recorded.
+struct ReaderStand {
+    void** vtable;
+    uint32_t id;
+    int mode;
+    void* answer;
+    uint32_t result;
+};
+Fnv g_readerRecord;
+std::string g_readerPath;
+
+uint32_t __fastcall ReaderRef(ReaderStand* self, void*)
+{
+    g_readerRecord.Word(self->id);
+    g_readerRecord.Word(1);
+    return 2;
+}
+uint32_t __fastcall ReaderRelease(ReaderStand* self, void*)
+{
+    g_readerRecord.Word(self->id);
+    g_readerRecord.Word(2);
+    return 1;
+}
+uint32_t __fastcall ReaderRead(ReaderStand* self, void*, const GameText* path, void** picture, uint32_t flag)
+{
+    g_readerRecord.Word(self->id);
+    g_readerRecord.Word(4);
+    g_readerRecord.Word(flag);
+    g_readerRecord.Word(StandNumber(*picture));
+    if (self->mode == 1) {
+        g_readerRecord.Bytes(path->begin, path->end);
+    } else {
+        // A temporary file: its name changes from call to call; its bytes
+        // are what was written.
+        g_readerPath.assign(path->begin, path->end);
+        std::string bytes;
+        bool there = false;
+        if (std::FILE* in = std::fopen(g_readerPath.c_str(), "rb")) {
+            there = true;
+            char buffer[256];
+            std::size_t n = 0;
+            while ((n = std::fread(buffer, 1, sizeof buffer, in)) > 0)
+                bytes.append(buffer, n);
+            std::fclose(in);
+        }
+        g_readerRecord.Byte(there ? 1 : 0);
+        g_readerRecord.Bytes(bytes.data(), bytes.data() + bytes.size());
+    }
+    if (self->answer)
+        *picture = self->answer;
+    return self->result;
+}
+
+// A message of the test's own for the document's +4 part (slot 3): its type
+// (slot 4), whether it succeeded (slot 14) and its request (slot 20), each
+// call recorded.
+struct MessageStand {
+    void** vtable;
+    uint32_t type;
+    uint32_t succeeded;
+    char* request;
+};
+uint32_t __fastcall MessageType(MessageStand* self, void*)
+{
+    g_readerRecord.Word(0x404);
+    return self->type;
+}
+uint32_t __fastcall MessageSucceeded(MessageStand* self, void*)
+{
+    g_readerRecord.Word(0x40E);
+    return self->succeeded;
+}
+char* __fastcall MessageRequest(MessageStand* self, void*)
+{
+    g_readerRecord.Word(0x414);
+    return self->request;
+}
+
+void* g_readerVtable[8] = {};
+void* g_messageVtable[24] = {};
+
+void SetUpImageStands()
+{
+    FillStand(g_readerVtable, std::make_integer_sequence<int, 8>{});
+    g_readerVtable[1] = reinterpret_cast<void*>(&ReaderRef);
+    g_readerVtable[2] = reinterpret_cast<void*>(&ReaderRelease);
+    g_readerVtable[4] = reinterpret_cast<void*>(&ReaderRead);
+    FillStand(g_messageVtable, std::make_integer_sequence<int, 24>{});
+    g_messageVtable[4] = reinterpret_cast<void*>(&MessageType);
+    g_messageVtable[14] = reinterpret_cast<void*>(&MessageSucceeded);
+    g_messageVtable[20] = reinterpret_cast<void*>(&MessageRequest);
+}
+
+char* TreeNext(char* node) { return reinterpret_cast<char*(__cdecl*)(char*)>(addr::SC4Tree_Next)(node); }
+
+// The document's image map in order: each address, picture, the nodes
+// waiting (their number) and the request.
+void HashImageMap(Fnv& f, char* doc)
+{
+    char* const map = doc + 0x198;
+    char* const header = At<char*>(map, 0x0);
+    f.Word(At<uint32_t>(map, 0x4));
+    uint32_t count = 0;
+    for (char* node = At<char*>(header, 0x8); node != header && count < 1000; node = TreeNext(node), ++count) {
+        f.Bytes(At<char*>(node, 0x14), At<char*>(node, 0x18));
+        f.Word(StandNumber(At<void*>(node, 0x24)));
+        HashField(f, node, {0x28, Field::Vector});
+        f.Word(At<uint32_t>(node, 0x34));
+    }
+    f.Word(count);
+}
+
+// The IMG nodes of a tree: each one's picture, WIDTH and HEIGHT.
+void HashImageNodes(Fnv& f, char* node, int depth)
+{
+    if (!node || depth > 64)
+        return;
+    const uint32_t vtable = At<uint32_t>(node, 0x0);
+    if (vtable == 0x00ACE188) {
+        f.Word(StandNumber(At<void*>(node, 0x24)));
+        f.Word(At<uint32_t>(node, 0x2C));
+        f.Word(At<uint32_t>(node, 0x30));
+        return;
+    }
+    const NodeClass* const c = ClassOf(vtable);
+    if (!c || !c->container)
+        return;
+    for (char** at = At<char**>(node, 0x1C); at && at < At<char**>(node, 0x20); ++at)
+        HashImageNodes(f, *at, depth + 1);
+}
+
+// A page whose images wait: a.gif twice, b.gif once (in a paragraph, with a
+// WIDTH), and LINK and META in the head.
+const char* const kImagePage =
+    "<HTML><HEAD><LINK REL=a HREF=s.css><META NAME=n CONTENT=c></HEAD><BODY><IMG SRC=a.gif><P><IMG SRC=b.gif "
+    "WIDTH=3></P><IMG SRC=\"a.gif\"></BODY></HTML>";
+const char* const kImageBase = "http://maxis.com/";
+
+// The image map's node whose address ends with `name`, or null.
+char* ImageNodeOf(char* doc, const char* name)
+{
+    char* const header = At<char*>(doc + 0x198, 0x0);
+    const std::size_t n = std::strlen(name);
+    for (char* node = At<char*>(header, 0x8); node != header; node = TreeNext(node)) {
+        const char* const first = At<char*>(node, 0x14);
+        const char* const last = At<char*>(node, 0x18);
+        if (static_cast<std::size_t>(last - first) >= n && std::memcmp(last - n, name, n) == 0)
+            return node;
+    }
+    return nullptr;
+}
+
+// A request as the service answers one (0x44 bytes): the address (+8), the
+// flag that the text at +0x30 (begin, end, storage) is a path (+0x2C).
+void MakeRequest(char* request, const char* address, bool isPath, const char* text, std::size_t length)
+{
+    std::memset(request, 0, 0x44);
+    MakeText(reinterpret_cast<GameText*>(request + 0x8), address);
+    At<uint8_t>(request, 0x2C) = isPath ? 1 : 0;
+    if (length) {
+        char* const chars = static_cast<char*>(GameAllocate(length));
+        std::memcpy(chars, text, length);
+        At<char*>(request, 0x30) = chars;
+        At<char*>(request, 0x34) = chars + length;
+        At<char*>(request, 0x38) = chars + length;
+    }
+}
+
+void FreeRequest(char* request)
+{
+    DestroyText(reinterpret_cast<GameText*>(request + 0x8));
+    if (At<char*>(request, 0x30))
+        GameFree(At<char*>(request, 0x30));
+}
+
+std::string AddressOf(char* node) { return std::string(At<char*>(node, 0x14), At<char*>(node, 0x18)); }
+
+// Image entries made and destroyed: four addresses, each with an empty
+// record and with a picture and three nodes waiting.
+const char* const kEntryAddresses[] = {"http://maxis.com/a.gif", "", "x", "\xC3\xA9.png"};
+constexpr int kEntryItems = static_cast<int>(std::size(kEntryAddresses)) * 2;
+
+uint32_t ImageEntryItem(int which)
+{
+    Fnv f;
+    GameText address;
+    MakeText(&address, kEntryAddresses[which / 2]);
+    uint32_t record[5] = {};
+    char** waiting = nullptr;
+    if (which % 2) {
+        waiting = static_cast<char**>(GameAllocate(16));
+        waiting[0] = static_cast<char*>(StandPtr(4));
+        waiting[1] = static_cast<char*>(StandPtr(5));
+        waiting[2] = nullptr;
+        record[0] = StandAt(3);
+        record[1] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(waiting));
+        record[2] = record[1] + 12;
+        record[3] = record[1] + 16;
+    }
+    record[4] = 0x70u + static_cast<uint32_t>(which);
+    alignas(4) char entry[0x28];
+    std::memset(entry, kPattern, sizeof entry);
+    f.Byte(CallGameThis<char*>(addr::HTMLImageEntry_Construct, entry, static_cast<const GameText*>(&address),
+                               static_cast<const void*>(record)) == entry);
+    HashField(f, entry, {0x4, Field::Body});
+    f.Word(StandNumber(At<void*>(entry, 0x14)));
+    char** const first = At<char**>(entry, 0x18);
+    char** const last = At<char**>(entry, 0x1C);
+    f.Word(static_cast<uint32_t>(last - first));
+    f.Word(static_cast<uint32_t>(At<char**>(entry, 0x20) - first));
+    for (char** at = first; at && at < last; ++at)
+        f.Word(StandNumber(*at));
+    f.Word(At<uint32_t>(entry, 0x24));
+    Blocks blocks;
+    if (first)
+        blocks.Track(first, static_cast<std::size_t>(At<char*>(entry, 0x20) - reinterpret_cast<char*>(first)), false);
+    CallGameThis<void>(addr::HTMLImageEntry_Destroy, entry);
+    HashFreedDeep(f, blocks);
+    f.Word(At<uint32_t>(entry, 0x0));
+    DestroyText(&address);
+    if (waiting)
+        GameFree(waiting);
+    return f.h;
+}
+
+// The image map's tree: maps of the test's own (a header of 0x38 bytes, the
+// count, the compare), filled through the insert-unless-there (0x00901191,
+// which inserts with 0x0090104C) in four orders (one with addresses
+// twice), every other entry given a picture and nodes waiting; then one
+// before the others inserted on the left of the leftmost (x set) and one
+// after them on the right of the rightmost (`where` set); then cleared,
+// cleared again and destroyed, destroyed at once, or its right subtree
+// erased and the rest destroyed, the nodes and storage checked for being
+// freed.
+const char* const kMapOrders[] = {"dbfaceg", "abcdefg", "gfedcba", "dbfdacegd"};
+constexpr int kMapItems = static_cast<int>(std::size(kMapOrders)) * 3;
+
+struct TestMap {
+    char* header;
+    uint32_t count;
+    uint32_t compare;
+};
+
+void MakeMap(TestMap& map)
+{
+    map.header = static_cast<char*>(GameAllocate(0x38));
+    std::memset(map.header, 0, 0x38);
+    At<char*>(map.header, 0x8) = map.header;
+    At<char*>(map.header, 0xC) = map.header;
+    map.count = 0;
+    map.compare = 0;
+}
+
+void HashMapTree(Fnv& f, char* node, char* parent, int depth)
+{
+    if (!node || depth > 64) {
+        f.Byte(0xD0);
+        return;
+    }
+    f.Byte(At<uint8_t>(node, 0x0));
+    f.Byte(At<char*>(node, 0x4) == parent ? 1 : 0);
+    f.Bytes(At<char*>(node, 0x14), At<char*>(node, 0x18));
+    f.Word(StandNumber(At<void*>(node, 0x24)));
+    HashField(f, node, {0x28, Field::Vector});
+    HashMapTree(f, At<char*>(node, 0x8), node, depth + 1);
+    HashMapTree(f, At<char*>(node, 0xC), node, depth + 1);
+}
+
+void HashMap(Fnv& f, const TestMap& map)
+{
+    char* const header = map.header;
+    f.Word(map.count);
+    f.Byte(At<uint8_t>(header, 0x0));
+    for (const std::size_t at : {0x8u, 0xCu}) {
+        char* const end = At<char*>(header, at);
+        if (end == header)
+            f.Byte(0xEE);
+        else
+            f.Bytes(At<char*>(end, 0x14), At<char*>(end, 0x18));
+    }
+    HashMapTree(f, At<char*>(header, 0x4), header, 0);
+}
+
+void MakeEntry(char* entry, GameText* address, const std::string& text, uint32_t request)
+{
+    MakeText(address, text.c_str());
+    uint32_t record[5] = {0, 0, 0, 0, request};
+    CallGameThis<char*>(addr::HTMLImageEntry_Construct, entry, static_cast<const GameText*>(address),
+                        static_cast<const void*>(record));
+}
+
+void CollectMapNodes(char* node, std::vector<char*>& nodes, int depth)
+{
+    if (!node || depth > 64)
+        return;
+    nodes.push_back(node);
+    CollectMapNodes(At<char*>(node, 0x8), nodes, depth + 1);
+    CollectMapNodes(At<char*>(node, 0xC), nodes, depth + 1);
+}
+
+void TrackNodes(Blocks& blocks, const std::vector<char*>& nodes)
+{
+    for (char* node : nodes) {
+        blocks.Track(node, 0x38, false);
+        if (char* const first = At<char*>(node, 0x28))
+            blocks.Track(first, static_cast<std::size_t>(At<char*>(node, 0x30) - first), false);
+    }
+}
+
+uint32_t ImageMapItem(int which)
+{
+    Fnv f;
+    TestMap map;
+    MakeMap(map);
+    const std::string order = kMapOrders[which / 3];
+    for (std::size_t i = 0; i < order.size(); ++i) {
+        alignas(4) char entry[0x28];
+        GameText address;
+        MakeEntry(entry, &address, std::string("http://maxis.com/") + order[i] + ".gif", static_cast<uint32_t>(i));
+        struct {
+            char* node;
+            uint32_t inserted;
+        } result{};
+        CallGameThis<void*>(addr::HTMLImageMap_InsertUnique, &map, static_cast<void*>(&result),
+                            static_cast<const void*>(entry));
+        CallGameThis<void>(addr::HTMLImageEntry_Destroy, entry);
+        DestroyText(&address);
+        f.Byte(static_cast<uint8_t>(result.inserted));
+        f.Bytes(At<char*>(result.node, 0x14), At<char*>(result.node, 0x18));
+        if ((result.inserted & 0xFF) && i % 2) {
+            At<void*>(result.node, 0x24) = StandPtr(static_cast<int>(i % 8));
+            for (std::size_t n = 0; n <= i % 3; ++n) {
+                void* stand = StandPtr(static_cast<int>(8 + n));
+                CallGameThis<void>(addr::SC4PtrVector_PushBack8FF785, result.node + 0x28, static_cast<void**>(&stand));
+            }
+        }
+        HashMap(f, map);
+    }
+    for (int side = 0; side < 2; ++side) {
+        alignas(4) char entry[0x28];
+        GameText address;
+        MakeEntry(entry, &address, side == 0 ? "http://maxis.com/0" : "http://maxis.com/~", 0x90u + side);
+        char* const parent = At<char*>(map.header, side == 0 ? 0x8 : 0xC);
+        char* made = nullptr;
+        char** const r = CallGameThis<char**>(addr::HTMLImageMap_Insert, &map, &made,
+                                              side == 0 ? reinterpret_cast<char*>(1) : nullptr, parent,
+                                              static_cast<const char*>(entry),
+                                              side == 1 ? reinterpret_cast<char*>(1) : nullptr);
+        CallGameThis<void>(addr::HTMLImageEntry_Destroy, entry);
+        DestroyText(&address);
+        f.Byte(r == &made ? 1 : 0);
+        f.Bytes(At<char*>(made, 0x14), At<char*>(made, 0x18));
+        HashMap(f, map);
+    }
+    std::vector<char*> nodes;
+    CollectMapNodes(At<char*>(map.header, 0x4), nodes, 0);
+    Blocks blocks;
+    switch (which % 3) {
+    case 0:
+        TrackNodes(blocks, nodes);
+        CallGameThis<void>(addr::HTMLImageMap_Clear, &map);
+        HashFreedDeep(f, blocks);
+        HashMap(f, map);
+        CallGameThis<void>(addr::HTMLImageMap_Clear, &map);
+        HashMap(f, map);
+        {
+            Blocks header;
+            header.Track(map.header, 0x38, false);
+            CallGameThis<void>(addr::HTMLImageMap_Destroy, &map);
+            HashFreedDeep(f, header);
+        }
+        break;
+    case 1:
+        TrackNodes(blocks, nodes);
+        blocks.Track(map.header, 0x38, false);
+        CallGameThis<void>(addr::HTMLImageMap_Destroy, &map);
+        HashFreedDeep(f, blocks);
+        break;
+    default: {
+        // Nothing erased for no node; then the root's right subtree, the
+        // rest made a tree again (the root its rightmost) and destroyed.
+        CallGameThis<void>(addr::HTMLImageMap_Erase, &map, static_cast<char*>(nullptr));
+        HashMap(f, map);
+        char* const root = At<char*>(map.header, 0x4);
+        std::vector<char*> right;
+        CollectMapNodes(At<char*>(root, 0xC), right, 0);
+        TrackNodes(blocks, right);
+        CallGameThis<void>(addr::HTMLImageMap_Erase, &map, At<char*>(root, 0xC));
+        HashFreedDeep(f, blocks);
+        At<char*>(root, 0xC) = nullptr;
+        At<char*>(map.header, 0xC) = root;
+        map.count -= static_cast<uint32_t>(right.size());
+        HashMap(f, map);
+        CallGameThis<void>(addr::HTMLImageMap_Destroy, &map);
+        break;
+    }
+    }
+    return f.h;
+}
+
+// The document's release, called by hand: on a document with images
+// waiting (one of them with a stand-in picture), LINK, META and a reader of
+// the test's own, and again; on one that was never Init'd; on one with no
+// service and no images. The root, the base and the map's nodes checked for
+// being freed.
+const char* const kNoImagePage =
+    "<HTML><HEAD><LINK REL=a HREF=s.css><LINK><META NAME=n CONTENT=c></HEAD><BODY><P>p</P></BODY></HTML>";
+constexpr int kReleaseItems = 3;
+
+uint32_t ReleaseItem(char* window, int which)
+{
+    using InitFn = uint8_t(__thiscall*)(void*, void*, void*, const GameText*);
+    Fnv f;
+    g_standRecord = Fnv{};
+    g_readerRecord = Fnv{};
+    g_serviceCancels = Fnv{};
+    char* doc = nullptr;
+    if (which == 1) {
+        doc = NewDocument();
+    } else if (which == 0) {
+        doc = MakeSlotDocument(window, kImageBase, kImagePage);
+    } else {
+        doc = NewDocument();
+        GameText text;
+        MakeText(&text, kImageBase);
+        reinterpret_cast<InitFn>(addr::HTMLDocument_Init)(doc, window, nullptr, &text);
+        DestroyText(&text);
+        MakeText(&text, kNoImagePage);
+        Virtual<uint8_t>(doc, 0x20, &text);
+        DestroyText(&text);
+    }
+    ReaderStand reader{g_readerVtable, 0x5800, 1, nullptr, 1};
+    if (which == 0) {
+        At<void*>(ImageNodeOf(doc, "b.gif"), 0x24) = StandPtr(6);
+        At<ReaderStand*>(doc, 0x1A4) = &reader;
+    }
+    Blocks blocks;
+    if (At<char*>(doc, 0x14))
+        blocks.Track(At<char*>(doc, 0x14), 0x44, true);
+    if (At<char*>(doc, 0xB8))
+        blocks.Track(At<char*>(doc, 0xB8), 0x14, true);
+    std::vector<char*> nodes;
+    CollectMapNodes(At<char*>(At<char*>(doc, 0x198), 0x4), nodes, 0);
+    TrackNodes(blocks, nodes);
+    f.Word(static_cast<uint32_t>(blocks.blocks.size()));
+    for (int pass = 0; pass < 2; ++pass) {
+        const uint8_t r = CallGameThis<uint8_t>(addr::HTMLDocument_ReleaseImages, doc);
+        if (pass == 0)
+            HashFreedDeep(f, blocks);
+        f.Byte(r & 1);
+        f.Byte(At<uint8_t>(doc, 0x18));
+        for (const std::size_t at : {0x14u, 0xB8u, 0x1A4u, 0x30u, 0x2Cu})
+            f.Byte(At<void*>(doc, at) != nullptr);
+        for (const std::size_t at : {0xACu, 0xBCu})
+            HashField(f, doc, {static_cast<uint16_t>(at), Field::Vector});
+        HashImageMap(f, doc);
+        f.Word(g_standRecord.h);
+        f.Word(g_readerRecord.h);
+        f.Word(g_serviceCancels.h);
+    }
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+// The picture reader: one of the test's own giving a picture to none and
+// none over one; the game's, made on first use, for a file that is not
+// there, twice.
+constexpr int kReadItems = 3;
+
+uint32_t ReadItem(char* window, int which)
+{
+    using ReadFn = uint32_t(__thiscall*)(void*, const GameText*, void**);
+    Fnv f;
+    g_readerRecord = Fnv{};
+    char* const doc = MakeSlotDocument(window, kImageBase, nullptr);
+    ReaderStand reader{g_readerVtable, 0x5810, 1, which == 0 ? StandPtr(7) : nullptr, which == 0 ? 1u : 0u};
+    if (which < 2)
+        At<ReaderStand*>(doc, 0x1A4) = &reader;
+    GameText path;
+    MakeText(&path, which < 2 ? "C:/images/a.gif" : "opensc4-h2b2-no-such-image.gif");
+    for (int pass = 0; pass < (which < 2 ? 1 : 2); ++pass) {
+        void* picture = which == 1 ? StandPtr(8) : nullptr;
+        const uint32_t r = reinterpret_cast<ReadFn>(addr::HTMLDocument_ReadPicture)(doc, &path, &picture);
+        f.Byte(static_cast<uint8_t>(r));
+        f.Word(picture && StandNumber(picture) == 0xEEEEu ? 0xEEEEu : StandNumber(picture));
+        f.Byte(At<void*>(doc, 0x1A4) != nullptr);
+        if (picture && StandNumber(picture) == 0xEEEEu)
+            Virtual<uint32_t>(picture, 0x8);
+    }
+    DestroyText(&path);
+    f.Word(g_readerRecord.h);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+// An image loaded (0x008FFBFC): from a path with a picture and without, from
+// bytes (written to a temporary file the reader reads, removed after) and
+// from none, for an address not in the map, and twice for one address.
+constexpr int kLoadItems = 6;
+const char kImageBytes[] = "GIF89a\x01\x00\x02\x00\x80\xff\x00binary";
+
+void LoadOne(char* doc, const std::string& address, bool isPath, const char* text, std::size_t length)
+{
+    alignas(4) char request[0x44];
+    MakeRequest(request, address.c_str(), isPath, text, length);
+    CallGameThis<void>(addr::HTMLDocument_LoadImage, doc, static_cast<char*>(request));
+    FreeRequest(request);
+}
+
+uint32_t LoadItem(char* window, int which)
+{
+    Fnv f;
+    g_standRecord = Fnv{};
+    g_readerRecord = Fnv{};
+    char* const doc = MakeSlotDocument(window, kImageBase, kImagePage);
+    const std::string a = AddressOf(ImageNodeOf(doc, "a.gif"));
+    const std::string b = AddressOf(ImageNodeOf(doc, "b.gif"));
+    ReaderStand reader{g_readerVtable, 0x5820, 1, nullptr, 1};
+    At<ReaderStand*>(doc, 0x1A4) = &reader;
+    switch (which) {
+    case 0:
+        reader.answer = StandPtr(9);
+        LoadOne(doc, a, true, "C:/cache/a.gif", 14);
+        break;
+    case 1:
+        LoadOne(doc, b, true, "C:/cache/b.gif", 14);
+        break;
+    case 2:
+    case 3:
+        reader.mode = 2;
+        reader.answer = StandPtr(which == 2 ? 10 : 11);
+        g_readerPath.clear();
+        if (which == 2)
+            LoadOne(doc, a, false, kImageBytes, sizeof kImageBytes - 1);
+        else
+            LoadOne(doc, b, false, nullptr, 0);
+        f.Byte(!g_readerPath.empty() && GetFileAttributesA(g_readerPath.c_str()) == INVALID_FILE_ATTRIBUTES ? 1 : 0);
+        break;
+    case 4:
+        reader.answer = StandPtr(9);
+        LoadOne(doc, "http://maxis.com/c.gif", true, "C:/cache/c.gif", 14);
+        break;
+    default:
+        reader.answer = StandPtr(12);
+        LoadOne(doc, a, true, "a1", 2);
+        reader.answer = StandPtr(13);
+        LoadOne(doc, a, true, "a2", 2);
+        break;
+    }
+    f.Word(g_readerRecord.h);
+    f.Word(g_standRecord.h);
+    HashImageMap(f, doc);
+    HashImageNodes(f, At<char*>(doc, 0x14), 0);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+// The service's answer through the +4 part's slot 3: another type, one
+// that failed, one that succeeded, one that succeeded for an address not in
+// the map.
+constexpr int kMessageItems = 4;
+
+uint32_t MessageItem(char* window, int which)
+{
+    Fnv f;
+    g_standRecord = Fnv{};
+    g_readerRecord = Fnv{};
+    char* const doc = MakeSlotDocument(window, kImageBase, kImagePage);
+    ReaderStand reader{g_readerVtable, 0x5830, 1, StandPtr(14), 1};
+    At<ReaderStand*>(doc, 0x1A4) = &reader;
+    alignas(4) char request[0x44];
+    MakeRequest(request, which == 3 ? "http://maxis.com/c.gif" : AddressOf(ImageNodeOf(doc, "a.gif")).c_str(), true,
+                "C:/m.gif", 8);
+    MessageStand message{g_messageVtable, which == 0 ? 0x12345678u : 0x75758483u, which == 1 ? 0u : which == 3 ? 2u : 1u,
+                         request};
+    f.Byte(Virtual<uint8_t>(doc + 4, 0xC, &message) & 1);
+    FreeRequest(request);
+    f.Word(g_readerRecord.h);
+    f.Word(g_standRecord.h);
+    HashImageMap(f, doc);
+    HashImageNodes(f, At<char*>(doc, 0x14), 0);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+// Bullets: each item on a document (no root, a plain body, a body with
+// BGCOLOR) with the shared bullets put aside and an empty list in their
+// place, a sequence of font sizes, colours and kinds (cache hits among
+// them, and a bullet in the list with no picture); each node and its
+// picture (size and pixels, through its slots 9, 10, 34 and 35) hashed, then
+// the list; the pictures released and the game's list put back.
+struct BulletCall {
+    uint32_t size;
+    uint32_t colour;
+    uint32_t kind;
+};
+struct BulletCase {
+    int page;
+    bool planted;
+    std::vector<BulletCall> calls;
+};
+const std::vector<BulletCase>& BulletCases()
+{
+    static const std::vector<BulletCase> cases = {
+        {1,
+         false,
+         {{28, 0xFF000000u, 0}, {28, 0xFF000000u, 0}, {28, 0xFF000000u, 1}, {29, 0xFF000000u, 0}, {0, 0xFF0000FFu, 0},
+          {3, 0xFF00FF00u, 0}, {5, 0xFF00FF00u, 0}}},
+        {0, false, {{14, 0xFFFFFFFFu, 0}, {36, 0xFF808080u, 3}}},
+        {2, false, {{20, 0xFF102030u, 0}, {20, 0xFF102030u, 2}}},
+        {1, true, {{14, 0xFF445566u, 0}, {14, 0xFF445566u, 0}}},
+    };
+    return cases;
+}
+constexpr int kBulletItems = 4;
+
+uint32_t PictureIndex(std::vector<void*>& seen, void* picture)
+{
+    if (!picture)
+        return 0xFFFFFFFFu;
+    for (std::size_t i = 0; i < seen.size(); ++i)
+        if (seen[i] == picture)
+            return static_cast<uint32_t>(i);
+    seen.push_back(picture);
+    return static_cast<uint32_t>(seen.size() - 1);
+}
+
+void HashPicture(Fnv& f, void* picture)
+{
+    const uint32_t width = Virtual<uint32_t>(picture, 0x24);
+    const uint32_t height = Virtual<uint32_t>(picture, 0x28);
+    f.Word(width);
+    f.Word(height);
+    const char* const pixels = Virtual<const char*>(picture, 0x88);
+    const uint32_t pitch = Virtual<uint32_t>(picture, 0x8C);
+    f.Byte(pixels != nullptr);
+    if (!pixels || width > 256 || height > 256)
+        return;
+    for (uint32_t y = 0; y < height; ++y)
+        f.Bytes(pixels + y * pitch, pixels + y * pitch + width * 2);
+}
+
+uint32_t BulletItem(char* window, int which)
+{
+    const BulletCase& c = BulletCases()[static_cast<std::size_t>(which)];
+    static const char* const pages[] = {nullptr, "<HTML><BODY>x</BODY></HTML>",
+                                        "<HTML><BODY BGCOLOR=\"#123456\">x</BODY></HTML>"};
+    Fnv f;
+    char* const doc = MakeSlotDocument(window, kImageBase, pages[c.page]);
+    uint32_t* const bullets = reinterpret_cast<uint32_t*>(static_cast<std::uintptr_t>(0x00B62524));
+    uint32_t saved[3];
+    std::memcpy(saved, bullets, sizeof saved);
+    std::memset(bullets, 0, sizeof saved);
+    if (c.planted) {
+        uint32_t* const storage = static_cast<uint32_t*>(GameAllocate(16));
+        storage[0] = 7;
+        storage[1] = 0;
+        storage[2] = 0xFF445566u;
+        storage[3] = 0;
+        bullets[0] = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(storage));
+        bullets[1] = bullets[0] + 16;
+        bullets[2] = bullets[0] + 16;
+    }
+    std::vector<void*> seen;
+    for (std::size_t i = 0; i < c.calls.size(); ++i) {
+        const BulletCall& call = c.calls[i];
+        At<uint32_t>(doc, 0x148) = call.size;
+        At<uint32_t>(doc, 0x14C) = call.colour;
+        At<uint32_t>(doc, 0x158) = 0x30u + static_cast<uint32_t>(i);
+        char* const node = CallGameThis<char*>(addr::HTMLDocument_MakeBullet, doc, call.kind);
+        f.Byte(node != nullptr);
+        if (!node)
+            continue;
+        f.Word(At<uint32_t>(node, 0x0));
+        for (std::size_t at = 0x1C; at < 0x3C; at += 4)
+            f.Word(at == 0x24 ? PictureIndex(seen, At<void*>(node, at)) : At<uint32_t>(node, at));
+        if (void* const picture = At<void*>(node, 0x24))
+            HashPicture(f, picture);
+        Virtual<char*>(node, 0x0, uint32_t{1});
+    }
+    const uint32_t* const first = reinterpret_cast<const uint32_t*>(static_cast<std::uintptr_t>(bullets[0]));
+    const uint32_t* const last = reinterpret_cast<const uint32_t*>(static_cast<std::uintptr_t>(bullets[1]));
+    f.Word(static_cast<uint32_t>(last - first));
+    for (const uint32_t* at = first; at && at < last; at += 4) {
+        for (int k = 0; k < 3; ++k)
+            f.Word(at[k]);
+        void* const picture = reinterpret_cast<void*>(static_cast<std::uintptr_t>(at[3]));
+        f.Word(PictureIndex(seen, picture));
+        if (picture)
+            Virtual<uint32_t>(picture, 0x8);
+    }
+    if (first)
+        GameFree(const_cast<uint32_t*>(first));
+    std::memcpy(bullets, saved, sizeof saved);
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
+// Slot 5 (Parse again) with three pages, and slot 20 with four values of
+// +0x2A and after a page with BLINK.
+const char* const kSlot5Pages[] = {kSlotPage, "plain text, no tags", "<!DOCTYPE HTML><HTML><BODY>d</BODY></HTML>"};
+const uint8_t kBlinkFlags[] = {0, 1, 2, 0xFF};
+constexpr int kVtableSlotItems = static_cast<int>(std::size(kSlot5Pages)) + static_cast<int>(std::size(kBlinkFlags)) + 1;
+
+uint32_t VtableSlotItem(char* window, int which)
+{
+    Fnv f;
+    if (which < static_cast<int>(std::size(kSlot5Pages))) {
+        char* const doc = MakeSlotDocument(window, "", nullptr);
+        GameText text;
+        MakeText(&text, kSlot5Pages[which]);
+        f.Byte(static_cast<uint8_t>(Virtual<uint32_t>(doc, 0x14, &text)));
+        DestroyText(&text);
+        HashDocument(f, doc);
+        Virtual<uint32_t>(doc, 0x8);
+        return f.h;
+    }
+    which -= static_cast<int>(std::size(kSlot5Pages));
+    char* const doc =
+        MakeSlotDocument(window, "", which < static_cast<int>(std::size(kBlinkFlags)) ? nullptr
+                                                                                      : "<BODY><BLINK>b</BLINK></BODY>");
+    if (which < static_cast<int>(std::size(kBlinkFlags)))
+        At<uint8_t>(doc, 0x2A) = kBlinkFlags[which];
+    f.Byte(At<uint8_t>(doc, 0x2A));
+    f.Byte(Virtual<uint8_t>(doc, 0x50));
+    Virtual<uint32_t>(doc, 0x8);
+    return f.h;
+}
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -3659,6 +4416,7 @@ void DriveNodesDay(const Day& day)
         return;
     SetUpService();
     SetUpNodeStands();
+    SetUpImageStands();
     void* const face = MakeWindow("html nodes");
     if (!face)
         return;
@@ -3667,9 +4425,9 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[8] = {};
+    uint32_t sectionHash[9] = {};
     const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children",
-                                    "document", "slots"};
+                                    "document", "slots", "images"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -3745,15 +4503,37 @@ void DriveNodesDay(const Day& day)
         for (int i = 0; i < kDoctypeItems; ++i)
             item(7, at++, [&] { return DocDoctypeItem(window, i); });
     }
+    // h2b2's: image entries, the image map, the release, the picture reader,
+    // images loaded, the service's answers, bullets, slots 5 and 20.
+    {
+        int at = 0;
+        for (int i = 0; i < kEntryItems; ++i)
+            item(8, at++, [&] { return ImageEntryItem(i); });
+        for (int i = 0; i < kMapItems; ++i)
+            item(8, at++, [&] { return ImageMapItem(i); });
+        for (int i = 0; i < kReleaseItems; ++i)
+            item(8, at++, [&] { return ReleaseItem(window, i); });
+        for (int i = 0; i < kReadItems; ++i)
+            item(8, at++, [&] { return ReadItem(window, i); });
+        for (int i = 0; i < kLoadItems; ++i)
+            item(8, at++, [&] { return LoadItem(window, i); });
+        for (int i = 0; i < kMessageItems; ++i)
+            item(8, at++, [&] { return MessageItem(window, i); });
+        for (int i = 0; i < kBulletItems; ++i)
+            item(8, at++, [&] { return BulletItem(window, i); });
+        for (int i = 0; i < kVtableSlotItems; ++i)
+            item(8, at++, [&] { return VtableSlotItem(window, i); });
+    }
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
-               "pages %08X, children %08X, document %08X, slots %08X), %u stand-in calls, %u of %u blocks freed; %s; "
+               "pages %08X, children %08X, document %08X, slots %08X, images %08X), %u stand-in calls, %u of %u blocks "
+               "freed; %s; "
                "hash %08X",
                items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
-               sectionHash[6], sectionHash[7], g_standCalls,
+               sectionHash[6], sectionHash[7], sectionHash[8], g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)
