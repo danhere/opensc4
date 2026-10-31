@@ -1,48 +1,66 @@
-// Our path information, part pi1 (build 641): cSC4PathInfo, the resource of
-// type 0x296678F7 (interface 0xA9667793) that holds a network piece's paths
-// (the SC4PATHS files), and cSC4PathInfoFactory, its resource factory (class
-// ID 0x496678FE). pi1: the factory (its class ID, Create, deleting destructor
-// and CreateInstance), the pool's free and new page, the object (constructor,
-// deleting destructor, copy constructor, Clone, QueryInterface), the small
-// queries (slots 3, 4, 10, 11, 13, 16, 17 and 36) and the building (AddPath,
-// AddStop and their packed forms, the free path number, the points' reserve).
-// The survey is in docs/automata.md, "Part pi". Calls between functions of
-// the part go to the game's addresses, so each detour stands alone and
-// OPENSC4_AUTOMATA_SKIP (function addresses, hex, eight digits) bisects them.
+// Our path information, parts pi1 and pi2 (build 641): cSC4PathInfo, the
+// resource of type 0x296678F7 (interface 0xA9667793) that holds a network
+// piece's paths (the SC4PATHS files), and cSC4PathInfoFactory, its resource
+// factory (class ID 0x496678FE). pi1: the factory (its class ID, Create,
+// deleting destructor and CreateInstance), the pool's free and new page, the
+// object (constructor, deleting destructor, copy constructor, Clone,
+// QueryInterface), the small queries (slots 3, 4, 10, 11, 13, 16, 17 and 36)
+// and the building (AddPath, AddStop and their packed forms, the free path
+// number, the points' reserve). pi2: the SC4PATHS reader (the factory's slot
+// 10) with its line, number and point readers and the type 2 mirror; the path
+// table's insert_unique, insert_equal, insert, operator[] and copy; slots 12,
+// 14, 15, 27, 28, 32 to 35, 38 and 40 and the highest number. The survey is
+// in docs/automata.md, "Part pi". Calls between functions of the part go to
+// the game's addresses, so each detour stands alone and OPENSC4_AUTOMATA_SKIP
+// (function addresses, hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.pathinfo: the 25 detours in kObject below.
+//   simulators.automata.pathinfo: the 47 detours in kObject (pi1) and
+//   kTables (pi2) below.
 //
 // What it does. A path information is a 0x3C-byte block of the pool
 // 0x00B09FEC (4 KB pages of 0x44 blocks): +0 the interface (vtable
 // 0x00A99E70), +4 the resource part (cRZResource, vtable 0x00A99E38: its
-// reference count +8, its key), +0x1C the path table (a hash map of 100
-// buckets from the key to a record), +0x30 the flags (1 slot 16's and 17's,
-// 2 there are stops), +0x31 a byte per path type (0 to 7) that says it has
-// one. A key is type << 24 | number << 16 | from << 8 | to, the type's high
-// nibble 1 or 2 for a stop. A node is 0x1C bytes: next, key, the record
-// (+8: the points, a vector of 12-byte points; +0x14 the length; +0x18 a
-// byte). The factory's CreateInstance makes one for the type 0x296678F7;
-// its slot 10 (0x00542900, the game's) reads an SC4PATHS file into it
-// through AddPathByParts and AddStopByParts.
+// reference count +8, its key +0xC, the type first), +0x1C the path table (a
+// hash map of 100 buckets from the key to a record), +0x30 the flags (1 slot
+// 16's and 17's, 2 there are stops), +0x31 a byte per path type (0 to 7) that
+// says it has one. A key is type << 24 | number << 16 | from << 8 | to, the
+// type's high nibble 1 or 2 for a stop. A node is 0x1C bytes: next, key, the
+// record (+8: the points, a vector of 12-byte points; +0x14 the length;
+// +0x18 a byte). The factory's CreateInstance makes one for the type
+// 0x296678F7; its slot 10 reads an SC4PATHS file into it through
+// AddPathByParts and AddStopByParts, then mirrors the type 2 paths.
 //
 // Kept as the game's: the adjustors 0x005403D0 (+4 slot 0) and 0x005403E0
 // (+4 slot 12), AddRef and Release (0x00808600, 0x00808610, shared), the
-// path table's code (insert_unique 0x0053FF10, the copy 0x00540160, clear,
-// resize), the points' allocate-and-copy 0x0053D5A0 (also called from
-// 0x0050C540), the base classes' constructors and destructors, the slot
-// GetStopPointByParts calls (35, 0x0053E740) and everything of pi2 on.
+// table's clear, resize, begin and next bucket (shared), the points'
+// allocate-and-copy 0x0053D5A0 (also called from 0x0050C540), the vectors'
+// and strings' code, the base classes' constructors and destructors, and
+// everything of pi3.
 //
-// Oddities kept: QueryInterface holds through the object's slot 1 whatever
-// it answers; 0x456B8F1D on a null object answers null and 0; HasPaths reads
-// +0x31 + type with no bound (the type 0 is the stop flag 2); AddStop's
-// value carries a length and a byte from the game's stack it never set
-// (stored only when the insert fails to happen; ours 0); FreePathNumber
+// Oddities kept (pi1): QueryInterface holds through the object's slot 1
+// whatever it answers; 0x456B8F1D on a null object answers null and 0;
+// HasPaths reads +0x31 + type with no bound (the type 0 is the stop flag 2);
+// AddStop's value carries a length and a byte from the game's stack it never
+// set (stored only when the insert fails to happen; ours 0); FreePathNumber
 // compares the number signed (a "negative" one starts from 0 by its low
 // byte) and stops at 26 with that key even when it is taken; the packed
 // forms keep only the low byte of each part (the type's too, after the
 // stop's 0x10 or 0x20 is ORed in). AL only in the game: CreateInstance,
 // QueryInterface, HasPaths, AddStop; ours zero-extends.
+//
+// Oddities kept (pi2; docs/automata.md has them all): the line reader does
+// not test the stream's answer (a failed read repeats the last byte) and
+// after a CR reads and counts one more byte with no test of the count
+// (from 1 it wraps and reads on); an empty line ends a read as a failure;
+// the reader's failures keep what was added, a stop's answer is not tested,
+// a path's key there already fails the whole file; slots 35, 32 and 40 read
+// a record's first or last point unchecked; operator[]'s new record and
+// slot 40's cell and point carry the game's stack words (ours 0); the copy
+// does not free the table's old nodes; the highest number takes three
+// arguments it never reads; the mirror walks the table as it grows, so
+// mirrors are mirrored in turn up to the number 26. AL only in the game: the
+// readers, slots 35 and 40; ours zero-extends.
 //
 #include "core/address_check.h"
 #include "core/game.h"
@@ -54,6 +72,7 @@
 
 #include <windows.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -596,6 +615,879 @@ void __fastcall ReservePoints(char** vector, void*, std::uint32_t count)
 }
 
 // ====================================================================================
+// Part pi2: the path table's code, the queries over all paths, the SC4PATHS
+// reader
+
+// The game's string (vtable 0x00A80810: a char vector with its terminator,
+// and a reference count), 0x14 bytes, as the readers keep it on the stack.
+struct GameString {
+    std::uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    std::uint32_t refs;
+};
+static_assert(sizeof(GameString) == 0x14, "the game's string");
+
+// The hash table's iterator (SC4HashTable::Begin's): the node, the table.
+struct Iterator {
+    char* node;
+    char* table;
+};
+
+// The answer of insert_equal: the node, the table.
+struct Placed {
+    char* node;
+    void* table;
+};
+
+namespace slot {
+constexpr std::size_t kStreamRead = 0x10, kStreamSize = 0xD0, kStringAppend = 0x44, kPartType = 0x14,
+                      kSetFlag = 0x44, kAddPathConnection = 0xD8, kCellPart = 0xC0, kPathInfo = 0xC4, kCell = 0xEC,
+                      kCellOf = 0x2C, kCellToPoint = 0x184, kAppPreferences = 0x98, kDrivesOnLeft = 0x64;
+} // namespace slot
+
+// The texts the reader and its line reader use (pointers to "SC4PATHS" and
+// "--"), the float the reader's points start as, the floats it compares.
+constexpr std::uintptr_t kHeaderText = 0x00B09FE0, kCommentText = 0x00B09FE4, kStartFloat = 0x00B228C4,
+                         kVersionStops = 0x00A8FAF4, kVersionByte = 0x00A99F24, kStepLength = 0x00A99F20,
+                         kEndSlack = 0x00A99E20, kHalfCell = 0x00A8E178;
+
+// The table's bucket count as the game's code takes it: the buckets' size
+// in bytes shifted as a signed count.
+std::uint32_t BucketCount(char* table)
+{
+    return static_cast<std::uint32_t>(static_cast<std::int32_t>(At<char*>(table, 8) - At<char*>(table, 4)) >> 2);
+}
+
+char*& Bucket(char* table, std::uint32_t index)
+{
+    return At<char*>(At<char*>(table, 4), index * 4);
+}
+
+// The node after `node` in the table, as the inlined iterator steps: its
+// chain's next, else the first node of the next bucket that has one after
+// its key's bucket (the bucket count read as it is now).
+char* NextNode(char* table, char* node)
+{
+    if (char* const next = At<char*>(node, 0))
+        return next;
+    std::uint32_t bucket = At<std::uint32_t>(node, kNodeKey) % BucketCount(table);
+    char* found = nullptr;
+    while (++bucket < BucketCount(table)) {
+        found = Bucket(table, bucket);
+        if (found)
+            break;
+    }
+    return found;
+}
+
+// The first node of the object's table (SC4HashTable::Begin, the game's).
+Iterator First(char* self)
+{
+    Iterator it{};
+    CallThis<void*>(addr::SC4HashTable_Begin, self + kTable, &it);
+    return it;
+}
+
+// A node of 0x1C bytes from SC4::stl_allocate with the next null and the
+// key, the points (copied), the length and the byte of a value (key +0,
+// points +4, length +0x10, byte +0x14) or of another node (+4, +8, +0x14,
+// +0x18).
+char* NewNode(std::uint32_t key, const void* points, std::uint32_t length, std::uint8_t byte)
+{
+    char* const node = CallCdecl<char*>(addr::SC4_stl_allocate, 0x1Cu);
+    At<char*>(node, 0) = nullptr;
+    At<std::uint32_t>(node, kNodeKey) = key;
+    CallThis<void*>(addr::SC4Float3Vector_CopyConstruct, node + kNodeRecord, points);
+    At<std::uint32_t>(node, kNodeLength) = length;
+    At<std::uint8_t>(node, 0x18) = byte;
+    return node;
+}
+
+char* NewNode(const Value* value)
+{
+    return NewNode(value->key, value->points, value->length, value->byte);
+}
+
+char* CopyNode(char* from)
+{
+    return NewNode(At<std::uint32_t>(from, kNodeKey), from + kNodeRecord, At<std::uint32_t>(from, kNodeLength),
+                   At<std::uint8_t>(from, 0x18));
+}
+
+// push_back of a key onto a vector of uint32 (begin, end, capacity): in
+// place when there is room (nothing written at a null end), else
+// SC4PtrVector::InsertN.
+void PushKey(char** vector, std::uint32_t key)
+{
+    if (vector[1] == vector[2]) {
+        std::uint32_t value = key, tag = key;
+        CallThis<void>(addr::SC4PtrVector_InsertN, vector, vector[1], &value, &tag, 1u, 1u);
+        return;
+    }
+    if (vector[1])
+        At<std::uint32_t>(vector[1], 0) = key;
+    vector[1] += 4;
+}
+
+// A string as the readers make one on the stack: 8 bytes of
+// SC4::stl_allocate, empty, the vtable, the count zero.
+void MakeString(GameString& s)
+{
+    s.begin = s.end = s.capacity = nullptr;
+    char* const body = CallCdecl<char*>(addr::SC4_stl_allocate, 8u);
+    s.begin = s.end = body;
+    s.capacity = body + 8;
+    *body = 0;
+    s.vtable = addr::SC4String_Vtable;
+    s.refs = 0;
+}
+
+// The string's end as the readers inline it: the vtable, the buffer freed.
+void DropString(GameString& s)
+{
+    s.vtable = addr::SC4String_Vtable;
+    if (s.begin)
+        CallCdecl<void>(addr::SC4_Free, s.begin);
+}
+
+const char* Text(GameString& s)
+{
+    return CallThis<const char*>(addr::cRZBaseString_Data, &s);
+}
+
+std::uint8_t ReadLineAt(void* self, void* stream, GameString* line, std::uint32_t* remaining)
+{
+    return static_cast<std::uint8_t>(CallThis<std::uint32_t>(addr::cSC4PathInfo_ReadLine, self, stream, line,
+                                                              remaining));
+}
+
+std::uint8_t ReadNumberAt(void* self, void* stream, std::uint32_t* out, std::uint32_t* remaining)
+{
+    return static_cast<std::uint8_t>(CallThis<std::uint32_t>(addr::cSC4PathInfo_ReadNumber, self, stream, out,
+                                                              remaining));
+}
+
+std::uint8_t ReadPointAt(void* self, void* stream, float* point, std::uint32_t* remaining)
+{
+    return static_cast<std::uint8_t>(CallThis<std::uint32_t>(addr::cSC4PathInfo_ReadPoint, self, stream, point,
+                                                              remaining));
+}
+
+// ---- The path table's code (on the table, the object + 0x1C: the buckets
+// +4 to +8, the count +0x10)
+
+// 0x0053FF10, (result, value) ret 8: insert_unique without a resize: the
+// key's node when there is one (inserted 0), else a new node at the head of
+// its bucket, the count up (inserted 1). The result's byte only; EAX the
+// result.
+Inserted* __fastcall InsertUnique(char* table, void*, Inserted* result, const Value* value)
+{
+    static bool logged;
+    FirstCall("InsertUnique", logged);
+    const std::uint32_t bucket = value->key % BucketCount(table);
+    char* const head = Bucket(table, bucket);
+    for (char* node = head; node; node = At<char*>(node, 0))
+        if (At<std::uint32_t>(node, kNodeKey) == value->key) {
+            result->table = table;
+            result->node = node;
+            result->inserted = 0;
+            return result;
+        }
+    char* const node = NewNode(value);
+    At<char*>(node, 0) = head;
+    Bucket(table, bucket) = node;
+    ++At<std::uint32_t>(table, 0x10);
+    result->node = node;
+    result->table = table;
+    result->inserted = 1;
+    return result;
+}
+
+// 0x0053FFD0, (result, value) ret 8: insert_equal without a resize: a new
+// node after the first of the key in its bucket, else at the bucket's head;
+// the count up; the result {node, table}, EAX the result.
+Placed* __fastcall InsertEqual(char* table, void*, Placed* result, const Value* value)
+{
+    static bool logged;
+    FirstCall("InsertEqual", logged);
+    const std::uint32_t bucket = value->key % BucketCount(table);
+    char* const head = Bucket(table, bucket);
+    for (char* same = head; same; same = At<char*>(same, 0))
+        if (At<std::uint32_t>(same, kNodeKey) == value->key) {
+            char* const node = NewNode(value);
+            At<char*>(node, 0) = At<char*>(same, 0);
+            At<char*>(same, 0) = node;
+            ++At<std::uint32_t>(table, 0x10);
+            result->table = table;
+            result->node = node;
+            return result;
+        }
+    char* const node = NewNode(value);
+    At<char*>(node, 0) = head;
+    Bucket(table, bucket) = node;
+    ++At<std::uint32_t>(table, 0x10);
+    result->node = node;
+    result->table = table;
+    return result;
+}
+
+// 0x005400D0, (value) ret 4: the table resized for one more (0x004F0940),
+// a new node at the head of the key's bucket with no test for the key, the
+// count up; answers the node's pair (node + 4).
+char* __fastcall InsertNew(char* table, void*, const Value* value)
+{
+    static bool logged;
+    FirstCall("InsertNew", logged);
+    CallThis<void>(addr::SC4Uint32HashSet_Resize, table, At<std::uint32_t>(table, 0x10) + 1);
+    const std::uint32_t bucket = value->key % BucketCount(table);
+    char* const head = Bucket(table, bucket);
+    char* const node = NewNode(value);
+    At<char*>(node, 0) = head;
+    Bucket(table, bucket) = node;
+    At<std::uint32_t>(table, 0x10) = At<std::uint32_t>(table, 0x10) + 1;
+    return node + kNodeKey;
+}
+
+// 0x00540160, (from) ret 4: the copy of another table: the buckets emptied
+// (the old nodes not freed), reserved (0x0045D4F0) and filled with nulls
+// (0x004FBA20) to the other's bucket count, each chain copied in its order
+// into new nodes, the count copied.
+void __fastcall CopyPaths(char* table, void*, char* from)
+{
+    static bool logged;
+    FirstCall("CopyPaths", logged);
+    At<char*>(table, 8) = At<char*>(table, 4);
+    CallThis<void>(addr::PtrVector_Reserve, table + 4, BucketCount(from));
+    void* empty = nullptr;
+    CallThis<void>(addr::SC4PtrVector_FillInsert, table + 4, At<char*>(table, 8), BucketCount(from), &empty);
+    for (std::uint32_t i = 0; i < BucketCount(from); ++i) {
+        char* source = Bucket(from, i);
+        if (!source)
+            continue;
+        char* last = CopyNode(source);
+        Bucket(table, i) = last;
+        for (source = At<char*>(source, 0); source; source = At<char*>(source, 0)) {
+            char* const node = CopyNode(source);
+            At<char*>(last, 0) = node;
+            last = node;
+        }
+    }
+    At<std::uint32_t>(table, 0x10) = At<std::uint32_t>(from, 0x10);
+}
+
+// 0x005402D0, (key*) ret 4: operator[]: the key's record (node + 8), else
+// one inserted by 0x005400D0 with no points; the game's record carries a
+// length and a byte from its stack it never set (ours 0).
+char* __fastcall FindOrInsert(char* table, void*, const std::uint32_t* key)
+{
+    static bool logged;
+    FirstCall("FindOrInsert", logged);
+    const std::uint32_t wanted = *key;
+    for (char* node = Bucket(table, wanted % BucketCount(table)); node; node = At<char*>(node, 0))
+        if (At<std::uint32_t>(node, kNodeKey) == wanted)
+            return node + kNodeRecord;
+    char* empty[3] = {};
+    Value value{};
+    value.key = wanted;
+    CallThis<void*>(addr::SC4Float3Vector_CopyConstruct, value.points, empty);
+    char* const pair = CallThis<char*>(addr::cSC4PathInfo_InsertNew, table, &value);
+    if (value.points[0])
+        CallCdecl<void>(addr::SC4_Free, value.points[0]);
+    return pair + 4;
+}
+
+// ---- The queries over all paths (slots, ret as given)
+
+// 0x0053EAA0, slot 12 (type, from, to), ret 0xC: the count of keys with the
+// type byte, from and to (any number).
+std::uint32_t __fastcall CountPaths(char* self, void*, std::uint32_t type, std::uint32_t from, std::uint32_t to)
+{
+    static bool logged;
+    FirstCall("CountPaths", logged);
+    const std::uint32_t wanted = (type << 24) | ((from & 0xFFu) << 8) | (to & 0xFFu);
+    std::uint32_t count = 0;
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node))
+        if ((At<std::uint32_t>(node, kNodeKey) & 0xFF00FFFFu) == wanted)
+            ++count;
+    return count;
+}
+
+// The keys slots 14 and 15 put in the vector: paths (type high nibble 0) of
+// the type nibble with the side byte (from: >> 8, to: >> 0) given.
+std::uint32_t KeysOfSide(char* self, std::uint32_t type, std::uint8_t side, char** vector, unsigned shift)
+{
+    vector[1] = vector[0];
+    std::uint32_t count = 0;
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node)) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        if ((key & 0xF0000000u) || ((key >> 24) & 0xFu) != type || static_cast<std::uint8_t>(key >> shift) != side)
+            continue;
+        PushKey(vector, key);
+        ++count;
+    }
+    return count;
+}
+
+// 0x0053E870, slot 14 (type, from, vector), ret 0xC: the vector emptied,
+// the keys of paths of the type from the side put in; the count.
+std::uint32_t __fastcall KeysFrom(char* self, void*, std::uint32_t type, std::uint32_t from, char** vector)
+{
+    static bool logged;
+    FirstCall("KeysFrom", logged);
+    return KeysOfSide(self, type, static_cast<std::uint8_t>(from), vector, 8);
+}
+
+// 0x0053E990, slot 15 (type, to, vector), ret 0xC: as slot 14 by the side
+// the path goes to.
+std::uint32_t __fastcall KeysTo(char* self, void*, std::uint32_t type, std::uint32_t to, char** vector)
+{
+    static bool logged;
+    FirstCall("KeysTo", logged);
+    return KeysOfSide(self, type, static_cast<std::uint8_t>(to), vector, 0);
+}
+
+// 0x0053EB30, (three arguments, not read) ret 0xC: the highest number byte
+// over every key, stops too; 0 for none.
+std::uint32_t __fastcall HighestNumber(char* self, void*, std::uint32_t, std::uint32_t, std::uint32_t)
+{
+    static bool logged;
+    FirstCall("HighestNumber", logged);
+    std::int32_t highest = 0;
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node)) {
+        const auto number = static_cast<std::int32_t>((At<std::uint32_t>(node, kNodeKey) >> 16) & 0xFFu);
+        if (highest < number)
+            highest = number;
+    }
+    return static_cast<std::uint32_t>(highest);
+}
+
+// 0x0053EBB0, slot 27 (occupant), ret 4: each path (type high nibble 0) to
+// the occupant's slot 54 (AddPathConnection) as (the type nibble, key >> 8,
+// key).
+void __fastcall ConnectPaths(char* self, void*, void* occupant)
+{
+    static bool logged;
+    FirstCall("ConnectPaths", logged);
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node)) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        if (!(key & 0xF0000000u))
+            Virtual<void>(occupant, slot::kAddPathConnection, (key >> 24) & 0xFu, key >> 8, key);
+    }
+}
+
+// 0x0053EC40, slot 28 (x, y, z), ret 0xC: every point of every record moved
+// by the three floats.
+void __fastcall MovePaths(char* self, void*, float x, float y, float z)
+{
+    static bool logged;
+    FirstCall("MovePaths", logged);
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node))
+        for (float* p = At<float*>(node, kNodeRecord); p != At<float*>(node, kNodeRecord + 4); p += 3) {
+            p[0] = x + p[0];
+            p[1] = y + p[1];
+            p[2] = z + p[2];
+        }
+}
+
+// Whether a key matches slot 33's and 34's wanted key with the key's from
+// and to 0xFF as wild cards.
+std::uint32_t WildSides(std::uint32_t key)
+{
+    std::uint32_t mask = static_cast<std::uint8_t>(key >> 8) == 0xFF ? 0xFF00u : 0u;
+    if (static_cast<std::uint8_t>(key) == 0xFF)
+        mask |= 0xFFu;
+    return mask;
+}
+
+// 0x0053E650, slot 33 (key), ret 4: the count of keys equal to the key with
+// the type's high nibble 1 (its number 0xFF a wild card), or equal to it
+// with their own from and to 0xFF as wild cards.
+std::uint32_t __fastcall CountStopsOfKey(char* self, void*, std::uint32_t key)
+{
+    static bool logged;
+    FirstCall("CountStopsOfKey", logged);
+    const std::uint32_t number = static_cast<std::uint8_t>(key >> 16) == 0xFF ? 0xFF0000u : 0u;
+    const std::uint32_t wanted = (key & 0x0FFFFFFFu) | 0x10000000u;
+    std::uint32_t count = 0;
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node)) {
+        const std::uint32_t k = At<std::uint32_t>(node, kNodeKey);
+        const std::uint32_t sides = WildSides(k);
+        if ((k | number) == (wanted | number) || (sides | k) == (sides | wanted))
+            ++count;
+    }
+    return count;
+}
+
+// 0x0053E550, slot 34 (type, from, to, number), ret 0x10: the count of
+// first stops (type | 0x10) of the parts, wild cards: the type 0 (its
+// nibble), 0xFF from, to and number, the keys' own from and to 0xFF.
+std::uint32_t __fastcall CountStops(char* self, void*, std::uint32_t type, std::uint32_t from, std::uint32_t to,
+                                    std::uint32_t number)
+{
+    static bool logged;
+    FirstCall("CountStops", logged);
+    std::uint32_t wild = type == 0 ? 0x0F000000u : 0u;
+    if ((from & 0xFFu) == 0xFF)
+        wild |= 0xFF00u;
+    if ((to & 0xFFu) == 0xFF)
+        wild |= 0xFFu;
+    if ((number & 0xFFu) == 0xFF)
+        wild |= 0xFF0000u;
+    const std::uint32_t wanted = ((((type | 0x10u) << 8 | (number & 0xFFu)) << 8 | (from & 0xFFu)) << 8) | (to & 0xFFu);
+    std::uint32_t count = 0;
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node)) {
+        const std::uint32_t k = At<std::uint32_t>(node, kNodeKey);
+        const std::uint32_t sides = WildSides(k);
+        if ((sides | k | wild) == (sides | wanted | wild))
+            ++count;
+    }
+    return count;
+}
+
+// 0x0053E740, slot 35 (point out, key), ret 8: the first point of the key's
+// record; else of the first record (in the table's order, the iterator's
+// step 0x0053DCF0) whose key matches the key with the type's high nibble 1,
+// 0xFF from and to on either side wild cards. AL 1, or 0 (EAX 0) with none.
+// The point is read unchecked.
+std::uint32_t __fastcall GetStopPoint(char* self, void*, std::uint32_t* point, std::uint32_t key)
+{
+    static bool logged;
+    FirstCall("GetStopPoint", logged);
+    char* const table = self + kTable;
+    for (char* node = Bucket(table, key % BucketCount(table)); node; node = At<char*>(node, 0))
+        if (At<std::uint32_t>(node, kNodeKey) == key) {
+            const std::uint32_t* const p = At<std::uint32_t*>(node, kNodeRecord);
+            point[0] = p[0];
+            point[1] = p[1];
+            point[2] = p[2];
+            return 1;
+        }
+    const std::uint32_t wanted = (key & 0x0FFFFFFFu) | 0x10000000u;
+    Iterator it = First(self);
+    while (it.node) {
+        const std::uint32_t k = At<std::uint32_t>(it.node, kNodeKey);
+        std::uint32_t mask = 0xFFFFFFFFu;
+        if (static_cast<std::uint8_t>(k >> 8) == 0xFF)
+            mask = 0xFFFF00FFu;
+        if (static_cast<std::uint8_t>(k) == 0xFF)
+            mask &= 0xFFFFFF00u;
+        if (static_cast<std::uint8_t>(key >> 8) == 0xFF)
+            mask &= 0xFFFF00FFu;
+        if (static_cast<std::uint8_t>(key) == 0xFF)
+            mask &= 0xFFFFFF00u;
+        if ((mask & k) == (mask & wanted)) {
+            const std::uint32_t* const p = At<std::uint32_t*>(it.node, kNodeRecord);
+            point[0] = p[0];
+            point[1] = p[1];
+            point[2] = p[2];
+            return 1;
+        }
+        char* next = At<char*>(it.node, 0);
+        if (!next)
+            next = CallThis<char*>(addr::SC4HashTable_NextBucket, &it);
+        it.node = next;
+    }
+    return 0;
+}
+
+// 0x0053F000, slot 38 (type, from, vector), ret 0xC: the vector emptied,
+// the keys of the type nibble (stops too) from the side whose record's byte
+// has the bit 1 put in; EAX whether the vector has any.
+std::uint32_t __fastcall FlaggedKeys(char* self, void*, std::uint32_t type, std::uint32_t from, char** vector)
+{
+    static bool logged;
+    FirstCall("FlaggedKeys", logged);
+    vector[1] = vector[0];
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node)) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        if (static_cast<std::uint8_t>(key >> 8) == static_cast<std::uint8_t>(from) && ((key >> 24) & 0xFu) == type &&
+            (At<std::uint8_t>(node, 0x18) & 1u))
+            PushKey(vector, key);
+    }
+    return vector[0] != vector[1] ? 1u : 0u;
+}
+
+// Whether a record's end (x +0, z +8) is off the cell's side `side` (0 low
+// x, 1 low z, 2 high x, 3 high z; the bounds floats): its distance not below
+// the slack 0x00A99E20 (1; unordered too). False for another side.
+bool OffSide(std::uint32_t side, const float* end, const float* bounds)
+{
+    double distance;
+    switch (side) {
+    case 0: distance = static_cast<double>(end[0]) - bounds[0]; break;
+    case 1: distance = static_cast<double>(end[2]) - bounds[1]; break;
+    case 2: distance = static_cast<double>(end[0]) - bounds[2]; break;
+    case 3: distance = static_cast<double>(end[2]) - bounds[3]; break;
+    default: return false;
+    }
+    return !(std::fabs(distance) < static_cast<double>(Global<float>(kEndSlack)));
+}
+
+// 0x0053F6C0, slot 40 (occupant), ret 4: the occupant's cell (its slot 59)
+// to a point (the city's slot 97), the cell's sides the point's x and z
+// less and plus 8 (floats); each path's (type high nibble 0) first point
+// against its from side and last point against its to side: one off by 1
+// or more marks the record's byte with 2 and the answer 0. AL 1 when none.
+// The points are read unchecked.
+std::uint32_t __fastcall CheckEnds(char* self, void*, void* occupant)
+{
+    static bool logged;
+    FirstCall("CheckEnds", logged);
+    // The cell and the point: words the slots may leave unset (the game's x
+    // is the occupant argument's stack word, the others stack leftovers; ours
+    // zero).
+    std::uint32_t cellX = 0, cellZ = 0;
+    Virtual<void>(occupant, slot::kCell, &cellX, &cellZ);
+    float x = 0.0f, z = 0.0f;
+    Virtual<void>(Global<void*>(addr::SC4_City), slot::kCellToPoint, cellX, cellZ, &x, &z);
+    const float half = Global<float>(kHalfCell);
+    const float bounds[4] = {x - half, z - half, x + half, z + half};
+    std::uint32_t answer = 1;
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node)) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        if (key & 0xF0000000u)
+            continue;
+        // Both ends read before the sides are looked at, as the game does.
+        const float* const begin = At<float*>(node, kNodeRecord);
+        const float* const end = At<float*>(node, kNodeRecord + 4) - 3;
+        const float first[3] = {begin[0], 0.0f, begin[2]};
+        const float last[3] = {end[0], 0.0f, end[2]};
+        if (OffSide((key >> 8) & 0xFFu, first, bounds)) {
+            At<std::uint8_t>(node, 0x18) |= 2;
+            answer = 0;
+        }
+        if (OffSide(key & 0xFFu, last, bounds)) {
+            At<std::uint8_t>(node, 0x18) |= 2;
+            answer = 0;
+        }
+    }
+    return answer;
+}
+
+// 0x0053FD70, slot 32 (occupant, other), ret 8: the other's side from the
+// two cells (their slot 48's slot 11: x first, then z, compared signed: 2
+// when the other's x is greater, 3 its z, 0 its x less, 1 its z less, else
+// 0); with the other's path information (its slot 49) each path to that
+// side whose key the other has with points: the other's first point
+// appended to this path when this path's last point is farther from it
+// than 1. This path's points are read unchecked.
+void __fastcall JoinEnds(char* self, void*, void* occupant, void* other)
+{
+    static bool logged;
+    FirstCall("JoinEnds", logged);
+    std::int32_t mine[4] = {}, theirs[4] = {};
+    Virtual<void>(Virtual<void*>(occupant, slot::kCellPart), slot::kCellOf, mine);
+    Virtual<void>(Virtual<void*>(other, slot::kCellPart), slot::kCellOf, theirs);
+    std::uint8_t side = 0;
+    if (mine[0] < theirs[0])
+        side = 2;
+    else if (mine[1] < theirs[1])
+        side = 3;
+    else if (mine[0] > theirs[0])
+        side = 0;
+    else if (mine[1] > theirs[1])
+        side = 1;
+    void* const info = Virtual<void*>(other, slot::kPathInfo);
+    if (!info)
+        return;
+    char* const table = self + kTable;
+    for (char* node = First(self).node; node; node = NextNode(table, node)) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        if (static_cast<std::uint8_t>(key) != side)
+            continue;
+        char** const record = Virtual<char**>(info, slot::kGetPath, key, static_cast<void*>(nullptr));
+        if (!record || record[0] == record[1])
+            continue;
+        float start[3];
+        std::memcpy(start, record[0], sizeof start);
+        const float* const last = At<float*>(node, kNodeRecord + 4) - 3;
+        const float dx = static_cast<float>(static_cast<double>(last[0]) - start[0]);
+        const double dy = static_cast<double>(last[1]) - start[1];
+        const double dz = static_cast<double>(last[2]) - start[2];
+        const double distance = std::sqrt((dz * dz + dy * dy) + static_cast<double>(dx) * dx);
+        if (distance > static_cast<double>(Global<float>(kEndSlack)))
+            CallThis<void>(addr::SC4KeyVector_PushBack, node + kNodeRecord, start);
+    }
+}
+
+// ---- The SC4PATHS reader
+
+// 0x0053DEB0, (stream, string, remaining) ret 0xC, this only passed on: the
+// string emptied; bytes read one at a time (the stream's slot 4, its answer
+// not tested; a failed read leaves the last byte) while the remaining count
+// is not 0, each counted down, to a line end: '\n', or '\r' and the byte
+// after it (read and counted with no test of the count), the others
+// appended (the string's slot 17). A line starting with "--" is skipped by
+// reading the next (a call to itself). AL whether the line is not empty.
+std::uint32_t __fastcall ReadLine(void* self, void*, void* stream, GameString* line, std::uint32_t* remaining)
+{
+    static bool logged;
+    FirstCall("ReadLine", logged);
+    if (line->begin != line->end) {
+        *line->begin = 0;
+        line->end = line->begin;
+    }
+    // The game reads into its string argument's stack word.
+    std::uint32_t word = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(line));
+    while (*remaining != 0) {
+        Virtual<std::uint32_t>(stream, slot::kStreamRead, &word, 1u);
+        --*remaining;
+        const char c = static_cast<char>(word);
+        if (c == '\r') {
+            Virtual<std::uint32_t>(stream, slot::kStreamRead, &word, 1u);
+            --*remaining;
+            break;
+        }
+        if (c == '\n')
+            break;
+        char byte = c;
+        Virtual<void>(line, slot::kStringAppend, &byte, 1u);
+    }
+    if (line->begin != line->end &&
+        (CallThis<std::uint32_t>(addr::cRZBaseString_BeginsWith, line, Global<const char*>(kCommentText), 2u) & 0xFFu))
+        return CallThis<std::uint32_t>(addr::cSC4PathInfo_ReadLine, self, stream, line, remaining);
+    return line->begin != line->end ? 1u : 0u;
+}
+
+// 0x0053F8A0, (stream, out, remaining) ret 0xC: *out 0, a line (0x0053DEB0)
+// into a string of its own, *out its number (SC4::TextToUint32) when there
+// is one; AL the line's answer.
+std::uint32_t __fastcall ReadNumber(void* self, void*, void* stream, std::uint32_t* out, std::uint32_t* remaining)
+{
+    static bool logged;
+    FirstCall("ReadNumber", logged);
+    GameString line;
+    MakeString(line);
+    *out = 0;
+    const std::uint8_t ok = ReadLineAt(self, stream, &line, remaining);
+    if (ok)
+        *out = CallCdecl<std::uint32_t>(addr::SC4_TextToUint32, Text(line));
+    DropString(line);
+    return ok;
+}
+
+// The line's text up to its first comma taken off it (SC4String::SplitOff)
+// into the field (assigned unless the same), read as a double.
+double NextField(GameString& line, GameString& field, std::uint8_t* tag)
+{
+    GameString piece;
+    char* const made = CallThis<char*>(addr::SC4String_SplitOff, &line, &piece,
+                                       reinterpret_cast<const char*>(addr::SC4_CommaText));
+    char** const body = made ? reinterpret_cast<char**>(made + 4) : nullptr;
+    if (body != &field.begin)
+        CallThis<void>(addr::SC4String_AssignRange, &field.begin, body[0], body[1], tag);
+    piece.vtable = addr::SC4String_Vtable;
+    if (piece.begin)
+        CallCdecl<void>(addr::SC4_Free, piece.begin);
+    return CallCdecl<double>(addr::SC4_ParseDouble910991, Text(field));
+}
+
+// 0x00540610, (stream, point, remaining) ret 0xC: the point zero; a line
+// (0x0053DEB0) as "x,z,y": x the first field, z the second negated, y the
+// rest (SC4::ParseDouble910991 each, rounded to floats). AL the line's
+// answer.
+std::uint32_t __fastcall ReadPoint(void* self, void*, void* stream, float* point, std::uint32_t* remaining)
+{
+    static bool logged;
+    FirstCall("ReadPoint", logged);
+    GameString line, field;
+    MakeString(line);
+    MakeString(field);
+    std::memset(point, 0, 12);
+    std::uint8_t ok = ReadLineAt(self, stream, &line, remaining);
+    if (ok) {
+        point[0] = static_cast<float>(NextField(line, field, &ok));
+        point[2] = static_cast<float>(-NextField(line, field, &ok));
+        point[1] = static_cast<float>(CallCdecl<double>(addr::SC4_ParseDouble910991, Text(line)));
+    }
+    DropString(field);
+    DropString(line);
+    return ok;
+}
+
+// 0x005423D0, no arguments: for each path of the type nibble 2 (high
+// nibble 0), in the table's order as it grows: its mirror, the key with
+// from and to swapped, from the same number up (to 26; one that has all
+// taken is passed by) to the first not in the table, added (AddPath at the
+// game's address) with the path's points reversed (reserved first), its
+// length and byte. Mirrors added are met by the walk too.
+void __fastcall MirrorType2(char* self, void*)
+{
+    static bool logged;
+    FirstCall("MirrorType2", logged);
+    Iterator it = First(self);
+    for (char* node = it.node; node; node = NextNode(it.table, node)) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        if ((key & 0xF0000000u) || ((key >> 24) & 0xFu) != 2)
+            continue;
+        const std::uint32_t to = key & 0xFFu, from = (key >> 8) & 0xFFu;
+        std::uint8_t number = static_cast<std::uint8_t>(key >> 16);
+        std::uint32_t mirror = 0x02000000u | (static_cast<std::uint32_t>(number) << 16) | (to << 8) | from;
+        bool full = false;
+        while (FindNode(self, mirror)) {
+            if (number >= 0x1A) {
+                full = true;
+                break;
+            }
+            ++number;
+            mirror = 0x02000000u | (static_cast<std::uint32_t>(number) << 16) | (to << 8) | from;
+        }
+        if (full)
+            continue;
+        char* const record = CallThis<char*>(addr::cSC4PathInfo_AddPath, self, mirror);
+        if (!record)
+            continue;
+        const auto bytes = static_cast<std::int32_t>(At<char*>(node, kNodeRecord + 4) - At<char*>(node, kNodeRecord));
+        CallThis<void>(addr::cSC4PathInfo_ReservePoints, record, static_cast<std::uint32_t>(bytes / 12));
+        for (char* p = At<char*>(node, kNodeRecord + 4); p != At<char*>(node, kNodeRecord); p -= 12) {
+            char* const where = At<char*>(record, 4);
+            if (where == At<char*>(record, 8)) {
+                std::uint8_t tag = 0;
+                CallThis<void>(addr::SC4Float3Vector_Insert, record, where, p - 12, &tag, 1u, 1u);
+            } else {
+                if (where)
+                    std::memcpy(where, p - 12, 12);
+                At<char*>(record, 4) = where + 12;
+            }
+        }
+        At<std::uint32_t>(record, kRecordLength) = At<std::uint32_t>(node, kNodeLength);
+        At<std::uint8_t>(record, kRecordByte) = At<std::uint8_t>(node, 0x18);
+    }
+}
+
+// 0x00542900, the factory's slot 10 (resource part, stream), ret 8: for a
+// part (the object + 4) of the type 0x296678F7 (its slot 5) an SC4PATHS
+// file of lines (the stream's slot 52 the byte count): "SC4PATHS"
+// (cIGZString's inequality 0x00454BB0), the version (a float), the path
+// count (up to 1000), from 1.1 the stop count (up to 1000), the flag
+// (slot 17); per path the type (1 to 7), number, from and to (0 to 3 or
+// 0xFF), from 1.2 its byte, the point count (1 up) and the points: the
+// path added by parts (a key there already fails), its points reserved, the
+// first point kept, each later one only farther than 1e-5 from the last
+// read (the distance added to the length, as a float), the byte set per
+// point; per stop the kind (1 or 2), type, number, from, to and a point,
+// added by parts (its answer not tested) as the second when the kind is 1
+// on a game that drives on the left (the app's slot 38's slot 25, 1 when
+// there is none) or 2 on one that does not; then the type 2 paths
+// mirrored. AL 1, or 0 at the first bad line (what was added stays).
+std::uint32_t __fastcall ReadPaths(void* self, void*, char* part, void* stream)
+{
+    static bool logged;
+    FirstCall("ReadPaths", logged);
+    if (Virtual<std::uint32_t>(part, slot::kPartType) != kResourceType)
+        return 0;
+    char* const info = part - kPart4;
+    GameString line;
+    MakeString(line);
+    std::uint32_t remaining = Virtual<std::uint32_t>(stream, slot::kStreamSize);
+    std::uint32_t paths = 0, stops = 0, flag = 0;
+    const std::uint32_t start = Global<std::uint32_t>(kStartFloat);
+    float point[3], last[3];
+    std::memcpy(&point[0], &start, 4);
+    std::memcpy(&point[1], &start, 4);
+    std::memcpy(&point[2], &start, 4);
+    std::memcpy(last, point, sizeof last);
+    std::uint8_t left = 1;
+    void* const app = CallCdecl<void*>(addr::SC4_CurrentApp);
+    if (void* const preferences = Virtual<void*>(app, slot::kAppPreferences, 0u))
+        left = (Virtual<std::uint32_t>(preferences, slot::kDrivesOnLeft) & 0xFFu) == 1 ? 1 : 0;
+
+    bool bad = true;
+    if (ReadLineAt(self, stream, &line, &remaining)) {
+        GameString header;
+        CallThis<void*>(addr::SC4String_FromText, &header, Global<const char*>(kHeaderText));
+        bad = (CallCdecl<std::uint32_t>(addr::SC4UI_F454BB0, &line, &header) & 0xFFu) != 0;
+        DropString(header);
+    }
+    if (bad || !ReadLineAt(self, stream, &line, &remaining)) {
+        DropString(line);
+        return 0;
+    }
+    const auto version = static_cast<float>(CallCdecl<double>(addr::SC4_ParseDouble910991, Text(line)));
+    const auto fail = [&line]() -> std::uint32_t {
+        DropString(line);
+        return 0;
+    };
+    if (!ReadNumberAt(self, stream, &paths, &remaining) || paths > 1000)
+        return fail();
+    if (version >= Global<float>(kVersionStops) && (!ReadNumberAt(self, stream, &stops, &remaining) || stops > 1000))
+        return fail();
+    if (!ReadNumberAt(self, stream, &flag, &remaining))
+        return fail();
+    Virtual<void>(info, slot::kSetFlag, (flag & 0xFFFFFF00u) | (flag != 0 ? 1u : 0u));
+
+    const auto side = [](std::uint32_t v) { return v <= 3 || v == 0xFF; };
+    for (std::uint32_t i = 0; i < paths; ++i) {
+        std::uint32_t type, number, from, to, byte = 0, count;
+        if (!ReadNumberAt(self, stream, &type, &remaining) || type == 0 || type >= 8)
+            return fail();
+        if (!ReadNumberAt(self, stream, &number, &remaining))
+            return fail();
+        if (!ReadNumberAt(self, stream, &from, &remaining) || !side(from))
+            return fail();
+        if (!ReadNumberAt(self, stream, &to, &remaining) || !side(to))
+            return fail();
+        if (version >= Global<float>(kVersionByte) && !ReadNumberAt(self, stream, &byte, &remaining))
+            return fail();
+        if (!ReadNumberAt(self, stream, &count, &remaining) || count == 0)
+            return fail();
+        char* const record = CallThis<char*>(addr::cSC4PathInfo_AddPathByParts, info, type, from, to, number);
+        if (!record)
+            return fail();
+        CallThis<void>(addr::cSC4PathInfo_ReservePoints, record, count);
+        for (std::uint32_t j = 0; j < count; ++j) {
+            if (!ReadPointAt(self, stream, point, &remaining))
+                return fail();
+            if (j == 0) {
+                CallThis<void>(addr::SC4KeyVector_PushBack, record, point);
+            } else {
+                const double dx = static_cast<double>(point[0]) - last[0];
+                const double dy = static_cast<double>(point[1]) - last[1];
+                const double dz = static_cast<double>(point[2]) - last[2];
+                const double step = std::sqrt((dz * dz + dy * dy) + dx * dx);
+                if (step > static_cast<double>(Global<float>(kStepLength))) {
+                    CallThis<void>(addr::SC4KeyVector_PushBack, record, point);
+                    At<float>(record, kRecordLength) = static_cast<float>(step) + At<float>(record, kRecordLength);
+                }
+            }
+            At<std::uint8_t>(record, kRecordByte) = static_cast<std::uint8_t>(byte);
+            std::memcpy(last, point, sizeof last);
+        }
+    }
+    for (std::uint32_t i = 0; i < stops; ++i) {
+        std::uint32_t kind = 1, type, number, from, to;
+        if (!ReadNumberAt(self, stream, &kind, &remaining) || (kind != 1 && kind != 2))
+            return fail();
+        if (!ReadNumberAt(self, stream, &type, &remaining) || type == 0 || type >= 8)
+            return fail();
+        if (!ReadNumberAt(self, stream, &number, &remaining))
+            return fail();
+        if (!ReadNumberAt(self, stream, &from, &remaining) || !side(from))
+            return fail();
+        if (!ReadNumberAt(self, stream, &to, &remaining) || !side(to))
+            return fail();
+        if (!ReadPointAt(self, stream, point, &remaining))
+            return fail();
+        const std::uint32_t second = ((kind != 2) != (left != 0)) ? 1u : 0u;
+        CallThis<std::uint32_t>(addr::cSC4PathInfo_AddStopByParts, info, point, type, from, to, number, second);
+    }
+    CallThis<void>(addr::cSC4PathInfo_MirrorType2, info);
+    DropString(line);
+    return 1;
+}
+
+// ====================================================================================
 // Install
 
 bool Skipped(std::uintptr_t address)
@@ -667,11 +1559,38 @@ const Detour kObject[] = {
     OPENSC4_DETOUR(addr::cSC4PathInfo_ReservePoints, ReservePoints),
 };
 
+// Part pi2.
+const Detour kTables[] = {
+    OPENSC4_DETOUR(addr::cSC4PathInfoFactory_ReadPaths, ReadPaths),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_ReadLine, ReadLine),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_ReadNumber, ReadNumber),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_ReadPoint, ReadPoint),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_MirrorType2, MirrorType2),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_InsertUnique, InsertUnique),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_InsertEqual, InsertEqual),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_InsertNew, InsertNew),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_FindOrInsert, FindOrInsert),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_CopyPaths, CopyPaths),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_CountPaths, CountPaths),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_KeysFrom, KeysFrom),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_KeysTo, KeysTo),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_ConnectPaths, ConnectPaths),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_MovePaths, MovePaths),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_JoinEnds, JoinEnds),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_CountStopsOfKey, CountStopsOfKey),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_CountStops, CountStops),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_GetStopPoint, GetStopPoint),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_FlaggedKeys, FlaggedKeys),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_CheckEnds, CheckEnds),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_HighestNumber, HighestNumber),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
-    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object");
+    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
+           InstallList(kTables, sizeof kTables / sizeof kTables[0], "tables");
 }
 
 const bool g_registered[] = {
@@ -681,8 +1600,11 @@ const bool g_registered[] = {
                         "resource factory: the factory's class ID, Create, deleting destructor and "
                         "CreateInstance; the pool's free and new page; the constructor, deleting destructor, copy "
                         "constructor, Clone and QueryInterface; slots 3, 4, 10, 11, 13, 16, 17 and 36; AddPath, "
-                        "AddStop and their packed forms, the free path number and the points' reserve (25 "
-                        "detours, part pi1; src/core/automata_pathinfo.cpp)",
+                        "AddStop and their packed forms, the free path number and the points' reserve (part "
+                        "pi1); the SC4PATHS reader (the factory's slot 10) with its line, number and point readers "
+                        "and the type 2 mirror, the path table's insert_unique, insert_equal, insert, operator[] "
+                        "and copy, slots 12, 14, 15, 27, 28, 32 to 35, 38 and 40 and the highest number (part "
+                        "pi2) (47 detours; src/core/automata_pathinfo.cpp)",
                         false, InstallObject}),
 };
 

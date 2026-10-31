@@ -662,6 +662,25 @@
 //   path information as the view draws pieces) are not mixed. piflags 1
 //   when it ran, 2 when the factory failed. Log line: "pi1 pinfo", with one
 //   line per section before it.
+//   Part pi2 (the SC4PATHS reader, the path table's code and the queries over
+//   all paths) adds `,<pinfo2>,<pi2flags>` (62 fields), all at the game's
+//   addresses on objects, streams and occupants of the test's: the line,
+//   number and point readers over 29 texts (line ends, comments, empty lines,
+//   short counts, fields); the reader over three good files (1.0, 1.1 and
+//   1.2, comments, repeated and close points, type 2 paths and their
+//   mirrors, stops of both kinds) and 20 bad ones (each failing at a line of
+//   its own), a part of another type, at its address and through the
+//   factory's slot 10; on the third file's object with stops and paths
+//   added, slots 12, 14, 15, 38 (every type and side), 33 and 35 (every key
+//   and ten more), 34 (480 parts) and the highest number; slot 27 to an
+//   occupant of the test's, slot 28 on a clone; slot 40 on paths about a
+//   cell's sides (on, near, off, a NaN) for two cells; slot 32 against an
+//   occupant in five directions and one without path information; the
+//   table's insert_unique, insert_equal, insert, operator[] (new records'
+//   length and byte set first: the game leaves stack words there) and copy.
+//   pi2flags 1 when it ran, 2 when the factory failed, 4 an object, 8 when
+//   slot 40 ran (a city). Log line: "pi2 pinfo2", one line per section
+//   before it.
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -32265,6 +32284,620 @@ void PathInfoDrive(Hash& pinfo, uint32_t& piflags)
                static_cast<unsigned>(keys.size()), piflags);
 }
 
+// ---- Part pi2: the SC4PATHS reader, the path table's code and the queries
+// over all paths (src/core/automata_pathinfo.cpp). Every call goes to the
+// game's addresses, on objects, streams and occupants of the test's.
+namespace pi2 {
+
+using namespace pi;
+
+// A stream of the test's: slot 4 reads bytes (false past the end, nothing
+// written), slot 52 its size.
+struct TestStream {
+    void* const* vtable;
+    const char* data;
+    uint32_t size;
+    uint32_t at;
+};
+
+uint32_t __fastcall StreamRead(TestStream* s, void*, void* out, uint32_t count)
+{
+    if (s->at + count > s->size)
+        return 0;
+    std::memcpy(out, s->data + s->at, count);
+    s->at += count;
+    return 1;
+}
+
+uint32_t __fastcall StreamSize(TestStream* s, void*)
+{
+    return s->size;
+}
+
+void* g_streamTable[53];
+
+TestStream MakeStream(const char* text, uint32_t size)
+{
+    g_streamTable[4] = reinterpret_cast<void*>(&StreamRead);
+    g_streamTable[52] = reinterpret_cast<void*>(&StreamSize);
+    return TestStream{g_streamTable, text, size, 0};
+}
+
+TestStream MakeStream(const std::string& text)
+{
+    return MakeStream(text.data(), static_cast<uint32_t>(text.size()));
+}
+
+// A resource part of another type (its slot 5).
+uint32_t __fastcall PathPartOfOtherType(void*, void*)
+{
+    return 0x12345678u;
+}
+void* g_otherPartTable[6];
+
+// The game's string (vtable, begin, end, capacity, count).
+struct TestString {
+    uintptr_t vtable;
+    char* begin;
+    char* end;
+    char* capacity;
+    uint32_t refs;
+};
+
+void MixText(Hash& h, const TestString& s)
+{
+    const uint32_t size = static_cast<uint32_t>(s.end - s.begin);
+    h.Mix(size);
+    if (size && size < 0x1000)
+        h.MixBytes(s.begin, size);
+}
+
+// Every node of an object's table in its order: the key and the record.
+void MixTable(Hash& h, char* o)
+{
+    char* const table = o + 0x1C;
+    const uint32_t buckets = static_cast<uint32_t>((At<char*>(table, 8) - At<char*>(table, 4)) >> 2);
+    uint32_t nodes = 0;
+    for (uint32_t i = 0; i < buckets; ++i)
+        for (char* n = At<char*>(At<char*>(table, 4), i * 4); n && nodes < 4096; n = At<char*>(n, 0), ++nodes) {
+            h.Mix(At<uint32_t>(n, 4));
+            MixRecord(h, n + 8);
+        }
+    h.Mix(nodes);
+}
+
+std::vector<uint32_t> Keys(char* o)
+{
+    std::vector<uint32_t> keys;
+    char* const table = o + 0x1C;
+    const uint32_t buckets = static_cast<uint32_t>((At<char*>(table, 8) - At<char*>(table, 4)) >> 2);
+    for (uint32_t i = 0; i < buckets; ++i)
+        for (char* n = At<char*>(At<char*>(table, 4), i * 4); n && keys.size() < 4096; n = At<char*>(n, 0))
+            keys.push_back(At<uint32_t>(n, 4));
+    return keys;
+}
+
+// A key vector's contents and size; the storage kept for the next call.
+void MixVector(Hash& h, char** vector)
+{
+    const uint32_t size = static_cast<uint32_t>((vector[1] - vector[0]) / 4);
+    h.Mix(size);
+    if (size && size < 0x1000)
+        h.MixBytes(vector[0], size * 4);
+}
+
+// An occupant of the test's: slot 54 (AddPathConnection) mixed, slot 59 its
+// cell, slot 48 its cell part (slot 11: x, z), slot 49 its path information.
+struct TestOccupant {
+    void* const* vtable;
+    uint32_t cell[2];
+    void* info;
+    Hash* calls;
+    struct {
+        void* const* vtable;
+        int32_t cell[2];
+    } part;
+};
+
+void __fastcall OccConnect(TestOccupant* o, void*, uint32_t type, uint32_t from, uint32_t to)
+{
+    o->calls->Mix(type);
+    o->calls->Mix(from);
+    o->calls->Mix(to);
+}
+
+void __fastcall OccCell(TestOccupant* o, void*, uint32_t* x, uint32_t* z)
+{
+    *x = o->cell[0];
+    *z = o->cell[1];
+}
+
+void* __fastcall OccPart(TestOccupant* o, void*)
+{
+    return &o->part;
+}
+
+void* __fastcall OccInfo(TestOccupant* o, void*)
+{
+    return o->info;
+}
+
+void __fastcall PartCell(int32_t* self, void*, int32_t* out)
+{
+    out[0] = self[1];
+    out[1] = self[2];
+    out[2] = 0;
+    out[3] = 0;
+}
+
+void* g_occTable[60];
+void* g_partTable[12];
+
+TestOccupant MakeOccupant(Hash* calls, uint32_t x, uint32_t z, void* info)
+{
+    g_occTable[54] = reinterpret_cast<void*>(&OccConnect);
+    g_occTable[59] = reinterpret_cast<void*>(&OccCell);
+    g_occTable[48] = reinterpret_cast<void*>(&OccPart);
+    g_occTable[49] = reinterpret_cast<void*>(&OccInfo);
+    g_partTable[11] = reinterpret_cast<void*>(&PartCell);
+    TestOccupant o{g_occTable, {x, z}, info, calls, {g_partTable, {static_cast<int32_t>(x), static_cast<int32_t>(z)}}};
+    return o;
+}
+
+// An SC4PATHS file's lines joined by the line end.
+std::string Lines(std::initializer_list<const char*> lines, const char* end = "\r\n")
+{
+    std::string text;
+    for (const char* l : lines) {
+        text += l;
+        text += end;
+    }
+    return text;
+}
+
+// A record of the test's on an object: points along x from `x` (z, y), the
+// length and byte.
+char* AddRecord(char* o, uint32_t key, std::initializer_list<float> xs, float z, float y, uint8_t byte)
+{
+    char* const record = This<char*>(addr::cSC4PathInfo_AddPath, o, key);
+    if (!record)
+        return nullptr;
+    This<void>(addr::cSC4PathInfo_ReservePoints, record, static_cast<uint32_t>(xs.size()));
+    float* p = At<float*>(record, 0);
+    for (const float x : xs) {
+        p[0] = x;
+        p[1] = y;
+        p[2] = z;
+        p += 3;
+    }
+    At<char*>(record, 4) = At<char*>(record, 0) + xs.size() * 12;
+    At<float>(record, 0xC) = 2.5f;
+    At<uint8_t>(record, 0x10) = byte;
+    return record;
+}
+
+void Section2(const char* name, const Hash& h)
+{
+    log::Write("autotest: automata: vehicle: pi2 %s: pinfo2 %08X", name, h.h);
+}
+
+} // namespace pi2
+
+void PathInfo2Drive(Hash& pinfo2, uint32_t& pi2flags)
+{
+    using namespace pi2;
+    char* const factory = static_cast<char*>(reinterpret_cast<Cdecl0>(addr::cSC4PathInfoFactory_Create)());
+    if (!factory) {
+        pi2flags |= 2;
+        log::Write("autotest: automata: vehicle: pi2: the factory failed");
+        return;
+    }
+
+    // ---- The line, number and point readers on streams of the test's.
+    {
+        TestString line{};
+        This<void*>(addr::SC4String_FromText, &line, "seed");
+        const struct {
+            const char* text;
+            uint32_t remaining, calls;
+        } cases[] = {
+            {"abc\r\ndef\n", 0, 3},       {"--comment\r\n--x\nvalue\r\n", 0, 2}, {"a\rbc\n", 0, 3},
+            {"\r\nx", 0, 2},              {"-x\n--", 0, 2},                     {"--", 0, 1},
+            {"abcdef\n", 3, 2},           {"  sp ace \t\n\n\nz", 0, 4},          {"x\n", 1, 2},
+        };
+        for (const auto& c : cases) {
+            TestStream s = MakeStream(c.text, static_cast<uint32_t>(std::strlen(c.text)));
+            uint32_t remaining = c.remaining ? c.remaining : s.size;
+            for (uint32_t i = 0; i < c.calls; ++i) {
+                pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_ReadLine, factory, &s, &line, &remaining) & 0xFF);
+                MixText(pinfo2, line);
+                pinfo2.Mix(remaining);
+                pinfo2.Mix(s.at);
+            }
+        }
+        This<void>(addr::SC4String_Destroy, &line);
+        for (const char* text : {"12\r\n", "4294967295\n", "  7\n", "x\n", "-3\n", "0x1F\n", "\n5\n", "--c\n5\n",
+                                 "99999999999\n", "8"}) {
+            TestStream s = MakeStream(text, static_cast<uint32_t>(std::strlen(text)));
+            uint32_t remaining = s.size, value = 0xDEADBEEFu;
+            pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_ReadNumber, factory, &s, &value, &remaining) & 0xFF);
+            pinfo2.Mix(value);
+            pinfo2.Mix(remaining);
+        }
+        for (const char* text : {"1.5,2.5,3.5\r\n", "1,2\n", "x\n", "-0.25,1e3,  -7\n", "1,2,3,4\n", "\n",
+                                 "--c\n4,5,6\n", "0.1,0.2,0.3", ",,\n", "3.4028236e38,1e-46,-0\n"}) {
+            TestStream s = MakeStream(text, static_cast<uint32_t>(std::strlen(text)));
+            uint32_t remaining = s.size;
+            float point[3] = {-1.0f, -1.0f, -1.0f};
+            pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_ReadPoint, factory, &s, point, &remaining) & 0xFF);
+            pinfo2.MixBytes(point, sizeof point);
+            pinfo2.Mix(remaining);
+        }
+    }
+    Section2("lines", pinfo2);
+
+    // ---- The reader over files of the test's: versions 1.0, 1.1 and 1.2,
+    // comments, line ends, repeated and close points, type 2 paths (their
+    // mirrors), stops of both kinds; and the bad files, each failing at a
+    // line of its own.
+    const std::string good[] = {
+        Lines({"SC4PATHS", "1.0", "2", "1", "1", "0", "0", "2", "4", "0,0,0", "1,0,2", "1,0,2", "3.5,0.25,2", "3", "1", "1", "255",
+               "2", "4.5,1,-2", "4.5,1,-2.000001"}),
+        Lines({"SC4PATHS", "1.1", "3", "4", "0", "2", "0", "0", "2", "2", "-8,0,1", "8,0,1", "2", "0", "2", "0", "2",
+               "8,0,-1", "-8,0,-1", "5", "30", "3", "3", "1", "0,0,0", "1", "1", "0", "0", "2", "1,2,3", "2", "1",
+               "0", "0", "2", "1,2,3", "2", "7", "1", "255", "255", "-1,-2,-3", "1", "3", "2", "1", "0", "5,6,7"},
+              "\n"),
+        Lines({"--a comment", "SC4PATHS", "--", "1.2", "6", "2", "0", "2", "0", "0", "2", "1", "3", "0,0,0",
+               "0.000001,0,0", "16,0,0", "2", "1", "0", "2", "3", "2", "0,0,0", "0,0,16", "2", "0", "2", "0", "1",
+               "1", "5,5,5", "6", "0", "1", "3", "2", "2", "1,1,1", "2,2,2", "7", "4", "255", "0", "3", "1", "3,3",
+               "4", "2", "0", "1", "0", "1", "9,9,9", "1", "6", "2", "0", "1", "1,1,1", "2", "6", "2", "1", "0",
+               "2,2,2"}),
+    };
+    const std::string bad[] = {
+        Lines({"SC4PATHX", "1.0", "0", "0"}),
+        Lines({"sc4paths", "1.0", "0", "0"}),
+        std::string(),
+        Lines({"SC4PATHS"}),
+        Lines({"SC4PATHS", "1.0", "1001", "0"}),
+        Lines({"SC4PATHS", "1.1", "0", "1001", "0"}),
+        Lines({"SC4PATHS", "1.0", "1", "0", "0", "0", "0", "0", "1", "1,1,1"}),
+        Lines({"SC4PATHS", "1.0", "1", "0", "8", "0", "0", "0", "1", "1,1,1"}),
+        Lines({"SC4PATHS", "1.0", "1", "0", "1", "0", "4", "0", "1", "1,1,1"}),
+        Lines({"SC4PATHS", "1.0", "1", "0", "1", "0", "0", "5", "1", "1,1,1"}),
+        Lines({"SC4PATHS", "1.0", "1", "0", "1", "0", "0", "1", "0"}),
+        Lines({"SC4PATHS", "1.0", "2", "0", "1", "0", "0", "1", "1", "1,1,1", "1", "0", "0", "1", "1", "2,2,2"}),
+        Lines({"SC4PATHS", "1.0", "1", "0", "1", "0", "0", "1", "2", "1,1,1"}),
+        Lines({"SC4PATHS", "1.1", "0", "1", "0", "3", "1", "0", "0", "0", "1,1,1"}),
+        Lines({"SC4PATHS", "1.1", "0", "1", "0", "1", "9", "0", "0", "0", "1,1,1"}),
+        Lines({"SC4PATHS", "1.1", "0", "1", "0", "1", "1", "0", "0", "7", "1,1,1"}),
+        Lines({"SC4PATHS", "1.1", "0", "1", "0", "1", "1", "0", "0", "0"}),
+        Lines({"SC4PATHS", "1.0", "0"}),
+        Lines({"SC4PATHS", "1.0", "1", "0", "", "1", "0", "0", "1", "1,1,1"}),
+        Lines({"SC4PATHS", "1.2", "1", "0", "0", "1", "0", "0", "0"}),
+    };
+    char* rich = nullptr;
+    {
+        void** const vtable = *reinterpret_cast<void***>(factory);
+        pinfo2.Mix(reinterpret_cast<uintptr_t>(vtable[10]) == addr::cSC4PathInfoFactory_ReadPaths ? 1u : 0u);
+        uint32_t i = 0;
+        for (const std::string& file : good) {
+            uint32_t made = 0;
+            char* const o = MakeInfo(kIidPathInfo, made);
+            if (!made || !o) {
+                pi2flags |= 4;
+                continue;
+            }
+            At<uint32_t>(o, kPart4 + 0xC) = kType; // the resource key's type, as the resource manager sets it
+            TestStream s = MakeStream(file);
+            const uint32_t answer = (i % 2 ? Virtual<uint32_t>(factory, 10 * 4, o + kPart4, &s)
+                                           : This<uint32_t>(addr::cSC4PathInfoFactory_ReadPaths, factory, o + kPart4, &s)) &
+                                    0xFF;
+            pinfo2.Mix(answer);
+            pinfo2.Mix(s.at);
+            MixObject(pinfo2, o);
+            MixTable(pinfo2, o);
+            log::Write("autotest: automata: vehicle: pi2 file %u: answer %u at %u of %u, keys %u", i, answer, s.at,
+                       s.size, static_cast<unsigned>(Keys(o).size()));
+            if (++i == 3)
+                rich = o;
+            else
+                Virtual<uint32_t>(o, 8);
+        }
+        for (const std::string& file : bad) {
+            uint32_t made = 0;
+            char* const o = MakeInfo(kIidPathInfo, made);
+            if (!made || !o) {
+                pi2flags |= 4;
+                continue;
+            }
+            At<uint32_t>(o, kPart4 + 0xC) = kType; // the resource key's type, as the resource manager sets it
+            TestStream s = MakeStream(file);
+            const uint32_t answer = This<uint32_t>(addr::cSC4PathInfoFactory_ReadPaths, factory, o + kPart4, &s) & 0xFF;
+            pinfo2.Mix(answer);
+            pinfo2.Mix(s.at);
+            log::Write("autotest: automata: vehicle: pi2 bad file: answer %u at %u of %u, keys %u", answer, s.at, s.size,
+                       static_cast<unsigned>(Keys(o).size()));
+            MixObject(pinfo2, o);
+            MixTable(pinfo2, o);
+            Virtual<uint32_t>(o, 8);
+        }
+        // A part of another type.
+        g_otherPartTable[5] = reinterpret_cast<void*>(&PathPartOfOtherType);
+        void* otherPart[1] = {g_otherPartTable};
+        TestStream s = MakeStream(good[0]);
+        pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfoFactory_ReadPaths, factory, otherPart, &s) & 0xFF);
+        pinfo2.Mix(s.at);
+    }
+    Section2("reader", pinfo2);
+    if (!rich) {
+        pi2flags |= 4;
+        This<void*>(addr::cSC4PathInfoFactory_DeletingDestructor, factory, 1u);
+        return;
+    }
+
+    // ---- The queries on the third file's object (every record has a point)
+    // with paths and stops added: slots 12, 14, 15, 33, 34, 35, 38 and the
+    // highest number, at their addresses and through the vtable.
+    {
+        const float point[3] = {7.0f, 8.0f, 9.0f};
+        for (const uint32_t key : {0x11FF0203u, 0x12010100u, 0x1301FFFFu, 0x2402FF01u, 0x15000102u})
+            This<uint32_t>(addr::cSC4PathInfo_AddStop, rich, point, key);
+        AddRecord(rich, 0x0103FF00u, {1.0f, 2.0f}, 0.5f, 0.0f, 3);
+        AddRecord(rich, 0x0503FFFFu, {3.0f}, 0.5f, 0.0f, 1);
+        AddRecord(rich, 0x05FF0001u, {4.0f}, 0.5f, 0.0f, 0);
+    }
+    const std::vector<uint32_t> keys = Keys(rich);
+    for (uint32_t type = 0; type < 9; ++type)
+        for (const uint32_t from : {0u, 1u, 2u, 3u, 0xFFu, 0x101u})
+            for (const uint32_t to : {0u, 2u, 0xFFu}) {
+                pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_CountPaths, rich, type | (type == 8 ? 0x1100u : 0u), from,
+                                          to));
+                pinfo2.Mix(Virtual<uint32_t>(rich, 12 * 4, type, from, to));
+            }
+    {
+        char* vector[3] = {};
+        for (uint32_t type = 0; type < 8; ++type)
+            for (const uint32_t side : {0u, 1u, 2u, 3u, 0xFFu, 0x100u}) {
+                pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_KeysFrom, rich, type, side, vector));
+                MixVector(pinfo2, vector);
+                pinfo2.Mix(Virtual<uint32_t>(rich, 15 * 4, type, side, vector));
+                MixVector(pinfo2, vector);
+                pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_KeysTo, rich, type, side, vector));
+                MixVector(pinfo2, vector);
+                pinfo2.Mix(Virtual<uint32_t>(rich, 14 * 4, type, side, vector));
+                MixVector(pinfo2, vector);
+                pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_FlaggedKeys, rich, type, side, vector) & 0xFF);
+                MixVector(pinfo2, vector);
+                pinfo2.Mix(Virtual<uint32_t>(rich, 38 * 4, type | 0x10u, side, vector) & 0xFF);
+                MixVector(pinfo2, vector);
+            }
+        if (vector[0])
+            reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(vector[0]);
+    }
+    pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_HighestNumber, rich, 1u, 2u, 3u));
+    std::vector<uint32_t> asked = keys;
+    for (const uint32_t key : {0x00000000u, 0x01FFFFFFu, 0x10FF0000u, 0x0FFFFFFFu, 0x22000102u, 0x1200FFFFu,
+                               0x0302FF00u, 0x07FFFFFFu, 0x16000200u, 0x03FFFFFFu})
+        asked.push_back(key);
+    for (const uint32_t key : asked) {
+        pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_CountStopsOfKey, rich, key));
+        pinfo2.Mix(Virtual<uint32_t>(rich, 33 * 4, key));
+        float point[3] = {-5.0f, -5.0f, -5.0f};
+        pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_GetStopPoint, rich, point, key) & 0xFF);
+        pinfo2.MixBytes(point, sizeof point);
+        point[0] = -6.0f;
+        pinfo2.Mix(Virtual<uint32_t>(rich, 35 * 4, point, key) & 0xFF);
+        pinfo2.MixBytes(point, sizeof point);
+    }
+    for (const uint32_t type : {0u, 1u, 2u, 3u, 4u, 0x100u})
+        for (const uint32_t from : {0u, 1u, 2u, 0xFFu})
+            for (const uint32_t to : {0u, 1u, 3u, 0xFFu})
+                for (const uint32_t number : {0u, 1u, 2u, 0xFFu, 0x1FFu}) {
+                    pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_CountStops, rich, type, from, to, number));
+                    pinfo2.Mix(Virtual<uint32_t>(rich, 34 * 4, type, from, to, number));
+                }
+    Section2("queries", pinfo2);
+
+    // ---- Slot 27 to an occupant of the test's, slot 28 on a clone.
+    {
+        Hash calls;
+        TestOccupant occupant = MakeOccupant(&calls, 0, 0, nullptr);
+        This<void>(addr::cSC4PathInfo_ConnectPaths, rich, &occupant);
+        Virtual<void>(rich, 27 * 4, &occupant);
+        pinfo2.Mix(calls.h);
+        char* const clone = This<char*>(addr::cSC4PathInfo_Clone, rich);
+        This<void>(addr::cSC4PathInfo_MovePaths, clone, 0.5f, -16.0f, 1e-3f);
+        Virtual<void>(clone, 28 * 4, 3.0e7f, 0.0f, -0.1f);
+        MixTable(pinfo2, clone);
+        Virtual<uint32_t>(clone, 8);
+    }
+    Section2("connect", pinfo2);
+
+    // ---- Slot 40 on paths about a cell's sides (the city's slot 97 asked
+    // for the cell's point first): on a side, off by less than 1, by 1, by
+    // more, on another side, a NaN; at the address and through the vtable.
+    if (void* const city = Global<void*>(addr::SC4_City)) {
+        float cx = 0.0f, cz = 0.0f;
+        Virtual<void>(city, 0x184, 3u, 5u, &cx, &cz);
+        uint32_t made = 0;
+        char* const o = MakeInfo(kIidPathInfo, made);
+        if (made && o) {
+            const float nan = std::numeric_limits<float>::quiet_NaN();
+            const float lx = cx - 8.0f, hx = cx + 8.0f, lz = cz - 8.0f, hz = cz + 8.0f;
+            struct End {
+                uint32_t key;
+                float first[2], last[2];
+            };
+            const End ends[] = {
+                {0x01000002u, {lx, cz}, {hx, cz}},          {0x01010103u, {cx, lz}, {cx, hz}},
+                {0x01020002u, {lx + 0.5f, cz}, {hx - 0.999f, cz}}, {0x01030002u, {lx + 1.0f, cz}, {hx, cz}},
+                {0x01040002u, {lx - 3.0f, cz}, {hx + 1.5f, cz}},   {0x02000302u, {cx, hz}, {hx, cz}},
+                {0x02010004u, {lx, cz}, {nan, nan}},          {0x02020000u, {nan, cz}, {lx, cz}},
+                {0x03000101u, {cx, lz + 1.0001f}, {cx, lz - 0.5f}}, {0x13000002u, {0.0f, 0.0f}, {0.0f, 0.0f}},
+            };
+            for (const End& e : ends) {
+                char* const record = This<char*>(addr::cSC4PathInfo_AddPath, o, e.key);
+                if (!record)
+                    continue;
+                This<void>(addr::cSC4PathInfo_ReservePoints, record, 3u);
+                float* const p = At<float*>(record, 0);
+                const float middle[3] = {cx, 0.0f, cz};
+                const float pts[9] = {e.first[0], 1.0f, e.first[1], middle[0], 1.0f, middle[2], e.last[0], 1.0f,
+                                      e.last[1]};
+                std::memcpy(p, pts, sizeof pts);
+                At<char*>(record, 4) = At<char*>(record, 0) + 36;
+                At<uint8_t>(record, 0x10) = static_cast<uint8_t>(e.key & 0x5);
+            }
+            Hash calls;
+            TestOccupant occupant = MakeOccupant(&calls, 3, 5, nullptr);
+            pinfo2.Mix(This<uint32_t>(addr::cSC4PathInfo_CheckEnds, o, &occupant) & 0xFF);
+            MixTable(pinfo2, o);
+            occupant.cell[0] = 4;
+            pinfo2.Mix(Virtual<uint32_t>(o, 40 * 4, &occupant) & 0xFF);
+            MixTable(pinfo2, o);
+            Virtual<uint32_t>(o, 8);
+            pi2flags |= 8;
+        }
+    }
+    Section2("ends", pinfo2);
+
+    // ---- Slot 32: this path information's paths to the side of another
+    // occupant (east, north, west, south, the same cell) with the other's
+    // first points near and far; and an other without path information.
+    {
+        uint32_t made = 0, made2 = 0;
+        char* const mine = MakeInfo(kIidPathInfo, made);
+        char* const theirs = MakeInfo(kIidPathInfo, made2);
+        if (made && mine && made2 && theirs) {
+            for (uint32_t side = 0; side < 4; ++side) {
+                AddRecord(mine, 0x01000000u | (side << 8 ^ 0x100u) | side, {0.0f, 10.0f}, 1.0f, 0.0f, 0);
+                AddRecord(mine, 0x01010000u | side, {5.0f}, 2.0f, 0.0f, 0);
+                AddRecord(mine, 0x02000000u | side, {7.0f}, 2.0f, 0.0f, 0);
+                AddRecord(theirs, 0x01000000u | (side << 8 ^ 0x100u) | side, {10.5f, 20.0f}, 1.0f, 0.0f, 0);
+                AddRecord(theirs, 0x01010000u | side, {5.0f, 9.0f}, 3.0001f, 0.0f, 0);
+            }
+            This<char*>(addr::cSC4PathInfo_AddPath, theirs, 0x02000000u);
+            AddRecord(theirs, 0x02000001u, {7.0f}, 2.0f, 0.5f, 0);
+            AddRecord(theirs, 0x02000002u, {7.0f}, 2.0f, 1.0f, 0);
+            AddRecord(theirs, 0x02000003u, {7.0f}, 2.0f, 1.01f, 0);
+            Hash calls;
+            TestOccupant a = MakeOccupant(&calls, 10, 10, nullptr);
+            const int32_t cells[][2] = {{11, 10}, {10, 11}, {9, 10}, {10, 9}, {10, 10}, {12, 3}, {9, 12}};
+            for (uint32_t i = 0; i < sizeof cells / sizeof cells[0]; ++i) {
+                TestOccupant b = MakeOccupant(&calls, static_cast<uint32_t>(cells[i][0]),
+                                              static_cast<uint32_t>(cells[i][1]), theirs);
+                if (i % 2)
+                    Virtual<void>(mine, 32 * 4, &a, &b);
+                else
+                    This<void>(addr::cSC4PathInfo_JoinEnds, mine, &a, &b);
+                MixTable(pinfo2, mine);
+            }
+            TestOccupant none = MakeOccupant(&calls, 11, 10, nullptr);
+            This<void>(addr::cSC4PathInfo_JoinEnds, mine, &a, &none);
+            MixTable(pinfo2, mine);
+        }
+        if (mine)
+            Virtual<uint32_t>(mine, 8);
+        if (theirs)
+            Virtual<uint32_t>(theirs, 8);
+    }
+    Section2("join", pinfo2);
+
+    // ---- The table's code on an object's table: insert_unique and
+    // insert_equal (new keys, keys there), insert, operator[] (there and new:
+    // the new records' length and byte set before they are mixed), the copy
+    // into a table of the test's (its nodes freed after).
+    {
+        uint32_t made = 0;
+        char* const o = MakeInfo(kIidPathInfo, made);
+        if (made && o) {
+            char* const table = o + 0x1C;
+            float pts[6] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+            struct Vec {
+                char* b;
+                char* e;
+                char* c;
+            } source{reinterpret_cast<char*>(pts), reinterpret_cast<char*>(pts + 6), reinterpret_cast<char*>(pts + 6)};
+            struct TestValue {
+                uint32_t key;
+                Vec points;
+                uint32_t length;
+                uint8_t byte, pad[3];
+            };
+            uint32_t i = 0;
+            for (const uint32_t key : {0x01000000u, 0x01000064u, 0x01000000u, 0x050302FFu, 0x01000064u, 0x070000C8u}) {
+                ++i;
+                TestValue value{key, source, 0x3F800000u + i, static_cast<uint8_t>(i), {}};
+                struct {
+                    char* node;
+                    void* table;
+                    uint8_t inserted, pad[3];
+                } result{nullptr, nullptr, 0xAA, {}};
+                This<void>(addr::cSC4PathInfo_InsertUnique, table, &result, &value);
+                pinfo2.Mix(result.inserted);
+                pinfo2.Mix(result.table == table ? 1u : 0u);
+                pinfo2.Mix(result.node ? At<uint32_t>(result.node, 4) : 0u);
+                value.key ^= 0x00100000u;
+                result = {nullptr, nullptr, 0xAA, {}};
+                This<void>(addr::cSC4PathInfo_InsertEqual, table, &result, &value);
+                pinfo2.Mix(result.inserted);
+                pinfo2.Mix(result.table == table ? 1u : 0u);
+                pinfo2.Mix(result.node ? At<uint32_t>(result.node, 4) : 0u);
+                value.key ^= 0x00300000u;
+                char* const pair = This<char*>(addr::cSC4PathInfo_InsertNew, table, &value);
+                pinfo2.Mix(pair ? At<uint32_t>(pair, 0) : 0u);
+                MixObject(pinfo2, o);
+            }
+            for (const uint32_t key : {0x01000000u, 0x01200064u, 0x0F0F0F0Fu, 0x01000000u, 0x0F0F0F0Fu, 0xFFFFFFFFu}) {
+                const uint32_t count = At<uint32_t>(o, kCount);
+                char* const record = This<char*>(addr::cSC4PathInfo_FindOrInsert, table, &key);
+                if (At<uint32_t>(o, kCount) != count) {
+                    At<uint32_t>(record, 0xC) = 0x40000000u;
+                    At<uint8_t>(record, 0x10) = 0x77;
+                }
+                MixRecord(pinfo2, record);
+                MixObject(pinfo2, o);
+            }
+            MixTable(pinfo2, o);
+            // The mirror on its own: a type 2 path whose mirror at its number
+            // 25 is taken (the one at 26 is not), and one with all to 26.
+            for (const uint32_t key : {0x02190001u, 0x02190100u, 0x02180203u, 0x02180302u, 0x02190302u, 0x021A0302u})
+                AddRecord(o, key, {1.0f, 2.0f}, 0.5f, 0.0f, 4);
+            This<void>(addr::cSC4PathInfo_MirrorType2, o);
+            MixTable(pinfo2, o);
+            uint32_t copy[5] = {};
+            This<void>(addr::cSC4PathInfo_CopyPaths, copy, table);
+            char* const copied = reinterpret_cast<char*>(copy);
+            const uint32_t buckets = static_cast<uint32_t>((At<char*>(copied, 8) - At<char*>(copied, 4)) >> 2);
+            pinfo2.Mix(buckets);
+            pinfo2.Mix(copy[4]);
+            for (uint32_t b = 0; b < buckets; ++b) {
+                char* n = At<char*>(At<char*>(copied, 4), b * 4);
+                while (n) {
+                    pinfo2.Mix(b);
+                    pinfo2.Mix(At<uint32_t>(n, 4));
+                    MixRecord(pinfo2, n + 8);
+                    char* const next = At<char*>(n, 0);
+                    if (At<char*>(n, 8))
+                        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(At<char*>(n, 8));
+                    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(n);
+                    n = next;
+                }
+            }
+            if (At<char*>(copied, 4))
+                reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(At<char*>(copied, 4));
+            Virtual<uint32_t>(o, 8);
+        }
+    }
+    Section2("tables", pinfo2);
+
+    Virtual<uint32_t>(rich, 8);
+    This<void*>(addr::cSC4PathInfoFactory_DeletingDestructor, factory, 1u);
+    pi2flags |= 1;
+    log::Write("autotest: automata: vehicle: pi2 pinfo2 %08X keys %u flags %X", pinfo2.h,
+               static_cast<unsigned>(keys.size()), pi2flags);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -32619,6 +33252,11 @@ void VehicleDrive(cISC4City* city)
     uint32_t piflags = 0;
     PathInfoDrive(pinfo, piflags);
 
+    // ---- Part pi2.
+    Hash pinfo2;
+    uint32_t pi2flags = 0;
+    PathInfo2Drive(pinfo2, pi2flags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -32675,13 +33313,14 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
-                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags);
+                  pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags,
+                  pinfo2.h, pi2flags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
