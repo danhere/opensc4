@@ -2393,6 +2393,373 @@ void DriveFactoryService()
     RsStage("factory-service");
 }
 
+// ====================================================================================
+// What never ran
+//
+// The buffer's slots 18, 19, 21, 22, 25 and 28 and its side's 8, the
+// factory's AddMaker, ReleaseAll, destructor and third part's thunks, the
+// maker's QueryInterface and the buffer class's maker 0x0082B820: none of
+// them runs in the game's runs, so these stages call each by address with
+// a known EAX on objects of the game's constructors, as above. The buffer's
+// context records here as well the origin, the pen, the point, the line and
+// the draw, and its surface is real pixels (GetPixel reads them); its plain
+// buffer's colour key answers whether it has one.
+
+uint32_t g_restSurface[6];
+
+uint32_t __fastcall KRealSurface(Recorder* k, void*, uint32_t* out, uint32_t whole)
+{
+    KRec(k, 46);
+    Mix(whole);
+    for (uint32_t i = 0; i < 6; ++i)
+        out[i] = g_restSurface[i];
+    return (KAnswer(k, 46) & ~0xFFu) | k->ok;
+}
+
+// The context's origin (its slot 14) is the recorder's rectangle's corner.
+uint32_t __fastcall KOrigin(Recorder* k, void*, int32_t* point)
+{
+    KRec(k, 14);
+    point[0] = k->rect.left;
+    point[1] = k->rect.top;
+    return KAnswer(k, 14);
+}
+
+uint32_t __fastcall KPen(Recorder* k, void*, float width)
+{
+    KRec(k, 25);
+    MixFloat(width);
+    return KAnswer(k, 25);
+}
+
+uint32_t __fastcall KPoint(Recorder* k, void*, int32_t x, int32_t y)
+{
+    KRec(k, 33);
+    Mix(static_cast<uint32_t>(x));
+    Mix(static_cast<uint32_t>(y));
+    return KAnswer(k, 33);
+}
+
+uint32_t __fastcall KLine(Recorder* k, void*, int32_t x0, int32_t y0, int32_t x1, int32_t y1)
+{
+    KRec(k, 34);
+    for (const int32_t v : {x0, y0, x1, y1})
+        Mix(static_cast<uint32_t>(v));
+    return KAnswer(k, 34);
+}
+
+uint32_t __fastcall KDraw(Recorder* k, void*, uint32_t kind, const float* points, int32_t count)
+{
+    KRec(k, 44);
+    Mix(kind);
+    Mix(static_cast<uint32_t>(count));
+    for (int32_t i = 0; i < 2 * count && i < 16; ++i)
+        MixFloat(points[i]);
+    return KAnswer(k, 44);
+}
+
+uint32_t __fastcall PKeyed(Recorder* k, void*, uint32_t* out)
+{
+    KRec(k, 26);
+    *out = k->key;
+    return (KAnswer(k, 26) & ~0xFFu) | k->has;
+}
+
+struct RestTables {
+    void* context[48];
+    void* plain[48];
+    RestTables()
+    {
+        const BufferTables& b = BufferTablesOf();
+        std::memcpy(context, b.context, sizeof context);
+        std::memcpy(plain, b.plain, sizeof plain);
+        context[14] = V(&KOrigin);
+        context[25] = V(&KPen);
+        context[32] = V(&KNone<32>);
+        context[33] = V(&KPoint);
+        context[34] = V(&KLine);
+        context[44] = V(&KDraw);
+        context[46] = V(&KRealSurface);
+        plain[26] = V(&PKeyed);
+    }
+};
+
+RestTables& RestTablesOf()
+{
+    static RestTables tables;
+    return tables;
+}
+
+void DriveBufferRest()
+{
+    Random random{0x5241533Au};
+    RestTables& t = RestTablesOf();
+    Recorder context{t.context, 0xC9};
+    Recorder plain{t.plain, 0x94};
+    Recorder plain2{t.plain, 0x95};
+    plain.rect = Rect{0, 0, 24, 10};
+    plain2.rect = Rect{5, -3, 77, 40};
+    Canvas pixels(24, 10, 4);
+    pixels.Fill(random);
+    const uint32_t bits = pixels.Bits();
+    const uint32_t surface[6] = {bits, pixels.stride, 24, 10, 9, 4};
+    std::memcpy(g_restSurface, surface, sizeof surface);
+
+    uint8_t* const b = NewBuffer();
+    uint8_t* const side = b + 0x0C;
+    g_pointers = {{b, 0xB1},          {side, 0xB2},        {&context, context.id}, {&plain, plain.id},
+                  {&plain2, plain2.id}, {t.context, 0xA1}, {t.plain, 0xA2}};
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+    MixBuffer(b);
+    // Retarget with the plain buffer's rectangle changed under it, with and
+    // without a target, then on a second plain buffer.
+    for (int round = 0; round < 4; ++round) {
+        context.hasTarget = static_cast<uint8_t>(round & 1);
+        plain.rect = round == 2 ? Rect{-4, 9, 30, 2} : Rect{0, 0, 24, 10};
+        Bm(addr::GZContextBuffer_Retarget, side);
+        MixBuffer(b);
+    }
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain2));
+    Bm(addr::GZContextBuffer_Retarget, side);
+    MixBuffer(b);
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+    MixBuffer(b);
+    RsStage("buffer-retarget");
+
+    // FillClip, FillSides and SetPixel in each format's colours, with and
+    // without clips.
+    static const uint32_t kFormats[] = {9, 4, 5, 7, 8, 6, 0};
+    for (int round = 0; round < 14; ++round) {
+        plain.format = kFormats[round % 7];
+        Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+        const Rect clip = RandomRect(random, -20, 60), r = RandomRect(random, -20, 60);
+        Bm(addr::GZContextBuffer_FillClip, b, random.Next(), round & 1 ? &clip : nullptr);
+        Bm(addr::GZContextBuffer_FillSides, b, random.Next(), r.left, r.top, r.right, r.bottom,
+           round & 2 ? &clip : nullptr);
+        Bm(addr::GZContextBuffer_SetPixel, b, static_cast<int32_t>(random.Next()),
+           static_cast<int32_t>(random.Below(40)) - 5, random.Next());
+        MixBuffer(b);
+    }
+    RsStage("buffer-fills");
+
+    // DrawLine at widths 0, 1 and wider (past 2^24, 2^31 and 2^32 less
+    // one), ends far apart (the size's wrap), as wide as tall and not.
+    plain.format = 9;
+    Bm(addr::GZContextBuffer_SetContext, side, static_cast<void*>(&context), static_cast<void*>(&plain));
+    static const uint32_t kWidths[] = {0,           1,           2,           3,           4,
+                                       7,           8,           33,          0x00FFFFFFu, 0x01000001u,
+                                       0x01000002u, 0x7FFFFFFFu, 0x80000000u, 0xFFFFFFFFu};
+    static const int32_t kEnds[] = {0, 1, -1, 0x7FFFFFFF, static_cast<int32_t>(0x80000000u), 0x01000001, -0x01000003,
+                                    16777217};
+    for (const uint32_t width : kWidths)
+        for (int i = 0; i < 4; ++i) {
+            int32_t e[4];
+            for (int32_t& v : e)
+                v = random.Below(4) == 0 ? kEnds[random.Below(8)] : static_cast<int32_t>(random.Below(400)) - 200;
+            if (i == 3) {
+                e[2] = e[0] + 13;
+                e[3] = e[1] - 13;
+            }
+            Bm(addr::GZContextBuffer_DrawLine, b, e[0], e[1], e[2], e[3], random.Next(), width);
+        }
+    MixBuffer(b);
+    RsStage("buffer-lines");
+
+    // GetPixel at 0 to 5 bytes a pixel, the surface refused once a round.
+    for (uint32_t bytes = 0; bytes <= 5; ++bytes) {
+        g_restSurface[5] = bytes;
+        for (int i = 0; i < 8; ++i) {
+            context.ok = static_cast<uint8_t>(i != 5);
+            Bm(addr::GZContextBuffer_GetPixel, b, static_cast<int32_t>(random.Below(24)),
+               static_cast<int32_t>(random.Below(10)));
+        }
+    }
+    context.ok = 1;
+    g_restSurface[5] = 4;
+    RsStage("buffer-pixels");
+
+    // IsKeyAt in every format the lock gives the surface: origins near and
+    // far, points inside and outside, keys that are the pixel there (other
+    // bits changed or not) and others, and no key.
+    for (uint32_t format = 2; format <= 10; ++format) {
+        g_restSurface[4] = format;
+        Bm(addr::GZContextBuffer_Lock, b, uint32_t{0x8010});
+        MixBuffer(b, bits);
+        for (int i = 0; i < 12; ++i) {
+            context.rect.left = random.Below(5) == 0 ? static_cast<int32_t>(random.Next())
+                                                     : static_cast<int32_t>(random.Below(6)) - 3;
+            context.rect.top = static_cast<int32_t>(random.Below(6)) - 3;
+            plain.has = static_cast<uint8_t>(i % 6 != 5);
+            const int32_t x = static_cast<int32_t>(random.Below(30)) - 3, y = static_cast<int32_t>(random.Below(14)) - 2;
+            const uint32_t atX = static_cast<uint32_t>(x) + static_cast<uint32_t>(context.rect.left);
+            const uint32_t atY = static_cast<uint32_t>(y) + static_cast<uint32_t>(context.rect.top);
+            uint32_t key = random.Next();
+            if (atX < 24 && atY < 10 && i % 3 != 2) {
+                std::memcpy(&key, reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(bits + atY * pixels.stride + atX * 4)),
+                            4);
+                key ^= i % 3 == 0 ? 0xFF000000u : 0x00010000u << random.Below(16);
+            }
+            plain.key = key;
+            Bm(addr::GZContextBuffer_IsKeyAt, b, x, y);
+        }
+        Bm(addr::GZContextBuffer_Unlock, b, uint32_t{0x8010});
+        MixBuffer(b, bits);
+    }
+    RsStage("buffer-keyed");
+
+    Bm(addr::GZContextBuffer_Destroy, b, uint32_t{0});
+    MixBuffer(b, bits);
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(b);
+    Mix(static_cast<uint32_t>(context.references));
+    Mix(static_cast<uint32_t>(plain.references));
+    Mix(static_cast<uint32_t>(plain2.references));
+    Mix(context.calls);
+    Mix(plain.calls);
+    Mix(plain2.calls);
+    MixBytes(pixels.bytes);
+    g_pointers.clear();
+    RsStage("buffer-rest-life");
+}
+
+void DriveFactoryRest()
+{
+    Random random{0x52415344u};
+    FactoryTables& t = FactoryTablesOf();
+    Recorder makers[3] = {{t.maker, 0x6D}, {t.maker, 0x6E}, {t.maker, 0x6F}};
+    Recorder tracked[4] = {{t.tracked, 0x76}, {t.tracked, 0x77}, {t.tracked, 0x78}, {t.tracked, 0x79}};
+    uint8_t* const f = NewFactory();
+    void* out = nullptr;
+    // The makers' sentinel: AddMaker with no maker answers the node before
+    // the front.
+    g_pointers = {{f, 0xF1}, {f + 4, 0xF2}, {f + 8, 0xF3}, {&out, 0xF4}, {At<uint8_t*>(f, 0x20), 0xF5}};
+    for (Recorder& k : makers)
+        g_pointers.push_back({&k, k.id});
+    for (Recorder& k : tracked)
+        g_pointers.push_back({&k, k.id});
+
+    // AddMaker: none, each in front of the last, one twice; MakeRasterizer
+    // shows the order.
+    Bm(addr::GZRasterizerFactory_AddMaker, f, static_cast<void*>(nullptr));
+    MixFactory(f);
+    {
+        // Taken out again: MakeRasterizer would call the null maker.
+        uint8_t* const sentinel = At<uint8_t*>(f, 0x20);
+        uint8_t* const node = At<uint8_t*>(sentinel, 0);
+        uint8_t* const next = At<uint8_t*>(node, 0);
+        At<uint8_t*>(sentinel, 0) = next;
+        At<uint8_t*>(next, 4) = sentinel;
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(node);
+    }
+    for (Recorder& k : makers) {
+        Bm(addr::GZRasterizerFactory_AddMaker, f, static_cast<void*>(&k));
+        MixFactory(f);
+    }
+    Bm(addr::GZRasterizerFactory_AddMaker, f, static_cast<void*>(&makers[1]));
+    MixFactory(f);
+    for (int round = 0; round < 6; ++round) {
+        for (Recorder& k : makers)
+            k.ok = static_cast<uint8_t>(random.Below(3) == 0);
+        out = nullptr;
+        Bm(addr::GZRasterizerFactory_MakeRasterizer, f, static_cast<const void*>(&tracked[3]), &out);
+        MixKnown(out);
+    }
+    for (Recorder& k : makers)
+        Mix(static_cast<uint32_t>(k.references));
+    RsStage("factory-addmaker");
+
+    // ReleaseAll with nothing tracked, then four holding or not, one taken
+    // out.
+    Bm(addr::GZRasterizerFactory_ReleaseAll, f);
+    for (Recorder& k : tracked)
+        Bm(addr::GZRasterizerFactory_Track, f, static_cast<void*>(&k));
+    for (int round = 0; round < 3; ++round) {
+        for (Recorder& k : tracked)
+            k.has = static_cast<uint8_t>(random.Below(2));
+        Bm(addr::GZRasterizerFactory_ReleaseAll, f);
+        for (Recorder& k : tracked)
+            MixByte(k.has);
+        MixFactory(f);
+    }
+    Bm(addr::GZRasterizerFactory_Untrack, f, static_cast<void*>(&tracked[1]));
+    Bm(addr::GZRasterizerFactory_ReleaseAll, f);
+    MixFactory(f);
+    for (Recorder& k : tracked)
+        Mix(k.calls);
+    RsStage("factory-releaseall");
+
+    // The third part's QueryInterface.
+    for (const uint32_t iid : {0x4B2EA3B3u, 1u, 0x287FB697u, 0x12345678u}) {
+        out = nullptr;
+        Bm(addr::GZRasterizerFactory_ThirdQueryInterface, f + 8, iid, &out);
+        MixKnown(out);
+    }
+    MixFactory(f);
+    RsStage("factory-third");
+
+    // The destructor through the third part without freeing (the memory is
+    // freed here), then by address with flag 1 on a second factory holding
+    // makers and tracked objects.
+    Bm(addr::GZRasterizerFactory_ThirdDestroy, f + 8, uint32_t{0});
+    MixByte(At<void*>(f, 0x00) == reinterpret_cast<void*>(addr::GZRasterizerFactory_vftable));
+    MixByte(At<void*>(f, 0x08) == reinterpret_cast<void*>(addr::GZRasterizerFactory_vftable_8));
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(f);
+    for (Recorder& k : makers) {
+        Mix(static_cast<uint32_t>(k.references));
+        Mix(k.calls);
+    }
+    uint8_t* const second = NewFactory();
+    g_pointers.insert(g_pointers.begin(), {second, 0xF6});
+    Method<uint32_t>(addr::GZRasterizerFactory_AddMaker, second, static_cast<void*>(&makers[0]));
+    Method<uint32_t>(addr::GZRasterizerFactory_AddMaker, second, static_cast<void*>(&makers[2]));
+    Method<uint32_t>(addr::GZRasterizerFactory_Track, second, static_cast<void*>(&tracked[0]));
+    Bm(addr::GZRasterizerFactory_Destroy, second, uint32_t{1});
+    for (Recorder& k : makers) {
+        Mix(static_cast<uint32_t>(k.references));
+        Mix(k.calls);
+    }
+    for (Recorder& k : tracked)
+        Mix(k.calls);
+    RsStage("factory-rest-life");
+
+    // The maker as Init makes it (over memory filled with a pattern), asked
+    // for its interfaces and others.
+    void** const maker =
+        static_cast<void**>(reinterpret_cast<void*(__cdecl*)(std::size_t)>(addr::SC4_operator_new)(0xC));
+    std::memset(maker, 0x6D, 0xC);
+    maker[0] = reinterpret_cast<void*>(addr::GZRasterizerMaker_vftable_base);
+    reinterpret_cast<void*(__fastcall*)(void*, void*)>(addr::cRZBaseRefCount_Construct)(&maker[1], nullptr);
+    maker[0] = reinterpret_cast<void*>(addr::GZRasterizerMaker_vftable);
+    maker[1] = reinterpret_cast<void*>(addr::GZRasterizerMaker_vftable_4);
+    g_pointers.insert(g_pointers.begin(), {maker, 0xF7});
+    for (const uint32_t iid : {1u, 0x6B2EA76Cu, 0x6B2EA76Du, 0x6B2EA76Bu, 0u, 0x4B2EA3B3u, 0xFFFFFFFFu}) {
+        out = nullptr;
+        Bm(addr::GZRasterizerMaker_QueryInterface, maker, iid, &out);
+        MixKnown(out);
+    }
+    Mix(At<uint32_t>(reinterpret_cast<uint8_t*>(maker), 8));
+    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(maker);
+    RsStage("factory-maker");
+
+    // Buffers from the class's maker: the side interface, the constructor's
+    // fields (the rest is operator new's), let go by the destructor.
+    for (int i = 0; i < 3; ++i) {
+        const uint32_t answer = WithEax(0x600DCAFEu + static_cast<uint32_t>(i), addr::GZContextBuffer_New, nullptr);
+        MixByte(answer != 0);
+        if (!answer)
+            continue;
+        uint8_t* const made = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(answer)) - 0x0C;
+        MixByte(At<void*>(made, 0x00) == reinterpret_cast<void*>(addr::GZContextBuffer_vftable));
+        MixByte(At<void*>(made, 0x04) == reinterpret_cast<void*>(addr::GZContextBuffer_vftable_4));
+        MixByte(At<void*>(made, 0x0C) == reinterpret_cast<void*>(addr::GZContextBuffer_vftable_C));
+        for (const uint32_t at : {0x08u, 0x10u, 0x14u, 0x28u, 0x30u, 0x40u})
+            Mix(At<uint32_t>(made, at));
+        MixByte(made[0x48]);
+        MixByte(Method<uint32_t>(addr::GZContextBuffer_Destroy, made, uint32_t{1}) == Address(made));
+    }
+    g_pointers.clear();
+    RsStage("factory-new-buffer");
+}
+
 // OPENSC4_TEST_RASTER=<day>: the four spans, the context's methods, the
 // rasterizer's, the buffer's and the factory's by address.
 void DriveRasterDay(const Day& day)
@@ -2412,6 +2779,8 @@ void DriveRasterDay(const Day& day)
     DriveFactoryMethods();
     DriveFactoryBuffers();
     DriveFactoryService();
+    DriveBufferRest();
+    DriveFactoryRest();
     log::Write("autotest: raster driven (hash %08X)", g_rsHash);
 }
 

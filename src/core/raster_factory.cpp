@@ -6,27 +6,36 @@
 // one maker there, whose slot 3 is GZRasterizer::Make), a list of tracked
 // objects (+0x24) that are let go of five ticks after they were last used,
 // the tick count (+0x28) and a lock (+0x2C, an RZCriticalSection). Every
-// method of it that ran, all detours here, off by default:
+// method of its own, all detours here, off by default:
 //
-//   renderer.raster.factory  the constructor 0x0082BBF0; QueryInterface
-//                            (slot 0, and the service part's thunk
-//                            0x0082BC60), MakeRasterizer (4),
-//                            MakeContextBuffer (5), Track (6), Untrack (7)
-//                            and ReleaseIdle (8); the service part's (+0x04,
-//                            vtable 0x00AC1694) Init, Shutdown and OnTick
-//                            (slots 8 to 10); 11 detours
+//   renderer.raster.factory  the constructor 0x0082BBF0 and destructor
+//                            0x0082BE00; QueryInterface (slot 0, and the
+//                            thunks of the service part, 0x0082BC60, and
+//                            of the third part, +0x08, vtable 0x00AC1650:
+//                            0x0082BC70 and the destructor's 0x0082BC80),
+//                            AddMaker (3), MakeRasterizer (4),
+//                            MakeContextBuffer (5), Track (6), Untrack (7),
+//                            ReleaseIdle (8) and ReleaseAll (9); the service
+//                            part's (+0x04, vtable 0x00AC1694) Init,
+//                            Shutdown and OnTick (slots 8 to 10); the
+//                            maker's QueryInterface (vtable 0x00AC162C,
+//                            0x0082B850; its slot 3, GZRasterizer::Make, is
+//                            renderer.raster.rasterizer's) and the buffer
+//                            class's maker 0x0082B820; 18 detours
 //
 // Left the game's: AddRef and Release and slot 10 (the tick count), shared
-// with other classes; AddMaker (3) and ReleaseAll (9), which never ran; the
-// destructor 0x0082BE00 and the third part's (+0x08, vtable 0x00AC1650)
-// thunks; the base service's own slots.
+// with other classes; the base service's own slots. AddMaker, ReleaseAll,
+// the destructor and the third part's thunks never ran in the game's runs;
+// the autotest is what reaches them, and the maker's QueryInterface and
+// 0x0082B820.
 //
 // Return values: every one of ours answers what the game's leaves in EAX.
 // QueryInterface hands an interface it does not know to the base service's
 // with a jump, and MakeRasterizer with no makers answers AL 0 over the
-// caller's EAX; those few instructions are assembly, the game's own.
-// Everything else ends on a call whose answer is set (the lock's Unlock
-// answers its count).
+// caller's EAX; those few instructions are assembly, the game's own, and so
+// are the third part's thunks. Everything else ends on a call whose answer
+// is set (the lock's Unlock answers its count) or answers what it worked
+// out.
 //
 // No compare mode. The autotest (raster_autotest.cpp, "The factory") drives
 // every method by address with a known EAX on factories of the game's
@@ -118,6 +127,11 @@ enum Slot {
 // The side interface of a buffer with a context.
 constexpr std::size_t kBufferSide = 0x0C;
 
+// The maker's own interface.
+constexpr uint32_t kMakerInterface = 0x6B2EA76C;
+
+uint32_t Word(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
 uint32_t Lock(Factory* f) { return Call<uint32_t>(f->lock, kLockSlot); }
 uint32_t Unlock(Factory* f) { return Call<uint32_t>(f->lock, kUnlockSlot); }
 
@@ -154,6 +168,33 @@ Factory* __fastcall Construct(Factory* f, void*)
     return f;
 }
 
+// 0x0082BE00 (ret 4): the three tables back, the lock ended, the tracked
+// list destroyed (its nodes and sentinel; the objects were not held), the
+// makers let go of and their sentinel freed, the system service base's
+// destructor; with flag 1 the memory freed. Answers this.
+Factory* __fastcall Destroy(Factory* f, void*, uint32_t flags)
+{
+    f->vtable = reinterpret_cast<void**>(addr::GZRasterizerFactory_vftable);
+    f->serviceVtable = reinterpret_cast<void**>(addr::GZRasterizerFactory_vftable_4);
+    f->thirdVtable = reinterpret_cast<void**>(addr::GZRasterizerFactory_vftable_8);
+    Method<void>(addr::RZCriticalSection_Destroy, &f->lock);
+    Method<void>(addr::SC4PairList_Destroy, &f->tracked);
+    Method<void>(addr::SC4RefList_Clear, &f->makers);
+    if (f->makers)
+        Cdecl<void>(addr::SC4_Free, static_cast<void*>(f->makers));
+    Method<void>(addr::cRZBaseSystemService_Destroy, &f->serviceVtable);
+    if (flags & 1)
+        Cdecl<void>(addr::SC4_operator_delete, static_cast<void*>(f));
+    return f;
+}
+
+// The third part's slot 3, 0x0082BC80: this less 8, the destructor.
+__declspec(naked) void ThirdDestroy()
+{
+    __asm sub ecx, 8
+    __asm jmp Destroy
+}
+
 // Slot 0 past the thunk below: itself, held.
 uint32_t __fastcall QueryBody(Factory* f, void*, uint32_t, void** out)
 {
@@ -183,6 +224,35 @@ __declspec(naked) void ServiceQueryInterface()
 {
     __asm sub ecx, 4
     __asm jmp QueryInterface
+}
+
+// The third part's slot 0, 0x0082BC70.
+__declspec(naked) void ThirdQueryInterface()
+{
+    __asm sub ecx, 8
+    __asm jmp QueryInterface
+}
+
+// Slot 3, 0x0082BD30 (ret 4): the maker to the makers' front, held there
+// (no lock), and held once more while it is linked in. Answers the maker's
+// last Release, or with none the node before the front (the sentinel).
+uint32_t __fastcall AddMaker(Factory* f, void*, void* maker)
+{
+    if (maker)
+        Call<uint32_t>(maker, kAddRef);
+    Node* const first = f->makers->next;
+    Node* const node = Cdecl<Node*>(addr::SC4_stl_allocate, std::size_t{sizeof(Node)});
+    node->value = maker;
+    if (maker)
+        Call<uint32_t>(maker, kAddRef);
+    Node* const before = first->prev;
+    node->next = first;
+    node->prev = before;
+    before->next = node;
+    first->prev = node;
+    if (maker)
+        return Call<uint32_t>(maker, kRelease);
+    return Word(before);
 }
 
 // Slot 4 past the thunk below: the makers in turn until one makes a
@@ -314,6 +384,17 @@ uint32_t __fastcall ReleaseIdle(Factory* f, void*, uint32_t)
     return Unlock(f);
 }
 
+// Slot 9, 0x0082BBB0: every tracked object lets go of what it holds (its
+// slot 6), idle or not. The next node is read after.
+uint32_t __fastcall ReleaseAll(Factory* f, void*)
+{
+    Lock(f);
+    Node* const sentinel = f->tracked;
+    for (Node* n = sentinel->next; n != sentinel; n = n->next)
+        Call<uint32_t>(n->value, kTrackedRelease);
+    return Unlock(f);
+}
+
 // ====================================================================================
 // The service part (+0x04; `this` is the service part)
 
@@ -370,6 +451,33 @@ uint32_t __fastcall OnTick(void* service, void*, uint32_t)
 }
 
 // ====================================================================================
+// The makers
+
+// The maker's slot 0, 0x0082B850 (ret 8): itself, held, for 1 and its own
+// interface; otherwise AL 0 over the interface less its own.
+uint32_t __fastcall MakerQueryInterface(void* maker, void*, uint32_t iid, void** out)
+{
+    if (iid == 1 || iid == kMakerInterface) {
+        *out = maker;
+        return WithAl(Call<uint32_t>(maker, kAddRef), 1);
+    }
+    return WithAl(iid - kMakerInterface, 0);
+}
+
+// 0x0082B820: the buffer with a context's maker for the framework's DLL
+// director (0x00825B60 adds it under the class ID 0x0082ABD0 answers): a
+// buffer from its constructor, not held. Answers its side interface, or
+// null without the memory.
+void* __cdecl NewContextBuffer()
+{
+    void* const memory = Cdecl<void*>(addr::SC4_operator_new, std::size_t{0x4C});
+    if (!memory)
+        return nullptr;
+    uint8_t* const buffer = Method<uint8_t*>(addr::GZContextBuffer_GZContextBuffer, memory);
+    return buffer ? buffer + kBufferSide : nullptr;
+}
+
+// ====================================================================================
 // Installation
 
 struct Detour {
@@ -383,16 +491,23 @@ bool Install(registry::Mode)
         return false;
     static const Detour detours[] = {
         {addr::GZRasterizerFactory_GZRasterizerFactory, reinterpret_cast<void*>(&Construct)},
+        {addr::GZRasterizerFactory_Destroy, reinterpret_cast<void*>(&Destroy)},
+        {addr::GZRasterizerFactory_ThirdDestroy, reinterpret_cast<void*>(&ThirdDestroy)},
         {addr::GZRasterizerFactory_QueryInterface, reinterpret_cast<void*>(&QueryInterface)},
         {addr::GZRasterizerFactory_ServiceQueryInterface, reinterpret_cast<void*>(&ServiceQueryInterface)},
+        {addr::GZRasterizerFactory_ThirdQueryInterface, reinterpret_cast<void*>(&ThirdQueryInterface)},
+        {addr::GZRasterizerFactory_AddMaker, reinterpret_cast<void*>(&AddMaker)},
         {addr::GZRasterizerFactory_MakeRasterizer, reinterpret_cast<void*>(&MakeRasterizer)},
         {addr::GZRasterizerFactory_MakeContextBuffer, reinterpret_cast<void*>(&MakeContextBuffer)},
         {addr::GZRasterizerFactory_Track, reinterpret_cast<void*>(&Track)},
         {addr::GZRasterizerFactory_Untrack, reinterpret_cast<void*>(&Untrack)},
         {addr::GZRasterizerFactory_ReleaseIdle, reinterpret_cast<void*>(&ReleaseIdle)},
+        {addr::GZRasterizerFactory_ReleaseAll, reinterpret_cast<void*>(&ReleaseAll)},
         {addr::GZRasterizerFactory_Init, reinterpret_cast<void*>(&Init)},
         {addr::GZRasterizerFactory_Shutdown, reinterpret_cast<void*>(&Shutdown)},
         {addr::GZRasterizerFactory_OnTick, reinterpret_cast<void*>(&OnTick)},
+        {addr::GZRasterizerMaker_QueryInterface, reinterpret_cast<void*>(&MakerQueryInterface)},
+        {addr::GZContextBuffer_New, reinterpret_cast<void*>(&NewContextBuffer)},
     };
     for (const Detour& d : detours) {
         const addr::Entry* entry = addr_check::Find(d.address);
@@ -408,8 +523,9 @@ const bool g_registered = registry::Register(
     {"renderer.raster.factory", "renderer/raster", registry::Kind::Detour, registry::Phase::Attach,
      addr::GZRasterizerFactory_GZRasterizerFactory,
      "Our rasterizer factory of the software rasterizer (vtable 0x00AC1668, the service a drawing context asks for "
-     "its rasterizer): its constructor, QueryInterface, making rasterizers and buffers with a context, the tracked "
-     "objects, and the service's Init, Shutdown and OnTick (11 detours; docs/renderer.md)",
+     "its rasterizer): its constructor and destructor, QueryInterface and its thunks, the makers, making rasterizers "
+     "and buffers with a context, the tracked objects, the service's Init, Shutdown and OnTick, the maker's "
+     "QueryInterface and the buffer class's maker (18 detours; docs/renderer.md)",
      false, Install});
 
 } // namespace
