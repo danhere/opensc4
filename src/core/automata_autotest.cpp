@@ -29379,14 +29379,18 @@ void PedWalksDrive(Hash& pwalks, uint32_t& pflags)
             }
         for (int k = 0; k < 32; ++k) {
             clearOthers();
-            SetPoint(o, b::kPosition, lcg.In(-100.0f, 3000.0f), lcg.In(0.0f, 400.0f), lcg.In(-100.0f, 3000.0f));
+            // near the origin every other run, where the step's rounding shows
+            const float span = (k & 1) ? 1.0f : 3000.0f;
+            SetPoint(o, b::kPosition, lcg.In(-span, span), lcg.In(0.0f, 400.0f), lcg.In(-span, span));
             const float d[3] = {lcg.In(-1.0f, 1.0f), lcg.In(-0.2f, 0.2f), lcg.In(-1.0f, 1.0f)};
             g_ped2.flags = (lcg.Next() & 1) ? 0x20000u : 0u;
             g_walk.smoothNow = lcg.In(0.0f, 0.01f);
             g_walk.speed125 = lcg.In(0.5f, 900.0f);
             g_walk.canGoCalls = 0;
             g_walk.canGoNudge = 0.0f;
-            g_walk.canGoTimer = (lcg.Next() & 1) ? 800.0f : -1.0f;
+            // the second bump's timer: over 500, just under it (the seconds tell), none
+            const uint32_t timer = lcg.Next() % 3;
+            g_walk.canGoTimer = timer == 0 ? 800.0f : timer == 1 ? 499.95f : -1.0f;
             for (int i = 0; i < 2; ++i) {
                 others[i].point[0] = At<float>(o, b::kPosition) + lcg.In(-1.5f, 1.5f);
                 others[i].point[1] = At<float>(o, b::kPosition + 4);
@@ -29462,9 +29466,11 @@ void PedWalksDrive(Hash& pwalks, uint32_t& pflags)
             if (k < 30) {
                 std::memcpy(object.point, points[k % 5], 12);
             } else {
-                object.point[0] = lcg.In(30.0f, 70.0f);
+                // differences that are not floats (the heading's z rounding)
+                SetPoint(o, b::kPosition, lcg.In(-3000.0f, 3000.0f), lcg.In(-5.0f, 5.0f), lcg.In(-3000.0f, 3000.0f));
+                object.point[0] = lcg.In(-1.0f, 1.0f);
                 object.point[1] = lcg.In(-5.0f, 5.0f);
-                object.point[2] = lcg.In(40.0f, 80.0f);
+                object.point[2] = lcg.In(-1.0f, 1.0f);
             }
             const int how = k < 30 ? k / 5 : static_cast<int>(lcg.Next() % 6);
             At<uint8_t>(o, ped::ped::kByte) = static_cast<uint8_t>(how >= 2 ? 1 : 0);
@@ -29540,7 +29546,8 @@ void PedWalksDrive(Hash& pwalks, uint32_t& pflags)
             g_walk.automataOn = k == 7 ? nullptr : &automata;
             g_walk.neighbour = k == 8 ? nullptr : k == 9 ? &emptySlot : reinterpret_cast<void**>(&nextSlot);
             // the neighbour's point: outside (k 10 to 13) or inside the rectangle
-            theirs.point[0] = k >= 10 && k < 14 ? 250.0f + k : 170.0f;
+            // (k 14 and 16: the cell 11, inside the word's rectangle only as grown)
+            theirs.point[0] = k >= 10 && k < 14 ? 250.0f + k : k == 14 || k == 16 ? 177.0f : 170.0f;
             theirs.point[1] = 1.0f;
             theirs.point[2] = 335.0f;
             const uint32_t sides[] = {0, 1, 2, 3, 5};
