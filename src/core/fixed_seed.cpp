@@ -412,4 +412,9 @@ SiteOverride::~SiteOverride()
     g_siteOverride = previous_;
 }
 
+uint32_t CurrentSiteOverride()
+{
+    return g_siteOverride && GetCurrentThreadId() == g_siteOverrideThread ? g_siteOverride : 0;
+}
+
 } // namespace opensc4::fixed_seed

@@ -681,6 +681,23 @@
 //   pi2flags 1 when it ran, 2 when the factory failed, 4 an object, 8 when
 //   slot 40 ran (a city). Log line: "pi2 pinfo2", one line per section
 //   before it.
+//   Part pi3a (the path information's searches) adds `,<pinfo3>,<pi3flags>`
+//   (64 fields), at the game's addresses and through the vtable on an
+//   object of the test's with bends, a four-point path, a repeated point,
+//   a tiny segment, a NaN, near ties and two stops: slot 5 over 160 key
+//   parts and seven probes with y in and out and the outs null or not;
+//   slots 6 and 7 over the parts, probes and five radii (0, 5, equal,
+//   huge, NaN); slots 8 and 9 drawing from the automata generator (seeded
+//   first); slots 18 (start indexes -1 to 9, y in and out), 19 and 22 on
+//   every record (and none, empty), 23 on every key (lengths 0 and huge
+//   among them) and one not there (the draws of slots 5 and 23 counted under
+//   sites of the test's); slots 20 and 21 over the probes and
+//   types, a probe on a path; slot 37 over the parts; slot 39 over keys,
+//   points, directions and thresholds (NaN too); slot 31 on six clones (by
+//   number and type, reversed, the new type's high bits). The draws of
+//   slots 5 and 23 come from clock-seeded generators, fixed by
+//   determinism.fixed_seed. pi3flags 1 when it ran, 2 without an object.
+//   Log line: "pi3a pinfo3", one line per section before it.
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -1051,6 +1068,7 @@
 #include "core/automata_awmgr.h"
 #include "core/automata_roadveh.h"
 #include "core/automata_ctlmgr.h"
+#include "core/fixed_seed.h"
 #include "core/automata_scripts.h"
 #include "core/automata_situations.h"
 #include "core/automata_emergency.h"
@@ -32898,6 +32916,333 @@ void PathInfo2Drive(Hash& pinfo2, uint32_t& pi2flags)
                static_cast<unsigned>(keys.size()), pi2flags);
 }
 
+// ---- Part pi3a: the path information's searches (src/core/automata_pathinfo.cpp).
+// Every call goes to the game's addresses or the object's vtable, on objects
+// of the test's.
+namespace pi3 {
+
+using namespace pi2;
+
+// A record of the test's with the points given as x, y, z triples, its
+// length (a float) and byte.
+char* AddPoints(char* o, uint32_t key, std::initializer_list<float> xyz, float length, uint8_t byte)
+{
+    char* const record = This<char*>(addr::cSC4PathInfo_AddPath, o, key);
+    if (!record)
+        return nullptr;
+    const uint32_t n = static_cast<uint32_t>(xyz.size() / 3);
+    This<void>(addr::cSC4PathInfo_ReservePoints, record, n);
+    std::memcpy(At<char*>(record, 0), xyz.begin(), n * 12);
+    At<char*>(record, 4) = At<char*>(record, 0) + n * 12;
+    At<float>(record, 0xC) = length;
+    At<uint8_t>(record, 0x10) = byte;
+    return record;
+}
+
+// A record's key (the node's word before it), or all ones for none.
+uint32_t KeyOf(char* record)
+{
+    return record ? At<uint32_t>(record - 4, 0) : 0xFFFFFFFFu;
+}
+
+void Section3(const char* name, const Hash& h)
+{
+    log::Write("autotest: automata: vehicle: pi3a %s: pinfo3 %08X", name, h.h);
+}
+
+} // namespace pi3
+
+void PathInfo3Drive(Hash& pinfo3, uint32_t& pi3flags)
+{
+    using namespace pi3;
+    uint32_t made = 0;
+    char* const o = MakeInfo(kIidPathInfo, made);
+    if (!made || !o) {
+        pi3flags |= 2;
+        log::Write("autotest: automata: vehicle: pi3a: no path information");
+        return;
+    }
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    // Paths: bends, a four-point path whose later segment passes the middle
+    // again, a repeated point, a tiny segment, a NaN, three about equally
+    // far from the origin (the ties), sides 0xFF; and two stops. Every
+    // record has a point (slots 6, 7 and 39 read them unchecked).
+    AddPoints(o, 0x01000102u, {0, 0, 0, 10, 1, 0, 20, 2, 5}, 22.5f, 1);
+    AddPoints(o, 0x01010102u, {0, 0, 2, 10, 0, 2, 20, 0, 2, 20, 0, 12}, 30.0f, 0);
+    AddPoints(o, 0x01000203u, {5, 0, -5, 5, 0, 5, 5, 3, 15}, 20.0f, 3);
+    AddPoints(o, 0x01020102u, {6, 0, 9, 6, 0, 9, 8, 0, 9}, 2.0f, 0);
+    AddPoints(o, 0x02000001u, {-10, 0, -10, 0, 0, 0}, 14.0f, 0);
+    AddPoints(o, 0x0200FF00u, {3, 3, 3}, 0.0f, 0);
+    AddPoints(o, 0x03000000u, {1, 0, 1, 1.004f, 1, 1}, 0.004f, 0);
+    AddPoints(o, 0x04000101u, {0, nan, 0, 4, 0, 0}, 4.0f, 0);
+    AddPoints(o, 0x05000000u, {10, 0, 0}, 0.0f, 0);
+    AddPoints(o, 0x05010000u, {-10, 0, 0}, 0.0f, 0);
+    AddPoints(o, 0x05020000u, {0, 0, 10.005f, 0, 0, 10.0f}, 0.005f, 0);
+    AddPoints(o, 0x0703FF02u, {2, 5, 2, 2, 5, -8}, 10.0f, 2);
+    // A square box of first points (slot 37's sides equal) whose nearest to
+    // the middle differs by side.
+    AddPoints(o, 0x06000001u, {0, 0, 0}, 0.0f, 0);
+    AddPoints(o, 0x06010001u, {4, 0, 4}, 0.0f, 0);
+    AddPoints(o, 0x06020001u, {2, 0, 0}, 0.0f, 0);
+    AddPoints(o, 0x06030001u, {0, 0, 2.1f}, 0.0f, 0);
+    {
+        const float a[3] = {2.0f, 0.0f, 2.0f}, b[3] = {7.0f, 1.0f, 7.0f};
+        This<uint32_t>(addr::cSC4PathInfo_AddStop, o, a, 0x11000102u);
+        This<uint32_t>(addr::cSC4PathInfo_AddStop, o, b, 0x2203FFFFu);
+    }
+    const std::vector<uint32_t> keys = Keys(o);
+    const float probes[][3] = {{0, 0, 0},   {5, 0, 1},     {10.5f, 0.5f, 3}, {-3, 2, -7},
+                               {1.002f, 0, 1.5f}, {20, 0, 12}, {nan, 0, 0}};
+    // The generator slots 8 and 9 are given, seeded here.
+    char* const generator = reinterpret_cast<char*>(addr::cSC4AutomatonCore_Random);
+    This<void>(addr::cRZRandomSuper_Seed, generator, 97531u);
+
+    // ---- Slot 5 over the types, sides and probes, y in and out (slot 17),
+    // at the address and through the vtable, with and without the outs. Its
+    // ties' coins (and slot 23's draws) are counted under a site of the
+    // test's: the game's own calls before the test (as many as the city
+    // makes) would shift the count under the game's site.
+    {
+        const fixed_seed::SiteOverride site(0x7E570005u);
+        uint32_t i = 0;
+        for (const uint32_t flag : {0u, 1u}) {
+            This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, flag);
+            for (const uint32_t type : {1u, 0x101u, 2u, 3u, 5u, 7u, 0u, 0x11u})
+                for (const uint32_t from : {0u, 1u, 2u, 0xFFu, 0x103u})
+                    for (const uint32_t to : {0u, 1u, 2u, 0xFFu})
+                        for (const auto& p : probes) {
+                            uint32_t key = 0xAAAAAAAAu, length = 0xBBBBBBBBu;
+                            uint32_t* const k = (i & 1) ? &key : nullptr;
+                            uint32_t* const l = (i & 2) ? &length : nullptr;
+                            char* const r = (i & 4) ? Virtual<char*>(o, 5 * 4, type, from, to, p, k, l)
+                                                    : This<char*>(addr::cSC4PathInfo_NearestPath, o, type, from, to,
+                                                                  p, k, l);
+                            pinfo3.Mix(KeyOf(r));
+                            pinfo3.Mix(key);
+                            pinfo3.Mix(length);
+                            ++i;
+                        }
+        }
+    }
+    Section3("nearest", pinfo3);
+
+    // ---- Slots 6 and 7 over the types, sides, probes and radii (0, 5,
+    // equal, huge, NaN).
+    {
+        struct Vec {
+            char* b;
+            char* e;
+            char* c;
+        };
+        uint32_t i = 0;
+        for (const uint32_t type : {1u, 2u, 5u, 0u})
+            for (const uint32_t from : {0u, 1u, 0xFFu})
+                for (const uint32_t to : {0u, 1u, 2u, 0xFFu})
+                    for (const auto& p : probes)
+                        for (const float radius : {0.0f, 5.0f, 10.0f, 1e9f, nan}) {
+                            for (const uint32_t slot : {6u, 7u}) {
+                                Vec result{};
+                                const uintptr_t at = slot == 6 ? addr::cSC4PathInfo_PathsNearStart
+                                                               : addr::cSC4PathInfo_PathsNearEnd;
+                                void* const answer = (i & 1) ? Virtual<void*>(o, slot * 4, &result, type, p, from, to,
+                                                                              radius)
+                                                             : This<void*>(at, o, &result, type, p, from, to, radius);
+                                pinfo3.Mix(answer == &result ? 1u : 0u);
+                                MixVector(pinfo3, &result.b);
+                                if (result.b)
+                                    reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(result.b);
+                                ++i;
+                            }
+                        }
+    }
+    Section3("near", pinfo3);
+
+    // ---- Slots 8 and 9: a record drawn from the generator.
+    {
+        uint32_t i = 0;
+        for (const uint32_t type : {1u, 5u, 0u, 2u, 0x111u})
+            for (const uint32_t from : {0u, 1u, 0xFFu})
+                for (const uint32_t to : {0u, 1u, 2u, 0xFFu}) {
+                    uint32_t length = 0xCCCCCCCCu, key = 0xDDDDDDDDu;
+                    char* r = (i & 1) ? Virtual<char*>(o, 8 * 4, type, from, to, generator, (i & 2) ? &length : nullptr)
+                                      : This<char*>(addr::cSC4PathInfo_RandomPath, o, type, from, to, generator,
+                                                    (i & 2) ? &length : nullptr);
+                    pinfo3.Mix(KeyOf(r));
+                    pinfo3.Mix(length);
+                    length = 0xCCCCCCCCu;
+                    r = (i & 1) ? Virtual<char*>(o, 9 * 4, type, from, to, generator, (i & 2) ? &key : nullptr,
+                                                 (i & 4) ? &length : nullptr)
+                                : This<char*>(addr::cSC4PathInfo_RandomPathKeyed, o, type, from, to, generator,
+                                              (i & 2) ? &key : nullptr, (i & 4) ? &length : nullptr);
+                    pinfo3.Mix(KeyOf(r));
+                    pinfo3.Mix(key);
+                    pinfo3.Mix(length);
+                    ++i;
+                }
+    }
+    Section3("random", pinfo3);
+
+    // ---- Slots 18, 19 and 22 on each record's points (and none, empty for
+    // 19 and 22), slot 23 on every key and one not there.
+    {
+        const fixed_seed::SiteOverride site(0x7E570023u);
+        char* empty[3] = {};
+        uint32_t i = 0;
+        for (const uint32_t key : keys) {
+            char* const record = This<char*>(addr::cSC4PathInfo_GetPath, o, key, static_cast<void*>(nullptr));
+            if (!record)
+                continue;
+            char** const points = reinterpret_cast<char**>(record);
+            for (const uint32_t flag : {0u, 1u}) {
+                This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, flag);
+                for (const auto& p : probes)
+                    for (const int32_t start : {-1, 0, 1, 2, 9}) {
+                        float out[3] = {-1.0f, -2.0f, -3.0f};
+                        int32_t index = start;
+                        pinfo3.Mix((i++ & 1) ? Virtual<uint32_t>(o, 18 * 4, points, p, out, &index) & 0xFF
+                                             : This<uint32_t>(addr::cSC4PathInfo_NearestPointAhead, o, points, p, out,
+                                                              &index) & 0xFF);
+                        pinfo3.MixBytes(out, sizeof out);
+                        pinfo3.Mix(static_cast<uint32_t>(index));
+                    }
+            }
+            for (const auto& p : probes) {
+                float point[3] = {p[0], p[1], p[2]};
+                pinfo3.Mix(static_cast<uint32_t>((i++ & 1) ? Virtual<int32_t>(o, 19 * 4, point, points)
+                                                           : This<int32_t>(addr::cSC4PathInfo_ProjectOnPath, o, point,
+                                                                           points)));
+                pinfo3.MixBytes(point, sizeof point);
+            }
+            float out[3] = {-4.0f, -5.0f, -6.0f};
+            pinfo3.Mix(This<uint32_t>(addr::cSC4PathInfo_MiddlePoint, o, points, out) & 0xFF);
+            pinfo3.MixBytes(out, sizeof out);
+            out[0] = -7.0f;
+            pinfo3.Mix(Virtual<uint32_t>(o, 22 * 4, points, out) & 0xFF);
+            pinfo3.MixBytes(out, sizeof out);
+        }
+        for (const uint32_t key : {0x02000001u, 0x01010102u, 0x03000000u}) {
+            char* const record = This<char*>(addr::cSC4PathInfo_GetPath, o, key, static_cast<void*>(nullptr));
+            if (record)
+                At<float>(record, 0xC) = key == 0x03000000u ? 1e6f : 0.0f;
+        }
+        for (const uint32_t key : keys)
+            for (int k = 0; k < 3; ++k) {
+                float out[3] = {-8.0f, -9.0f, -10.0f};
+                pinfo3.Mix((k & 1) ? Virtual<uint32_t>(o, 23 * 4, key, out) & 0xFF
+                                   : This<uint32_t>(addr::cSC4PathInfo_RandomPointOnPath, o, key, out) & 0xFF);
+                pinfo3.MixBytes(out, sizeof out);
+            }
+        float out[3] = {};
+        pinfo3.Mix(This<uint32_t>(addr::cSC4PathInfo_RandomPointOnPath, o, 0x09000000u, out) & 0xFF);
+        float point[3] = {1.0f, 2.0f, 3.0f};
+        pinfo3.Mix(static_cast<uint32_t>(This<int32_t>(addr::cSC4PathInfo_ProjectOnPath, o, point, empty)));
+        pinfo3.Mix(static_cast<uint32_t>(
+            This<int32_t>(addr::cSC4PathInfo_ProjectOnPath, o, point, static_cast<char**>(nullptr))));
+        pinfo3.Mix(This<uint32_t>(addr::cSC4PathInfo_MiddlePoint, o, empty, out) & 0xFF);
+        pinfo3.Mix(This<uint32_t>(addr::cSC4PathInfo_MiddlePoint, o, static_cast<char**>(nullptr), out) & 0xFF);
+        pinfo3.MixBytes(point, sizeof point);
+        pinfo3.MixBytes(out, sizeof out);
+    }
+    Section3("points", pinfo3);
+
+    // ---- Slots 20 and 21 over the probes and types, y in and out; a
+    // probe on a path (slot 20's early answer).
+    {
+        uint32_t i = 0;
+        for (const uint32_t flag : {0u, 1u}) {
+            This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, flag);
+            for (const auto& p : probes)
+                for (const uint32_t type : {0u, 1u, 2u, 3u, 5u, 7u, 0x11u}) {
+                    float point[3] = {p[0], p[1], p[2]};
+                    uint32_t key = 0xEEEEEEEEu;
+                    pinfo3.Mix(static_cast<uint32_t>(
+                        (i & 1) ? Virtual<int32_t>(o, 20 * 4, point, type, (i & 2) ? &key : nullptr)
+                                : This<int32_t>(addr::cSC4PathInfo_NearestOnPaths, o, point, type,
+                                                (i & 2) ? &key : nullptr)));
+                    pinfo3.MixBytes(point, sizeof point);
+                    pinfo3.Mix(key);
+                    float out[3] = {-1.0f, -1.0f, -1.0f};
+                    key = 0xEEEEEEEEu;
+                    pinfo3.Mix((i & 1) ? Virtual<uint32_t>(o, 21 * 4, type, p, out, (i & 2) ? &key : nullptr) & 0xFF
+                                       : This<uint32_t>(addr::cSC4PathInfo_FarthestMiddle, o, type, p, out,
+                                                        (i & 2) ? &key : nullptr) & 0xFF);
+                    pinfo3.MixBytes(out, sizeof out);
+                    pinfo3.Mix(key);
+                    ++i;
+                }
+        }
+        float on[3] = {10.0f, 0.0f, 2.0f};
+        uint32_t key = 0;
+        pinfo3.Mix(static_cast<uint32_t>(This<int32_t>(addr::cSC4PathInfo_NearestOnPaths, o, on, 1u, &key)));
+        pinfo3.MixBytes(on, sizeof on);
+        pinfo3.Mix(key);
+        This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, 0u);
+    }
+    Section3("projections", pinfo3);
+
+    // ---- Slot 37 over the types and sides.
+    for (const uint32_t type : {1u, 2u, 5u, 6u, 0x101u, 0u, 7u, 0x11u})
+        for (const uint32_t from : {0u, 1u, 3u, 0xFFu})
+            for (const uint32_t to : {0u, 1u, 2u, 0xFFu}) {
+                pinfo3.Mix(This<uint32_t>(addr::cSC4PathInfo_MiddleKey, o, type, from, to));
+                pinfo3.Mix(Virtual<uint32_t>(o, 37 * 4, type, from, to));
+            }
+    Section3("middle", pinfo3);
+
+    // ---- Slot 39 over the keys (and one not there), points, directions
+    // and thresholds.
+    {
+        const float points[][3] = {{0, 0, 1}, {3, 0, -3}, {-5, 0, 0}, {5, 1, 4.5f}};
+        const float directions[][3] = {{1, 0, 0}, {0, 0, 1}, {0.6f, 0.1f, 0.8f}, {-1, 0, 0}, {0, 0, 0}};
+        uint32_t i = 0;
+        for (const uint32_t key : {0x01000102u, 0x01010102u, 0x01000203u, 0x02000001u, 0x0703FF02u, 0x01020102u,
+                                   0x0200FF00u, 0x09000000u})
+            for (const auto& p : points)
+                for (const auto& d : directions)
+                    for (const float threshold : {-2.0f, 0.0f, 0.2f, 0.3f, nan}) {
+                        float out[3] = {-1.0f, -2.0f, -3.0f};
+                        uint32_t found = 0x12121212u;
+                        int32_t index = 0x34343434;
+                        pinfo3.Mix((i++ & 1) ? Virtual<uint32_t>(o, 39 * 4, key, p, d, threshold, out, &found, &index) &
+                                                   0xFF
+                                             : This<uint32_t>(addr::cSC4PathInfo_CrossingPath, o, key, p, d, threshold,
+                                                              out, &found, &index) & 0xFF);
+                        pinfo3.MixBytes(out, sizeof out);
+                        pinfo3.Mix(found);
+                        pinfo3.Mix(static_cast<uint32_t>(index));
+                    }
+    }
+    Section3("crossing", pinfo3);
+
+    // ---- Slot 31 on clones: by number and type, reversed, the new type's
+    // high bits.
+    {
+        struct Copy {
+            uint32_t number, type, newType, reverse;
+        };
+        const Copy copies[] = {{0xFFu, 1u, 6u, 0u}, {0u, 2u, 7u, 1u}, {1u, 0u, 0u, 0u},
+                               {0xFFu, 0u, 0x13u, 0x101u}, {2u, 1u, 0x1F0u, 0x100u}, {0x1FFu, 5u, 5u, 1u}};
+        uint32_t i = 0;
+        for (const Copy& c : copies) {
+            char* const clone = This<char*>(addr::cSC4PathInfo_Clone, o);
+            if (!clone)
+                continue;
+            pinfo3.Mix((i++ & 1) ? Virtual<uint32_t>(clone, 31 * 4, c.number, c.type, c.newType, c.reverse)
+                                 : This<uint32_t>(addr::cSC4PathInfo_CopyPathsAsType, clone, c.number, c.type,
+                                                  c.newType, c.reverse));
+            MixObject(pinfo3, clone);
+            MixTable(pinfo3, clone);
+            Virtual<uint32_t>(clone, 8);
+        }
+    }
+    Section3("copies", pinfo3);
+
+    Virtual<uint32_t>(o, 8);
+    pi3flags |= 1;
+    log::Write("autotest: automata: vehicle: pi3a pinfo3 %08X keys %u flags %X", pinfo3.h,
+               static_cast<unsigned>(keys.size()), pi3flags);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -33257,6 +33602,11 @@ void VehicleDrive(cISC4City* city)
     uint32_t pi2flags = 0;
     PathInfo2Drive(pinfo2, pi2flags);
 
+    // ---- Part pi3a.
+    Hash pinfo3;
+    uint32_t pi3flags = 0;
+    PathInfo3Drive(pinfo3, pi3flags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -33313,14 +33663,14 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
                   pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags,
-                  pinfo2.h, pi2flags);
+                  pinfo2.h, pi2flags, pinfo3.h, pi3flags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

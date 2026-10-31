@@ -4191,7 +4191,8 @@ The fields: +4 the resource part (its count +8, its key), +0x1C the path table (
 
 - **pi1 (25, done):** the objects, the small queries and the building. Below.
 - **pi2 (22, 6,829 bytes, done):** the SC4PATHS reader 0x00542900 (1,500 bytes) with its line, number and point readers (0x0053DEB0, 0x0053F8A0, 0x00540610) and the type 2 mirror 0x005423D0; the path table's template code (insert_unique 0x0053FF10, insert_equal 0x0053FFD0, 0x005400D0, operator[] 0x005402D0, the copy 0x00540160); slots 12, 14, 15, 27, 28, 32 to 35, 38, 40 and 0x0053EB30 (the highest number).
-- **pi3 (22, 14,771 bytes):** the geometry, the searches and the transforms: slots 5 to 9, 18 to 23, 25, 26, 29, 31, 37, 39 and the helpers 0x0053D160, 0x0053D280, 0x0053D600, 0x0053F940 and 0x005403F0. Floats throughout and draws (slot 5's ties, slots 8, 9 and 23); 0x00540AC0 (2,992 bytes), 0x00541AE0 (2,286) and 0x00541670 (1,110) are the big ones. Likely split by bytes: pi3a the searches (14), pi3b the transforms (8).
+- **pi3a (14, 7,045 bytes, done):** the searches: slots 5 to 9, 18 to 23, 31, 37 and 39. Floats throughout and draws (slot 5's ties, slots 8, 9 and 23). Below.
+- **pi3b (8, 7,726 bytes):** the transforms, slots 25 (0x00540AC0, 2,992 bytes), 26 (0x00541670, 1,110) and 29 (0x00541AE0, 2,286), and the helpers only they call: 0x0053D160, 0x0053D280 and 0x005403F0 (slot 29's), 0x0053D600 (slot 26's) and 0x0053F940 (slot 25's).
 
 No NAM site and none of SC4UIScale's addresses is in the range.
 
@@ -4325,3 +4326,74 @@ A trial with 39 planted changes changed the token (or crashed) for all 39: the l
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's pi fields were the same on both sides: pinfo2 71D0D006, pi2flags 9 (pi1's as before: 32313A94, 2DCEED64 on the four Rush Hour d saves). Every B run installed the 47 and reached all 22 of pi2. The game reaches 11 of them before the test on every save (12 on Rush Hour d0000 with slot 34, and on Rush Hour t0000 with slot 32), as it reads the pieces' SC4PATHS files and the network occupants take their paths: the reader, its three line readers, the mirror, insert_unique, slots 14, 27, 38 and 40 and the highest number. The rest only the test reaches (reach.py with the pi2 names; PI=1 for pi1's).
+
+### What is ours (pi3a)
+
+14 more functions in the same group, `simulators.automata.pathinfo` ([automata_pathinfo.cpp](../src/core/automata_pathinfo.cpp), list kSearches), 61 in all. The split of pi3: the five helpers 0x0053D160, 0x0053D280, 0x0053D600, 0x0053F940 and 0x005403F0 are called only by slots 25, 26 and 29 (the survey's xrefs), so pi3a is the 14 searches (7,045 bytes) and pi3b the three transforms with their five helpers (8 functions, 7,726 bytes).
+
+- **Near a point (5):** slots 5 0x0053DF70 (the nearest path), 6 0x0053E150 and 7 0x0053E350 (the keys of paths whose first or last point is near), 20 0x0053ECE0 (the nearest projection over all paths) and 21 0x0053EE90 (the farthest middle).
+- **Along a path (5):** slots 18 0x0053D6C0 (the nearest point ahead), 19 0x0053D2E0 (a point projected on a path), 22 0x0053D890 (a path's middle), 23 0x0053DA80 (a random point on a path) and 39 0x0053F360 (the path a probe crosses).
+- **By key (4):** slots 8 0x0053FA40 and 9 0x0053FB80 (a random path), 31 0x005425C0 (paths copied as another type) and 37 0x0053F100 (the key nearest the middle).
+
+What they do (the key parts: slots 5 to 9 and 37 pack (type << 16 | from) << 8 | to, so the type argument's low byte is the whole type byte, its higher bits shifted out, and no number is given):
+
+- **Slot 5** walks the paths whose key matches with the number out (from 0xFF: only the type byte and to; to 0xFF: to out too) and measures each point's distance from the point (y left out when slot 16 says so). A distance below the best, or within 0.01 (0x00A823A4) of it and a coin won (a new SC4Random seeded -1, one cRZRandom::Advance below 0x7FFFFFFF), makes it the best: the record, its key and length. The answer is the record or null.
+- **Slots 6 and 7** gather the keys (matched as slot 5) whose first (6) or last (7) point is within the radius (at most). The nearest so far goes to the front (SC4PtrVector::Insert, or pushed when the vector is empty), the others are pushed at the end (0x0051CA60); the vector is copied into the answer (0x00462F00) and freed.
+- **Slot 8** draws one record (SC4Random::Below on the caller's generator) of those whose key with the number out is the packed key, and its length. **Slot 9** does it with wild cards (high 0: the type nibble out but the high nibble 0 kept; from or to 0xFF out) and gathers the keys too when the key is wanted.
+- **Slot 18** sets the index to 0 when it is negative or past the points. From it on, among the points ahead of the point (the dot of the direction to them with the path's direction, last point less first in unit floats, above -0.2, 0x00A99D14) and not at it, the nearest (y out when slot 16 says so) goes into out with its index. AL whether one was ahead.
+- **Slot 19** crosses, for each segment, a line through the point across the segment's direction, 8 (0x00A8E178) to either side, with the segment in x and z (SC4::SegmentsIntersect2D): x and z go to the crossing, y is moved by the ratio of the squared distances (SC4::DistanceSquared2D; 0 when the segment's is below 1e-4, 0x00A99E1C), and the answer is the segment's index. With no crossing, the nearer end: the last only when strictly nearer (or unordered), index the count less 2, else the first, 0. -1 for no points.
+- **Slot 20** asks slot 19 (through the vtable) for each path (high nibble 0; of the type nibble unless 0) with a copy of the point as given; the nearest projection goes into the point with its key, and one within 0.001 (0x00A99E34) is the answer at once. The index, -1 for none.
+- **Slot 21** asks slot 22 for each path or stop (of the type nibble unless 0) and keeps the farthest middle from the point (strictly above the best, which starts at 0; y out when slot 16 says so) with its key. AL whether there was one.
+- **Slot 22** halves the path's length (as a float) and walks the segments: the one that reaches the half puts out at the half along it. AL whether one did.
+- **Slot 23** takes the key's record through slot 3, draws a distance (a new SC4Random seeded -1, Uniform 0 to the record's length) and puts out that far along the first segment longer than what is left. AL 1, or 0 for none or no record.
+- **Slot 31** walks the paths and stops (of the type nibble unless 0, of the number unless 0xFF) and copies each under (its high nibble << 4 | the new type) << 24 with its number and sides (swapped when the reverse byte is set) when that key is free: AddPath at the game's address, the points reserved and copied (reversed with the sides), the length and byte. The answer is the count.
+- **Slot 37** lists the paths with points whose key with the number out is the packed key, with their first points (a list of 0x18-byte nodes, freed after); along the wider side of their box in x and z (x unless z is strictly wider) the key whose first point is nearest the middle. With none, the packed key itself.
+- **Slot 39** probes 48 along the direction from the point (16, 0x00A8D45C, then 3, 0x00A85074). For the key's path (none: AL 0 and nothing written) it takes the direction; over the other paths of the same type byte whose direction's dot with it is at least the threshold, each segment crossing the probe in x and z: the crossing nearest the point (SC4::Distance2D) goes into out (with the point's y), its key and segment index. AL whether one crossed.
+
+Left the game's: the transforms of pi3b (slots 25, 26, 29 and the helpers), the vectors' code, SC4Random's and the 2D helpers (0x005D74D0, 0x005D6FC0, 0x005D76A0).
+
+Oddities kept:
+
+- **The floats** are the game's x87 sums at 53 bits, doubles in ours, rounded where the game stores to a float and reads it back; the sums' orders are the game's ((dz² + dy²) + dx² and the like; in several, one square is dz unrounded times dz as a float).
+- **The key parts** shift the type by 24 in all, so its bits past the low byte are lost (0x101 is type 1, 0x111 type 0x11) and slot 9's "type 0" test is on the whole argument.
+- **Slot 5's ties and slot 23's distance** draw from a new SC4Random seeded from the clock (-1); determinism.fixed_seed counts them under the game's call sites (0x0053E09C, 0x0053DAB4). Ours sets the same sites, unless a caller has set an override (fixed_seed::CurrentSiteOverride, new), which wins as it does for the game's code.
+- **Slot 18** reads the last point before it tests for none (an empty vector with no storage faults in both).
+- **Slot 19** moves y by the squared distances' ratio, not the distances'.
+- **Slot 22** does not stop at the middle: the start and the distance walked stay, so each later segment (from that start to its end point) that reaches the half puts out again; the last one wins.
+- **Slot 23's** segment count is the point count less 1 unsigned, so an empty record walks on past its points; the direction of the chosen segment comes from the floats' squares, its test from the mixed ones.
+- **Slots 6, 7 and 39** read a record's first or last point with no test for an empty record; slot 39 walks an empty other record's segments past its end.
+- **Slot 21** takes stops too and keeps the farthest middle; **slot 20** skips stops.
+- **Slot 37** answers its own packed key (with the number byte) when no path matches.
+- **Slot 39** writes the index out as each nearer crossing is found, the key and point only at the end.
+- **Slot 31** ORs the new type in under the key's high nibble (its bits past the byte shifted out) and walks the table as it grows, so copies are copied in turn (until the keys repeat).
+- **AL only in the game:** slots 18, 21, 22, 23 and 39; ours zero-extends.
+
+Reimplemented like pi1 and pi2: one writer, then an independent audit of all 14 against the disassembly. It found 13 exact; slot 18 tested for an empty vector before reading the last point, where the game reads it first (only seen as the game's fault on an empty vector without storage), now read first as the game does. One comment (slot 39's default out, never seen) was corrected. The trial found a mistake of the writer's reading (the type argument shifted by 24, not 16, which the code had right): the test's types and the comments were fixed.
+
+### Test (pi3a)
+
+The ` V` token gains `,<pinfo3>,<pi3flags>` (64 fields); pi3flags 1 when it ran, 2 without an object. The log line is "pi3a pinfo3", with one line per section before it. Everything is called at the game's addresses and through the vtable on an object of the test's: twelve paths (bends, a four-point path whose later segment passes the middle again, a repeated point, a tiny segment, a NaN, three about equally far from the origin for slot 5's ties, sides 0xFF) and two stops, every record with a point.
+
+- **Slot 5** over 160 key parts and seven probes (one NaN), y in and out (slot 17), the outs null or not. Its ties' coins and slot 23's draws are counted under sites of the test's (0x7E570005, 0x7E570023): the game's own calls to slot 5 before the test (Rush Hour t0000 makes them, as many as the run makes) would otherwise shift the count under the game's site, on both sides alike.
+- **Slots 6 and 7** over 48 key parts, the probes and five radii (0, 5, exactly a path's distance, huge, NaN).
+- **Slots 8 and 9** over 60 key parts, drawing from the automata generator (seeded first; restored with the rest of the vehicle test).
+- **Slots 18, 19 and 22** on every record (and none and an empty vector for 19 and 22), slot 18 from the start indexes -1, 0, 1, 2 and 9 with y in and out; **slot 23** three times on every key (lengths 0 and huge among them) and on one not there.
+- **Slots 20 and 21** over the probes and seven types with y in and out, and a probe on a path (slot 20's early answer).
+- **Slot 37** over 128 key parts (with a square box of first points whose nearest to the middle differs by side); **slot 39** over eight keys (one not there), four points, five directions (one zero) and five thresholds (one NaN).
+- **Slot 31** on six clones: by number and type, reversed, the new type's high bits, a number of 0x1FF; the count and the clone's table.
+
+A trial with 41 planted changes changed the token for 39: slot 19's half width's rounding, its y, its end choice (NaN), its index; slot 18's index reset, dot, AL and y; slot 22's stop and half; slot 23's walk and offset; slot 5's tie window, coin, mask, y and length; slots 6 and 7's radius (equal), front insert and last point; slot 8's mask; slot 9's wild type and key; slot 20's early answer, point copy and stop filter; slot 21's start and y; slot 37's side (equal widths), best and default key; slot 39's probe, dot (NaN), own key and y; slot 31's swap, high nibble, length and number filter. Unseen: slot 19's scale test (> for >=; at a zero segment both give no crossing) and its ratio floor (the 2D crossing never comes for a segment below 0.01). The first run counted 31: the test's types (0x100 and so on) were all type 0; with them fixed 37, then 39 with the square box and the paths it added. 39 of 41.
+
+### Parity (pi3a)
+
+2026-10-31. B = the five automata groups as for ped1 and `simulators.automata.pathinfo` (pi1, pi2 and pi3a) against the original (env p4env-pi3a, snapshot pi3a-p2, built on main 421d750):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days (the first pair) |
+| The 12-save batch | 7 | 11 of 12 saves; Big City d0365 alone again: same after 2 pairs |
+
+Big City d0365 differed in the batch only in field 56 (pfire2, part ped4b) from its fourth day, with B giving two outcomes over three pairs; alone it was the same, the original giving two outcomes there (the save was 12 of 12 in the earlier p1 run). Every run's pi fields were the same on both sides: pinfo3 F90A8313, pi3flags 1 (pi1's and pi2's as before). Every B run installed the 61 and reached all 14 of pi3a. The game reaches slot 7 before the test on every save, slot 6 too on Making Money and Rush Hour d0090 on, and on Rush Hour t0000 slots 5, 6, 7, 9 and 19; the rest only the test reaches (reach.py, the pi3a names by default).
+
+An earlier run (p1, before the test's seed sites) had Rush Hour t0000 differ in pinfo3 on both sides alike (the original gave three values over three pairs): the game's own slot 5 calls before the test moved the clock seeds' count under slot 5's site. The test now counts its draws under sites of its own.

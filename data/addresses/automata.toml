@@ -15561,3 +15561,131 @@ convention = "thiscall"
 signature = "uint32_t (void* this, uint32_t, uint32_t, uint32_t)"
 expect = "83 EC 08 56 57 8D 44 24"
 source = "Name ours. Ret 0xC, the three arguments not read: the highest number byte over every key (stops too), 0 for none. Called by 0x00540AC0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi2)."
+
+# The path information, part pi3a: the searches (src/core/automata_pathinfo.cpp, docs/automata.md "Part pi").
+
+[[entry]]
+name = "cSC4PathInfo::NearestPath"
+address = 0x0053DF70
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t type, uint32_t from, uint32_t to, const float* point, uint32_t* key, float* length)"
+expect = "83 EC 40 8A 44 24 48 53"
+source = "Name ours. Slot 5, ret 0x18: over the paths whose key matches (type << 16 | from) << 8 | to with the number out (from 0xFF: only the type byte and to; to 0xFF: to out), each point's distance from the point (y out when slot 16 says so); nearer (unrounded below the best float), or within 0.01 (0x00A823A4) and a coin of a new SC4Random seeded -1 (cRZRandom::Advance below 0x7FFFFFFF): the best record, its key and length. The record or null. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::PathsNearStart"
+address = 0x0053E150
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, uint32_t type, const float* point, uint32_t from, uint32_t to, float radius)"
+expect = "83 EC 1C 33 C0 89 44 24"
+source = "Name ours. Slot 6, ret 0x18: the keys (matched as slot 5) whose first point is within the radius (at most), the nearest so far inserted at the front (0x00645CA0), the others pushed (0x0051CA60); copied into the result (0x00462F00) and freed. The first point read unchecked. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::PathsNearEnd"
+address = 0x0053E350
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* result, uint32_t type, const float* point, uint32_t from, uint32_t to, float radius)"
+expect = "83 EC 1C 8A 44 24 2C 53"
+source = "Name ours. Slot 7, ret 0x18: as slot 6 by the last points (read unchecked). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::RandomPath"
+address = 0x0053FA40
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t type, uint32_t from, uint32_t to, void* generator, float* length)"
+expect = "83 EC 1C 0F B6 44 24 24"
+source = "Name ours. Slot 8, ret 0x14: the records whose key with the number out is (type << 16 | from) << 8 | to; one drawn from the caller's generator (SC4Random::Below), its length. The record or null. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::RandomPathKeyed"
+address = 0x0053FB80
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t type, uint32_t from, uint32_t to, void* generator, uint32_t* key, float* length)"
+expect = "83 EC 2C 8B 44 24 30 53"
+source = "Name ours. Slot 9, ret 0x18: as slot 8 with wild cards (type 0: the type nibble out, the high nibble 0 kept; from or to 0xFF out) and the keys gathered when the key is wanted; the drawn record, its length and key. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::NearestPointAhead"
+address = 0x0053D6C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* points, const float* point, float* out, int32_t* index)"
+expect = "83 EC 30 53 55 8B 6C 24"
+source = "Name ours. Slot 18, ret 0x10: the index to 0 when negative or past the points; from it on, the nearest point (y out when slot 16 says so) ahead of the point along the path's direction (unit floats; the dot above -0.2, 0x00A99D14) and not at it: out and its index. AL whether one was ahead. The last point read before the test for none. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::ProjectOnPath"
+address = 0x0053D2E0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, float* point, void* points)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. Slot 19, ret 8, this not read: a line across each segment through the point, 8 (0x00A8E178) to either side, crossed in x and z (SC4::SegmentsIntersect2D): x and z to the crossing, y by the squared distances' ratio (0 below 1e-4, 0x00A99E1C); the segment's index. Else the nearer end (the last when strictly nearer or unordered), 0 or the count less 2; -1 for no points. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::NearestOnPaths"
+address = 0x0053ECE0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, float* point, uint32_t type, uint32_t* key)"
+expect = "83 EC 2C A1 C4 28 B2 00"
+source = "Name ours. Slot 20, ret 0xC: each path (high nibble 0; of the type nibble unless 0) asked through slot 19 for a copy of the point; the nearest projection into the point with its key; one within 0.001 (0x00A99E34) answers at once. The index, -1 for none. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::FarthestMiddle"
+address = 0x0053EE90
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t type, const float* point, float* out, uint32_t* key)"
+expect = "83 EC 2C A1 C4 28 B2 00"
+source = "Name ours. Slot 21, ret 0x10: each path or stop (of the type nibble unless 0) asked through slot 22 for its middle; the farthest from the point (strictly, from 0; y out when slot 16 says so) into out with its key. AL whether one was. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::MiddlePoint"
+address = 0x0053D890
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* points, float* out)"
+expect = "83 EC 44 53 55 8B 6C 24"
+source = "Name ours. Slot 22, ret 8, this not read: the half of the path's length (a float); the segment walked that reaches it puts out at the half; the walk goes on from the same start, so later segments overwrite out. AL whether one did. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::RandomPointOnPath"
+address = 0x0053DA80
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t key, float* out)"
+expect = "83 EC 34 8B 01 53 56 8D"
+source = "Name ours. Slot 23, ret 8: the key's record (slot 3); a distance drawn (a new SC4Random seeded -1, Uniform 0 to the length); out that far along the first segment longer than what is left, AL 1; AL 0 for none. The segment count unsigned (an empty record walks past its points). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::CopyPathsAsType"
+address = 0x005425C0
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t number, uint32_t type, uint32_t newType, bool reverse)"
+expect = "83 EC 1C 55 56 57 8B F9"
+source = "Name ours. Slot 31, ret 0x10: each path or stop (of the type nibble unless 0, of the number unless 0xFF), as the table grows, copied under (high nibble << 4 | new type) << 24 with its number and sides (swapped when reversed) when that key is free: AddPath, the points reserved (0x0053DC50) and copied (reversed with the sides; 0x0050C3B0 when full), length and byte. The count. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::MiddleKey"
+address = 0x0053F100
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, uint32_t type, uint32_t from, uint32_t to)"
+expect = "83 EC 28 53 55 56 57 6A"
+source = "Name ours. Slot 37, ret 0xC: of the paths with points whose key with the number out is (type << 16 | from) << 8 | to (listed with their first points in a list of 0x18-byte nodes), the box in x and z; along the wider side (x unless z is strictly wider) the key whose first point is nearest its middle. With none the packed key. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+[[entry]]
+name = "cSC4PathInfo::CrossingPath"
+address = 0x0053F360
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t key, const float* point, const float* direction, float threshold, float* out, uint32_t* keyOut, int32_t* index)"
+expect = "55 8B EC 83 E4 F8 81 EC"
+source = "Name ours. Slot 39, ret 0x1C: a probe 48 (16 0x00A8D45C, 3 0x00A85074) along the direction; over the paths of the key's type byte (not the key) whose direction's dot with the key's is at least the threshold, the segment crossing the probe (SC4::SegmentsIntersect2D) nearest the point (SC4::Distance2D): out (the point's y), its key and index (written as found). AL whether one did; AL 0 when the key is not there. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
