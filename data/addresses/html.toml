@@ -1,4 +1,4 @@
-# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups, and the layout (h4 and the layout side of h5) in ui.html.layout and the ui.html.nodes.layout.* groups; the rest is not hooked.
+# The HTML viewer: its director, the HTML window, the document with its tokenizer and parser, the nodes' layout and paint, and the Internet service with its cookie store and file cache (docs/html.md). The parser (h3, with the tokenizer of h2) is ours, in the ui.html.parser.* groups, the layout (h4 and the layout side of h5) in ui.html.layout and the ui.html.nodes.layout.* groups, and the nodes' paint, hit tests and links (h5b) in the ui.html.nodes.paint.* groups, ui.html.nodes.hit and ui.html.nodes.links; the rest is not hooked.
 
 [[entry]]
 name = "HTMLDirector::Construct"
@@ -253,15 +253,6 @@ expect = "55 8B EC 83 EC 64 53 56"
 source = "Name ours, not hooked. A run of text in one font and colour (font at +0x34, colour at +0x38, both from the style): vtables 0x00ACE300 and 0x00ACE2EC at +0x1C. Decodes the entities as it copies the text: named ones through 0x00901222, `&#n;` and `&#xn;` itself. `ret 0x10` (docs/html.md, h5)."
 
 [[entry]]
-name = "HTMLTextNode::Draw"
-address = 0x00909757
-kind = "function"
-convention = "thiscall"
-signature = "void (void* this, void* context)"
-expect = "55 8B EC 83 EC 10 56 57"
-source = "Name ours, not hooked. Slot 5 of 0x00ACE300; `ret 4`. Lays the run out first if needed, then draws each of its laid-out lines (0x18 bytes each) with GZFont DrawString (slot 51, 0x0089A099; docs/fonts.md): the font at +0x34, the colour at +0x38, the clip from the context (docs/html.md, h5)."
-
-[[entry]]
 name = "HTMLTableNode::Layout"
 address = 0x0090A448
 kind = "function"
@@ -269,15 +260,6 @@ convention = "thiscall"
 signature = "void (void* this, void* context)"
 expect = "55 8B EC 83 EC 3C 53 56"
 source = "Name ours. Ours in ui.html.nodes.layout.tables. Slot 3 of 0x00ACE238; `ret 4`. Lays out the rows (+0x4C, 0x00909FF2) in columns (+0x70, 0x1C bytes each) as wide as their cells' narrowest, the width left shared by how much wider each could be; again while a column's narrowest grows; then the rows' heights (+0x7C) and tops (+0x88) and the cells where they go. BORDER, WIDTH, CELLPADDING and CELLSPACING are not read (953 bytes, the largest layout function) (docs/html.md, h5)."
-
-[[entry]]
-name = "HTMLImageNode::DrawImage"
-address = 0x00908FD5
-kind = "function"
-convention = "thiscall"
-signature = "void (void* this, const void* rect, void* context)"
-expect = "56 8B 74 24 0C 57 8B F9"
-source = "Name ours, not hooked. `ret 8`. Draws the image node's picture through the window's drawing interface (slot 20 blit), or the stretch blit (renderer.blits) when the box differs from the picture's size. Called by the IMG node's Draw 0x009095E1 (docs/html.md, h5)."
 
 [[entry]]
 name = "HTMLColor::Parse"
@@ -2035,3 +2017,201 @@ convention = "thiscall"
 signature = "void (void* vector, uint32_t count)"
 expect = "55 8B EC 83 EC 1C 57 6A"
 source = "Name ours. `ret 4`. STLport vector resize of 0x1C-byte elements, new ones zero (0x0090A3DA). Called by ours (the table's columns, +0x70); still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLNode::IsInView"
+address = 0x00908F93
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* context)"
+expect = "83 C1 0C 6A 00 51 8B 4C"
+source = "Name ours. Ours in ui.html.nodes.paint.blocks. `ret 4`. Whether any of the node's box (+0xC) is in view (0x008FDF3C with 0). Called for each child before it is drawn (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLContainerNode::DrawChildren"
+address = 0x00909263
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "53 8B 59 20 56 8B 71 1C"
+source = "Name ours. Ours in ui.html.nodes.paint.blocks. `ret 4`. Each child (+0x1C to +0x20, the end read once) in view (0x00908F93) drawn (slot 5) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLContainerNode::Draw"
+address = 0x00909879
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "E9 E5 F9 FF FF 56 8B F1"
+source = "Name ours. Ours in ui.html.nodes.paint.blocks. Slot 5 of the containers with no Layout of their own (A, MAP, SPAN, TR, TH, FORM, SELECT, OPTION, AREA, the body's base); `ret 4`; a jump to 0x00909263 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBlinkNode::Draw"
+address = 0x0090987E
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "56 8B F1 E8 BF 91 02 00"
+source = "Name ours. Ours in ui.html.nodes.paint.blocks. Slot 5 of 0x00ACD640; `ret 4`. The children (0x00909263) when RZ::TimeMilliseconds modulo 1000 is above 500 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBlockNode::Draw"
+address = 0x009099C1
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "56 8B F1 80 7E 09 00 75"
+source = "Name ours. Ours in ui.html.nodes.paint.blocks. Slot 5 of the blocks (the body, P, CENTER, DIV, headings, BLOCKQUOTE, lists, DT, DD, LI, TABLE); `ret 4`. Lays itself out (slot 3) when not laid out (+9), then the children (0x00909263) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLBreakNode::Draw"
+address = 0x00908F85
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "80 79 09 00 75 05 8B 01"
+source = "Name ours. Ours in ui.html.nodes.paint.blocks. Slot 5 of 0x00ACD530 (BR); `ret 4`. Only its Layout (slot 3, a tail jump) when not laid out (+9) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLRuleNode::Draw"
+address = 0x009093CD
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "55 8B EC 83 EC 10 53 33"
+source = "Name ours. Ours in ui.html.nodes.paint.blocks. Slot 5 of 0x00ACD55C (HR); `ret 4`. The colours 0xA0A0A0 and 0x404040 made once by the window (context +0, slot 108) into 0x00B62538 and 0x00B62534 (guard 0x00B6253C); laid out when not (+9); the picture's begin 0x8004 (slot 6), a dark top line and with SIZE (+0x20) above 1 a dark left and light bottom and right (slot 28), end (slot 7) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextNode::Draw"
+address = 0x00909757
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "55 8B EC 83 EC 10 56 57"
+source = "Name ours. Ours in ui.html.nodes.paint.text. Slot 5 of 0x00ACE300; `ret 4`. Lays the run out first if needed, then draws each of its laid-out lines (0x18 bytes each, +0x4C) with GZFont DrawString (slot 51, 0x0089A099; docs/fonts.md): the font at +0x34, the colour at +0x38, 0x08000000, the clip from the context (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLImageNode::Draw"
+address = 0x009095E1
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "55 8B EC 83 EC 10 53 8B"
+source = "Name ours. Ours in ui.html.nodes.paint.images. Slot 5 of 0x00ACE188 (IMG); `ret 4`. Laid out when not (+9); when any of the box is in view, the box in the window's coordinates drawn by 0x00908FD5 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLImageNode::DrawImage"
+address = 0x00908FD5
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const void* rect, void* context)"
+expect = "56 8B 74 24 0C 57 8B F9"
+source = "Name ours. Ours in ui.html.nodes.paint.images. `ret 8`. Between the picture's begin and end (0x8010, slots 6 and 7): the image's picture (+0x24) blitted (slot 29) when its size (its slots 9 and 10) is WIDTH and HEIGHT, else stretched (GZBlit::StretchBlit); no picture: the fill (slot 20) with the context's +0x3C, the window's colour; clipped to the client rectangle (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLCellNode::Draw"
+address = 0x00909F59
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "55 8B EC 83 EC 78 56 8B"
+source = "Name ours. Ours in ui.html.nodes.paint.cells. Slot 5 of 0x00ACE264 (TD); `ret 4`. The background (+0x34 when +0x38) filled over the box (slot 20, no clip, between begin and end 0x8001), then the children drawn in a copy of the context with floats at the box's sides that never end, the copy flushed after. Not laid out first (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLNode::HitTest"
+address = 0x009084D6
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, void** hit, int32_t x, int32_t y)"
+expect = "56 FF 74 24 10 8B F1 FF"
+source = "Name ours. Ours in ui.html.nodes.hit. Slot 7 of the leaves and IMG; `ret 0xC`. 0 outside the box; in it, 2 with the node put in `hit` when it is a link (slot 6), else 1 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLContainerNode::HitTest"
+address = 0x009083E7
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, void** hit, int32_t x, int32_t y)"
+expect = "55 8B EC 51 57 FF 75 10"
+source = "Name ours. Ours in ui.html.nodes.hit. Slot 7 of the containers; `ret 0xC`. 0 outside the box; else the children's slot 7 in order: 2 is the answer; 1 makes this the node hit and answers 2 when this is a link (slot 6), else 1 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextNode::HitTest"
+address = 0x009085E0
+kind = "function"
+convention = "thiscall"
+signature = "int32_t (void* this, void** hit, int32_t x, int32_t y)"
+expect = "55 8B EC 56 FF 75 10 8B"
+source = "Name ours. Ours in ui.html.nodes.hit. Slot 7 of 0x00ACE300; `ret 0xC`. In the box and in one of its line pieces (+0x4C), as 0x009084D6 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLLinkNode::IsLink"
+address = 0x009087C6
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "33 C0 39 41 28 75 05 39"
+source = "Name ours. Ours in ui.html.nodes.hit. Slot 6 of 0x00ACE290 (A). Whether it has an HREF (+0x28) or the address resolved from it (+0x2C, set only with an HREF); a NAME alone (+0x30) is not; EAX 0 or 1 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLContainerNode::SetLinkColour"
+address = 0x00908459
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t colour)"
+expect = "56 8B 71 1C 57 8B 79 20"
+source = "Name ours. Ours in ui.html.nodes.links. Slot 10 of the containers; `ret 4`. Each child's slot 10 (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLTextNode::SetLinkColour"
+address = 0x009083D7
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t colour)"
+expect = "80 79 3D 00 74 07 8B 44"
+source = "Name ours. Ours in ui.html.nodes.links. Slot 10 of 0x00ACE300; `ret 4`. The colour (+0x38) when it is a link's (+0x3D) (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLLinkNode::Press"
+address = 0x00908EFD
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "55 8B EC 56 8B 75 08 83"
+source = "Name ours. Ours in ui.html.nodes.links. Slot 8 of 0x00ACE290 (A; the window's mouse down, 0x008FAAA9); `ret 4`. Slot 10 with the active colour: the body's ALINK +0x38 (the body from the document's slot 12), else the document's slot 18; then the document's slot 17 (the window drawn again). The document is the context's +4; with none, the colour is the context's address and slot 17 is called on nothing (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLLinkNode::Release"
+address = 0x00908F41
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* context)"
+expect = "55 8B EC 56 8B 75 08 83"
+source = "Name ours. Ours in ui.html.nodes.links. Slot 9 of 0x00ACE290 (A; the window's mouse up, 0x008FAB08); `ret 4`. As 0x00908EFD with the visited colour: the body's VLINK +0x34, else the document's slot 19 (docs/html.md, h5)."
+
+[[entry]]
+name = "cRZRect::Contains"
+address = 0x00664C60
+kind = "function"
+convention = "thiscall"
+signature = "bool (const void* this, int32_t x, int32_t y)"
+expect = "8B 54 24 04 3B 11 7C 1B"
+source = "Name ours. `ret 8`. Whether the point is in the rectangle, left and top in, right and bottom out; EAX 0 or 1. Called by ours (the HTML hit tests); still the game's (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLRuleNode::ColoursMade"
+address = 0x00B6253C
+kind = "data"
+source = "Name ours. Guard bits of HR's two colours: 1 the light one (0x00B62538), 2 the dark one (0x00B62534), made by the first HR drawn (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLRuleNode::Light"
+address = 0x00B62538
+kind = "data"
+source = "Name ours. HR's light colour (0xA0A0A0 made by the window, slot 108), its bottom and right (docs/html.md, h5)."
+
+[[entry]]
+name = "HTMLRuleNode::Dark"
+address = 0x00B62534
+kind = "data"
+source = "Name ours. HR's dark colour (0x404040 made by the window, slot 108), its top and left (docs/html.md, h5)."

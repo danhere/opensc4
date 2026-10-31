@@ -29,6 +29,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -1147,9 +1148,14 @@ void HashContext(Fnv& f, char* ctx)
     }
 }
 
+void PaintPage(Fnv& f, char* root, char* ctx, int variant);
+
 // One page parsed (with the font steps given, or the default ones) and laid
-// out `width` wide; the hash of the boxes.
-uint32_t LayoutPage(char* window, const std::string& page, const int32_t* steps, int32_t width, bool scrolled)
+// out `width` wide; the hash of the boxes. With `paint`, the page is then
+// painted, hit-tested and its links pressed (the paint test, below), that
+// hash in `paint`.
+uint32_t LayoutPage(char* window, const std::string& page, const int32_t* steps, int32_t width, bool scrolled,
+                    Fnv* paint = nullptr, int variant = 0)
 {
     using NewFn = void*(__cdecl*)(std::size_t);
     using ThisFn = void*(__thiscall*)(void*);
@@ -1189,6 +1195,8 @@ uint32_t LayoutPage(char* window, const std::string& page, const int32_t* steps,
             log::Write("autotest: html layout: laid out, hashing");
         HashLayoutNode(f, ctx, root, 0);
         HashContext(f, ctx);
+        if (paint)
+            PaintPage(*paint, root, ctx, variant);
         reinterpret_cast<void(__thiscall*)(void*)>(addr::HTMLLayout_Destruct)(ctx);
     }
     Virtual<uint32_t>(doc, 0x8);
@@ -1208,6 +1216,22 @@ bool AnyLayoutOurs()
     return AnyOurs();
 }
 
+// The parser test's pages, the layout's own and the sweep of fixed widths,
+// then the ticker's rows; `own` the number before the rows.
+std::vector<std::string> LayoutTestPages(std::size_t& own)
+{
+    std::vector<std::string> mine(std::begin(kPages), std::end(kPages));
+    mine.insert(mine.end(), std::begin(kLayoutPages), std::end(kLayoutPages));
+    // Cells of every fixed width from 20 to 80 pixels with the same two
+    // words: at one of them the words just fit (a fixed width's margins are
+    // seen only to the pixel).
+    std::string sweep = "<HTML><BODY>";
+    for (int width = 20; width <= 80; ++width)
+        sweep += "<TABLE><TR><TD WIDTH=" + std::to_string(width) + ">ab ab</TD><TD>x</TD></TR></TABLE>";
+    mine.push_back(sweep + "</BODY></HTML>");
+    return AllPages(std::move(mine), own);
+}
+
 void DriveLayoutDay(const Day& day)
 {
     if (!OnRunDay(day, "OPENSC4_TEST_HTML_LAYOUT") || !game::IsBuild641())
@@ -1218,17 +1242,8 @@ void DriveLayoutDay(const Day& day)
         return;
     char* const window = static_cast<char*>(face) - 0xD8;
 
-    std::vector<std::string> mine(std::begin(kPages), std::end(kPages));
-    mine.insert(mine.end(), std::begin(kLayoutPages), std::end(kLayoutPages));
-    // Cells of every fixed width from 20 to 80 pixels with the same two
-    // words: at one of them the words just fit (a fixed width's margins are
-    // seen only to the pixel).
-    std::string sweep = "<HTML><BODY>";
-    for (int width = 20; width <= 80; ++width)
-        sweep += "<TABLE><TR><TD WIDTH=" + std::to_string(width) + ">ab ab</TD><TD>x</TD></TR></TABLE>";
-    mine.push_back(sweep + "</BODY></HTML>");
     std::size_t own = 0;
-    const std::vector<std::string> pages = AllPages(std::move(mine), own);
+    const std::vector<std::string> pages = LayoutTestPages(own);
 
     const bool compare = AnyLayoutOurs();
     Fnv total;
@@ -1308,6 +1323,651 @@ void LayoutFingerprint(cISC4City*, std::string& line)
 
 const FingerprintPart kLayoutFingerprint{"html layout", 5, &LayoutFingerprint};
 const DayHook kLayoutDrive{"html layout", 5, &DriveLayoutDay};
+
+// ====================================================================================
+// The paint test
+
+// OPENSC4_TEST_HTML_PAINT=<day> (fingerprint `hd`): the layout test's pages
+// and layouts, each then painted (the body's Draw, slot 5) three times, the
+// view as laid out, 150 pixels lower, and as laid out with the text runs and
+// images marked not laid out (each lays itself out as it is drawn, on the
+// context's line or a cell's copy of it; the boxes and pieces hashed after),
+// hit-tested on a grid of points (the
+// body's slot 7) and its links pressed and let go (slots 8 and 9 of each
+// A). Nothing is drawn: the context's window (+0), document (+4) and
+// picture (+8) are stand-ins whose every slot records the call (the slot,
+// its arguments, the rectangles and the text they point to) into the hash
+// and answers as the game's would; so are the pictures given to two of
+// every three images (one the size of WIDTH and HEIGHT, one a pixel wider,
+// for the blit and the stretch blit), the stretch blit's interfaces, and the
+// fonts of the text runs (a stand-in that hands every slot to the font but
+// DrawString, slot 51). The picture's begin answers false every fifth time.
+// HR's colours (made once by the game, kept in its statics) are made again
+// for every paint and put back after the test; a page with BLINK is painted
+// at a time of the game's clock in the first half of a second or the second
+// (by variant and pass), 300 ms clear of the turn.
+//
+// With any parser, layout, paint, hit or link group ours, each layout is run
+// through the game's functions and through ours, the hashes of the layout
+// and of the paint compared, a layout that differs logged with both records.
+
+constexpr int kStandSlots = 128;
+constexpr int kFontDraw = 51;
+
+enum StandKind : uint32_t {
+    kStandWindow = 1,
+    kStandDocument,
+    kStandPicture,
+    kStandSource,
+    kStandBlitter,
+    kStandBlit,
+    kStandFont,
+};
+
+// A stand-in: its vtable; the font it hands its slots to (+4, read by the
+// font's thunks); for a picture given to an image, its size and area.
+struct Stand {
+    void** vtable;
+    char* real;
+    uint32_t kind;
+    uint32_t id;
+    int32_t width;
+    int32_t height;
+    int32_t area[4];
+};
+
+void** g_recordTable = nullptr; // every slot recorded
+void** g_fontTable = nullptr;   // every slot the font's, but DrawString
+
+Stand g_standWindow{};
+Stand g_standDocument{};
+Stand g_standPicture{};
+Stand g_standBlitter{};
+Stand g_standBlit{};
+constexpr int kMaxSources = 64;
+Stand g_sources[kMaxSources];
+int g_sourceCount = 0;
+constexpr int kMaxFonts = 64;
+Stand g_fonts[kMaxFonts];
+int g_fontCount = 0;
+
+Fnv* g_paintHash = nullptr;   // the hash the stand-ins record into
+char* g_bodyAnswer = nullptr; // the document's slot 12
+uint32_t g_begins = 0;
+uint32_t g_paintCalls = 0;
+uint32_t g_kindCalls[8] = {};
+uint32_t g_strayCalls = 0;
+uint32_t g_probes = 0;
+
+uint32_t& Static(std::uintptr_t address) { return *reinterpret_cast<uint32_t*>(address); }
+
+// What a stand-in's slot takes: i a dword, p a pointer only null or not, o
+// an object (a stand-in by its kind and number), r a rectangle (null or its
+// four sides), s a text whose count is the next argument. Null for a slot
+// no paint calls.
+const char* SlotSpec(uint32_t kind, uint32_t slot)
+{
+    switch (kind) {
+    case kStandWindow:
+        return slot == 108 ? "iii" : nullptr; // a colour made
+    case kStandDocument:
+        return slot == 12 || slot == 17 || slot == 18 || slot == 19 ? "" : nullptr;
+    case kStandPicture:
+        switch (slot) {
+        case 0:
+            return "ip"; // QueryInterface
+        case 6:
+            return "i"; // begin
+        case 7:
+            return "i"; // end
+        case 20:
+            return "irr"; // fill
+        case 28:
+            return "iiiiii"; // line
+        case 29:
+            return "orrr"; // blit
+        default:
+            return nullptr;
+        }
+    case kStandSource:
+        return slot == 9 || slot == 10 || slot == 12 ? "" : nullptr;
+    case kStandBlitter:
+        return slot == 2 || slot == 4 ? "" : (slot == 9 ? "o" : nullptr);
+    case kStandBlit:
+        return slot == 3 || slot == 9 || slot == 40 ? "" : (slot == 5 ? "r" : (slot == 38 ? "orr" : nullptr));
+    case kStandFont:
+        return slot == kFontDraw ? "oiisiiirp" : nullptr;
+    default:
+        return nullptr;
+    }
+}
+
+const Stand* StandAt(uint32_t value)
+{
+    const Stand* const p = reinterpret_cast<const Stand*>(static_cast<uintptr_t>(value));
+    for (const Stand* s : {&g_standWindow, &g_standDocument, &g_standPicture, &g_standBlitter, &g_standBlit})
+        if (p == s)
+            return s;
+    if (p >= g_sources && p < g_sources + kMaxSources)
+        return p;
+    if (p >= g_fonts && p < g_fonts + kMaxFonts)
+        return p;
+    return nullptr;
+}
+
+void RecordArguments(Fnv& f, const char* spec, const uint32_t* args)
+{
+    for (std::size_t i = 0; spec[i]; ++i) {
+        const uint32_t a = args[i];
+        switch (spec[i]) {
+        case 'i':
+            f.Word(a);
+            Trace(" %d", a);
+            break;
+        case 'p':
+            f.Byte(a ? 1 : 0);
+            Trace(a ? " p" : " 0", 0);
+            break;
+        case 'o': {
+            const Stand* const s = StandAt(a);
+            const uint32_t which = s ? s->kind << 16 | s->id : 0xFFFFFFFFu;
+            f.Word(which);
+            Trace(" o%X", which);
+            break;
+        }
+        case 'r':
+            f.Byte(a ? 1 : 0);
+            if (a) {
+                const int32_t* const r = reinterpret_cast<const int32_t*>(static_cast<uintptr_t>(a));
+                for (int k = 0; k < 4; ++k) {
+                    f.Word(static_cast<uint32_t>(r[k]));
+                    Trace(k ? ",%d" : " [%d", static_cast<uint32_t>(r[k]));
+                }
+                Trace("]", 0);
+            } else {
+                Trace(" null", 0);
+            }
+            break;
+        case 's': {
+            const char* const text = reinterpret_cast<const char*>(static_cast<uintptr_t>(a));
+            const uint32_t n = text && args[i + 1] < 100000 ? args[i + 1] : 0;
+            f.Bytes(text, text + n);
+            if (g_trace && text)
+                *g_trace += " \"" + std::string(text, n) + "\"";
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
+// A stand-in's slot: recorded, and the answer (low dword) with the bytes of
+// arguments to take off (high dword).
+uint64_t __cdecl RecordCall(Stand* self, uint32_t slot, const uint32_t* args)
+{
+    const char* const spec = SlotSpec(self->kind, slot);
+    if (!spec) {
+        ++g_strayCalls;
+        log::Write("autotest: html paint: stand-in %u slot %u not known", self->kind, slot);
+        return 0;
+    }
+    ++g_paintCalls;
+    ++g_kindCalls[self->kind & 7];
+    if (Fnv* const f = g_paintHash) {
+        f->Byte(0xC5);
+        f->Word(self->kind << 16 | self->id);
+        f->Word(slot);
+        Trace("\n  %u", self->kind);
+        Trace(".%u", self->id);
+        Trace(".%u(", slot);
+        RecordArguments(*f, spec, args);
+        Trace(" )", 0);
+    }
+    uint32_t answer = 1;
+    switch (self->kind) {
+    case kStandWindow:
+        answer = 0xFF000000u | (args[0] & 0xFF) << 16 | (args[1] & 0xFF) << 8 | (args[2] & 0xFF);
+        break;
+    case kStandDocument:
+        answer = slot == 12 ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g_bodyAnswer))
+                            : (slot == 18 ? 0x00112233u : (slot == 19 ? 0x00445566u : 0));
+        break;
+    case kStandPicture:
+        if (slot == 0) {
+            answer = 0;
+            if (args[0] == 0xAB300B2Bu && args[1]) {
+                *reinterpret_cast<Stand**>(static_cast<uintptr_t>(args[1])) = &g_standBlitter;
+                answer = 1;
+            }
+        } else if (slot == 6) {
+            answer = ++g_begins % 5 == 0 ? 0 : 1;
+        }
+        break;
+    case kStandSource:
+        answer = slot == 9 ? static_cast<uint32_t>(self->width)
+                           : (slot == 10 ? static_cast<uint32_t>(self->height)
+                                         : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self->area)));
+        break;
+    case kStandBlitter:
+        answer = slot == 4 ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_standBlit)) : (slot == 2 ? 0 : 1);
+        break;
+    default:
+        break;
+    }
+    return static_cast<uint64_t>(std::strlen(spec) * 4) << 32 | answer;
+}
+
+// Every recording slot pushes its number and comes here: the recorder's
+// answer in EAX, its arguments taken off as the slot's `ret` would.
+__declspec(naked) void RecordThunk()
+{
+    __asm push ebp
+    __asm mov ebp, esp
+    __asm lea eax, [ebp + 0xC]
+    __asm push eax
+    __asm push dword ptr [ebp + 4]
+    __asm push ecx
+    __asm call RecordCall
+    __asm add esp, 12
+    __asm mov ecx, [ebp + 8]
+    __asm mov esp, ebp
+    __asm pop ebp
+    __asm lea esp, [esp + edx + 8]
+    __asm jmp ecx
+}
+
+// The two vtables, their slots made in a page of code: a recording slot is
+// `push n; jmp RecordThunk`, a font's `mov ecx, [ecx+4]; mov eax, [ecx];
+// jmp [eax+4n]`.
+bool MakeStandTables()
+{
+    if (g_recordTable)
+        return true;
+    uint8_t* const code =
+        static_cast<uint8_t*>(VirtualAlloc(nullptr, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+    if (!code)
+        return false;
+    static void* record[kStandSlots];
+    static void* font[kStandSlots];
+    uint8_t* at = code;
+    for (int i = 0; i < kStandSlots; ++i) {
+        record[i] = at;
+        at[0] = 0x68;
+        std::memcpy(at + 1, &i, 4);
+        at[5] = 0xE9;
+        const int32_t rel = static_cast<int32_t>(reinterpret_cast<uintptr_t>(&RecordThunk) -
+                                                 reinterpret_cast<uintptr_t>(at + 10));
+        std::memcpy(at + 6, &rel, 4);
+        at += 10;
+    }
+    for (int i = 0; i < kStandSlots; ++i) {
+        font[i] = at;
+        const uint8_t head[] = {0x8B, 0x49, 0x04, 0x8B, 0x01, 0xFF, 0xA0};
+        std::memcpy(at, head, sizeof head);
+        const uint32_t offset = static_cast<uint32_t>(i * 4);
+        std::memcpy(at + 7, &offset, 4);
+        at += 11;
+    }
+    font[kFontDraw] = record[kFontDraw];
+    FlushInstructionCache(GetCurrentProcess(), code, 4096);
+    g_recordTable = record;
+    g_fontTable = font;
+    Stand* const stands[] = {&g_standWindow, &g_standDocument, &g_standPicture, &g_standBlitter, &g_standBlit};
+    const uint32_t kinds[] = {kStandWindow, kStandDocument, kStandPicture, kStandBlitter, kStandBlit};
+    for (int i = 0; i < 5; ++i) {
+        stands[i]->vtable = g_recordTable;
+        stands[i]->kind = kinds[i];
+    }
+    return true;
+}
+
+// A font's stand-in (one per font of a page, numbered in the order met).
+Stand* FontStand(char* real)
+{
+    for (int i = 0; i < g_fontCount; ++i)
+        if (g_fonts[i].real == real)
+            return &g_fonts[i];
+    if (g_fontCount == kMaxFonts)
+        return nullptr;
+    Stand& s = g_fonts[g_fontCount];
+    s = Stand{g_fontTable, real, kStandFont, static_cast<uint32_t>(g_fontCount), 0, 0, {}};
+    ++g_fontCount;
+    return &s;
+}
+
+void CollectNodes(char* node, std::vector<char*>& nodes, int depth)
+{
+    if (!node || depth > 64)
+        return;
+    nodes.push_back(node);
+    const NodeClass* const c = ClassOf(At<uint32_t>(node, 0));
+    if (!c || !c->container)
+        return;
+    char** const first = At<char**>(node, 0x1C);
+    char** const last = At<char**>(node, 0x20);
+    for (char** child = first; first && child < last; ++child)
+        CollectNodes(*child, nodes, depth + 1);
+}
+
+// Waits for the game's clock to be in the first half of a second (phase
+// even) or the second (BLINK draws in the second), 300 ms clear of the turn.
+// A clock that does not move (the parity runs freeze the wall clock, and
+// the game's clock with it) is left as it is: both runs read the same.
+void WaitForClock(int phase)
+{
+    using ClockFn = uint32_t(__cdecl*)();
+    const auto clock = reinterpret_cast<ClockFn>(addr::RZ_TimeMilliseconds);
+    const uint32_t from = phase % 2 ? 600 : 100;
+    const uint32_t first = clock();
+    const ULONGLONG start = GetTickCount64();
+    for (;;) {
+        const uint32_t now = clock();
+        const uint32_t t = now % 1000;
+        if (t >= from && t < from + 300)
+            return;
+        const ULONGLONG waited = GetTickCount64() - start;
+        if ((now == first && waited >= 50) || waited >= 2000)
+            return;
+        Sleep(1);
+    }
+}
+
+void HashTextColours(Fnv& f, const std::vector<char*>& nodes)
+{
+    f.Byte(0xC0);
+    for (char* node : nodes)
+        if (At<uint32_t>(node, 0) == 0x00ACE300)
+            HashWord(f, At<uint32_t>(node, 0x38));
+}
+
+void PaintPage(Fnv& f, char* root, char* ctx, int variant)
+{
+    if (!MakeStandTables())
+        return;
+    std::vector<char*> nodes;
+    CollectNodes(root, nodes, 0);
+    Fnv* const before = g_paintHash;
+    g_paintHash = &f;
+
+    // The stand-ins in place: the fonts, pictures for two of three images.
+    std::vector<std::pair<char*, char*>> fonts;
+    std::vector<char*> images;
+    bool blink = false;
+    g_fontCount = 0;
+    g_sourceCount = 0;
+    int image = 0;
+    for (char* node : nodes) {
+        switch (At<uint32_t>(node, 0)) {
+        case 0x00ACE300:
+            if (char* const real = At<char*>(node, 0x34))
+                if (Stand* const s = FontStand(real)) {
+                    fonts.emplace_back(node, real);
+                    At<Stand*>(node, 0x34) = s;
+                }
+            break;
+        case 0x00ACE188: {
+            const int k = image++;
+            if (k % 3 == 0 || At<char*>(node, 0x24) || g_sourceCount == kMaxSources)
+                break;
+            Stand& s = g_sources[g_sourceCount];
+            const int32_t width = At<int32_t>(node, 0x2C) + (k % 3 == 2 ? 1 : 0);
+            const int32_t height = At<int32_t>(node, 0x30);
+            s = Stand{g_recordTable, nullptr, kStandSource, static_cast<uint32_t>(g_sourceCount), width, height,
+                      {1, 2, width + 1, height + 2}};
+            ++g_sourceCount;
+            At<Stand*>(node, 0x24) = &s;
+            images.push_back(node);
+            break;
+        }
+        case 0x00ACD640:
+            blink = true;
+            break;
+        default:
+            break;
+        }
+    }
+    const uint32_t kept[4] = {At<uint32_t>(ctx, 0x0), At<uint32_t>(ctx, 0x4), At<uint32_t>(ctx, 0x8),
+                              At<uint32_t>(ctx, 0x3C)};
+    At<Stand*>(ctx, 0x0) = &g_standWindow;
+    At<Stand*>(ctx, 0x4) = &g_standDocument;
+    At<Stand*>(ctx, 0x8) = &g_standPicture;
+    At<uint32_t>(ctx, 0x3C) = 0x3C3C3C3Cu;
+    g_begins = 0;
+    g_bodyAnswer = nullptr;
+
+    // Paint, three times: the view as laid out, then 150 lower, then as laid
+    // out with the text runs and images marked not laid out, so that each
+    // lays itself out as it is drawn (on the context's line, a cell's in its
+    // copy with the cell's margins) and the new pieces are hashed.
+    for (int pass = 0; pass < 3; ++pass) {
+        if (pass == 1) {
+            At<int32_t>(ctx, 0x20) += 150;
+            At<int32_t>(ctx, 0x28) += 150;
+        } else if (pass == 2) {
+            At<int32_t>(ctx, 0x20) -= 150;
+            At<int32_t>(ctx, 0x28) -= 150;
+            for (char* node : nodes)
+                if (At<uint32_t>(node, 0) == 0x00ACE300 || At<uint32_t>(node, 0) == 0x00ACE188)
+                    At<uint8_t>(node, 0x9) = 0;
+        }
+        Static(addr::HTMLRuleNode_ColoursMade) = 0;
+        if (blink)
+            WaitForClock(variant + pass);
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::HTMLLayout_Begin)(ctx);
+        f.Byte(static_cast<uint8_t>(0xD0 + pass));
+        Trace("\npaint %d", pass);
+        Virtual<void>(root, 0x14, ctx);
+        HashContext(f, ctx);
+    }
+    HashLayoutNode(f, ctx, root, 0); // the pieces the third paint made
+
+    // Hit tests on a grid over the body's box and around it.
+    f.Byte(0xD7);
+    Trace("\nhits", 0);
+    std::vector<std::pair<char*, uint32_t>> index;
+    for (std::size_t i = 0; i < nodes.size(); ++i)
+        index.emplace_back(nodes[i], static_cast<uint32_t>(i));
+    std::sort(index.begin(), index.end());
+    const int32_t left = At<int32_t>(root, 0xC);
+    const int32_t top = At<int32_t>(root, 0x10);
+    const int32_t right = At<int32_t>(root, 0x14);
+    const int32_t bottom = At<int32_t>(root, 0x18);
+    for (int32_t y = top - 6; y < bottom + 6 && y < top + 20000; y += 9)
+        for (int32_t x = left - 6; x < right + 6 && x < left + 4000; x += 11) {
+            char* hit = reinterpret_cast<char*>(1);
+            const int32_t answer = Virtual<int32_t>(root, 0x1C, &hit, x, y);
+            const auto at = std::lower_bound(index.begin(), index.end(), std::make_pair(hit, 0u));
+            const uint32_t which = at != index.end() && at->first == hit
+                                       ? at->second
+                                       : (hit == reinterpret_cast<char*>(1) ? 0xFFFFFFFEu : 0xFFFFFFFFu);
+            f.Word(static_cast<uint32_t>(answer));
+            f.Word(which);
+            ++g_probes;
+            if (answer) {
+                Trace(" %d", static_cast<uint32_t>(answer));
+                Trace(":%d", which);
+            }
+        }
+    for (char* node : nodes)
+        f.Byte(Virtual<uint8_t>(node, 0x18)); // a link or not
+
+    // The links pressed and let go, the body given by the document every
+    // second time.
+    f.Byte(0xDA);
+    Trace("\nlinks", 0);
+    int link = 0;
+    for (char* node : nodes)
+        if (At<uint32_t>(node, 0) == 0x00ACE290) {
+            g_bodyAnswer = link++ % 2 ? root : nullptr;
+            Virtual<void>(node, 0x20, ctx);
+            HashTextColours(f, nodes);
+            Virtual<void>(node, 0x24, ctx);
+            HashTextColours(f, nodes);
+        }
+    g_bodyAnswer = nullptr;
+
+    // Back as they were.
+    At<uint32_t>(ctx, 0x0) = kept[0];
+    At<uint32_t>(ctx, 0x4) = kept[1];
+    At<uint32_t>(ctx, 0x8) = kept[2];
+    At<uint32_t>(ctx, 0x3C) = kept[3];
+    for (char* node : images)
+        At<char*>(node, 0x24) = nullptr;
+    for (const auto& font : fonts)
+        At<char*>(font.first, 0x34) = font.second;
+    g_paintHash = before;
+}
+
+// The paint test's own pages, after the layout test's: text in a link in
+// colours of its own and a NAME without HREF, rules of every size, BLINK
+// and a rule in a coloured cell, images floating and in the line in
+// coloured cells.
+const char* const kPaintPages[] = {
+    "<HTML><BODY LINK=\"#0000FF\" ALINK=\"#FF0000\" VLINK=\"#800080\"><A HREF=\"a.html\">plain <FONT "
+    "COLOR=\"#00FF00\">green</FONT> <B>bold</B> <I><FONT COLOR=\"#123456\">deep</FONT></I></A> and <A "
+    "NAME=\"here\">a name only</A> and <A HREF=\"b.html\" NAME=\"both\"><IMG SRC=\"x.png\" WIDTH=20 HEIGHT=10> "
+    "picture</A> <A HREF=\"c.html\"><SPAN STYLE=\"color: #445566\">span</SPAN> end</A></BODY></HTML>",
+    "<HTML><BODY><HR><HR SIZE=1><HR SIZE=2 WIDTH=40><HR SIZE=7 WIDTH=50%><TABLE><TR><TD BGCOLOR=\"#FFEEDD\">"
+    "<BLINK>blink <B>in</B> a cell</BLINK><HR SIZE=3></TD><TD>x</TD></TR></TABLE><BLINK>and out</BLINK></BODY>"
+    "</HTML>",
+    "<HTML><BODY><TABLE><TR><TD BGCOLOR=red><IMG SRC=a.png WIDTH=30 HEIGHT=20 ALIGN=LEFT>text around a floating "
+    "image in a cell that wraps more than once around it</TD><TD BGCOLOR=\"#00FF00\"><IMG SRC=b.png WIDTH=15 "
+    "HEIGHT=15>i<IMG SRC=c.png WIDTH=16 HEIGHT=12 ALIGN=MIDDLE>j<IMG SRC=d.png WIDTH=10 HEIGHT=30 ALIGN=TOP></TD>"
+    "</TR></TABLE><IMG SRC=e.png WIDTH=40 HEIGHT=40 ALIGN=RIGHT>text by a right float<IMG SRC=f.png WIDTH=8 "
+    "HEIGHT=8></BODY></HTML>",
+};
+
+bool g_paintOn = false;
+uint32_t g_paintTotal = 2166136261u;
+
+bool AnyPaintOurs()
+{
+    for (const char* id : {"ui.html.nodes.paint.blocks", "ui.html.nodes.paint.text", "ui.html.nodes.paint.images",
+                           "ui.html.nodes.paint.cells", "ui.html.nodes.hit", "ui.html.nodes.links"})
+        if (registry::ModeOf(id) == registry::Mode::Ours)
+            return true;
+    return AnyLayoutOurs();
+}
+
+void DrivePaintDay(const Day& day)
+{
+    if (!OnRunDay(day, "OPENSC4_TEST_HTML_PAINT") || !game::IsBuild641())
+        return;
+    SetUpService();
+    void* const face = MakeWindow("html paint");
+    if (!face || !MakeStandTables())
+        return;
+    char* const window = static_cast<char*>(face) - 0xD8;
+    const uint32_t statics[3] = {Static(addr::HTMLRuleNode_ColoursMade), Static(addr::HTMLRuleNode_Light),
+                                 Static(addr::HTMLRuleNode_Dark)};
+
+    std::size_t own = 0;
+    std::vector<std::string> pages = LayoutTestPages(own);
+    pages.insert(pages.begin() + static_cast<std::ptrdiff_t>(own), std::begin(kPaintPages), std::end(kPaintPages));
+    own += std::size(kPaintPages);
+    const bool compare = AnyPaintOurs();
+    Fnv total;
+    int differ = 0;
+    g_paintCalls = 0;
+    g_probes = 0;
+    struct Variant {
+        const char* name;
+        const int32_t* steps;
+        int32_t width;
+        bool scrolled;
+    };
+    const Variant variants[] = {
+        {"d300", nullptr, 300, true},
+        {"d450", nullptr, 450, false},
+        {"t300", TextPageSteps(), 300, true},
+        {"t450", TextPageSteps(), 450, false},
+    };
+    for (std::size_t i = 0; i < pages.size(); ++i) {
+        uint32_t hashes[4] = {};
+        for (int v = 0; v < 4; ++v) {
+            const Variant& variant = variants[v];
+            auto run = [&](uint32_t& layout) {
+                Fnv paint;
+                layout = LayoutPage(window, pages[i], variant.steps, variant.width, variant.scrolled, &paint, v);
+                return paint.h;
+            };
+            uint32_t gameLayout = 0;
+            uint32_t game = 0;
+            if (compare) {
+                html_parser::g_useGame = true;
+                game = run(gameLayout);
+                html_parser::g_useGame = false;
+            }
+            uint32_t oursLayout = 0;
+            const uint32_t ours = run(oursLayout);
+            hashes[v] = ours;
+            total.Word(ours);
+            total.Word(oursLayout);
+            if (compare && (game != ours || gameLayout != oursLayout)) {
+                ++differ;
+                log::Write("autotest: html paint: page %zu %s differs: game %08X/%08X ours %08X/%08X (%zu bytes)", i,
+                           variant.name, gameLayout, game, oursLayout, ours, pages[i].size());
+                if (differ <= 8) {
+                    std::string trace[2];
+                    for (int side = 0; side < 2; ++side) {
+                        html_parser::g_useGame = side == 0;
+                        g_trace = &trace[side];
+                        uint32_t ignored = 0;
+                        run(ignored);
+                        g_trace = nullptr;
+                    }
+                    html_parser::g_useGame = false;
+                    log::Write("autotest: html paint: page %zu %s: %s\n  game:%s\n  ours:%s", i, variant.name,
+                               pages[i].c_str(), trace[0].c_str(), trace[1].c_str());
+                }
+            }
+        }
+        // OPENSC4_TEST_HTML_PAINT_TRACE=<page + 1>: that page's record (d300).
+        if (static_cast<std::size_t>(EnvInt("OPENSC4_TEST_HTML_PAINT_TRACE", 0)) == i + 1) {
+            std::string trace;
+            g_trace = &trace;
+            Fnv paint;
+            const uint32_t layout =
+                LayoutPage(window, pages[i], variants[0].steps, variants[0].width, variants[0].scrolled, &paint, 0);
+            g_trace = nullptr;
+            log::Write("autotest: html paint: page %zu d300 %08X/%08X: %s\n%s", i, layout, paint.h, pages[i].c_str(),
+                       trace.c_str());
+        }
+        if (i < own || EnvInt("OPENSC4_TEST_HTML_PARSER_DUMP", 0))
+            log::Write("autotest: html paint: page %zu %08X %08X %08X %08X", i, hashes[0], hashes[1], hashes[2],
+                       hashes[3]);
+    }
+    Virtual<uint32_t>(face, 0x8);
+    Static(addr::HTMLRuleNode_ColoursMade) = statics[0];
+    Static(addr::HTMLRuleNode_Light) = statics[1];
+    Static(addr::HTMLRuleNode_Dark) = statics[2];
+
+    g_paintTotal = total.h;
+    g_paintOn = true;
+    log::Write("autotest: html paint: %zu pages (%zu ours, %zu ticker rows), 4 layouts each, %u stand-in calls, %u "
+               "hit probes, %u stray; %s; hash %08X",
+               pages.size(), own, pages.size() - own, g_paintCalls, g_probes, g_strayCalls,
+               compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_paintTotal);
+    log::Write("autotest: html paint: calls by stand-in: window %u, document %u, picture %u, image %u, stretch %u+%u, "
+               "fonts %u",
+               g_kindCalls[kStandWindow], g_kindCalls[kStandDocument], g_kindCalls[kStandPicture],
+               g_kindCalls[kStandSource], g_kindCalls[kStandBlitter], g_kindCalls[kStandBlit], g_kindCalls[kStandFont]);
+    if (compare)
+        log::Write("autotest: html paint: %d differences in %zu layouts", differ, pages.size() * 4);
+}
+
+void PaintFingerprint(cISC4City*, std::string& line)
+{
+    if (!g_paintOn)
+        return;
+    char text[32];
+    std::snprintf(text, sizeof text, " | hd %08X", g_paintTotal);
+    line += text;
+}
+
+const FingerprintPart kPaintFingerprint{"html paint", 5, &PaintFingerprint};
+const DayHook kPaintDrive{"html paint", 5, &DrivePaintDay};
 
 } // namespace
 } // namespace opensc4::autotest
