@@ -18,7 +18,7 @@
 //          in the watercraft manager's dock table)
 //   +0x280 the boat it tows or is towed by (an automaton, referenced),
 //          +0x284 an object (referenced)
-//   +0x288, +0x289 two bytes (the debug text's (Q,D))
+//   +0x288, +0x289 two bytes (D and Q in the debug text's (Q,D))
 //   +0x2A4 a vector of 16-byte path points (begin, end, capacity; 11 zeroed
 //          at construction, emptied by Init)
 //   +0x2B0..+0x2B2, +0x2CA..+0x2CC, +0x2D8 bytes; +0x2B4, +0x2B8, +0x2BC,

@@ -15,15 +15,15 @@
 //
 // What it does. The boat is 0xDC8 bytes from SC4::operator_new and goes
 // back through SC4::operator_delete. Its constructor runs the core's with
-// four zero words, sets its six vectors of references and points, a path of
+// four zero words, sets its six vtables, its references, byte vectors and points, a path of
 // 11 zeroed points, its own generator seeded with -1, the type 0x897F7EC2
 // and the core's flag 0x10 at +0x33. Its save is the core's after a version
 // word of 2. Init (once, while the occupant part is not initialised) runs
 // the core's Init and the drive parameters' reader (0x00567310), makes its
 // six effects through the city's effects manager, sets four automata flags,
 // listens to the message 0xAC400A31, clears the legs, the path and the
-// target and starts from the core's position and heading (the heading kept
-// normalised twice). Shutdown (while initialised) ends the tow, takes the
+// target and starts from the core's position and heading (the start heading
+// and the heading both normalised). Shutdown (while initialised) ends the tow, takes the
 // legs out of the watercraft manager's dock table, stops listening, lets go
 // of the legs, the target and the effects, then runs the core's Shutdown.
 //

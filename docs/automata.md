@@ -40,7 +40,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (2, done) (part em below counts 122; part em finished) |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3 (9, done), ped4a (1, done), ped4b (12, done) (part ped below counts 111; part ped finished) |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 (part ac, not started) |
-| Watercraft | 75 | 37,045 | 2 (part wc, wc1 in progress) |
+| Watercraft | 75 | 37,045 | wc1 (14, done), wc2 (53, not started) (part wc below counts 77, 37,707 bytes) |
 | Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | pi1 (25, done), pi2 (22, done), pi3a (14, done), pi3b (8, done) (part pi below counts 73 of its own; part pi finished) |
 
 That is about 48 parts of 20 to 45 functions. What the parts after a1 will meet:
@@ -4450,3 +4450,81 @@ A trial with 53 planted changes changed the token (or crashed) for 48: the box c
 | The 12-save batch | 7 | 12 of 12 saves (Big City d0365 after 3 pairs, both sides giving two outcomes in pfire2, part ped4b) |
 
 Every run's pi fields were the same on both sides: pinfo4 FE62B3FD, pi4flags 1 (pi1's to pi3a's as before). Every B run installed the 69 and reached all 8 of pi3b. The game reaches slots 25 and 26 before the test on every save (GetPathInfo as the view draws pieces), the point insert too on Big City and Rush Hour (two-point paths on uneven ground); the rest only the test reaches (reach.py, the pi3b names by default). An earlier run (p0, before the test gained its fractions and the box exit at a kept point) was the same: Making Money 5 of 5, the batch 12 of 12, Rush Hour t0000 after 3 pairs with the original giving two outcomes in chighlight (field 25) only.
+
+## Part wc: the boats
+
+### Survey
+
+One class: cSC4Watercraft (class ID 0x096E75F5, factory 0x00514820, constructor 0x0056D9A0, 0xDC8 bytes from SC4::operator_new) on the automata core directly, with no slots of its own after the core's 129 ([automata_watercraft.h](../src/core/automata_watercraft.h) has its fields). The read-only survey (%LOCALAPPDATA%\opensc4\net-tools\wc0) found it as part tr's: by its six vtables against the core's, the constructor that writes them and the factory registered by 0x00514A00, then everything those reach in 0x00566D80 to 0x00575600 that is not the watercraft manager's.
+
+| Part | Vtable | Slots | What the boat overrides |
+| --- | --- | ---: | --- |
+| +0x00 | 0x00A9DBB8 | 129 | 0 (QueryInterface), 3 (Init), 4 (Shutdown), 16 (the placement), 72 (the frame), 93 (the debug text), 109, 110, 111, 115, 121 |
+| +0x04 | 0x00A9DB30 | 34 | 0, 3 and 4 (thunks) |
+| +0x08 | 0x00A9DB14 | 6 | 0 (thunk), 3 (Write), 4 (Read), 5 (GetGZCLSID) |
+| +0x0C | 0x00A9DAB0 | 25 | 0, 22 (the deleting destructor), 23 and 24 (thunks) |
+| +0x20 | 0x00A9DA9C | 5 | 0 (thunk) |
+| +0x38 | 0x00A9DA8C | 4 | 0 (thunk), 3 0x00569230 (a message) |
+
+77 functions, 37,707 bytes (the factory with them; the family table's 75 and 37,045 placed by neighbours):
+
+- **wc1 (14, 3,675 bytes, done):** the objects, the save, the life cycle and the queries. Below.
+- **wc2 (53, 33,952 bytes):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
+- **Stay the game's (10):** the adjustor thunks 0x0056DC70 to 0x0056DCF0 and 0x0056F7B0.
+
+Already ours from part aw5 (the watercraft manager calls them; not counted here): 0x00566DA0 (IsPathBoat), 0x0056F510 (SetPath), 0x0056F670 (SetFerryRoute), 0x0056C940 (ConstructLeg), 0x005684C0 (StepDirection), 0x0056D5F0 (CutPathAt). No NAM site and none of SC4UIScale's addresses is in the group.
+
+### What is ours (wc1)
+
+14 functions in a new group, off by default: `simulators.automata.watercraft` ([automata_watercraft.cpp](../src/core/automata_watercraft.cpp)).
+
+- **The objects (6):** the factory 0x00514820, the constructor 0x0056D9A0, the destructor body 0x0056DD20 and the deleting destructor 0x0056DD00, QueryInterface 0x00566F30, GetGZCLSID 0x0056DC60.
+- **The save (2):** Write 0x00566EE0 and Read 0x00566F00 (+8 slots 3 and 4).
+- **The life cycle (4):** Init 0x0056DE40, Shutdown 0x0056D0E0 and the two dock-table helpers Shutdown calls, 0x0056CFE0 and 0x0056D060 (on the watercraft manager: `cSC4WatercraftManager::UnlistFirst` and `UnlistSecond`, the names ours).
+- **The queries (2):** slot 16 0x00567D80 (the placement) and slot 93 0x00570AE0 (the debug text).
+
+What they do:
+
+- The constructor runs the core's with four zero words and sets three legs of 0x34 bytes (a ferry route's two at +0x1E4 and +0x218, the one under way at +0x24C: an occupant, a byte vector, two points), the tow +0x280 and +0x284, a path of 11 zeroed 16-byte points, its points and headings (the float 0x00B22A80), the target and its byte vector, a generator of its own (SC4Random::ConstructSeeded with -1), six effect fields, the core's flag 0x10 at +0x33 and the type 0x897F7EC2.
+- The save is the core's after a version word of 2; the boat saves none of its own fields.
+- Init (once) runs the core's Init and the drive parameters' reader, makes its six effects by name through the city's effects manager (slot 85: SMLmushroomcloud, boat_grounding, boat_splash, tugropethrow, tugropeconnection, waterski), sets the automata flags 0x8000, 0x2000, 0x20000 and 4, listens to the message 0xAC400A31, clears the legs, the path and the target, and starts from the core's position and heading, the heading normalised.
+- Shutdown (while initialised) gives the tow state 0x49 and lets it go, takes each listed leg out of the watercraft manager's dock table (a hash table at +0xA8C keyed by the leg's occupant; a node holds the boats of both legs), stops listening, lets go of the legs, the target and the effects (each stopped first), then runs the core's.
+- Slot 16 keeps the point and the heading in its own fields too, then the core's placement and slots 104 and 107. Slot 93 prints the tow, the manager's two counts, two bytes, the turn, the speed, the cell, the point and the heading into a static string.
+
+Left the game's: the core's code (part vb), the drive parameters' reader and the rest of the boat (wc2), the thunks, the string, vector, generator, effect and message code.
+
+Oddities kept:
+
+- **The constructor's path loop** writes a point only when the pointer is not null but steps it on (a failed allocation would write at 0x10).
+- **The destructor body** releases the references without clearing them and frees the byte vectors; the generator needs nothing.
+- **Read** reads its version word into the stream argument's own stack slot.
+- **Init** tests neither the city nor the effects manager for null, and normalises a zero heading into NaNs.
+- **The debug text** does not test the watercraft manager for null.
+- **The dock table** is hashed by the occupant's address with no test of the bucket count.
+- **AL only in the game:** QueryInterface, Read when the version is wrong, Init. Ours zero-extends.
+
+Written by hand, then an independent audit of all 14 against the disassembly, instruction by instruction (argument order and stack sizes, the order of releases and frees, the x87 order, the debug text's 25 argument words, the stack strings' five words, the fixed_seed site 0x0056DC28). It found no defect; three comment wordings were corrected.
+
+Two things the first runs found: the generator's clock seed is counted by fixed_seed under its call site, so the constructor names the game's (0x0056DC28); and SC4String::FromText writes five words, so Init's stack strings are 0x14 bytes.
+
+### Test (wc1)
+
+The ` V` token gains `,<wobject>,<wsave>,<wlife>,<wflags>` (70 fields). wflags: 1 the objects ran, 2 the save, 4 the life cycle, 8 the queries, 0x10 the factory failed, 0x20 no city. All on boats from the factory, with the city's slots 46 (a watercraft manager of the test's), 85 (an effects manager of the test's) and 95, the message server and the boat's slots 13, 30, 67, 77, 97, 100, 104 and 107 the test's (header of [automata_autotest.cpp](../src/core/automata_autotest.cpp)). The log line is "wc1 wobject".
+
+- **wobject:** the fields the constructor sets (the generator's next-word pointer as an offset; the bytes and words it leaves unset are not mixed), GetGZCLSID through +8 and at its address, QueryInterface for four IDs through slot 0 and at its address; slot 16 over eight point and heading cases and one off the city; slot 93 over four (a tow or none, bytes, speeds, turns, points) through the vtable and at its address.
+- **wsave:** Write through +8 and at its address against the core's Write, read back as written, with the version 3, empty, the version alone and cut by four.
+- **wlife:** 12 boats, each Init at its address and again through slot 3 over three effect modes (every effect, none, every other), then Shutdown over the legs listed or not, the dock table's nodes holding this boat, another or none, a tow or none, no manager (case 9) or no server (case 10), and Shutdown again; the two dock-table helpers at their addresses over five probes each; the deleting destructor at its address with flag 0.
+
+The fakes' reference counts and calls are mixed. A trial with five deliberate changes (a path of 10 points, the version 3 written, Shutdown without 0x0056D060, the debug text's two bytes swapped, Init without the first normalisation) changed the token each time: wobject and wsave, wsave, wlife, wobject, wlife. The same build without a change gave the unchanged token.
+
+### Parity (wc1)
+
+2026-11-01. B = the automata groups as for pi3b (`simulators.automata.vehicle`, `roadveh`, `trains`, `emergency`, `pedestrians`, `pathinfo`) and `simulators.automata.watercraft` against the original; the base list includes `determinism.dispatch_info=ours`. `OPENSC4_MUTE=1` both sides, with `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`. Env p4env-wc1, snapshot wc1-p1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves (Big City d0000 after 2 pairs: the original gave two outcomes in pfire2, field 57, part ped4b) |
+
+Every run's wc1 fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wflags F). Every B run installed the 14 and reached all of them; the game itself reaches none before the test day in these saves (reach.sh).
