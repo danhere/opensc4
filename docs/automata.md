@@ -4472,7 +4472,8 @@ One class: cSC4Watercraft (class ID 0x096E75F5, factory 0x00514820, constructor 
 - **wc2a (8, 2,505 bytes, done):** the drive parameters 0x00567310 (1,845), the legs 0x0056D8B0, 0x0056D920, 0x0056F3F0, 0x0056F480 and 0x0056F700, the sign 0x00566E00 and the tow's release 0x00567E80. Below.
 - **wc2b (10, 1,810 bytes, done):** the slots 110 0x0056E340 and 111 0x00570140 (entering and leaving a state), the leg unlisted 0x0056D4D0, the dock table's listings 0x0056CEC0 and 0x0056CF50, the checks 0x005698E0, 0x005681B0 and 0x00567DF0, a path point erased 0x0056BD50 and the next leg reached 0x005704D0. Below.
 - **wc2c (8, 1,305 bytes, done):** the slot 115 0x0056D310 (the drive step), the fanned direction 0x00566F60, the cell step 0x00567000, the stern and bow points 0x00567A50 and 0x00567AB0, the longest side 0x00567B10, a point moved 0x00568230 and leaving the dock 0x0056D530. Below.
-- **wc2 (53, 33,952 bytes; wc2a's 8, wc2b's 10 and wc2c's 8 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
+- **wc2d (3, 1,321 bytes, done):** back to the start 0x0056A310, the six wakes stopped 0x0056EFE0 and started 0x0056F1E0. Below.
+- **wc2 (53, 33,952 bytes; wc2a's 8, wc2b's 10, wc2c's 8 and wc2d's 3 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
 - **Stay the game's (10):** the adjustor thunks 0x0056DC70 to 0x0056DCF0 and 0x0056F7B0.
 
 Already ours from part aw5 (the watercraft manager calls them; not counted here): 0x00566DA0 (IsPathBoat), 0x0056F510 (SetPath), 0x0056F670 (SetFerryRoute), 0x0056C940 (ConstructLeg), 0x005684C0 (StepDirection), 0x0056D5F0 (CutPathAt). No NAM site and none of SC4UIScale's addresses is in the group.
@@ -4734,3 +4735,63 @@ Each one changed wstep (and the "cells", "points" or "move" hash where the chang
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's wc fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wdrive 1E393524, wstate 2062D6EE, wstep 61164F9B, wflags 1CF). Every B run installed the 40 detours and reached all of them. The game itself reaches none of them before the test day in these saves (reach.sh). An earlier run (p1, with the weaker test) was the same on Making Money and Rush Hour and 10 of 12 in the batch. Big City d0000 differed in pfire2 (field 57) only; the original gives two outcomes there too (part ped4b). Making Money d1095 differed in one of four B runs, on the first day, before the test day and so before any of the 40 is reached.
+
+### What is ours (wc2d)
+
+3 functions more in the same group (`simulators.automata.watercraft`, list kWakeList; 43 detours in all):
+
+- **Back to the start (1):** 0x0056A310 (ToStart).
+- **The wakes (2):** stopped 0x0056EFE0 (StopWakes) and started 0x0056F1E0 (StartWakes).
+
+What they do:
+
+- ToStart sets the point (+0x2F4) to the start point (+0x2E8). It builds a transform record on the stack (+0 a count 0, +1 flags 0, +4..+0x24 the identity, +0x28 the point 0, +0x34 1.0) and has slot 12 fill it. Then the record's point becomes the boat's point (read again), its byte +1 is or'ed with 1 and its byte +0 counts up by one, and slot 75 takes it. The core's position (+0x40) becomes the point (read again), then slots 100 (1, 1), 104 and 107 run.
+- StopWakes and StartWakes take the six wakes in turn: SMLWake, SMLWash, MEDWake, MEDWash, LargeWake, LargeWash (the game's strings 0x00A9DE5C down to 0x00A9DE2C). Each name is a string on the stack: its body zeroed and filled by SC4String::FromRange (0x00407FA0), then the vtable 0x00A80810 and a zero word. StopWakes calls slot 45 (name, 0) and StartWakes slot 44 (name, 0, 0). The string is destroyed inline after each call (the vtable stored again, the buffer freed).
+
+Oddities kept:
+
+- **ToStart** leaves the record's bytes +2 and +3 unset (ours zeroes them; the test does not read them). It reads the point again after slot 12, so a slot 12 that moves the point moves the record's point and the position with it.
+- **The wakes** pass FromRange an allocator byte that is never set.
+
+Written by hand, then an independent audit of all 3 against the disassembly, instruction by instruction:
+- the record's offsets and the stack adjustment around slot 12's push;
+- what is read again after slot 12 and slot 75, and in what order;
+- the wakes' name order against the strings in the exe;
+- the string's layout (what is written before and after FromRange) and its teardown;
+- the slots, argument counts and values.
+
+It found no defect. Three comment wordings were made clearer (the string's zero word, the record's bytes +2 and +3, "read again" in the address entry).
+
+### Test (wc2d)
+
+The ` V` token gains `,<wwake>` before wflags (74 fields); wflags 0x200 when it ran. It runs inside the wc2b test after wc2c's, with the boat's slots 12, 44, 45, 75, 100, 104 and 107 the test's. Every function runs at its address on the boat from the factory.
+
+The cases:
+- **ToStart:** five (slot 12 leaving the record as it is, filling it, a count of 0xFF that wraps, flags with bit 0 already set, slot 12 moving the boat's point). Start points include a NaN, a negative zero and a denormal. Slots 12 and 75 mix the record (all but bytes +2 and +3); the point, the position and the start point are mixed after.
+- **The wakes:** stopped and started three times each, in turns. Slots 44 and 45 mix each name's vtable, zero word, length, capacity and text, and their other arguments.
+
+The fakes' calls are mixed. The log line is "wc2d wwake".
+
+A trial planted eight deliberate changes, one per run:
+1. the identity's third one at +0x20 instead of +0x24;
+2. the record's count plus 2;
+3. slot 100 (1, 0);
+4. the record's point from the start point;
+5. MEDWake and MEDWash swapped;
+6. StartWakes passing (0, 1);
+7. the string's zero word 1;
+8. the position from the start point.
+
+Each one changed wwake. The same build without a change gave the unchanged token (98CDED9D). Changes 4 and 8 show only because a case's slot 12 moves the boat's point.
+
+### Parity (wc2d)
+
+2026-11-01. As for wc2c (B the same groups with `simulators.automata.watercraft`, muted, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-wc2d, snapshot wc2d-p1:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | same after 3 pairs (the original gave three outcomes, ours three, all shared). Only ad3's chighlight (field 25) differed, the same as in wc2a. Two reruns (p1b, p1c) were "partly" after 4 pairs, again in field 25 only. Over the three runs the original gave all three of its values (86FDBB8E, B7A37F8C, B49EAE5C) and ours none other |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's wc fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wdrive 1E393524, wstate 2062D6EE, wstep 61164F9B, wwake 98CDED9D, wflags 3CF). Every B run installed the 43 detours and reached all of them. The game itself reaches none of them before the test day in these saves (reach.sh).

@@ -16218,3 +16218,32 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "51 53 56 57 8B F1 E8 15"
 source = "Name ours. Plain ret: slot 115's step after the movement (914 bytes; starts with 0x005681B0). Called by address from src/core/automata_watercraft.cpp (part wc2c); still the game's."
+
+# Part wc2d: cSC4Watercraft, back to the start and the six wakes stopped and started (src/core/automata_watercraft.cpp).
+
+[[entry]]
+name = "cSC4Watercraft::ToStart"
+address = 0x0056A310
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 38 56 8B F1 8B 86"
+source = "Name ours. Plain ret: the point (+0x2F4) the start point (+0x2E8); a transform record on the stack (+0 a count 0, +1 flags 0, +4..+0x24 the identity, +0x28 the point 0, +0x34 1.0; bytes +2 and +3 unset) filled by slot 12, then its point the boat's point (read again), its byte +1 or 1 and byte +0 plus 1, given to slot 75; the core's position (+0x40) the point (read again); slots 100 (1, 1), 104 and 107. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2d)."
+
+[[entry]]
+name = "cSC4Watercraft::StopWakes"
+address = 0x0056EFE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 18 53 56 57 8D 44"
+source = "Name ours. Plain ret: for each of SMLWake, SMLWash, MEDWake, MEDWash, LargeWake and LargeWash (0x00A9DE5C down to 0x00A9DE2C) a string on the stack (SC4String::FromRange, then the vtable 0x00A80810 and a zero word), slot 45 (name, 0), the string destroyed inline. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2d)."
+
+[[entry]]
+name = "cSC4Watercraft::StartWakes"
+address = 0x0056F1E0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 18 53 56 57 8D 44"
+source = "Name ours. Plain ret: as 0x0056EFE0 with slot 44 (name, 0, 0) for each of the six wakes. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2d)."
