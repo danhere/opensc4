@@ -1,4 +1,4 @@
-// Our boat, parts wc1, wc2a and wc2b (build 641): cSC4Watercraft on the automata core
+// Our boat, parts wc1, wc2a, wc2b and wc2c (build 641): cSC4Watercraft on the automata core
 // (src/core/automata_vehicle.cpp has the core's ported slots; the core's own
 // code stays the game's). wc1: the objects (the factory, the constructor,
 // the destructor body and the deleting destructor, QueryInterface and
@@ -10,7 +10,9 @@
 // release. wc2b: slots 110 and 111 (entering and leaving a state), the
 // leg under way unlisted, the dock table's two listings, the checks (may
 // drive, outside the city, grounded), a path point erased and the next leg
-// reached. The layout is in
+// reached. wc2c: slot 115 (the drive step) and seven small helpers of the
+// movement (a fanned direction, a cell step, the stern and bow points, the
+// longest side, a point moved, leaving the dock). The layout is in
 // src/core/automata_watercraft.h and the survey in docs/automata.md, "Part
 // wc". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
@@ -18,7 +20,8 @@
 //
 // Group, off by default:
 //   simulators.automata.watercraft: the 14 detours in kObject (wc1), the 8
-//   in kDriveList (wc2a) and the 10 in kStateList (wc2b) below.
+//   in kDriveList (wc2a), the 10 in kStateList (wc2b) and the 8 in
+//   kDriveStepList (wc2c) below.
 //
 // What it does. The boat is 0xDC8 bytes from SC4::operator_new and goes
 // back through SC4::operator_delete. Its constructor runs the core's with
@@ -55,12 +58,18 @@
 // leaves the cell outputs unset and the outside check its four cells (ours
 // zero); the dock table's listing holds the key for the lookup only.
 //
+// wc2c's oddities: slot 115 clamps seconds in its own argument slot and
+// hands 0x0056C430 its address; the longest side leaves its box unset
+// before the occupant part's slot 10 (ours zero) and compares dx unrounded
+// against dy's float first; the fanned direction past 7 only takes out
+// modulo 8; the moved point reads out's y and z back into the record.
+//
 // Floats: Init's normalisation is x87 at 53 bits: (x*x + y*y) + z*z, its
 // square root, 1 (0x00B0A18C) over it, each part times that (doubles here).
 //
 // Still the game's, at their addresses: the core's code (part vb), the
-// rest of the boat (part wc2: slots 72, 109, 115, 121, the +0x38 part's
-// slot 3 and their helpers), the group's drive parameters 0x004FC8E0,
+// rest of the boat (part wc2: slots 72, 109, 121, the +0x38 part's
+// slot 3 and their helpers, 0x0056C430 and 0x0056C090 among them), the group's drive parameters 0x004FC8E0,
 // the ten adjustor thunks, the string, vector, generator and effect code,
 // the message server and the city.
 
@@ -1144,6 +1153,230 @@ void __fastcall ReachLeg(char* self, void*)
 }
 
 // ====================================================================================
+// The drive step and the movement's small helpers (part wc2c)
+
+// 0x00566F60, (nth, direction, out), ret 0xC (this unread): out the nth
+// direction fanning out from `direction` (itself, +1, -1, +2, -2, +3, -3,
+// +4), then out modulo 8 with C's sign; past 7 out is only taken modulo 8.
+void __fastcall FanDirection(void*, void*, std::uint32_t nth, std::int32_t direction, std::int32_t* out)
+{
+    static bool logged;
+    FirstCall("FanDirection", logged);
+    static const std::int32_t kFan[8] = {0, 1, -1, 2, -2, 3, -3, 4};
+    if (nth <= 7)
+        *out = static_cast<std::int32_t>(static_cast<std::uint32_t>(direction) + static_cast<std::uint32_t>(kFan[nth]));
+    *out = *out % 8;
+}
+
+// A cell word stepped by `by` (wrapping, as the game's inc and dec).
+void StepWord(std::int32_t* word, std::int32_t by)
+{
+    *word = static_cast<std::int32_t>(static_cast<std::uint32_t>(*word) + static_cast<std::uint32_t>(by));
+}
+
+// 0x00567000, (direction, x, z), ret 0xC (this unread): the cell stepped
+// one way (x first): 0 x-1 z-1, 1 z-1, 2 x+1 z-1, 3 x+1, 4 x+1 z+1, 5 z+1,
+// 6 x-1 z+1, 7 x-1; past 7 nothing.
+void __fastcall StepCell(void*, void*, std::uint32_t direction, std::int32_t* x, std::int32_t* z)
+{
+    static bool logged;
+    FirstCall("StepCell", logged);
+    static const std::int8_t kX[8] = {-1, 0, 1, 1, 1, 0, -1, -1};
+    static const std::int8_t kZ[8] = {-1, -1, -1, 0, 1, 1, 1, 0};
+    if (direction > 7)
+        return;
+    if (kX[direction])
+        StepWord(x, kX[direction]);
+    if (kZ[direction])
+        StepWord(z, kZ[direction]);
+}
+
+// The point (+0x2F4) moved by slot 17's length (ST0) along the heading
+// (+0x30C), back (`sign` -1) or ahead (+1): x and y by the product stored as
+// a float, z by the product unrounded (x87 at 53 bits); out x, y, z.
+void EndPoint(char* self, float* out, double sign)
+{
+    const double length = Virtual<double>(self, slot::kLength);
+    const float alongX = static_cast<float>(length * static_cast<double>(At<float>(self, field::kHeading)));
+    const float alongY = static_cast<float>(length * static_cast<double>(At<float>(self, field::kHeading + 4)));
+    const double alongZ = length * static_cast<double>(At<float>(self, field::kHeading + 8));
+    const float z = static_cast<float>(static_cast<double>(At<float>(self, field::kPoint + 8)) + sign * alongZ);
+    const float y =
+        static_cast<float>(static_cast<double>(At<float>(self, field::kPoint + 4)) + sign * static_cast<double>(alongY));
+    const float x =
+        static_cast<float>(static_cast<double>(At<float>(self, field::kPoint)) + sign * static_cast<double>(alongX));
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+}
+
+// 0x00567A50, (out), ret 4: the stern point (EndPoint back).
+void __fastcall SternPoint(char* self, void*, float* out)
+{
+    static bool logged;
+    FirstCall("SternPoint", logged);
+    EndPoint(self, out, -1.0);
+}
+
+// 0x00567AB0, (out), ret 4: the bow point (EndPoint ahead).
+void __fastcall BowPoint(char* self, void*, float* out)
+{
+    static bool logged;
+    FirstCall("BowPoint", logged);
+    EndPoint(self, out, 1.0);
+}
+
+// 0x00567B10, plain ret: the occupant part's (+4) slot 10 box (min, max;
+// the game leaves both unset, ours zero). dx and dy stored as floats, dz
+// unrounded. When the larger of dx (unrounded) and dy is above dz, the
+// larger of the two floats (dy on a tie or a NaN); else dz. ST0.
+double __fastcall LongestSide(char* self, void*)
+{
+    static bool logged;
+    FirstCall("LongestSide", logged);
+    float low[3] = {}, high[3] = {};
+    Virtual<void>(self + 4, slot::kBox, static_cast<void*>(low), static_cast<void*>(high));
+    const double dz = static_cast<double>(high[2]) - static_cast<double>(low[2]);
+    const float dy = static_cast<float>(static_cast<double>(high[1]) - static_cast<double>(low[1]));
+    const double dxWhole = static_cast<double>(high[0]) - static_cast<double>(low[0]);
+    const float dx = static_cast<float>(dxWhole);
+    const float larger = dxWhole > static_cast<double>(dy) ? dx : dy;
+    if (!(static_cast<double>(larger) > dz))
+        return dz;
+    return dx > dy ? static_cast<double>(dx) : static_cast<double>(dy);
+}
+
+// 0x00568230, (seconds, record, out), ret 0xC: the heading flattened (x and
+// z times 1 over the root of z*z + x*x, y 0.0 times it; x and y stored as
+// floats, z unrounded), times (+0x354 times the speed) times seconds, each
+// stored as a float, plus the point; out x, y, z as floats; the record's
+// +0x28 x, +0x2C and +0x30 out's y and z read back, its byte +1 or 1, its
+// byte +0 plus 1.
+void __fastcall MovePoint(char* self, void*, float seconds, char* record, float* out)
+{
+    static bool logged;
+    FirstCall("MovePoint", logged);
+    const double hx = static_cast<double>(At<float>(self, field::kHeading));
+    const double hz = static_cast<double>(At<float>(self, field::kHeading + 8));
+    const double unit = static_cast<double>(Global<float>(addr::cSC4Watercraft_One)) / std::sqrt(hz * hz + hx * hx);
+    const float ux = static_cast<float>(hx * unit);
+    const float uy = static_cast<float>(0.0 * unit);
+    const double uz = hz * unit;
+    const double by = static_cast<double>(At<float>(self, field::kParam354)) *
+                      static_cast<double>(At<float>(self, field::kSpeed)) * static_cast<double>(seconds);
+    const float ox = static_cast<float>(static_cast<double>(ux) * by);
+    const float oy = static_cast<float>(static_cast<double>(uy) * by);
+    const float oz = static_cast<float>(uz * by);
+    const float x = static_cast<float>(static_cast<double>(ox) + static_cast<double>(At<float>(self, field::kPoint)));
+    const float y =
+        static_cast<float>(static_cast<double>(oy) + static_cast<double>(At<float>(self, field::kPoint + 4)));
+    const float z =
+        static_cast<float>(static_cast<double>(oz) + static_cast<double>(At<float>(self, field::kPoint + 8)));
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    At<float>(record, 0x28) = x;
+    At<std::uint32_t>(record, 0x2C) = At<std::uint32_t>(out, 4);
+    At<std::uint32_t>(record, 0x30) = At<std::uint32_t>(out, 8);
+    const std::uint8_t flags = At<std::uint8_t>(record, 1);
+    const std::uint8_t count = At<std::uint8_t>(record, 0);
+    At<std::uint8_t>(record, 1) = static_cast<std::uint8_t>(flags | 1);
+    At<std::uint8_t>(record, 0) = static_cast<std::uint8_t>(count + 1);
+}
+
+// 0x0056D530, plain ret: with a leg under way whose byte +0x28 is set and
+// whose occupant (its slot 15) is farther from the boat's position than
+// +0x3D4 (x87 at 53 bits: the root of (dz*dz + dy*dy) + dx*dx; equal or a
+// NaN is not): +0x2B0 0; with a watercraft manager the leg's occupant out of
+// the dock table's first boat (0x0056CFE0), the leg's byte +0x28 0 and the
+// flag 0x10000000 cleared.
+void __fastcall LeaveDock(char* self, void*)
+{
+    static bool logged;
+    FirstCall("LeaveDock", logged);
+    void* const occupant = At<void*>(self, field::kLeg);
+    if (!occupant || !At<std::uint8_t>(self, field::kLeg + field::kLegByte28))
+        return;
+    std::uint32_t point[3] = {Unset(), Unset(), Unset()};
+    Virtual<void>(occupant, slot::kGetPosition, static_cast<void*>(point));
+    const double dx = static_cast<double>(At<float>(self, field::kPosition)) - static_cast<double>(AsFloat(point[0]));
+    const double dy =
+        static_cast<double>(At<float>(self, field::kPosition + 4)) - static_cast<double>(AsFloat(point[1]));
+    const double dz =
+        static_cast<double>(At<float>(self, field::kPosition + 8)) - static_cast<double>(AsFloat(point[2]));
+    const double distance = std::fabs(std::sqrt((dz * dz + dy * dy) + dx * dx));
+    if (!(distance > static_cast<double>(At<float>(self, field::kParam3D4))))
+        return;
+    char* const manager = Virtual<char*>(Global<void*>(addr::SC4_City), slot::kCityWatercraft);
+    At<std::uint8_t>(self, field::kByte2B0) = 0;
+    if (!manager)
+        return;
+    CallThis<void>(addr::cSC4WatercraftManager_UnlistFirst, manager, At<void*>(self, field::kLeg),
+                   static_cast<void*>(self));
+    At<std::uint8_t>(self, field::kLeg + field::kLegByte28) = 0;
+    Virtual<void>(self, slot::kSetFlag, kFlagDocked, 0u);
+}
+
+// 0x0056D310, slot 115 (seconds), ret 4: the core's DriveKeys first; with a
+// tow, its release (0x00567E80) when the unit vector to the tow lies ahead
+// of the core's heading (+0x58); with both keys up (slot 56's +0x7C and
+// +0x80 -1.0) and a speed not zero, the speed slowed by its sign
+// (0x00566E00) times seconds times 0.001 times +0x350, zero when the sign
+// changed; when it may drive (0x005698E0), seconds clamped to 0..+0x3D0 (a
+// NaN kept), then 0x0056C430 (&seconds) and 0x0056C090. AL 1.
+std::uint32_t __fastcall Drive(char* self, void*, float seconds)
+{
+    static bool logged;
+    FirstCall("Drive", logged);
+    CallThis<std::uint32_t>(addr::cSC4AutomatonCore_DriveKeys, self, seconds);
+    if (char* const tow = At<char*>(self, field::kTow)) {
+        // x87 at 53 bits: z also as a float, the root of (dz*dzf + dy*dy) +
+        // dx*dx, 1 over it stored as a float, x times it stored as a float.
+        const double dx = static_cast<double>(At<float>(tow, field::kPosition)) -
+                          static_cast<double>(At<float>(self, field::kPosition));
+        const double dy = static_cast<double>(At<float>(tow, field::kPosition + 4)) -
+                          static_cast<double>(At<float>(self, field::kPosition + 4));
+        const double dz = static_cast<double>(At<float>(tow, field::kPosition + 8)) -
+                          static_cast<double>(At<float>(self, field::kPosition + 8));
+        const float dzRounded = static_cast<float>(dz);
+        const float unit = static_cast<float>(static_cast<double>(Global<float>(addr::cSC4Watercraft_One)) /
+                                              std::sqrt((dz * static_cast<double>(dzRounded) + dy * dy) + dx * dx));
+        const float ux = static_cast<float>(dx * static_cast<double>(unit));
+        const double uy = dy * static_cast<double>(unit);
+        const double uz = static_cast<double>(dzRounded) * static_cast<double>(unit);
+        const double ahead = (uz * static_cast<double>(At<float>(self, field::kHeading58 + 8)) +
+                              uy * static_cast<double>(At<float>(self, field::kHeading58 + 4))) +
+                             static_cast<double>(ux) * static_cast<double>(At<float>(self, field::kHeading58));
+        if (ahead > 0.0)
+            CallThis<void>(addr::cSC4Watercraft_DropTow, self);
+    }
+    if (char* const keys = Virtual<char*>(self, slot::kKeys)) {
+        const float up = AsFloat(0xBF800000u);
+        const float speed = At<float>(self, field::kSpeed);
+        if (At<float>(keys, 0x7C) == up && At<float>(keys, 0x80) == up && !(speed == 0.0f)) {
+            const float before = CallThis<float>(addr::cSC4Watercraft_Sign, self, speed);
+            const double slowing = static_cast<double>(seconds) * static_cast<double>(AsFloat(0x3A83126Fu)) *
+                                   static_cast<double>(At<float>(self, field::kParam350));
+            const float now = static_cast<float>(static_cast<double>(speed) - static_cast<double>(before) * slowing);
+            At<float>(self, field::kSpeed) = now;
+            const float after = CallThis<float>(addr::cSC4Watercraft_Sign, self, now);
+            if ((before > 0.0f) != (after > 0.0f))
+                At<std::uint32_t>(self, field::kSpeed) = 0;
+        }
+    }
+    if (CallThis<std::uint8_t>(addr::cSC4Watercraft_MayDrive, self)) {
+        const float most = At<float>(self, field::kParam3D0);
+        if (seconds < 0.0f)
+            seconds = 0.0f;
+        else if (seconds > most)
+            seconds = most;
+        CallThis<void>(addr::cSC4Watercraft_Steer, self, &seconds);
+        CallThis<void>(addr::cSC4Watercraft_Settle, self);
+    }
+    return 1;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1230,13 +1463,26 @@ const Detour kStateList[] = {
     OPENSC4_DETOUR(addr::cSC4Watercraft_ReachLeg, ReachLeg),
 };
 
+// Part wc2c.
+const Detour kDriveStepList[] = {
+    OPENSC4_DETOUR(addr::cSC4Watercraft_Drive, Drive),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_FanDirection, FanDirection),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_StepCell, StepCell),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_SternPoint, SternPoint),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_BowPoint, BowPoint),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_LongestSide, LongestSide),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_MovePoint, MovePoint),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_LeaveDock, LeaveDock),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kDriveList, sizeof kDriveList / sizeof kDriveList[0], "drive") &&
-           InstallList(kStateList, sizeof kStateList / sizeof kStateList[0], "state");
+           InstallList(kStateList, sizeof kStateList / sizeof kStateList[0], "state") &&
+           InstallList(kDriveStepList, sizeof kDriveStepList / sizeof kDriveStepList[0], "drive step");
 }
 
 const bool g_registered[] = {
@@ -1248,7 +1494,9 @@ const bool g_registered[] = {
                         "slot 93 (the debug text) (14 detours, part wc1); the drive parameters' reader, the four leg "
                         "helpers and the next leg, the sign and the tow's release (8, part wc2a); slots 110 and 111, the "
                         "leg unlisted, the dock table's two listings, three checks, a path point erased and the next "
-                        "leg reached (10, part wc2b; src/core/automata_watercraft.cpp)",
+                        "leg reached (10, part wc2b); slot 115 (the drive step), the fanned direction, the cell step, the "
+                        "stern and bow points, the longest side, the moved point and leaving the dock (8, part wc2c; "
+                        "src/core/automata_watercraft.cpp)",
                         false, InstallObject}),
 };
 

@@ -16126,3 +16126,95 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "83 EC 40 56 57 8D 44 24"
 source = "Name ours. Plain ret: the next leg (0x0056F480) on the stack, its bytes freed and occupant released (then used); with an occupant whose position (its slot 15) is nearer the boat's (+0x40) than +0x3D4 and a watercraft manager: in the state 0x4B (slot 59) listed as the first boat (0x0056CEC0) then slot 53 and the state 0x4A pushed; else listed first (0x4A pushed), or second (0x0056CF50, 0x4B), or 0x49 pushed. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+# Part wc2c: cSC4Watercraft, slot 115 (the drive step) and seven small helpers of the movement (src/core/automata_watercraft.cpp).
+
+[[entry]]
+name = "cSC4Watercraft::Drive"
+address = 0x0056D310
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, float seconds)"
+expect = "8B 44 24 04 83 EC 10 56"
+source = "Name ours. Slot 115 (seconds), ret 4: the core's DriveKeys (0x00508C50) first. With a tow (+0x280): the unit vector to the tow's position (x87 at 53 bits: z kept as a float too, the root of (dz*dzf + dy*dy) + dx*dx, 1.0 over it stored as a float, x times it stored as a float) dotted with the core's heading (+0x58), ((z*h.z + y*h.y) + x*h.x); above zero the tow's release (0x00567E80). With slot 56's keys whose +0x7C and +0x80 are both -1.0 and a speed (+0x2DC) not zero: the speed less its sign (0x00566E00) times seconds times 0.001 times +0x350, stored as a float, and zero when the sign changed. When it may drive (0x005698E0): seconds clamped to 0..+0x3D0 in its own argument slot (a NaN kept), then 0x0056C430 (&seconds) and 0x0056C090. AL 1. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2c)."
+
+[[entry]]
+name = "cSC4Watercraft::FanDirection"
+address = 0x00566F60
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t nth, int32_t direction, int32_t* out)"
+expect = "8B 4C 24 04 83 F9 07 8B"
+source = "Name ours. (nth, direction, out), ret 0xC (this unread): out the nth direction fanning out from direction (0: itself, 1: +1, 2: -1, 3: +2, 4: -2, 5: +3, 6: -3, 7: +4), then out taken modulo 8 with C's sign (a negative stays negative); past 7 out is only taken modulo 8. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2c)."
+
+[[entry]]
+name = "cSC4Watercraft::StepCell"
+address = 0x00567000
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t direction, int32_t* x, int32_t* z)"
+expect = "8B 44 24 04 83 F8 07 77"
+source = "Name ours. (direction, x, z), ret 0xC (this unread): the cell stepped one way: 0 x-1 z-1, 1 z-1, 2 x+1 z-1, 3 x+1, 4 x+1 z+1, 5 z+1, 6 x-1 z+1, 7 x-1; past 7 nothing. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2c)."
+
+[[entry]]
+name = "cSC4Watercraft::SternPoint"
+address = 0x00567A50
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float* out)"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Name ours. (out), ret 4: the point (+0x2F4) less slot 17's length (ST0) along the heading (+0x30C): x and y less the product stored as a float, z less the product unrounded (x87 at 53 bits); out stored x, y, z. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2c)."
+
+[[entry]]
+name = "cSC4Watercraft::BowPoint"
+address = 0x00567AB0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float* out)"
+expect = "83 EC 0C 56 8B F1 8B 06"
+source = "Name ours. (out), ret 4: as 0x00567A50 with the product added. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2c)."
+
+[[entry]]
+name = "cSC4Watercraft::LongestSide"
+address = 0x00567B10
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this)"
+expect = "83 EC 20 8B 41 04 8D 54"
+source = "Name ours. Plain ret: the occupant part's (+4) slot 10 box (min, max); dx, dy (stored as floats) and dz (unrounded). When the larger of dx and dy (dx unrounded against dy's float, the float of the one taken) is above dz, the larger again (both floats compared, dy on a tie or a NaN); else dz. ST0. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2c)."
+
+[[entry]]
+name = "cSC4Watercraft::MovePoint"
+address = 0x00568230
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float seconds, void* record, float* out)"
+expect = "83 EC 18 D9 81 0C 03 00"
+source = "Name ours. (seconds, record, out), ret 0xC: the heading (+0x30C) flattened (x and z over the root of z*z + x*x; y 0.0 times that) times (+0x354 times the speed +0x2DC) times seconds, each stored as a float (z's unit unrounded), added to the point (+0x2F4); out the sum x, y, z as floats; the record's +0x28 x, +0x2C and +0x30 out's y and z (read back), its byte +1 or 1, its byte +0 plus 1. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2c)."
+
+[[entry]]
+name = "cSC4Watercraft::LeaveDock"
+address = 0x0056D530
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 0C 56 8B F1 8B 8E"
+source = "Name ours. Plain ret: with a leg under way (+0x24C) whose byte +0x274 is set and whose occupant's position (its slot 15) is farther from the boat's (+0x40) than +0x3D4 (x87 at 53 bits: the root of (dz*dz + dy*dy) + dx*dx; equal or a NaN is not): +0x2B0 0; with a watercraft manager (city slot 46) the leg's occupant out of the dock table's first boat (0x0056CFE0), +0x274 0 and the flag 0x10000000 cleared. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2c)."
+
+[[entry]]
+name = "cSC4Watercraft::Steer"
+address = 0x0056C430
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, float* seconds)"
+expect = "81 EC 94 00 00 00 53 56"
+source = "Name ours. (&seconds), ret 4: slot 115's movement on the path (1,051 bytes). Called by address from src/core/automata_watercraft.cpp (part wc2c); still the game's."
+
+[[entry]]
+name = "cSC4Watercraft::Settle"
+address = 0x0056C090
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "51 53 56 57 8B F1 E8 15"
+source = "Name ours. Plain ret: slot 115's step after the movement (914 bytes; starts with 0x005681B0). Called by address from src/core/automata_watercraft.cpp (part wc2c); still the game's."

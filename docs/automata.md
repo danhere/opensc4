@@ -4471,7 +4471,8 @@ One class: cSC4Watercraft (class ID 0x096E75F5, factory 0x00514820, constructor 
 - **wc1 (14, 3,675 bytes, done):** the objects, the save, the life cycle and the queries. Below.
 - **wc2a (8, 2,505 bytes, done):** the drive parameters 0x00567310 (1,845), the legs 0x0056D8B0, 0x0056D920, 0x0056F3F0, 0x0056F480 and 0x0056F700, the sign 0x00566E00 and the tow's release 0x00567E80. Below.
 - **wc2b (10, 1,810 bytes, done):** the slots 110 0x0056E340 and 111 0x00570140 (entering and leaving a state), the leg unlisted 0x0056D4D0, the dock table's listings 0x0056CEC0 and 0x0056CF50, the checks 0x005698E0, 0x005681B0 and 0x00567DF0, a path point erased 0x0056BD50 and the next leg reached 0x005704D0. Below.
-- **wc2 (53, 33,952 bytes; wc2a's 8 and wc2b's 10 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
+- **wc2c (8, 1,305 bytes, done):** the slot 115 0x0056D310 (the drive step), the fanned direction 0x00566F60, the cell step 0x00567000, the stern and bow points 0x00567A50 and 0x00567AB0, the longest side 0x00567B10, a point moved 0x00568230 and leaving the dock 0x0056D530. Below.
+- **wc2 (53, 33,952 bytes; wc2a's 8, wc2b's 10 and wc2c's 8 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
 - **Stay the game's (10):** the adjustor thunks 0x0056DC70 to 0x0056DCF0 and 0x0056F7B0.
 
 Already ours from part aw5 (the watercraft manager calls them; not counted here): 0x00566DA0 (IsPathBoat), 0x0056F510 (SetPath), 0x0056F670 (SetFerryRoute), 0x0056C940 (ConstructLeg), 0x005684C0 (StepDirection), 0x0056D5F0 (CutPathAt). No NAM site and none of SC4UIScale's addresses is in the group.
@@ -4653,3 +4654,83 @@ Each one changed wstate (and the "enter", "leave" or "checks" hash where the cha
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's wc fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wdrive 1E393524, wstate 2062D6EE, wflags CF). Every B run installed the 32 detours and reached all of them. The game itself reaches none of them before the test day in these saves (reach.sh). A first run crashed on both sides in the test only: the core's EnterState passes slot 89 one word (pushed well ahead of the call), and the test's fake took none.
+
+### What is ours (wc2c)
+
+8 functions more in the same group (`simulators.automata.watercraft`, list kDriveStepList; 40 detours in all): slot 115 and seven small helpers of the movement.
+
+- **Slot 115 (1):** 0x0056D310 (Drive, the drive step).
+- **Directions and cells (2):** 0x00566F60 (FanDirection) and 0x00567000 (StepCell).
+- **Points and size (4):** the stern and bow points 0x00567A50 (SternPoint) and 0x00567AB0 (BowPoint), the longest side 0x00567B10 (LongestSide) and a point moved 0x00568230 (MovePoint).
+- **The dock (1):** leaving it 0x0056D530 (LeaveDock).
+
+What they do:
+
+- Slot 115 (seconds) runs the core's DriveKeys first. With a tow, it releases the tow (DropTow) when the unit vector to the tow lies ahead of the core's heading (+0x58), the dot product above zero. With slot 56's keys record whose +0x7C and +0x80 are both -1.0 (both keys up) and a speed not zero, the speed is slowed by its sign (Sign) times seconds times 0.001 times +0x350, and set to zero when its sign changed. When the boat may drive (MayDrive), seconds is clamped to 0..+0x3D0 (a NaN kept) and the game's 0x0056C430 (&seconds; named Steer) and 0x0056C090 (Settle) run. It answers AL 1.
+- FanDirection (nth, direction, out) gives the nth direction fanning out from `direction`: itself, +1, -1, +2, -2, +3, -3, +4, taken modulo 8 with C's sign. Past 7 it only takes out modulo 8 as it is.
+- StepCell (direction, x, z) steps a cell one way of eight: 0 x-1 z-1, 1 z-1, 2 x+1 z-1, 3 x+1, 4 x+1 z+1, 5 z+1, 6 x-1 z+1, 7 x-1 (x first); past 7 nothing.
+- SternPoint and BowPoint (out) give the point (+0x2F4) less or plus slot 17's length along the heading (+0x30C).
+- LongestSide takes the occupant part's slot 10 box (min, max) and answers the longest of dx, dy and dz.
+- MovePoint (seconds, record, out) moves the point along the heading flattened to the ground (y dropped, x and z made a unit) by +0x354 times the speed times seconds. out gets the new point. The record's +0x28..+0x30 gets it too (y and z read back from out), its byte +1 or 1 and its byte +0 one more.
+- LeaveDock: with a leg under way whose byte +0x28 is set and whose occupant (its slot 15) is farther than +0x3D4, +0x2B0 is set to 0. With a watercraft manager it takes the occupant out of the dock table's first boat (UnlistFirst), clears the leg's byte and the flag 0x10000000.
+
+Oddities kept:
+
+- **Floats (x87 at 53 bits):**
+  - Slot 115's tow test keeps dz also as a float: the root of (dz*dzf + dy*dy) + dx*dx, 1 over it stored as a float, x times it stored as a float, then ((z*h.z + y*h.y) + x*h.x).
+  - The stern and bow points round the x and y products to floats, not z's.
+  - MovePoint's unit is 1 over the root of z*z + x*x; y is 0.0 times it, a NaN for a zero heading. x and y are stored as floats, z is not.
+  - LongestSide compares dx unrounded against dy's float first (never observable), then the floats.
+  - LeaveDock's distance is the root of (dz*dz + dy*dy) + dx*dx; equal or a NaN is not farther.
+- **Slot 115** clamps seconds in its own argument slot and hands 0x0056C430 its address. It reads the speed again after the first Sign (ours keeps it; Sign reads only its argument).
+- **LongestSide** leaves its box unset before slot 10 (ours zeroes it).
+- **FanDirection past 7** takes whatever out held modulo 8.
+
+Written by hand, then an independent audit of all 8 against the disassembly, instruction by instruction:
+- the two jump tables;
+- the argument order, count and stack sizes;
+- the x87 stack through each function (which values round to floats, operand order, the order of sums);
+- the flag tests of every comparison (ties and NaNs);
+- the order of field writes against calls, and what is read again.
+
+It found no defect. One comment wording was corrected (LeaveDock's byte named).
+
+### Test (wc2c)
+
+The ` V` token gains `,<wstep>` before wflags (73 fields); wflags 0x100 when it ran. It runs inside the wc2b test with its fakes, plus the boat's slots 17 and 56 and its occupant part's slot 10. Every function runs at its address on the boat from the factory.
+
+The cases:
+- **FanDirection:** nth 0..9 from five directions (0, 5, 7, -3, 0x7FFFFFFE); 50 calls.
+- **StepCell:** the nine directions 0..8, with x and z apart and as one word.
+- **The stern and bow points:** six lengths and headings (a product not exact as a float, a NaN, a z whose float rounding would change the bow's z).
+- **LongestSide:** nine boxes (x, y or z the longest, ties, NaNs, an x and a z not exact as a float).
+- **MovePoint:** five (a zero heading, a byte count that wraps, speeds and seconds of either sign).
+- **LeaveDock:** eight (no occupant, the byte clear, near, exactly at +0x3D4, a NaN position, far with this boat listed first, another listed, no manager).
+- **Slot 115:** nine (a tow ahead, behind, straight above with a dot product of exactly 0, at the boat's own position, none; keys none, both up, one down; speeds slowed, crossing zero, zero, a NaN, negative).
+
+Slot 31 answers in the slot 115 cases, so the core's DriveKeys and MayDrive stop early. The clamp, 0x0056C430 and 0x0056C090 are left to the audit and parity. The fakes' calls and reference counts are mixed. The log lines are "wc2c cells", "points", "move" and "wc2c wstep".
+
+A trial planted nine deliberate changes, one per run:
+1. FanDirection's +1 and -1 swapped;
+2. StepCell's direction 1 without the z step;
+3. the stern and bow points' z product rounded to a float;
+4. LongestSide's dz answered as a float;
+5. MovePoint's record byte or 2;
+6. `>=` in LeaveDock's distance;
+7. `>=` in slot 115's tow test;
+8. slot 115 testing one key only;
+9. slot 115 slowing by +0x354.
+
+Each one changed wstep (and the "cells", "points" or "move" hash where the change was). The same build without a change gave the unchanged token (61164F9B). A first round with a weaker test missed 3 and 7 (no case for them) and a tie in LongestSide that can never be observed. The test gained the cases above, and the tie was replaced by change 4.
+
+### Parity (wc2c)
+
+2026-11-01. As for wc2b (B the same groups with `simulators.automata.watercraft`, muted, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-wc2c, snapshot wc2c-p2:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's wc fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wdrive 1E393524, wstate 2062D6EE, wstep 61164F9B, wflags 1CF). Every B run installed the 40 detours and reached all of them. The game itself reaches none of them before the test day in these saves (reach.sh). An earlier run (p1, with the weaker test) was the same on Making Money and Rush Hour and 10 of 12 in the batch. Big City d0000 differed in pfire2 (field 57) only; the original gives two outcomes there too (part ped4b). Making Money d1095 differed in one of four B runs, on the first day, before the test day and so before any of the 40 is reached.
