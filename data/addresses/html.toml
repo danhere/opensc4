@@ -7,7 +7,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "56 8B F1 E8 47 7A 01 00"
-source = "Name ours, not hooked. The HTML viewer's COM director (vtables 0x00ACCC58 and 0x00ACCC28, ID 0x649B0FBE from 0x008F6776), made once by its getter 0x008F677C. Adds the second, empty director (getter 0x008FC398) to its list and registers class 0xAA12E5F5, the HTML window (factory 0x008FBDBD). Below the survey's 0x008F6800 (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.directors. The HTML viewer's COM director (0x4C bytes, vtables 0x00ACCC58 and 0x00ACCC28, ID 0x649B0FBE from 0x008F6776), made once by its getter 0x008F677C (called from 0x004493FF while the game starts). The base (0x0090E18D), then the second, empty director (getter 0x008FC398) added to its list (0x0090E0D4) and class 0xAA12E5F5 (0x008FA317), the HTML window (factory 0x008FBDBD), registered (0x0090E133). Plain ret, EAX this. Below the survey's 0x008F6800 (docs/html.md, h1)."
 
 [[entry]]
 name = "HTMLDirector::Get"
@@ -16,7 +16,52 @@ kind = "function"
 convention = "cdecl"
 signature = "void* ()"
 expect = "F6 05 3C 24 B6 00 01 75"
-source = "Name ours, not hooked. Static getter of the HTML director at 0x00B623F0 (guard bit at 0x00B6243C), constructing it on first use (docs/html.md, h1)."
+source = "Name ours. Ours in ui.html.directors. Static getter of the HTML director at 0x00B623F0 (guard bit at 0x00B6243C), constructing it on first use with its teardown 0x00A7F38B left to atexit (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLDirector::GetID"
+address = 0x008F6776
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 BE 0F 9B 64 C3"
+source = "Name ours. Ours in ui.html.directors. Slot 13 of the HTML director (vtable 0x00ACCC58): its ID 0x649B0FBE (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLSubDirector::Construct"
+address = 0x008FC379
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 E8 0C 1E 01 00"
+source = "Name ours. Ours in ui.html.directors. The HTML viewer's second COM director (0x4C bytes): the base (0x0090E18D) and vtables 0x00ACD378 and 0x00ACD34C; it registers nothing. Plain ret, EAX this (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLSubDirector::GetID"
+address = 0x008FC392
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "B8 D1 0F 9B A4 C3"
+source = "Name ours. Ours in ui.html.directors. Slot 13 of the second director (vtable 0x00ACD378): its ID 0xA49B0FD1 (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLSubDirector::Get"
+address = 0x008FC398
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "F6 05 8C 24 B6 00 01 75"
+source = "Name ours. Ours in ui.html.directors. Static getter of the second director at 0x00B62440 (guard bit at 0x00B6248C, teardown 0x00A7F395), called by the HTML director's constructor (docs/html.md, h1)."
+
+[[entry]]
+name = "HTMLSharedBlock::Release"
+address = 0x008FC3C3
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "56 8B F1 33 C0 66 8B 46"
+source = "Name ours. Ours in ui.html.block. A block shared by the file cache and the Internet service (storage at +0, a 16-bit count at +8; 12 callers from 0x008F8FFE to 0x008FD998): the count taken down and answered, or at a count of 1 or 0 the storage and the block deleted (0x005E5620) and 0 answered. Plain ret (docs/html.md, h1)."
 
 [[entry]]
 name = "HTMLWindow::Create"

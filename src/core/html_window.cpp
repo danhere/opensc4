@@ -1,7 +1,8 @@
-// Our part of the HTML window (docs/html.md, piece h1, its parts h1a and h1b:
-// "Ours: the window"): the window's life, showing a page, its COM slots and
-// its settings (h1a); its keys and mouse, its view and scroll bars, its paint
-// and its addresses (h1b), written by hand from the disassembly. Each
+// Our part of the HTML window (docs/html.md, piece h1, its parts h1a, h1b and
+// h1c: "Ours: the window"): the window's life, showing a page, its COM slots
+// and its settings (h1a); its keys and mouse, its view and scroll bars, its
+// paint and its addresses (h1b); the viewer's directors and a shared block's
+// release (h1c), written by hand from the disassembly. Each
 // function is a detour on the game's, in groups, off by default:
 //
 //   ui.html.window.life      the constructor, the factory, the destructor
@@ -29,6 +30,12 @@
 //                            rectangle, the page's size, the margins
 //   ui.html.window.address   the service, going to an address, a string and
 //                            a fragment
+//   ui.html.directors        the HTML director and the second, empty one:
+//                            their constructors, IDs (slot 13) and static
+//                            getters (h1c; they run only while the game
+//                            starts)
+//   ui.html.block            the release of the file cache's and the
+//                            service's shared block (h1c)
 //
 // The window is a framework window (GZWin, 0x0099xxxx) with an interface of
 // its own at +0xD8 (vtable 0x00ACD050), the one the game's controls call,
@@ -1458,6 +1465,84 @@ bool GoToFragment(char* face, const Text* fragment)
 }
 
 // ====================================================================================
+// h1c: the directors and the shared block's release
+
+// The HTML director (0x4C bytes, made once at 0x00B623F0, its bit at
+// 0x00B6243C, its teardown 0x00A7F38B) and the second, empty one (at
+// 0x00B62440, its bit at 0x00B6248C, its teardown 0x00A7F395): each a COM
+// director base with two vtables of its own.
+constexpr std::uintptr_t kDirector = 0x00B623F0;
+constexpr std::uintptr_t kDirectorMade = 0x00B6243C;
+constexpr std::uintptr_t kDirectorTeardown = 0x00A7F38B;
+constexpr std::uintptr_t kSubDirector = 0x00B62440;
+constexpr std::uintptr_t kSubDirectorMade = 0x00B6248C;
+constexpr std::uintptr_t kSubDirectorTeardown = 0x00A7F395;
+
+// The HTML director's constructor (0x008F673E): the base, the vtables, the
+// second director added to its list (the base's AddDirector), then the
+// window's class (0x008FA317's ID) with its factory 0x008FBDBD.
+char* ConstructDirector(char* self)
+{
+    CallThis<void*>(addr::cRZCOMDllDirector_Construct, self);
+    At<uint32_t>(self, 0x0) = 0x00ACCC58;
+    At<uint32_t>(self, 0x4) = 0x00ACCC28;
+    void* const sub = CallPlain<void*>(addr::HTMLSubDirector_Get);
+    CallThis<void>(addr::cRZCOMDllDirector_AddDirector, self, sub);
+    const uint32_t classId = CallPlain<uint32_t>(addr::HTMLWindow_GetClassID);
+    CallThis<uint32_t>(addr::cRZCOMDllDirector_AddCls, self, classId, static_cast<uint32_t>(addr::HTMLWindow_Create));
+    return self;
+}
+
+// The second director's constructor (0x008FC379): the base and the
+// vtables; it registers nothing.
+char* ConstructSubDirector(char* self)
+{
+    CallThis<void*>(addr::cRZCOMDllDirector_Construct, self);
+    At<uint32_t>(self, 0x0) = 0x00ACD378;
+    At<uint32_t>(self, 0x4) = 0x00ACD34C;
+    return self;
+}
+
+// Slot 13 of each (0x008F6776, 0x008FC392): the director's ID.
+uint32_t DirectorId(char*) { return 0x649B0FBEu; }
+uint32_t SubDirectorId(char*) { return 0xA49B0FD1u; }
+
+// The static getters (0x008F677C, 0x008FC398): the director made the first
+// time, with its teardown left to atexit.
+char* GetStatic(std::uintptr_t director, std::uintptr_t made, std::uintptr_t construct, std::uintptr_t teardown)
+{
+    uint32_t& bits = *reinterpret_cast<uint32_t*>(made);
+    if ((bits & 1) == 0) {
+        bits |= 1;
+        CallThis<char*>(construct, reinterpret_cast<char*>(director));
+        CallPlain<int>(addr::SC4_atexit, teardown);
+    }
+    return reinterpret_cast<char*>(director);
+}
+
+char* GetDirector() { return GetStatic(kDirector, kDirectorMade, addr::HTMLDirector_Construct, kDirectorTeardown); }
+char* GetSubDirector()
+{
+    return GetStatic(kSubDirector, kSubDirectorMade, addr::HTMLSubDirector_Construct, kSubDirectorTeardown);
+}
+
+// 0x008FC3C3, the file cache's and the service's shared block (its storage
+// at +0, a 16-bit count at +8): the count taken down, or at the last (a
+// count of 1 or 0) the storage and the block deleted. Answers the count
+// left, 0 at the last.
+uint32_t ReleaseBlock(char* self)
+{
+    const uint16_t count = At<uint16_t>(self, 0x8);
+    if (count > 1) {
+        At<uint16_t>(self, 0x8) = static_cast<uint16_t>(count - 1);
+        return static_cast<uint16_t>(count - 1);
+    }
+    CallPlain<void>(addr::SC4_operator_delete, At<void*>(self, 0x0));
+    CallPlain<void>(addr::SC4_operator_delete, static_cast<void*>(self));
+    return 0;
+}
+
+// ====================================================================================
 // The detours
 
 #define OPENSC4_UNPAREN(...) __VA_ARGS__
@@ -1590,6 +1675,15 @@ OPENSC4_THIS_DETOUR(bool, GoToURL, 0x008FB168, GoToURL, (, char* url, uint8_t re
 OPENSC4_THIS_DETOUR(bool, GoToURLText, 0x008FBBF7, GoToURLText, (, const void* text, uint32_t reload),
                     (, text, reload))
 OPENSC4_THIS_DETOUR(bool, GoToFragment, 0x008FC2BD, GoToFragment, (, const Text* fragment), (, fragment))
+
+// h1c: the directors and the shared block.
+OPENSC4_THIS_DETOUR(char*, ConstructDirector, 0x008F673E, ConstructDirector, (), ())
+OPENSC4_THIS_DETOUR(uint32_t, DirectorId, 0x008F6776, DirectorId, (), ())
+OPENSC4_CDECL_DETOUR(char*, GetDirector, 0x008F677C, GetDirector, (), ())
+OPENSC4_THIS_DETOUR(char*, ConstructSubDirector, 0x008FC379, ConstructSubDirector, (), ())
+OPENSC4_THIS_DETOUR(uint32_t, SubDirectorId, 0x008FC392, SubDirectorId, (), ())
+OPENSC4_CDECL_DETOUR(char*, GetSubDirector, 0x008FC398, GetSubDirector, (), ())
+OPENSC4_THIS_DETOUR(uint32_t, ReleaseBlock, 0x008FC3C3, ReleaseBlock, (), ())
 
 // ====================================================================================
 // Installation
@@ -1743,6 +1837,27 @@ bool InstallAddress(registry::Mode)
     return InstallAll("address", detours);
 }
 
+bool InstallDirectors(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(ConstructDirector, addr::HTMLDirector_Construct),
+        OPENSC4_D(DirectorId, addr::HTMLDirector_GetID),
+        OPENSC4_D(GetDirector, addr::HTMLDirector_Get),
+        OPENSC4_D(ConstructSubDirector, addr::HTMLSubDirector_Construct),
+        OPENSC4_D(SubDirectorId, addr::HTMLSubDirector_GetID),
+        OPENSC4_D(GetSubDirector, addr::HTMLSubDirector_Get),
+    };
+    return InstallAll("directors", detours);
+}
+
+bool InstallBlock(registry::Mode)
+{
+    const Detour detours[] = {
+        OPENSC4_D(ReleaseBlock, addr::HTMLSharedBlock_Release),
+    };
+    return InstallAll("block", detours);
+}
+
 const bool g_registered[] = {
     registry::Register({"ui.html.window.life", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
                         addr::HTMLWindow_Construct,
@@ -1785,6 +1900,15 @@ const bool g_registered[] = {
                         "Our HTML window's addresses: the service, going to an address, a string and a fragment "
                         "(4 detours; docs/html.md)",
                         false, InstallAddress}),
+    registry::Register({"ui.html.directors", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLDirector_Construct,
+                        "Our HTML viewer's two directors: their constructors, IDs and static getters (6 "
+                        "detours; docs/html.md)",
+                        false, InstallDirectors}),
+    registry::Register({"ui.html.block", "ui/html", registry::Kind::Detour, registry::Phase::Attach,
+                        addr::HTMLSharedBlock_Release,
+                        "Our release of the HTML viewer's shared block (1 detour; docs/html.md)", false,
+                        InstallBlock}),
 };
 
 } // namespace
