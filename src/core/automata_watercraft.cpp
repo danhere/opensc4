@@ -102,8 +102,10 @@
 #include "core/automata_watercraft.h"
 
 #include "core/address_check.h"
+#include "core/x87.h"
 #include "core/fixed_seed.h"
 #include "core/game.h"
+#include "core/game_access.h"
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
@@ -140,12 +142,6 @@ template <typename T>
 inline T& At(void* base, std::size_t offset)
 {
     return *reinterpret_cast<T*>(static_cast<char*>(base) + offset);
-}
-
-template <typename T>
-inline T Global(std::uintptr_t address)
-{
-    return *reinterpret_cast<const T*>(address);
 }
 
 // A virtual call through the object's first vtable, `byteOffset` in bytes.
@@ -1500,75 +1496,6 @@ int FcomOrder(double a, double b)
     return 0;
 }
 
-template <typename T>
-inline T& GlobalRef(std::uintptr_t address)
-{
-    return *reinterpret_cast<T*>(address);
-}
-
-// FPTAN of the value (the game's instruction; the 1.0 it pushes dropped).
-double X87Tan(double value)
-{
-    double result;
-    __asm {
-        fld value
-        fptan
-        fstp st(0)
-        fstp result
-    }
-    return result;
-}
-
-// The game's FLD1; FPATAN: the arctangent of the value.
-double X87Atan(double value)
-{
-    double result;
-    __asm {
-        fld value
-        fld1
-        fpatan
-        fstp result
-    }
-    return result;
-}
-
-// The game's FSIN and FCOS.
-double X87Sin(double value)
-{
-    double result;
-    __asm {
-        fld value
-        fsin
-        fstp result
-    }
-    return result;
-}
-
-double X87Cos(double value)
-{
-    double result;
-    __asm {
-        fld value
-        fcos
-        fstp result
-    }
-    return result;
-}
-
-// The C runtime's __CIacos (0x009F0090, its argument and answer in ST0),
-// as the tank's slot 121 calls it too (src/core/automata_roadveh.cpp).
-float CrtAcos(double value)
-{
-    float result;
-    const std::uintptr_t function = addr::CRT_CIacos;
-    __asm {
-        fld value
-        call function
-        fstp result
-    }
-    return result;
-}
-
 // The turn mapping's lazy table (+0 an arctangent or tangent, +4 the
 // tangent of the scale times π, +8 the negated half of the turn scale,
 // +0xC the guard). The game fills the guard dword between the loads and
@@ -1576,23 +1503,23 @@ float CrtAcos(double value)
 // instruction: 0x005671D0 takes its tangent, 0x00567080 its arctangent.
 void FillTurnTable(std::uintptr_t table, bool tangentLow)
 {
-    std::uint32_t bits = GlobalRef<std::uint32_t>(table + 0xC);
-    const double scale = static_cast<double>(Global<float>(constant::kTurnScale));
-    const double pi = static_cast<double>(Global<float>(constant::kPi));
+    std::uint32_t bits = Global<std::uint32_t>(table + 0xC);
+    const double scale = static_cast<double>(Global<float>(addr::cSC4Watercraft_TurnScale));
+    const double pi = static_cast<double>(Global<float>(addr::SC4_FloatPi));
     const double half = static_cast<double>(Global<float>(addr::SC4_FloatHalf));
     if (!(bits & 1)) {
-        GlobalRef<std::uint32_t>(table + 0xC) = bits | 1;
-        GlobalRef<float>(table + 8) = static_cast<float>(-(scale * half));
+        Global<std::uint32_t>(table + 0xC) = bits | 1;
+        Global<float>(table + 8) = static_cast<float>(-(scale * half));
     }
     if (!(bits & 2)) {
-        GlobalRef<std::uint32_t>(table + 0xC) = bits | 2;
-        GlobalRef<float>(table + 4) = static_cast<float>(X87Tan(scale * pi));
+        Global<std::uint32_t>(table + 0xC) = bits | 2;
+        Global<float>(table + 4) = static_cast<float>(x87::Tan(scale * pi));
     }
     if (!(bits & 4)) {
-        GlobalRef<std::uint32_t>(table + 0xC) = bits | 4;
-        const double low = static_cast<double>(GlobalRef<float>(table + 8));
-        GlobalRef<float>(table) =
-            static_cast<float>(tangentLow ? X87Tan(low * pi) : X87Atan(low * pi));
+        Global<std::uint32_t>(table + 0xC) = bits | 4;
+        const double low = static_cast<double>(Global<float>(table + 8));
+        Global<float>(table) =
+            static_cast<float>(tangentLow ? x87::Tan(low * pi) : x87::Atan(low * pi));
     }
 }
 
@@ -1608,8 +1535,8 @@ double __fastcall TurnForValue(char* self, void*, float* value)
 {
     static bool logged;
     FirstCall("TurnForValue", logged);
-    FillTurnTable(turntable::kForValue, false);
-    const double pi = static_cast<double>(Global<float>(constant::kPi));
+    FillTurnTable(addr::cSC4Watercraft_TurnTable, false);
+    const double pi = static_cast<double>(Global<float>(addr::SC4_FloatPi));
     const double low = At<float>(self, field::kParam3BC);
     const double high = At<float>(self, field::kParam3C0);
     double v = *value;
@@ -1619,22 +1546,22 @@ double __fastcall TurnForValue(char* self, void*, float* value)
         v = high;
     }
     if (FcomOrder(v, 0.0) != 1) {
-        v = v * static_cast<double>(GlobalRef<float>(turntable::kForValue + 8)) / low;
+        v = v * static_cast<double>(Global<float>(addr::cSC4Watercraft_TurnTable + 8)) / low;
     } else {
-        v = v * static_cast<double>(Global<float>(constant::kTurnScale)) / high;
+        v = v * static_cast<double>(Global<float>(addr::cSC4Watercraft_TurnScale)) / high;
     }
     v *= pi;
     if (At<std::uint32_t>(self, field::kWordDAC) == 2) {
-        v = X87Tan(v);
+        v = x87::Tan(v);
     } else {
-        v = X87Atan(v);
+        v = x87::Atan(v);
     }
     if (FcomOrder(v, 0.0) != 1) {
         v = v * At<float>(self, field::kParam360) /
-            static_cast<double>(GlobalRef<float>(turntable::kForValue + 4));
+            static_cast<double>(Global<float>(addr::cSC4Watercraft_TurnTable + 4));
     } else {
         v = v * At<float>(self, field::kParam35C) /
-            static_cast<double>(GlobalRef<float>(turntable::kForValue));
+            static_cast<double>(Global<float>(addr::cSC4Watercraft_TurnTable));
     }
     const double turnLow = At<float>(self, field::kParam35C);
     const double turnHigh = At<float>(self, field::kParam360);
@@ -1656,7 +1583,7 @@ double __fastcall ValueForTurn(char* self, void*, float* value)
 {
     static bool logged;
     FirstCall("ValueForTurn", logged);
-    FillTurnTable(turntable::kForTurn, true);
+    FillTurnTable(addr::cSC4Watercraft_ValueTable, true);
     const double low = At<float>(self, field::kParam35C);
     const double high = At<float>(self, field::kParam360);
     double v = *value;
@@ -1666,18 +1593,18 @@ double __fastcall ValueForTurn(char* self, void*, float* value)
         v = high;
     }
     if (FcomOrder(v, 0.0) != 1) {
-        v = v * static_cast<double>(GlobalRef<float>(turntable::kForTurn)) / low;
+        v = v * static_cast<double>(Global<float>(addr::cSC4Watercraft_ValueTable)) / low;
     } else {
-        v = v * static_cast<double>(GlobalRef<float>(turntable::kForTurn + 4)) / high;
+        v = v * static_cast<double>(Global<float>(addr::cSC4Watercraft_ValueTable + 4)) / high;
     }
-    v = X87Atan(v);
-    v *= static_cast<double>(Global<float>(constant::kTwoOverPi));
+    v = x87::Atan(v);
+    v *= static_cast<double>(Global<float>(addr::SC4_FloatTwoOverPi));
     if (FcomOrder(v, 0.0) != 1) {
         v = v * At<float>(self, field::kParam3BC) /
-            static_cast<double>(GlobalRef<float>(turntable::kForTurn + 8));
+            static_cast<double>(Global<float>(addr::cSC4Watercraft_ValueTable + 8));
     } else {
         v = v * At<float>(self, field::kParam3C0) /
-            static_cast<double>(Global<float>(constant::kTurnScaleHigh));
+            static_cast<double>(Global<float>(addr::cSC4Watercraft_TurnScaleCopy));
     }
     const double valueLow = At<float>(self, field::kParam3BC);
     const double valueHigh = At<float>(self, field::kParam3C0);
@@ -1715,15 +1642,15 @@ std::uint8_t __fastcall HeadingNear(char* self, void*, float x, float y, float z
     double dot = ((static_cast<double>(z) * inv) * At<float>(self, field::kHeading58 + 8) +
                   (static_cast<double>(y) * inv) * At<float>(self, field::kHeading58 + 4)) +
                  (static_cast<double>(x) * inv) * At<float>(self, field::kHeading58);
-    if (FcomOrder(dot, static_cast<double>(Global<float>(constant::kMinusOne))) == -1) {
+    if (FcomOrder(dot, static_cast<double>(Global<float>(addr::SC4_FloatMinusOne))) == -1) {
         dot = -1.0;
     } else if (FcomOrder(dot, 1.0) == 1) {
         dot = 1.0;
     }
     const double degrees =
-        static_cast<double>(CrtAcos(static_cast<float>(dot))) *
-        static_cast<double>(Global<float>(constant::kDegrees));
-    return FcomOrder(degrees, static_cast<double>(Global<float>(constant::kTwoDegrees))) == -1 ? 1 : 0;
+        static_cast<double>(x87::CrtAcos(static_cast<float>(dot))) *
+        static_cast<double>(Global<float>(addr::SC4_FloatDegreesPerRadian));
+    return FcomOrder(degrees, static_cast<double>(Global<float>(addr::SC4_FloatTwoDegrees))) == -1 ? 1 : 0;
 }
 
 // 0x00567FD0, plain ret, EAX 0..7: which of the eight directions the
@@ -1755,12 +1682,12 @@ int __fastcall HeadingOctant(char* self, void*)
     const float p = static_cast<float>(static_cast<double>(q) + aFloat);  // [ESP+4] and [ESP+0xC]
     const float s = static_cast<float>((zeroA + zeroB) + c);    // [ESP]
     const float angleX = static_cast<float>(
-        static_cast<double>(CrtAcos(p)) * static_cast<double>(Global<float>(constant::kDegrees)));
+        static_cast<double>(x87::CrtAcos(p)) * static_cast<double>(Global<float>(addr::SC4_FloatDegreesPerRadian)));
     const float angleZ = static_cast<float>(
-        static_cast<double>(CrtAcos(static_cast<double>(q) - static_cast<double>(aFloat))) *
-        static_cast<double>(Global<float>(constant::kDegrees)));
-    const double narrow = static_cast<double>(Global<float>(constant::kOctantNarrow));
-    const double wide = static_cast<double>(Global<float>(constant::kOctantWide));
+        static_cast<double>(x87::CrtAcos(static_cast<double>(q) - static_cast<double>(aFloat))) *
+        static_cast<double>(Global<float>(addr::SC4_FloatDegreesPerRadian)));
+    const double narrow = static_cast<double>(Global<float>(addr::SC4_FloatOctantNarrow));
+    const double wide = static_cast<double>(Global<float>(addr::SC4_FloatOctantWide));
     if (FcomOrder(p, 0.0) != 0) {
         // p not zero (or unordered): the z angle sorts when p is at or
         // below zero, the x angle when it is above.
@@ -1824,8 +1751,8 @@ void __fastcall TurnTransform(char* self, void*, char* record)
                        std::sqrt((static_cast<double>(hy) * hy + static_cast<double>(hz) * hz) +
                                  static_cast<double>(hx) * hx);
     const float invFloat = static_cast<float>(inv);
-    const double sinT = X87Sin(t);
-    const double cosT = X87Cos(t);
+    const double sinT = x87::Sin(t);
+    const double cosT = x87::Cos(t);
     const float qx = static_cast<float>(static_cast<float>(hx * inv) * sinT);
     const float qy = static_cast<float>((hy * invFloat) * sinT);
     const double qz = (hz * invFloat) * sinT;
@@ -1857,7 +1784,7 @@ void Corners(const std::int32_t cells[4], std::int32_t out[4][2])
     }
 }
 
-// The two halves of CheckTurn's and the next helper's state pushes: slot
+// CheckTurn's state pushes: slot
 // 102 (0xB, 0) and the state 0x46 or 0x47 pushed with the template's
 // group when the state (slot 59) is 0x10, else 0x49 with -1.0. The
 // game's slot 59 runs again for each push.
@@ -1918,7 +1845,7 @@ void __fastcall CheckTurn(char* self, void*)
                           static_cast<float>(at[2] * invAt)};
     const double dot = (static_cast<double>(atN[2]) * dirN[2] + static_cast<double>(atN[1]) * dirN[1]) +
                        static_cast<double>(dirN[0]) * atN[0];
-    const double angle = static_cast<double>(CrtAcos(dot));
+    const double angle = static_cast<double>(x87::CrtAcos(dot));
     if (FcomOrder(angle, static_cast<double>(At<float>(self, field::kParam3A8))) != 1)
         PushTurnState(self, 0x47);
     else
@@ -1932,30 +1859,34 @@ void __fastcall CheckTurn(char* self, void*)
 // game's order (x0, z0), (x1, z1), (x1, z0), (x0, z1). The bytes come
 // from the core heading's x and z (+0x58, +0x60): the octant of their
 // signs and sizes, per edge, by the game's four tables; every hit writes
-// both bytes and answers 1, no hit (or an edge past the table) answers 0
-// or 1 with the bytes alone.
+// both bytes and answers 1, no hit answers 0. The game also has a path
+// that answers 1 with the bytes alone (an edge past the four tables),
+// which its two loops cannot produce; ours omits it.
 std::uint8_t __fastcall SetTurnBytes(char* self, void*)
 {
     static bool logged;
     FirstCall("SetTurnBytes", logged);
     std::int32_t cells[4] = {};
     Virtual<void>(self + kVtable4, slot::kCells, static_cast<void*>(cells));
+    std::int32_t corners[4][2];
+    Corners(cells, corners);
     int edge = -1;
     void* const city = Global<void*>(addr::SC4_City);
     for (int i = 0; i < 4; ++i) {
         void* const finder = Virtual<void*>(city, slot::kLotAt);
         if (Virtual<std::uint32_t>(finder, slot::kLotOfCell,
-                                             static_cast<std::uint32_t>(i < 2 ? cells[0] : cells[2]),
-                                             static_cast<std::uint32_t>(i % 2 == 0 ? cells[1] : cells[3]),
-                                             0u)) {
+                                   static_cast<std::uint32_t>(corners[i][0]),
+                                   static_cast<std::uint32_t>(corners[i][1]), 0u)) {
             edge = i;
             break;
         }
     }
     if (At<std::uint8_t>(self, field::kByte2B0) == 0 && edge == -1) {
-        void* const water = Global<void*>(addr::SC4_Service43CF0);
+        // The fallback's corners in the game's order: (x0, z0), (x1, z1),
+        // (x1, z0), (x0, z1).
         static const int kFallbackX[4] = {0, 2, 2, 0};
         static const int kFallbackZ[4] = {1, 3, 1, 3};
+        void* const water = Global<void*>(addr::SC4_Service43CF0);
         for (int i = 0; i < 4; ++i) {
             if (!Virtual<std::uint8_t>(water, slot::kWaterService8,
                                        static_cast<std::uint32_t>(cells[kFallbackX[i]]),
@@ -1964,8 +1895,6 @@ std::uint8_t __fastcall SetTurnBytes(char* self, void*)
                 break;
             }
         }
-        if (edge == -1)
-            return 0;
     }
     if (edge == -1)
         return 0;

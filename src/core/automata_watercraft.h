@@ -111,27 +111,6 @@ namespace transform {
 inline constexpr std::size_t kSize = 0x38, kCount = 0x00, kFlags = 0x01, kPoint = 0x28;
 } // namespace transform
 
-// The lazy tables of the turn mapping (parts wc2e): four floats and a guard
-// each, filled on first use. +0 an arctangent, +4 a tangent, +8 the negated
-// half of the turn scale 0x00B0A14C (0.90929427), +0xC the guard dword.
-namespace turntable {
-inline constexpr std::uintptr_t kForValue = 0x00B22A84;  // +0xC the guard
-inline constexpr std::uintptr_t kForTurn = 0x00B22A94;   // +0xC the guard
-} // namespace turntable
-
-// Constants of the turn and octant helpers (parts wc2e).
-namespace constant {
-inline constexpr std::uintptr_t kPi = 0x00A9DA50;            // π
-inline constexpr std::uintptr_t kDegrees = 0x00A9DA5C;       // 180/π
-inline constexpr std::uintptr_t kTwoOverPi = 0x00A9DA60;     // 2/π
-inline constexpr std::uintptr_t kOctantNarrow = 0x00A9DA88;  // 22.5
-inline constexpr std::uintptr_t kOctantWide = 0x00A9DA84;    // 68.0
-inline constexpr std::uintptr_t kTurnScale = 0x00B0A14C;     // 0.90929427
-inline constexpr std::uintptr_t kTurnScaleHigh = 0x00B0A150; // the same value, the inverse mapping's
-inline constexpr std::uintptr_t kMinusOne = 0x00A8FE78;      // -1.0
-inline constexpr std::uintptr_t kTwoDegrees = 0x00B0A154;    // 2.0
-} // namespace constant
-
 // The slots this part calls.
 namespace slot {
 inline constexpr std::size_t kGetTransform = 0x30;  // 12: (transform* out), ret 4

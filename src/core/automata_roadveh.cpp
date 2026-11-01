@@ -105,6 +105,7 @@
 #include "core/automata_roadveh.h"
 
 #include "core/address_check.h"
+#include "core/x87.h"
 #include "core/game.h"
 #include "core/hook.h"
 #include "core/log.h"
@@ -1811,19 +1812,7 @@ double X87Times(const X87& value, double factor)
     return product;
 }
 
-// The C runtime's __CIacos (0x009F0090, its argument and answer in ST0),
-// the answer stored as a float.
-float CrtAcos(double value)
-{
-    float result;
-    const std::uintptr_t function = addr::CRT_CIacos;
-    __asm {
-        fld value
-        call function
-        fstp result
-    }
-    return result;
-}
+using opensc4::x87::CrtAcos;
 
 void UDriveSound(std::size_t on, std::uint32_t id)
 {
