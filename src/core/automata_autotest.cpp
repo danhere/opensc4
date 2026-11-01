@@ -730,6 +730,20 @@
 //   10), and Shutdown again; the dock-table helpers at their addresses over
 //   five probes each; the deleting destructor at its address with flag 0.
 //   The fakes' counts and calls are mixed. Log line: "wc1 wobject".
+//   Part wc2a (the drive parameters, the legs, the sign and the tow's
+//   release) adds `,<wdrive>` before wflags (71 fields), at the game's
+//   addresses on a boat from the factory (slots 13 and 67 the test's): the
+//   drive parameters over 12 templates (none; their own block every float
+//   set, all zero, zeros of both signs with NaNs, an infinity, a denormal
+//   and the three derived ones over set values, the derived ones' sources
+//   zero, the quotients over two NaNs; a parent's, a grandparent's, none up
+//   the chain); the sign over ten values; the leg copy (two legs) and
+//   assignment (five: itself, the same occupant, another, none, into none);
+//   beginning a leg (by value) three times; the next leg over nine first
+//   points (within 1e-4 or not, exactly 1e-4, NaNs); the next leg begun
+//   over the legs listed or not; the tow's release over five (neither, the
+//   tow, +0x284, both, a slot 53 that swaps the tow). wflags 0x40. Log
+//   line: "wc2a wdrive".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -33671,6 +33685,8 @@ struct WcAnswers {
     uint32_t effectCount = 0;
     WcRef effects[48];
     uint32_t madeEffects = 0;
+    char* group = nullptr;    // the boat's slot 67 (part wc2a)
+    WcRef* swapTow = nullptr; // a tow's slot 53 puts this one in its place
 };
 WcAnswers g_wc;
 
@@ -33693,6 +33709,13 @@ void __fastcall WcPushState(WcRef* r, void*, uint32_t a, uint32_t b, uint32_t c,
         g_wc.calls.Mix(v);
 }
 
+void __fastcall WcSlot53(WcRef* r, void*)
+{
+    g_wc.calls.Mix(0x530u + r->id);
+    if (g_wc.swapTow && g_wc.boat)
+        *reinterpret_cast<WcRef**>(g_wc.boat + wc::field::kTow) = g_wc.swapTow;
+}
+
 void** WcRefVtable()
 {
     static void* table[64] = {};
@@ -33700,6 +33723,7 @@ void** WcRefVtable()
     table[2] = reinterpret_cast<void*>(&WcRelease);
     table[4] = reinterpret_cast<void*>(&WcStop);
     table[52] = reinterpret_cast<void*>(&WcPushState);
+    table[53] = reinterpret_cast<void*>(&WcSlot53);
     return table;
 }
 
@@ -33752,7 +33776,8 @@ void __fastcall WcCellOf(void*, void*, float x, float z, int32_t* cx, int32_t* c
     *cz = static_cast<int32_t>(z / 16.0f);
 }
 
-// The boat's own slots the test answers: 13, 30, 67 (no template), 77, 97
+// The boat's own slots the test answers: 13, 30, 67 (no template but in
+// part wc2a's drive parameters), 77, 97
 // (false: the core's Init skips its models), 100, 104, 107.
 void __fastcall WcRemove(char*, void*, uint32_t b)
 {
@@ -33765,7 +33790,7 @@ void __fastcall WcSetFlag(char*, void*, uint32_t flag, uint32_t on)
     g_wc.calls.Mix(flag);
     g_wc.calls.Mix(on & 0xFF);
 }
-void* __fastcall WcTemplate(char*, void*) { return nullptr; }
+void* __fastcall WcTemplate(char*, void*) { return g_wc.group; }
 void __fastcall WcSlot77(char*, void*, uint32_t a)
 {
     g_wc.calls.Mix(77);
@@ -34225,6 +34250,343 @@ void WatercraftDrive(Hash& wobject, Hash& wsave, Hash& wlife, uint32_t& wflags)
                wlife.h, wflags);
 }
 
+// ---- Part wc2a: the drive parameters, the legs, the sign and the tow's
+// release (src/core/automata_watercraft.cpp).
+
+float AsFloatBits(uint32_t bits)
+{
+    float value;
+    std::memcpy(&value, &bits, 4);
+    return value;
+}
+
+// A leg by value, as BeginLeg takes it.
+struct WcLeg {
+    uint32_t words[13];
+};
+
+// A byte vector of the game's allocator (SC4::Free gives it back) holding
+// `count` bytes from `seed`, into the leg at `leg` (+4 begin, +8 end, +0xC
+// capacity, one spare byte).
+void WcFillBytes(char* leg, uint32_t count, uint32_t seed)
+{
+    if (!count) {
+        At<char*>(leg, 4) = At<char*>(leg, 8) = At<char*>(leg, 0xC) = nullptr;
+        return;
+    }
+    char* const b = reinterpret_cast<char*(__cdecl*)(uint32_t)>(addr::SC4_stl_allocate)(count + 1);
+    for (uint32_t i = 0; i < count; ++i)
+        b[i] = static_cast<char>(seed * 37u + i * 11u + 1u);
+    At<char*>(leg, 4) = b;
+    At<char*>(leg, 8) = b + count;
+    At<char*>(leg, 0xC) = b + count + 1;
+}
+
+// A leg's points and the rest from `seed` (the occupant and bytes apart).
+void WcFillTail(char* leg, uint32_t seed)
+{
+    for (std::size_t i = 0x10; i < 0x28; i += 4)
+        At<float>(leg, i) = static_cast<float>(seed) * 1.5f + static_cast<float>(i) * 0.25f;
+    At<uint8_t>(leg, 0x28) = static_cast<uint8_t>(seed + 1);
+    At<uint32_t>(leg, 0x2C) = seed * 3u;
+    At<uint8_t>(leg, 0x30) = static_cast<uint8_t>(seed + 2);
+    At<uint8_t>(leg, 0x31) = static_cast<uint8_t>(seed & 1);
+}
+
+// A leg mixed: its occupant's id, its bytes, their count and capacity, and
+// +0x10..+0x33 whole (the bytes the copies leave too).
+void WcMixLeg(Hash& h, const char* leg)
+{
+    const WcRef* const occupant = *reinterpret_cast<WcRef* const*>(leg);
+    h.Mix(occupant ? occupant->id : 0xFFFFFFFFu);
+    const char* const b = *reinterpret_cast<char* const*>(leg + 4);
+    const char* const e = *reinterpret_cast<char* const*>(leg + 8);
+    const char* const c = *reinterpret_cast<char* const*>(leg + 0xC);
+    h.Mix(static_cast<uint32_t>(e - b));
+    h.Mix(static_cast<uint32_t>(c - b));
+    if (b && e > b)
+        h.MixBytes(b, static_cast<std::size_t>(e - b));
+    h.MixBytes(leg + 0x10, 0x24);
+}
+
+// A leg of the test's given back: its bytes freed, its occupant released.
+void WcDropLeg(char* leg)
+{
+    if (void* const b = At<void*>(leg, 4))
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_Free)(b);
+    At<void*>(leg, 4) = At<void*>(leg, 8) = At<void*>(leg, 0xC) = nullptr;
+    if (void* const occupant = At<void*>(leg, 0))
+        Virtual<uint32_t>(occupant, av::slot::kRelease);
+    At<void*>(leg, 0) = nullptr;
+}
+
+// The boat's route iterator (+0x28C) mixed: its vector as an offset from the
+// boat, its position from the vector's begin, the bytes +8 and +0xB and, on
+// a route, the cell +0xC, +0xE and the bytes +0x10, +0x12, +0x13.
+void WcMixRoute(Hash& h, char* b)
+{
+    char* const it = b + wc::field::kRoute;
+    char* const vector = At<char*>(it, 0);
+    h.Mix(static_cast<uint32_t>(vector - b));
+    h.Mix(static_cast<uint32_t>(At<char*>(it, 4) - At<char*>(vector, 0)));
+    h.Mix(At<uint8_t>(it, 8));
+    h.Mix(At<uint8_t>(it, 0xB));
+    if (!At<uint8_t>(it, 0xB)) {
+        h.Mix(At<uint16_t>(it, 0xC));
+        h.Mix(At<uint16_t>(it, 0xE));
+        h.Mix(At<uint8_t>(it, 0x10));
+        h.Mix(At<uint8_t>(it, 0x12));
+        h.Mix(At<uint8_t>(it, 0x13));
+    }
+}
+
+void WatercraftDrive2(Hash& wdrive, uint32_t& wflags)
+{
+    g_wc = WcAnswers{};
+    char* const b = WcCreate(wflags);
+    if (!b)
+        return;
+    g_wc.boat = b;
+    void** const realBoat = At<void**>(b, 0);
+    At<void**>(b, 0) = WcBoatTable(b);
+
+    // ---- The drive parameters at their address: no template; templates
+    // with their own (every float set, all zero, a mix of zeros of both
+    // signs, NaNs, an infinity and a denormal, the three derived ones from
+    // the block's), without (no parent, a parent's, a grandparent's, none up
+    // the chain).
+    {
+        uint32_t blocks[4][40];
+        for (int i = 0; i < 40; ++i) {
+            blocks[0][i] = Bits((i & 1 ? -1.0f : 1.0f) * (0.5f + 1.25f * static_cast<float>(i)));
+            blocks[1][i] = 0;
+            blocks[2][i] = (i % 3 == 0) ? 0u : (i % 3 == 1) ? 0x80000000u : Bits(0.125f * static_cast<float>(i));
+            blocks[3][i] = Bits(3.0f - 0.375f * static_cast<float>(i));
+        }
+        // Block 2: the derived three zero over set values; a quiet and a
+        // signalling NaN, an infinity, a denormal.
+        blocks[2][0x20 / 4] = 0;
+        blocks[2][0x24 / 4] = Bits(-3.0f);
+        blocks[2][0x1C / 4] = Bits(0.7f);
+        blocks[2][0x48 / 4] = Bits(1.1f);
+        blocks[2][0x44 / 4] = 0x80000000u;
+        blocks[2][0x50 / 4] = 0x7FC00123u;
+        blocks[2][0x4C / 4] = 0;
+        blocks[2][0x54 / 4] = 0x7F800005u;
+        blocks[2][0x58 / 4] = 0x7F800000u;
+        blocks[2][0x5C / 4] = 0x00000001u;
+        blocks[2][0x60 / 4] = 0xFFC00000u;
+        // Block 3: the derived three's sources at their defaults (zero).
+        blocks[3][0x24 / 4] = 0;
+        blocks[3][0x48 / 4] = 0;
+        blocks[3][0x50 / 4] = 0;
+        blocks[3][0x20 / 4] = 0;
+        blocks[3][0x44 / 4] = 0;
+        blocks[3][0x4C / 4] = 0;
+        // Block 4: both operands of the two quotients NaNs (the larger
+        // significand wins on x87), +0x364's source a negative NaN.
+        uint32_t extra[40];
+        std::memcpy(extra, blocks[2], sizeof extra);
+        extra[0x48 / 4] = 0x7FC00010u;
+        extra[0x1C / 4] = 0xFFC00200u;
+        extra[0x44 / 4] = 0;
+        extra[0x50 / 4] = 0x7FC00300u;
+        extra[0x24 / 4] = 0x7F800040u;
+        extra[0x4C / 4] = 0;
+        alignas(4) char groups[3][0x70];
+        for (int c = 0; c < 12; ++c) {
+            std::memset(groups, 0, sizeof groups);
+            char* group = groups[0];
+            switch (c) {
+            case 0: group = nullptr; break;
+            case 1: case 2: case 3: case 4: At<void*>(group, wc::group::kDriveParams) = blocks[c - 1]; break;
+            case 5: break;
+            case 6: At<char*>(group, wc::group::kParent) = groups[1]; At<void*>(groups[1], 0x60) = blocks[0]; break;
+            case 7:
+                At<char*>(group, wc::group::kParent) = groups[1];
+                At<char*>(groups[1], wc::group::kParent) = groups[2];
+                At<void*>(groups[2], 0x60) = blocks[2];
+                break;
+            case 8: At<char*>(group, wc::group::kParent) = groups[1]; At<char*>(groups[1], wc::group::kParent) = groups[2]; break;
+            case 9: At<void*>(group, wc::group::kDriveParams) = blocks[3]; At<char*>(group, wc::group::kParent) = groups[1]; break;
+            case 11: At<void*>(group, wc::group::kDriveParams) = extra; break;
+            default: At<char*>(group, wc::group::kParent) = groups[1]; At<void*>(groups[1], 0x60) = blocks[3]; break;
+            }
+            g_wc.group = group;
+            std::memset(b + wc::field::kDriveParams, 0xCD, wc::field::kDriveParamsSize);
+            This<void>(addr::cSC4Watercraft_ReadDriveParams, b);
+            wdrive.MixBytes(b + wc::field::kDriveParams, wc::field::kDriveParamsSize);
+        }
+        g_wc.group = nullptr;
+    }
+    log::Write("autotest: automata: vehicle: wc2a drive %08X", wdrive.h);
+
+    // ---- The sign at its address.
+    {
+        const uint32_t values[] = {Bits(-1.0f), 0x80000000u, 0u, Bits(2.5f), 0x7FC00000u, 0xFFC00000u,
+                                   0x80000001u, 0xFF800000u, 0x7F800000u, Bits(-1e-30f)};
+        for (const uint32_t v : values) {
+            float x;
+            std::memcpy(&x, &v, 4);
+            wdrive.Mix(Bits(This<float>(addr::cSC4Watercraft_Sign, b, x)));
+        }
+    }
+
+    // ---- The leg copy at its address: from a leg with an occupant and
+    // bytes, from one with neither; into a leg of a set pattern.
+    WcRef occupants[8];
+    for (uint32_t i = 0; i < 8; ++i)
+        occupants[i] = WcMake(0x20u + i);
+    g_wc.calls = Hash{};
+    for (int c = 0; c < 2; ++c) {
+        alignas(4) char from[0x34], to[0x34];
+        std::memset(from, 0, sizeof from);
+        std::memset(to, 0xA5, sizeof to);
+        At<void*>(from, 0) = c ? nullptr : &occupants[0];
+        if (!c)
+            Virtual<uint32_t>(&occupants[0], av::slot::kAddRef);
+        WcFillBytes(from, c ? 0u : 5u, 1);
+        WcFillTail(from, 7u + c);
+        char* const answer = This<char*>(addr::cSC4Watercraft_CopyLeg, to, static_cast<const char*>(from));
+        wdrive.Mix(answer == to ? 1u : 0u);
+        WcMixLeg(wdrive, to);
+        WcMixLeg(wdrive, from);
+        wdrive.Mix(At<char*>(to, 4) && At<char*>(to, 4) == At<char*>(from, 4) ? 1u : 0u);
+        WcMixRefs(wdrive, occupants, 1);
+        WcDropLeg(to);
+        WcDropLeg(from);
+    }
+
+    // ---- The leg assignment at its address: to itself, the same occupant
+    // with other bytes, another occupant, none, one into none.
+    for (int c = 0; c < 5; ++c) {
+        alignas(4) char from[0x34], to[0x34];
+        std::memset(from, 0x3C, sizeof from);
+        std::memset(to, 0xA5, sizeof to);
+        At<void*>(to, 0) = c == 4 ? nullptr : &occupants[1];
+        if (c != 4)
+            Virtual<uint32_t>(&occupants[1], av::slot::kAddRef);
+        WcFillBytes(to, 3, 2);
+        WcFillTail(to, 9);
+        void* const given[5] = {nullptr, &occupants[1], &occupants[2], nullptr, &occupants[3]};
+        At<void*>(from, 0) = given[c];
+        if (given[c])
+            Virtual<uint32_t>(given[c], av::slot::kAddRef);
+        WcFillBytes(from, c == 3 ? 0u : 8u, 3u + c);
+        WcFillTail(from, 11u + c);
+        const char* const source = c == 0 ? to : from;
+        char* const answer = This<char*>(addr::cSC4Watercraft_AssignLeg, to, source);
+        wdrive.Mix(answer == to ? 1u : 0u);
+        WcMixLeg(wdrive, to);
+        WcMixRefs(wdrive, occupants, 4);
+        WcDropLeg(to);
+        WcDropLeg(from);
+    }
+    wdrive.Mix(g_wc.calls.h);
+
+    // ---- Beginning a leg at its address (by value): a route of three
+    // bytes and a count of zero over a leg under way with another occupant,
+    // no bytes and a count of 5, the same occupant again. The path before
+    // holds its 11 points.
+    for (int c = 0; c < 3; ++c) {
+        g_wc.calls = Hash{};
+        if (c == 0) {
+            At<void*>(b, wc::field::kLeg) = &occupants[4];
+            Virtual<uint32_t>(&occupants[4], av::slot::kAddRef);
+        }
+        WcLeg leg;
+        char* const l = reinterpret_cast<char*>(&leg);
+        std::memset(l, 0x5A, sizeof leg);
+        At<void*>(l, 0) = c == 1 ? nullptr : &occupants[5];
+        if (c != 1)
+            Virtual<uint32_t>(&occupants[5], av::slot::kAddRef);
+        WcFillBytes(l, c == 1 ? 0u : 3u + c, 20u + c);
+        WcFillTail(l, 30u + c);
+        At<uint32_t>(l, 0x2C) = c == 1 ? 5u : 0u;
+        char* const pathEnd = At<char*>(b, wc::field::kPath + 4);
+        wdrive.Mix(static_cast<uint32_t>(pathEnd - At<char*>(b, wc::field::kPath)));
+        This<void>(addr::cSC4Watercraft_BeginLeg, b, leg);
+        WcMixLeg(wdrive, b + wc::field::kLeg);
+        WcMixRoute(wdrive, b);
+        wdrive.Mix(static_cast<uint32_t>(At<char*>(b, wc::field::kPath + 4) - At<char*>(b, wc::field::kPath)));
+        wdrive.Mix(static_cast<uint32_t>(At<char*>(b, wc::field::kPath + 8) - At<char*>(b, wc::field::kPath)));
+        WcMixRefs(wdrive, occupants, 8);
+        wdrive.Mix(g_wc.calls.h);
+    }
+
+    // ---- The next leg at its address: the leg under way's first point the
+    // first leg's, within 1e-4 or not in each part, a NaN.
+    std::memset(b + wc::field::kLegA, 0, 0x10);
+    std::memset(b + wc::field::kLegB, 0, 0x10);
+    At<void*>(b, wc::field::kLegA) = &occupants[6];
+    At<void*>(b, wc::field::kLegB) = &occupants[7];
+    Virtual<uint32_t>(&occupants[6], av::slot::kAddRef);
+    Virtual<uint32_t>(&occupants[7], av::slot::kAddRef);
+    WcFillBytes(b + wc::field::kLegA, 2, 40);
+    WcFillBytes(b + wc::field::kLegB, 4, 41);
+    WcFillTail(b + wc::field::kLegA, 42);
+    WcFillTail(b + wc::field::kLegB, 43);
+    {
+        // The second part 0: a difference of exactly 1e-4 (0x00A9DA48) is
+        // not within.
+        const float a[3] = {100.0f, 0.0f, -50.0f};
+        std::memcpy(b + wc::field::kLegA + 0x10, a, 12);
+        const float nan = AsFloatBits(0x7FC00000u), limit = AsFloatBits(0x38D1B717u);
+        const float cases[9][3] = {{100.0f, 0.0f, -50.0f},        {100.00005f, 0.0f, -50.0f},
+                                   {100.0f, limit, -50.0f},        {100.0f, -0.99f * limit, -50.0002f},
+                                   {nan, 0.0f, -50.0f},            {100.0f, -0.00005f, -49.99995f},
+                                   {99.9f, 0.0f, -50.0f},          {100.0f, nan, -50.0f},
+                                   {100.0f, -0.99f * limit, -50.0f}};
+        for (const auto& p : cases) {
+            std::memcpy(b + wc::field::kLeg + 0x10, p, 12);
+            alignas(4) char out[0x34];
+            std::memset(out, 0x77, sizeof out);
+            char* const answer = This<char*>(addr::cSC4Watercraft_PickNextLeg, b, out);
+            wdrive.Mix(answer == out ? 1u : 0u);
+            WcMixLeg(wdrive, out);
+            WcDropLeg(out);
+        }
+        WcMixRefs(wdrive, occupants, 8);
+    }
+
+    // ---- The next leg begun at its address: the legs listed or not.
+    for (int c = 0; c < 4; ++c) {
+        g_wc.calls = Hash{};
+        At<uint8_t>(b, wc::field::kLegA + wc::field::kLegListed) = (c & 1) ? 1 : 0;
+        At<uint8_t>(b, wc::field::kLegB + wc::field::kLegListed) = (c & 2) ? 1 : 0;
+        std::memcpy(b + wc::field::kLeg + 0x10, b + wc::field::kLegA + 0x10, 12);
+        At<uint32_t>(b, wc::field::kLeg + wc::field::kLegCount) = 0;
+        This<void>(addr::cSC4Watercraft_NextLeg, b);
+        WcMixLeg(wdrive, b + wc::field::kLeg);
+        WcMixRoute(wdrive, b);
+        WcMixRefs(wdrive, occupants, 8);
+        wdrive.Mix(g_wc.calls.h);
+    }
+
+    // ---- The tow's release at its address: neither, a tow, +0x284, both,
+    // a tow whose slot 53 puts another in its place.
+    for (int c = 0; c < 5; ++c) {
+        g_wc.calls = Hash{};
+        WcRef tow = WcMake(0x30), r284 = WcMake(0x31), other = WcMake(0x32);
+        At<void*>(b, wc::field::kTow) = (c & 1) || c == 4 ? &tow : nullptr;
+        At<void*>(b, wc::field::kRef284) = (c & 2) ? &r284 : nullptr;
+        g_wc.swapTow = c == 4 ? &other : nullptr;
+        This<void>(addr::cSC4Watercraft_DropTow, b);
+        wdrive.Mix(At<void*>(b, wc::field::kTow) ? 1u : 0u);
+        wdrive.Mix(At<void*>(b, wc::field::kRef284) ? 1u : 0u);
+        WcMixRefs(wdrive, &tow, 1);
+        WcMixRefs(wdrive, &r284, 1);
+        WcMixRefs(wdrive, &other, 1);
+        wdrive.Mix(g_wc.calls.h);
+        g_wc.swapTow = nullptr;
+    }
+    wflags |= 0x40;
+
+    At<void**>(b, 0) = realBoat;
+    WcRelease(b);
+    log::Write("autotest: automata: vehicle: wc2a wdrive %08X", wdrive.h);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -34599,6 +34961,10 @@ void VehicleDrive(cISC4City* city)
     uint32_t wflags = 0;
     WatercraftDrive(wobject, wsave, wlife, wflags);
 
+    // ---- Part wc2a.
+    Hash wdrive;
+    WatercraftDrive2(wdrive, wflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -34655,14 +35021,14 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
                   pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags,
-                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wflags);
+                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wdrive.h, wflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

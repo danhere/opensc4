@@ -1,17 +1,21 @@
-// Our boat, part wc1 (build 641): cSC4Watercraft on the automata core
+// Our boat, parts wc1 and wc2a (build 641): cSC4Watercraft on the automata core
 // (src/core/automata_vehicle.cpp has the core's ported slots; the core's own
 // code stays the game's). wc1: the objects (the factory, the constructor,
 // the destructor body and the deleting destructor, QueryInterface and
 // GetGZCLSID), the save (Write and Read), the life cycle (Init and Shutdown,
 // with the two dock-table helpers Shutdown calls) and the queries (slot 16,
-// the placement, and slot 93, the debug text). The layout is in
+// the placement, and slot 93, the debug text). wc2a: the drive parameters'
+// reader, the legs' copy and assignment, beginning a leg, picking and
+// beginning the next leg of a ferry route, the sign of a float and the tow's
+// release. The layout is in
 // src/core/automata_watercraft.h and the survey in docs/automata.md, "Part
 // wc". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.watercraft: the 14 detours in kObject (wc1) below.
+//   simulators.automata.watercraft: the 14 detours in kObject (wc1) and the 8
+//   in kDriveList (wc2a) below.
 //
 // What it does. The boat is 0xDC8 bytes from SC4::operator_new and goes
 // back through SC4::operator_delete. Its constructor runs the core's with
@@ -37,11 +41,17 @@
 // manager for null, and normalises a zero heading into NaNs; the dock table
 // is hashed by the leg's occupant pointer without testing the bucket count.
 //
+// wc2a's oddities: the drive parameters take a zero of either sign for unset
+// and keep a NaN (made quiet, as x87 loads it); the next leg is the second
+// only when the first point matches the first leg's (a NaN picks the first);
+// the tow's release reads the tow again after its slot 53.
+//
 // Floats: Init's normalisation is x87 at 53 bits: (x*x + y*y) + z*z, its
 // square root, 1 (0x00B0A18C) over it, each part times that (doubles here).
 //
 // Still the game's, at their addresses: the core's code (part vb), the
-// drive parameters' reader 0x00567310 and the rest of the boat (part wc2),
+// rest of the boat (part wc2: slots 72, 109, 110, 111, 115, 121, the +0x38
+// part's slot 3 and their helpers), the group's drive parameters 0x004FC8E0,
 // the ten adjustor thunks, the string, vector, generator and effect code,
 // the message server and the city.
 
@@ -559,6 +569,272 @@ void* __fastcall DebugText(char* self, void*)
 }
 
 // ====================================================================================
+// The drive parameters (part wc2a)
+
+// A float as the game's x87 code loads and stores it: a signalling NaN comes
+// back quiet.
+std::uint32_t Loaded(std::uint32_t bits)
+{
+    if ((bits & 0x7F800000u) == 0x7F800000u && (bits & 0x007FFFFFu) && !(bits & 0x00400000u))
+        bits |= 0x00400000u;
+    return bits;
+}
+
+float AsFloat(std::uint32_t bits)
+{
+    float value;
+    std::memcpy(&value, &bits, 4);
+    return value;
+}
+
+std::uint32_t BitsOf(float value)
+{
+    std::uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+// x87's quotient of two floats rounded to single (at 53 bits the same as a
+// single division), except that of two NaNs x87 answers the one with the
+// larger significand (SSE the dividend).
+std::uint32_t Quotient(std::uint32_t dividend, std::uint32_t divisor)
+{
+    const auto isNaN = [](std::uint32_t v) { return (v & 0x7F800000u) == 0x7F800000u && (v & 0x007FFFFFu); };
+    if (isNaN(dividend) && isNaN(divisor))
+        return Loaded((divisor & 0x007FFFFFu) > (dividend & 0x007FFFFFu) ? divisor : dividend);
+    return BitsOf(AsFloat(dividend) / AsFloat(divisor));
+}
+
+// How a parameter's zero is replaced: by its default, or (three of them) by
+// one already read: the negated +0x368, +0x38C over +0x360, +0x394 over
+// +0x368.
+enum class Zero : std::uint8_t { Default, Negated368, Ratio388, Ratio390 };
+
+// The 40 parameters in the game's order: the offset in the template's block,
+// the boat's field, the value without a template (each default's constant in
+// the game: 0x00A8C950, 0x00A867A4, 0x00A81228, 0x00A880D8, 0x00A94D54,
+// 0x00A84D28, 0x00A94D60, 0x00A97D74, 0x00A8825C, -, 0x00A867A4, 0x00A84D24,
+// 0x00A84D28, 0x00A867A4, 0x00A867A4, 0x00A8C950, 0x00A84D2C, 0x00A9DA80, -,
+// 0x00A949F0, -, 0x00A9DA7C, 0x00A9DA78, 0x00A9BEF8, 0x00A9DA74, 0x00A9DA70,
+// 0x00A94D50, 0x00A84D2C, 0x00A8821C, 0x00A98F34, 0x00A9DA6C, 0x00A9DA68,
+// 0x00A949F4, 0x00A81054, 0x00A8825C, 0x00A80AA0, 0x00A9DA64, 0x00A873A4,
+// 0x00A81228, 0x00A81228; the three derived ones written as constants there).
+struct DriveParam {
+    std::uint16_t from, to;
+    std::uint32_t fallback;
+    Zero zero;
+};
+constexpr DriveParam kDrive[] = {
+    {0x00, 0x344, 0x3DCCCCCD, Zero::Default},  {0x04, 0x348, 0x3A83126F, Zero::Default},
+    {0x08, 0x34C, 0x3F800000, Zero::Default},  {0x0C, 0x350, 0x3D4CCCCD, Zero::Default},
+    {0x10, 0x354, 0x3E4CCCCD, Zero::Default},  {0x14, 0x358, 0x40A00000, Zero::Default},
+    {0x18, 0x35C, 0xBDCCCCCD, Zero::Default},  {0x1C, 0x360, 0x3E99999A, Zero::Default},
+    {0x24, 0x368, 0x40000000, Zero::Default},  {0x20, 0x364, 0xC0000000, Zero::Negated368},
+    {0x28, 0x36C, 0x3A83126F, Zero::Default},  {0x2C, 0x370, 0x42480000, Zero::Default},
+    {0x30, 0x374, 0x40A00000, Zero::Default},  {0x34, 0x378, 0x3A83126F, Zero::Default},
+    {0x38, 0x37C, 0x3A83126F, Zero::Default},  {0x3C, 0x380, 0x3DCCCCCD, Zero::Default},
+    {0x40, 0x384, 0x3F000000, Zero::Default},  {0x48, 0x38C, 0x3EA0D97C, Zero::Default},
+    {0x44, 0x388, 0x3F860A92, Zero::Ratio388}, {0x50, 0x394, 0x3E860A92, Zero::Default},
+    {0x4C, 0x390, 0x3E060A92, Zero::Ratio390}, {0x54, 0x398, 0x45FA0000, Zero::Default},
+    {0x58, 0x39C, 0x3F490FD0, Zero::Default},  {0x5C, 0x3A0, 0x3F733333, Zero::Default},
+    {0x60, 0x3A4, 0x400BA058, Zero::Default},  {0x64, 0x3A8, 0x3F860A92, Zero::Default},
+    {0x68, 0x3AC, 0x41200000, Zero::Default},  {0x6C, 0x3B0, 0x3F000000, Zero::Default},
+    {0x70, 0x3B4, 0x3E800000, Zero::Default},  {0x74, 0x3B8, 0x3F400000, Zero::Default},
+    {0x78, 0x3BC, 0xC4FA0000, Zero::Default},  {0x7C, 0x3C0, 0x453B8000, Zero::Default},
+    {0x80, 0x3C4, 0x43160000, Zero::Default},  {0x84, 0x3C8, 0x00000000, Zero::Default},
+    {0x88, 0x3CC, 0x40000000, Zero::Default},  {0x8C, 0x3D0, 0x42C80000, Zero::Default},
+    {0x90, 0x3D4, 0x43960000, Zero::Default},  {0x94, 0x3D8, 0x42B40000, Zero::Default},
+    {0x98, 0x3DC, 0x3F800000, Zero::Default},  {0x9C, 0x3E0, 0x3F800000, Zero::Default},
+};
+static_assert(sizeof kDrive / sizeof kDrive[0] == field::kDriveParamsSize / 4, "40 drive parameters");
+
+// 0x00567310, plain ret (Init's and the +0x38 part's slot 3's): the
+// template's (slot 67) WatercraftDriveParams, its own (+0x60) or else its
+// parent's up the chain (0x004FC8E0 on +0xC). Each float into +0x344..
+// unless it is zero (either sign; a NaN is kept, made quiet as x87 loads
+// it); a zero gives its default, or for +0x364 the negated +0x368, for
+// +0x388 +0x38C over +0x360 and for +0x390 +0x394 over +0x368 (x87 at 53
+// bits, rounded to single). Without a template or parameters every field its constant.
+void __fastcall ReadDriveParams(char* self, void*)
+{
+    static bool logged;
+    FirstCall("ReadDriveParams", logged);
+    char* from = nullptr;
+    if (char* const group = Virtual<char*>(self, slot::kTemplate)) {
+        from = At<char*>(group, group::kDriveParams);
+        if (!from)
+            if (void* const parent = At<void*>(group, group::kParent))
+                from = CallThis<char*>(addr::cSC4AutomataManager_GroupDriveParams, parent);
+    }
+    for (const DriveParam& p : kDrive) {
+        std::uint32_t value = p.fallback;
+        if (from) {
+            const std::uint32_t given = At<std::uint32_t>(from, p.from);
+            if (AsFloat(given) != 0.0f) {
+                value = Loaded(given);
+            } else {
+                switch (p.zero) {
+                case Zero::Default: break;
+                case Zero::Negated368: value = At<std::uint32_t>(self, 0x368) ^ 0x80000000u; break;
+                case Zero::Ratio388: value = Quotient(At<std::uint32_t>(self, 0x38C), At<std::uint32_t>(self, 0x360)); break;
+                case Zero::Ratio390: value = Quotient(At<std::uint32_t>(self, 0x394), At<std::uint32_t>(self, 0x368)); break;
+                }
+            }
+        }
+        At<std::uint32_t>(self, p.to) = value;
+    }
+}
+
+// ====================================================================================
+// The legs (part wc2a)
+
+// A leg by value (0x34 bytes, see the header).
+struct Leg {
+    std::uint32_t words[13];
+};
+static_assert(sizeof(Leg) == field::kLegSize, "a leg is 0x34 bytes");
+
+// A leg's +0x10..+0x27 (the points), the byte +0x28, the word +0x2C and the
+// bytes +0x30 and +0x31 copied (the bytes between left).
+void CopyLegTail(char* to, const char* from)
+{
+    for (std::size_t i = field::kLegPoints; i < field::kLegByte28; i += 4)
+        At<std::uint32_t>(to, i) = *reinterpret_cast<const std::uint32_t*>(from + i);
+    to[field::kLegByte28] = from[field::kLegByte28];
+    At<std::uint32_t>(to, field::kLegCount) = *reinterpret_cast<const std::uint32_t*>(from + field::kLegCount);
+    to[field::kLegByte30] = from[field::kLegByte30];
+    to[field::kLegListed] = from[field::kLegListed];
+}
+
+// 0x0056D8B0, a leg copy-constructed from `other`, ret 4: the occupant
+// (AddRef), the byte vector (SC4ByteVector::CopyConstruct), the rest. EAX
+// this.
+char* __fastcall CopyLeg(char* self, void*, const char* other)
+{
+    static bool logged;
+    FirstCall("CopyLeg", logged);
+    void* const occupant = *reinterpret_cast<void* const*>(other);
+    At<void*>(self, field::kLegRef) = occupant;
+    if (occupant)
+        Virtual<std::uint32_t>(occupant, kAddRef);
+    CallThis<void*>(addr::SC4ByteVector_CopyConstruct, self + field::kLegBytes,
+                    static_cast<const void*>(other + field::kLegBytes));
+    CopyLegTail(self, other);
+    return self;
+}
+
+// 0x0056D920, a leg assigned from `other`, ret 4: unless it is itself, a
+// different occupant held (AddRef), stored, the old one let go of; then
+// always the byte vector (SC4ByteVector::Assign) and the rest. EAX this.
+char* __fastcall AssignLeg(char* self, void*, const char* other)
+{
+    static bool logged;
+    FirstCall("AssignLeg", logged);
+    if (other != self) {
+        void* const given = *reinterpret_cast<void* const*>(other);
+        void* const held = At<void*>(self, field::kLegRef);
+        if (given != held) {
+            if (given)
+                Virtual<std::uint32_t>(given, kAddRef);
+            At<void*>(self, field::kLegRef) = given;
+            if (held)
+                Release(held);
+        }
+    }
+    CallThis<void*>(addr::SC4ByteVector_Assign, self + field::kLegBytes,
+                    static_cast<const void*>(other + field::kLegBytes));
+    CopyLegTail(self, other);
+    return self;
+}
+
+// 0x0056F3F0, the boat begins a leg (by value), ret 0x34: the leg under way
+// assigned from it (0x0056D920), its byte +0x28 1, its word +0x2C 2 when
+// zero, its byte +0x30 0; the route iterator +0x28C started on its byte
+// vector; the path emptied (SC4Vector16::Copy). The argument's byte vector
+// freed and its occupant let go of.
+void __fastcall BeginLeg(char* self, void*, Leg leg)
+{
+    static bool logged;
+    FirstCall("BeginLeg", logged);
+    char* const given = reinterpret_cast<char*>(&leg);
+    CallThis<char*>(addr::cSC4Watercraft_AssignLeg, self + field::kLeg, static_cast<const char*>(given));
+    At<std::uint8_t>(self, field::kLeg + field::kLegByte28) = 1;
+    if (!At<std::uint32_t>(self, field::kLeg + field::kLegCount))
+        At<std::uint32_t>(self, field::kLeg + field::kLegCount) = 2;
+    At<std::uint8_t>(self, field::kLeg + field::kLegByte30) = 0;
+    CallThis<void>(addr::SC4RouteIterator_Init, self + field::kRoute,
+                   static_cast<void*>(self + field::kLeg + field::kLegBytes));
+    char* const end = At<char*>(self, field::kPath + 4);
+    // The two arguments after the destination are not read; the game
+    // passes the argument's address and 0.
+    At<char*>(self, field::kPath + 4) = CallCdecl<char*>(addr::SC4Vector16_Copy, end, end,
+                                                         At<char*>(self, field::kPath), static_cast<void*>(given), 0u);
+    if (void* const bytes = At<void*>(given, field::kLegBytes))
+        Free(bytes);
+    if (void* const occupant = At<void*>(given, field::kLegRef))
+        Release(occupant);
+}
+
+// 0x0056F480, the next leg of a ferry route into `out` (0x0056D8B0), ret
+// 4: the second (+0x218) when the leg under way's first point is the first
+// leg's (each part's difference within 0x00A9DA48, 1e-4; x87 at 53 bits),
+// else the first (+0x1E4; a NaN too). EAX out.
+char* __fastcall PickNextLeg(char* self, void*, char* out)
+{
+    static bool logged;
+    FirstCall("PickNextLeg", logged);
+    const double limit = static_cast<double>(AsFloat(0x38D1B717u));
+    bool same = true;
+    for (std::size_t i = 0; i < 12 && same; i += 4) {
+        const double d = static_cast<double>(At<float>(self, field::kLeg + field::kLegPoints + i)) -
+                         static_cast<double>(At<float>(self, field::kLegA + field::kLegPoints + i));
+        same = std::fabs(d) < limit;
+    }
+    return CallThis<char*>(addr::cSC4Watercraft_CopyLeg, out,
+                           static_cast<const char*>(self + (same ? field::kLegB : field::kLegA)));
+}
+
+// 0x0056F700, plain ret (slot 111's): with both legs listed (+0x215 and
+// +0x249) the next leg (0x0056F480, built where the argument goes) begun
+// (0x0056F3F0); else slot 13 (1).
+void __fastcall NextLeg(char* self, void*)
+{
+    static bool logged;
+    FirstCall("NextLeg", logged);
+    if (At<std::uint8_t>(self, field::kLegA + field::kLegListed) &&
+        At<std::uint8_t>(self, field::kLegB + field::kLegListed)) {
+        // Ours builds it on the stack and hands it on bitwise (a leg holds no
+        // pointer to itself).
+        Leg next;
+        CallThis<char*>(addr::cSC4Watercraft_PickNextLeg, self, reinterpret_cast<char*>(&next));
+        CallThis<void>(addr::cSC4Watercraft_BeginLeg, self, next);
+        return;
+    }
+    Virtual<void>(self, slot::kRemove, 1u);
+}
+
+// 0x00566E00, (x), ret 4 (this unread): -1 (0x00A8FE78) when x is below
+// zero, else 1 (0x00A81228; a NaN too). ST0.
+float __fastcall Sign(char*, void*, float x)
+{
+    static bool logged;
+    FirstCall("Sign", logged);
+    return x < 0.0f ? AsFloat(0xBF800000u) : AsFloat(0x3F800000u);
+}
+
+// 0x00567E80, plain ret: the tow's slot 53, then the tow (read again) and
+// +0x284 cleared and let go of.
+void __fastcall DropTow(char* self, void*)
+{
+    static bool logged;
+    FirstCall("DropTow", logged);
+    if (void* const tow = At<void*>(self, field::kTow))
+        Virtual<void>(tow, slot::kSlot53);
+    Drop(self, field::kTow);
+    Drop(self, field::kRef284);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -619,11 +895,24 @@ const Detour kObject[] = {
     OPENSC4_DETOUR(addr::cSC4Watercraft_DebugText, DebugText),
 };
 
+// Part wc2a.
+const Detour kDriveList[] = {
+    OPENSC4_DETOUR(addr::cSC4Watercraft_ReadDriveParams, ReadDriveParams),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_CopyLeg, CopyLeg),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_AssignLeg, AssignLeg),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_BeginLeg, BeginLeg),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_PickNextLeg, PickNextLeg),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_NextLeg, NextLeg),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_Sign, Sign),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_DropTow, DropTow),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
-    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object");
+    return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
+           InstallList(kDriveList, sizeof kDriveList / sizeof kDriveList[0], "drive");
 }
 
 const bool g_registered[] = {
@@ -632,7 +921,9 @@ const bool g_registered[] = {
                         "Our boat (cSC4Watercraft), the objects: the factory, the constructor, the destructor body "
                         "and the deleting destructor, QueryInterface and GetGZCLSID; Write and Read; Init and "
                         "Shutdown with the watercraft manager's two dock-table helpers; slot 16 (the placement) and "
-                        "slot 93 (the debug text) (14 detours, part wc1; src/core/automata_watercraft.cpp)",
+                        "slot 93 (the debug text) (14 detours, part wc1); the drive parameters' reader, the four leg "
+                        "helpers and the next leg, the sign and the tow's release (8, part wc2a; "
+                        "src/core/automata_watercraft.cpp)",
                         false, InstallObject}),
 };
 
