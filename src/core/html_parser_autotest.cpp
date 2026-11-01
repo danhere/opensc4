@@ -6083,9 +6083,12 @@ char* MakeCache()
     return cache;
 }
 
-void DestroyCache(char* cache)
+// The data blocks released (ReleaseAll), found freed while they are the
+// pool's last frees, then the cache destroyed.
+void DestroyCache(Fnv& f, char* cache, const Blocks& blocks)
 {
     reinterpret_cast<void(__thiscall*)(void*)>(addr::FileCache_ReleaseAll)(cache);
+    HashFreedDeep(f, blocks);
     reinterpret_cast<void(__thiscall*)(void*)>(kFileCacheDestruct)(cache);
     GameDelete(cache);
 }
@@ -6132,7 +6135,8 @@ uint8_t AddEntry(char* cache, int i, Blocks& blocks, bool again = false)
 void HashGameText(Fnv& f, const char* text) { f.Bytes(At<char*>(const_cast<char*>(text), 4), At<char*>(const_cast<char*>(text), 8)); }
 
 // An entry: its name, its block (its index among the test's blocks), its
-// words.
+// words; last used (+0x28) as a marker when it is the clock (slot 16 sets
+// it), which differs from run to run.
 void HashCacheEntry(Fnv& f, const char* entry, const Blocks& blocks)
 {
     HashGameText(f, entry);
@@ -6140,8 +6144,11 @@ void HashCacheEntry(Fnv& f, const char* entry, const Blocks& blocks)
     f.Word(block ? static_cast<uint32_t>(blocks.IndexOf(block)) : 0xFFFFFFFFu);
     if (block)
         f.Word(At<uint16_t>(reinterpret_cast<char*>(static_cast<std::uintptr_t>(block)), 8));
-    for (std::size_t at = 0x18; at <= 0x2C; at += 4)
-        f.Word(At<uint32_t>(const_cast<char*>(entry), at));
+    const uint32_t now = static_cast<uint32_t>(reinterpret_cast<int32_t(__cdecl*)(void*)>(addr::CRT_time32)(nullptr));
+    for (std::size_t at = 0x18; at <= 0x2C; at += 4) {
+        const uint32_t word = At<uint32_t>(const_cast<char*>(entry), at);
+        f.Word(at == 0x28 && word <= now && now - word < 60 ? 0xC10C4u : word);
+    }
 }
 
 // The map bucket by bucket (each node's address and entry, in chain
@@ -6224,8 +6231,7 @@ uint32_t CacheItem(int which)
             f.Word(Virtual<uint32_t>(cache, 0x54, static_cast<const void*>(&key)));
             DestroyText(&key);
         }
-        DestroyCache(cache);
-        blocks.HashFreed(f);
+        DestroyCache(f, cache, blocks);
         return f.h;
     }
     for (int i = 0; i < kCacheEntries; ++i)
@@ -6362,7 +6368,7 @@ uint32_t CacheItem(int which)
         Blocks nodes;
         nodes.Track(node, 0x48, false);
         reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::HTMLCacheMap_DeleteNode)(cache + 0x34, node);
-        nodes.HashFreed(f);
+        HashFreedDeep(f, nodes);
         alignas(4) char copy[0x30];
         std::memset(copy, 0x5A, sizeof copy);
         reinterpret_cast<void*(__thiscall*)(void*, const void*)>(addr::HTMLCacheEntry_Copy)(copy, &entry);
@@ -6376,8 +6382,7 @@ uint32_t CacheItem(int which)
         DestroyText(&key);
     }
     HashCacheMap(f, cache, blocks);
-    DestroyCache(cache);
-    blocks.HashFreed(f);
+    DestroyCache(f, cache, blocks);
     return f.h;
 }
 
@@ -6509,7 +6514,10 @@ void DriveNodesDay(const Day& day)
     // h1c's: the directors and the shared block's release.
     for (int i = 0; i < kDirectorItems; ++i)
         item(11, i, [&] { return DirectorItem(i); });
-    // h7a's: the file cache's entries.
+    // h7a's: the file cache's entries. The 250 entries' item run once
+    // first, its answer dropped: the first run of it ever grows the pools,
+    // and a block freed then may not come back as freed.
+    CacheItem(3);
     for (int i = 0; i < kCacheItems; ++i)
         item(12, i, [&] { return CacheItem(i); });
     Virtual<uint32_t>(face, 0x8);
