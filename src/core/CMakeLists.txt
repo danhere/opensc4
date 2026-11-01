@@ -352,6 +352,7 @@ add_library(opensc4_core SHARED
   s3d_camera.cpp
   pixels.cpp
   pixels_autotest.cpp
+  html_cache.cpp
   html_document.cpp
   html_layout.cpp
   html_nodes.cpp

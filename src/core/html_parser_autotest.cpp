@@ -737,7 +737,7 @@ bool AnyOurs()
                            "ui.html.document.vslots", "ui.html.window.life", "ui.html.window.show",
                            "ui.html.window.slots", "ui.html.window.settings", "ui.html.window.input",
                            "ui.html.window.scroll", "ui.html.window.paint", "ui.html.window.address",
-                           "ui.html.directors", "ui.html.block"})
+                           "ui.html.directors", "ui.html.block", "ui.html.cache.map", "ui.html.cache.entries"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -6041,6 +6041,352 @@ uint32_t DirectorItem(int which)
     return f.h;
 }
 
+// ====================================================================================
+// h7a: the file cache's entries
+
+// A file cache of the test's own (0x5C bytes, its constructor 0x008FD389;
+// its folder empty, never opened, so nothing reads or writes FileCache.ini)
+// with entries of five kinds, by index modulo 5: fresh with a file name;
+// expired, no name; fresh with a data block (a count of 1, made by
+// operator new as the game's are) and a name; expired by the signed clock
+// but not by the unsigned one (0x80000001), no name; fresh with nothing.
+// Only nameless entries can expire, so the drops' file deletes
+// (0x008FC669) have no file to delete. The names are of no file there is.
+constexpr std::uintptr_t kFileCacheDestruct = 0x008FD729;
+constexpr int kCacheKinds = 5;
+
+struct CacheEntry {
+    GameText name;
+    uint32_t block;
+    uint32_t size;
+    uint32_t words[3];
+    uint32_t used;
+    uint32_t expiry;
+};
+static_assert(sizeof(CacheEntry) == 0x30);
+
+std::string CacheKey(int i)
+{
+    char text[64];
+    if (i % 7 == 6)
+        std::snprintf(text, sizeof text, "http://www.simcity.com/\xE9t\xE9/%d", i);
+    else
+        std::snprintf(text, sizeof text, "http://www.simcity.com/page%d.html", i);
+    return text;
+}
+
+char* MakeCache()
+{
+    char* const cache = static_cast<char*>(GameNew(0x5C));
+    std::memset(cache, 0xA5, 0x5C);
+    reinterpret_cast<char*(__thiscall*)(void*)>(addr::FileCache_Construct)(cache);
+    return cache;
+}
+
+// The data blocks released (ReleaseAll), found freed while they are the
+// pool's last frees, then the cache destroyed.
+void DestroyCache(Fnv& f, char* cache, const Blocks& blocks)
+{
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::FileCache_ReleaseAll)(cache);
+    HashFreedDeep(f, blocks);
+    reinterpret_cast<void(__thiscall*)(void*)>(kFileCacheDestruct)(cache);
+    GameDelete(cache);
+}
+
+// An entry put in through the game's addresses as the ini reader does: a
+// pair made (0x008FCB5D), inserted (0x008FD705), the pair and strings
+// destroyed. Answers the inserted byte.
+uint8_t AddEntry(char* cache, int i, Blocks& blocks, bool again = false)
+{
+    const int kind = i % kCacheKinds;
+    GameText key{};
+    MakeText(&key, CacheKey(i).c_str());
+    CacheEntry entry{};
+    char name[64] = "";
+    if (kind == 0 || kind == 2)
+        std::snprintf(name, sizeof name, "opensc4-h7a-none-%d.cache", i);
+    MakeText(&entry.name, name);
+    if (kind == 2) {
+        char* const block = reinterpret_cast<char*>(static_cast<std::uintptr_t>(blocks.Add(0xC, true)));
+        At<uint32_t>(block, 0) = blocks.Add(0x10, true);
+        At<uint32_t>(block, 4) = 0x10;
+        At<uint16_t>(block, 8) = 1;
+        At<uint16_t>(block, 0xA) = 0;
+        entry.block = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(block));
+    }
+    entry.size = 0x100u + static_cast<uint32_t>(i);
+    entry.words[0] = 0x1000u * static_cast<uint32_t>(i);
+    entry.words[1] = again ? 0xDEADu : 0x2u;
+    entry.words[2] = 0x30000u + static_cast<uint32_t>(i);
+    entry.used = 0x12345u;
+    entry.expiry = kind == 1 ? 1u : kind == 3 ? 0x80000001u : 0x7FFFFFFFu;
+    alignas(4) char pair[0x44];
+    reinterpret_cast<void*(__thiscall*)(void*, const void*, const void*)>(addr::HTMLCacheMap_MakePair)(pair, &key,
+                                                                                                    &entry);
+    alignas(4) char out[12] = {};
+    reinterpret_cast<void*(__thiscall*)(void*, void*, const void*)>(addr::HTMLCacheMap_Insert)(cache + 0x34, out,
+                                                                                            pair);
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4StringPair_Destruct)(pair);
+    DestroyText(&entry.name);
+    DestroyText(&key);
+    return static_cast<uint8_t>(out[8]);
+}
+
+void HashGameText(Fnv& f, const char* text) { f.Bytes(At<char*>(const_cast<char*>(text), 4), At<char*>(const_cast<char*>(text), 8)); }
+
+// An entry: its name, its block (its index among the test's blocks), its
+// words; last used (+0x28) as a marker when it is the clock (slot 16 sets
+// it), which differs from run to run.
+void HashCacheEntry(Fnv& f, const char* entry, const Blocks& blocks)
+{
+    HashGameText(f, entry);
+    const uint32_t block = At<uint32_t>(const_cast<char*>(entry), 0x14);
+    f.Word(block ? static_cast<uint32_t>(blocks.IndexOf(block)) : 0xFFFFFFFFu);
+    if (block)
+        f.Word(At<uint16_t>(reinterpret_cast<char*>(static_cast<std::uintptr_t>(block)), 8));
+    const uint32_t now = static_cast<uint32_t>(reinterpret_cast<int32_t(__cdecl*)(void*)>(addr::CRT_time32)(nullptr));
+    for (std::size_t at = 0x18; at <= 0x2C; at += 4) {
+        const uint32_t word = At<uint32_t>(const_cast<char*>(entry), at);
+        f.Word(at == 0x28 && word <= now && now - word < 60 ? 0xC10C4u : word);
+    }
+}
+
+// The map bucket by bucket (each node's address and entry, in chain
+// order), the count, the cache's two request counters.
+void HashCacheMap(Fnv& f, char* cache, const Blocks& blocks)
+{
+    char* const map = cache + 0x34;
+    char** const first = At<char**>(map, 4);
+    char** const last = At<char**>(map, 8);
+    const uint32_t buckets = static_cast<uint32_t>(last - first);
+    f.Word(buckets);
+    f.Word(At<uint32_t>(map, 0x10));
+    uint32_t seen = 0;
+    for (uint32_t b = 0; b < buckets; ++b) {
+        uint32_t chain = 0;
+        for (char* node = first[b]; node && chain < 10000; node = At<char*>(node, 0), ++chain) {
+            f.Word(b);
+            HashGameText(f, node + 4);
+            HashCacheEntry(f, node + 0x18, blocks);
+        }
+        seen += chain;
+    }
+    f.Word(seen);
+    f.Word(At<uint32_t>(cache, 0x54));
+    f.Word(At<uint32_t>(cache, 0x58));
+}
+
+// A stand-in for Release's slot 0: the flag and the object recorded.
+uint32_t g_releaseFlag = 0;
+void* g_releaseSelf = nullptr;
+void* __fastcall StandReleaseDelete(void* self, void*, uint32_t flag)
+{
+    g_releaseFlag = flag;
+    g_releaseSelf = self;
+    return self;
+}
+void* g_releaseVtable[1] = {reinterpret_cast<void*>(&StandReleaseDelete)};
+
+constexpr int kCacheSizes[] = {0, 1, 7, 250};
+constexpr uint32_t kReleaseCounts[] = {5, 2, 1, 0, 0xFFFFFFFFu};
+constexpr int kCacheItems = 4 + 14 + static_cast<int>(std::size(kReleaseCounts));
+constexpr int kCacheEntries = 23; // the entries of the items after the sizes
+
+uint32_t CacheItem(int which)
+{
+    using Slot1 = uint8_t(__thiscall*)(void*, const void*);
+    Fnv f;
+    if (which >= 18) {
+        // Release (slot 4) on an object of the test's own.
+        const uint32_t count = kReleaseCounts[which - 18];
+        alignas(4) char object[16];
+        std::memset(object, 0x5A, sizeof object);
+        At<void**>(object, 0) = g_releaseVtable;
+        At<uint32_t>(object, 8) = count;
+        g_releaseFlag = 0xFFu;
+        g_releaseSelf = nullptr;
+        f.Word(reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::FileCache_Release)(object));
+        f.Word(At<uint32_t>(object, 8));
+        f.Word(g_releaseFlag);
+        f.Byte(g_releaseSelf == object ? 1 : 0);
+        return f.h;
+    }
+    Blocks blocks;
+    char* const cache = MakeCache();
+    if (which < 4) {
+        // Sizes: the map after n inserts (250 grows it), each address
+        // looked up through slots 17, 20 and 21, and one not there.
+        const int n = kCacheSizes[which];
+        for (int i = 0; i < n; ++i)
+            f.Byte(AddEntry(cache, i, blocks));
+        HashCacheMap(f, cache, blocks);
+        for (int i = 0; i <= n; ++i) {
+            GameText key{};
+            MakeText(&key, (i == n ? std::string("http://nowhere/") : CacheKey(i)).c_str());
+            char* entry = nullptr;
+            f.Byte(Virtual<uint8_t>(cache, 0x44, static_cast<const void*>(&key), &entry));
+            f.Byte(entry ? 1 : 0);
+            f.Byte(Virtual<uint8_t>(cache, 0x44, static_cast<const void*>(&key), static_cast<char**>(nullptr)));
+            f.Word(Virtual<uint32_t>(cache, 0x50, static_cast<const void*>(&key)));
+            f.Word(Virtual<uint32_t>(cache, 0x54, static_cast<const void*>(&key)));
+            DestroyText(&key);
+        }
+        DestroyCache(f, cache, blocks);
+        return f.h;
+    }
+    for (int i = 0; i < kCacheEntries; ++i)
+        AddEntry(cache, i, blocks);
+    auto forEachKey = [&](auto run) {
+        for (int i = 0; i <= kCacheEntries; ++i) {
+            GameText key{};
+            MakeText(&key, (i == kCacheEntries ? std::string("http://nowhere/") : CacheKey(i)).c_str());
+            run(i, &key);
+            DestroyText(&key);
+        }
+    };
+    const int step = which - 4;
+    if (step == 0) {
+        // Duplicates: not inserted, the first entry kept.
+        for (int i = 0; i < 6; ++i)
+            f.Byte(AddEntry(cache, i, blocks, true));
+    } else if (step <= 3) {
+        // Freshness through slots 12, 13 and 14 (the expired dropped).
+        const std::size_t slot = 0x30 + 4 * static_cast<std::size_t>(step - 1);
+        forEachKey([&](int, const GameText* key) { f.Byte(Virtual<uint8_t>(cache, slot, static_cast<const void*>(key))); });
+        // and once more, after the drops.
+        forEachKey([&](int, const GameText* key) { f.Byte(Virtual<uint8_t>(cache, slot, static_cast<const void*>(key))); });
+    } else if (step == 4) {
+        // GetEntry (slot 18) into an entry of the test's own.
+        forEachKey([&](int, const GameText* key) {
+            CacheEntry out{};
+            MakeText(&out.name, "left as it was");
+            for (uint32_t& w : out.words)
+                w = 0xCCCCCCCCu;
+            out.size = out.used = out.expiry = 0xCCCCCCCCu;
+            f.Byte(Virtual<uint8_t>(cache, 0x48, static_cast<const void*>(key), static_cast<void*>(&out)));
+            HashCacheEntry(f, reinterpret_cast<const char*>(&out), blocks);
+            DestroyText(&out.name);
+        });
+    } else if (step == 5) {
+        // Remove (slot 25) of the nameless and one not there, the third
+        // after a purge (the requests since the last at 39).
+        At<uint32_t>(cache, 0x58) = 38;
+        forEachKey([&](int i, const GameText* key) {
+            const int kind = i % kCacheKinds;
+            if (i == kCacheEntries || kind == 1 || kind == 3 || kind == 4)
+                f.Byte(Virtual<uint8_t>(cache, 0x64, static_cast<const void*>(key)));
+        });
+    } else if (step == 6) {
+        // Purge: the unsigned expiry keeps 0x80000001.
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::FileCache_Purge)(cache);
+    } else if (step == 7) {
+        // Erase by iterators (every third address), then the map walked
+        // with its iterator.
+        forEachKey([&](int i, const GameText* key) {
+            if (i % 3 != 0)
+                return;
+            char* it[2] = {};
+            reinterpret_cast<void*(__thiscall*)(void*, void*, const void*)>(addr::HTMLCacheMap_Find)(cache + 0x34, it,
+                                                                                                  key);
+            f.Byte(it[0] ? 1 : 0);
+            if (it[0] && At<uint32_t>(it[0], 0x2C))
+                return; // a node with a block keeps it (Erase leaves blocks to ReleaseAll)
+            reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::HTMLCacheMap_Erase)(cache + 0x34, it);
+        });
+        char* it[2] = {};
+        reinterpret_cast<void*(__thiscall*)(void*, void*)>(addr::cGZDBSegmentPackedFile_KeyTableBegin)(cache + 0x34, it);
+        uint32_t walked = 0;
+        while (it[0] && walked < 10000) {
+            HashGameText(f, it[0] + 4);
+            ++walked;
+            reinterpret_cast<void*(__thiscall*)(void*)>(addr::HTMLCacheMap_Increment)(it);
+        }
+        f.Word(walked);
+    } else if (step == 8) {
+        // ReleaseAll: the blocks released, the map cleared, then filled
+        // again in the same buckets.
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::FileCache_ReleaseAll)(cache);
+        HashCacheMap(f, cache, blocks);
+        for (int i = 0; i < 4; ++i)
+            f.Byte(AddEntry(cache, i * 5, blocks));
+    } else if (step == 9) {
+        // Slot 19 (slot 16 with a string of its own) on each address.
+        forEachKey([&](int, const GameText* key) {
+            f.Byte(reinterpret_cast<Slot1>(addr::FileCache_AskWithString)(cache, key));
+        });
+    } else if (step == 10) {
+        // The folder and the ini name (slots 5 and 7), and the clock.
+        GameText text{};
+        MakeText(&text, "left as it was");
+        f.Byte(Virtual<uint8_t>(cache, 0x14, static_cast<void*>(&text)));
+        HashGameText(f, reinterpret_cast<const char*>(&text));
+        f.Byte(Virtual<uint8_t>(cache, 0x1C, static_cast<void*>(&text)));
+        HashGameText(f, reinterpret_cast<const char*>(&text));
+        DestroyText(&text);
+        const int32_t clock = Virtual<int32_t>(cache, 0x58);
+        const int32_t now = reinterpret_cast<int32_t(__cdecl*)(void*)>(addr::CRT_time32)(nullptr);
+        f.Byte(clock == now || clock + 1 == now ? 1 : 0);
+    } else if (step == 11) {
+        // The hash and bucket of odd addresses, and the buckets grown by
+        // hints at, below and above their count, and by one that is itself
+        // the next size (389, from 193).
+        char* const map = cache + 0x34;
+        for (const char* s : {"", "a", "\x80", "\xFF\xFF", "http://www.simcity.com/"}) {
+            GameText key{};
+            MakeText(&key, s);
+            f.Word(reinterpret_cast<uint32_t(__thiscall*)(void*, const void*)>(addr::HTMLCacheMap_Hash)(map, &key));
+            f.Word(reinterpret_cast<uint32_t(__thiscall*)(void*, const void*)>(addr::HTMLCacheMap_BucketOf)(map, &key));
+            DestroyText(&key);
+        }
+        const uint32_t count = static_cast<uint32_t>(At<char**>(map, 8) - At<char**>(map, 4));
+        for (const uint32_t hint : {0u, count - 1, count, 2 * count + 3, count + 1, 1000u, 999u}) {
+            reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::HTMLCacheMap_Resize)(map, hint);
+            HashCacheMap(f, cache, blocks);
+        }
+    } else if (step == 12) {
+        // Clear, then the map filled again.
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::FileCache_ReleaseAll)(cache);
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::HTMLCacheMap_Clear)(cache + 0x34);
+        HashCacheMap(f, cache, blocks);
+        for (int i = 0; i < 3; ++i)
+            f.Byte(AddEntry(cache, i, blocks));
+    } else {
+        // A node made and deleted by hand, and an entry copied and set.
+        GameText key{};
+        MakeText(&key, "http://www.simcity.com/node");
+        CacheEntry entry{};
+        MakeText(&entry.name, "a name");
+        entry.size = 7;
+        entry.expiry = 0x7FFFFFFFu;
+        alignas(4) char pair[0x44];
+        reinterpret_cast<void*(__thiscall*)(void*, const void*, const void*)>(addr::HTMLCacheMap_MakePair)(pair, &key,
+                                                                                                        &entry);
+        char* const node =
+            reinterpret_cast<char*(__thiscall*)(void*, const void*)>(addr::HTMLCacheMap_NewNode)(cache + 0x34, pair);
+        f.Word(At<uint32_t>(node, 0));
+        HashGameText(f, node + 4);
+        HashCacheEntry(f, node + 0x18, blocks);
+        Blocks nodes;
+        nodes.Track(node, 0x48, false);
+        reinterpret_cast<void(__thiscall*)(void*, void*)>(addr::HTMLCacheMap_DeleteNode)(cache + 0x34, node);
+        HashFreedDeep(f, nodes);
+        alignas(4) char copy[0x30];
+        std::memset(copy, 0x5A, sizeof copy);
+        reinterpret_cast<void*(__thiscall*)(void*, const void*)>(addr::HTMLCacheEntry_Copy)(copy, &entry);
+        HashCacheEntry(f, copy, blocks);
+        entry.size = 9;
+        reinterpret_cast<void*(__thiscall*)(void*, const void*)>(addr::HTMLCacheEntry_Set)(copy, &entry);
+        HashCacheEntry(f, copy, blocks);
+        DestroyText(reinterpret_cast<GameText*>(copy));
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4StringPair_Destruct)(pair);
+        DestroyText(&entry.name);
+        DestroyText(&key);
+    }
+    HashCacheMap(f, cache, blocks);
+    DestroyCache(f, cache, blocks);
+    return f.h;
+}
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -6061,9 +6407,9 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[12] = {};
+    uint32_t sectionHash[13] = {};
     const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children",
-                                    "document", "slots", "images", "window", "input", "directors"};
+                                    "document", "slots", "images", "window", "input", "directors", "cache"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -6169,19 +6515,25 @@ void DriveNodesDay(const Day& day)
     // h1c's: the directors and the shared block's release.
     for (int i = 0; i < kDirectorItems; ++i)
         item(11, i, [&] { return DirectorItem(i); });
+    // h7a's: the file cache's entries. The 250 entries' item run once
+    // first, its answer dropped: the first run of it ever grows the pools,
+    // and a block freed then may not come back as freed.
+    CacheItem(3);
+    for (int i = 0; i < kCacheItems; ++i)
+        item(12, i, [&] { return CacheItem(i); });
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
                "pages %08X, children %08X, document %08X, slots %08X, images %08X, window %08X, input %08X, directors "
-               "%08X), %u stand-in "
+               "%08X, cache %08X), %u stand-in "
                "calls, %u of %u "
                "blocks "
                "freed; %s; "
                "hash %08X",
                items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
-               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], sectionHash[10], sectionHash[11], g_standCalls,
+               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], sectionHash[10], sectionHash[11], sectionHash[12], g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)

@@ -154,6 +154,321 @@ expect = "55 8D 6C 24 90 81 EC A8"
 source = "Name ours, not hooked. Slot 14 of 0x00ACCF68; `ret 8`. Splits a cookie at `;` and reads the attributes Comment, CommentURL, Domain, Path, Secure, Version, Discard, Expires, Max-Age and Port, defaulting domain and path from the URL (docs/html.md, h6)."
 
 [[entry]]
+name = "FileCache::Release"
+address = 0x008FC3EF
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this)"
+expect = "8B 41 08 83 F8 01 76 05"
+source = "Name ours. Ours in ui.html.cache.entries. A reference dropped (the count at +8): above 1 counted down and answered; else slot 0 (the deleting destructor) with 1, and 0. Plain ret (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::EntrySize"
+address = 0x008FC405
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* url)"
+expect = "55 8B EC 8B 01 8D 55 08"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. The address's entry's size (+0x18) through slot 17 (0x008FC5B3; the argument's own stack slot is its out), or 0 (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::EntryWord24"
+address = 0x008FC426
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* url)"
+expect = "55 8B EC 8B 01 8D 55 08"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. The address's entry's word +0x24 through slot 17, or 0 (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::Clock"
+address = 0x008FC447
+kind = "function"
+convention = "cdecl"
+signature = "int32_t ()"
+expect = "6A 00 E8 0B 37 0F 00 59"
+source = "Name ours. Ours in ui.html.cache.entries. time(0) (CRT::time32) (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::Hash"
+address = 0x008FC450
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* key)"
+expect = "8B 54 24 04 8B 4A 08 56"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`, this unread. The address's hash: each byte, sign-extended, xored in after a doubling (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::FindNode"
+address = 0x008FC477
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* key)"
+expect = "56 57 FF 74 24 0C 8B F1"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`. The node with the address (bucket by 0x008FC450, compared by SC4StringEqual::Call on this+1), or null (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::Find"
+address = 0x008FC4BC
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** out, const void* key)"
+expect = "56 FF 74 24 0C 8B F1 E8"
+source = "Name ours. Ours in ui.html.cache.map. `ret 8`. An iterator (node, map) at the address's node; answers out (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::BucketOf"
+address = 0x008FC4D7
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, const void* key)"
+expect = "56 FF 74 24 08 8B F1 E8"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`. The address's bucket: the hash modulo the bucket count (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::Resize"
+address = 0x008FC4F6
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, uint32_t hint)"
+expect = "55 8B EC 83 EC 18 53 57"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`. Above the bucket count: a new vector of the next prime's length (0x0090DF7C, 0x0097C01D), each bucket's nodes moved over in order, swapped in (0x0096EDF7) and the old storage freed (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::NextBucket"
+address = 0x008FC5E4
+kind = "function"
+convention = "thiscall"
+signature = "void* (void** it)"
+expect = "8B 01 56 8B 71 04 83 C0"
+source = "Name ours. Ours in ui.html.cache.map. The first node of the buckets after the iterator's node's, or null (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::Lookup"
+address = 0x008FC5B3
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url, void** entry)"
+expect = "55 8B EC 51 51 FF 75 08"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 8`. Slot 17 of 0x00ACD418: whether the address has an entry (the map at +0x34), with the entry (node +0x18) into the out when one is given (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::AskWithString"
+address = 0x008FC613
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url)"
+expect = "55 8B EC 83 EC 14 53 56"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. Slot 16 with a string of its own (0x00578390), destroyed inline after (vtable 0x00A80810, storage freed) (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::Increment"
+address = 0x008FC653
+kind = "function"
+convention = "thiscall"
+signature = "void** (void** it)"
+expect = "56 8B F1 8B 06 8B 00 85"
+source = "Name ours. Ours in ui.html.cache.map. The iterator moved to the next node, or the next bucket's first (0x008FC5E4); answers it (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::RemoveFile"
+address = 0x008FC669
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* entry)"
+expect = "55 8B EC 83 EC 20 8B 45"
+source = "Name ours. Not hooked. `ret 4`. An entry's `.cache` file deleted (the folder +0xC with the name, RZFile::Remove); false for an entry with no name. Called by ours; stays the game's (h7b) (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheEntry::Copy"
+address = 0x008FC92D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`. An entry (0x30 bytes) made from another: the name by SC4String::Substring, the seven words +0x14 to +0x2C (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::DeleteNode"
+address = 0x008FC970
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node)"
+expect = "56 8B 74 24 08 8D 4E 04"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`, this unread. The node's pair destroyed (SC4StringPair::Destruct on node +4, even on a null node) and the node freed (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::CopyPair"
+address = 0x008FC98C
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 6A FF"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`. A pair (address, entry) made from another (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::MakePair"
+address = 0x008FCB5D
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* url, const void* entry)"
+expect = "56 6A FF 6A 00 FF 74 24"
+source = "Name ours. Ours in ui.html.cache.map. `ret 8`. A pair made from an address and an entry (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::Erase"
+address = 0x008FCB7F
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void** it)"
+expect = "8B 44 24 04 56 57 8B 38"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`. The iterator's node unlinked from its bucket, deleted (0x008FC970) and counted off (+0x10) (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::Clear"
+address = 0x008FCBCF
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 46 08 2B 46"
+source = "Name ours. Ours in ui.html.cache.map. Every node deleted, every bucket emptied, the count 0 (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::GetFolder"
+address = 0x008FCC18
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* out)"
+expect = "83 C1 0C 51 8B 4C 24 08"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. The folder (+0xC) assigned to the caller's string; true (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::GetIniName"
+address = 0x008FCC87
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* out)"
+expect = "83 C1 20 51 8B 4C 24 08"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. The ini name (+0x20) assigned to the caller's string; true (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheEntry::Set"
+address = 0x008FCD0A
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* from)"
+expect = "56 57 8B 7C 24 0C 57 8B"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`. An entry set from another: the name by cRZBaseString::Assign, the seven words (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::EraseAt"
+address = 0x008FD082
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* node, void* map)"
+expect = "55 8B EC 51 51 8B 45 08"
+source = "Name ours. Ours in ui.html.cache.map. `ret 8`. An iterator passed by value, erased (0x008FCB7F) (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::Destruct"
+address = 0x008FD0A0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 E8 27 FB FF FF"
+source = "Name ours. Ours in ui.html.cache.map. Cleared (0x008FCBCF), the buckets' storage freed (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::NewNode"
+address = 0x008FD0B8
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, const void* pair)"
+expect = "56 6A 48 E8 94 FE 00 00"
+source = "Name ours. Ours in ui.html.cache.map. `ret 4`, this unread. A new node (0x48 bytes, SC4::stl_allocate), next cleared, the pair copied in at +4 (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::IsFresh"
+address = 0x008FD0DC
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. Slot 12 of 0x00ACD418: whether the address's entry has not expired (the clock below its expiry +0x2C, signed); an expired one dropped (its block released by 0x008FC3C3, its file deleted by 0x008FC669, erased). The only cache slot that ran in play (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::HasData"
+address = 0x008FD145
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. As IsFresh, and the entry has a data block (+0x14) (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::HasFile"
+address = 0x008FD1B4
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. As IsFresh, and the entry has a file name (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::GetEntry"
+address = 0x008FD227
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url, void* out)"
+expect = "55 8B EC 51 51 FF 75 08"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 8`. The address's entry set into the caller's (0x008FCD0A); whether there was one (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::Purge"
+address = 0x008FD258
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "55 8B EC 83 EC 0C 83 61"
+source = "Name ours. Ours in ui.html.cache.entries. The requests since the last purge (+0x58) cleared; every entry whose expiry is not after the clock (unsigned) dropped (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::ReleaseAll"
+address = 0x008FD2CC
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "55 8B EC 51 51 56 8D 71"
+source = "Name ours. Ours in ui.html.cache.entries. Every entry's data block released (0x008FC3C3), then the map cleared (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::InsertNoResize"
+address = 0x008FD309
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** out, const void* pair)"
+expect = "55 8B EC 51 53 56 57 FF"
+source = "Name ours. Ours in ui.html.cache.map. `ret 8`. The pair inserted at its bucket's front unless its address is there, without growing: (node, map, inserted byte) into out (docs/html.md, h7)."
+
+[[entry]]
+name = "FileCache::Remove"
+address = 0x008FD69C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url)"
+expect = "55 8B EC 83 EC 0C 53 56"
+source = "Name ours. Ours in ui.html.cache.entries. `ret 4`. A request counted (+0x54, +0x58; a purge after 40), the address's entry dropped; true (docs/html.md, h7)."
+
+[[entry]]
+name = "HTMLCacheMap::Insert"
+address = 0x008FD705
+kind = "function"
+convention = "thiscall"
+signature = "void** (void* this, void** out, const void* pair)"
+expect = "56 8B F1 8B 46 10 40 50"
+source = "Name ours. Ours in ui.html.cache.map. `ret 8`. Grown for one more (0x008FC4F6), then inserted (0x008FD309) (docs/html.md, h7)."
+
+[[entry]]
 name = "FileCache::Construct"
 address = 0x008FD389
 kind = "function"
