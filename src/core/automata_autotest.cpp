@@ -756,6 +756,15 @@
 //   the city over six boxes, may drive over five, grounded over six; a
 //   path point erased three times; the next leg reached over ten. wflags
 //   0x80. Log line: "wc2b wstate".
+//   Part wc2c (slot 115 and seven small helpers of the movement) adds
+//   `,<wstep>` before wflags (73 fields), run inside the wc2b test with its
+//   fakes (and the boat's slots 17 and 56 and its occupant part's 10): the
+//   fanned direction over 50 (nth 0..9, five directions), the cell step
+//   over nine directions (x and z apart and one word), the stern and bow
+//   points over six, the longest side over nine boxes, the moved point
+//   over five, leaving the dock over eight, slot 115 over nine (slot 31
+//   answers, so the core's DriveKeys stops early and the clamp, 0x0056C430
+//   and 0x0056C090 are not reached). wflags 0x100. Log line: "wc2c wstep".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -34730,7 +34739,43 @@ void WsMixBoat(Hash& h, char* b)
     h.Mix(At<void*>(b, wc::field::kLeg) ? 1u : 0u);
 }
 
-void WatercraftDrive3(Hash& wstate, uint32_t& wflags)
+// ---- Part wc2c: slot 115 (the drive step) and seven small helpers of the
+// movement (src/core/automata_watercraft.cpp). Run inside the wc2b test,
+// with its fakes.
+
+struct WtAnswers {
+    double length = 0.0;     // the boat's slot 17
+    float low[3] = {};       // the occupant part's slot 10
+    float high[3] = {};
+    char* keys = nullptr;    // the boat's slot 56
+};
+WtAnswers g_wt;
+
+double __fastcall WtLength(char*, void*)
+{
+    g_wc.calls.Mix(17);
+    return g_wt.length;
+}
+void __fastcall WtBox(char*, void*, float* low, float* high)
+{
+    g_wc.calls.Mix(0x1000u);
+    std::memcpy(low, g_wt.low, 12);
+    std::memcpy(high, g_wt.high, 12);
+}
+char* __fastcall WtKeys(char*, void*)
+{
+    g_wc.calls.Mix(56);
+    return g_wt.keys;
+}
+
+// A tow of the test's: a reference with a position at +0x40.
+struct WtTow {
+    WcRef ref;
+    char pad[0x40 - sizeof(WcRef)];
+    float position[3];
+};
+
+void WatercraftDrive3(Hash& wstate, Hash& wstep, uint32_t& wflags)
 {
     g_wc = WcAnswers{};
     g_ws = WsAnswers{};
@@ -35075,6 +35120,208 @@ void WatercraftDrive3(Hash& wstate, uint32_t& wflags)
         WcDropLeg(b + wc::field::kLegB);
     }
     wflags |= 0x80;
+
+    // ==== Part wc2c, with the fakes above (into wstep): the boat's slots 17
+    // and 56 and its occupant part's 10 the test's too.
+    g_wt = WtAnswers{};
+    boatTable[17] = reinterpret_cast<void*>(&WtLength);
+    boatTable[56] = reinterpret_cast<void*>(&WtKeys);
+    partTable[10] = reinterpret_cast<void*>(&WtBox);
+
+    // ---- The fanned direction at its address: nth 0..9 from five
+    // directions (out preset for past 7).
+    for (const int32_t direction : {0, 5, 7, -3, 0x7FFFFFFE})
+        for (uint32_t nth = 0; nth < 10; ++nth) {
+            int32_t out = -13 + static_cast<int32_t>(nth);
+            This<void>(addr::cSC4Watercraft_FanDirection, nullptr, nth, direction, &out);
+            wstep.Mix(static_cast<uint32_t>(out));
+        }
+
+    // ---- The cell step at its address: directions 0..8, then x and z one
+    // word.
+    for (uint32_t direction = 0; direction < 9; ++direction) {
+        int32_t x = 10, z = 20;
+        This<void>(addr::cSC4Watercraft_StepCell, nullptr, direction, &x, &z);
+        wstep.Mix(static_cast<uint32_t>(x));
+        wstep.Mix(static_cast<uint32_t>(z));
+        int32_t both = 5;
+        This<void>(addr::cSC4Watercraft_StepCell, nullptr, direction, &both, &both);
+        wstep.Mix(static_cast<uint32_t>(both));
+    }
+    log::Write("autotest: automata: vehicle: wc2c cells %08X", wstep.h);
+
+    // ---- The stern and bow points at their addresses over six lengths
+    // and headings (a length not exact as a float product, a NaN, a z that
+    // rounds otherwise through a float).
+    {
+        // The last: z's product 2^-24 (1 + 2^-28), whose float rounding
+        // would round the bow's z down to 1.0.
+        const double lengths[6] = {12.5, 0.1, -3.0, 1.0 / 3.0, std::nan(""),
+                                   std::ldexp(1.0 + std::ldexp(1.0, -28), -24)};
+        const float headings[6][3] = {{1.0f, 0.0f, 0.0f},        {0.6f, 0.1f, -0.8f}, {0.0f, 0.0f, 1.0f},
+                                      {0.7071f, 0.3f, 0.7071f}, {0.5f, 0.5f, 0.5f},  {0.0f, 0.0f, 1.0f}};
+        const float points[6][3] = {{100.0f, 2.0f, 50.0f}, {-7.25f, 1e-3f, 3.5f}, {0.0f, 0.0f, 0.0f},
+                                    {1e6f, 3.0f, 1e-6f},   {1.0f, 2.0f, 3.0f},    {0.0f, 0.0f, 1.0f}};
+        for (int c = 0; c < 6; ++c) {
+            g_wc.calls = Hash{};
+            g_wt.length = lengths[c];
+            std::memcpy(b + wc::field::kHeading, headings[c], 12);
+            std::memcpy(b + wc::field::kPoint, points[c], 12);
+            for (const std::uintptr_t fn : {addr::cSC4Watercraft_SternPoint, addr::cSC4Watercraft_BowPoint}) {
+                float out[4] = {9.0f, 9.0f, 9.0f, 9.0f};
+                This<void>(fn, b, out);
+                wstep.MixBytes(out, sizeof out);
+            }
+            wstep.Mix(g_wc.calls.h);
+        }
+    }
+
+    // ---- The longest side at its address over nine boxes: x, y or z
+    // the longest, x and y tied above z, the larger tied with z, a NaN in
+    // y and in z, an x and a z not exact as a float.
+    {
+        const float boxes[9][6] = {
+            {0, 0, 0, 10.0f, 4.0f, 6.0f},
+            {-2.0f, 1.0f, 0, 3.0f, 9.0f, 5.0f},
+            {0, 0, -8.0f, 2.0f, 3.0f, 8.0f},
+            {0, 0, 0, 7.0f, 7.0f, 6.0f},
+            {0, 0, 0, 7.0f, 3.0f, 7.0f},
+            {0, 0, 0, 7.0f, AsFloatBits(0x7FC00000u), 3.0f},
+            {0, 0, 0, 7.0f, 3.0f, AsFloatBits(0x7FC00000u)},
+            {-1e-7f, 0, 0, 16777215.0f, 16777215.0f, 1.0f},
+            {0, 0, -1e-7f, 1.0f, 1.0f, 16777215.0f},
+        };
+        for (const auto& box : boxes) {
+            g_wc.calls = Hash{};
+            std::memcpy(g_wt.low, box, 12);
+            std::memcpy(g_wt.high, box + 3, 12);
+            const double side = This<double>(addr::cSC4Watercraft_LongestSide, b);
+            wstep.MixBytes(&side, sizeof side);
+            wstep.Mix(g_wc.calls.h);
+        }
+    }
+    log::Write("autotest: automata: vehicle: wc2c points %08X", wstep.h);
+
+    // ---- The moved point at its address over five (a zero heading, a
+    // byte count that wraps, speeds and seconds of either sign).
+    {
+        const float headings[5][2] = {{1.0f, 0.0f}, {0.6f, -0.8f}, {0.0f, 0.0f}, {0.3f, 0.3f}, {-2.0f, 5.0f}};
+        const float speeds[5] = {4.0f, -2.5f, 3.0f, 1.0f / 3.0f, 0.0f};
+        const float seconds[5] = {0.5f, 1.25f, 1.0f, -0.1f, 2.0f};
+        for (int c = 0; c < 5; ++c) {
+            At<float>(b, wc::field::kHeading) = headings[c][0];
+            At<float>(b, wc::field::kHeading + 4) = 0.25f;
+            At<float>(b, wc::field::kHeading + 8) = headings[c][1];
+            At<float>(b, wc::field::kSpeed) = speeds[c];
+            At<float>(b, wc::field::kParam354) = 1.5f + 0.125f * static_cast<float>(c);
+            const float point[3] = {100.0f + static_cast<float>(c), 2.0f, -50.0f};
+            std::memcpy(b + wc::field::kPoint, point, 12);
+            alignas(4) uint8_t record[0x40];
+            for (int i = 0; i < 0x40; ++i)
+                record[i] = static_cast<uint8_t>(0x11 * c + i);
+            record[0] = c == 1 ? 0xFF : static_cast<uint8_t>(c);
+            record[1] = static_cast<uint8_t>(0x80 + 2 * c);
+            float out[3] = {};
+            This<void>(addr::cSC4Watercraft_MovePoint, b, seconds[c], static_cast<void*>(record), out);
+            wstep.MixBytes(out, sizeof out);
+            wstep.MixBytes(record, sizeof record);
+        }
+    }
+
+    // ---- Leaving the dock at its address: no occupant, the byte clear,
+    // near, exactly at +0x3D4, a NaN position, far with this boat listed
+    // first, far with another listed, far with no manager.
+    {
+        WcRef occupant = WcMake(0x60), other = WcMake(0x61);
+        const float position[3] = {100.0f, 2.0f, 50.0f};
+        std::memcpy(b + wc::field::kPosition, position, 12);
+        At<float>(b, wc::field::kParam3D4) = 5.0f;
+        for (uint32_t c = 0; c < 8; ++c) {
+            g_wc.calls = Hash{};
+            clearNodes();
+            reset(c);
+            At<void*>(b, wc::field::kLeg) = c == 0 ? nullptr : &occupant;
+            At<uint8_t>(b, wc::field::kLeg + wc::field::kLegByte28) = c == 1 ? 0 : 1;
+            const float near[3] = {103.0f, 2.0f, 54.0f - 0.5f};
+            const float exact[3] = {103.0f, 2.0f, 54.0f};
+            const float far[3] = {90.0f, 2.0f, 50.0f};
+            std::memcpy(g_ws.point, c == 2 ? near : c == 3 ? exact : far, 12);
+            if (c == 4)
+                g_ws.point[1] = AsFloatBits(0x7FC00000u);
+            g_wc.manager = c == 7 ? nullptr : manager;
+            if (c == 5) {
+                Virtual<uint32_t>(b, av::slot::kAddRef);
+                place(0, &occupant, b, nullptr);
+            } else {
+                place(0, &occupant, &other, nullptr);
+            }
+            This<void>(addr::cSC4Watercraft_LeaveDock, b);
+            WsMixBoat(wstep, b);
+            mixNodes(wstep, b, &other);
+            wstep.Mix(static_cast<uint32_t>(occupant.refs));
+            wstep.Mix(g_wc.calls.h);
+            for (auto& node : nodes)
+                if (At<void*>(node, 8) == b)
+                    Virtual<uint32_t>(b, av::slot::kRelease);
+        }
+        g_wc.manager = manager;
+        At<void*>(b, wc::field::kLeg) = nullptr;
+    }
+    log::Write("autotest: automata: vehicle: wc2c move %08X", wstep.h);
+
+    // ---- Slot 115 at its address (slot 31 answers, so the core's DriveKeys
+    // and the may-drive check stop early; the clamp and 0x0056C430 and
+    // 0x0056C090 are left to the audit and parity): a tow ahead, behind,
+    // straight above (square to the heading: exactly 0), at the boat's own
+    // position, none; keys none,
+    // both up, one down; speeds slowed, crossing zero, zero, a NaN,
+    // negative.
+    {
+        g_ws.slot31 = 1;
+        WtTow tow{WcMake(0x62), {}, {}};
+        alignas(4) char keys[0x84] = {};
+        const float position[3] = {100.0f, 2.0f, 50.0f};
+        std::memcpy(b + wc::field::kPosition, position, 12);
+        const float heading[3] = {0.6f, 0.0f, 0.8f};
+        std::memcpy(b + wc::field::kHeading58, heading, 12);
+        At<float>(b, wc::field::kParam350) = 40.0f;
+        const float towAt[9][3] = {{106.0f, 2.0f, 58.0f}, {94.0f, 2.0f, 42.0f}, {100.0f, 7.0f, 50.0f},
+                                   {100.0f, 2.0f, 50.0f}, {0, 0, 0}, {101.0f, 9.0f, 50.5f},
+                                   {106.0f, 2.0f, 58.0f}, {94.0f, 2.0f, 42.0f}, {94.0f, 2.0f, 42.0f}};
+        const float speeds[9] = {3.0f, 0.01f, 0.0f, AsFloatBits(0x7FC00000u), -2.0f, -0.01f, 5.0f, 5.0f, 1.0f};
+        const float times[9] = {0.5f, 1.0f, 0.25f, 2.0f, 0.75f, 1.0f, 0.1f, 0.1f, 0.3f};
+        for (uint32_t c = 0; c < 9; ++c) {
+            g_wc.calls = Hash{};
+            reset(c);
+            At<void*>(b, wc::field::kRef284) = nullptr;
+            At<void*>(b, wc::field::kTow) = nullptr;
+            if (c != 4) {
+                std::memcpy(tow.position, towAt[c], 12);
+                Virtual<uint32_t>(&tow.ref, av::slot::kAddRef);
+                At<void*>(b, wc::field::kTow) = &tow.ref;
+            }
+            At<float>(b, wc::field::kSpeed) = speeds[c];
+            At<float>(keys, 0x7C) = c == 7 ? 0.0f : -1.0f;
+            At<float>(keys, 0x80) = c == 8 ? 1.0f : -1.0f;
+            g_wt.keys = c == 6 ? nullptr : keys;
+            const uint32_t answer = This<uint32_t>(addr::cSC4Watercraft_Drive, b, times[c]) & 0xFF;
+            wstep.Mix(answer);
+            WsMixBoat(wstep, b);
+            wstep.Mix(static_cast<uint32_t>(tow.ref.refs));
+            wstep.Mix(g_wc.calls.h);
+            if (At<void*>(b, wc::field::kTow)) {
+                At<void*>(b, wc::field::kTow) = nullptr;
+                Virtual<uint32_t>(&tow.ref, av::slot::kRelease);
+            }
+        }
+        g_ws.slot31 = 0;
+        At<void*>(b, wc::field::kLeg) = nullptr;
+    }
+    boatTable[17] = shared[17];
+    boatTable[56] = shared[56];
+    partTable[10] = realPart[10];
+    wflags |= 0x100;
+    log::Write("autotest: automata: vehicle: wc2c wstep %08X", wstep.h);
 
     *terrainAt = terrainWas;
     At<void**>(city, 0) = realCity;
@@ -35466,7 +35713,9 @@ void VehicleDrive(cISC4City* city)
 
     // ---- Part wc2b.
     Hash wstate;
-    WatercraftDrive3(wstate, wflags);
+    // ---- Part wc2c (inside the wc2b test, with its fakes).
+    Hash wstep;
+    WatercraftDrive3(wstate, wstep, wflags);
 
     // ---- The city's vehicles: the log only.
     {
@@ -35524,14 +35773,14 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
                   pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags,
-                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wdrive.h, wstate.h, wflags);
+                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wdrive.h, wstate.h, wstep.h, wflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

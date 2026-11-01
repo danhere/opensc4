@@ -1,4 +1,4 @@
-// The layout of the boat, cSC4Watercraft, parts wc1, wc2a and wc2b (build 641;
+// The layout of the boat, cSC4Watercraft, parts wc1, wc2a, wc2b and wc2c (build 641;
 // functions, vtables and data in data/addresses/automata.toml, the survey
 // in docs/automata.md, "Part wc").
 //
@@ -69,6 +69,7 @@ inline constexpr std::size_t kStartPoint = 0x2E8, kPoint = 0x2F4, kStartHeading 
 inline constexpr std::size_t kTarget = 0x318, kTargetPath = 0x31C, kByte340 = 0x340;
 inline constexpr std::size_t kDriveParams = 0x344, kDriveParamsSize = 0xA0;
 inline constexpr std::size_t kParam394 = 0x394, kParam3D4 = 0x3D4; // two drive parameters (wc2b)
+inline constexpr std::size_t kParam350 = 0x350, kParam354 = 0x354, kParam3D0 = 0x3D0; // three more (wc2c)
 inline constexpr std::size_t kGenerator = 0x3E4, kWordDAC = 0xDAC;
 inline constexpr std::size_t kEffects = 0xDB0, kEffectCount = 6;
 // The core's.
@@ -106,9 +107,11 @@ inline constexpr std::size_t kInitialized = 0x14;   // the occupant part's slot 
 inline constexpr std::size_t kRemove = 0x34;        // the automaton's 13: (bool), ret 4
 inline constexpr std::size_t kGetPosition = 0x3C;   // an occupant's 15: (float* out), ret 4
 inline constexpr std::size_t kSetFlag = 0x78;       // the automaton's 30: (flag, bool), ret 8
+inline constexpr std::size_t kLength = 0x44;        // 17: ST0 (the bow and stern points)
 inline constexpr std::size_t kSlot31 = 0x7C;        // 31: (1), ret 4, AL
 inline constexpr std::size_t kPushState = 0xD0;     // 52: seven words, ret 0x1C
 inline constexpr std::size_t kSlot53 = 0xD4;        // 53: the tow's before it is let go of; the boat's own in ReachLeg
+inline constexpr std::size_t kKeys = 0xE0;          // 56: the keys record (+0x7C, +0x80 floats, -1.0 when up)
 inline constexpr std::size_t kStateType = 0xEC;     // 59: the current state's type
 inline constexpr std::size_t kTemplate = 0x10C;     // 67: the automata group
 inline constexpr std::size_t kSlot77 = 0x134;       // 77: (bool), ret 4
@@ -119,6 +122,7 @@ inline constexpr std::size_t kCityWatercraft = 0xB8; // the city's 46: the water
 inline constexpr std::size_t kCityEffects = 0x154;   // the city's 85: the effects manager
 inline constexpr std::size_t kCellOf = 0x17C;        // the city's 95: (x, z, int*, int*), ret 0x10
 inline constexpr std::size_t kInCity = 0x18C;        // the city's 99: (cell x, cell z), ret 8, AL
+inline constexpr std::size_t kBox = 0x28;            // the occupant part's (+4) 10: (float min[3], float max[3]), ret 8
 inline constexpr std::size_t kCells = 0x2C;          // the occupant part's (+4) 11: (int out[4]), ret 4
 inline constexpr std::size_t kHeightAt = 0x48;       // the terrain's 18: (cell x, cell z), ret 8, ST0
 inline constexpr std::size_t kWaterLevel = 0x74;     // the terrain's 29: ST0
