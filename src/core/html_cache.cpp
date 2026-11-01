@@ -1,6 +1,7 @@
 // Our part of the HTML viewer's file cache (docs/html.md, piece h7, its
-// first part h7a: "Ours: the cache's entries"): the hash map of entries and
-// the cache's slots that only work on it, written by hand from the
+// first part h7a: "Ours: the cache's entries", and second h7b: "Ours: the
+// cache's files"): the hash map of entries, the cache's slots that work on
+// it, and the slots that touch its files, written by hand from the
 // disassembly. Each function is a detour on the game's, in groups, off by
 // default:
 //
@@ -13,11 +14,17 @@
 //                           play), getting, removing, purging the expired,
 //                           releasing the data, the folder and ini names,
 //                           the release, the clock
+//   ui.html.cache.life      h7b's life: the constructor and destructor,
+//                           Init and Shutdown, the folder and ini name,
+//                           FileCache.ini read and written, its line
+//                           reader, the folder scan
+//   ui.html.cache.files     h7b's files: the `.cache` name, writing,
+//                           reading and deleting, getting a page,
+//                           refreshing one and putting one
 //
-// Left the game's (h7b): everything that touches files: the constructor
-// and destructor, opening the folder, reading and writing FileCache.ini,
-// the `.cache` files (naming, writing, reading, deleting: 0x008FC669 is
-// called by ours), getting and putting a page.
+// Still the game's: RZFile's open, read, write, length, copy and remove,
+// cRZIniFile's sections and keys, cRZDirectory's listing, the strings and
+// the allocator.
 //
 // The map (0x14 bytes): the hash and equal functors (+0, +1, empty), the
 // buckets (a vector of node pointers, +4 to +8, its room +0xC), the count
@@ -40,16 +47,11 @@
 
 #include <opensc4/addresses.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
-#include <vector>
-
-#include <windows.h>
 
 namespace opensc4::html_parser {
 extern bool g_useGame;
@@ -114,7 +116,6 @@ constexpr std::size_t kLimitFile = 0x4C;   // 500,000
 constexpr std::size_t kLimitEntry = 0x50;  // 432,000
 constexpr std::size_t kFolderString = 0xC;
 constexpr std::size_t kIniString = 0x20;
-constexpr std::uintptr_t kFileCacheVtable = 0x00ACD418;
 constexpr std::uint32_t kMaxFileCacheSize = 0x003D0900u;
 
 using Text = std::uint32_t[5]; // vtable, body begin, end, capacity, zero
@@ -127,44 +128,42 @@ void TextAppendBody(Text& target, const Text& from)
 {
     CallThis<void*>(addr::SC4String_AppendStd, target + 1, from + 1);
 }
-void TextAppendText(Text& target, const char* text) { CallThis<void*>(0x00410F00, target + 1, text); }
+void TextAppendText(Text& target, const char* text)
+{
+    CallThis<void*>(addr::cSC4Advisor_F410F00, target + 1, text);
+}
 std::uint32_t TextLength(const void* text)
 {
     return static_cast<std::uint32_t>(At<char*>(const_cast<void*>(text), 8) - At<char*>(const_cast<void*>(text), 4));
 }
 
-std::string TextString(const void* text)
-{
-    const char* begin = At<char*>(const_cast<void*>(text), 4);
-    return std::string(begin, TextLength(text));
-}
-
-void SetText(Text& target, const std::string& value)
+void SetText(Text& target, const char* value)
 {
     Text temporary;
-    TextFrom(temporary, value.c_str());
+    TextFrom(temporary, value);
     TextAssign(target, temporary);
     TextDestroy(temporary);
 }
 
-std::string FolderPath(char* cache) { return TextString(cache + kFolderString); }
-
-void MakePath(Text& path, const char* folder, const void* name)
+void MakePath(Text& path, const Text* folder, const void* name)
 {
     TextEmpty(path);
-    Text folderText;
-    TextFrom(folderText, folder);
-    TextAssign(path, folderText);
+    TextAssign(path, folder);
     TextAppendBody(path, *reinterpret_cast<const Text*>(name));
-    TextDestroy(folderText);
 }
 
-void MakePath(Text& path, const char* folder, const std::string& name)
+void MakePath(Text& path, const Text* folder, const char* name)
 {
     Text nameText;
-    TextFrom(nameText, name.c_str());
+    TextFrom(nameText, name);
     MakePath(path, folder, nameText);
     TextDestroy(nameText);
+}
+
+// A game string passed as a `char*` (an entry's name field).
+void MakePath(Text& path, const Text* folder, char* name)
+{
+    MakePath(path, folder, static_cast<const void*>(name));
 }
 
 bool IsSeparator(char c) { return c == '\\' || c == '/'; }
@@ -189,82 +188,153 @@ bool CreateDirectoryPath(const Text& path)
     return CallPlain<uint8_t>(addr::RZDirectory_Create, const_cast<Text*>(&path)) != 0;
 }
 
+// The game's file, ini and folder-listing objects, made on the stack as the
+// original makes them.
+constexpr std::size_t kFileObjectSize = 0x80;
+constexpr std::size_t kIniObjectSize = 0x3C;
+constexpr std::size_t kDirectoryObjectSize = 0x34;
+
+struct FileObject {
+    alignas(4) char bytes[kFileObjectSize];
+};
+struct IniObject {
+    alignas(4) char bytes[kIniObjectSize];
+};
+struct DirectoryObject {
+    alignas(4) char bytes[kDirectoryObjectSize];
+};
+struct NameNode {
+    NameNode* next;
+    NameNode* previous;
+    Text name;
+};
+static_assert(sizeof(NameNode) == 0x1C);
+
+void ReleaseBlock(char* block);
+
 // A cache file's name: the URL's extension, sanitised, after the clock's
-// seconds (docs/html.md, h7b).  Our MakeFile and MakeFileIn mirror the
-// game's `%d%s` + ".cache" and its retry on a collision.
-std::string CacheName(const char* url, int32_t when)
+// seconds (docs/html.md, h7b).  The caller's buffer is a stack buffer.
+void CacheName(char* out, std::size_t capacity, const char* url, std::uint32_t length, int32_t when)
 {
-    const std::size_t length = std::strlen(url);
-    std::size_t dot = std::string::npos;
+    std::size_t dot = static_cast<std::size_t>(-1);
     for (std::size_t i = length; i-- > 0;) {
         if (url[i] == '.') {
             dot = i;
             break;
         }
     }
-    std::string extension;
-    if (dot != std::string::npos && length - dot <= 8 && length - dot > 1)
-        extension.assign(url + dot, length - dot);
-    extension.erase(std::remove_if(extension.begin(), extension.end(), [](char c) { return !IsNameChar(c); }),
-                    extension.end());
-    char head[64];
-    std::snprintf(head, sizeof head, "%d", when);
-    return std::string(head) + extension + ".cache";
+    char extension[16] = {};
+    if (dot != static_cast<std::size_t>(-1) && length - dot <= 8 && length - dot > 1) {
+        std::size_t at = 0;
+        for (std::size_t i = dot; i < length && at + 1 < sizeof extension; ++i) {
+            if (IsNameChar(url[i]))
+                extension[at++] = url[i];
+        }
+    }
+    std::snprintf(out, capacity, "%d%s.cache", when, extension);
 }
 
-bool CreateEmptyFile(const std::string& path)
+bool OpenFile(const Text& path, FileObject& file, std::uint32_t access, std::uint32_t creation)
 {
-    std::FILE* const file = std::fopen(path.c_str(), "wb");
-    if (!file)
+    CallThis<void*>(addr::cRZFile_Construct, &file, const_cast<Text*>(&path));
+    const uint8_t open = CallThis<std::uint8_t>(addr::cRZFile_Open, &file, access, creation, 1u);
+    if (open != 0)
+        return true;
+    CallThis<void>(addr::cRZFile_Destruct, &file);
+    return false;
+}
+
+void CloseFile(FileObject& file)
+{
+    CallThis<void>(addr::cRZFile_Close, &file);
+    CallThis<void>(addr::cRZFile_Destruct, &file);
+}
+
+bool CreateEmptyFile(const Text& path)
+{
+    FileObject file;
+    if (!OpenFile(path, file, 2u, 0u))
         return false;
-    std::fclose(file);
+    CloseFile(file);
     return true;
 }
 
-bool WriteWholeFile(const std::string& path, const void* data, std::uint32_t size)
+bool WriteWholeFile(const Text& path, const void* data, std::uint32_t size)
 {
-    std::FILE* const file = std::fopen(path.c_str(), "wb");
-    if (!file)
+    FileObject file;
+    if (!OpenFile(path, file, 2u, 3u))
         return false;
-    const bool written = size == 0 || std::fwrite(data, 1, size, file) == size;
-    std::fclose(file);
+    const bool written = size == 0 || CallThis<std::uint8_t>(addr::cRZFile_Write, &file, data, size) != 0;
+    CloseFile(file);
     return written;
 }
 
-bool ReadWholeFile(const std::string& path, std::vector<char>& data)
+char* MakeEmptyBlock(std::uint32_t size)
 {
-    std::FILE* const file = std::fopen(path.c_str(), "rb");
-    if (!file)
+    char* const block = CallPlain<char*>(addr::SC4_operator_new, static_cast<std::size_t>(0xC));
+    if (!block)
+        return nullptr;
+    char* const payload = CallPlain<char*>(addr::SC4_operator_new, static_cast<std::size_t>(size));
+    if (!payload) {
+        CallPlain<void>(addr::SC4_operator_delete, block);
+        return nullptr;
+    }
+    At<char*>(block, 0) = payload;
+    At<std::uint32_t>(block, 4) = size;
+    At<std::uint16_t>(block, 8) = 1;
+    At<std::uint16_t>(block, 0xA) = 0;
+    return block;
+}
+
+bool ReadFileBlock(const Text& path, char*& block)
+{
+    FileObject file;
+    if (!OpenFile(path, file, 1u, 2u))
         return false;
-    if (std::fseek(file, 0, SEEK_END) != 0) {
-        std::fclose(file);
+    const std::uint32_t size = CallThis<std::uint32_t>(addr::cRZFile_Length, &file);
+    if (size == 0) {
+        CloseFile(file);
         return false;
     }
-    const long length = std::ftell(file);
-    if (length <= 0) {
-        std::fclose(file);
+    block = MakeEmptyBlock(size);
+    if (!block) {
+        CloseFile(file);
         return false;
     }
-    std::rewind(file);
-    data.resize(static_cast<std::size_t>(length));
-    const bool read = std::fread(data.data(), 1, data.size(), file) == data.size();
-    std::fclose(file);
+    const bool read = CallThis<std::uint8_t>(addr::cRZFile_Read, &file, At<char*>(block, 0), size) != 0;
+    CloseFile(file);
+    if (!read) {
+        ReleaseBlock(block);
+        block = nullptr;
+    }
     return read;
 }
 
-std::uint32_t ReadFileSize(const std::string& path)
+std::uint32_t ReadFileSize(const Text& path)
 {
-    std::FILE* const file = std::fopen(path.c_str(), "rb");
-    if (!file)
+    FileObject file;
+    if (!OpenFile(path, file, 1u, 2u))
         return 0;
-    std::uint32_t size = 0;
-    if (std::fseek(file, 0, SEEK_END) == 0) {
-        const long length = std::ftell(file);
-        if (length > 0)
-            size = static_cast<std::uint32_t>(length);
-    }
-    std::fclose(file);
+    const std::uint32_t size = CallThis<std::uint32_t>(addr::cRZFile_Length, &file);
+    CloseFile(file);
     return size;
+}
+
+bool SameNoCase(const char* left, std::uint32_t leftLength, const char* right, std::uint32_t rightLength)
+{
+    if (leftLength != rightLength)
+        return false;
+    for (std::uint32_t i = 0; i < leftLength; ++i) {
+        char a = left[i];
+        char b = right[i];
+        if (a >= 'A' && a <= 'Z')
+            a = static_cast<char>(a + ('a' - 'A'));
+        if (b >= 'A' && b <= 'Z')
+            b = static_cast<char>(b + ('a' - 'A'));
+        if (a != b)
+            return false;
+    }
+    return true;
 }
 
 char* MakeBlock(const void* data, std::uint32_t size, bool copy)
@@ -715,25 +785,26 @@ bool Remove(char* self, const char* key)
 // ====================================================================================
 // The cache's files (h7b)
 
-bool MakeFileIn(char* self, const char* key, char* entry, const char* folder)
+bool MakeFileIn(char* self, const char* key, char* entry, const Text* folder)
 {
     (void)self;
-    const char* const url = At<char*>(const_cast<char*>(key), 4) ? At<char*>(const_cast<char*>(key), 4) : "";
+    const char* const url = At<char*>(const_cast<char*>(key), 4);
+    const uint32_t urlLength = TextLength(key);
     const int32_t now = Now();
     for (int32_t attempt = 0; attempt < 10000; ++attempt) {
-        const std::string name = CacheName(url, now - attempt);
+        char name[64];
+        CacheName(name, sizeof name, url, urlLength, now - attempt);
         SetText(*reinterpret_cast<Text*>(entry), name);
         Text path;
-        MakePath(path, folder, name);
+        MakePath(path, folder, static_cast<const char*>(name));
         const bool exists = FileExists(path);
-        TextDestroy(path);
         if (!exists) {
-            Text created;
-            MakePath(created, folder, name);
-            const bool okay = CreateEmptyFile(At<char*>(created, 4));
-            TextDestroy(created);
+            const bool okay = CreateEmptyFile(path);
+            TextDestroy(path);
             if (okay)
                 return true;
+        } else {
+            TextDestroy(path);
         }
     }
     return false;
@@ -742,16 +813,14 @@ bool MakeFileIn(char* self, const char* key, char* entry, const char* folder)
 // 0x008FCD49, slot 26: a cache file name for the entry, in the cache folder.
 bool MakeFile(char* self, const char* key, char* entry)
 {
-    const std::string folder = FolderPath(self);
-    return MakeFileIn(self, key, entry, folder.c_str());
+    return MakeFileIn(self, key, entry, reinterpret_cast<const Text*>(self + kFolderString));
 }
 
 // 0x008FCEEB, slot 27: a new file in a folder the caller gives (or the
 // cache's); its full path goes into `out`.
 bool MakeFileWithFolder(char* self, const char* key, char* out, const Text* folder)
 {
-    const std::string cacheFolder = FolderPath(self);
-    const char* const directory = folder ? At<char*>(const_cast<Text*>(folder), 4) : cacheFolder.c_str();
+    const Text* const directory = folder ? folder : reinterpret_cast<const Text*>(self + kFolderString);
     char entry[0x30] = {};
     TextEmpty(*reinterpret_cast<Text*>(entry));
     if (!MakeFileIn(self, key, entry, directory)) {
@@ -770,8 +839,8 @@ bool MakeFileWithFolder(char* self, const char* key, char* out, const Text* fold
 bool WriteCacheFile(char* self, char* entry, const void* data, uint32_t size)
 {
     Text path;
-    MakePath(path, FolderPath(self).c_str(), entry);
-    const bool written = WriteWholeFile(At<char*>(path, 4), data, size);
+    MakePath(path, reinterpret_cast<const Text*>(self + kFolderString), entry);
+    const bool written = WriteWholeFile(path, data, size);
     TextDestroy(path);
     return written;
 }
@@ -780,8 +849,8 @@ bool WriteCacheFile(char* self, char* entry, const void* data, uint32_t size)
 uint32_t ReadCacheFileSize(char* self, char* entry)
 {
     Text path;
-    MakePath(path, FolderPath(self).c_str(), entry);
-    const uint32_t size = ReadFileSize(At<char*>(path, 4));
+    MakePath(path, reinterpret_cast<const Text*>(self + kFolderString), entry);
+    const uint32_t size = ReadFileSize(path);
     TextDestroy(path);
     return size;
 }
@@ -792,7 +861,7 @@ bool RemoveFile(char* self, char* entry)
     if (TextLength(entry) == 0)
         return false;
     Text path;
-    MakePath(path, FolderPath(self).c_str(), entry);
+    MakePath(path, reinterpret_cast<const Text*>(self + kFolderString), entry);
     DeletePath(path);
     TextDestroy(path);
     return true;
@@ -803,8 +872,9 @@ bool SetFolder(char* self, const Text* folder)
 {
     Text& own = *reinterpret_cast<Text*>(self + kFolderString);
     TextAssign(own, folder);
-    const std::string value = TextString(own);
-    if (!value.empty() && !IsSeparator(value.back()))
+    const char* const begin = At<char*>(own, 4);
+    const char* const end = At<char*>(own, 8);
+    if (begin && end && begin < end && !IsSeparator(end[-1]))
         TextAppendText(own, "\\");
     bool okay = DirectoryExists(own);
     if (!okay)
@@ -816,9 +886,8 @@ bool SetFolder(char* self, const Text* folder)
 bool SetIniName(char* self, const Text* ini)
 {
     Text path;
-    TextEmpty(path);
-    TextAssign(path, self + kFolderString);
-    TextAppendBody(path, *reinterpret_cast<const Text*>(self + kIniString));
+    MakePath(path, reinterpret_cast<const Text*>(self + kFolderString),
+             reinterpret_cast<const Text*>(self + kIniString));
     if (FileExists(path))
         DeletePath(path);
     TextDestroy(path);
@@ -830,7 +899,7 @@ bool SetIniName(char* self, const Text* ini)
 char* Construct(char* self)
 {
     At<uint32_t>(self, 8) = 0;
-    At<uint32_t>(self, 0) = static_cast<uint32_t>(kFileCacheVtable);
+    At<uint32_t>(self, 0) = static_cast<uint32_t>(addr::FileCache_Vtable);
     At<uint8_t>(self, kInitialized) = 0;
     TextEmpty(*reinterpret_cast<Text*>(self + kFolderString));
     TextFrom(*reinterpret_cast<Text*>(self + kIniString), "FileCache.ini");
@@ -843,14 +912,20 @@ char* Construct(char* self)
     return self;
 }
 
-// 0x008FD3D9, slot 2: the ini written, every block released, not initialized.
-bool Shutdown(char* self);
+void DropEntry(char* self, char* node, char* owner)
+{
+    char* const entry = node + 0x18;
+    if (char* const block = At<char*>(entry, kBlock))
+        ReleaseBlock(block);
+    CallThis<uint8_t>(addr::FileCache_RemoveFile, self, entry);
+    CallThis<void>(addr::HTMLCacheMap_EraseAt, self + kMap, node, owner);
+}
 
 // 0x008FD729: the destructor body.
 void DestructCache(char* self)
 {
-    At<uint32_t>(self, 0) = static_cast<uint32_t>(kFileCacheVtable);
-    Shutdown(self);
+    At<uint32_t>(self, 0) = static_cast<uint32_t>(addr::FileCache_Vtable);
+    CallThis<uint8_t>(addr::FileCache_Shutdown, self);
     CallThis<void>(addr::HTMLCacheMap_Destruct, self + kMap);
     TextDestroy(*reinterpret_cast<Text*>(self + kIniString));
     TextDestroy(*reinterpret_cast<Text*>(self + kFolderString));
@@ -870,24 +945,31 @@ char* DeletingDestructor(char* self, uint32_t flags)
 // or missing file is removed and not inserted.
 void ReadIniLine(char* self, const Text* value)
 {
-    const std::string text = TextString(value);
-    std::vector<std::string> fields;
-    std::size_t start = 0;
-    for (;;) {
-        const std::size_t comma = text.find(',', start);
-        fields.push_back(text.substr(start, comma == std::string::npos ? std::string::npos : comma - start));
-        if (comma == std::string::npos)
+    const char* const begin = At<char*>(const_cast<Text*>(value), 4);
+    const char* const end = At<char*>(const_cast<Text*>(value), 8);
+    char fields[8][600] = {};
+    uint32_t count = 0;
+    const char* start = begin;
+    for (const char* at = begin;; ++at) {
+        if (at != end && *at != ',')
+            continue;
+        const std::size_t length = static_cast<std::size_t>(at - start);
+        if (count >= 8 || length >= sizeof fields[0])
+            return;
+        std::memcpy(fields[count], start, length);
+        ++count;
+        start = at + 1;
+        if (at == end)
             break;
-        start = comma + 1;
     }
-    if (fields.size() != 8)
+    if (count != 8)
         return;
-    const uint32_t size = static_cast<uint32_t>(std::strtoul(fields[2].c_str(), nullptr, 10));
-    uint32_t words[3] = {static_cast<uint32_t>(std::strtoul(fields[3].c_str(), nullptr, 10)),
-                         static_cast<uint32_t>(std::strtoul(fields[4].c_str(), nullptr, 10)),
-                         static_cast<uint32_t>(std::strtoul(fields[5].c_str(), nullptr, 10))};
-    int32_t used = static_cast<int32_t>(std::strtol(fields[6].c_str(), nullptr, 10));
-    const int32_t expiry = static_cast<int32_t>(std::strtol(fields[7].c_str(), nullptr, 10));
+    const uint32_t size = static_cast<uint32_t>(std::strtoul(fields[2], nullptr, 10));
+    uint32_t words[3] = {static_cast<uint32_t>(std::strtoul(fields[3], nullptr, 10)),
+                         static_cast<uint32_t>(std::strtoul(fields[4], nullptr, 10)),
+                         static_cast<uint32_t>(std::strtoul(fields[5], nullptr, 10))};
+    int32_t used = static_cast<int32_t>(std::strtol(fields[6], nullptr, 10));
+    const int32_t expiry = static_cast<int32_t>(std::strtol(fields[7], nullptr, 10));
     const int32_t now = Now();
     if (now < used)
         used = now;
@@ -895,24 +977,22 @@ void ReadIniLine(char* self, const Text* value)
         words[2] = static_cast<uint32_t>(now);
 
     Text file;
-    TextFrom(file, fields[1].c_str());
+    TextFrom(file, fields[1]);
     Text path;
-    MakePath(path, FolderPath(self).c_str(), file);
+    MakePath(path, reinterpret_cast<const Text*>(self + kFolderString), &file);
     const bool valid = size <= kMaxFileCacheSize && expiry > now && FileExists(path);
-    TextDestroy(path);
     if (!valid) {
-        Text doomed;
-        MakePath(doomed, FolderPath(self).c_str(), file);
-        DeletePath(doomed);
-        TextDestroy(doomed);
+        DeletePath(path);
+        TextDestroy(path);
         TextDestroy(file);
         return;
     }
+    TextDestroy(path);
 
     Text key;
-    TextFrom(key, fields[0].c_str());
+    TextFrom(key, fields[0]);
     char entry[0x30] = {};
-    TextFrom(*reinterpret_cast<Text*>(entry), fields[1].c_str());
+    TextFrom(*reinterpret_cast<Text*>(entry), fields[1]);
     At<uint32_t>(entry, kBlock) = 0;
     At<uint32_t>(entry, kSize) = size;
     At<uint32_t>(entry, kWords + 0) = words[0];
@@ -923,127 +1003,118 @@ void ReadIniLine(char* self, const Text* value)
     alignas(4) char pair[0x44];
     CallThis<void*>(addr::HTMLCacheMap_MakePair, pair, key, entry);
     alignas(4) char out[12] = {};
-    CallThis<void**>(addr::HTMLCacheMap_Insert, self + kMap, reinterpret_cast<char**>(out), pair);
+    CallThis<char**>(addr::HTMLCacheMap_Insert, self + kMap, reinterpret_cast<char**>(out), pair);
     CallThis<void>(addr::SC4StringPair_Destruct, pair);
     TextDestroy(*reinterpret_cast<Text*>(entry));
     TextDestroy(key);
     TextDestroy(file);
 }
 
-// 0x008FDD39: `FileCache.ini` read into the map.  The ini is removed after
-// it has been read, as the game does; SaveIni writes it again.
+// 0x008FDD39: `FileCache.ini` read into the map through the game's ini
+// reader.  The ini is removed after it has been read, as the game does.
 bool LoadIni(char* self)
 {
     Text path;
-    MakePath(path, FolderPath(self).c_str(), self + kIniString);
-    std::FILE* const file = std::fopen(At<char*>(path, 4), "rb");
-    bool loaded = file != nullptr;
-    if (file) {
-        std::string section;
-        char buffer[4096];
-        while (std::fgets(buffer, sizeof buffer, file)) {
-            std::string line = buffer;
-            while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
-                line.pop_back();
-            const std::size_t open = line.find_first_not_of(" \t");
-            if (open == std::string::npos || line[open] == ';')
-                continue;
-            if (line[open] == '[') {
-                const std::size_t close = line.find(']', open);
-                section = close == std::string::npos ? std::string() : line.substr(open + 1, close - open - 1);
-                continue;
-            }
-            if (section != "Cache Entries")
-                continue;
-            const std::size_t equals = line.find('=', open);
-            if (equals == std::string::npos || line.compare(open, 10, "CacheEntry") != 0)
-                continue;
-            std::string value = line.substr(equals + 1);
-            const std::size_t first = value.find_first_not_of(" \t");
-            const std::size_t last = value.find_last_not_of(" \t\r");
-            if (first == std::string::npos)
-                continue;
-            value = value.substr(first, last - first + 1);
-            Text text;
-            TextFrom(text, value.c_str());
-            ReadIniLine(self, &text);
-            TextDestroy(text);
-        }
-        std::fclose(file);
-        DeletePath(path);
-    }
+    MakePath(path, reinterpret_cast<const Text*>(self + kFolderString),
+             reinterpret_cast<const Text*>(self + kIniString));
+    IniObject ini;
+    CallThis<void*>(addr::cRZIniFile_Construct, &ini, &path);
+    Text section;
+    TextFrom(section, "Cache Entries");
+    const uint8_t result = CallThis<uint8_t>(
+        addr::cRZIniFile_ForEachEntry, &ini, &section,
+        reinterpret_cast<void*>(addr::FileCache_ReadIniLine), self);
+    TextDestroy(section);
+    CallThis<void>(addr::cRZIniFile_Destruct, &ini);
     TextDestroy(path);
-    return loaded;
+    return result != 0;
 }
 
 // 0x008FC9B1: the map written to `FileCache.ini`, named entries only.
 bool SaveIni(char* self)
 {
     Text path;
-    MakePath(path, FolderPath(self).c_str(), self + kIniString);
+    MakePath(path, reinterpret_cast<const Text*>(self + kFolderString),
+             reinterpret_cast<const Text*>(self + kIniString));
+    IniObject ini;
+    CallThis<void*>(addr::cRZIniFile_Construct, &ini, &path);
     DeletePath(path);
-    std::FILE* const file = std::fopen(At<char*>(path, 4), "wb");
-    bool saved = file != nullptr;
-    if (file) {
-        std::fputs("[Cache Entries]\r\n", file);
-        char* it[2] = {};
-        CallThis<void*>(addr::cGZDBSegmentPackedFile_KeyTableBegin, self + kMap, it);
-        uint32_t index = 0;
-        while (it[0]) {
-            char* const node = it[0];
-            char* const entry = node + 0x18;
-            if (TextLength(entry) != 0) {
-                const std::string url = TextString(node + 4);
-                const std::string name = TextString(entry);
-                char line[1024];
-                const int written = std::snprintf(
-                    line, sizeof line, "CacheEntry%05u = %s,%s,%u,%u,%u,%d,%d,%d\r\n", index, url.c_str(),
-                    name.c_str(), At<uint32_t>(entry, kSize), At<uint32_t>(entry, kWords + 0),
-                    At<uint32_t>(entry, kWords + 4), At<int32_t>(entry, kWords + 8),
-                    At<int32_t>(entry, kUsed), At<int32_t>(entry, kExpiry));
-                if (written > 0)
-                    std::fwrite(line, 1, static_cast<std::size_t>(written), file);
-                ++index;
+    Text section;
+    TextFrom(section, "Cache Entries");
+    char* it[2] = {};
+    CallThis<void*>(addr::cGZDBSegmentPackedFile_KeyTableBegin, self + kMap, it);
+    uint32_t index = 0;
+    while (it[0]) {
+        char* const node = it[0];
+        char* const entry = node + 0x18;
+        if (TextLength(entry) != 0) {
+            char key[32];
+            char value[1200];
+            const int keyLength = std::snprintf(key, sizeof key, "CacheEntry%05u", index);
+            const int valueLength = std::snprintf(
+                value, sizeof value, "%.*s,%.*s,%u,%u,%u,%d,%d,%d", static_cast<int>(TextLength(node + 4)),
+                At<char*>(node + 4, 4), static_cast<int>(TextLength(entry)), At<char*>(entry, 4),
+                At<uint32_t>(entry, kSize), At<uint32_t>(entry, kWords + 0),
+                At<uint32_t>(entry, kWords + 4), At<int32_t>(entry, kWords + 8),
+                At<int32_t>(entry, kUsed), At<int32_t>(entry, kExpiry));
+            if (keyLength > 0 && valueLength > 0) {
+                Text keyText;
+                Text valueText;
+                TextFrom(keyText, key);
+                TextFrom(valueText, value);
+                CallThis<void>(addr::cRZIniFile_SetString, &ini, &section, &keyText, &valueText);
+                TextDestroy(valueText);
+                TextDestroy(keyText);
             }
-            CallThis<char**>(addr::HTMLCacheMap_Increment, it);
+            ++index;
         }
-        std::fclose(file);
+        CallThis<char**>(addr::HTMLCacheMap_Increment, it);
     }
+    TextDestroy(section);
+    CallThis<void>(addr::cRZIniFile_Destruct, &ini);
     TextDestroy(path);
-    return saved;
+    return true;
 }
 
 // 0x008FC6E0: every `.cache` file in the folder that no entry names removed.
 bool ScanFolder(char* self)
 {
-    const std::string folder = FolderPath(self);
-    std::vector<std::string> files;
-    WIN32_FIND_DATAA data;
-    const std::string pattern = folder + "*.cache";
-    HANDLE find = FindFirstFileA(pattern.c_str(), &data);
-    if (find != INVALID_HANDLE_VALUE) {
-        do {
-            if (!(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-                files.emplace_back(data.cFileName);
-        } while (FindNextFileA(find, &data));
-        FindClose(find);
-    }
-    for (const std::string& name : files) {
+    Text folder;
+    TextEmpty(folder);
+    TextAssign(folder, self + kFolderString);
+    Text pattern;
+    TextFrom(pattern, "*.cache");
+    DirectoryObject listing;
+    CallThis<void*>(addr::cRZDirectory_Construct, &listing, &folder, 0u, 0u, 0u);
+    NameNode* names = CallPlain<NameNode*>(addr::SC4_stl_allocate, static_cast<std::size_t>(0x1C));
+    names->next = names;
+    names->previous = names;
+    CallThis<void>(addr::cRZDirectory_SetPath, &listing, &folder, 0u);
+    CallThis<void>(addr::cRZDirectory_SetPattern, &listing, &pattern, 0u);
+    CallThis<void>(addr::cRZDirectory_GetFiles, &listing, &names);
+    for (NameNode* node = names->next; node != names; node = node->next) {
         bool known = false;
         char* it[2] = {};
         CallThis<void*>(addr::cGZDBSegmentPackedFile_KeyTableBegin, self + kMap, it);
         while (it[0] && !known) {
-            const std::string entryName = TextString(it[0] + 0x18);
-            known = _stricmp(entryName.c_str(), name.c_str()) == 0;
+            const Text* const entryName = reinterpret_cast<const Text*>(it[0] + 0x18);
+            known = SameNoCase(At<char*>(&node->name, 4), TextLength(&node->name),
+                               At<char*>(const_cast<Text*>(entryName), 4), TextLength(entryName));
             CallThis<char**>(addr::HTMLCacheMap_Increment, it);
         }
         if (!known) {
             Text path;
-            MakePath(path, folder.c_str(), name);
+            MakePath(path, &folder, &node->name);
             DeletePath(path);
             TextDestroy(path);
         }
     }
+    CallThis<void>(addr::SC4UI_F43ABA0, &names);
+    if (names)
+        CallPlain<void>(addr::SC4_Free, names);
+    CallThis<void>(addr::cRZDirectory_Destruct, &listing);
+    TextDestroy(pattern);
+    TextDestroy(folder);
     return true;
 }
 
@@ -1053,8 +1124,8 @@ bool Init(char* self)
     if (!At<uint8_t>(self, kInitialized)) {
         Text& folder = *reinterpret_cast<Text*>(self + kFolderString);
         if (TextLength(folder) == 0) {
-            CallPlain<void>(0x00918D35, folder); // RZFile::GetTempPath
-            TextAppendText(folder, "Maxis Network Cache\\");
+            CallPlain<void>(addr::RZFile_GetTempPath, folder);
+            CallThis<void*>(addr::cSC4Advisor_F410F00, folder + 1, "Maxis Network Cache\\");
         }
         Text path;
         TextEmpty(path);
@@ -1062,8 +1133,8 @@ bool Init(char* self)
         if (!DirectoryExists(path))
             CreateDirectoryPath(path);
         TextDestroy(path);
-        LoadIni(self);
-        ScanFolder(self);
+        CallThis<uint8_t>(addr::FileCache_LoadIni, self);
+        CallThis<uint8_t>(addr::FileCache_ScanFolder, self);
         At<uint8_t>(self, kInitialized) = 1;
     }
     return true;
@@ -1073,8 +1144,8 @@ bool Init(char* self)
 bool Shutdown(char* self)
 {
     if (At<uint8_t>(self, kInitialized)) {
-        SaveIni(self);
-        ReleaseAll(self);
+        CallThis<uint8_t>(addr::FileCache_SaveIni, self);
+        CallThis<void>(addr::FileCache_ReleaseAll, self);
         At<uint8_t>(self, kInitialized) = 0;
     }
     return true;
@@ -1085,16 +1156,16 @@ bool GetData(char* self, const char* key, char** out)
 {
     ++At<uint32_t>(self, kAsked);
     if (++At<uint32_t>(self, kSincePurge) > 0x28)
-        Purge(self);
+        CallThis<void>(addr::FileCache_Purge, self);
     char* it[2] = {};
-    Find(self + kMap, it, key);
+    CallThis<char**>(addr::HTMLCacheMap_Find, self + kMap, it, key);
     char* const node = it[0];
     if (!node)
         return false;
     char* const entry = node + 0x18;
     const int32_t now = Now();
     if (now >= At<int32_t>(entry, kExpiry)) {
-        Drop(self, node, it[1]);
+        DropEntry(self, node, it[1]);
         return false;
     }
     if (!out)
@@ -1106,25 +1177,16 @@ bool GetData(char* self, const char* key, char** out)
         return true;
     }
     Text path;
-    MakePath(path, FolderPath(self).c_str(), entry);
-    std::vector<char> data;
-    const bool read = ReadWholeFile(At<char*>(path, 4), data);
+    MakePath(path, reinterpret_cast<const Text*>(self + kFolderString), entry);
+    char* block = nullptr;
+    const bool read = ReadFileBlock(path, block);
     TextDestroy(path);
     if (!read) {
-        if (char* const block = At<char*>(entry, kBlock))
-            ReleaseBlock(block);
-        RemoveFile(self, entry);
-        Drop(self, node, it[1]);
-        return false;
-    }
-    char* const block = MakeBlock(data.data(), static_cast<uint32_t>(data.size()), true);
-    if (!block) {
-        RemoveFile(self, entry);
-        Drop(self, node, it[1]);
+        DropEntry(self, node, it[1]);
         return false;
     }
     At<char*>(entry, kBlock) = block;
-    At<uint32_t>(entry, kSize) = static_cast<uint32_t>(data.size());
+    At<uint32_t>(entry, kSize) = At<uint32_t>(block, 4);
     ++At<uint16_t>(block, 8);
     *out = block;
     At<int32_t>(entry, kUsed) = now;
@@ -1137,27 +1199,25 @@ bool GetPath(char* self, const char* key, Text* out)
 {
     ++At<uint32_t>(self, kAsked);
     if (++At<uint32_t>(self, kSincePurge) > 0x28)
-        Purge(self);
+        CallThis<void>(addr::FileCache_Purge, self);
     char* it[2] = {};
-    Find(self + kMap, it, key);
+    CallThis<char**>(addr::HTMLCacheMap_Find, self + kMap, it, key);
     char* const node = it[0];
     if (!node)
         return false;
     char* const entry = node + 0x18;
     const int32_t now = Now();
     if (now >= At<int32_t>(entry, kExpiry)) {
-        if (char* const block = At<char*>(entry, kBlock))
-            ReleaseBlock(block);
-        RemoveFile(self, entry);
-        Drop(self, node, it[1]);
+        DropEntry(self, node, it[1]);
         return false;
     }
     if (out) {
         if (At<char*>(entry, kBlock) && TextLength(entry) == 0) {
-            if (MakeFile(self, key, entry)) {
-                if (!WriteCacheFile(self, entry, At<char*>(At<char*>(entry, kBlock), 0),
-                                    At<uint32_t>(At<char*>(entry, kBlock), 4)))
-                    log::Write("html cache: %s: the block could not be written", TextString(key).c_str());
+            if (CallThis<uint8_t>(addr::FileCache_MakeFile, self, key, entry) != 0) {
+                if (CallThis<uint8_t>(addr::FileCache_WriteFile, self, entry, At<char*>(At<char*>(entry, kBlock), 0),
+                                      At<uint32_t>(At<char*>(entry, kBlock), 4)) == 0)
+                    log::Write("html cache: %.*s: the block could not be written",
+                               static_cast<int>(TextLength(key)), At<char*>(const_cast<char*>(key), 4));
             }
         }
         TextAssign(*out, self + kFolderString);
@@ -1175,16 +1235,11 @@ bool PutData(char* self, const char* key, const void* data, uint32_t size, bool 
         return false;
     ++At<uint32_t>(self, kAsked);
     if (++At<uint32_t>(self, kSincePurge) > 0x28)
-        Purge(self);
+        CallThis<void>(addr::FileCache_Purge, self);
     char* it[2] = {};
-    Find(self + kMap, it, key);
-    if (it[0]) {
-        char* const old = it[0] + 0x18;
-        if (char* const block = At<char*>(old, kBlock))
-            ReleaseBlock(block);
-        RemoveFile(self, old);
-        Drop(self, it[0], it[1]);
-    }
+    CallThis<char**>(addr::HTMLCacheMap_Find, self + kMap, it, key);
+    if (it[0])
+        DropEntry(self, it[0], it[1]);
     if (!data || size == 0)
         return false;
     char* const block = MakeBlock(data, size, copy);
@@ -1223,16 +1278,11 @@ bool PutFile(char* self, const char* key, const Text* source, bool keepName, uin
         return false;
     ++At<uint32_t>(self, kAsked);
     if (++At<uint32_t>(self, kSincePurge) > 0x28)
-        Purge(self);
+        CallThis<void>(addr::FileCache_Purge, self);
     char* it[2] = {};
-    Find(self + kMap, it, key);
-    if (it[0]) {
-        char* const old = it[0] + 0x18;
-        if (char* const block = At<char*>(old, kBlock))
-            ReleaseBlock(block);
-        RemoveFile(self, old);
-        Drop(self, it[0], it[1]);
-    }
+    CallThis<char**>(addr::HTMLCacheMap_Find, self + kMap, it, key);
+    if (it[0])
+        DropEntry(self, it[0], it[1]);
 
     Text name;
     TextEmpty(name);
@@ -1242,22 +1292,24 @@ bool PutFile(char* self, const char* key, const Text* source, bool keepName, uin
     TextAssign(*reinterpret_cast<Text*>(entry), name);
 
     (void)keepName;
-    if (!MakeFile(self, key, entry)) {
+    const uint8_t made = CallThis<uint8_t>(addr::FileCache_MakeFile, self, key, entry);
+    if (made == 0) {
         TextDestroy(name);
         TextDestroy(*reinterpret_cast<Text*>(entry));
         return false;
     }
     Text cachePath;
-    MakePath(cachePath, FolderPath(self).c_str(), entry);
-    if (!CallPlain<uint8_t>(addr::RZFile_Copy, const_cast<Text*>(source), &cachePath, 1u)) {
+    MakePath(cachePath, reinterpret_cast<const Text*>(self + kFolderString), entry);
+    const uint8_t copied = CallPlain<uint8_t>(addr::RZFile_Copy, const_cast<Text*>(source), &cachePath, 1u);
+    if (copied == 0) {
         DeletePath(cachePath);
         TextDestroy(cachePath);
         TextDestroy(name);
         TextDestroy(*reinterpret_cast<Text*>(entry));
         return false;
     }
-    const uint32_t size = ReadFileSize(At<char*>(cachePath, 4));
     TextDestroy(cachePath);
+    const uint32_t size = CallThis<uint32_t>(addr::FileCache_ReadFile, self, entry);
     if (size == 0) {
         TextDestroy(name);
         TextDestroy(*reinterpret_cast<Text*>(entry));

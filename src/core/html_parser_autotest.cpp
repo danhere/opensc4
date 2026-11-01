@@ -6391,7 +6391,7 @@ uint32_t CacheItem(int which)
 // ====================================================================================
 // h7b: the file cache's file-facing half
 
-constexpr int kCacheFileItems = 7;
+constexpr int kCacheFileItems = 11;
 int g_cacheFolder = 0;
 
 std::string H7bFolder(int which)
@@ -6582,6 +6582,12 @@ uint32_t CacheFileItem(int which)
         char entry[0x30] = {};
         MakeText(reinterpret_cast<GameText*>(entry), "");
         GameText key = makeKey("http://www.simcity.com/dir/picture.jpeg");
+        // SetFolder adds the missing trailing separator.
+        const std::string bareFolder = folder.substr(0, folder.size() - 1);
+        GameText bare{};
+        MakeText(&bare, bareFolder.c_str());
+        f.Byte(Virtual<uint8_t>(cache, 0x18, &bare));
+        DestroyText(&bare);
         f.Byte(Virtual<uint8_t>(cache, 0x68, &key, entry));
         HashH7bText(f, H7bNormalName(H7bText(entry)));
         char other[0x30] = {};
@@ -6607,6 +6613,11 @@ uint32_t CacheFileItem(int which)
         GameText path{};
         MakeText(&path, source.c_str());
         f.Byte(Virtual<uint8_t>(cache, 0x60, &key, &path, true, uint8_t{5}, int32_t{600}));
+        char* entry = nullptr;
+        Virtual<uint8_t>(cache, 0x44, &key, &entry);
+        f.Byte(entry ? 1 : 0);
+        f.Word(entry ? reinterpret_cast<uint32_t(__thiscall*)(void*, void*)>(addr::FileCache_ReadFile)(cache, entry)
+                     : 0);
         char* block = nullptr;
         f.Byte(Virtual<uint8_t>(cache, 0x3C, &key, &block));
         f.Bytes(block ? At<char*>(block, 0) : nullptr, block ? At<char*>(block, 0) + At<uint32_t>(block, 4) : nullptr);
@@ -6651,13 +6662,73 @@ uint32_t CacheFileItem(int which)
         f.Byte(Virtual<uint8_t>(second, 0x4));
         HashH7bMap(f, second);
         DestroyH7bCache(second);
-    } else {
+    } else if (which == 6) {
         // ScanFolder removes an orphan .cache file.
         std::FILE* const orphan = std::fopen((folder + "orphan.cache").c_str(), "wb");
         if (orphan)
             std::fclose(orphan);
         f.Byte(Virtual<uint8_t>(cache, 0x8));
         f.Byte(Virtual<uint8_t>(cache, 0x4));
+        HashH7bFiles(f, folder);
+    } else if (which == 7) {
+        // A replaced data entry: the old block and file are dropped first.
+        GameText key = makeKey("http://www.simcity.com/replaced.gif");
+        const char first[] = "first";
+        const char second[] = "second";
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, first, sizeof first, true, uint8_t{1}, int32_t{600}));
+        GameText file{};
+        MakeText(&file, "");
+        f.Byte(Virtual<uint8_t>(cache, 0x40, &key, &file));
+        DestroyText(&file);
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, second, sizeof second, true, uint8_t{2}, int32_t{600}));
+        char* block = nullptr;
+        f.Byte(Virtual<uint8_t>(cache, 0x3C, &key, &block));
+        f.Bytes(block ? At<char*>(block, 0) : nullptr, block ? At<char*>(block, 0) + At<uint32_t>(block, 4) : nullptr);
+        if (block)
+            reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::HTMLSharedBlock_Release)(block);
+        DestroyText(&key);
+        HashH7bFiles(f, folder);
+    } else if (which == 8) {
+        // An expiry of 0 is already expired when it is read back.
+        GameText key = makeKey("http://www.simcity.com/expired.gif");
+        const char data[] = "expired";
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, data, sizeof data, true, uint8_t{1}, int32_t{0}));
+        char* block = nullptr;
+        f.Byte(Virtual<uint8_t>(cache, 0x3C, &key, &block));
+        f.Byte(block ? 1 : 0);
+        DestroyText(&key);
+    } else if (which == 9) {
+        // The deleting destructor with flag 0 runs the body but keeps memory.
+        char* const ended = MakeH7bCache(folder);
+        Virtual<uint8_t>(ended, 0x4);
+        f.Byte(reinterpret_cast<char*(__thiscall*)(void*, uint32_t)>(addr::FileCache_DeletingDestructor)(ended, 0) ==
+               ended);
+        GameDelete(ended);
+        HashH7bFiles(f, folder);
+    } else {
+        // Ini lines the cache rejects: missing file, oversized, expired.
+        char* const loading = MakeH7bCache(folder, false);
+        const std::string iniPath = folder + "FileCache.ini";
+        std::FILE* const ini = std::fopen(iniPath.c_str(), "wb");
+        if (ini) {
+            const int32_t now = reinterpret_cast<int32_t(__cdecl*)(void*)>(addr::CRT_time32)(nullptr);
+            std::fprintf(ini, "[Cache Entries]\r\n");
+            std::fprintf(ini, "CacheEntry00000 = http://x/missing.gif,missing.cache,10,1,600,%d,%d,%d\r\n", now, now,
+                         now + 600);
+            std::fprintf(ini, "CacheEntry00001 = http://x/oversized.gif,oversized.cache,9999999,1,600,%d,%d,%d\r\n",
+                         now, now, now + 600);
+            std::fprintf(ini, "CacheEntry00002 = http://x/expired.gif,expired.cache,10,1,600,%d,%d,%d\r\n", now, now,
+                         now - 1);
+            std::fclose(ini);
+        }
+        for (const char* name : {"oversized.cache", "expired.cache"}) {
+            std::FILE* const file = std::fopen((folder + name).c_str(), "wb");
+            if (file)
+                std::fclose(file);
+        }
+        f.Byte(Virtual<uint8_t>(loading, 0x4));
+        HashH7bMap(f, loading);
+        DestroyH7bCache(loading);
         HashH7bFiles(f, folder);
     }
 

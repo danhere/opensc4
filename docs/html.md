@@ -297,7 +297,7 @@ The nodes test's section 13, `cache` (23 items), runs on caches of its own (the 
 
 ## Ours: the cache's files (h7b)
 
-The second part of h7 is ours too: the 20 functions that touch files, written by hand from the disassembly, in two groups, off by default and installed at Attach:
+The second part of h7 is ours too: the 20 functions that touch files, written by hand from the disassembly ([src/core/html_cache.cpp](../src/core/html_cache.cpp), with the addresses in [data/addresses/html.toml](../data/addresses/html.toml)), in two groups, off by default and installed at Attach:
 
 | Group | Functions | What |
 |---|---:|---|
@@ -306,7 +306,7 @@ The second part of h7 is ours too: the 20 functions that touch files, written by
 
 The constructor is 0x5C bytes: the vtable, the count at +8, the initialized byte at +4, the folder (+0xC) and ini name (+0x20) strings, the entry map at +0x34, the three limits at +0x48 to +0x50 and the request counters at +0x54 and +0x58. Init takes the temporary folder when the folder is empty (`RZFile::GetTempPath` plus `Maxis Network Cache\\`), makes it, reads `FileCache.ini`, removes `.cache` files no entry names, and sets the byte. Shutdown writes the ini, releases every block and clears the byte.
 
-The ini's section is `Cache Entries`; each line is `CacheEntry%05u = url,file,size,word1,word2,word3,last used,expiry` (the game's spaces around `=` are kept). A line is read only when its file is still there, its size is at most 0x3D0900 and its expiry is after the clock; the last used and the third word are held to the clock. The `.cache` name is the URL's extension (at most eight characters, only letters, digits and dots) after the clock's seconds, with `.cache` added; a collision steps the seconds back and retries, up to 10,000 times.
+The ini's section is `Cache Entries`; each line is `CacheEntry%05u = url,file,size,word1,word2,word3,last used,expiry` (the game's spaces around `=` are kept). A line is read only when its file is still there, its size is at most 0x3D0900 and its expiry is after the clock; the last used and the third word are held to the clock. The `.cache` name is the URL's extension (at most eight characters, only letters, digits and dots) after the clock's seconds, with `.cache` added; a collision steps the seconds back and retries, up to 10,000 times. SaveIni removes the old ini before it writes the named entries; LoadIni leaves the file in place.
 
 Kept as the game has them:
 
@@ -314,11 +314,12 @@ Kept as the game has them:
 - The folder scan removes files no entry names, not entries whose file is gone.
 - `PutData` stores the flags in the first entry word, the expiry window in the second and the clock in the third; the size is the block's. `PutFile` always gives the source a new `.cache` name and copies it in.
 - `GetData` loads a file into a block only when the entry has no block, hands the caller a reference, and drops an expired entry with its file. `GetPath` writes a block out when the entry has no file and answers the folder and name.
-- The ini is read with the game's section and key rules, then removed; Shutdown writes it again.
+- The ini is read through the game's `cRZIniFile` and written the same way; `SaveIni` removes the old file first, and `LoadIni` does not. The folder listing is the game's `cRZDirectory`; file open, read, write, length, copy and remove are `RZFile`'s. Ours use the game's strings and allocator throughout. The only C runtime left is `snprintf` and `strtoul` on stack buffers for a generated name and an ini line, with no heap allocation.
+- Calls between these functions go through the game's addresses, so any mix of the two groups, and of them with h7a's, works.
 
-`OPENSC4_TEST_HTML_NODES=2` now has a fourteenth section, `cache files` (7 items), each on caches of its own in a temporary folder: the life and ini; `PutData`, `GetData` and `Remove`; `MakeFile` and `MakeFileIn`; `PutFile`; `GetPath`; the ini written and read into a second cache; and the folder scan's orphan removal. Each runs through the game's functions and ours and the two are compared.
+`OPENSC4_TEST_HTML_NODES=2` has a fourteenth section, `cache files` (11 items), each on caches of its own in a temporary folder: the life and ini; `PutData`, `GetData` and `Remove`; `MakeFile`, `MakeFileIn`, their collision and the missing trailing separator; `PutFile`, a direct `ReadFile`, and `GetData` from the file; `GetPath`; the ini written and read into a second cache; the folder scan's orphan removal; a replaced data entry; an expiry of 0; the deleting destructor; and ini lines the cache rejects (a missing file, a size over 0x3D0900 and an expiry before the clock). Each runs through the game's functions and ours and the two are compared. All 20 functions are reached in one run (the first-call log names each of them). Ten deliberate changes to the new code, one at a time, were all caught by this section: the file suffix, the folder separator, the caller's block reference, `GetPath`'s write, `PutData`'s expiry window, `LoadIni`'s section, the expiry test, the scan's orphan removal, `PutFile`'s copy and `SaveIni`'s URL pointer.
 
-Results, 2026-11-01 (build of this piece on `wc2e` 79da54e, all four cache groups ours): nodes test 695 items, 0 differences, the cache files section A1A83882 in two runs; CTest 21 of 21; parity 12 saves, 1 day, 11 same, 1 partly (Making Money d0090's known traffic-token noise).
+Results, 2026-11-01, on `claude/project-thread-h7b` after the review changes: nodes test 699 items, 0 differences, the cache files section 4727A17E in two runs; with every `ui.html.*` group ours the same 699 items, 0 differences and hash 038D3ABD, and with them off the same 699 items and hash 038D3ABD; CTest 21 of 21; the address check 14,053 of 14,053; parity `h7b-r1` 12 saves for 7 game days, 12 same, 0 different, 0 failed.
 
 ## Ours: the window (h1a, h1b, h1c)
 
