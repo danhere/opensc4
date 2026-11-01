@@ -523,6 +523,15 @@ expect = "D9 44 24 08 83 EC 60 56"
 source = "Name ours. The particle's step for descriptions with a flag of the mask at 0x00B22E14 (SC4Effect::StepParticle jumps to it): the age and the end as there, then the step in parts of at most the float at 0x00AA0CF4, each moving the particle (flag 0x10000000: 0x005B6600), changing its velocity, and ending it off the map (flag 0x800) or when 0x005B8DC0 answers false (flags 0x100, 0x400); last 0x005B8020 for bit 0 of the description's second word of flags."
 
 [[entry]]
+name = "SC4Effect::MoveAlongPath"
+address = 0x005B6600
+kind = "function"
+convention = "thiscall"
+signature = "void (SC4Effect* this, SC4Particle* particle, float part)"
+expect = "81 EC 90 00 00 00 56 8B"
+source = "Name ours. Ret 8. SC4Effect::StepParticleFull calls it for each part of the step for descriptions with flag 0x10000000 (0x005B97F3): the last of the description's path keys (0x20 bytes, ending at +0x1BC) whose time (+0x18) is not above the particle's age; past the key's end (+0x1C) a plain move, else a cubic (the matrix at 0x00B22D78) from the position and velocity to the key's point and direction through the effect's transform, which sets the new position and velocity. With a reach at the description's +0x1C4 a far particle's age is set back to the key's time. Ours in renderer.effects.path_move."
+
+[[entry]]
 name = "SC4Effect::SetTransform"
 address = 0x005B3430
 kind = "function"

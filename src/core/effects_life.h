@@ -701,6 +701,134 @@ inline void LfStartNamed(char* self, uint32_t suffix, void* place)
         CallThis<uint32_t>(addr::SC4Effect_StartNamed, self, suffix, place);
 }
 
+// 0x005B6600 (ret 8): a particle's move along the description's path, for
+// flag 0x10000000; the effect, the particle and the part of the step. The
+// path's keys (0x20 bytes: a point, a direction, a time and an end) end at
+// the description's +0x1BC; the key used is the last whose time (+0x18) is
+// not above the particle's age, found walking back from the end. Past a
+// key's end (+0x1C, none when zero) the particle moves as without a path.
+// Else the time left (to the end, or to the particle's life) plus the part
+// is the span; the key's point and direction are taken through the
+// effect's transform (+0x90, the place +0xB4) and scale (+0xC0), the
+// point's height the effect's +0x1FC less its +0xF0 for flag 0x8000. With
+// a reach at the description's +0x1C4, a particle farther from the point
+// than the span times the reach has its age set back by the time since the
+// key and the span grown by as much. The part over the span is the curve's
+// parameter: the four weights of the cubic matrix at 0x00B22D78 and their
+// slopes take the position, the key's point, the velocity times the span
+// and the direction times the span to the new position, and (the slopes
+// over the span) to the new velocity.
+inline void MoveAlongPath(char* self, char* particle, float part)
+{
+    const auto e = [&](uint32_t at) { return static_cast<double>(At<float>(self, at)); };
+    const auto p = [&](uint32_t at) -> float& { return At<float>(particle, at); };
+    const auto m = [](uint32_t i) { return static_cast<double>(M<float>(0x00B22D78 + 4 * i)); };
+    char* const description = At<char*>(self, 0x24);
+    const double age = p(4);
+    char* key = At<char*>(description, 0x1BC);
+    do
+        key -= 0x20;
+    while (age < At<float>(key, 0x18));
+    const auto k = [&](uint32_t at) { return static_cast<double>(At<float>(key, at)); };
+    const double pd = part;
+    double span;
+    if (At<float>(key, 0x1C) == 0.0f) {
+        span = p(8) - age + pd;
+    } else if (!(age > At<float>(key, 0x1C))) {
+        span = k(0x1C) - age + pd;
+    } else {
+        const double mx = pd * p(0x1C), my = pd * p(0x20);
+        const float mz = static_cast<float>(pd * p(0x24));
+        p(0xC) = static_cast<float>(mx + p(0xC));
+        p(0x10) = static_cast<float>(my + p(0x10));
+        p(0x14) = static_cast<float>(static_cast<double>(mz) + p(0x14));
+        return;
+    }
+    // The key's point and direction through the transform; the game keeps
+    // some of the products on the x87 stack and stores others.
+    const double scale = e(0xC0);
+    const double kx = k(0), ky = k(4), kz = k(8);
+    const float rx = static_cast<float>(kz * e(0x98) + ky * e(0x94) + kx * e(0x90));
+    const float ry = static_cast<float>(kz * e(0xA4) + ky * e(0xA0) + kx * e(0x9C));
+    const double rz = kz * e(0xB0) + ky * e(0xAC) + kx * e(0xA8);
+    const float px = static_cast<float>(static_cast<float>(rx * scale) + e(0xB4));
+    float py = static_cast<float>(static_cast<float>(ry * scale) + e(0xB8));
+    const float pz = static_cast<float>(rz * scale + e(0xBC));
+    const double dx = k(0xC), dy = k(0x10), dz = k(0x14);
+    const double sx = dz * e(0x98) + dy * e(0x94) + dx * e(0x90);
+    const double sy = dz * e(0xA4) + dy * e(0xA0) + dx * e(0x9C);
+    const float sz = static_cast<float>(dz * e(0xB0) + dy * e(0xAC) + dx * e(0xA8));
+    const float tx = static_cast<float>(sx * scale), ty = static_cast<float>(sy * scale),
+                tz = static_cast<float>(sz * scale);
+    if (At<uint32_t>(description, 0) >> 15 & 1)
+        py = static_cast<float>(e(0x1FC) - e(0xF0));
+    const float reach = At<float>(description, 0x1C4);
+    if (!(reach == 0.0f)) {
+        const double ox = p(0xC) - static_cast<double>(px), oy = p(0x10) - static_cast<double>(py),
+                     oz = p(0x14) - static_cast<double>(pz);
+        const double away = std::sqrt(ox * ox + oz * oz + oy * oy);
+        if (span * reach < away) {
+            const double back = age - k(0x18);
+            span += back;
+            p(4) = static_cast<float>(p(4) - back);
+        }
+    }
+    const double inv = static_cast<double>(M<float>(0x00A81228)) / span;
+    const double u = pd * inv, u2 = u * u, u3 = u2 * u;
+    const float twoU = static_cast<float>(u + u), threeU2 = static_cast<float>(u2 * M<float>(0x00A85074));
+    const float w0 = static_cast<float>(u * m(2) + u2 * m(1) + u3 * m(0) + m(3));
+    const float w1 = static_cast<float>(u2 * m(5) + u * m(6) + u3 * m(4) + m(7));
+    const float w2 = static_cast<float>(u2 * m(9) + u * m(10) + u3 * m(8) + m(11));
+    const float w3 = static_cast<float>(m(14) * u + m(13) * u2 + m(12) * u3 + m(15));
+    const double zero = M<float>(0x00A81054);
+    const double s0 = twoU * m(1) + threeU2 * m(0) + m(3) * zero + m(2);
+    const float s1 = static_cast<float>(twoU * m(5) + threeU2 * m(4) + m(7) * zero + m(6));
+    const float s2 = static_cast<float>(twoU * m(9) + threeU2 * m(8) + m(11) * zero + m(10));
+    const float s3 = static_cast<float>(m(13) * twoU + m(12) * threeU2 + m(15) * zero + m(14));
+    const float w2s = static_cast<float>(w2 * span), w3s = static_cast<float>(w3 * span);
+    const float s0i = static_cast<float>(s0 * inv), s1i = static_cast<float>(s1 * inv);
+    // The new position.
+    const double w3x = static_cast<double>(w3s) * tx;
+    const float w3y = static_cast<float>(static_cast<double>(w3s) * ty),
+                w3z = static_cast<float>(static_cast<double>(w3s) * tz);
+    const double w2x = static_cast<double>(w2s) * p(0x1C), w2y = static_cast<double>(w2s) * p(0x20);
+    const float w2z = static_cast<float>(static_cast<double>(w2s) * p(0x24));
+    const double w1x = static_cast<double>(w1) * px, w1y = static_cast<double>(w1) * py;
+    const float w1z = static_cast<float>(static_cast<double>(w1) * pz);
+    const double w0x = static_cast<double>(w0) * p(0xC);
+    const float w0y = static_cast<float>(static_cast<double>(w0) * p(0x10)),
+                w0z = static_cast<float>(static_cast<double>(w0) * p(0x14));
+    const float x1 = static_cast<float>(w0x + w1x);
+    const double y1 = w0y + w1y;
+    const float z1 = static_cast<float>(static_cast<double>(w0z) + w1z);
+    const float x2 = static_cast<float>(x1 + w2x), y2 = static_cast<float>(y1 + w2y),
+                z2 = static_cast<float>(static_cast<double>(z1) + w2z);
+    const double x = w3x + x2, y = static_cast<double>(y2) + w3y;
+    const float z = static_cast<float>(static_cast<double>(z2) + w3z);
+    // The new velocity.
+    const double s3x = static_cast<double>(s3) * tx, s3y = static_cast<double>(s3) * ty;
+    const float s3z = static_cast<float>(static_cast<double>(s3) * tz);
+    const double s2x = static_cast<double>(s2) * p(0x1C), s2y = static_cast<double>(s2) * p(0x20);
+    const float s2z = static_cast<float>(static_cast<double>(s2) * p(0x24));
+    const double s1x = static_cast<double>(s1i) * px;
+    const float s1y = static_cast<float>(static_cast<double>(s1i) * py),
+                s1z = static_cast<float>(static_cast<double>(s1i) * pz);
+    const float s0x = static_cast<float>(static_cast<double>(s0i) * p(0xC)),
+                s0y = static_cast<float>(static_cast<double>(s0i) * p(0x10)),
+                s0z = static_cast<float>(static_cast<double>(s0i) * p(0x14));
+    const float vx1 = static_cast<float>(s0x + s1x);
+    const double vy1 = static_cast<double>(s0y) + s1y;
+    const float vz1 = static_cast<float>(static_cast<double>(s0z) + s1z);
+    const float vx2 = static_cast<float>(vx1 + s2x), vy2 = static_cast<float>(vy1 + s2y),
+                vz2 = static_cast<float>(static_cast<double>(vz1) + s2z);
+    p(0xC) = static_cast<float>(x);
+    p(0x10) = static_cast<float>(y);
+    p(0x14) = z;
+    p(0x1C) = static_cast<float>(vx2 + s3x);
+    p(0x20) = static_cast<float>(vy2 + s3y);
+    p(0x24) = static_cast<float>(static_cast<double>(vz2) + s3z);
+}
+
 // 0x005B9790 (ret 8): a particle's full step, which the plain step
 // (0x005B9BA0) hands over to for descriptions with a flag of the mask at
 // 0x00B22E14; the effect, the particle and the step. The particle's age
@@ -708,8 +836,8 @@ inline void LfStartNamed(char* self, uint32_t suffix, void* place)
 // the answer false) once the sum is not below its life (+8). Else the step
 // is done in parts of at most the float at 0x00AA0CF4. Each part moves the
 // position (+0xC) by the velocity (+0x1C) times the part (for flag
-// 0x10000000 the game's 0x005B6600 does the move instead) and adds the
-// effect's velocity change (+0x13C) times the part to the velocity. For
+// 0x10000000 the move along a path, 0x005B6600, moves it instead) and adds
+// the effect's velocity change (+0x13C) times the part to the velocity. For
 // flag 0x8000000 the velocity is drawn towards the effect's +0x178: the
 // way there made one long and times a value read from the description's
 // list of floats (+0x1A4 to +0x1A8) at the distance over the description's
@@ -739,7 +867,7 @@ uint32_t StepParticleFull(char* self, char* particle, float step)
         const float part = most < left ? most : left;
         const double pd = part;
         if (At<uint32_t>(At<char*>(self, 0x24), 0) >> 28 & 1) {
-            CallThis<uint32_t>(0x005B6600, self, particle, part);
+            CallThis<uint32_t>(addr::SC4Effect_MoveAlongPath, self, particle, part);
         } else {
             const double mx = pd * p(0x1C), my = pd * p(0x20);
             const float mz = static_cast<float>(pd * p(0x24));
