@@ -264,6 +264,7 @@ add_library(opensc4_core SHARED
   automata_vehicle.cpp
   automata_roadveh.cpp
   automata_trains.cpp
+  automata_watercraft.cpp
   automata_emergency.cpp
   automata_pedestrians.cpp
   automata_pathinfo.cpp
