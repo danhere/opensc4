@@ -6328,7 +6328,8 @@ uint32_t CacheItem(int which)
         f.Byte(clock == now || clock + 1 == now ? 1 : 0);
     } else if (step == 11) {
         // The hash and bucket of odd addresses, and the buckets grown by
-        // hints at, below and above their count.
+        // hints at, below and above their count, and by one that is itself
+        // the next size (389, from 193).
         char* const map = cache + 0x34;
         for (const char* s : {"", "a", "\x80", "\xFF\xFF", "http://www.simcity.com/"}) {
             GameText key{};
@@ -6338,7 +6339,7 @@ uint32_t CacheItem(int which)
             DestroyText(&key);
         }
         const uint32_t count = static_cast<uint32_t>(At<char**>(map, 8) - At<char**>(map, 4));
-        for (const uint32_t hint : {0u, count - 1, count, count + 1, 1000u, 999u}) {
+        for (const uint32_t hint : {0u, count - 1, count, 2 * count + 3, count + 1, 1000u, 999u}) {
             reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(addr::HTMLCacheMap_Resize)(map, hint);
             HashCacheMap(f, cache, blocks);
         }
