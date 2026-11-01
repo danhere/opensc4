@@ -1475,7 +1475,25 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "81 EC 9C 00 00 00 55 56"
-source = "Class and name ours, read only in part. SC4EffectPartB::Step (0x005AC213) and SC4EffectPartB::Start (0x00803E26) call it when the part's vector of vectors at +0x24 is empty: it sizes that vector to the part's meshes (+0xC) and fills, for each mesh, three floats a vertex, which the step reads along the description's +0x120 as a light's direction. Allocates; the game's."
+source = "Class and name ours. SC4EffectPartB::Step (0x005AC213) and SC4EffectPartB::Start (0x00803E26) call it when the part's vector of vectors at +0x24 is empty: that vector erased (cSC4PowerPoleOccupant::EraseOuter) and sized to the part's meshes (+0xC; SC4TripleVectors::Resize), then for each mesh its list of three floats a vertex sized to the mesh's vertices (a word at +6; SC4TripleVector::InsertN with the fill at 0x00B4E714) and a vector of floats (SC4FloatVector::InsertN) set to zero; each triangle of each primitive of the instance's copy of the mesh (its slot 0x10 with the index; the primitives at the copy's +8, walked by SC4MeshTriangles) adds its normal (SC4::TriangleNormal, on the mesh's places at +8, a word at +4 apart) to its corners' three floats and its length to their floats; then each vertex's three floats divided by its float when above zero; the floats freed (SC4::Free). The step reads the lists along the description's +0x120 as a light's direction; the start hands them to the lighting object. Allocates (the game's helpers). Ours in renderer.effects.make_normals_b (src/core/effects_second.h)."
+
+[[entry]]
+name = "SC4TripleVectors::Resize"
+address = 0x0064D990
+kind = "function"
+convention = "thiscall"
+signature = "void (void* vector, uint32_t count, const void* value)"
+expect = "53 8B 59 04 56 8B 74 24"
+source = "Name ours. resize(count, value) of a vector of 12-byte vectors (ret 8): erased past the count (cSC4PowerPoleOccupant::EraseOuter) or copies of the value inserted. SC4EffectPartB::MakeNormals sizes the part's lists with it. Generic; called at its address."
+
+[[entry]]
+name = "SC4::TriangleNormal"
+address = 0x0080B490
+kind = "function"
+convention = "cdecl"
+signature = "void (const float* a, const float* b, const float* c, float* normal)"
+expect = "8B 54 24 0C 8B 4C 24 08"
+source = "Name ours. A triangle's normal, not of length one, by Newell's sums over its three corners (x from the y differences and z sums, and so on). SC4EffectPartB::MakeNormals calls it. Ours (SdTriangleNormal, src/core/effects_second.h); not hooked."
 
 [[entry]]
 name = "SC4Effect::StartNamed"

@@ -1144,3 +1144,123 @@ inline void StartPartB(char* part, char* lighting, uint32_t flag)
         });
     }
 }
+
+// --- The part's normals ------------------------------------------------------------------------
+//
+// 0x00803370 (part E18): what the part's step and start call when the
+// part's lists of three floats a vertex (+0x24, a vector of vectors of
+// 0xC bytes) are empty. Each vertex of each mesh gets a direction: the
+// normals of the triangles that use it (the instance's copy of the mesh's
+// primitives, walked by SC4MeshTriangles) summed and divided by the sum of
+// their lengths. The vectors grow by the game's helpers (so their storage
+// is the game's). The global the game fills its vectors of three floats
+// with (zero).
+constexpr std::uintptr_t kSdNormalFill = 0x00B4E714;
+
+// 0x0080B490 (cdecl, the corners and where the normal goes): a triangle's
+// normal, not of length one, by Newell's sums over its corners a, b, c,
+// each of the three in doubles and rounded once.
+inline void SdTriangleNormal(const float* a, const float* b, const float* c, float* n)
+{
+    const auto d = [](float v) { return static_cast<double>(v); };
+    n[0] = static_cast<float>(((d(c[2]) + b[2]) * (d(b[1]) - c[1]) + (d(a[1]) - b[1]) * (d(a[2]) + b[2])) +
+                              (d(c[2]) + a[2]) * (d(c[1]) - a[1]));
+    n[1] = static_cast<float>(((d(b[0]) + c[0]) * (d(b[2]) - c[2]) + (d(c[2]) - a[2]) * (d(a[0]) + c[0])) +
+                              (d(a[0]) + b[0]) * (d(a[2]) - b[2]));
+    n[2] = static_cast<float>(((d(b[0]) - c[0]) * (d(b[1]) + c[1]) + (d(c[0]) - a[0]) * (d(a[1]) + c[1])) +
+                              (d(a[1]) + b[1]) * (d(a[0]) - b[0]));
+}
+
+// 0x00803370. The lists erased (cSC4PowerPoleOccupant::EraseOuter frees
+// the inner ones) and sized to the meshes (+0xC to +0x10) with empty ones
+// (0x0064D990). For each list (the count read again each time), with its
+// mesh's count of vertices (a word at +6): the list sized to it (made
+// shorter by moving its end; longer by SC4TripleVector::InsertN with
+// three of the fill) and a vector of floats kept across the meshes sized
+// the same way (SC4FloatVector::InsertN with zero) and set to zero; then
+// for each of the primitives of the instance's copy of the mesh (its slot
+// 0x10 with the mesh's index answers the copy: its +8 a vector of
+// primitives of 12 bytes at +4 to +8; the slot asked again for each
+// primitive, and once more for the walker), each triangle's corners (the
+// mesh's vertices at +8, a word at +4 apart, three floats each) give a
+// normal (SdTriangleNormal) added to each corner's three floats, and its
+// length ((z z + y y) + x x, its root, unrounded) added to each corner's
+// float. Last, each vertex whose float is above zero has its three floats
+// times one over it (unrounded). The floats' storage is freed after.
+inline void MakeNormalsB(char* part)
+{
+    alignas(4) char triangles[0x30];
+    CallThis<uint32_t>(addr::SC4MeshTriangles_Construct, triangles);
+    char* const lists = part + 0x24;
+    CallThis<uint32_t>(addr::cSC4PowerPoleOccupant_EraseOuter, lists, At<uint32_t>(lists, 0), At<uint32_t>(lists, 4));
+    const uint32_t empty[3] = {};
+    CallThis<uint32_t>(addr::SC4TripleVectors_Resize, lists,
+                       static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(part, 0x10) - At<uint32_t>(part, 0xC)) >> 2),
+                       empty);
+    uint32_t sums[3] = {};
+    const uint32_t zero = 0;
+    const auto count = [](char* vector, int32_t bytes) {
+        return static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(vector, 4) - At<uint32_t>(vector, 0)) / bytes);
+    };
+    const auto list = [&](uint32_t i) { return At<float*>(At<char*>(lists, 0) + i * 0xC, 0); };
+    for (uint32_t i = 0; i < count(lists, 0xC); ++i) {
+        const uint32_t vertices = At<uint16_t>(At<char**>(part, 0xC)[i], 6);
+        const uint32_t fill[3] = {M<uint32_t>(kSdNormalFill), M<uint32_t>(kSdNormalFill), M<uint32_t>(kSdNormalFill)};
+        char* const mine = At<char*>(lists, 0) + i * 0xC;
+        const uint32_t size = count(mine, 0xC);
+        if (vertices < size)
+            At<char*>(mine, 4) = At<char*>(mine, 0) + vertices * 0xC; // 0x00506280 copying nothing
+        else
+            CallThis<uint32_t>(addr::SC4TripleVector_InsertN, mine, At<uint32_t>(mine, 4), vertices - size, fill);
+        const uint32_t had = static_cast<uint32_t>(static_cast<int32_t>(sums[1] - sums[0]) >> 2);
+        if (vertices < had)
+            sums[1] = sums[0] + vertices * 4;
+        else
+            CallThis<uint32_t>(addr::SC4FloatVector_InsertN, sums, sums[1], vertices - had, &zero);
+        for (uint32_t at = sums[0]; at != sums[1]; at += 4)
+            M<uint32_t>(at) = 0;
+        float* const length = reinterpret_cast<float*>(sums[0]);
+        char* const mesh = At<char**>(part, 0xC)[i];
+        const uint32_t apart = At<uint16_t>(mesh, 4);
+        char* const places = At<char*>(mesh, 8);
+        const auto copy = [&] {
+            char* const instance = At<char*>(part, 4);
+            return BOurs(kSdPartInstance + 0x10, Word(instance), Word(&i), 4, [&] {
+                return CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0x10), instance, i);
+            });
+        };
+        for (uint32_t j = 0; j < count(At<char*>(Ptr(copy()), 8) + 4, 0xC); ++j) {
+            CallThis<uint32_t>(addr::SC4MeshTriangles_Start, triangles, copy(), j);
+            int32_t corner[3] = {};
+            while (CallThis<uint8_t>(addr::SC4MeshTriangles_Next, triangles, corner)) {
+                float a[3], b[3], c[3], n[3];
+                std::memcpy(a, places + corner[0] * apart, sizeof a);
+                std::memcpy(b, places + corner[1] * apart, sizeof b);
+                std::memcpy(c, places + corner[2] * apart, sizeof c);
+                SdTriangleNormal(a, b, c, n);
+                for (const int32_t at : corner) {
+                    float* const to = list(i) + at * 3;
+                    for (uint32_t k = 0; k < 3; ++k)
+                        to[k] = static_cast<float>(static_cast<double>(n[k]) + to[k]);
+                }
+                const double size2 = (static_cast<double>(n[2]) * n[2] + static_cast<double>(n[1]) * n[1]) +
+                                     static_cast<double>(n[0]) * n[0];
+                const double root = std::sqrt(size2);
+                for (const int32_t at : corner)
+                    length[at] = static_cast<float>(root + length[at]);
+            }
+        }
+        const int32_t sized = static_cast<int32_t>(sums[1] - sums[0]) >> 2;
+        for (int32_t k = 0; k < sized; ++k) {
+            if (!(length[k] > M<float>(0x00A81054)))
+                continue;
+            const double by = M<float>(0x00B0E378) / static_cast<double>(length[k]);
+            float* const to = list(i) + k * 3;
+            for (uint32_t m = 0; m < 3; ++m)
+                to[m] = static_cast<float>(by * to[m]);
+        }
+    }
+    if (sums[0])
+        reinterpret_cast<void(__cdecl*)(uint32_t)>(addr::SC4_Free)(sums[0]);
+    CallThis<uint32_t>(addr::SC4MeshTriangles_Destruct, triangles);
+}
