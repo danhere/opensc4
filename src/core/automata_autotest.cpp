@@ -765,6 +765,13 @@
 //   over five, leaving the dock over eight, slot 115 over nine (slot 31
 //   answers, so the core's DriveKeys stops early and the clamp, 0x0056C430
 //   and 0x0056C090 are not reached). wflags 0x100. Log line: "wc2c wstep".
+//   Part wc2d (back to the start, the six wakes stopped and started) adds
+//   `,<wwake>` before wflags (74 fields), run inside the wc2b test with the
+//   boat's slots 12, 44, 45, 75, 100, 104 and 107 the test's: back to the
+//   start over five (slot 12 answering counts that wrap, flags, a matrix, a
+//   point and moving the boat's point), the wakes stopped and started
+//   three times each (each name's text, vtable, zero word and words
+//   mixed). wflags 0x200. Log line: "wc2d wwake".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -34775,7 +34782,85 @@ struct WtTow {
     float position[3];
 };
 
-void WatercraftDrive3(Hash& wstate, Hash& wstep, uint32_t& wflags)
+// ---- Part wc2d: back to the start and the wakes
+// (src/core/automata_watercraft.cpp). Run inside the wc2b test.
+
+struct WdAnswers {
+    Hash* into = nullptr;
+    uint32_t round = 0;      // the case, changing what slot 12 writes
+    char* boat = nullptr;
+};
+WdAnswers g_wd;
+
+// The transform record's bytes +0, +1 and +4..+0x37 (+2 and +3 are unset in
+// the game).
+void WdMixRecord(Hash& h, const char* record)
+{
+    h.MixBytes(record, 2);
+    h.MixBytes(record + 4, 0x34);
+}
+void __fastcall WdGetTransform(char*, void*, char* record)
+{
+    g_wc.calls.Mix(12);
+    WdMixRecord(g_wc.calls, record);
+    const uint32_t k = g_wd.round;
+    if (k == 0)
+        return;
+    record[0] = static_cast<char>(k == 2 ? 0xFF : 0x10 + k);
+    record[1] = static_cast<char>(k == 3 ? 0x81 : k * 6);
+    for (int i = 0; i < 9; ++i)
+        At<float>(record, 4 + 4 * i) = static_cast<float>(i - 3) * 0.5f + static_cast<float>(k);
+    At<float>(record, 0x28) = 99.0f + static_cast<float>(k);
+    At<float>(record, 0x34) = 0.25f * static_cast<float>(k);
+    if (k == 4 && g_wd.boat) // the boat's point moved under the record
+        At<float>(g_wd.boat, wc::field::kPoint + 4) = -7.5f;
+}
+void __fastcall WdSetTransform(char*, void*, char* record)
+{
+    g_wc.calls.Mix(75);
+    WdMixRecord(g_wc.calls, record);
+}
+void __fastcall WdSlot100(char*, void*, uint32_t a, uint32_t b)
+{
+    g_wc.calls.Mix(100);
+    g_wc.calls.Mix(a);
+    g_wc.calls.Mix(b);
+}
+void __fastcall WdSlot104(char*, void*) { g_wc.calls.Mix(104); }
+void __fastcall WdSlot107(char*, void*) { g_wc.calls.Mix(107); }
+// A name as the wakes pass it: (vtable, begin, end, capacity, a word).
+struct WdName {
+    uint32_t vtable;
+    const char* begin;
+    const char* end;
+    const char* capacity;
+    uint32_t extra;
+};
+void WdMixName(const WdName* text)
+{
+    g_wc.calls.Mix(text->vtable);
+    g_wc.calls.Mix(text->extra);
+    const std::ptrdiff_t length = text->end - text->begin;
+    g_wc.calls.Mix(static_cast<uint32_t>(length));
+    g_wc.calls.Mix(static_cast<uint32_t>(text->capacity - text->begin));
+    if (text->begin && length > 0 && length < 64)
+        g_wc.calls.MixBytes(text->begin, static_cast<std::size_t>(length));
+}
+void __fastcall WdStartEffect(char*, void*, const WdName* name, uint32_t a, uint32_t b)
+{
+    g_wc.calls.Mix(44);
+    WdMixName(name);
+    g_wc.calls.Mix(a);
+    g_wc.calls.Mix(b);
+}
+void __fastcall WdStopEffect(char*, void*, const WdName* name, uint32_t a)
+{
+    g_wc.calls.Mix(45);
+    WdMixName(name);
+    g_wc.calls.Mix(a);
+}
+
+void WatercraftDrive3(Hash& wstate, Hash& wstep, Hash& wwake, uint32_t& wflags)
 {
     g_wc = WcAnswers{};
     g_ws = WsAnswers{};
@@ -35323,6 +35408,54 @@ void WatercraftDrive3(Hash& wstate, Hash& wstep, uint32_t& wflags)
     wflags |= 0x100;
     log::Write("autotest: automata: vehicle: wc2c wstep %08X", wstep.h);
 
+    // ==== Part wc2d (into wwake): the boat's slots 12, 44, 45, 75, 100, 104
+    // and 107 the test's.
+    g_wd = WdAnswers{};
+    g_wd.boat = b;
+    boatTable[12] = reinterpret_cast<void*>(&WdGetTransform);
+    boatTable[44] = reinterpret_cast<void*>(&WdStartEffect);
+    boatTable[45] = reinterpret_cast<void*>(&WdStopEffect);
+    boatTable[75] = reinterpret_cast<void*>(&WdSetTransform);
+    boatTable[100] = reinterpret_cast<void*>(&WdSlot100);
+    boatTable[104] = reinterpret_cast<void*>(&WdSlot104);
+    boatTable[107] = reinterpret_cast<void*>(&WdSlot107);
+    {
+        // ---- Back to the start at its address: five cases (slot 12 leaving
+        // the record, filling it, a count of 0xFF, flags with bit 0 set, the
+        // boat's point moved under it).
+        const float starts[5][3] = {{0.0f, 0.0f, 0.0f},
+                                    {12.5f, 3.0f, -40.25f},
+                                    {AsFloatBits(0x7FC00001u), 1.0e30f, -0.0f},
+                                    {1024.0f, 0.125f, 3.0e-39f},
+                                    {-5.0f, 6.0f, 7.0f}};
+        for (uint32_t k = 0; k < 5; ++k) {
+            g_wd.round = k;
+            g_wc.calls = Hash{};
+            std::memcpy(b + wc::field::kStartPoint, starts[k], 12);
+            for (int i = 0; i < 3; ++i) {
+                At<float>(b, wc::field::kPoint + 4 * i) = 50.0f + static_cast<float>(i + k);
+                At<float>(b, wc::field::kPosition + 4 * i) = -50.0f - static_cast<float>(i + k);
+            }
+            This<void>(addr::cSC4Watercraft_ToStart, b);
+            wwake.MixBytes(b + wc::field::kPoint, 12);
+            wwake.MixBytes(b + wc::field::kPosition, 12);
+            wwake.MixBytes(b + wc::field::kStartPoint, 12);
+            wwake.Mix(g_wc.calls.h);
+        }
+        g_wd.round = 0;
+        // ---- The wakes stopped and started at their addresses, three
+        // times each, in turns.
+        for (int k = 0; k < 6; ++k) {
+            g_wc.calls = Hash{};
+            This<void>(k % 2 ? addr::cSC4Watercraft_StartWakes : addr::cSC4Watercraft_StopWakes, b);
+            wwake.Mix(g_wc.calls.h);
+        }
+    }
+    for (const int i : {12, 44, 45, 75, 100, 104, 107})
+        boatTable[i] = shared[i];
+    wflags |= 0x200;
+    log::Write("autotest: automata: vehicle: wc2d wwake %08X", wwake.h);
+
     *terrainAt = terrainWas;
     At<void**>(city, 0) = realCity;
     WcRefVtable()[15] = nullptr;
@@ -35715,7 +35848,8 @@ void VehicleDrive(cISC4City* city)
     Hash wstate;
     // ---- Part wc2c (inside the wc2b test, with its fakes).
     Hash wstep;
-    WatercraftDrive3(wstate, wstep, wflags);
+    Hash wwake;
+    WatercraftDrive3(wstate, wstep, wwake, wflags);
 
     // ---- The city's vehicles: the log only.
     {
@@ -35773,14 +35907,14 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
                   pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags,
-                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wdrive.h, wstate.h, wstep.h, wflags);
+                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wdrive.h, wstate.h, wstep.h, wwake.h, wflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

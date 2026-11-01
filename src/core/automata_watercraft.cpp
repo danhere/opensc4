@@ -1,4 +1,4 @@
-// Our boat, parts wc1, wc2a, wc2b and wc2c (build 641): cSC4Watercraft on the automata core
+// Our boat, parts wc1, wc2a, wc2b, wc2c and wc2d (build 641): cSC4Watercraft on the automata core
 // (src/core/automata_vehicle.cpp has the core's ported slots; the core's own
 // code stays the game's). wc1: the objects (the factory, the constructor,
 // the destructor body and the deleting destructor, QueryInterface and
@@ -12,7 +12,8 @@
 // drive, outside the city, grounded), a path point erased and the next leg
 // reached. wc2c: slot 115 (the drive step) and seven small helpers of the
 // movement (a fanned direction, a cell step, the stern and bow points, the
-// longest side, a point moved, leaving the dock). The layout is in
+// longest side, a point moved, leaving the dock). wc2d: back to the start
+// point, and the six wakes stopped and started by name. The layout is in
 // src/core/automata_watercraft.h and the survey in docs/automata.md, "Part
 // wc". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
@@ -20,8 +21,8 @@
 //
 // Group, off by default:
 //   simulators.automata.watercraft: the 14 detours in kObject (wc1), the 8
-//   in kDriveList (wc2a), the 10 in kStateList (wc2b) and the 8 in
-//   kDriveStepList (wc2c) below.
+//   in kDriveList (wc2a), the 10 in kStateList (wc2b), the 8 in
+//   kDriveStepList (wc2c) and the 3 in kWakeList (wc2d) below.
 //
 // What it does. The boat is 0xDC8 bytes from SC4::operator_new and goes
 // back through SC4::operator_delete. Its constructor runs the core's with
@@ -63,6 +64,9 @@
 // before the occupant part's slot 10 (ours zero) and compares dx unrounded
 // against dy's float first; the fanned direction past 7 only takes out
 // modulo 8; the moved point reads out's y and z back into the record.
+//
+// wc2d's oddities: back to the start leaves the transform record's bytes
+// +2 and +3 unset (ours zero) and reads the point again after slot 12.
 //
 // Floats: Init's normalisation is x87 at 53 bits: (x*x + y*y) + z*z, its
 // square root, 1 (0x00B0A18C) over it, each part times that (doubles here).
@@ -167,7 +171,7 @@ constexpr std::uintptr_t kTables[6] = {addr::cSC4Watercraft_Vtable,   addr::cSC4
 std::uint32_t Unset() { return Global<std::uint32_t>(addr::cSC4Watercraft_DefaultFloat); }
 
 // A cIGZString on the stack (vtable, begin, end, capacity, a word
-// SC4String::FromText zeroes), destroyed as the game inlines it: the vtable
+// SC4String::FromText zeroes, or the wakes' inline code after FromRange), destroyed as the game inlines it: the vtable
 // stored again, the buffer freed.
 struct GameString {
     std::uintptr_t vtable;
@@ -1377,6 +1381,87 @@ std::uint32_t __fastcall Drive(char* self, void*, float seconds)
 }
 
 // ====================================================================================
+// Part wc2d: back to the start, and the wakes
+
+// 0x0056A310, plain ret: the point (+0x2F4) the start point (+0x2E8); a
+// transform record on the stack (+0 a count 0, +1 flags 0, +4..+0x24 the
+// identity, +0x28 the point 0, +0x34 1.0) filled by slot 12, then its point
+// the boat's point (read again), its byte +1 or 1 and its byte +0 plus 1,
+// given to slot 75; the core's position (+0x40) the point (read again);
+// slots 100 (1, 1), 104 and 107. The game leaves the record's bytes +2 and
+// +3 unset; ours zeroes them.
+void __fastcall ToStart(char* self, void*)
+{
+    static bool logged;
+    FirstCall("ToStart", logged);
+    for (std::size_t i = 0; i < 12; i += 4)
+        At<std::uint32_t>(self, field::kPoint + i) = At<std::uint32_t>(self, field::kStartPoint + i);
+    alignas(4) char record[transform::kSize] = {};
+    for (const std::size_t at : {std::size_t{0x04}, std::size_t{0x14}, std::size_t{0x24}, std::size_t{0x34}})
+        At<std::uint32_t>(record, at) = 0x3F800000u;
+    Virtual<void>(self, slot::kGetTransform, static_cast<void*>(record));
+    for (std::size_t i = 0; i < 12; i += 4)
+        At<std::uint32_t>(record, transform::kPoint + i) = At<std::uint32_t>(self, field::kPoint + i);
+    const std::uint8_t flags = At<std::uint8_t>(record, transform::kFlags);
+    const std::uint8_t count = At<std::uint8_t>(record, transform::kCount);
+    At<std::uint8_t>(record, transform::kFlags) = static_cast<std::uint8_t>(flags | 1);
+    At<std::uint8_t>(record, transform::kCount) = static_cast<std::uint8_t>(count + 1);
+    Virtual<void>(self, slot::kSetTransform, static_cast<void*>(record));
+    for (std::size_t i = 0; i < 12; i += 4)
+        At<std::uint32_t>(self, field::kPosition + i) = At<std::uint32_t>(self, field::kPoint + i);
+    Virtual<void>(self, slot::kSlot100, 1u, 1u);
+    Virtual<void>(self, slot::kSlot104);
+    Virtual<void>(self, slot::kSlot107);
+}
+
+// The six wake and wash effects' names (the game's at 0x00A9DE5C down to
+// 0x00A9DE2C), in the order both helpers take them.
+constexpr const char* kWakes[6] = {"SMLWake", "SMLWash", "MEDWake", "MEDWash", "LargeWake", "LargeWash"};
+
+// A string as the two helpers build it inline: the body zeroed, filled by
+// SC4String::FromRange (0x00407FA0; first, last, an allocator byte), then
+// the vtable and the zero word.
+void WakeName(GameString& text, const char* name)
+{
+    text.begin = nullptr;
+    text.end = nullptr;
+    text.capacity = nullptr;
+    char allocator = 0;
+    CallThis<void>(addr::SC4String_FromRange, static_cast<void*>(&text.begin), name, name + std::strlen(name),
+                   static_cast<void*>(&allocator));
+    text.vtable = addr::SC4String_Vtable;
+    text.extra = 0;
+}
+
+// 0x0056EFE0, plain ret: slot 45 (stop an effect by name; name, 0) for each
+// of the six wakes in turn, each name destroyed after its call.
+void __fastcall StopWakes(char* self, void*)
+{
+    static bool logged;
+    FirstCall("StopWakes", logged);
+    for (const char* const name : kWakes) {
+        GameString text;
+        WakeName(text, name);
+        Virtual<void>(self, slot::kStopEffect, static_cast<void*>(&text), 0u);
+        DestroyString(text);
+    }
+}
+
+// 0x0056F1E0, plain ret: slot 44 (start an effect by name; name, 0, 0) for
+// each of the six wakes in turn, each name destroyed after its call.
+void __fastcall StartWakes(char* self, void*)
+{
+    static bool logged;
+    FirstCall("StartWakes", logged);
+    for (const char* const name : kWakes) {
+        GameString text;
+        WakeName(text, name);
+        Virtual<void>(self, slot::kStartEffect, static_cast<void*>(&text), 0u, 0u);
+        DestroyString(text);
+    }
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1475,6 +1560,13 @@ const Detour kDriveStepList[] = {
     OPENSC4_DETOUR(addr::cSC4Watercraft_LeaveDock, LeaveDock),
 };
 
+// Part wc2d.
+const Detour kWakeList[] = {
+    OPENSC4_DETOUR(addr::cSC4Watercraft_ToStart, ToStart),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_StopWakes, StopWakes),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_StartWakes, StartWakes),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -1482,7 +1574,8 @@ bool InstallObject(registry::Mode)
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kDriveList, sizeof kDriveList / sizeof kDriveList[0], "drive") &&
            InstallList(kStateList, sizeof kStateList / sizeof kStateList[0], "state") &&
-           InstallList(kDriveStepList, sizeof kDriveStepList / sizeof kDriveStepList[0], "drive step");
+           InstallList(kDriveStepList, sizeof kDriveStepList / sizeof kDriveStepList[0], "drive step") &&
+           InstallList(kWakeList, sizeof kWakeList / sizeof kWakeList[0], "wake");
 }
 
 const bool g_registered[] = {
@@ -1495,7 +1588,8 @@ const bool g_registered[] = {
                         "helpers and the next leg, the sign and the tow's release (8, part wc2a); slots 110 and 111, the "
                         "leg unlisted, the dock table's two listings, three checks, a path point erased and the next "
                         "leg reached (10, part wc2b); slot 115 (the drive step), the fanned direction, the cell step, the "
-                        "stern and bow points, the longest side, the moved point and leaving the dock (8, part wc2c; "
+                        "stern and bow points, the longest side, the moved point and leaving the dock (8, part wc2c); "
+                        "back to the start and the wakes stopped and started (3, part wc2d; "
                         "src/core/automata_watercraft.cpp)",
                         false, InstallObject}),
 };

@@ -1,4 +1,4 @@
-// The layout of the boat, cSC4Watercraft, parts wc1, wc2a, wc2b and wc2c (build 641;
+// The layout of the boat, cSC4Watercraft, parts wc1, wc2a, wc2b, wc2c and wc2d (build 641;
 // functions, vtables and data in data/addresses/automata.toml, the survey
 // in docs/automata.md, "Part wc").
 //
@@ -101,8 +101,19 @@ inline constexpr std::size_t kWord30 = 0x30, kWord34 = 0x34, kWord144 = 0x144, k
 inline constexpr std::size_t kWord234 = 0x234;
 } // namespace state
 
+// A transform record of the automaton (slots 12 and 75, 0x38 bytes): +0 a
+// count, +1 flags, +4..+0x24 a 3x3 matrix, +0x28 a point, +0x34 a float.
+namespace transform {
+inline constexpr std::size_t kSize = 0x38, kCount = 0x00, kFlags = 0x01, kPoint = 0x28;
+} // namespace transform
+
 // The slots this part calls.
 namespace slot {
+inline constexpr std::size_t kGetTransform = 0x30;  // 12: (transform* out), ret 4
+inline constexpr std::size_t kStartEffect = 0xB0;   // 44: (name, word, word), ret 0xC
+inline constexpr std::size_t kStopEffect = 0xB4;    // 45: (name, word), ret 8
+inline constexpr std::size_t kSetTransform = 0x12C; // 75: (transform*), ret 4
+inline constexpr std::size_t kSlot100 = 0x190;      // 100: (word, word), ret 8
 inline constexpr std::size_t kInitialized = 0x14;   // the occupant part's slot 5, a bool
 inline constexpr std::size_t kRemove = 0x34;        // the automaton's 13: (bool), ret 4
 inline constexpr std::size_t kGetPosition = 0x3C;   // an occupant's 15: (float* out), ret 4
