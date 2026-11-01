@@ -5922,9 +5922,11 @@ uint32_t InputItem(int which)
 // ====================================================================================
 // h1c: the directors and the shared block's release
 
-// A director's list (+0x2C to +0x30) and its classes (buckets +0x3C to
-// +0x40, nodes {next, class, factory, type}): the list's length and entries,
-// the factory and type of the window's class and of one not registered.
+// A director's list (+0x2C to +0x30, its room to +0x34) and its classes
+// (buckets +0x3C to +0x40, nodes {next, class, factory, type}, the count at
+// +0x48): the list's length, entries and room, the factory and type of the
+// window's class and of one not registered, the count. Heap pointers are not
+// hashed.
 void HashDirector(Fnv& f, char* director)
 {
     auto* const first = At<uint32_t*>(director, 0x2C);
@@ -5950,7 +5952,8 @@ void HashDirector(Fnv& f, char* director)
     f.Word(At<uint32_t>(director, 0xC));
     f.Byte(At<uint32_t>(director, 0x24) != 0 ? 1 : 0); // the COM and what it gave (heap pointers)
     f.Byte(At<uint32_t>(director, 0x28) != 0 ? 1 : 0);
-    f.Word(At<uint32_t>(director, 0x34));
+    f.Word(At<uint32_t>(director, 0x34) - At<uint32_t>(director, 0x2C)); // the list's room
+    f.Word(At<uint32_t>(director, 0x48));                                // the classes registered
 }
 
 // The release's cases: the count at +8, the word above it (+0xA), whether
