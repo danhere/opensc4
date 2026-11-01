@@ -735,7 +735,8 @@ bool AnyOurs()
                            "ui.html.document.life", "ui.html.document.glue", "ui.html.document.fonts",
                            "ui.html.document.images", "ui.html.document.imagemap", "ui.html.document.bullets",
                            "ui.html.document.vslots", "ui.html.window.life", "ui.html.window.show",
-                           "ui.html.window.slots", "ui.html.window.settings"})
+                           "ui.html.window.slots", "ui.html.window.settings", "ui.html.window.input",
+                           "ui.html.window.scroll", "ui.html.window.paint", "ui.html.window.address"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -1378,6 +1379,14 @@ enum StandKind : uint32_t {
     kStandBlitter,
     kStandBlit,
     kStandFont,
+    // h1b's (the window's input, scroll bars and paint)
+    kStandBar = 9,
+    kStandBarWindow,
+    kStandBarPicture,
+    kStandFactory,
+    kStandOther,
+    kStandCapture,
+    kStandCanvas,
 };
 
 // A stand-in: its vtable; the font it hands its slots to (+4, read by the
@@ -1453,10 +1462,69 @@ const char* SlotSpec(uint32_t kind, uint32_t slot)
         return slot == 3 || slot == 9 || slot == 40 ? "" : (slot == 5 ? "r" : (slot == 38 ? "orr" : nullptr));
     case kStandFont:
         return slot == kFontDraw ? "oiisiiirp" : nullptr;
+    case kStandBar:
+        switch (slot) {
+        case 2:
+        case 3:
+        case 6:
+            return ""; // release, its window, its position
+        case 5:
+            return "i"; // the position
+        case 7:
+        case 15:
+            return "ii"; // the range, the steps
+        case 17:
+            return "roi"; // the picture and its part
+        default:
+            return nullptr;
+        }
+    case kStandBarWindow:
+        return slot == 41 || slot == 42 || slot == 63 ? "" : (slot == 55 ? "iiii" : nullptr);
+    case kStandBarPicture:
+        return slot == 1 || slot == 2 || slot == 12 ? "" : nullptr;
+    case kStandFactory:
+        return slot == 17 ? "iiiii" : nullptr;
+    case kStandOther:
+        return slot == 92 ? "" : nullptr;
+    case kStandCapture:
+        return slot == 28 ? "" : nullptr;
+    case kStandCanvas:
+        switch (slot) {
+        case 0:
+            return "ip";
+        case 6:
+        case 7:
+            return "i";
+        case 20:
+            return "irr";
+        case 28:
+            return "iiiiii";
+        case 29:
+            return "orrr";
+        default:
+            return nullptr;
+        }
     default:
         return nullptr;
     }
 }
+
+// h1b's stand-ins: two scroll bars, their windows, two bar pictures, the
+// window factory, +0x48, the window manager at +4 (who has the mouse) and
+// the window's picture (+0x68), each with the recording vtable.
+constexpr int kInputStands = 12;
+Stand g_inputStands[kInputStands];
+Stand* const g_inputBars = &g_inputStands[0];        // 2
+Stand* const g_inputBarWindows = &g_inputStands[2];  // 2
+Stand* const g_inputBarPictures = &g_inputStands[4]; // 2
+Stand& g_inputFactory = g_inputStands[6];
+Stand& g_inputOther = g_inputStands[7];
+Stand& g_inputCapture = g_inputStands[8];
+Stand& g_inputCanvas = g_inputStands[9];
+uint32_t g_factoryBars = 0;      // the bars the factory gives (bit 0 the first, bit 1 the second)
+uint32_t g_factoryMade = 0;      // how many it was asked for
+uint32_t g_canvasRefuses = 0;    // the lock the canvas refuses (slot 6)
+char* g_captured = nullptr;      // the window the manager says has the mouse
 
 const Stand* StandAt(uint32_t value)
 {
@@ -1467,6 +1535,8 @@ const Stand* StandAt(uint32_t value)
     if (p >= g_sources && p < g_sources + kMaxSources)
         return p;
     if (p >= g_fonts && p < g_fonts + kMaxFonts)
+        return p;
+    if (p >= g_inputStands && p < g_inputStands + kInputStands)
         return p;
     return nullptr;
 }
@@ -1525,7 +1595,7 @@ uint64_t __cdecl RecordCall(Stand* self, uint32_t slot, const uint32_t* args)
     const char* const spec = SlotSpec(self->kind, slot);
     if (!spec) {
         ++g_strayCalls;
-        log::Write("autotest: html paint: stand-in %u slot %u not known", self->kind, slot);
+        log::Write("autotest: html paint: stand-in %u slot %u not known (from %08X)", self->kind, slot, args[-1]);
         return 0;
     }
     ++g_paintCalls;
@@ -1567,6 +1637,33 @@ uint64_t __cdecl RecordCall(Stand* self, uint32_t slot, const uint32_t* args)
         break;
     case kStandBlitter:
         answer = slot == 4 ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_standBlit)) : (slot == 2 ? 0 : 1);
+        break;
+    case kStandBar:
+        // Its window, the position it was given (+0x10, `width`).
+        if (slot == 3)
+            answer = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_inputBarWindows[self->id]));
+        else if (slot == 5)
+            self->width = static_cast<int32_t>(args[0]);
+        else if (slot == 6)
+            answer = static_cast<uint32_t>(self->width);
+        break;
+    case kStandBarWindow:
+        answer = slot == 41 ? 16 + self->id : (slot == 42 ? 12 + self->id : (slot == 63 ? 0x6300 + self->id : 1));
+        break;
+    case kStandBarPicture:
+        answer = slot == 12 ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self->area)) : 1;
+        break;
+    case kStandFactory:
+        answer = 0;
+        if (g_factoryBars & (1u << g_factoryMade))
+            answer = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_inputBars[g_factoryMade]));
+        g_factoryMade = (g_factoryMade + 1) % 2;
+        break;
+    case kStandCapture:
+        answer = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g_captured));
+        break;
+    case kStandCanvas:
+        answer = slot == 0 ? 0 : (slot == 6 ? (args[0] == g_canvasRefuses ? 0 : 1) : 1);
         break;
     default:
         break;
@@ -4421,6 +4518,7 @@ uint32_t VtableSlotItem(char* window, int which)
 
 Fnv g_winRecord;
 void* g_winVtable[151] = {};
+void* g_inputVtable[151] = {}; // h1b's copy of it (below)
 
 template <int Slot>
 uint32_t __fastcall WinRecord0(char*, void*)
@@ -4618,6 +4716,10 @@ uint32_t WindowWord(char* window, uint32_t value)
         return 0xC1000000u + (value - at(window));
     if (value == at(g_winVtable))
         return 0xC2000001u;
+    if (value == at(g_inputVtable))
+        return 0xC2000004u;
+    if (const Stand* const s = StandAt(value)) // h1b's stand-ins
+        return 0xC4000000u | s->kind << 8 | s->id;
     if (value == at(&g_service))
         return 0xC2000002u;
     if (value == at(&g_winReader))
@@ -5063,6 +5165,759 @@ uint32_t WindowItem(int which)
     return finish(window);
 }
 
+// h1b's: the window's keys and mouse, its view and scroll bars, its paint
+// and its addresses.
+//
+// Each item has a window as h1a's do (NewTestWindow), with a copy of that
+// vtable in which more of the window's own slots record: 14 (a child
+// added), 16 (taken out), 67 (the window's flags: created when the item
+// says so), 85 (the cursor), 90 and 98 (the framework's SetArea calls
+// them), 121 (whether a point is in the window) and 145 (a message to the
+// parent, taken when the item says so); slot 6 is the game's again (the
+// window manager, whose fonts measure the text laid out). Its picture
+// (+0x68) is a recording stand-in that refuses one lock; +0xE0 (the layout
+// context's window) is the window, as slot 4 makes it; the area (+0x24,
+// +0xA8) 320 by 200. The window factory (0x00913C72's singleton, put back
+// after) gives recording scroll bars when the item says so, each with a
+// window of its own; the stand-ins' calls are hashed with the window, the
+// document by its nodes' boxes. The pages start with <HTML>: one that
+// starts with <BODY> is shown as one plain text run.
+
+Fnv g_inputRecord;
+uint32_t g_windowFlags = 0;  // slot 67's: 0x4000 created
+uint8_t g_inside = 1;        // slot 121's
+uint8_t g_postTaken = 0;     // slot 145's
+uint32_t g_serviceGoes = 1;  // the service's slot 16
+
+uint32_t InputWord(char* window, uint32_t value) { return WindowWord(window, value); }
+
+template <int Slot>
+uint32_t __fastcall InputRecord1(char* self, void*, uint32_t argument)
+{
+    g_winRecord.Word(0xA00u + Slot);
+    g_winRecord.Word(InputWord(self, argument));
+    return 0xA000u + Slot;
+}
+
+template <int Slot>
+uint32_t __fastcall InputRecord0(char*, void*)
+{
+    g_winRecord.Word(0xA00u + Slot);
+    return 0xA000u + Slot;
+}
+
+uint8_t __fastcall InputFlags(char*, void*, uint32_t flags)
+{
+    g_winRecord.Word(0xA43u);
+    g_winRecord.Word(flags);
+    return (g_windowFlags & flags) != 0 ? 1 : 0;
+}
+
+uint8_t __fastcall InputInside(char*, void*, int32_t x, int32_t y)
+{
+    g_winRecord.Word(0xA79u);
+    g_winRecord.Word(static_cast<uint32_t>(x));
+    g_winRecord.Word(static_cast<uint32_t>(y));
+    return g_inside;
+}
+
+uint32_t __fastcall InputCursor(char* self, void*, uint32_t cursor, uint32_t show)
+{
+    g_winRecord.Word(0xA55u);
+    g_winRecord.Word(InputWord(self, cursor));
+    g_winRecord.Word(show & 0xFF);
+    return 1;
+}
+
+// A message to the parent: a link's text (a game string) by its text.
+uint8_t __fastcall InputPost(char* self, void*, uint32_t target, const uint32_t* message)
+{
+    g_winRecord.Word(0xA91u);
+    g_winRecord.Word(target);
+    g_winRecord.Word(message[0]);
+    g_winRecord.Byte(reinterpret_cast<char*>(static_cast<std::uintptr_t>(message[1])) == self);
+    if (message[0] == 0xE4A85D91u && message[2]) {
+        const GameText* const text = reinterpret_cast<const GameText*>(static_cast<std::uintptr_t>(message[2]));
+        g_winRecord.Bytes(text->begin, text->end);
+    } else {
+        g_winRecord.Word(InputWord(self, message[2]));
+    }
+    g_winRecord.Word(message[3]);
+    return g_postTaken;
+}
+
+// The service's slot 16 (a page asked for): the address, the +0xDC part,
+// the two words and the byte whether it is a new page.
+uint32_t __fastcall ServiceGo(Service*, void*, char* url, char* target, uint32_t a, uint32_t b, uint32_t fresh)
+{
+    const std::string text = UrlText(url);
+    g_winRecord.Word(0x5016u);
+    g_winRecord.Bytes(text.data(), text.data() + text.size());
+    g_winRecord.Byte(target == g_winCurrent + 0xDC);
+    g_winRecord.Word(a);
+    g_winRecord.Word(b);
+    g_winRecord.Byte(static_cast<uint8_t>(fresh));
+    return g_serviceGoes;
+}
+
+void SetUpInputStands()
+{
+    MakeStandTables();
+    std::memcpy(g_inputVtable, g_winVtable, sizeof g_inputVtable);
+    // The window manager the game's (its fonts measure the text laid out).
+    g_inputVtable[6] = reinterpret_cast<void* const*>(static_cast<std::uintptr_t>(0x00ACD0D8))[6];
+    g_inputVtable[14] = reinterpret_cast<void*>(&InputRecord1<14>);
+    g_inputVtable[16] = reinterpret_cast<void*>(&InputRecord1<16>);
+    g_inputVtable[67] = reinterpret_cast<void*>(&InputFlags);
+    g_inputVtable[85] = reinterpret_cast<void*>(&InputCursor);
+    g_inputVtable[90] = reinterpret_cast<void*>(&InputRecord0<90>);
+    g_inputVtable[98] = reinterpret_cast<void*>(&InputRecord0<98>);
+    g_inputVtable[121] = reinterpret_cast<void*>(&InputInside);
+    g_inputVtable[145] = reinterpret_cast<void*>(&InputPost);
+    g_serviceVtable[16] = reinterpret_cast<void*>(&ServiceGo);
+    const StandKind kinds[kInputStands] = {kStandBar,        kStandBar,     kStandBarWindow, kStandBarWindow,
+                                           kStandBarPicture, kStandBarPicture, kStandFactory, kStandOther,
+                                           kStandCapture,    kStandCanvas,  kStandOther,     kStandOther};
+    for (int i = 0; i < kInputStands; ++i)
+        g_inputStands[i] = Stand{g_recordTable, nullptr, kinds[i], static_cast<uint32_t>(i % 2), 0, 0, {}};
+    g_inputFactory.id = 0;
+    g_inputOther.id = 0;
+    g_inputCapture.id = 0;
+    g_inputCanvas.id = 0;
+    for (int i = 0; i < 2; ++i) {
+        int32_t* const area = g_inputBarPictures[i].area;
+        area[0] = 1 + i;
+        area[1] = 2;
+        area[2] = 13 + i;
+        area[3] = 40;
+    }
+}
+
+constexpr uint32_t kFactoryGlobal = 0x00B628C4; // 0x00913C72's singleton
+
+uint32_t g_factoryWas = 0;
+// The fields an item sets, put back before the window is released.
+constexpr std::size_t kInputFields[] = {0x4, 0x48, 0x68, 0xE0, 0xE8, 0x164, 0x168};
+uint32_t g_inputFieldsWere[std::size(kInputFields)] = {};
+
+// A window for an item: h1a's, with the recording vtable, the picture, the
+// area and the layout context's window; the stand-ins' state cleared and
+// the factory the stand-in.
+char* NewInputWindow(uint32_t bars = 3)
+{
+    char* const window = NewTestWindow();
+    At<void**>(window, 0x0) = g_inputVtable;
+    for (std::size_t i = 0; i < std::size(kInputFields); ++i)
+        g_inputFieldsWere[i] = At<uint32_t>(window, kInputFields[i]);
+    At<char*>(window, 0xE0) = window;
+    At<void*>(window, 0x68) = &g_inputCanvas;
+    for (std::size_t at : {std::size_t{0x24}, std::size_t{0xA8}}) {
+        At<int32_t>(window, at) = 0;
+        At<int32_t>(window, at + 4) = 0;
+        At<int32_t>(window, at + 8) = 320;
+        At<int32_t>(window, at + 0xC) = 200;
+    }
+    g_windowFlags = 0;
+    g_inside = 1;
+    g_postTaken = 0;
+    g_serviceGoes = 1;
+    g_factoryBars = bars;
+    g_factoryMade = 0;
+    g_canvasRefuses = 0x8010;
+    g_captured = nullptr;
+    for (int i = 0; i < 2; ++i)
+        g_inputBars[i].width = 0;
+    g_factoryWas = Static(kFactoryGlobal);
+    Static(kFactoryGlobal) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_inputFactory));
+    return window;
+}
+
+// A laid-out tree by its nodes' classes, flags and boxes (the document's
+// hash follows pointers that a layout leaves into the heap).
+void HashBoxes(Fnv& f, char* node, int depth)
+{
+    f.Byte(0xA6);
+    if (!node || depth > 64) {
+        f.Byte(0);
+        return;
+    }
+    f.Word(At<uint32_t>(node, 0));
+    f.Byte(At<uint8_t>(node, 0x8));
+    f.Byte(At<uint8_t>(node, 0x9));
+    for (std::size_t at = 0xC; at < 0x1C; at += 4)
+        f.Word(At<uint32_t>(node, at));
+    const NodeClass* const c = ClassOf(At<uint32_t>(node, 0));
+    if (!c || !c->container)
+        return;
+    char** const first = At<char**>(node, 0x1C);
+    char** const last = At<char**>(node, 0x20);
+    const uint32_t count = first && first <= last ? static_cast<uint32_t>(last - first) : 0;
+    f.Word(count);
+    for (uint32_t i = 0; i < count && i < 100000; ++i)
+        HashBoxes(f, first[i], depth + 1);
+}
+
+// h1a's hash of the window, its document by HashBoxes.
+void HashInputWindow(Fnv& f, char* window)
+{
+    char* const doc = At<char*>(window, 0x148);
+    At<char*>(window, 0x148) = nullptr;
+    HashWindow(f, window);
+    At<char*>(window, 0x148) = doc;
+    f.Byte(doc != nullptr);
+    if (doc) {
+        f.Byte(At<char*>(window, 0xE4) == doc);
+        HashBoxes(f, At<char*>(doc, 0x14), 0);
+    }
+}
+
+// The window hashed, its stand-ins taken off and it released as h1a's.
+uint32_t FinishInputWindow(Fnv& f, char* window)
+{
+    HashInputWindow(f, window);
+    for (std::size_t at : {std::size_t{0x4}, std::size_t{0x48}, std::size_t{0x164}, std::size_t{0x168}})
+        f.Word(InputWord(window, At<uint32_t>(window, at)));
+    for (int i = 0; i < 2; ++i)
+        f.Word(static_cast<uint32_t>(g_inputBars[i].width));
+    f.Word(g_winRecord.h);
+    f.Word(g_inputRecord.h);
+    Static(kFactoryGlobal) = g_factoryWas;
+    At<void**>(window, 0x0) = g_winVtable;
+    for (std::size_t i = 0; i < std::size(kInputFields); ++i)
+        At<uint32_t>(window, kInputFields[i]) = g_inputFieldsWere[i];
+    for (std::size_t at = 0x1A4; at < 0x1B4; at += 4)
+        At<uint32_t>(window, at) = 0;
+    g_windowFlags = 0;
+    FreeTestWindow(window);
+    return f.h;
+}
+
+// The client rectangle made (as slot 4 does) and a page shown through slot
+// 22; then laid out through slot 10 when asked.
+uint8_t ShowInputPage(char* window, const char* page, bool layOut)
+{
+    CallGameThis<uint32_t>(addr::HTMLWindow_UpdateClientRect, window);
+    const uint8_t shown = ShowPage(window, page, "http://maxis.com/pages/");
+    if (layOut) {
+        int32_t size[2] = {};
+        Virtual<int32_t*>(window + 0xD8, 0x28, size);
+    }
+    return shown;
+}
+
+const char* const kInputShort = "<HTML><BODY><A HREF=\"go.html\">go there</A> and <A NAME=\"top\">a name</A></BODY></HTML>";
+// Taller and wider than the view (a long PRE line, 30 paragraphs), with two
+// anchors.
+const std::string kInputTallText = [] {
+    std::string page = "<HTML><BODY><PRE>";
+    for (int i = 0; i < 12; ++i)
+        page += "wide wide ";
+    page += "</PRE>";
+    for (int i = 0; i < 30; ++i) {
+        page += "<P>row " + std::to_string(i);
+        if (i == 14)
+            page += " <A NAME=\"mid\">middle</A>";
+        page += "</P>";
+    }
+    page += "<P><A HREF=\"far.html\" NAME=\"end\">the end</A></P></BODY></HTML>";
+    return page;
+}();
+const char* const kInputTall = kInputTallText.c_str();
+const char* const kInputPaintPages[] = {
+    "<HTML><BODY></BODY></HTML>",
+    "<HTML><BODY BGCOLOR=#336699></BODY></HTML>",
+    "<HTML><BODY BGCOLOR=#112233><TABLE BGCOLOR=#445566><TR><TD BGCOLOR=#778899></TD><TD></TD></TR></TABLE></BODY></HTML>",
+};
+
+// The view (+0xFC to +0x108) and the client rectangle.
+void HashView(Fnv& f, char* window)
+{
+    for (std::size_t at = 0xEC; at < 0x10C; at += 4)
+        f.Word(At<uint32_t>(window, at));
+}
+
+// Items, by kind.
+constexpr int kInClientItems = 4;
+constexpr int kInAreaItems = 4;
+constexpr int kInMarginItems = 2;
+constexpr int kInSizeItems = 3;
+constexpr int kInPaintItems = 9;
+constexpr int kInScrollItems = 6;
+constexpr int kInAnchorItems = 6;
+constexpr int kInPictureItems = 6;
+constexpr int kInMessageItems = 5;
+constexpr int kInMakeItems = 6;
+constexpr int kInCheckItems = 5;
+constexpr int kInRangeItems = 4;
+constexpr int kInPlaceItems = 2;
+constexpr int kInKeyItems = 19;
+constexpr int kInWheelItems = 6;
+constexpr int kInMouseItems = 10;
+constexpr int kInLinkItems = 3;
+constexpr int kInServiceItems = 4;
+constexpr int kInGoItems = 11;
+constexpr int kInputItems = kInClientItems + kInAreaItems + kInMarginItems + kInSizeItems + kInPaintItems +
+                            kInScrollItems + kInAnchorItems + kInPictureItems + kInMessageItems + kInMakeItems +
+                            kInCheckItems + kInRangeItems + kInPlaceItems + kInKeyItems + kInWheelItems +
+                            kInMouseItems + kInLinkItems + kInServiceItems + kInGoItems;
+
+// The keys: key, modifiers, flag 0x10, the view's top and left before (-1
+// as the page leaves them), the parent taking it.
+struct KeyCase {
+    uint32_t key;
+    uint32_t modifiers;
+    bool scrolls;
+    int32_t top;
+    int32_t left;
+    bool taken;
+};
+const KeyCase kInputKeys[] = {
+    {0x22, 0, true, -1, -1, true},  {0x22, 0, true, -1, -1, false}, {0x22, 0, true, 980, -1, false},
+    {0x28, 0, true, 100, -1, false}, {0x28, 0, false, 100, -1, false}, {0x21, 0, true, 300, -1, false},
+    {0x21, 0, true, 50, -1, false},  {0x21, 0, true, 0, -1, false},  {0x26, 0, true, 7, -1, false},
+    {0x24, 0, true, 120, 33, false}, {0x24, 0, true, 0, 0, false},   {0x23, 0, true, 10, 5, false},
+    {0x25, 0, true, -1, 10, false},  {0x25, 0, true, -1, 300, false}, {0x27, 0, true, -1, 0, false},
+    {0x27, 0, true, -1, 600, false}, {0x52, 2, true, -1, -1, false}, {0x52, 3, true, -1, -1, false},
+    {0x41, 0, true, -1, -1, false},
+};
+static_assert(std::size(kInputKeys) == kInKeyItems);
+
+uint32_t InputItem(int which)
+{
+    Fnv f;
+    g_winRecord = Fnv{};
+    g_inputRecord = Fnv{};
+    g_paintHash = &g_inputRecord;
+    const auto finish = [&](char* window) {
+        const uint32_t h = FinishInputWindow(f, window);
+        g_paintHash = nullptr;
+        return h;
+    };
+    const auto margins = [](char* window, int32_t l, int32_t t, int32_t r, int32_t b) {
+        At<int32_t>(window, 0x184) = l;
+        At<int32_t>(window, 0x188) = t;
+        At<int32_t>(window, 0x18C) = r;
+        At<int32_t>(window, 0x190) = b;
+    };
+    if (which < kInClientItems) {
+        // The client rectangle from the area and four sets of margins,
+        // twice (the second unchanged).
+        char* const window = NewInputWindow();
+        const int32_t m[][4] = {{4, 4, 0x16, 4}, {0, 0, 0, 0}, {10, 20, 30, 40}, {-3, 5, 400, -7}};
+        margins(window, m[which][0], m[which][1], m[which][2], m[which][3]);
+        At<int32_t>(window, 0xFC) = which * 7;
+        At<int32_t>(window, 0x100) = which * 11;
+        f.Word(CallGameThis<uint32_t>(addr::HTMLWindow_UpdateClientRect, window));
+        f.Word(CallGameThis<uint32_t>(addr::HTMLWindow_UpdateClientRect, window));
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInClientItems;
+    if (which < kInAreaItems) {
+        // Slot 55: a new size with no page, with a page, the same size (no
+        // +0x48 and with one).
+        char* const window = NewInputWindow();
+        if (which == 1)
+            f.Byte(ShowInputPage(window, kInputShort, true));
+        if (which == 3)
+            At<void*>(window, 0x48) = &g_inputOther;
+        const bool same = which >= 2;
+        f.Word(WindowWord(window, Virtual<uint32_t>(window, 0xDC, 5, 6, same ? 325 : 400, same ? 206 : 260)));
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInAreaItems;
+    if (which < kInMarginItems) {
+        // Slot 31 after slot 32.
+        char* const window = NewInputWindow();
+        if (which)
+            Virtual<uint32_t>(window + 0xD8, 0x80, 7, -8, 9, 0x12345);
+        int32_t out[4] = {0x55, 0x55, 0x55, 0x55};
+        f.Word(Virtual<uint32_t>(window + 0xD8, 0x7C, &out[0], &out[1], &out[2], &out[3]));
+        for (const int32_t v : out)
+            f.Word(static_cast<uint32_t>(v));
+        return finish(window);
+    }
+    which -= kInMarginItems;
+    if (which < kInSizeItems) {
+        // Slot 10 on a page not laid out (twice: the second laid out), on a
+        // tall one, on an empty body.
+        char* const window = NewInputWindow();
+        f.Byte(ShowInputPage(window, which == 0 ? kInputShort : which == 1 ? kInputTall : kInputPaintPages[0], false));
+        for (int pass = 0; pass < 2; ++pass) {
+            int32_t size[2] = {0x77, 0x77};
+            f.Word(WindowWord(window, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                                          Virtual<int32_t*>(window + 0xD8, 0x28, size))) -
+                                          static_cast<uint32_t>(reinterpret_cast<uintptr_t>(size))));
+            f.Word(static_cast<uint32_t>(size[0]));
+            f.Word(static_cast<uint32_t>(size[1]));
+        }
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInSizeItems;
+    if (which < kInPaintItems) {
+        // Slot 88: no page shown; shown with no body's pages (the window's
+        // colour, its lock refused); the three pages (BGCOLOR, a table)
+        // laid out by the paint and again; with the frame; a BACKGROUND
+        // picture (its lock refused); the margins changed since.
+        char* const window = NewInputWindow();
+        switch (which) {
+        case 0:
+            break;
+        case 1:
+        case 2:
+            At<uint32_t>(window, 0x464) = 2;
+            if (which == 2)
+                g_canvasRefuses = 0x8001;
+            break;
+        case 3:
+        case 4:
+        case 5:
+            f.Byte(ShowInputPage(window, kInputPaintPages[which - 3], false));
+            break;
+        case 6:
+            f.Byte(ShowInputPage(window, kInputPaintPages[1], true));
+            At<uint32_t>(window, 0x180) |= 0x40;
+            At<uint32_t>(window, 0x1D4) = 0x00ABCDEF;
+            break;
+        case 7:
+            f.Byte(ShowInputPage(window, kInputPaintPages[0], true));
+            if (char* const body = Virtual<char*>(At<char*>(window, 0x148), 0x30))
+                At<void*>(body, 0x3C) = &g_inputBarPictures[0];
+            break;
+        default:
+            f.Byte(ShowInputPage(window, kInputPaintPages[2], true));
+            margins(window, 1, 2, 3, 4);
+            At<uint32_t>(window, 0x180) &= ~0x80u;
+            break;
+        }
+        // The text runs' fonts the paint test's stand-ins (DrawString
+        // recorded, nothing drawn), put back after.
+        std::vector<char*> nodes;
+        std::vector<std::pair<char*, char*>> fonts;
+        if (char* const doc = At<char*>(window, 0x148))
+            CollectNodes(At<char*>(doc, 0x14), nodes, 0);
+        g_fontCount = 0;
+        for (char* node : nodes)
+            if (At<uint32_t>(node, 0) == 0x00ACE300)
+                if (char* const real = At<char*>(node, 0x34))
+                    if (Stand* const s = FontStand(real)) {
+                        fonts.emplace_back(node, real);
+                        At<Stand*>(node, 0x34) = s;
+                    }
+        f.Word(static_cast<uint32_t>(fonts.size()));
+        f.Byte(Virtual<uint8_t>(window, 0x160));
+        f.Byte(Virtual<uint8_t>(window, 0x160));
+        for (const auto& [node, real] : fonts)
+            At<char*>(node, 0x34) = real;
+        if (which == 7)
+            if (char* const body = Virtual<char*>(At<char*>(window, 0x148), 0x30))
+                At<void*>(body, 0x3C) = nullptr;
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInPaintItems;
+    if (which < kInScrollItems) {
+        // Slot 7 on the tall page: to where it is, inside, below and right
+        // of the page, before it, with no bars.
+        char* const window = NewInputWindow(which == 5 ? 0 : 3);
+        f.Byte(ShowInputPage(window, kInputTall, true));
+        const int32_t to[][2] = {{0, 0}, {30, 200}, {5000, 5000}, {400, 10}, {-20, -30}, {10, 10}};
+        f.Word(Virtual<uint32_t>(window + 0xD8, 0x1C, to[which][0], to[which][1]));
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInScrollItems;
+    if (which < kInAnchorItems) {
+        // Slots 8 and 9 with three names on the tall page (one not there),
+        // one above the view, one on a page not laid out.
+        char* const window = NewInputWindow();
+        f.Byte(ShowInputPage(window, kInputTall, which != 5));
+        // 3: mid; 4: mid after the view went below it; 5: end, not laid out.
+        const char* const names[] = {"mid", "end", "nowhere", "mid", "mid", "end"};
+        GameText name;
+        MakeText(&name, names[which]);
+        if (which < 3) {
+            int32_t rect[4] = {0x66, 0x66, 0x66, 0x66};
+            f.Byte(Virtual<uint8_t>(window + 0xD8, 0x20, &name, rect));
+            for (const int32_t v : rect)
+                f.Word(static_cast<uint32_t>(v));
+        } else {
+            if (which == 4)
+                Virtual<uint32_t>(window + 0xD8, 0x1C, 0, 900);
+            f.Byte(Virtual<uint8_t>(window + 0xD8, 0x24, &name));
+        }
+        DestroyText(&name);
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInAnchorItems;
+    if (which < kInPictureItems) {
+        // Slots 11 and 12 (with and without the bar, an empty part and not,
+        // none), then 13 and 14.
+        char* const window = NewInputWindow();
+        if (which >= 2)
+            f.Byte(ShowInputPage(window, kInputTall, true));
+        const int32_t parts[][4] = {{0, 0, 0, 0}, {3, 4, 15, 60}};
+        void* const picture = which == 4 ? nullptr : &g_inputBarPictures[which % 2];
+        const std::size_t slot = which % 2 ? 0x30 : 0x2C;
+        f.Byte(Virtual<uint8_t>(window + 0xD8, slot, picture, parts[(which / 2) % 2]));
+        if (which == 5)
+            f.Byte(Virtual<uint8_t>(window + 0xD8, slot, &g_inputBarPictures[0], parts[0]));
+        for (const std::size_t get : {std::size_t{0x34}, std::size_t{0x38}}) {
+            void* got = reinterpret_cast<void*>(0x99);
+            int32_t rect[4] = {0x44, 0x44, 0x44, 0x44};
+            const uint32_t r = Virtual<uint32_t>(window + 0xD8, get, &got, rect);
+            f.Byte(static_cast<uint8_t>(r));
+            f.Word(InputWord(window, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(got))));
+            for (const int32_t v : rect)
+                f.Word(static_cast<uint32_t>(v));
+        }
+        return finish(window);
+    }
+    which -= kInPictureItems;
+    if (which < kInMessageItems) {
+        // Slot 143: another message, from the vertical bar, from the
+        // horizontal one, from neither, and from the horizontal with no
+        // vertical bar.
+        char* const window = NewInputWindow();
+        f.Byte(ShowInputPage(window, kInputTall, true));
+        At<uint32_t>(window, 0x180) |= 4;
+        CallGameThis<uint8_t>(addr::HTMLWindow_MakeScrollBars, window, uint8_t{1}, uint8_t{1});
+        g_inputBars[0].width = 120;
+        g_inputBars[1].width = 45;
+        if (which == 4)
+            At<void*>(window, 0x1A4) = nullptr;
+        const uint32_t ids[] = {0x6300, 0x6300, 0x6301, 0x6399, 0x6301};
+        f.Byte(Virtual<uint8_t>(window, 0x23C, which == 0 ? 0x12345678u : 0x887113A3u, ids[which]));
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInMessageItems;
+    if (which < kInMakeItems) {
+        // The bars made: both (the horizontal allowed), the vertical only,
+        // the factory giving none, with pictures and parts set before, with
+        // the flags off, and a bar already there.
+        char* const window = NewInputWindow(which == 2 ? 0 : 3);
+        f.Byte(ShowInputPage(window, kInputShort, true));
+        if (which != 1)
+            At<uint32_t>(window, 0x180) |= 4;
+        if (which == 3) {
+            const int32_t part[4] = {1, 1, 9, 30};
+            const int32_t none[4] = {};
+            Virtual<uint8_t>(window + 0xD8, 0x2C, &g_inputBarPictures[0], part);
+            Virtual<uint8_t>(window + 0xD8, 0x30, &g_inputBarPictures[1], none);
+        }
+        if (which == 4)
+            At<uint32_t>(window, 0x180) &= ~0xCu;
+        if (which == 5)
+            At<void*>(window, 0x1A4) = &g_inputBars[1];
+        f.Byte(CallGameThis<uint8_t>(addr::HTMLWindow_MakeScrollBars, window, uint8_t{1}, uint8_t(which != 1)));
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInMakeItems;
+    if (which < kInCheckItems) {
+        // The bars checked: the tall page (made), the short one with bars
+        // (dropped), the tall one with the horizontal bar allowed, the
+        // short one with it allowed, and the view made exactly the page's
+        // height and width with both bars (dropped).
+        char* const window = NewInputWindow();
+        f.Byte(ShowInputPage(window, which % 2 ? kInputShort : kInputTall, false));
+        if (which >= 2)
+            At<uint32_t>(window, 0x180) |= 4;
+        if (which % 2) {
+            At<void*>(window, 0x1A4) = &g_inputBars[0];
+            At<void*>(window, 0x1A8) = &g_inputBars[1];
+        }
+        int32_t size[2] = {};
+        Virtual<int32_t*>(window + 0xD8, 0x28, size);
+        if (which == 4) {
+            At<int32_t>(window, 0x104) = At<int32_t>(window, 0xFC) + size[0];
+            At<int32_t>(window, 0x108) = At<int32_t>(window, 0x100) + size[1];
+        }
+        f.Byte(CallGameThis<uint8_t>(addr::HTMLWindow_UpdateScrollBars, window));
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInCheckItems;
+    if (which < kInRangeItems) {
+        // The ranges and positions, with and without ranges, the vertical
+        // bar alone and both (the horizontal ones go to the vertical bar).
+        char* const window = NewInputWindow();
+        f.Byte(ShowInputPage(window, kInputTall, true));
+        At<int32_t>(window, 0xFC) = 11;
+        At<int32_t>(window, 0x100) = 77;
+        if (which >= 2)
+            At<void*>(window, 0x1A8) = &g_inputBars[1];
+        if (!At<void*>(window, 0x1A4))
+            At<void*>(window, 0x1A4) = &g_inputBars[0];
+        CallGameThis<void>(addr::HTMLWindow_SetScrollRanges, window, uint8_t(which % 2));
+        return finish(window);
+    }
+    which -= kInRangeItems;
+    if (which < kInPlaceItems) {
+        // The bars placed: the vertical one, both.
+        char* const window = NewInputWindow();
+        At<void*>(window, 0x1A4) = &g_inputBars[0];
+        if (which)
+            At<void*>(window, 0x1A8) = &g_inputBars[1];
+        At<int32_t>(window, 0xB0) = 333;
+        CallGameThis<void>(addr::HTMLWindow_PlaceScrollBars, window);
+        return finish(window);
+    }
+    which -= kInPlaceItems;
+    if (which < kInKeyItems) {
+        // Slot 130, each key on the tall page.
+        const KeyCase& c = kInputKeys[which];
+        char* const window = NewInputWindow();
+        f.Byte(ShowInputPage(window, kInputTall, true));
+        if (c.scrolls)
+            At<uint32_t>(window, 0x180) |= 0x10;
+        else
+            At<uint32_t>(window, 0x180) &= ~0x10u;
+        const auto move = [&](std::size_t at, int32_t to) {
+            if (to < 0)
+                return;
+            const int32_t size = At<int32_t>(window, at + 8) - At<int32_t>(window, at);
+            At<int32_t>(window, at) = to;
+            At<int32_t>(window, at + 8) = to + size;
+        };
+        move(0xFC, c.left);
+        move(0x100, c.top);
+        if (c.key == 0x52)
+            SetUrl(window + 0x2E0, "http://maxis.com/pages/shown.html");
+        g_postTaken = c.taken ? 1 : 0;
+        f.Byte(Virtual<uint8_t>(window, 0x208, c.key, c.modifiers));
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInKeyItems;
+    if (which < kInWheelItems) {
+        // Slot 139: the mouse captured; up 250 and down 150 with flag 0x10
+        // and without; 50; no page.
+        char* const window = NewInputWindow();
+        if (which != 5)
+            f.Byte(ShowInputPage(window, kInputTall, true));
+        At<void*>(window, 0x4) = &g_inputCapture;
+        if (which == 0)
+            g_captured = window;
+        if (which == 1 || which == 3)
+            At<uint32_t>(window, 0x180) |= 0x10;
+        else
+            At<uint32_t>(window, 0x180) &= ~0x10u;
+        At<int32_t>(window, 0x100) = 400;
+        At<int32_t>(window, 0x108) = 600;
+        const int32_t deltas[] = {250, 250, 250, -150, 50, -300};
+        f.Byte(Virtual<uint8_t>(window, 0x22C, 1u, 2u, 3u, deltas[which]));
+        HashView(f, window);
+        return finish(window);
+    }
+    which -= kInWheelItems;
+    if (which < kInMouseItems) {
+        // Slots 134, 136 and 138 over the link, over the image that is no
+        // link, outside the window, with flag 0x20 off; the node hit alone
+        // on a page not laid out and with no page.
+        char* const window = NewInputWindow();
+        if (which < 8)
+            f.Byte(ShowInputPage(window, kInputShort, true));
+        else if (which == 8)
+            f.Byte(ShowInputPage(window, kInputShort, false));
+        At<void*>(window, 0x164) = &g_inputStands[10];
+        At<void*>(window, 0x168) = &g_inputStands[11];
+        const int32_t points[][2] = {{10, 10}, {66, 10}, {10, 10}, {300, 150}};
+        const int32_t* const p = points[which % 4];
+        if (which == 2)
+            g_inside = 0;
+        if (which >= 4 && which < 8)
+            At<uint32_t>(window, 0x180) &= ~0x20u;
+        if (which < 8) {
+            g_postTaken = which % 2;
+            for (const std::size_t slot : {std::size_t{0x228}, std::size_t{0x218}, std::size_t{0x220}})
+                f.Byte(Virtual<uint8_t>(window, slot, p[0], p[1], 0u));
+        } else {
+            char* node = reinterpret_cast<char*>(0x55);
+            f.Byte(CallGameThis<uint8_t>(addr::HTMLWindow_HitNode, window, &node, 10, 10));
+            f.Byte(node == reinterpret_cast<char*>(0x55));
+        }
+        return finish(window);
+    }
+    which -= kInMouseItems;
+    if (which < kInLinkItems) {
+        // Slot 25: not taken; taken with flag 0x20; taken without it.
+        char* const window = NewInputWindow();
+        g_postTaken = which ? 1 : 0;
+        if (which == 2)
+            At<uint32_t>(window, 0x180) &= ~0x20u;
+        GameText link;
+        MakeText(&link, "sc4://advice/7");
+        f.Byte(Virtual<uint8_t>(window + 0xD8, 0x64, &link));
+        DestroyText(&link);
+        return finish(window);
+    }
+    which -= kInLinkItems;
+    if (which < kInServiceItems) {
+        // Slot 4: the same service, another, then from a recording one to
+        // none and to another (AddRef and Release recorded).
+        char* const window = NewInputWindow();
+        void* const services[] = {&g_service, &g_inputStands[11], nullptr, &g_inputStands[10]};
+        g_inputStands[10].kind = kStandBarPicture;
+        g_inputStands[11].kind = kStandBarPicture;
+        if (which >= 2)
+            At<void*>(window, 0x460) = &g_inputStands[11];
+        f.Byte(Virtual<uint8_t>(window + 0xD8, 0x10, services[which]));
+        f.Word(InputWord(window, At<uint32_t>(window, 0x460)));
+        g_inputStands[10].kind = kStandOther;
+        g_inputStands[11].kind = kStandOther;
+        At<void*>(window, 0x460) = &g_service;
+        return finish(window);
+    }
+    which -= kInServiceItems;
+    // Slots 17, 18 and 20: not created; no service; an empty address; the
+    // page shown again (not reloading, reloading); a new address (relative
+    // to the base); asked while asking; the service refusing; a fragment;
+    // slot 18 from a string; an empty fragment.
+    char* const window = NewInputWindow();
+    if (which != 0)
+        g_windowFlags = 0x4000;
+    f.Byte(ShowInputPage(window, kInputShort, false));
+    SetUrl(window + 0x2E0, "http://maxis.com/pages/shown.html");
+    if (which == 1)
+        At<void*>(window, 0x460) = nullptr;
+    if (which == 6)
+        At<uint32_t>(window, 0x464) = 1;
+    if (which == 7)
+        g_serviceGoes = 0;
+    const char* const texts[] = {"x.html", "x.html", "", "http://maxis.com/pages/shown.html",
+                                 "http://maxis.com/pages/shown.html", "next.html?a=1", "next.html", "other.html"};
+    if (which < 8) {
+        alignas(4) char url[0xC0];
+        GameText text;
+        MakeText(&text, texts[which]);
+        reinterpret_cast<void*(__thiscall*)(void*, const void*)>(addr::SC4Url_FromText)(url, &text);
+        if (which == 6)
+            SetUrl(window + 0x3A0, "http://maxis.com/pages/next.html");
+        f.Byte(Virtual<uint8_t>(window + 0xD8, 0x44, static_cast<void*>(url), uint32_t(which == 4 ? 1 : 0)));
+        reinterpret_cast<void(__thiscall*)(void*)>(addr::SC4Url_Destroy)(url);
+        DestroyText(&text);
+    } else if (which == 8 || which == 10) {
+        // A fragment, and none (the page shown, not reloaded).
+        GameText fragment;
+        MakeText(&fragment, which == 8 ? "#mid" : "");
+        f.Byte(Virtual<uint8_t>(window + 0xD8, 0x50, &fragment));
+        DestroyText(&fragment);
+    } else {
+        GameText text;
+        MakeText(&text, "../up.html");
+        f.Byte(Virtual<uint8_t>(window + 0xD8, 0x48, &text, 0u));
+        DestroyText(&text);
+    }
+    if (which == 1)
+        At<void*>(window, 0x460) = &g_service;
+    return finish(window);
+}
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -5074,6 +5929,7 @@ void DriveNodesDay(const Day& day)
     SetUpNodeStands();
     SetUpImageStands();
     SetUpWindowStands();
+    SetUpInputStands();
     void* const face = MakeWindow("html nodes");
     if (!face)
         return;
@@ -5082,9 +5938,9 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[10] = {};
+    uint32_t sectionHash[11] = {};
     const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children",
-                                    "document", "slots", "images", "window"};
+                                    "document", "slots", "images", "window", "input"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -5184,17 +6040,21 @@ void DriveNodesDay(const Day& day)
     // h1a's: the window's life, pages, COM slots and settings.
     for (int i = 0; i < kWindowItems; ++i)
         item(9, i, [&] { return WindowItem(i); });
+    // h1b's: the window's input, view and scroll bars, paint and addresses.
+    for (int i = 0; i < kInputItems; ++i)
+        item(10, i, [&] { return InputItem(i); });
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
-               "pages %08X, children %08X, document %08X, slots %08X, images %08X, window %08X), %u stand-in calls, %u of %u "
+               "pages %08X, children %08X, document %08X, slots %08X, images %08X, window %08X, input %08X), %u stand-in "
+               "calls, %u of %u "
                "blocks "
                "freed; %s; "
                "hash %08X",
                items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
-               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], g_standCalls,
+               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], sectionHash[10], g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)
