@@ -21,7 +21,8 @@ Open an issue with what you did, what happened, and your game version (OpenSC4 n
 
 - Read the disassembly or decompiler output to **understand** a function, then write it in your own words: our names, our structure, our comments. Addresses, offsets, sizes and class or message IDs are facts and are fine to use.
 - Each replacement sits behind a switch in `opensc4.ini`, off by default until it has been checked against the original ([docs/parity.md](docs/parity.md)).
-- Put every game address in `data/addresses/` (see its [README](data/addresses/README.md)), never as a bare number in code.
+- Put every game address in `data/addresses/` (see its [README](data/addresses/README.md)), never as a bare number in code. That includes data: floats, tables and globals are `kind = "data"` entries used as `addr::<name>`, not `constexpr` copies in a header. Search the toml files for the address first (`grep -rn 0x00A8FE78 data/addresses`): common constants such as `SC4::FloatMinusOne` are often already there.
+- Reuse the shared helpers before writing one: `Global<T>`, `At<T>`, `Virtual<T>` and `CallThis<T>` (`src/core/game_access.h`; `Global` already returns a reference). Don't copy a file-local helper from another part; when a second file needs it, move it to a shared header.
 - Call the game's own helpers where the original calls them (`RZFile`, `RZDirectory`, `cRZIniFile`, its allocators), with the same arguments in the same order, not CRT, Win32 or STL substitutes. Replacing one needs a stated reason in the part's doc section.
 - Calls between replaced functions go through their `addr::` entries, never as direct C++ calls, so any mix of groups works and a parity difference can be bisected by group. Keep the ours and game's lists in the file header current.
 - A part's doc section follows [docs/html.md](docs/html.md), "Ours: the cache's entries (h7a)": a groups table with a link to the source, how it works, the kept quirks, "Still the game's" (what in the subsystem stays the game's, the functions ours calls included) and its test. Its mutation check and its rows in the results table go in the doc's "Testing" section (rows, not a prose line).
@@ -34,11 +35,12 @@ Open an issue with what you did, what happened, and your game version (OpenSC4 n
 
 ## AI assistance
 
-Allowed, and disclosed: say so in the commit or pull request (a `Co-Authored-By` line is enough). The rules above apply the same way to code an AI wrote. Never push AI-assisted changes to another project's repository uninvited ([docs/decisions.md](docs/decisions.md#ai-use-and-community-etiquette)).
+Allowed, and disclosed: say so in every commit an AI wrote (a `Co-Authored-By` line naming the tool or model is enough) and in the pull request. The rules above apply the same way to code an AI wrote. Never push AI-assisted changes to another project's repository uninvited ([docs/decisions.md](docs/decisions.md#ai-use-and-community-etiquette)).
 
 ## Pull requests
 
-- One piece of work per pull request, with what it replaces and how it was checked.
+- One piece of work per pull request, with what it replaces and how it was checked. A fix found along the way that isn't part of the piece (a broken test, a harness bug) gets its own pull request, so it can merge without waiting for the piece.
+- Open the pull request as a draft until the part is complete (the list below); say in the body what is still to do.
 - Build and run the tests (`cmake --build --preset debug`, `ctest --preset debug`); a change that touches game code also needs its parity run in the game.
 - A replacement part is complete only when its doc section records, from the pull request's own head:
   - a mutation check;
