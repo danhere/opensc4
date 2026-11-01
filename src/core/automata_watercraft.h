@@ -1,4 +1,4 @@
-// The layout of the boat, cSC4Watercraft, parts wc1 and wc2a (build 641;
+// The layout of the boat, cSC4Watercraft, parts wc1, wc2a and wc2b (build 641;
 // functions, vtables and data in data/addresses/automata.toml, the survey
 // in docs/automata.md, "Part wc").
 //
@@ -68,6 +68,7 @@ inline constexpr std::size_t kSpeed = 0x2DC, kTurn = 0x2E0, kWord2E4 = 0x2E4;
 inline constexpr std::size_t kStartPoint = 0x2E8, kPoint = 0x2F4, kStartHeading = 0x300, kHeading = 0x30C;
 inline constexpr std::size_t kTarget = 0x318, kTargetPath = 0x31C, kByte340 = 0x340;
 inline constexpr std::size_t kDriveParams = 0x344, kDriveParamsSize = 0xA0;
+inline constexpr std::size_t kParam394 = 0x394, kParam3D4 = 0x3D4; // two drive parameters (wc2b)
 inline constexpr std::size_t kGenerator = 0x3E4, kWordDAC = 0xDAC;
 inline constexpr std::size_t kEffects = 0xDB0, kEffectCount = 6;
 // The core's.
@@ -91,20 +92,36 @@ namespace group {
 inline constexpr std::size_t kParent = 0x0C, kDriveParams = 0x60;
 } // namespace group
 
+// A state record of the automata core (slots 110 and 111): its type, and the
+// fields the boat's slot 110 sets for the type 0x10.
+namespace state {
+inline constexpr std::size_t kType = 0x04;
+inline constexpr std::size_t kWord30 = 0x30, kWord34 = 0x34, kWord144 = 0x144, kWord178 = 0x178, kWord1AC = 0x1AC;
+inline constexpr std::size_t kWord234 = 0x234;
+} // namespace state
+
 // The slots this part calls.
 namespace slot {
 inline constexpr std::size_t kInitialized = 0x14;   // the occupant part's slot 5, a bool
 inline constexpr std::size_t kRemove = 0x34;        // the automaton's 13: (bool), ret 4
+inline constexpr std::size_t kGetPosition = 0x3C;   // an occupant's 15: (float* out), ret 4
 inline constexpr std::size_t kSetFlag = 0x78;       // the automaton's 30: (flag, bool), ret 8
+inline constexpr std::size_t kSlot31 = 0x7C;        // 31: (1), ret 4, AL
 inline constexpr std::size_t kPushState = 0xD0;     // 52: seven words, ret 0x1C
-inline constexpr std::size_t kSlot53 = 0xD4;        // 53, the tow's before it is let go of
+inline constexpr std::size_t kSlot53 = 0xD4;        // 53: the tow's before it is let go of; the boat's own in ReachLeg
+inline constexpr std::size_t kStateType = 0xEC;     // 59: the current state's type
 inline constexpr std::size_t kTemplate = 0x10C;     // 67: the automata group
-inline constexpr std::size_t kSlot77 = 0x134;       // 77: (1), ret 4
+inline constexpr std::size_t kSlot77 = 0x134;       // 77: (bool), ret 4
+inline constexpr std::size_t kSlot102 = 0x198;      // 102: (0xB, 0), ret 8
 inline constexpr std::size_t kSlot104 = 0x1A0;      // 104, after the placement
 inline constexpr std::size_t kSlot107 = 0x1AC;      // 107, after the placement
 inline constexpr std::size_t kCityWatercraft = 0xB8; // the city's 46: the watercraft manager
 inline constexpr std::size_t kCityEffects = 0x154;   // the city's 85: the effects manager
 inline constexpr std::size_t kCellOf = 0x17C;        // the city's 95: (x, z, int*, int*), ret 0x10
+inline constexpr std::size_t kInCity = 0x18C;        // the city's 99: (cell x, cell z), ret 8, AL
+inline constexpr std::size_t kCells = 0x2C;          // the occupant part's (+4) 11: (int out[4]), ret 4
+inline constexpr std::size_t kHeightAt = 0x48;       // the terrain's 18: (cell x, cell z), ret 8, ST0
+inline constexpr std::size_t kWaterLevel = 0x74;     // the terrain's 29: ST0
 inline constexpr std::size_t kMakeEffect = 0x1C;     // the effects manager's 7: (name, effect*), ret 8
 inline constexpr std::size_t kEffectStop = 0x10;     // an effect's 4: (1), ret 4
 inline constexpr std::size_t kRegister = 0x14;       // the message server's 5: (target, message), ret 8

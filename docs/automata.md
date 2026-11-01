@@ -4470,7 +4470,8 @@ One class: cSC4Watercraft (class ID 0x096E75F5, factory 0x00514820, constructor 
 
 - **wc1 (14, 3,675 bytes, done):** the objects, the save, the life cycle and the queries. Below.
 - **wc2a (8, 2,505 bytes, done):** the drive parameters 0x00567310 (1,845), the legs 0x0056D8B0, 0x0056D920, 0x0056F3F0, 0x0056F480 and 0x0056F700, the sign 0x00566E00 and the tow's release 0x00567E80. Below.
-- **wc2 (53, 33,952 bytes; wc2a's 8 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
+- **wc2b (10, 1,810 bytes, done):** the slots 110 0x0056E340 and 111 0x00570140 (entering and leaving a state), the leg unlisted 0x0056D4D0, the dock table's listings 0x0056CEC0 and 0x0056CF50, the checks 0x005698E0, 0x005681B0 and 0x00567DF0, a path point erased 0x0056BD50 and the next leg reached 0x005704D0. Below.
+- **wc2 (53, 33,952 bytes; wc2a's 8 and wc2b's 10 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
 - **Stay the game's (10):** the adjustor thunks 0x0056DC70 to 0x0056DCF0 and 0x0056F7B0.
 
 Already ours from part aw5 (the watercraft manager calls them; not counted here): 0x00566DA0 (IsPathBoat), 0x0056F510 (SetPath), 0x0056F670 (SetFerryRoute), 0x0056C940 (ConstructLeg), 0x005684C0 (StepDirection), 0x0056D5F0 (CutPathAt). No NAM site and none of SC4UIScale's addresses is in the group.
@@ -4572,3 +4573,83 @@ A trial with six deliberate changes (+0x390 over +0x360, the byte +0x31 not copi
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's wc fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wdrive 1E393524, wflags 4F). Every B run installed the 22 and reached all of them; the game itself reaches none before the test day in these saves (reach.sh). An earlier run (p1, before the exact 1e-4 case and the two-NaN quotients) was the same on Making Money and the batch, and on Rush Hour differed in chighlight only.
+
+### What is ours (wc2b)
+
+10 functions more in the same group (`simulators.automata.watercraft`, list kStateList; 32 detours in all): the two state slots and the helpers that go with docking.
+
+- **The states (2):** slot 110 0x0056E340 (EnterState) and slot 111 0x00570140 (LeaveState).
+- **The dock table (3):** the leg under way unlisted 0x0056D4D0 (UnlistLeg), and on the watercraft manager the listings 0x0056CEC0 (ListFirst) and 0x0056CF50 (ListSecond), the counterparts of wc1's UnlistFirst and UnlistSecond.
+- **The checks (3):** 0x005698E0 (MayDrive), 0x005681B0 (OutsideCity) and 0x00567DF0 (Grounded).
+- **Two more (2):** a path point erased 0x0056BD50 (ErasePoint, this = the path vector) and the next leg reached 0x005704D0 (ReachLeg).
+
+What they do:
+
+- Slot 110 runs the core's EnterState first and answers its AL. Then, by the state's type: 0x10 slot 77 (0), the state's +0x30 zero, +0x234 the boat's +0x394, +0x34 the template's inherited +0x64's +8 (0x0046B4A0; 1.0 without it, left alone without a template), +0x144 15, +0x178 0, +0x1AC 500.0. 0x46 and 0x47 set the flags 0x10000000 and 0x8000000, call slot 102 (0xB, 0) and zero +0x2C0. 0x48 and 0x49 set both flags and call slot 13 (1 or 0). 0x4A sets the flag 0x10000000 and +0x288 and +0x2B0 to 1. 0x4B sets the flag and +0x289 to 1 and zeroes the speed and turn. 0x4C zeroes the speed and turn. 0x4D sets +0x2CB to 1, then the flag. Each case releases the tow (DropTow) except 0x4D, and unlists the leg except 0x4A and 0x4B.
+- Slot 111, by type, then the core's LeaveState (its EAX): 0x10 slot 77 (1) and DropTow; 0x4A +0x288 0 and NextLeg; 0x4B the flag 0x10000000 cleared and +0x289 0; 0x4D the flag cleared, +0x284's own tow (+0x280) let go of, then +0x284 itself.
+- UnlistLeg: with a leg under way whose byte +0x28 is set, +0x2B0 0. With a watercraft manager it takes the leg's occupant out of the dock table's first boat (UnlistFirst), clears the byte and clears the flag 0x10000000.
+- ListFirst and ListSecond: the node of the leg occupant (held for the lookup). When that node's boat slot is empty the boat is held and stored there (a null boat stores nothing), AL 1. Otherwise AL 0.
+- MayDrive answers false in four cases: slot 31 (1) answers; a corner is outside the city (the state 0x48 is then pushed through slot 52); the state (slot 59, asked twice) is 0x46 or 0x47. Otherwise it answers true. OutsideCity takes four cell words (x0, z0, x1, z1) from the occupant part's slot 11 and asks the city's slot 99 about (x0, z0), (x0, z1), (x1, z0), (x1, z1). It answers true at the first corner denied. Grounded finds the point's cell (city slot 95). If the cell is within the city, it answers true when the terrain's slot 29 (the water) is below its slot 18 at the cell (stored as a float).
+- ErasePoint moves the points after the given one down by one (SC4Vector16::Copy) and steps the end back.
+- ReachLeg picks the next leg (PickNextLeg) on the stack, frees its bytes and lets go of its occupant. With an occupant whose position (its slot 15) is nearer the boat's position than +0x3D4, and a watercraft manager:
+  - in the state 0x4B: the boat is listed first; when that succeeds it calls slot 53 and pushes 0x4A;
+  - in any other state: listed first pushes 0x4A, listed second pushes 0x4B, neither pushes 0x49.
+
+Oddities kept:
+
+- **Slot 110** answers the core's AL only (ours zero-extends). **Slot 111's 0x4D** reads +0x284 again after releasing its tow.
+- **ReachLeg** uses the occupant after letting go of the leg's reference to it. Its distance is x87 at 53 bits: the root of (dz*dz + dy*dy) + dx*dx. A distance equal to +0x3D4, or a NaN, is not near.
+- **Grounded** leaves its two cell outputs unset before city slot 95, and **OutsideCity** leaves its four cells unset before slot 11 (ours zero both). Grounded reads the water from ST0 as it comes and the height rounded to a float; equal or NaN is not grounded.
+- **ErasePoint** passes its argument's own stack slot to SC4Vector16::Copy (unread).
+
+Written by hand, then an independent audit of all 10 against the disassembly, instruction by instruction:
+- the two jump tables;
+- the argument order and count of every call;
+- the order of field writes against calls, and which fields are read again;
+- the x87 comparisons and the distance's sum order;
+- the corner order.
+
+It found no defect. Two slot comments in the header were made broader (slot 77 takes a bool, slot 53 is also the boat's own).
+
+### Test (wc2b)
+
+The ` V` token gains `,<wstate>` before wflags (72 fields); wflags 0x80 when it ran. Every function runs at its address on a boat from the factory. The test's own fakes stand in for:
+- the boat's slots 13, 19, 30, 31, 33, 52, 53, 59, 61, 62, 67, 77, 89 and 102;
+- its occupant part's slot 11;
+- the city's slots 46, 95 and 99;
+- the terrain (0x00B43CF4, slots 18 and 29);
+- the occupants' slot 15.
+
+The cases:
+- **The listings:** eight probes each (a null key, a key not there, an empty slot twice, a taken slot, a null boat, a full node).
+- **The leg unlisted:** five cases (no occupant, the byte clear, this boat listed first, another, no manager).
+- **Slot 110:** 14 states (0x10 without a template, with an inherited +0x64 and without one; 0x45 to 0x4E; none), with the core's EnterState running on a zeroed record.
+- **Slot 111:** eight states (0x4A, 0x4B, 0x4D with no +0x284, one without a tow and one with; 0x4C, 0x0F; none).
+- **The checks:** OutsideCity over six boxes, MayDrive over five, Grounded over six (below, above, level, a NaN height, outside each way).
+- **ErasePoint:** a path point erased three times (first, middle, last).
+- **ReachLeg:** ten cases (no occupant, far, exactly at +0x3D4, a NaN, no manager, the state 0x4B listed or not, another state listed first, second, neither).
+
+Slot 111's 0x10 is left to the audit and parity: the core's LeaveState needs a real record there. The fakes' calls and reference counts are mixed. The log lines are "wc2b list", "enter", "leave", "checks" and "wc2b wstate".
+
+A trial planted seven deliberate changes, one per run:
+1. slot 110's +0x144 set to 14;
+2. slot 111's 0x4D letting go of +0x284 before its tow;
+3. OutsideCity's first two corners swapped;
+4. `<=` in Grounded;
+5. `<=` in ReachLeg's distance;
+6. slot 110's 0x4C without the leg unlisted;
+7. UnlistLeg without clearing +0x2B0.
+
+Each one changed wstate (and the "enter", "leave" or "checks" hash where the change was). The same build without a change gave the unchanged token (2062D6EE).
+
+### Parity (wc2b)
+
+2026-11-01. As for wc2a (B the same groups with `simulators.automata.watercraft`, muted, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-wc2b, snapshot wc2b-p2:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's wc fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wdrive 1E393524, wstate 2062D6EE, wflags CF). Every B run installed the 32 detours and reached all of them. The game itself reaches none of them before the test day in these saves (reach.sh). A first run crashed on both sides in the test only: the core's EnterState passes slot 89 one word (pushed well ahead of the call), and the test's fake took none.

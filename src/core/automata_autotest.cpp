@@ -744,6 +744,18 @@
 //   over the legs listed or not; the tow's release over five (neither, the
 //   tow, +0x284, both, a slot 53 that swaps the tow). wflags 0x40. Log
 //   line: "wc2a wdrive".
+//   Part wc2b (slots 110 and 111, the dock table's listings, the checks, a
+//   path point erased, the next leg reached) adds `,<wstate>` before wflags
+//   (72 fields), at the game's addresses on a boat from the factory (its
+//   slots 13, 19, 30, 31, 33, 52, 53, 59, 61, 62, 67, 77, 89 and 102, its
+//   occupant part's 11, the city's 46, 95 and 99, the terrain and the
+//   occupants' slot 15 the test's): the listings over eight probes each;
+//   the leg unlisted over five; slot 110 over 14 states (0x10 three ways,
+//   0x45..0x4E, none; the core's EnterState runs) and slot 111 over eight
+//   (0x4A, 0x4B, 0x4D three ways, 0x4C, 0x0F, none; not 0x10); outside
+//   the city over six boxes, may drive over five, grounded over six; a
+//   path point erased three times; the next leg reached over ten. wflags
+//   0x80. Log line: "wc2b wstate".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -34587,6 +34599,493 @@ void WatercraftDrive2(Hash& wdrive, uint32_t& wflags)
     log::Write("autotest: automata: vehicle: wc2a wdrive %08X", wdrive.h);
 }
 
+// ---- Part wc2b: slots 110 and 111, the dock table's listings, the checks,
+// a path point erased and the next leg reached
+// (src/core/automata_watercraft.cpp).
+
+struct WsAnswers {
+    uint8_t slot31 = 0;      // the boat's slot 31
+    uint32_t stateType = 0;  // the boat's slot 59
+    int32_t cells[4] = {};   // the occupant part's slot 11
+    float water = 0.0f;      // the terrain's slot 29
+    float point[3] = {};     // an occupant's slot 15
+};
+WsAnswers g_ws;
+
+void __fastcall WsSlot19(char*, void*, uint32_t a)
+{
+    g_wc.calls.Mix(19);
+    g_wc.calls.Mix(a);
+}
+uint32_t __fastcall WsSlot31(char*, void*, uint32_t a)
+{
+    g_wc.calls.Mix(31);
+    g_wc.calls.Mix(a);
+    return g_ws.slot31;
+}
+void __fastcall WsSlot33(char*, void*, uint32_t a, uint32_t b)
+{
+    g_wc.calls.Mix(33);
+    g_wc.calls.Mix(a);
+    g_wc.calls.Mix(b);
+}
+void __fastcall WsPushState(char*, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f,
+                            uint32_t g)
+{
+    g_wc.calls.Mix(52);
+    for (const uint32_t v : {a, b, c, d, e, f, g})
+        g_wc.calls.Mix(v);
+}
+void __fastcall WsSlot53(char*, void*) { g_wc.calls.Mix(53); }
+uint32_t __fastcall WsStateType(char*, void*)
+{
+    g_wc.calls.Mix(59);
+    return g_ws.stateType;
+}
+void __fastcall WsSlot61(char*, void*, uint32_t a)
+{
+    g_wc.calls.Mix(61);
+    g_wc.calls.Mix(a);
+}
+void __fastcall WsSlot62(char*, void*, uint32_t a)
+{
+    g_wc.calls.Mix(62);
+    g_wc.calls.Mix(a);
+}
+void __fastcall WsSlot89(char*, void*, uint32_t a)
+{
+    g_wc.calls.Mix(89);
+    g_wc.calls.Mix(a);
+}
+void __fastcall WsSlot102(char*, void*, uint32_t a, uint32_t b)
+{
+    g_wc.calls.Mix(102);
+    g_wc.calls.Mix(a);
+    g_wc.calls.Mix(b);
+}
+void __fastcall WsCells(char*, void*, int32_t* out)
+{
+    g_wc.calls.Mix(0x1100u);
+    for (int i = 0; i < 4; ++i)
+        out[i] = g_ws.cells[i];
+}
+// The city's slot 95 (outputs not read) and 99 (inside 0..63 each way).
+void __fastcall WsCellOf(void*, void*, float x, float z, int32_t* cx, int32_t* cz)
+{
+    g_wc.calls.Mix(0x9500u);
+    g_wc.calls.Mix(Bits(x));
+    g_wc.calls.Mix(Bits(z));
+    *cx = static_cast<int32_t>(x / 16.0f);
+    *cz = static_cast<int32_t>(z / 16.0f);
+}
+uint32_t __fastcall WsInCity(void*, void*, int32_t x, int32_t z)
+{
+    g_wc.calls.Mix(0x9900u);
+    g_wc.calls.Mix(static_cast<uint32_t>(x));
+    g_wc.calls.Mix(static_cast<uint32_t>(z));
+    return x >= 0 && x < 64 && z >= 0 && z < 64 ? 1u : 0u;
+}
+// The terrain's slots 18 (the height at a cell) and 29 (the water level).
+float __fastcall WsHeightAt(void*, void*, int32_t x, int32_t z)
+{
+    g_wc.calls.Mix(0x1800u);
+    g_wc.calls.Mix(static_cast<uint32_t>(x));
+    g_wc.calls.Mix(static_cast<uint32_t>(z));
+    if (x == 7)
+        return AsFloatBits(0x7FC00000u);
+    return 10.0f + static_cast<float>(x) * 0.5f - static_cast<float>(z) * 0.25f;
+}
+float __fastcall WsWater(void*, void*)
+{
+    g_wc.calls.Mix(0x2900u);
+    return g_ws.water;
+}
+// An occupant's slot 15: its position (the incoming words mixed).
+void __fastcall WsPosition(WcRef* r, void*, float* out)
+{
+    g_wc.calls.Mix(0x1500u + r->id);
+    g_wc.calls.MixBytes(out, 12);
+    std::memcpy(out, g_ws.point, 12);
+}
+
+// A boat-like object for +0x284: a reference whose +0x280 is its own tow.
+struct WsOther {
+    WcRef ref;
+    char pad[0x280 - sizeof(WcRef)];
+    WcRef* tow;
+};
+
+// The boat's fields wc2b writes.
+void WsMixBoat(Hash& h, char* b)
+{
+    h.MixBytes(b + wc::field::kByte288, 2);
+    h.Mix(At<uint8_t>(b, wc::field::kByte2B0));
+    h.Mix(At<uint8_t>(b, wc::field::kByte2CB));
+    h.Mix(At<uint32_t>(b, wc::field::kWord2C0));
+    h.Mix(At<uint32_t>(b, wc::field::kSpeed));
+    h.Mix(At<uint32_t>(b, wc::field::kTurn));
+    h.Mix(At<void*>(b, wc::field::kTow) ? 1u : 0u);
+    h.Mix(At<void*>(b, wc::field::kRef284) ? 1u : 0u);
+    h.Mix(At<uint8_t>(b, wc::field::kLeg + wc::field::kLegByte28));
+    h.Mix(At<void*>(b, wc::field::kLeg) ? 1u : 0u);
+}
+
+void WatercraftDrive3(Hash& wstate, uint32_t& wflags)
+{
+    g_wc = WcAnswers{};
+    g_ws = WsAnswers{};
+    void* const city = Global<void*>(addr::SC4_City);
+    char* const b = city ? WcCreate(wflags) : nullptr;
+    if (!b)
+        return;
+    g_wc.boat = b;
+
+    // The boat's vtable and its occupant part's (+4) copies; the city's
+    // copy (slots 46, 95, 99); the terrain the test's.
+    void** const realBoat = At<void**>(b, 0);
+    static void* boatTable[129];
+    void** const shared = WcBoatTable(b);
+    for (int i = 0; i < 129; ++i)
+        boatTable[i] = shared[i];
+    boatTable[19] = reinterpret_cast<void*>(&WsSlot19);
+    boatTable[31] = reinterpret_cast<void*>(&WsSlot31);
+    boatTable[33] = reinterpret_cast<void*>(&WsSlot33);
+    boatTable[52] = reinterpret_cast<void*>(&WsPushState);
+    boatTable[53] = reinterpret_cast<void*>(&WsSlot53);
+    boatTable[59] = reinterpret_cast<void*>(&WsStateType);
+    boatTable[61] = reinterpret_cast<void*>(&WsSlot61);
+    boatTable[62] = reinterpret_cast<void*>(&WsSlot62);
+    boatTable[89] = reinterpret_cast<void*>(&WsSlot89);
+    boatTable[102] = reinterpret_cast<void*>(&WsSlot102);
+    At<void**>(b, 0) = boatTable;
+    void** const realPart = At<void**>(b, 4);
+    static void* partTable[34];
+    for (int i = 0; i < 34; ++i)
+        partTable[i] = realPart[i];
+    partTable[11] = reinterpret_cast<void*>(&WsCells);
+    At<void**>(b, 4) = partTable;
+    static void* cityTable[256];
+    void** const realCity = At<void**>(city, 0);
+    for (int i = 0; i < 256; ++i)
+        cityTable[i] = realCity[i];
+    cityTable[46] = reinterpret_cast<void*>(&WcCityWatercraft);
+    cityTable[95] = reinterpret_cast<void*>(&WsCellOf);
+    cityTable[99] = reinterpret_cast<void*>(&WsInCity);
+    At<void**>(city, 0) = cityTable;
+    static void* terrainTable[32];
+    terrainTable[18] = reinterpret_cast<void*>(&WsHeightAt);
+    terrainTable[29] = reinterpret_cast<void*>(&WsWater);
+    void* terrain[1] = {terrainTable};
+    void** const terrainAt = reinterpret_cast<void**>(addr::SC4_Terrain);
+    void* const terrainWas = *terrainAt;
+    *terrainAt = terrain;
+    WcRefVtable()[15] = reinterpret_cast<void*>(&WsPosition);
+
+    // The watercraft manager of the test's: three buckets of nodes.
+    alignas(4) static char manager[0xAD0];
+    std::memset(manager, 0, sizeof manager);
+    char* buckets[3] = {};
+    At<char**>(manager, wc::manager::kBuckets) = buckets;
+    At<char**>(manager, wc::manager::kBucketsEnd) = buckets + 3;
+    g_wc.manager = manager;
+    alignas(4) char nodes[3][0x10] = {};
+    auto place = [&](int n, void* key, void* first, void* second) {
+        At<void*>(nodes[n], 4) = key;
+        At<void*>(nodes[n], 8) = first;
+        At<void*>(nodes[n], 0xC) = second;
+        const uint32_t at = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(key) % 3);
+        At<char*>(nodes[n], 0) = buckets[at];
+        buckets[at] = nodes[n];
+    };
+    auto clearNodes = [&]() {
+        std::memset(nodes, 0, sizeof nodes);
+        for (char*& bucket : buckets)
+            bucket = nullptr;
+    };
+    auto mixNodes = [&](Hash& h, void* boat, void* other) {
+        for (auto& node : nodes)
+            for (std::size_t at : {std::size_t{8}, std::size_t{0xC}}) {
+                void* const v = At<void*>(node, at);
+                h.Mix(v == boat ? 1u : v == other ? 2u : v ? 3u : 0u);
+            }
+    };
+
+    // ---- The dock table's listings at their addresses: a null key not
+    // there, a key not there, the first empty (twice: then taken), the first
+    // taken and the second empty, a null boat into an empty slot, a key
+    // whose node is full.
+    {
+        clearNodes();
+        WcRef keys[4] = {WcMake(0x50), WcMake(0x51), WcMake(0x52), WcMake(0x53)};
+        WcRef boat = WcMake(0x54), other = WcMake(0x55);
+        place(0, &keys[0], nullptr, nullptr);
+        place(1, &keys[1], &other, nullptr);
+        place(2, &keys[2], &other, &other);
+        g_wc.calls = Hash{};
+        void* const probes[8][2] = {{nullptr, &boat}, {&keys[3], &boat}, {&keys[0], &boat}, {&keys[0], &other},
+                                    {&keys[1], &boat}, {&keys[1], nullptr}, {&keys[2], &boat}, {&keys[0], nullptr}};
+        for (int k = 0; k < 16; ++k) {
+            const std::uintptr_t fn = (k & 1) ? addr::cSC4WatercraftManager_ListSecond
+                                              : addr::cSC4WatercraftManager_ListFirst;
+            const uint32_t answer = This<uint32_t>(fn, static_cast<void*>(manager), probes[k >> 1][0],
+                                                   probes[k >> 1][1]) & 0xFF;
+            wstate.Mix(answer);
+            mixNodes(wstate, &boat, &other);
+        }
+        WcMixRefs(wstate, keys, 4);
+        wstate.Mix(static_cast<uint32_t>(boat.refs));
+        wstate.Mix(static_cast<uint32_t>(other.refs));
+        wstate.Mix(g_wc.calls.h);
+    }
+    log::Write("autotest: automata: vehicle: wc2b list %08X", wstate.h);
+
+    // The boat's starting state for each case below.
+    WcRef legKey = WcMake(0x56);
+    auto reset = [&](uint32_t c) {
+        At<uint8_t>(b, wc::field::kByte288) = static_cast<uint8_t>(0x10 + c);
+        At<uint8_t>(b, wc::field::kByte289) = static_cast<uint8_t>(0x20 + c);
+        At<uint8_t>(b, wc::field::kByte2B0) = static_cast<uint8_t>(0x30 + c);
+        At<uint8_t>(b, wc::field::kByte2CB) = static_cast<uint8_t>(0x40 + c);
+        At<uint32_t>(b, wc::field::kWord2C0) = 0x50 + c;
+        At<float>(b, wc::field::kSpeed) = 1.5f + static_cast<float>(c);
+        At<float>(b, wc::field::kTurn) = -0.25f * static_cast<float>(c);
+        At<uint32_t>(b, wc::field::kParam394) = Bits(0.75f + static_cast<float>(c));
+        At<void*>(b, wc::field::kLeg) = &legKey;
+        At<uint8_t>(b, wc::field::kLeg + wc::field::kLegByte28) = 1;
+        At<uint8_t>(b, wc::field::kLegA + wc::field::kLegListed) = 0;
+        At<uint8_t>(b, wc::field::kLegB + wc::field::kLegListed) = 0;
+    };
+
+    // ---- The leg unlisted at its address: no occupant, the byte clear, the
+    // node holding this boat first, another first, no manager.
+    for (uint32_t c = 0; c < 5; ++c) {
+        g_wc.calls = Hash{};
+        reset(c);
+        clearNodes();
+        WcRef other = WcMake(0x57);
+        if (c == 0)
+            At<void*>(b, wc::field::kLeg) = nullptr;
+        if (c == 1)
+            At<uint8_t>(b, wc::field::kLeg + wc::field::kLegByte28) = 0;
+        if (c == 3)
+            place(0, &legKey, &other, b);
+        else {
+            Virtual<uint32_t>(b, av::slot::kAddRef);
+            place(0, &legKey, b, nullptr);
+        }
+        g_wc.manager = c == 4 ? nullptr : manager;
+        This<void>(addr::cSC4Watercraft_UnlistLeg, b);
+        WsMixBoat(wstate, b);
+        mixNodes(wstate, b, &other);
+        wstate.Mix(static_cast<uint32_t>(legKey.refs));
+        wstate.Mix(static_cast<uint32_t>(other.refs));
+        wstate.Mix(g_wc.calls.h);
+        if (At<void*>(nodes[0], 8) == b)
+            Virtual<uint32_t>(b, av::slot::kRelease);
+        g_wc.manager = manager;
+    }
+
+    // ---- Slot 110 at its address over the states (0x10 without a template,
+    // with an inherited +0x64, without one; 0x45..0x4E; none), each with a
+    // tow, +0x284 and the leg under way listed first in the dock table.
+    {
+        alignas(4) char block[0x10] = {};
+        At<float>(block, 8) = 2.25f;
+        alignas(4) char groups[2][0x70] = {};
+        const uint32_t types[14] = {0x10, 0x10, 0x10, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0};
+        for (uint32_t c = 0; c < 14; ++c) {
+            g_wc.calls = Hash{};
+            reset(c);
+            clearNodes();
+            Virtual<uint32_t>(b, av::slot::kAddRef);
+            place(0, &legKey, b, nullptr);
+            WcRef tow = WcMake(0x58), r284 = WcMake(0x59);
+            At<void*>(b, wc::field::kTow) = &tow;
+            At<void*>(b, wc::field::kRef284) = &r284;
+            std::memset(groups, 0, sizeof groups);
+            At<char*>(groups[0], 0xC) = groups[1];
+            At<void*>(groups[1], 0x64) = c == 1 ? block : nullptr;
+            g_wc.group = c == 0 ? nullptr : groups[0];
+            alignas(4) char record[0x300];
+            std::memset(record, 0, sizeof record);
+            for (const std::size_t at : {wc::state::kWord30, wc::state::kWord34, wc::state::kWord144,
+                                         wc::state::kWord178, wc::state::kWord1AC, wc::state::kWord234})
+                At<uint32_t>(record, at) = 0xC0DE0000u + static_cast<uint32_t>(at);
+            At<uint32_t>(record, wc::state::kType) = types[c];
+            const uint32_t answer =
+                This<uint32_t>(addr::cSC4Watercraft_EnterState, b, c == 13 ? nullptr : record) & 0xFF;
+            wstate.Mix(answer);
+            for (const std::size_t at : {wc::state::kWord30, wc::state::kWord34, wc::state::kWord144,
+                                         wc::state::kWord178, wc::state::kWord1AC, wc::state::kWord234})
+                wstate.Mix(At<uint32_t>(record, at));
+            WsMixBoat(wstate, b);
+            mixNodes(wstate, b, nullptr);
+            WcMixRefs(wstate, &tow, 1);
+            WcMixRefs(wstate, &r284, 1);
+            wstate.Mix(static_cast<uint32_t>(legKey.refs));
+            wstate.Mix(g_wc.calls.h);
+            if (At<void*>(nodes[0], 8) == b)
+                Virtual<uint32_t>(b, av::slot::kRelease);
+            At<void*>(b, wc::field::kTow) = nullptr;
+            At<void*>(b, wc::field::kRef284) = nullptr;
+        }
+        g_wc.group = nullptr;
+    }
+    log::Write("autotest: automata: vehicle: wc2b enter %08X", wstate.h);
+
+    // ---- Slot 111 at its address: 0x4A (the next leg: neither leg listed),
+    // 0x4B, 0x4D over +0x284 none, without a tow, with one; 0x4C, 0x0F;
+    // none.
+    {
+        const uint32_t types[8] = {0x4A, 0x4B, 0x4D, 0x4D, 0x4D, 0x4C, 0x0F, 0};
+        for (uint32_t c = 0; c < 8; ++c) {
+            g_wc.calls = Hash{};
+            reset(c);
+            WcRef tow = WcMake(0x5A), otherTow = WcMake(0x5B);
+            static WsOther other;
+            std::memset(&other, 0, sizeof other);
+            other.ref = WcMake(0x5C);
+            other.tow = c == 4 ? &otherTow : nullptr;
+            At<void*>(b, wc::field::kTow) = &tow;
+            At<void*>(b, wc::field::kRef284) = c == 2 ? nullptr : &other;
+            alignas(4) char record[0x300];
+            std::memset(record, 0, sizeof record);
+            At<uint32_t>(record, wc::state::kType) = types[c];
+            const uint32_t answer = This<uint32_t>(addr::cSC4Watercraft_LeaveState, b, c == 7 ? nullptr : record);
+            wstate.Mix(answer & 0xFF);
+            WsMixBoat(wstate, b);
+            wstate.Mix(other.tow ? 1u : 0u);
+            WcMixRefs(wstate, &tow, 1);
+            WcMixRefs(wstate, &otherTow, 1);
+            WcMixRefs(wstate, &other.ref, 1);
+            wstate.Mix(g_wc.calls.h);
+            At<void*>(b, wc::field::kTow) = nullptr;
+            At<void*>(b, wc::field::kRef284) = nullptr;
+        }
+    }
+    log::Write("autotest: automata: vehicle: wc2b leave %08X", wstate.h);
+
+    // ---- The checks at their addresses. Outside the city: inside, each
+    // corner out, all out. May drive: slot 31, outside, the states 0x46 and
+    // 0x47, another. Grounded: below, above, level, a NaN height, outside.
+    {
+        const int32_t boxes[6][4] = {{1, 2, 10, 20}, {-1, 2, 10, 20}, {1, 2, 10, 64},
+                                     {1, -5, 64, 20}, {1, 2, 10, 70}, {-3, -3, 99, 99}};
+        for (const auto& box : boxes) {
+            g_wc.calls = Hash{};
+            std::memcpy(g_ws.cells, box, sizeof g_ws.cells);
+            wstate.Mix(This<uint32_t>(addr::cSC4Watercraft_OutsideCity, b) & 0xFF);
+            wstate.Mix(g_wc.calls.h);
+        }
+        for (uint32_t c = 0; c < 5; ++c) {
+            g_wc.calls = Hash{};
+            g_ws.slot31 = c == 0 ? 1 : 0;
+            const int32_t inside[4] = {1, 2, 3, 4}, outside[4] = {1, 2, 64, 4};
+            std::memcpy(g_ws.cells, c == 1 ? outside : inside, sizeof g_ws.cells);
+            g_ws.stateType = c == 2 ? 0x46u : c == 3 ? 0x47u : 0x4Bu;
+            wstate.Mix(This<uint32_t>(addr::cSC4Watercraft_MayDrive, b) & 0xFF);
+            wstate.Mix(g_wc.calls.h);
+        }
+        g_ws.slot31 = 0;
+        const float points[6][3] = {{40.0f, 0, 80.0f}, {40.0f, 0, 80.0f}, {64.0f, 0, 32.0f},
+                                    {120.0f, 0, 16.0f}, {-20.0f, 0, 16.0f}, {16.0f, 0, 1100.0f}};
+        const float waters[6] = {5.0f, 20.0f, 11.5f, 0.0f, 0.0f, 0.0f};
+        for (int c = 0; c < 6; ++c) {
+            g_wc.calls = Hash{};
+            At<float>(b, wc::field::kPoint) = points[c][0];
+            At<float>(b, wc::field::kPoint + 8) = points[c][2];
+            g_ws.water = waters[c];
+            wstate.Mix(This<uint32_t>(addr::cSC4Watercraft_Grounded, b) & 0xFF);
+            wstate.Mix(g_wc.calls.h);
+        }
+    }
+    log::Write("autotest: automata: vehicle: wc2b checks %08X", wstate.h);
+
+    // ---- A path point erased at its address: the path's 11 points set,
+    // the first, a middle one and the last erased.
+    {
+        char* const begin = At<char*>(b, wc::field::kPath);
+        char* const end = At<char*>(b, wc::field::kPath + 4);
+        for (char* p = begin; p < end; p += 4)
+            At<uint32_t>(p, 0) = static_cast<uint32_t>(p - begin) * 0x01010101u + 7u;
+        for (const int at : {0, 4, -1}) {
+            char* const first = At<char*>(b, wc::field::kPath);
+            char* const last = At<char*>(b, wc::field::kPath + 4);
+            char* const point = at < 0 ? last - 0x10 : first + 0x10 * at;
+            char* const answer = This<char*>(addr::cSC4Watercraft_ErasePoint, b + wc::field::kPath, point);
+            wstate.Mix(answer == point ? 1u : 0u);
+            const char* const now = At<char*>(b, wc::field::kPath + 4);
+            wstate.Mix(static_cast<uint32_t>(now - first));
+            wstate.MixBytes(first, static_cast<std::size_t>(now - first));
+        }
+    }
+
+    // ---- The next leg reached at its address: the first leg's occupant
+    // picked (the leg under way's first point elsewhere); no occupant, far,
+    // exactly at +0x3D4, a NaN position, no manager; near in the state 0x4B
+    // listed or not; near in another state listed first, second, neither.
+    {
+        WcRef occupant = WcMake(0x5D), keyB = WcMake(0x5E), other = WcMake(0x5F);
+        std::memset(b + wc::field::kLegA, 0, wc::field::kLegSize);
+        std::memset(b + wc::field::kLegB, 0, wc::field::kLegSize);
+        WcFillTail(b + wc::field::kLegA, 60);
+        WcFillTail(b + wc::field::kLegB, 61);
+        WcFillBytes(b + wc::field::kLegA, 3, 62);
+        At<void*>(b, wc::field::kLegB) = &keyB;
+        Virtual<uint32_t>(&keyB, av::slot::kAddRef);
+        At<float>(b, wc::field::kLeg + 0x10) = -999.0f;
+        const float position[3] = {100.0f, 2.0f, 50.0f};
+        std::memcpy(b + wc::field::kPosition, position, 12);
+        At<float>(b, wc::field::kParam3D4) = 5.0f;
+        for (uint32_t c = 0; c < 10; ++c) {
+            g_wc.calls = Hash{};
+            clearNodes();
+            At<void*>(b, wc::field::kLegA) = c == 0 ? nullptr : &occupant;
+            if (c != 0)
+                Virtual<uint32_t>(&occupant, av::slot::kAddRef);
+            const float near[3] = {103.0f, 2.0f, 54.0f - 0.5f};
+            const float exact[3] = {103.0f, 2.0f, 54.0f};
+            const float far[3] = {90.0f, 2.0f, 50.0f};
+            std::memcpy(g_ws.point, c == 1 ? far : c == 2 ? exact : near, 12);
+            if (c == 3)
+                g_ws.point[1] = AsFloatBits(0x7FC00000u);
+            g_wc.manager = c == 4 ? nullptr : manager;
+            g_ws.stateType = c == 5 || c == 6 ? 0x4Bu : 0x46u;
+            switch (c) {
+            case 5: case 7: place(0, &occupant, nullptr, nullptr); break;
+            case 6: place(0, &occupant, &other, nullptr); break;
+            case 8: place(0, &occupant, &other, nullptr); break;
+            case 9: place(0, &occupant, &other, &other); break;
+            default: place(0, &occupant, nullptr, nullptr); break;
+            }
+            This<void>(addr::cSC4Watercraft_ReachLeg, b);
+            mixNodes(wstate, b, &other);
+            wstate.Mix(static_cast<uint32_t>(occupant.refs));
+            wstate.Mix(static_cast<uint32_t>(keyB.refs));
+            wstate.Mix(g_wc.calls.h);
+            for (auto& node : nodes)
+                for (std::size_t at : {std::size_t{8}, std::size_t{0xC}})
+                    if (At<void*>(node, at) == b)
+                        Virtual<uint32_t>(b, av::slot::kRelease);
+            if (At<void*>(b, wc::field::kLegA))
+                Virtual<uint32_t>(&occupant, av::slot::kRelease);
+        }
+        g_wc.manager = manager;
+        WcDropLeg(b + wc::field::kLegA);
+        WcDropLeg(b + wc::field::kLegB);
+    }
+    wflags |= 0x80;
+
+    *terrainAt = terrainWas;
+    At<void**>(city, 0) = realCity;
+    WcRefVtable()[15] = nullptr;
+    g_wc.manager = nullptr;
+    At<void**>(b, 4) = realPart;
+    At<void**>(b, 0) = realBoat;
+    WcRelease(b);
+    log::Write("autotest: automata: vehicle: wc2b wstate %08X", wstate.h);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -34965,6 +35464,10 @@ void VehicleDrive(cISC4City* city)
     Hash wdrive;
     WatercraftDrive2(wdrive, wflags);
 
+    // ---- Part wc2b.
+    Hash wstate;
+    WatercraftDrive3(wstate, wflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -35021,14 +35524,14 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
                   pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags,
-                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wdrive.h, wflags);
+                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wdrive.h, wstate.h, wflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

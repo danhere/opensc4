@@ -16034,3 +16034,95 @@ convention = "thiscall"
 signature = "void* (void* group)"
 expect = "8B 41 60 85 C0 75 0E 8B"
 source = "Name ours. this = an automata group of the script system: its drive parameters (+0x60), else its parent's (+0xC) up the chain, else null. Called by address from src/core/automata_watercraft.cpp (part wc2a)."
+
+# Part wc2b: cSC4Watercraft, entering and leaving states, the dock table's listing, the checks and the next leg reached (src/core/automata_watercraft.cpp).
+
+[[entry]]
+name = "cSC4Watercraft::EnterState"
+address = 0x0056E340
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* state)"
+expect = "53 55 56 57 8B 7C 24 14"
+source = "Name ours. Slot 110, ret 4: the core's EnterState (0x00511450) first, its AL the answer. Then by the state's type (+4): 0x10 slot 77 (0), the state's +0x30 zero, +0x234 the boat's +0x394, +0x34 the template's (slot 67) inherited +0x64's +8 (0x0046B4A0; 1.0 without it, untouched without a template), +0x144 15, +0x178 0, +0x1AC 500.0; 0x46 and 0x47 the flags 0x10000000 and 0x8000000 set, slot 102 (0xB, 0), +0x2C0 0; 0x48 and 0x49 the two flags, slot 13 (1 or 0); 0x4A the flag 0x10000000, +0x288 and +0x2B0 1; 0x4B the flag, +0x289 1, the speed and turn 0; 0x4C the speed and turn 0; 0x4D +0x2CB 1, the flag. Each then the tow's release (0x00567E80) but 0x4D, and the leg unlisted (0x0056D4D0) but 0x4A and 0x4B. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4Watercraft::LeaveState"
+address = 0x00570140
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* state)"
+expect = "53 56 57 8B 7C 24 10 33"
+source = "Name ours. Slot 111, ret 4: by the state's type (+4): 0x10 slot 77 (1) and the tow's release (0x00567E80); 0x4A +0x288 0 and the next leg (0x0056F700); 0x4B the flag 0x10000000 cleared, +0x289 0; 0x4D the flag cleared, +0x284's own tow (+0x280) and then +0x284 (read again) cleared and released. Then the core's LeaveState (0x0050E3F0), its EAX the answer. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4Watercraft::UnlistLeg"
+address = 0x0056D4D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 86 4C 02 00"
+source = "Name ours. Plain ret: with a leg under way (+0x24C) whose byte +0x274 is set, +0x2B0 0; with a watercraft manager (city slot 46) the leg's occupant out of the dock table's first boat (0x0056CFE0), +0x274 0 and the flag 0x10000000 cleared. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4Watercraft::MayDrive"
+address = 0x005698E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 06 6A 01 FF"
+source = "Name ours. Plain ret, AL: 0 when slot 31 (1) answers; 0 with the state 0x48 pushed (slot 52: 0x48, 0, -1.0, 0, 0, 0, 0) when a corner is outside the city (0x005681B0); 0 in the states 0x46 and 0x47 (slot 59, asked twice); else 1. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4Watercraft::OutsideCity"
+address = 0x005681B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 30 8B 41 04 56 83"
+source = "Name ours. Plain ret, AL: the occupant part's (+4) slot 11 gives four cell words (x0, z0, x1, z1); 1 when the city's slot 99 denies one of (x0, z0), (x0, z1), (x1, z0), (x1, z1) (in that order, stopping there), else 0. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4Watercraft::Grounded"
+address = 0x00567DF0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 0C 56 8D 74 24 04"
+source = "Name ours. Plain ret, AL: the point's (+0x2F4, +0x2FC) cell (city slot 95, the outputs not set first); within the city (slot 99), 1 when the terrain's (0x00B43CF4) slot 29 is below its slot 18 at the cell (stored as a float), else 0. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4Watercraft::ErasePoint"
+address = 0x0056BD50
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void* at)"
+expect = "56 57 8B 7C 24 0C 8B F1"
+source = "Name ours. this = a vector of 16-byte points (the boat's path), ret 4: the points after at moved down one (SC4Vector16::Copy, at's own argument slot passed unread) and the end stepped back. EAX at. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4WatercraftManager::ListFirst"
+address = 0x0056CEC0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* key, void* boat)"
+expect = "53 56 57 8B 7C 24 10 85"
+source = "Name ours. Ret 8, AL: the dock table's (+0xA8C) node of the leg occupant key (held for the while); when its first boat (+8) is empty, boat held and stored there, AL 1; else 0. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4WatercraftManager::ListSecond"
+address = 0x0056CF50
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* key, void* boat)"
+expect = "53 56 57 8B 7C 24 10 85"
+source = "Name ours. The same as 0x0056CEC0 for the node's second boat (+0xC). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
+
+[[entry]]
+name = "cSC4Watercraft::ReachLeg"
+address = 0x005704D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 40 56 57 8D 44 24"
+source = "Name ours. Plain ret: the next leg (0x0056F480) on the stack, its bytes freed and occupant released (then used); with an occupant whose position (its slot 15) is nearer the boat's (+0x40) than +0x3D4 and a watercraft manager: in the state 0x4B (slot 59) listed as the first boat (0x0056CEC0) then slot 53 and the state 0x4A pushed; else listed first (0x4A pushed), or second (0x0056CF50, 0x4B), or 0x49 pushed. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2b)."
