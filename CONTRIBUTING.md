@@ -24,7 +24,7 @@ Open an issue with what you did, what happened, and your game version (OpenSC4 n
 - Put every game address in `data/addresses/` (see its [README](data/addresses/README.md)), never as a bare number in code.
 - Call the game's own helpers where the original calls them (`RZFile`, `RZDirectory`, `cRZIniFile`, its allocators), with the same arguments in the same order, not CRT, Win32 or STL substitutes. Replacing one needs a stated reason in the part's doc section.
 - Calls between replaced functions go through their `addr::` entries, never as direct C++ calls, so any mix of groups works and a parity difference can be bisected by group. Keep the ours and game's lists in the file header current.
-- A part's doc section follows [docs/html.md](docs/html.md), "Ours: the cache's entries (h7a)": a groups table with a link to the source, how it works, the kept quirks, "Still the game's" (the game functions it still calls), the test, the mutation check, and the part's rows in the doc's results table (rows, not a prose line).
+- A part's doc section follows [docs/html.md](docs/html.md), "Ours: the cache's entries (h7a)": a groups table with a link to the source, how it works, the kept quirks, "Still the game's" (what in the subsystem stays the game's, the functions ours calls included) and its test. Its mutation check and its rows in the results table go in the doc's "Testing" section (rows, not a prose line).
 
 ## Code from other projects
 
