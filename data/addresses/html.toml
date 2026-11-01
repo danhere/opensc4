@@ -277,7 +277,7 @@ kind = "function"
 convention = "thiscall"
 signature = "bool (void* this, const void* entry)"
 expect = "55 8B EC 83 EC 20 8B 45"
-source = "Name ours. Not hooked. `ret 4`. An entry's `.cache` file deleted (the folder +0xC with the name, RZFile::Remove); false for an entry with no name. Called by ours; stays the game's (h7b) (docs/html.md, h7)."
+source = "Name ours. Ours in ui.html.cache.files (part h7b). `ret 4`. An entry's `.cache` file deleted (the folder +0xC with the name, RZFile::Remove); false for an entry with no name (docs/html.md, h7b)."
 
 [[entry]]
 name = "HTMLCacheEntry::Copy"
@@ -475,7 +475,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "56 8B F1 83 66 08 00 8D"
-source = "Name ours, not hooked. 0x5C bytes, vtable 0x00ACD418 (28 slots): `FileCache.ini` in `Maxis Network Cache\\`, limits 3,000,000, 500,000 and 432,000 at +0x48 to +0x50. Plain ret (docs/html.md, h7)."
+source = "Name ours. Ours in ui.html.cache.life (part h7b). 0x5C bytes, vtable 0x00ACD418 (28 slots): `FileCache.ini` in `Maxis Network Cache\\`, limits 3,000,000, 500,000 and 432,000 at +0x48 to +0x50. Plain ret (docs/html.md, h7b)."
 
 [[entry]]
 name = "HTMLDocument::Construct"
@@ -4015,3 +4015,176 @@ convention = "cdecl"
 signature = "bool (void* picture, const int32_t* rect, uint32_t colour, uint32_t width)"
 expect = "53 8B 5C 24 14 55 8B 6C"
 source = "Name ours, not hooked. The rectangle's four edges through the picture's slot 28. Called by the HTML window's paint for flag 0x40 (docs/html.md, h1)."
+
+# Part h7b: the file cache's file-facing half (docs/html.md, "Ours: the cache's files").
+
+[[entry]]
+name = "FileCache::Destruct"
+address = 0x008FD729
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 C7 06 18 D4 AC"
+source = "Name ours. Ours in ui.html.cache.life. The destructor body: the vtable, Shutdown, the entry map destroyed, the ini and folder strings destroyed (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::DeletingDestructor"
+address = 0x008FD750
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 D1 FF FF FF"
+source = "Name ours. Ours in ui.html.cache.life. Slot 0: the destructor body, then operator delete when flag bit 0 is set (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::Init"
+address = 0x008FDDE8
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 80 7E 04 00 75"
+source = "Name ours. Ours in ui.html.cache.life. Slot 1: the default folder (RZFile::GetTempPath + `Maxis Network Cache\\`) when empty, the folder made, FileCache.ini read, the folder's orphan .cache files removed, initialized set (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::Shutdown"
+address = 0x008FD3D9
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 80 7E 04 00 74"
+source = "Name ours. Ours in ui.html.cache.life. Slot 2: FileCache.ini written, every block released, initialized cleared (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::SetFolder"
+address = 0x008FCC2A
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* folder)"
+expect = "56 8B F1 57 FF 74 24 0C"
+source = "Name ours. Ours in ui.html.cache.life. Slot 6: the folder assigned, a trailing separator added when missing, the folder made when it does not exist (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::SetIniName"
+address = 0x008FCC99
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* name)"
+expect = "55 8B EC 83 EC 14 56 57"
+source = "Name ours. Ours in ui.html.cache.life. Slot 8: the old ini file removed, the new ini name assigned (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::MakeFile"
+address = 0x008FCD49
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url, void* entry)"
+expect = "55 8D 6C 24 90 81 EC B0"
+source = "Name ours. Ours in ui.html.cache.files. Slot 26: a new `.cache` name from the URL's extension and the clock, retried on a collision, created empty in the cache folder (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::MakeFileIn"
+address = 0x008FCEEB
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url, void* entry, const void* folder)"
+expect = "55 8D 6C 24 94 81 EC AC"
+source = "Name ours. Ours in ui.html.cache.files. Slot 27: a new file in a folder the caller gives, or the cache's own when null; its full path goes into the second argument (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::GetData"
+address = 0x008FD3F6
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url, void** block)"
+expect = "55 8D 6C 24 90 81 EC A4"
+source = "Name ours. Ours in ui.html.cache.files. Slot 15: the address's data block, loaded from its .cache file when the entry has none, with a reference handed to the caller; an expired entry is dropped (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::GetPath"
+address = 0x008FD5B0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url, void* out)"
+expect = "55 8B EC 83 EC 10 53 56"
+source = "Name ours. Ours in ui.html.cache.files. Slot 16: the entry's path in the cache (or a path string to copy), writing its block to a file first when it has none; false without a named file (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::PutFile"
+address = 0x008FD76C
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url, const void* source, bool keepName, uint8_t flags, int32_t expiry)"
+expect = "55 8D 6C 24 9C 81 EC A0"
+source = "Name ours. Ours in ui.html.cache.files. Slot 24: a source file copied into a new `.cache` name in the cache, its size and times stored in the entry (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::PutData"
+address = 0x008FD998
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, const void* url, const void* data, uint32_t size, bool copy, uint8_t flags, int32_t expiry)"
+expect = "55 8B EC 81 EC 88 00 00"
+source = "Name ours. Ours in ui.html.cache.files. Slot 23: an address's data block stored, copied when asked, with no file name; returns false for an empty address or data (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::ScanFolder"
+address = 0x008FC6E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 60 53 56"
+source = "Name ours. Ours in ui.html.cache.life. Every `.cache` file in the cache folder that no entry names is removed (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::WriteFile"
+address = 0x008FC7D7
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, void* entry, const void* data, uint32_t size)"
+expect = "55 8D 6C 24 94 81 EC A0"
+source = "Name ours. Ours in ui.html.cache.files. The entry's file written with the data block; false when the file cannot be opened or written (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::ReadFile"
+address = 0x008FC887
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* this, void* entry)"
+expect = "55 8D 6C 24 8C 81 EC A0"
+source = "Name ours. Ours in ui.html.cache.files. The entry's file size, 0 when it cannot be read (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::SaveIni"
+address = 0x008FC9B1
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8D 6C 24 88 81 EC A8"
+source = "Name ours. Ours in ui.html.cache.life. The map written to `Cache Entries` in FileCache.ini: only entries with a file name, as url,file,size,three words,last used,expiry (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::ReadIniLine"
+address = 0x008FDB0D
+kind = "function"
+convention = "cdecl"
+signature = "void (const void* line, const void* value, void* context)"
+expect = "55 8B EC 81 EC 48 01 00"
+source = "Name ours. Ours in ui.html.cache.life. One `Cache Entries` line: url,file,size,three words,last used,expiry; the timestamps held to the clock, then the entry inserted when its file is there and not expired, else the file removed (docs/html.md, h7b)."
+
+[[entry]]
+name = "FileCache::LoadIni"
+address = 0x008FDD39
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "55 8B EC 83 EC 70 53 56"
+source = "Name ours. Ours in ui.html.cache.life. FileCache.ini read into the map through ReadIniLine; the ini is removed after it is read, as the game does (docs/html.md, h7b)."
+
+[[entry]]
+name = "RZFile::GetTempPath"
+address = 0x00918D35
+kind = "function"
+convention = "cdecl"
+signature = "bool (void* out)"
+expect = "55 8B EC 81 EC 28 03 00"
+source = "Name ours. The temporary folder, as a game string: GetTempPathA, then the game's text conversion. Called by FileCache::Init (docs/html.md, h7b)."
