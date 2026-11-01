@@ -4469,7 +4469,8 @@ One class: cSC4Watercraft (class ID 0x096E75F5, factory 0x00514820, constructor 
 77 functions, 37,707 bytes (the factory with them; the family table's 75 and 37,045 placed by neighbours):
 
 - **wc1 (14, 3,675 bytes, done):** the objects, the save, the life cycle and the queries. Below.
-- **wc2 (53, 33,952 bytes):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
+- **wc2a (8, 2,505 bytes, done):** the drive parameters 0x00567310 (1,845), the legs 0x0056D8B0, 0x0056D920, 0x0056F3F0, 0x0056F480 and 0x0056F700, the sign 0x00566E00 and the tow's release 0x00567E80. Below.
+- **wc2 (53, 33,952 bytes; wc2a's 8 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
 - **Stay the game's (10):** the adjustor thunks 0x0056DC70 to 0x0056DCF0 and 0x0056F7B0.
 
 Already ours from part aw5 (the watercraft manager calls them; not counted here): 0x00566DA0 (IsPathBoat), 0x0056F510 (SetPath), 0x0056F670 (SetFerryRoute), 0x0056C940 (ConstructLeg), 0x005684C0 (StepDirection), 0x0056D5F0 (CutPathAt). No NAM site and none of SC4UIScale's addresses is in the group.
@@ -4528,3 +4529,46 @@ The fakes' reference counts and calls are mixed. A trial with five deliberate ch
 | The 12-save batch | 7 | 12 of 12 saves (Big City d0000 after 2 pairs: the original gave two outcomes in pfire2, field 57, part ped4b) |
 
 Every run's wc1 fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wflags F). Every B run installed the 14 and reached all of them; the game itself reaches none before the test day in these saves (reach.sh).
+
+### What is ours (wc2a)
+
+8 functions more in the same group (`simulators.automata.watercraft`, list kDriveList; 22 detours in all): the drive parameters' reader and the seven small helpers that go with the legs and the tow.
+
+- **The drive parameters (1):** 0x00567310 (cSC4Watercraft::ReadDriveParams, 1,845 bytes), called by Init and by the +0x38 part's slot 3.
+- **The legs (5):** the copy 0x0056D8B0 (CopyLeg) and the assignment 0x0056D920 (AssignLeg) of a 0x34-byte leg, beginning a leg 0x0056F3F0 (BeginLeg, by value), the ferry route's next leg 0x0056F480 (PickNextLeg) and beginning it 0x0056F700 (NextLeg, slot 111's).
+- **Two small ones (2):** 0x00566E00 (Sign, the speed's sign for slots 115 and 121 and 0x00571880) and 0x00567E80 (DropTow, for slots 110, 111, 115 and 121).
+
+What they do:
+
+- The reader takes the boat's template (slot 67, an automata group of the script system) and its WatercraftDriveParams (0xA0 bytes at +0x60, else its parent's up the chain by 0x004FC8E0, which stays the game's). Each of the 40 floats goes into +0x344..+0x3E0 unless it is zero; a zero gives its default, except three: +0x364 the negated +0x368, +0x388 +0x38C over +0x360, +0x390 +0x394 over +0x368. Without a template or parameters every field gets a constant (the defaults, the three derived ones precomputed). The block is read in the template's order except +0x20 after +0x24, +0x44 after +0x48 and +0x4C after +0x50 (the values the derived ones need first).
+- CopyLeg holds the occupant and copy-constructs the byte vector; AssignLeg skips the occupant for itself or the same one (the new one held before the old one goes), then assigns the vector and copies the rest even onto itself. Neither touches the leg's padding bytes (+0x29..+0x2B, +0x32, +0x33).
+- BeginLeg assigns the leg under way (+0x24C), sets its byte +0x28 to 1, its word +0x2C to 2 when zero and its byte +0x30 to 0, starts the route iterator +0x28C on its byte vector, empties the path, and gives back the argument (its vector freed, its occupant let go of).
+- PickNextLeg copies the second leg when the leg under way's first point is the first leg's (each part within 1e-4), else the first. NextLeg begins that leg when both legs are listed in the dock table, else calls slot 13 (1).
+- Sign answers -1 below zero, else 1. DropTow calls the tow's slot 53, then lets go of the tow (read again) and +0x284.
+
+Oddities kept:
+
+- **The reader** takes a zero of either sign as unset and keeps a NaN; x87 loads a signalling NaN quiet, so ours sets its quiet bit (`Loaded`). The quotients are single (x87 at 53 bits rounds a float quotient the same; of two NaN operands x87 answers the one with the larger significand, as ours does).
+- **PickNextLeg**: a difference of exactly 1e-4 is not within, and a NaN picks the first leg; the differences are doubles, as x87 at 53 bits.
+- **NextLeg** builds the next leg in the argument area of BeginLeg; ours on the stack, handed on bitwise (a leg holds no pointer to itself).
+- **DropTow** reads the tow again after its slot 53.
+
+Written by hand, then an independent audit of all 8 against the disassembly (argument order and stack sizes, the 40-entry table's offsets, defaults and order, how the x87 stack carries +0x360, +0x368, +0x38C and +0x394 into the derived three, the reference order of the leg assignment, the tow read again). It found no defect for real input; one edge it raised is matched now: of two NaN operands x87's quotient is the one with the larger significand (SSE answers the dividend), so ours picks it (`Quotient`). One comment wording was corrected.
+
+### Test (wc2a)
+
+The ` V` token gains `,<wdrive>` before wflags (71 fields); wflags 0x40 when it ran. On a boat from the factory with slots 13 and 67 the test's, every function at its address: the drive parameters over 12 templates (none; their own block with every float set, all zero, zeros of both signs with a quiet and a signalling NaN, an infinity, a denormal and the derived three over set values, the derived three's sources zero, the quotients over two NaNs; a parent's, a grandparent's, none up the chain); the sign over ten values; the leg copy over two legs and the assignment over five (itself, the same occupant, another, none, into none), the padding bytes mixed; beginning a leg three times (a route and none); the next leg over nine first points (within 1e-4 or not, exactly 1e-4, NaNs); the next leg begun over the legs listed or not; the tow's release over five (neither, the tow, +0x284, both, a slot 53 that swaps the tow). The occupants' reference counts and the fakes' calls are mixed. The log line is "wc2a wdrive".
+
+A trial with six deliberate changes (+0x390 over +0x360, the byte +0x31 not copied, a count of 3, `<=` against 1e-4, +0x284 let go of before the tow, no quieting of a signalling NaN) changed wdrive each time (the first and the last the drive line's hash too); `<=` only after the test gained the exact 1e-4 case. The same build without a change gave the unchanged token.
+
+### Parity (wc2a)
+
+2026-11-01. As for wc1 (B the same groups with `simulators.automata.watercraft`, muted, `OPENSC4_TEST_AUTOMATA=2 OPENSC4_TEST_AUTOMATA_VEHICLE=1`). Env p4env-wc2a, snapshot wc2a-p2 (wc2a-p2b for the rerun):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days on the rerun (same after 4 pairs; the original gave three outcomes, ours two, both shared). The first leg was different after 4 pairs, the original giving two outcomes itself; the only difference in every differing pair was ad3's chighlight (field 25), the city's records identical (see ro2) |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every run's wc fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wdrive 1E393524, wflags 4F). Every B run installed the 22 and reached all of them; the game itself reaches none before the test day in these saves (reach.sh). An earlier run (p1, before the exact 1e-4 case and the two-NaN quotients) was the same on Making Money and the batch, and on Rush Hour differed in chighlight only.

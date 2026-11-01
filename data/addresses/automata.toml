@@ -7690,7 +7690,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, const void* other)"
 expect = "56 57 8B 7C 24 0C 8B F1"
-source = "Name ours: a boat's 0x34-byte leg assigned, ret 4: the reference +0 (skipped for itself), the byte vector +4 (SC4ByteVector::Assign), +0x10..+0x24, the byte +0x28, +0x2C, the bytes +0x30 and +0x31. Answers this. Left the game's. Called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
+source = "Name ours: a boat's 0x34-byte leg assigned, ret 4: the reference +0 (skipped for itself or the same one; the new one held before the old one is released), the byte vector +4 (SC4ByteVector::Assign), +0x10..+0x24, the byte +0x28, +0x2C, the bytes +0x30 and +0x31. Answers this. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2a). Also called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
 
 [[entry]]
 name = "cSC4Watercraft::CopyLeg"
@@ -7699,7 +7699,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this, const void* other)"
 expect = "56 57 8B 7C 24 0C 8B F1"
-source = "Name ours: a boat's 0x34-byte leg copy-constructed, ret 4: the reference +0 (referenced), the byte vector +4 (SC4ByteVector::CopyConstruct), the rest copied. Answers this. Left the game's. Called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
+source = "Name ours: a boat's 0x34-byte leg copy-constructed, ret 4: the reference +0 (AddRef), the byte vector +4 (SC4ByteVector::CopyConstruct), +0x10..+0x24, the byte +0x28, +0x2C, the bytes +0x30 and +0x31. Answers this. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2a). Also called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
 
 [[entry]]
 name = "cSC4Watercraft::BeginLeg"
@@ -7708,7 +7708,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this, Leg leg)"
 expect = "56 8B F1 8D 44 24 08 50"
-source = "Name ours, not analysed: the boat begins a leg (by value, freed here), ret 0x34: +0x24C assigned, +0x274 1, +0x278 2 when 0, +0x27C 0, the route iterator +0x28C started on its byte vector, the path +0x2A4/+0x2A8 cleared. Left the game's. Called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
+source = "Name ours: the boat begins a leg (by value, freed here), ret 0x34: +0x24C assigned (0x0056D920), +0x274 1, +0x278 2 when 0, +0x27C 0, the route iterator +0x28C started on +0x250 (SC4RouteIterator::Init), the path +0x2A4/+0x2A8 emptied (SC4Vector16::Copy); the argument's byte vector freed and its reference released. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2a). Also called by address from src/core/automata_awmgr_water_route.cpp (part aw5)."
 
 # Part aw5 of the watercraft manager: the frame update and the route records (src/core/automata_awmgr_water_frame.cpp; docs/automata.md, "Part aw5").
 
@@ -15908,7 +15908,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void (void* this)"
 expect = "83 EC 08 56 8B F1 8B 06"
-source = "Name ours, not analysed in detail: the boat's drive parameters into +0x344.. from its template's (slot 67) WatercraftDriveParams, each float with a default when it is zero. Left the game's (part wc2). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+source = "Name ours. Plain ret (Init's and the +0x38 part's slot 3's): the template's (slot 67) WatercraftDriveParams, its own (+0x60) or else its parent's up the chain (0x004FC8E0 on +0xC); each of the 40 floats into +0x344..+0x3E0 unless it is zero (a NaN kept, made quiet by x87), a zero its default (+0x364 the negated +0x368, +0x388 +0x38C over +0x360, +0x390 +0x394 over +0x368); without a template or parameters every field a constant. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2a). Also called by address from src/core/automata_watercraft.cpp (part wc1)."
 
 [[entry]]
 name = "cSC4Watercraft::Vtable"
@@ -15987,3 +15987,50 @@ name = "cSC4Watercraft::DebugStringDestroy"
 address = 0x00A7B5D0
 kind = "data"
 source = "Name ours. The atexit destructor of the boat's debug text string. Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+# Part wc2a: cSC4Watercraft, the drive parameters, the legs, the sign and the tow (src/core/automata_watercraft.cpp).
+
+[[entry]]
+name = "cSC4Watercraft::PickNextLeg"
+address = 0x0056F480
+kind = "function"
+convention = "thiscall"
+signature = "char* (void* this, void* out)"
+expect = "D9 81 5C 02 00 00 56 D8"
+source = "Name ours. The next leg of a ferry route copied into out (0x0056D8B0), ret 4: +0x218 when the leg under way's first point (+0x25C..+0x264) is within 1e-4 (0x00A9DA48) of +0x1E4's (+0x1F4..+0x1FC) in each part, else +0x1E4. EAX out. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2a)."
+
+[[entry]]
+name = "cSC4Watercraft::NextLeg"
+address = 0x0056F700
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8A 86 15 02 00"
+source = "Name ours. Plain ret (slot 111's): with both legs listed (+0x215, +0x249) the next leg (0x0056F480, built in the argument area) begun (0x0056F3F0); else slot 13 (1). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2a)."
+
+[[entry]]
+name = "cSC4Watercraft::Sign"
+address = 0x00566E00
+kind = "function"
+convention = "thiscall"
+signature = "float (void* this, float x)"
+expect = "D9 44 24 04 D8 1D 54 10"
+source = "Name ours. Ret 4 (this unread; callers pass the speed): -1.0 (0x00A8FE78) when x is below zero, else 1.0 (0x00A81228). ST0. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2a)."
+
+[[entry]]
+name = "cSC4Watercraft::DropTow"
+address = 0x00567E80
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "56 8B F1 8B 8E 80 02 00"
+source = "Name ours. Plain ret: the tow's (+0x280) slot 53, then the tow (read again) and +0x284 cleared and released. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2a)."
+
+[[entry]]
+name = "cSC4AutomataManager::GroupDriveParams"
+address = 0x004FC8E0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* group)"
+expect = "8B 41 60 85 C0 75 0E 8B"
+source = "Name ours. this = an automata group of the script system: its drive parameters (+0x60), else its parent's (+0xC) up the chain, else null. Called by address from src/core/automata_watercraft.cpp (part wc2a)."
