@@ -38,9 +38,9 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Other road vehicles (trailer, bus, van, carjacked, tank, limo) | 86 | 17,836 | ro1 (44, done), ro2 (15, done), ro3a (3, done), ro3b (1, done) (part ro below counts 103) |
 | Trains | 79 | 18,124 | tr1 (31, done), tr2a (13, done), tr2b (5, done), tr3a (1, done), tr3b (1, done), tr3c (2, done) (part tr below counts 79, 17,591 bytes) |
 | Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (2, done) (part em below counts 122; part em finished) |
-| Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3 (9, done), ped4a (1, done), ped4b (part ped below counts 111) |
-| Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
-| Watercraft | 75 | 37,045 | 2 |
+| Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3 (9, done), ped4a (1, done), ped4b (12, done) (part ped below counts 111; part ped finished) |
+| Aircraft, helicopter, airplane | 188 | 79,376 | 5 (part ac, not started) |
+| Watercraft | 75 | 37,045 | 2 (part wc, wc1 in progress) |
 | Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | pi1 (25, done), pi2 (22, done), pi3a (14, done), pi3b (8, done) (part pi below counts 73 of its own; part pi finished) |
 
 That is about 48 parts of 20 to 45 functions. What the parts after a1 will meet:
