@@ -7526,7 +7526,7 @@ kind = "function"
 convention = "thiscall"
 signature = "void* (void* this)"
 expect = "51 53 56 57 83 EC 0C 8B"
-source = "Name ours, not analysed: the boat's constructor (0xDC8 bytes), as the watercraft manager's AddAutomaton uses it. Left the game's. Called by address from src/core/automata_awmgr_water.cpp (part aw4)."
+source = "Name ours: the boat's constructor (0xDC8 bytes), plain ret: the core's with four zero words, the six vtables 0x00A9DBB8..0x00A9DA8C; the legs +0x1E4, +0x218 and +0x24C (references and byte vectors zero, points 0x00B22A80's), +0x280 and +0x284 zero; the path +0x2A4 11 zeroed 16-byte points (SC4::stl_allocate 0xB0); +0x2E8..+0x314 0x00B22A80's; +0x318..+0x324 zero; its generator +0x3E4 seeded with -1; the effects +0xDB0..+0xDC4 zero; +0x33 |= 0x10, the type +0x28 0x897F7EC2. Called by the watercraft manager's AddAutomaton (src/core/automata_awmgr_water.cpp, part aw4). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
 
 [[entry]]
 name = "cSC4WatercraftManager::LotAtOccupant"
@@ -15781,3 +15781,209 @@ convention = "cdecl"
 signature = "void* (void* first, void* last, void* destEnd, void* tag, uint32_t)"
 expect = "8B 4C 24 08 56 57 8B 7C"
 source = "Name ours. copy_backward of 12-byte points [first, last) to end at destEnd, word by word. Called by 0x0053F940 (src/core/automata_pathinfo.cpp, part pi3b)."
+
+# Part wc1: cSC4Watercraft, the objects, the save, the life cycle and the queries (src/core/automata_watercraft.cpp).
+
+[[entry]]
+name = "cSC4Watercraft::Create"
+address = 0x00514820
+kind = "function"
+convention = "cdecl"
+signature = "void* ()"
+expect = "68 C8 0D 00 00 E8 B6 0D"
+source = "The boat's GZCOM factory, registered by 0x00514A00: 0xDC8 bytes from SC4::operator_new and the constructor (a tail jump); null when the block is. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Destroy"
+address = 0x0056DD20
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "56 8B F1 8B 8E C4 0D 00"
+source = "Name ours. The boat's destructor body, plain ret: the effects +0xDC4 down to +0xDB0, the target +0x318, the tow +0x280, +0x284 and the legs' occupants (+0x24C, +0x218, +0x1E4) released without clearing, the byte vectors +0x31C, +0x2A4 (the path), +0x250, +0x21C and +0x1E8 freed (SC4::Free), the generator +0x3E4 left; then the core's (a tail jump). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::DeletingDestructor"
+address = 0x0056DD00
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, uint32_t flags)"
+expect = "56 8B F1 E8 18 00 00 00"
+source = "Name ours. The boat's deleting destructor (the +0xC part's slot 22 through the thunk 0x0056DCA0), ret 4: the body, then with flag 1 SC4::operator_delete (no null test). EAX this. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::QueryInterface"
+address = 0x00566F30
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, uint32_t iid, void** out)"
+expect = "8B 44 24 04 3D F5 75 6E"
+source = "Name ours. The boat's slot 0 (and the thunks of its other parts), ret 8: 0x096E75F5 answers the boat (AddRef, AL 1); the rest the core's (a tail jump). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::GetGZCLSID"
+address = 0x0056DC60
+kind = "function"
+convention = "thiscall"
+signature = "uint32_t (void* part)"
+expect = "B8 F5 75 6E 09 C3 CC CC"
+source = "Name ours. The boat's +8 slot 5: 0x096E75F5. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Write"
+address = 0x00566EE0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The boat's +8 slot 3 (this = the boat + 8), ret 4: the version word 2 (the stream's slot 7), then the core's Write (its EAX). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Read"
+address = 0x00566F00
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* part, void* stream)"
+expect = "56 8B 74 24 08 8B 06 57"
+source = "Name ours. The boat's +8 slot 4, ret 4: the version word read into the stream argument's own stack slot; AL 0 unless it is 2, else the core's Read (a tail jump). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Init"
+address = 0x0056DE40
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "81 EC 80 00 00 00 56 8B"
+source = "Name ours. The boat's slot 3: AL 1 at once while the occupant part is initialised; else the core's Init, the drive parameters (0x00567310), the tow and +0x284 let go of, the six effects by name (SMLmushroomcloud, boat_grounding, boat_splash, tugropethrow, tugropeconnection, waterski) from the city's slot 85's slot 7 into +0xDB0..+0xDC4, the automata flags 0x8000, 0x2000, 0x20000 and 4 (slot 30), the message 0xAC400A31 listened to, the legs, the path and the target cleared, the bytes and words zero, the start and the point from +0x40, the start heading and the heading from +0x58 (normalised), +0x2CA 1, slot 77 (1). AL 1. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Shutdown"
+address = 0x0056D0E0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "56 8B F1 8B 46 04 8D 4E"
+source = "Name ours. The boat's slot 4: while initialised the tow given state 0x49 (its slot 52) and let go of, +0x284 let go of, each listed leg (+0x215, +0x249) out of the watercraft manager's dock table (0x0056D060 then 0x0056CFE0), the message 0xAC400A31 no longer listened to, the legs, the leg under way and the target let go of, each effect stopped (its slot 4 (1)) and let go of; then the core's Shutdown (a tail jump). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::UnlistFirst"
+address = 0x0056CFE0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* key, void* boat)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. On the watercraft manager, ret 8, called by the boat's Shutdown and two of its frame helpers (0x0056D4D0, 0x0056D530): the dock table +0xA8C's node of the leg occupant key (hashed by its address modulo the bucket count +0xA90..+0xA94; the key held for the search); when its +8 is the boat, cleared and released. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4WatercraftManager::UnlistSecond"
+address = 0x0056D060
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* key, void* boat)"
+expect = "56 57 8B 7C 24 0C 85 FF"
+source = "Name ours. As 0x0056CFE0 for the node's +0xC; called by the boat's Shutdown only. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::SetPlacement"
+address = 0x00567D80
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, const float* point, const float* heading)"
+expect = "56 8B F1 8B 4C 24 08 85"
+source = "Name ours. The boat's slot 16, ret 8: a given point copied into +0x2F4 and a given heading into +0x30C, then the core's SetPlacement with both and slots 104 and 107. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::DebugText"
+address = 0x00570AE0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this)"
+expect = "55 8B EC 83 E4 F8 83 EC"
+source = "Name ours. The boat's slot 93: the text 'Tow: %d, (FT,MT): ...' (0x00A9DE68) printed (cRZBaseString::Sprintf) into the static string 0x00B22AA4 (made once under bit 1 of 0x00B22AB8, its destructor 0x00A7B5D0 given to atexit): the tow, the watercraft manager's +0xA9C and +0xAC4 (not tested for null), the bytes +0x289 and +0x288, the turn +0x2E0 and the speed +0x2DC, the cell of the point (the city's slot 95), the point and the heading. EAX the string. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::ReadDriveParams"
+address = 0x00567310
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 08 56 8B F1 8B 06"
+source = "Name ours, not analysed in detail: the boat's drive parameters into +0x344.. from its template's (slot 67) WatercraftDriveParams, each float with a default when it is zero. Left the game's (part wc2). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Vtable"
+address = 0x00A9DBB8
+kind = "data"
+expect = "30 6F 56 00 F0 28 5E 00"
+source = "cSC4Watercraft's main vtable (129 slots; the core's with 0, 3, 4, 16, 72, 93, 109, 110, 111, 115 and 121 its own). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Vtable4"
+address = 0x00A9DB30
+kind = "data"
+expect = "70 DC 56 00 B0 29 5E 00"
+source = "cSC4Watercraft's +4 vtable (the occupant part, 34 slots). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Vtable8"
+address = 0x00A9DB14
+kind = "data"
+expect = "80 DC 56 00 E0 29 5E 00"
+source = "cSC4Watercraft's +8 vtable (the serializable part: Write 3, Read 4, GetGZCLSID 5). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::VtableC"
+address = 0x00A9DAB0
+kind = "data"
+expect = "90 DC 56 00 10 2A 5E 00"
+source = "cSC4Watercraft's +0xC vtable (25 slots; 22 the deleting destructor, 23 and 24 Write and Read through thunks). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Vtable20"
+address = 0x00A9DA9C
+kind = "data"
+expect = "D0 DC 56 00 A0 06 5E 00"
+source = "cSC4Watercraft's +0x20 vtable (5 slots). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::Vtable38"
+address = 0x00A9DA8C
+kind = "data"
+expect = "E0 DC 56 00 30 AF 4F 00"
+source = "cSC4Watercraft's +0x38 vtable (the message part, 4 slots; slot 3 0x00569230, part wc2). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::DefaultFloat"
+address = 0x00B22A80
+kind = "data"
+source = "Name ours. A float the boat's constructor copies into its points (+0x1F4.., +0x228.., +0x25C.., +0x2E8..+0x314). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::One"
+address = 0x00B0A18C
+kind = "data"
+source = "Name ours. The float 1.0 the boat's Init divides by the headings' lengths. Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::DebugString"
+address = 0x00B22AA4
+kind = "data"
+source = "Name ours. The static string of the boat's debug text (slot 93; vtable, begin, end, capacity, a word). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::DebugStringGuard"
+address = 0x00B22AB8
+kind = "data"
+source = "Name ours. Bit 1: the boat's debug text string made. Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::DebugFormat"
+address = 0x00A9DE68
+kind = "data"
+source = "Name ours. The boat's debug text format ('Tow: %d, (FT,MT): (%d,%d), (Q,D): (%d,%d), Turn: ...'). Called by address from src/core/automata_watercraft.cpp (part wc1)."
+
+[[entry]]
+name = "cSC4Watercraft::DebugStringDestroy"
+address = 0x00A7B5D0
+kind = "data"
+source = "Name ours. The atexit destructor of the boat's debug text string. Called by address from src/core/automata_watercraft.cpp (part wc1)."

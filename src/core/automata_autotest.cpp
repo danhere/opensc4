@@ -709,6 +709,27 @@
 //   allowed sides and kinds' sides (slots 41, 42, 69); slot 29 over eight
 //   boxes and three moves. pi4flags 1 when it ran, 2 without an object.
 //   Log line: "pi3b pinfo4", one line per section before it.
+//   Part wc1 (the boat's objects, save, life cycle and queries,
+//   src/core/automata_watercraft.cpp) adds `,<wobject>,<wsave>,<wlife>,<wflags>`
+//   (70 fields), on boats from the factory: wobject (wflags 1, 0x10 when
+//   the factory failed, 0x20 without a city) the fields, GetGZCLSID through
+//   +8 and at its address, QueryInterface for four IDs through slot 0 and at
+//   its address; then with the city's slots 46 (a watercraft manager of the
+//   test's), 85 (an effects manager of the test's) and 95, the message
+//   server and the boat's slots 13, 30, 67, 77, 97, 100, 104 and 107 the
+//   test's: slot 16 over eight point and heading cases and one off the city
+//   (the core's flag 0x100000 on and the occupant bits 1, 2 and 4 off),
+//   slot 93 over four (a tow, bytes, speeds, turns, points) through the
+//   vtable and at its address (wflags 8). wsave (wflags 2): Write through +8
+//   and at its address against the core's, read back as written, with the
+//   version 3, empty, the version alone and cut by four. wlife (wflags 4):
+//   12 fresh boats, each Init at its address and again through slot 3 over
+//   three effect modes (every effect, none, every other), then Shutdown over
+//   the legs listed or not, the dock table's nodes holding this boat,
+//   another or none, a tow or none, no manager (case 9) or no server (case
+//   10), and Shutdown again; the dock-table helpers at their addresses over
+//   five probes each; the deleting destructor at its address with flag 0.
+//   The fakes' counts and calls are mixed. Log line: "wc1 wobject".
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -1087,6 +1108,7 @@
 #include "core/automata_trains.h"
 #include "core/automata_vehicle.h"
 #include "core/automata_vehmgr.h"
+#include "core/automata_watercraft.h"
 #include "core/autotest_hooks.h"
 #include "core/game.h"
 #include "core/game_access.h"
@@ -33625,6 +33647,584 @@ void PathInfo4Drive(Hash& pinfo4, uint32_t& pi4flags)
     log::Write("autotest: automata: vehicle: pi3b pinfo4 %08X flags %X", pinfo4.h, pi4flags);
 }
 
+
+// ---- Part wc1: the boat's objects, save, life cycle and queries
+// (src/core/automata_watercraft.cpp).
+
+namespace wc = automata_watercraft;
+
+// Referenced objects of the test's (leg occupants, the tow, +0x284, the
+// target, effects): AddRef and Release count; slot 4 (one word) is an
+// effect's stop, slot 52 (seven words) the tow's state. Each call that is
+// not an AddRef is mixed with the object's id.
+struct WcRef {
+    void** vtable;
+    int32_t refs;
+    uint32_t id;
+};
+
+struct WcAnswers {
+    Hash calls;
+    char* boat = nullptr;
+    char* manager = nullptr;  // the city's slot 46
+    int effectMode = 0;       // 0 every effect made, 1 none, 2 every other
+    uint32_t effectCount = 0;
+    WcRef effects[48];
+    uint32_t madeEffects = 0;
+};
+WcAnswers g_wc;
+
+uint32_t __fastcall WcAddRef(WcRef* r, void*) { return static_cast<uint32_t>(++r->refs); }
+uint32_t __fastcall WcRelease(WcRef* r, void*)
+{
+    g_wc.calls.Mix(0x200u + r->id);
+    return static_cast<uint32_t>(--r->refs);
+}
+void __fastcall WcStop(WcRef* r, void*, uint32_t a)
+{
+    g_wc.calls.Mix(0x400u + r->id);
+    g_wc.calls.Mix(a);
+}
+void __fastcall WcPushState(WcRef* r, void*, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f,
+                            uint32_t g)
+{
+    g_wc.calls.Mix(0x520u + r->id);
+    for (const uint32_t v : {a, b, c, d, e, f, g})
+        g_wc.calls.Mix(v);
+}
+
+void** WcRefVtable()
+{
+    static void* table[64] = {};
+    table[1] = reinterpret_cast<void*>(&WcAddRef);
+    table[2] = reinterpret_cast<void*>(&WcRelease);
+    table[4] = reinterpret_cast<void*>(&WcStop);
+    table[52] = reinterpret_cast<void*>(&WcPushState);
+    return table;
+}
+
+WcRef WcMake(uint32_t id, int32_t refs = 1) { return WcRef{WcRefVtable(), refs, id}; }
+
+// The effects manager (the city's slot 85): slot 7 (name, out), ret 8.
+uint32_t __fastcall WcMakeEffect(void*, void*, const char* name, WcRef** out)
+{
+    g_wc.calls.Mix(0x700u);
+    g_wc.calls.MixBytes(name, std::strlen(name));
+    g_wc.calls.Mix(*out ? 1u : 0u);
+    const uint32_t k = g_wc.effectCount++;
+    if (g_wc.effectMode == 1 || (g_wc.effectMode == 2 && (k & 1)) || g_wc.madeEffects >= 48)
+        return 0;
+    WcRef* const e = &g_wc.effects[g_wc.madeEffects++];
+    *e = WcMake(0x40u + k);
+    *out = e;
+    return 1;
+}
+
+// The message server: slots 5 and 6 (target, message), ret 8.
+uint32_t __fastcall WcRegister(void*, void*, char* target, uint32_t message)
+{
+    g_wc.calls.Mix(0x5000u);
+    g_wc.calls.Mix(static_cast<uint32_t>(target - g_wc.boat));
+    g_wc.calls.Mix(message);
+    return 1;
+}
+uint32_t __fastcall WcUnregister(void*, void*, char* target, uint32_t message)
+{
+    g_wc.calls.Mix(0x6000u);
+    g_wc.calls.Mix(static_cast<uint32_t>(target - g_wc.boat));
+    g_wc.calls.Mix(message);
+    return 1;
+}
+
+// The city's slots 46 (the watercraft manager), 85 (the effects manager)
+// and 95 (the cell of x, z).
+void* g_wcEffectsTable[16];
+void* g_wcEffects[1] = {g_wcEffectsTable};
+void* __fastcall WcCityWatercraft(void*, void*) { return g_wc.manager; }
+void* __fastcall WcCityEffects(void*, void*) { return g_wcEffects; }
+void __fastcall WcCellOf(void*, void*, float x, float z, int32_t* cx, int32_t* cz)
+{
+    g_wc.calls.Mix(0x9500u);
+    g_wc.calls.Mix(Bits(x));
+    g_wc.calls.Mix(Bits(z));
+    g_wc.calls.Mix(*cx == -1 && *cz == -1 ? 1u : 0u);
+    *cx = static_cast<int32_t>(x / 16.0f);
+    *cz = static_cast<int32_t>(z / 16.0f);
+}
+
+// The boat's own slots the test answers: 13, 30, 67 (no template), 77, 97
+// (false: the core's Init skips its models), 100, 104, 107.
+void __fastcall WcRemove(char*, void*, uint32_t b)
+{
+    g_wc.calls.Mix(13);
+    g_wc.calls.Mix(b & 0xFF);
+}
+void __fastcall WcSetFlag(char*, void*, uint32_t flag, uint32_t on)
+{
+    g_wc.calls.Mix(30);
+    g_wc.calls.Mix(flag);
+    g_wc.calls.Mix(on & 0xFF);
+}
+void* __fastcall WcTemplate(char*, void*) { return nullptr; }
+void __fastcall WcSlot77(char*, void*, uint32_t a)
+{
+    g_wc.calls.Mix(77);
+    g_wc.calls.Mix(a);
+}
+uint32_t __fastcall WcSlot97(char*, void*) { return 0; }
+void __fastcall WcMoved(char*, void*, uint32_t moved, uint32_t turned)
+{
+    g_wc.calls.Mix(100);
+    g_wc.calls.Mix(moved & 0xFF);
+    g_wc.calls.Mix(turned & 0xFF);
+}
+void __fastcall WcSlot104(char*, void*) { g_wc.calls.Mix(104); }
+void __fastcall WcSlot107(char*, void*) { g_wc.calls.Mix(107); }
+
+void** WcBoatTable(char* o)
+{
+    static void* table[129];
+    void** const real = At<void**>(o, 0);
+    for (int i = 0; i < 129; ++i)
+        table[i] = real[i];
+    table[13] = reinterpret_cast<void*>(&WcRemove);
+    table[30] = reinterpret_cast<void*>(&WcSetFlag);
+    table[67] = reinterpret_cast<void*>(&WcTemplate);
+    table[77] = reinterpret_cast<void*>(&WcSlot77);
+    table[97] = reinterpret_cast<void*>(&WcSlot97);
+    table[100] = reinterpret_cast<void*>(&WcMoved);
+    table[104] = reinterpret_cast<void*>(&WcSlot104);
+    table[107] = reinterpret_cast<void*>(&WcSlot107);
+    return table;
+}
+
+char* WcCreate(uint32_t& wflags)
+{
+    char* const o = reinterpret_cast<char* (*)()>(addr::cSC4Watercraft_Create)();
+    if (!o) {
+        wflags |= 0x10;
+        return nullptr;
+    }
+    Virtual<uint32_t>(o, av::slot::kAddRef);
+    return o;
+}
+
+// The boat's own fields (not the addresses its vectors and references
+// hold): the vtables, the core's type and flag 0x10, the legs, the
+// references as set or not, the path's count and points, the points, the
+// target's byte vector as set or not, the generator and the effects as set
+// or not; after Init (`initialised`) the bytes, words and drive parameters
+// too (the constructor leaves them unset).
+void WcMixFields(Hash& h, char* o, bool initialised)
+{
+    static constexpr std::size_t kParts[6] = {0x00, 0x04, 0x08, 0x0C, 0x20, 0x38};
+    static constexpr std::uintptr_t kTables[6] = {addr::cSC4Watercraft_Vtable,   addr::cSC4Watercraft_Vtable4,
+                                                  addr::cSC4Watercraft_Vtable8,  addr::cSC4Watercraft_VtableC,
+                                                  addr::cSC4Watercraft_Vtable20, addr::cSC4Watercraft_Vtable38};
+    for (int i = 0; i < 6; ++i)
+        h.Mix(At<std::uintptr_t>(o, kParts[i]) == kTables[i] ? 1u : 0u);
+    h.Mix(At<uint32_t>(o, wc::field::kType28));
+    h.Mix(At<uint8_t>(o, wc::field::kFlags33) & 0x10u);
+    for (const std::size_t leg : {wc::field::kLegA, wc::field::kLegB, wc::field::kLeg}) {
+        for (std::size_t i = 0; i < 0x10; i += 4)
+            h.Mix(At<uint32_t>(o, leg + i) ? 1u : 0u);
+        h.MixBytes(o + leg + wc::field::kLegPoints, 0x18);
+        if (initialised)
+            h.Mix(At<uint8_t>(o, leg + wc::field::kLegListed));
+    }
+    h.Mix(At<void*>(o, wc::field::kTow) ? 1u : 0u);
+    h.Mix(At<void*>(o, wc::field::kRef284) ? 1u : 0u);
+    char* const begin = At<char*>(o, wc::field::kPath);
+    char* const end = At<char*>(o, wc::field::kPath + 4);
+    h.Mix(static_cast<uint32_t>(end - begin));
+    h.Mix(static_cast<uint32_t>(At<char*>(o, wc::field::kPath + 8) - begin));
+    if (begin && end > begin)
+        h.MixBytes(begin, static_cast<std::size_t>(end - begin));
+    h.MixBytes(o + wc::field::kStartPoint, 0x30);
+    h.Mix(At<void*>(o, wc::field::kTarget) ? 1u : 0u);
+    for (std::size_t i = 0; i < 12; i += 4)
+        h.Mix(At<uint32_t>(o, wc::field::kTargetPath + i) ? 1u : 0u);
+    // The generator: its 624 words, its next word (a pointer into them, as
+    // an offset) and its count.
+    char* const generator = o + wc::field::kGenerator;
+    h.MixBytes(generator, 0x9C0);
+    h.Mix(At<char*>(generator, 0x9C0) ? static_cast<uint32_t>(At<char*>(generator, 0x9C0) - generator) : 0xFFFFFFFFu);
+    h.Mix(At<uint32_t>(generator, 0x9C4));
+    for (std::size_t i = 0; i < wc::field::kEffectCount; ++i)
+        h.Mix(At<void*>(o, wc::field::kEffects + 4 * i) ? 1u : 0u);
+    if (!initialised)
+        return;
+    h.MixBytes(o + wc::field::kByte288, 2);
+    h.MixBytes(o + wc::field::kByte2B0, 3);
+    for (const std::size_t at : {wc::field::kWord2B4, wc::field::kWord2B8, wc::field::kWord2BC, wc::field::kWord2C0,
+                                 wc::field::kWord2C4, wc::field::kWord2D0, wc::field::kWord2D4, wc::field::kSpeed,
+                                 wc::field::kTurn, wc::field::kWord2E4})
+        h.Mix(At<uint32_t>(o, at));
+    h.MixBytes(o + wc::field::kByte2CA, 3);
+    h.Mix(At<uint8_t>(o, wc::field::kByte2D8));
+    h.Mix(At<uint8_t>(o, wc::field::kByte340));
+    h.MixBytes(o + wc::field::kDriveParams, wc::field::kGenerator - wc::field::kDriveParams);
+    h.Mix(At<uint32_t>(o, wc::field::kWordDAC));
+}
+
+void WcMixRefs(Hash& h, const WcRef* refs, int count)
+{
+    for (int i = 0; i < count; ++i)
+        h.Mix(static_cast<uint32_t>(refs[i].refs));
+}
+
+// The boat's references cleared (the test's objects die with the test).
+void WcRelease(char* o)
+{
+    if (!o)
+        return;
+    for (const std::size_t at : {wc::field::kLegA, wc::field::kLegB, wc::field::kLeg, wc::field::kTow,
+                                 wc::field::kRef284, wc::field::kTarget})
+        At<void*>(o, at) = nullptr;
+    for (std::size_t i = 0; i < wc::field::kEffectCount; ++i)
+        At<void*>(o, wc::field::kEffects + 4 * i) = nullptr;
+    Virtual<uint32_t>(o, av::slot::kRelease);
+}
+
+void WatercraftDrive(Hash& wobject, Hash& wsave, Hash& wlife, uint32_t& wflags)
+{
+    g_wc = WcAnswers{};
+    char* const o = WcCreate(wflags);
+    if (!o) {
+        log::Write("autotest: automata: vehicle: wc1: the factory failed");
+        return;
+    }
+    void* const city = Global<void*>(addr::SC4_City);
+    if (!city) {
+        wflags |= 0x20;
+        WcRelease(o);
+        return;
+    }
+    wflags |= 1;
+    g_wc.boat = o;
+
+    // ---- The objects: the fields, GetGZCLSID through +8 and at its
+    // address, QueryInterface through slot 0 and at its address.
+    WcMixFields(wobject, o, false);
+    wobject.Mix(Virtual<uint32_t>(o + 8, 0x14));
+    wobject.Mix(This<uint32_t>(addr::cSC4Watercraft_GetGZCLSID, o + 8));
+    for (const uint32_t iid : {wc::kClassId, av::kVehicleClassId, 0xA821EF94u, 0x12345678u}) {
+        void* out = reinterpret_cast<void*>(0x1);
+        const uint8_t answer = Virtual<uint8_t>(o, av::slot::kQueryInterface, iid, &out);
+        wobject.Mix(answer);
+        wobject.Mix(out == reinterpret_cast<void*>(0x1) ? 0xFFFFFFFEu
+                    : out ? static_cast<uint32_t>(static_cast<char*>(out) - o)
+                          : 0xFFFFFFFFu);
+        if (answer && out && out != reinterpret_cast<void*>(0x1))
+            Virtual<uint32_t>(out, av::slot::kRelease);
+        out = nullptr;
+        const uint8_t direct = This<uint32_t>(addr::cSC4Watercraft_QueryInterface, o, iid, &out) & 0xFF;
+        wobject.Mix(direct);
+        wobject.Mix(out == o ? 1u : out ? 2u : 0u);
+        if (direct && out)
+            Virtual<uint32_t>(out, av::slot::kRelease);
+    }
+    log::Write("autotest: automata: vehicle: wc1 objects %08X", wobject.h);
+
+    // The city's vtable a copy with slots 46, 85 and 95 the test's; the
+    // message server the test's; the boat's vtable a copy.
+    g_wcEffectsTable[7] = reinterpret_cast<void*>(&WcMakeEffect);
+    static void* cityTable[256];
+    void** const realCity = At<void**>(city, 0);
+    for (int i = 0; i < 256; ++i)
+        cityTable[i] = realCity[i];
+    cityTable[wc::slot::kCityWatercraft / 4] = reinterpret_cast<void*>(&WcCityWatercraft);
+    cityTable[wc::slot::kCityEffects / 4] = reinterpret_cast<void*>(&WcCityEffects);
+    cityTable[wc::slot::kCellOf / 4] = reinterpret_cast<void*>(&WcCellOf);
+    static void* serverTable[8] = {};
+    serverTable[5] = reinterpret_cast<void*>(&WcRegister);
+    serverTable[6] = reinterpret_cast<void*>(&WcUnregister);
+    void** server = serverTable;
+    RfSwap swapServer(addr::SC4_MessageServer, &server);
+    At<void**>(city, 0) = cityTable;
+    alignas(4) static char manager[0xAD4];
+    std::memset(manager, 0, sizeof manager);
+    char* buckets[3] = {};
+    At<char**>(manager, wc::manager::kBuckets) = buckets;
+    At<char**>(manager, wc::manager::kBucketsEnd) = buckets + 3;
+    At<uint32_t>(manager, wc::manager::kCountA9C) = 7;
+    At<uint32_t>(manager, wc::manager::kCountAC4) = 0xFFFFFFFDu;
+    g_wc.manager = manager;
+    void** const realBoat = At<void**>(o, 0);
+    At<void**>(o, 0) = WcBoatTable(o);
+    // The occupant byte's bits 1, 2 and 4 off and the automata flag
+    // 0x100000 on while the test runs: the core's slots 16 and 100 leave the
+    // occupant manager and the view alone.
+    const uint8_t byte33 = At<uint8_t>(o, wc::field::kFlags33);
+    At<uint8_t>(o, wc::field::kFlags33) = static_cast<uint8_t>(byte33 & ~7u);
+    const uint32_t flags84 = At<uint32_t>(o, 0x84);
+    At<uint32_t>(o, 0x84) = flags84 | 0x100000u;
+
+    // ---- The placement (slot 16) through the vtable and at its address:
+    // neither, a point, a heading, both, a point off the city.
+    {
+        const float points[3][3] = {{100.0f, 5.0f, 200.0f}, {64.5f, 0.25f, 33.0f}, {-5.0f, 1.0f, 40.0f}};
+        const float headings[3][3] = {{3.0f, 2.0f, 4.0f}, {0.0f, 0.0f, -1.0f}, {-0.6f, 0.0f, 0.8f}};
+        for (int k = 0; k < 8; ++k) {
+            const float* const point = (k & 1) ? points[(k >> 1) % 3] : nullptr;
+            const float* const heading = (k & 2) ? headings[(k >> 2) % 3] : nullptr;
+            if (k & 4)
+                This<void>(addr::cSC4Watercraft_SetPlacement, o, point, heading);
+            else
+                Virtual<void>(o, 16 * 4, point, heading);
+            wobject.MixBytes(o + wc::field::kPoint, 12);
+            wobject.MixBytes(o + wc::field::kHeading, 12);
+            wobject.MixBytes(o + wc::field::kPosition, 12);
+            wobject.MixBytes(o + wc::field::kHeading58, 12);
+        }
+        This<void>(addr::cSC4Watercraft_SetPlacement, o, static_cast<const float*>(points[2]),
+                   static_cast<const float*>(headings[2]));
+        wobject.MixBytes(o + wc::field::kPoint, 24);
+    }
+
+    // ---- The debug text (slot 93) through the vtable and at its address,
+    // with and without a tow, over speeds, turns and bytes.
+    {
+        WcRef tow = WcMake(9);
+        for (int k = 0; k < 4; ++k) {
+            At<void*>(o, wc::field::kTow) = (k & 1) ? &tow : nullptr;
+            At<uint8_t>(o, wc::field::kByte288) = static_cast<uint8_t>(k * 37);
+            At<uint8_t>(o, wc::field::kByte289) = static_cast<uint8_t>(250 - k);
+            At<float>(o, wc::field::kSpeed) = 1.25f * static_cast<float>(k) - 0.004f;
+            At<float>(o, wc::field::kTurn) = -0.333f * static_cast<float>(k);
+            At<float>(o, wc::field::kPoint) = 17.0f + 400.0f * static_cast<float>(k);
+            At<float>(o, wc::field::kPoint + 8) = 1000.5f - 300.0f * static_cast<float>(k);
+            char* const text = (k & 2) ? This<char*>(addr::cSC4Watercraft_DebugText, o) : Virtual<char*>(o, 93 * 4);
+            wobject.Mix(text == reinterpret_cast<char*>(addr::cSC4Watercraft_DebugString) ? 1u : 0u);
+            char* const b = At<char*>(text, 4);
+            char* const e = At<char*>(text, 8);
+            if (b && e > b)
+                wobject.MixBytes(b, static_cast<std::size_t>(e - b));
+            wobject.Mix(static_cast<uint32_t>(e - b));
+        }
+        At<void*>(o, wc::field::kTow) = nullptr;
+        wobject.Mix(static_cast<uint32_t>(tow.refs));
+    }
+    wobject.Mix(g_wc.calls.h);
+    wflags |= 8;
+
+    // ---- The save: the boat by its Write (through +8 and at its address)
+    // and by the core's; read back as written, with the version 3, empty,
+    // the version alone, cut by four bytes.
+    {
+        using Serialize = uint32_t(__thiscall*)(void*, void*);
+        ByteOStream out, direct, core;
+        const uint32_t wrote = Virtual<uint32_t>(o + 8, 0x0C, static_cast<cIGZOStream*>(&out));
+        const uint32_t wrote2 = reinterpret_cast<Serialize>(addr::cSC4Watercraft_Write)(
+            o + 8, static_cast<cIGZOStream*>(&direct));
+        reinterpret_cast<Serialize>(addr::cSC4AutomatonCore_Write)(o + 8, static_cast<cIGZOStream*>(&core));
+        wsave.Mix(wrote & 0xFF);
+        wsave.Mix(wrote2 & 0xFF);
+        const std::vector<uint8_t>& w = out.bytes;
+        wsave.Mix(static_cast<uint32_t>(w.size()));
+        wsave.Mix(w == direct.bytes ? 1u : 0u);
+        const bool fits = w.size() == core.bytes.size() + 2;
+        wsave.Mix(fits ? 1u : 0u);
+        if (w.size() >= 2)
+            wsave.MixBytes(w.data(), 2);
+        if (fits)
+            wsave.Mix(std::equal(core.bytes.begin(), core.bytes.end(), w.begin() + 2) ? 1u : 0u);
+        wsave.MixBytes(w.data(), w.size());
+        std::vector<uint8_t> cases[5] = {w, w, {}, {}, w};
+        if (cases[1].size() >= 2)
+            cases[1][0] = 3;
+        cases[3].assign(w.begin(), w.begin() + (w.size() >= 2 ? 2 : 0));
+        if (cases[4].size() >= 4)
+            cases[4].resize(cases[4].size() - 4);
+        for (int k = 0; k < 5; ++k) {
+            char* const r = WcCreate(wflags);
+            if (!r)
+                continue;
+            ByteIStream in(cases[k]);
+            const uint32_t answer = (k & 1) ? reinterpret_cast<Serialize>(addr::cSC4Watercraft_Read)(
+                                                  r + 8, static_cast<cIGZIStream*>(&in))
+                                            : Virtual<uint32_t>(r + 8, 0x10, static_cast<cIGZIStream*>(&in));
+            wsave.Mix(answer & 0xFF);
+            wsave.Mix(static_cast<uint32_t>(in.at));
+            wsave.Mix(static_cast<uint32_t>(in.error));
+            if (answer & 0xFF) {
+                ByteOStream again;
+                Virtual<uint32_t>(r + 8, 0x0C, static_cast<cIGZOStream*>(&again));
+                wsave.Mix(again.bytes == w ? 1u : 0u);
+            }
+            WcMixFields(wsave, r, false);
+            WcRelease(r);
+        }
+    }
+    wflags |= 2;
+    log::Write("autotest: automata: vehicle: wc1 save %08X", wsave.h);
+
+    // ---- The life cycle: Init over the effect modes (twice: the second
+    // answers at once), then Shutdown over the legs listed or not, in the
+    // dock table with this boat, another or none, a tow or none, no
+    // manager or no server; Shutdown again (no longer initialised). Each
+    // case on a fresh boat on the vtable copy.
+    At<void**>(o, 0) = realBoat;
+    At<uint8_t>(o, wc::field::kFlags33) = byte33;
+    At<uint32_t>(o, 0x84) = flags84;
+    for (int c = 0; c < 12; ++c) {
+        char* const b = WcCreate(wflags);
+        if (!b)
+            continue;
+        g_wc.boat = b;
+        g_wc.calls = Hash{};
+        At<void**>(b, 0) = WcBoatTable(b);
+        At<uint8_t>(b, wc::field::kFlags33) = static_cast<uint8_t>(At<uint8_t>(b, wc::field::kFlags33) & ~7u);
+        At<uint32_t>(b, 0x84) |= 0x100000u;
+        const float position[3] = {120.0f + c, 3.0f, 80.0f - c};
+        const float heading[3] = {c == 7 ? 0.0f : 0.5f * c - 2.0f, 0.0f, c == 7 ? 0.0f : 1.0f + c};
+        std::memcpy(b + wc::field::kPosition, position, 12);
+        std::memcpy(b + wc::field::kHeading58, heading, 12);
+        WcRef tow = WcMake(1), r284 = WcMake(2), target = WcMake(3);
+        WcRef keys[4] = {WcMake(4), WcMake(5), WcMake(6), WcMake(7)};
+        At<void*>(b, wc::field::kTow) = &tow;
+        At<void*>(b, wc::field::kRef284) = &r284;
+        g_wc.effectMode = c % 3;
+        uint32_t answer = This<uint32_t>(addr::cSC4Watercraft_Init, b) & 0xFF;
+        wlife.Mix(answer);
+        answer = Virtual<uint32_t>(b, 3 * 4) & 0xFF;
+        wlife.Mix(answer);
+        WcMixFields(wlife, b, true);
+        WcMixRefs(wlife, &tow, 1);
+        WcMixRefs(wlife, &r284, 1);
+        wlife.Mix(g_wc.calls.h);
+
+        // The legs, the target, the tow and the dock table.
+        At<void*>(b, wc::field::kLegA) = &keys[0];
+        At<void*>(b, wc::field::kLegB) = &keys[1];
+        At<void*>(b, wc::field::kLeg) = &keys[2];
+        At<void*>(b, wc::field::kTarget) = &target;
+        At<uint8_t>(b, wc::field::kLegA + wc::field::kLegListed) = (c & 1) ? 1 : 0;
+        At<uint8_t>(b, wc::field::kLegB + wc::field::kLegListed) = (c & 2) ? 1 : 0;
+        WcRef newTow = WcMake(8);
+        At<void*>(b, wc::field::kTow) = (c & 4) ? &newTow : nullptr;
+        WcRef other = WcMake(10);
+        alignas(4) char nodes[3][0x10] = {};
+        for (char*& bucket : buckets)
+            bucket = nullptr;
+        auto place = [&](char* node, void* key, void* first, void* second) {
+            At<void*>(node, wc::manager::kNodeKey) = key;
+            At<void*>(node, wc::manager::kNodeFirst) = first;
+            At<void*>(node, wc::manager::kNodeSecond) = second;
+            const uint32_t at = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(key) % 3);
+            At<char*>(node, 0) = buckets[at];
+            buckets[at] = node;
+        };
+        auto held = [&](void* boat) -> void* {
+            if (boat == b)
+                Virtual<uint32_t>(b, av::slot::kAddRef);
+            else if (boat)
+                Virtual<uint32_t>(boat, av::slot::kAddRef);
+            return boat;
+        };
+        switch (c % 4) {
+        case 0: place(nodes[0], &keys[0], held(b), held(b)); place(nodes[1], &keys[1], held(b), held(&other)); break;
+        case 1: place(nodes[0], &keys[1], held(&other), held(b)); break;
+        case 2: place(nodes[0], &keys[3], held(b), held(b)); place(nodes[1], &keys[0], nullptr, held(b)); break;
+        default: break;
+        }
+        g_wc.manager = c == 9 ? nullptr : manager;
+        void** const serverAt = reinterpret_cast<void**>(addr::SC4_MessageServer);
+        void* const serverWas = *serverAt;
+        if (c == 10)
+            *serverAt = nullptr;
+        g_wc.calls = Hash{};
+        answer = (c & 8) ? Virtual<uint32_t>(b, 4 * 4) & 0xFF : This<uint32_t>(addr::cSC4Watercraft_Shutdown, b) & 0xFF;
+        wlife.Mix(answer);
+        WcMixFields(wlife, b, true);
+        for (auto& node : nodes)
+            for (std::size_t at : {wc::manager::kNodeFirst, wc::manager::kNodeSecond}) {
+                void* const v = At<void*>(node, at);
+                wlife.Mix(v == b ? 1u : v == &other ? 2u : v ? 3u : 0u);
+            }
+        WcMixRefs(wlife, &tow, 1);
+        WcMixRefs(wlife, &newTow, 1);
+        WcMixRefs(wlife, &r284, 1);
+        WcMixRefs(wlife, &target, 1);
+        WcMixRefs(wlife, keys, 4);
+        wlife.Mix(static_cast<uint32_t>(other.refs));
+        wlife.Mix(g_wc.calls.h);
+        g_wc.calls = Hash{};
+        answer = This<uint32_t>(addr::cSC4Watercraft_Shutdown, b) & 0xFF;
+        wlife.Mix(answer);
+        wlife.Mix(g_wc.calls.h);
+        *serverAt = serverWas;
+        g_wc.manager = manager;
+        // The nodes' holds on this boat given back, then the boat.
+        for (auto& node : nodes)
+            for (std::size_t at : {wc::manager::kNodeFirst, wc::manager::kNodeSecond})
+                if (At<void*>(node, at) == b)
+                    Virtual<uint32_t>(b, av::slot::kRelease);
+        At<void**>(b, 0) = At<void**>(o, 0);
+        WcRelease(b);
+    }
+    wlife.Mix(g_wc.madeEffects);
+    WcMixRefs(wlife, g_wc.effects, static_cast<int>(g_wc.madeEffects));
+
+    // ---- The dock-table helpers at their addresses: a null key, a key
+    // not there, there with this boat, with another, in both slots.
+    {
+        WcRef keys[3] = {WcMake(11), WcMake(12), WcMake(13)};
+        WcRef boat = WcMake(14, 4), other = WcMake(15, 2);
+        alignas(4) char nodes[3][0x10] = {};
+        for (char*& bucket : buckets)
+            bucket = nullptr;
+        void* const listed[3][3] = {{&keys[0], &boat, &boat}, {&keys[1], &other, &boat}, {nullptr, &boat, &other}};
+        for (int i = 0; i < 3; ++i) {
+            At<void*>(nodes[i], 4) = listed[i][0];
+            At<void*>(nodes[i], 8) = listed[i][1];
+            At<void*>(nodes[i], 0xC) = listed[i][2];
+            const uint32_t at = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(listed[i][0]) % 3);
+            At<char*>(nodes[i], 0) = buckets[at];
+            buckets[at] = nodes[i];
+        }
+        g_wc.calls = Hash{};
+        void* const probes[5][2] = {
+            {nullptr, &boat}, {&keys[2], &boat}, {&keys[0], &boat}, {&keys[1], &boat}, {&keys[0], &other}};
+        for (int k = 0; k < 10; ++k) {
+            const std::uintptr_t fn =
+                (k & 1) ? addr::cSC4WatercraftManager_UnlistSecond : addr::cSC4WatercraftManager_UnlistFirst;
+            This<void>(fn, static_cast<void*>(manager), probes[k >> 1][0], probes[k >> 1][1]);
+            for (auto& node : nodes)
+                for (std::size_t at : {std::size_t{8}, std::size_t{0xC}}) {
+                    void* const v = At<void*>(node, at);
+                    wlife.Mix(v == &boat ? 1u : v == &other ? 2u : v ? 3u : 0u);
+                }
+        }
+        WcMixRefs(wlife, keys, 3);
+        wlife.Mix(static_cast<uint32_t>(boat.refs));
+        wlife.Mix(static_cast<uint32_t>(other.refs));
+        wlife.Mix(g_wc.calls.h);
+    }
+    wflags |= 4;
+
+    // ---- The deleting destructor at its address with flag 0 on a fresh
+    // boat (its block back by SC4::operator_delete after).
+    if (char* const d = reinterpret_cast<char* (*)()>(addr::cSC4Watercraft_Create)()) {
+        WcRef refs[3] = {WcMake(16), WcMake(17), WcMake(18)};
+        At<void*>(d, wc::field::kLegB) = &refs[0];
+        At<void*>(d, wc::field::kTarget) = &refs[1];
+        At<void*>(d, wc::field::kEffects + 8) = &refs[2];
+        g_wc.calls = Hash{};
+        char* const answer = This<char*>(addr::cSC4Watercraft_DeletingDestructor, d, 0u);
+        wlife.Mix(answer == d ? 1u : 0u);
+        WcMixRefs(wlife, refs, 3);
+        wlife.Mix(g_wc.calls.h);
+        reinterpret_cast<void(__cdecl*)(void*)>(addr::SC4_operator_delete)(d);
+    }
+
+    At<void**>(city, 0) = realCity;
+    g_wc.manager = nullptr;
+    WcRelease(o);
+    log::Write("autotest: automata: vehicle: wc1 wobject %08X wsave %08X wlife %08X wflags %X", wobject.h, wsave.h,
+               wlife.h, wflags);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -33994,6 +34594,11 @@ void VehicleDrive(cISC4City* city)
     uint32_t pi4flags = 0;
     PathInfo4Drive(pinfo4, pi4flags);
 
+    // ---- Part wc1.
+    Hash wobject, wsave, wlife;
+    uint32_t wflags = 0;
+    WatercraftDrive(wobject, wsave, wlife, wflags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -34050,14 +34655,14 @@ void VehicleDrive(cISC4City* city)
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%08X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
                   pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags,
-                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags);
+                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags, wobject.h, wsave.h, wlife.h, wflags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "
