@@ -1,4 +1,4 @@
-// Our boat, parts wc1, wc2a, wc2b, wc2c and wc2d (build 641): cSC4Watercraft on the automata core
+// Our boat, parts wc1, wc2a, wc2b, wc2c, wc2d and wc2e (build 641): cSC4Watercraft on the automata core
 // (src/core/automata_vehicle.cpp has the core's ported slots; the core's own
 // code stays the game's). wc1: the objects (the factory, the constructor,
 // the destructor body and the deleting destructor, QueryInterface and
@@ -13,16 +13,23 @@
 // reached. wc2c: slot 115 (the drive step) and seven small helpers of the
 // movement (a fanned direction, a cell step, the stern and bow points, the
 // longest side, a point moved, leaving the dock). wc2d: back to the start
-// point, and the six wakes stopped and started by name. The layout is in
-// src/core/automata_watercraft.h and the survey in docs/automata.md, "Part
-// wc". Calls between functions of the part go to the game's addresses, so
-// each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
-// hex, eight digits) bisects them.
+// point, and the six wakes stopped and started by name. wc2e: the turn
+// and direction helpers the movement and the states sit on (the value and
+// turn mappings over their lazy tables, the heading's near-2-degrees
+// check, its octant, the turn's rotation record, the turned-away check
+// that pushes 0x46, 0x47 or 0x49, the turn bytes from the first corner
+// the lot finder or the water service takes, and the manager method that
+// finds another boat's rectangle overlapping ours). The layout is in
+// src/core/automata_watercraft.h and the survey in docs/automata.md,
+// "Part wc". Calls between functions of the part go to the game's
+// addresses, so each detour stands alone and OPENSC4_AUTOMATA_SKIP
+// (function addresses, hex, eight digits) bisects them.
 //
 // Group, off by default:
 //   simulators.automata.watercraft: the 14 detours in kObject (wc1), the 8
 //   in kDriveList (wc2a), the 10 in kStateList (wc2b), the 8 in
-//   kDriveStepList (wc2c) and the 3 in kWakeList (wc2d) below.
+//   kDriveStepList (wc2c), the 3 in kWakeList (wc2d) and the 8 in
+//   kTurnList (wc2e) below.
 //
 // What it does. The boat is 0xDC8 bytes from SC4::operator_new and goes
 // back through SC4::operator_delete. Its constructor runs the core's with
@@ -68,14 +75,29 @@
 // wc2d's oddities: back to the start leaves the transform record's bytes
 // +2 and +3 unset (ours zero) and reads the point again after slot 12.
 //
+// wc2e's oddities: the two mappings take a zero of either sign for their
+// carries and keep a NaN through every clamp; their lazy tables fill the
+// guard dword between the loads and the stores; the heading check reads
+// its normalized parts back for the dot and stores the dot as a float
+// before __CIacos; the octant's two angles come from leftovers the game
+// multiplies by zero, so both reduce to the x part's angle and its
+// negative, and the sorts keep the unordered answers; the turn record's x
+// part takes the length's reciprocal from the register and the y and z
+// parts from its float store; the turned-away check, the turn bytes and
+// the collision walk do not test the water service, the terrain, the city
+// or the lot finder for null.
+//
 // Floats: Init's normalisation is x87 at 53 bits: (x*x + y*y) + z*z, its
 // square root, 1 (0x00B0A18C) over it, each part times that (doubles here).
 //
 // Still the game's, at their addresses: the core's code (part vb), the
 // rest of the boat (part wc2: slots 72, 109, 121, the +0x38 part's
-// slot 3 and their helpers, 0x0056C430 and 0x0056C090 among them), the group's drive parameters 0x004FC8E0,
-// the ten adjustor thunks, the string, vector, generator and effect code,
-// the message server and the city.
+// slot 3 and their helpers — 0x005694B0, 0x00569940, 0x00569E70, 0x0056BD80,
+// 0x00570270, 0x00572770, 0x00570620 and the four big ones 0x0056A440,
+// 0x0056AF90, 0x00571880 and 0x0056E5C0 — with 0x0056C430 and 0x0056C090),
+// the group's drive parameters 0x004FC8E0, the ten adjustor thunks, the
+// string, vector, generator and effect code, the message server and the
+// city.
 
 #include "core/automata_watercraft.h"
 
@@ -1462,6 +1484,557 @@ void __fastcall StartWakes(char* self, void*)
 }
 
 // ====================================================================================
+// Part wc2e: the turn and direction helpers
+
+// The x87 FCOM's answer: -1 below, 0 equal, 1 above, 2 unordered. The
+// game's branches read the status word's C0, C2 and C3; these are the four
+// answers every test in the part distinguishes.
+int FcomOrder(double a, double b)
+{
+    if (std::isnan(a) || std::isnan(b))
+        return 2;
+    if (a < b)
+        return -1;
+    if (a > b)
+        return 1;
+    return 0;
+}
+
+template <typename T>
+inline T& GlobalRef(std::uintptr_t address)
+{
+    return *reinterpret_cast<T*>(address);
+}
+
+// FPTAN of the value (the game's instruction; the 1.0 it pushes dropped).
+double X87Tan(double value)
+{
+    double result;
+    __asm {
+        fld value
+        fptan
+        fstp st(0)
+        fstp result
+    }
+    return result;
+}
+
+// The game's FLD1; FPATAN: the arctangent of the value.
+double X87Atan(double value)
+{
+    double result;
+    __asm {
+        fld value
+        fld1
+        fpatan
+        fstp result
+    }
+    return result;
+}
+
+// The game's FSIN and FCOS.
+double X87Sin(double value)
+{
+    double result;
+    __asm {
+        fld value
+        fsin
+        fstp result
+    }
+    return result;
+}
+
+double X87Cos(double value)
+{
+    double result;
+    __asm {
+        fld value
+        fcos
+        fstp result
+    }
+    return result;
+}
+
+// The C runtime's __CIacos (0x009F0090, its argument and answer in ST0),
+// as the tank's slot 121 calls it too (src/core/automata_roadveh.cpp).
+float CrtAcos(double value)
+{
+    float result;
+    const std::uintptr_t function = addr::CRT_CIacos;
+    __asm {
+        fld value
+        call function
+        fstp result
+    }
+    return result;
+}
+
+// The turn mapping's lazy table (+0 an arctangent or tangent, +4 the
+// tangent of the scale times π, +8 the negated half of the turn scale,
+// +0xC the guard). The game fills the guard dword between the loads and
+// the stores; ours in the same order. `tangentLow` picks the third entry's
+// instruction: 0x005671D0 takes its tangent, 0x00567080 its arctangent.
+void FillTurnTable(std::uintptr_t table, bool tangentLow)
+{
+    std::uint32_t bits = GlobalRef<std::uint32_t>(table + 0xC);
+    const double scale = static_cast<double>(Global<float>(constant::kTurnScale));
+    const double pi = static_cast<double>(Global<float>(constant::kPi));
+    const double half = static_cast<double>(Global<float>(addr::SC4_FloatHalf));
+    if (!(bits & 1)) {
+        GlobalRef<std::uint32_t>(table + 0xC) = bits | 1;
+        GlobalRef<float>(table + 8) = static_cast<float>(-(scale * half));
+    }
+    if (!(bits & 2)) {
+        GlobalRef<std::uint32_t>(table + 0xC) = bits | 2;
+        GlobalRef<float>(table + 4) = static_cast<float>(X87Tan(scale * pi));
+    }
+    if (!(bits & 4)) {
+        GlobalRef<std::uint32_t>(table + 0xC) = bits | 4;
+        const double low = static_cast<double>(GlobalRef<float>(table + 8));
+        GlobalRef<float>(table) =
+            static_cast<float>(tangentLow ? X87Tan(low * pi) : X87Atan(low * pi));
+    }
+}
+
+// 0x00567080, ret 4, the answer in ST0: the value (a float the caller
+// points at) clamped to the drive parameters' low and high (+0x3BC,
+// +0x3C0), carried over zero into a tangent or arctangent of itself times
+// π (FPTAN when +0xDAC is 2, FPATAN otherwise), scaled by +0x360 or +0x35C
+// over the table's tangent or arctangent, and clamped to the turn's low
+// and high (+0x35C, +0x360). The clamps keep a NaN: the first keeps the
+// value when the compare against the low is unordered, and the last keeps
+// it when the compare against the turn's high is.
+double __fastcall TurnForValue(char* self, void*, float* value)
+{
+    static bool logged;
+    FirstCall("TurnForValue", logged);
+    FillTurnTable(turntable::kForValue, false);
+    const double pi = static_cast<double>(Global<float>(constant::kPi));
+    const double low = At<float>(self, field::kParam3BC);
+    const double high = At<float>(self, field::kParam3C0);
+    double v = *value;
+    if (FcomOrder(v, low) == -1) {
+        v = low;
+    } else if (FcomOrder(v, high) == 1) {
+        v = high;
+    }
+    if (FcomOrder(v, 0.0) != 1) {
+        v = v * static_cast<double>(GlobalRef<float>(turntable::kForValue + 8)) / low;
+    } else {
+        v = v * static_cast<double>(Global<float>(constant::kTurnScale)) / high;
+    }
+    v *= pi;
+    if (At<std::uint32_t>(self, field::kWordDAC) == 2) {
+        v = X87Tan(v);
+    } else {
+        v = X87Atan(v);
+    }
+    if (FcomOrder(v, 0.0) != 1) {
+        v = v * At<float>(self, field::kParam360) /
+            static_cast<double>(GlobalRef<float>(turntable::kForValue + 4));
+    } else {
+        v = v * At<float>(self, field::kParam35C) /
+            static_cast<double>(GlobalRef<float>(turntable::kForValue));
+    }
+    const double turnLow = At<float>(self, field::kParam35C);
+    const double turnHigh = At<float>(self, field::kParam360);
+    if (FcomOrder(v, turnLow) == -1) {
+        v = turnLow;
+    } else if (FcomOrder(v, turnHigh) == 1) {
+        v = turnHigh;
+    }
+    return v;
+}
+
+// 0x005671D0, ret 4, the answer in ST0: the turn (a float the caller
+// points at) clamped to +0x35C/+0x360, carried over zero into an
+// arctangent of itself scaled by the table's entries, times 2/π, scaled by
+// +0x3C0 or +0x3BC over the turn scale's copy (0x00B0A150) or the table's
+// negated half, and clamped to +0x3BC/+0x3C0. The inverse of
+// TurnForValue's mapping, with its own lazy table.
+double __fastcall ValueForTurn(char* self, void*, float* value)
+{
+    static bool logged;
+    FirstCall("ValueForTurn", logged);
+    FillTurnTable(turntable::kForTurn, true);
+    const double low = At<float>(self, field::kParam35C);
+    const double high = At<float>(self, field::kParam360);
+    double v = *value;
+    if (FcomOrder(v, low) == -1) {
+        v = low;
+    } else if (FcomOrder(v, high) == 1) {
+        v = high;
+    }
+    if (FcomOrder(v, 0.0) != 1) {
+        v = v * static_cast<double>(GlobalRef<float>(turntable::kForTurn)) / low;
+    } else {
+        v = v * static_cast<double>(GlobalRef<float>(turntable::kForTurn + 4)) / high;
+    }
+    v = X87Atan(v);
+    v *= static_cast<double>(Global<float>(constant::kTwoOverPi));
+    if (FcomOrder(v, 0.0) != 1) {
+        v = v * At<float>(self, field::kParam3BC) /
+            static_cast<double>(GlobalRef<float>(turntable::kForTurn + 8));
+    } else {
+        v = v * At<float>(self, field::kParam3C0) /
+            static_cast<double>(Global<float>(constant::kTurnScaleHigh));
+    }
+    const double valueLow = At<float>(self, field::kParam3BC);
+    const double valueHigh = At<float>(self, field::kParam3C0);
+    if (FcomOrder(v, valueLow) == -1) {
+        v = valueLow;
+    } else if (FcomOrder(v, valueHigh) == 1) {
+        v = valueHigh;
+    }
+    return v;
+}
+
+// 0x00567ED0, ret 0xC, AL: the core's heading (+0x58, normalized in place
+// as floats, its length worked out at (z² + y²) + x²) turned towards the
+// point (x, y, z): the angle between them (the runtime's __CIacos of the
+// dot, stored as a float, times 180/π) below 2.0 degrees. The dot is
+// clamped to -1 and 1 first (a NaN dot goes to __CIacos as it is and
+// answers 0); the heading's normalized parts are what the dot reads.
+std::uint8_t __fastcall HeadingNear(char* self, void*, float x, float y, float z)
+{
+    static bool logged;
+    FirstCall("HeadingNear", logged);
+    const double inv = static_cast<double>(Global<float>(addr::cSC4Watercraft_One)) /
+                       std::sqrt((static_cast<double>(z) * z + static_cast<double>(y) * y) +
+                                 static_cast<double>(x) * x);
+    const double savedX = At<float>(self, field::kHeading58);
+    const double lenH =
+        std::sqrt((savedX * savedX + At<float>(self, field::kHeading58 + 4) *
+                                         At<float>(self, field::kHeading58 + 4)) +
+                  At<float>(self, field::kHeading58 + 8) * At<float>(self, field::kHeading58 + 8));
+    const double invH = static_cast<double>(Global<float>(addr::cSC4Watercraft_One)) /
+                        static_cast<float>(lenH);
+    At<float>(self, field::kHeading58) = static_cast<float>(invH * savedX);
+    At<float>(self, field::kHeading58 + 4) = static_cast<float>(invH * At<float>(self, field::kHeading58 + 4));
+    At<float>(self, field::kHeading58 + 8) = static_cast<float>(invH * At<float>(self, field::kHeading58 + 8));
+    double dot = ((static_cast<double>(z) * inv) * At<float>(self, field::kHeading58 + 8) +
+                  (static_cast<double>(y) * inv) * At<float>(self, field::kHeading58 + 4)) +
+                 (static_cast<double>(x) * inv) * At<float>(self, field::kHeading58);
+    if (FcomOrder(dot, static_cast<double>(Global<float>(constant::kMinusOne))) == -1) {
+        dot = -1.0;
+    } else if (FcomOrder(dot, 1.0) == 1) {
+        dot = 1.0;
+    }
+    const double degrees =
+        static_cast<double>(CrtAcos(static_cast<float>(dot))) *
+        static_cast<double>(Global<float>(constant::kDegrees));
+    return FcomOrder(degrees, static_cast<double>(Global<float>(constant::kTwoDegrees))) == -1 ? 1 : 0;
+}
+
+// 0x00567FD0, plain ret, EAX 0..7: which of the eight directions the
+// boat's heading (+0x30C, normalized with the length (hz² + hy²) + hx²)
+// points to. The x87 works two __CIacos angles in degrees (of the x part
+// over the leftovers the game multiplies by zero, so both reduce to the x
+// part's angle and its negative) and sorts them against 22.5 and 68
+// degrees, with the z part's sign and size. A NaN heading sorts by the
+// same tests' unordered answers.
+int __fastcall HeadingOctant(char* self, void*)
+{
+    static bool logged;
+    FirstCall("HeadingOctant", logged);
+    const float hx = At<float>(self, field::kHeading);
+    const float hy = At<float>(self, field::kHeading + 4);
+    const float hz = At<float>(self, field::kHeading + 8);
+    const float inv = static_cast<float>(
+        static_cast<double>(Global<float>(addr::cSC4Watercraft_One)) /
+        std::sqrt((static_cast<double>(hz) * hz + static_cast<double>(hy) * hy) +
+                  static_cast<double>(hx) * hx));
+    const double a = static_cast<double>(hx) * inv;  // stored as a float
+    const double b = static_cast<double>(hy) * inv;
+    const double c = static_cast<double>(hz) * inv;
+    const double zeroA = a * 0.0;                    // the game's FMUL by 0.0
+    const double zeroB = b * 0.0;
+    const double zeroC = c * 0.0;
+    const float aFloat = static_cast<float>(a);
+    const float q = static_cast<float>(zeroC + zeroB);          // [ESP+8]
+    const float p = static_cast<float>(static_cast<double>(q) + aFloat);  // [ESP+4] and [ESP+0xC]
+    const float s = static_cast<float>((zeroA + zeroB) + c);    // [ESP]
+    const float angleX = static_cast<float>(
+        static_cast<double>(CrtAcos(p)) * static_cast<double>(Global<float>(constant::kDegrees)));
+    const float angleZ = static_cast<float>(
+        static_cast<double>(CrtAcos(static_cast<double>(q) - static_cast<double>(aFloat))) *
+        static_cast<double>(Global<float>(constant::kDegrees)));
+    const double narrow = static_cast<double>(Global<float>(constant::kOctantNarrow));
+    const double wide = static_cast<double>(Global<float>(constant::kOctantWide));
+    if (FcomOrder(p, 0.0) != 0) {
+        // p not zero (or unordered): the z angle sorts when p is at or
+        // below zero, the x angle when it is above.
+        if (FcomOrder(p, 0.0) != 1) {
+            if (FcomOrder(s, 0.0) == 0)
+                return 7;
+            if (FcomOrder(s, 0.0) != 1) {
+                if (FcomOrder(angleZ, narrow) == -1)
+                    return 7;
+                return FcomOrder(angleZ, wide) != -1 ? 1 : 0;
+            }
+            if (FcomOrder(angleZ, narrow) == -1)
+                return 7;
+            return FcomOrder(angleZ, wide) != -1 ? 5 : 6;
+        }
+        if (FcomOrder(s, 0.0) == 0)
+            return 3;
+        if (FcomOrder(s, 0.0) != 1) {
+            if (FcomOrder(angleX, narrow) == -1)
+                return 3;
+            return FcomOrder(angleX, wide) != -1 ? 1 : 2;
+        }
+        if (FcomOrder(angleX, narrow) == -1)
+            return 3;
+        return FcomOrder(angleX, wide) != -1 ? 5 : 4;
+    }
+    return FcomOrder(s, 0.0) != 1 ? 1 : 5;
+}
+
+// 0x005682F0, ret 4: the turn's rotation record (the transform record's
+// 3x3 at +4, its flags |= 4 and count += 1), left alone when the speed
+// (+0x2DC) is not above zero. The turn is the speed over +0x360 times
+// +0x390 times the turn (+0x2E0), clamped to ±+0x394 (a NaN kept) and
+// halved; the axis is the boat's heading (+0x30C) normalized with the
+// length (hy² + hz²) + hx². The record is the rotation's quaternion
+// (cos t, sin t x n): the diagonal 1 - 2 of two squares, the cross terms
+// two products and twice the cosine times a part. The x part's products
+// take the length's reciprocal from the register (the game's FMUL ST2)
+// and the y and z parts from its float store (FMUL [ESP+0x20]), as the
+// game's does.
+void __fastcall TurnTransform(char* self, void*, char* record)
+{
+    static bool logged;
+    FirstCall("TurnTransform", logged);
+    const double speed = At<float>(self, field::kSpeed);
+    if (FcomOrder(speed, 0.0) != 1)
+        return;
+    double t = ((speed / At<float>(self, field::kParam360)) * At<float>(self, field::kParam390)) *
+               At<float>(self, field::kTurn);
+    const double limit = At<float>(self, field::kParam394);
+    if (FcomOrder(t, -limit) == -1) {
+        t = -limit;
+    } else if (FcomOrder(t, limit) == 1) {
+        t = limit;
+    }
+    t *= static_cast<double>(Global<float>(addr::SC4_FloatHalf));
+    const float hx = At<float>(self, field::kHeading);
+    const float hy = At<float>(self, field::kHeading + 4);
+    const float hz = At<float>(self, field::kHeading + 8);
+    const double inv = static_cast<double>(Global<float>(addr::cSC4Watercraft_One)) /
+                       std::sqrt((static_cast<double>(hy) * hy + static_cast<double>(hz) * hz) +
+                                 static_cast<double>(hx) * hx);
+    const float invFloat = static_cast<float>(inv);
+    const double sinT = X87Sin(t);
+    const double cosT = X87Cos(t);
+    const float qx = static_cast<float>(static_cast<float>(hx * inv) * sinT);
+    const float qy = static_cast<float>((hy * invFloat) * sinT);
+    const double qz = (hz * invFloat) * sinT;
+    const double qy2 = static_cast<double>(qy) * qy;
+    const double qz2 = qz * qz;
+    const double qx2 = static_cast<double>(qx) * qx;
+    At<float>(record, 4) = static_cast<float>((1.0 - 2.0 * qy2) - 2.0 * qz2);
+    At<float>(record, 8) = static_cast<float>(2.0 * qx * qy + 2.0 * cosT * qz);
+    At<float>(record, 0xC) = static_cast<float>(2.0 * qx * qz - 2.0 * cosT * qy);
+    At<float>(record, 0x10) = static_cast<float>(2.0 * qx * qy - 2.0 * cosT * qz);
+    At<float>(record, 0x14) = static_cast<float>((1.0 - 2.0 * qx2) - 2.0 * qz2);
+    At<float>(record, 0x18) = static_cast<float>(2.0 * qy * qz + 2.0 * cosT * qx);
+    At<float>(record, 0x1C) = static_cast<float>(2.0 * cosT * qy + 2.0 * qx * qz);
+    At<float>(record, 0x20) = static_cast<float>(2.0 * qy * qz - 2.0 * cosT * qx);
+    At<float>(record, 0x24) = static_cast<float>((1.0 - 2.0 * qx2) - 2.0 * qy2);
+    At<std::uint8_t>(record, 1) = static_cast<std::uint8_t>(At<std::uint8_t>(record, 1) | 4);
+    At<std::uint8_t>(record, 0) = static_cast<std::uint8_t>(At<std::uint8_t>(record, 0) + 1);
+}
+
+// The four corners of the occupant part's cell box, in the order the
+// water checks take them: (x0, z0), (x0, z1), (x1, z0), (x1, z1).
+void Corners(const std::int32_t cells[4], std::int32_t out[4][2])
+{
+    const int xs[4] = {cells[0], cells[0], cells[2], cells[2]};
+    const int zs[4] = {cells[1], cells[3], cells[1], cells[3]};
+    for (int i = 0; i < 4; ++i) {
+        out[i][0] = xs[i];
+        out[i][1] = zs[i];
+    }
+}
+
+// The two halves of CheckTurn's and the next helper's state pushes: slot
+// 102 (0xB, 0) and the state 0x46 or 0x47 pushed with the template's
+// group when the state (slot 59) is 0x10, else 0x49 with -1.0. The
+// game's slot 59 runs again for each push.
+void PushTurnState(char* self, std::uint32_t type)
+{
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x10) {
+        Virtual<void>(self, slot::kSlot102, 0xBu, 0u);
+        Virtual<void>(self, slot::kPushState, type, 0u, At<std::uint32_t>(self, field::kParam398), 1u, 0u,
+                      0u, 0u);
+    } else {
+        PushState(self, 0x49);
+    }
+}
+
+// 0x00568570, plain ret: the turned-away check. When any of the box's four
+// corners fails the water service's slot 13 (0x00B43CF0), the angle
+// between the heading's negative (normalized, the length (d2² + d1²) +
+// d0²) and the terrain's water point at the boat (its slot 27 at the
+// point's x and z, normalized the same way), both dotted and worked out
+// by __CIacos, above +0x3A8: the state 0x46 pushed with the template's
+// group (+0x398) and slot 102 (0xB, 0) first when the state (slot 59) is
+// 0x10, else 0x49 with -1.0; at or below (a NaN included) the same with
+// 0x47. When every corner passes, the 0x47 half alone.
+void __fastcall CheckTurn(char* self, void*)
+{
+    static bool logged;
+    FirstCall("CheckTurn", logged);
+    std::int32_t cells[4] = {};
+    Virtual<void>(self + kVtable4, slot::kCells, static_cast<void*>(cells));
+    std::int32_t corners[4][2];
+    Corners(cells, corners);
+    bool refused = false;
+    void* const water = Global<void*>(addr::SC4_Service43CF0);
+    for (int i = 0; i < 4; ++i) {
+        if (!Virtual<std::uint8_t>(water, slot::kWaterCell, static_cast<std::uint32_t>(corners[i][0]),
+                                   static_cast<std::uint32_t>(corners[i][1])))
+            refused = true;
+    }
+    if (!refused) {
+        PushTurnState(self, 0x47);
+        return;
+    }
+    const double dir[3] = {-static_cast<double>(At<float>(self, field::kHeading)),
+                           -static_cast<double>(At<float>(self, field::kHeading + 4)),
+                           -static_cast<double>(At<float>(self, field::kHeading + 8))};
+    float at[3] = {};
+    Virtual<void>(Global<void*>(addr::SC4_Terrain), slot::kWaterPoint, At<float>(self, field::kPoint),
+                  At<float>(self, field::kPoint + 8), static_cast<void*>(at));
+    const double invDir = static_cast<double>(Global<float>(addr::cSC4Watercraft_One)) /
+                          std::sqrt((dir[2] * dir[2] + dir[1] * dir[1]) + dir[0] * dir[0]);
+    const double invAt = static_cast<double>(Global<float>(addr::cSC4Watercraft_One)) /
+                         std::sqrt((static_cast<double>(at[2]) * at[2] +
+                                    static_cast<double>(at[1]) * at[1]) +
+                                   static_cast<double>(at[0]) * at[0]);
+    const float dirN[3] = {static_cast<float>(dir[0] * invDir), static_cast<float>(dir[1] * invDir),
+                           static_cast<float>(dir[2] * invDir)};
+    const float atN[3] = {static_cast<float>(at[0] * invAt), static_cast<float>(at[1] * invAt),
+                          static_cast<float>(at[2] * invAt)};
+    const double dot = (static_cast<double>(atN[2]) * dirN[2] + static_cast<double>(atN[1]) * dirN[1]) +
+                       static_cast<double>(dirN[0]) * atN[0];
+    const double angle = static_cast<double>(CrtAcos(dot));
+    if (FcomOrder(angle, static_cast<double>(At<float>(self, field::kParam3A8))) != 1)
+        PushTurnState(self, 0x47);
+    else
+        PushTurnState(self, 0x46);
+}
+
+// 0x005687C0, plain ret, AL: the turn bytes (+0x2C8, +0x2C9) from the
+// first corner of the box that the city's lot finder's slot 6 (x, z, 0)
+// takes; when none does and +0x2B0 is clear, the first corner the water
+// service's slot 8 (x, z, 0, 0) refuses — the fallback's corners in the
+// game's order (x0, z0), (x1, z1), (x1, z0), (x0, z1). The bytes come
+// from the core heading's x and z (+0x58, +0x60): the octant of their
+// signs and sizes, per edge, by the game's four tables; every hit writes
+// both bytes and answers 1, no hit (or an edge past the table) answers 0
+// or 1 with the bytes alone.
+std::uint8_t __fastcall SetTurnBytes(char* self, void*)
+{
+    static bool logged;
+    FirstCall("SetTurnBytes", logged);
+    std::int32_t cells[4] = {};
+    Virtual<void>(self + kVtable4, slot::kCells, static_cast<void*>(cells));
+    int edge = -1;
+    void* const city = Global<void*>(addr::SC4_City);
+    for (int i = 0; i < 4; ++i) {
+        void* const finder = Virtual<void*>(city, slot::kLotAt);
+        if (Virtual<std::uint32_t>(finder, slot::kLotOfCell,
+                                             static_cast<std::uint32_t>(i < 2 ? cells[0] : cells[2]),
+                                             static_cast<std::uint32_t>(i % 2 == 0 ? cells[1] : cells[3]),
+                                             0u)) {
+            edge = i;
+            break;
+        }
+    }
+    if (At<std::uint8_t>(self, field::kByte2B0) == 0 && edge == -1) {
+        void* const water = Global<void*>(addr::SC4_Service43CF0);
+        static const int kFallbackX[4] = {0, 2, 2, 0};
+        static const int kFallbackZ[4] = {1, 3, 1, 3};
+        for (int i = 0; i < 4; ++i) {
+            if (!Virtual<std::uint8_t>(water, slot::kWaterService8,
+                                       static_cast<std::uint32_t>(cells[kFallbackX[i]]),
+                                       static_cast<std::uint32_t>(cells[kFallbackZ[i]]), 0u, 0u)) {
+                edge = i;
+                break;
+            }
+        }
+        if (edge == -1)
+            return 0;
+    }
+    if (edge == -1)
+        return 0;
+    const float hx = At<float>(self, field::kHeading58);
+    const float hz = At<float>(self, field::kHeading58 + 8);
+    const bool xNonPos = FcomOrder(hx, 0.0) != 1;                  // at or below zero, or NaN
+    const bool zNonNeg = FcomOrder(hz, 0.0) != -1;                 // at or above zero, or NaN
+    int octant;
+    if (FcomOrder(std::fabs(static_cast<double>(hz)), std::fabs(static_cast<double>(hx))) != -1) {
+        octant = xNonPos ? (zNonNeg ? 7 : 6) : (zNonNeg ? 5 : 4);
+    } else {
+        octant = xNonPos ? (zNonNeg ? 1 : 0) : (zNonNeg ? 3 : 2);
+    }
+    // The game's four tables (0x00568B20 and on): the byte pair per edge
+    // and octant, as (the +0x2C8 byte, the +0x2C9 byte).
+    static const std::uint8_t kBytes[4][8][2] = {
+        {{1, 0}, {1, 0}, {0, 1}, {0, 1}, {0, 0}, {1, 1}, {0, 0}, {1, 1}},
+        {{1, 1}, {1, 1}, {0, 0}, {0, 0}, {1, 0}, {0, 1}, {1, 0}, {0, 1}},
+        {{0, 0}, {0, 0}, {1, 1}, {1, 1}, {0, 1}, {1, 0}, {0, 1}, {1, 0}},
+        {{0, 1}, {0, 1}, {1, 0}, {1, 0}, {1, 1}, {0, 0}, {1, 1}, {0, 0}},
+    };
+    At<std::uint8_t>(self, field::kByte2C8) = kBytes[edge][octant][0];
+    At<std::uint8_t>(self, field::kByte2C9) = kBytes[edge][octant][1];
+    return 1;
+}
+
+// 0x005690D0, ret 0x14 (a manager method: the list at +0x44 is the common
+// base's, though the survey put it in the boat's part): the rectangle of
+// `automaton` at (x, y, z, scale) (0x0050A310) against every other of the
+// manager's automata whose point (+0x2F4) lies nearer than the longer of
+// the two boats' longest sides (0x00567B10, the other's kept at 80 bits
+// against the first's float), and whose own rectangle at the origin
+// (0x0050A310) overlaps ours (0x00506450). That automaton, or null.
+void* __fastcall CollidingAutomaton(void* manager, void*, void* automaton, float x, float y, float z,
+                                    float scale)
+{
+    static bool logged;
+    FirstCall("CollidingAutomaton", logged);
+    alignas(4) char rect[0x24];
+    CallThis<void*>(addr::SC4AutomatonRect_Construct, static_cast<void*>(rect), automaton, x, y, z, scale);
+    char* const head = At<char*>(manager, 0x44);
+    for (char* walk = At<char*>(head, 0); walk != head; walk = At<char*>(walk, 0)) {
+        void* const other = At<void*>(walk, 8);
+        if (!automaton || !other || other == automaton)
+            continue;
+        const double dx = static_cast<double>(At<float>(automaton, field::kPoint)) -
+                          At<float>(other, field::kPoint);
+        const double dy = static_cast<double>(At<float>(automaton, field::kPoint + 4)) -
+                          At<float>(other, field::kPoint + 4);
+        const double dz = static_cast<double>(At<float>(automaton, field::kPoint + 8)) -
+                          At<float>(other, field::kPoint + 8);
+        const float distance = static_cast<float>(std::sqrt((dx * dx + dy * dy) + dz * dz));
+        const float sideA = static_cast<float>(CallThis<double>(addr::cSC4Watercraft_LongestSide, automaton));
+        const double sideB = CallThis<double>(addr::cSC4Watercraft_LongestSide, other);
+        void* const longer = sideB < sideA ? other : automaton;
+        const double reach = CallThis<double>(addr::cSC4Watercraft_LongestSide, longer);
+        if (FcomOrder(distance, reach) == -1) {
+            alignas(4) char otherRect[0x24];
+            CallThis<void*>(addr::SC4AutomatonRect_Construct, static_cast<void*>(otherRect), other, 0.0f,
+                            0.0f, 0.0f, 1.0f);
+            if (CallThis<std::uint8_t>(addr::SC4AutomatonRect_Overlaps, static_cast<void*>(rect),
+                                       static_cast<void*>(otherRect)))
+                return other;
+        }
+    }
+    return nullptr;
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -1567,6 +2140,18 @@ const Detour kWakeList[] = {
     OPENSC4_DETOUR(addr::cSC4Watercraft_StartWakes, StartWakes),
 };
 
+// Part wc2e.
+const Detour kTurnList[] = {
+    OPENSC4_DETOUR(addr::cSC4Watercraft_TurnForValue, TurnForValue),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_ValueForTurn, ValueForTurn),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_HeadingNear, HeadingNear),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_HeadingOctant, HeadingOctant),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_TurnTransform, TurnTransform),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_CheckTurn, CheckTurn),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_SetTurnBytes, SetTurnBytes),
+    OPENSC4_DETOUR(addr::cSC4AutomataManager_CollidingAutomaton, CollidingAutomaton),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
@@ -1575,7 +2160,8 @@ bool InstallObject(registry::Mode)
            InstallList(kDriveList, sizeof kDriveList / sizeof kDriveList[0], "drive") &&
            InstallList(kStateList, sizeof kStateList / sizeof kStateList[0], "state") &&
            InstallList(kDriveStepList, sizeof kDriveStepList / sizeof kDriveStepList[0], "drive step") &&
-           InstallList(kWakeList, sizeof kWakeList / sizeof kWakeList[0], "wake");
+           InstallList(kWakeList, sizeof kWakeList / sizeof kWakeList[0], "wake") &&
+           InstallList(kTurnList, sizeof kTurnList / sizeof kTurnList[0], "turn");
 }
 
 const bool g_registered[] = {
@@ -1589,7 +2175,10 @@ const bool g_registered[] = {
                         "leg unlisted, the dock table's two listings, three checks, a path point erased and the next "
                         "leg reached (10, part wc2b); slot 115 (the drive step), the fanned direction, the cell step, the "
                         "stern and bow points, the longest side, the moved point and leaving the dock (8, part wc2c); "
-                        "back to the start and the wakes stopped and started (3, part wc2d; "
+                        "back to the start and the wakes stopped and started (3, part wc2d); the turn and direction "
+                        "helpers: the value and turn mappings over their lazy tables, the heading's near check and "
+                        "octant, the turn's rotation record, the turned-away check, the turn bytes and the manager's "
+                        "colliding-automaton walk (8, part wc2e; "
                         "src/core/automata_watercraft.cpp)",
                         false, InstallObject}),
 };

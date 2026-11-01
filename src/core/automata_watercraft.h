@@ -1,4 +1,4 @@
-// The layout of the boat, cSC4Watercraft, parts wc1, wc2a, wc2b, wc2c and wc2d (build 641;
+// The layout of the boat, cSC4Watercraft, parts wc1, wc2a, wc2b, wc2c, wc2d and wc2e (build 641;
 // functions, vtables and data in data/addresses/automata.toml, the survey
 // in docs/automata.md, "Part wc").
 //
@@ -62,6 +62,7 @@ inline constexpr std::size_t kPath = 0x2A4; // begin, end, capacity of 16-byte p
 inline constexpr std::size_t kByte2B0 = 0x2B0, kByte2B1 = 0x2B1, kByte2B2 = 0x2B2;
 inline constexpr std::size_t kWord2B4 = 0x2B4, kWord2B8 = 0x2B8, kWord2BC = 0x2BC;
 inline constexpr std::size_t kWord2C0 = 0x2C0, kWord2C4 = 0x2C4;
+inline constexpr std::size_t kByte2C8 = 0x2C8, kByte2C9 = 0x2C9; // the turn bytes (wc2e)
 inline constexpr std::size_t kByte2CA = 0x2CA, kByte2CB = 0x2CB, kByte2CC = 0x2CC;
 inline constexpr std::size_t kWord2D0 = 0x2D0, kWord2D4 = 0x2D4, kByte2D8 = 0x2D8;
 inline constexpr std::size_t kSpeed = 0x2DC, kTurn = 0x2E0, kWord2E4 = 0x2E4;
@@ -70,6 +71,9 @@ inline constexpr std::size_t kTarget = 0x318, kTargetPath = 0x31C, kByte340 = 0x
 inline constexpr std::size_t kDriveParams = 0x344, kDriveParamsSize = 0xA0;
 inline constexpr std::size_t kParam394 = 0x394, kParam3D4 = 0x3D4; // two drive parameters (wc2b)
 inline constexpr std::size_t kParam350 = 0x350, kParam354 = 0x354, kParam3D0 = 0x3D0; // three more (wc2c)
+inline constexpr std::size_t kParam35C = 0x35C, kParam360 = 0x360; // the turn's low and high (wc2e)
+inline constexpr std::size_t kParam390 = 0x390, kParam398 = 0x398, kParam3A8 = 0x3A8; // three more (wc2e)
+inline constexpr std::size_t kParam3BC = 0x3BC, kParam3C0 = 0x3C0; // the value's low and high (wc2e)
 inline constexpr std::size_t kGenerator = 0x3E4, kWordDAC = 0xDAC;
 inline constexpr std::size_t kEffects = 0xDB0, kEffectCount = 6;
 // The core's.
@@ -107,6 +111,27 @@ namespace transform {
 inline constexpr std::size_t kSize = 0x38, kCount = 0x00, kFlags = 0x01, kPoint = 0x28;
 } // namespace transform
 
+// The lazy tables of the turn mapping (parts wc2e): four floats and a guard
+// each, filled on first use. +0 an arctangent, +4 a tangent, +8 the negated
+// half of the turn scale 0x00B0A14C (0.90929427), +0xC the guard dword.
+namespace turntable {
+inline constexpr std::uintptr_t kForValue = 0x00B22A84;  // +0xC the guard
+inline constexpr std::uintptr_t kForTurn = 0x00B22A94;   // +0xC the guard
+} // namespace turntable
+
+// Constants of the turn and octant helpers (parts wc2e).
+namespace constant {
+inline constexpr std::uintptr_t kPi = 0x00A9DA50;            // π
+inline constexpr std::uintptr_t kDegrees = 0x00A9DA5C;       // 180/π
+inline constexpr std::uintptr_t kTwoOverPi = 0x00A9DA60;     // 2/π
+inline constexpr std::uintptr_t kOctantNarrow = 0x00A9DA88;  // 22.5
+inline constexpr std::uintptr_t kOctantWide = 0x00A9DA84;    // 68.0
+inline constexpr std::uintptr_t kTurnScale = 0x00B0A14C;     // 0.90929427
+inline constexpr std::uintptr_t kTurnScaleHigh = 0x00B0A150; // the same value, the inverse mapping's
+inline constexpr std::uintptr_t kMinusOne = 0x00A8FE78;      // -1.0
+inline constexpr std::uintptr_t kTwoDegrees = 0x00B0A154;    // 2.0
+} // namespace constant
+
 // The slots this part calls.
 namespace slot {
 inline constexpr std::size_t kGetTransform = 0x30;  // 12: (transform* out), ret 4
@@ -129,6 +154,11 @@ inline constexpr std::size_t kSlot77 = 0x134;       // 77: (bool), ret 4
 inline constexpr std::size_t kSlot102 = 0x198;      // 102: (0xB, 0), ret 8
 inline constexpr std::size_t kSlot104 = 0x1A0;      // 104, after the placement
 inline constexpr std::size_t kSlot107 = 0x1AC;      // 107, after the placement
+inline constexpr std::size_t kLotAt = 0x84;         // the city's 33: () the lot finder object
+inline constexpr std::size_t kLotOfCell = 0x18;     // the lot finder's 6: (cell x, cell z, 0), AL
+inline constexpr std::size_t kWaterCell = 0x34;     // 0x00B43CF0's 13: (cell x, cell z), AL
+inline constexpr std::size_t kWaterService8 = 0x20; // 0x00B43CF0's 8: (cell x, cell z, kind, 0), AL
+inline constexpr std::size_t kWaterPoint = 0x6C;    // the terrain's 27: (x, z, float out[3])
 inline constexpr std::size_t kCityWatercraft = 0xB8; // the city's 46: the watercraft manager
 inline constexpr std::size_t kCityEffects = 0x154;   // the city's 85: the effects manager
 inline constexpr std::size_t kCellOf = 0x17C;        // the city's 95: (x, z, int*, int*), ret 0x10
