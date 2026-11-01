@@ -1064,3 +1064,83 @@ inline void StepPartB(char* part, float step)
         }
     }
 }
+
+// --- The part's start --------------------------------------------------------------------------
+//
+// 0x00803E10 (part E17): what the second class's draw still called by
+// address for an effect with +0x26C set and flag 4 of its description's
+// third word, with the object at 0x00B43DDC (which lights) and 0; the
+// vehicles' highlights call it too. It lights the instance's copies of the
+// part's meshes: their colours from the lists of three floats a vertex
+// (+0x24) turned by the matrix of the object the part was attached to
+// (+0). What the notes call that object's slot 0x24 (the block it fills)
+// and the lighting object's slot 0x6C (0xE800 and 0xE900 and the slot).
+constexpr uint32_t kSdPartOwner = 0xE800, kSdLighting = 0xE900;
+
+// A float negated by the x87 (FLD, FCHS, FSTP): its sign turned, a
+// signalling NaN made quiet as it is loaded.
+inline uint32_t SdNegated(uint32_t bits)
+{
+    bits ^= 0x80000000u;
+    if ((bits & 0x7F800000u) == 0x7F800000u && (bits & 0x007FFFFFu) != 0)
+        bits |= 0x00400000u;
+    return bits;
+}
+
+// 0x00803E10 (ret 8), with the lighting object and a flag (its low byte).
+// When the part's lists of three floats are empty, 0x00803370 makes them.
+// The instance (+4) answers its slot 0x18 with 0, and the byte at that
+// answer's +4 gets bit 8. The object the part was attached to fills a
+// block of one on the diagonal (its slot 0x24; the bytes zero, the place
+// zero, the scale one), whose matrix, each float negated for the flag, is
+// handed with each mesh (the count read again each time) whose format is
+// the expanded legacy format 2 (GDVertexFormat::Expand) to the lighting
+// object's slot 0x6C: the mesh's list of three floats (its count, the
+// list, 12 bytes apart), the colours of the instance's copy of the mesh
+// (its slot 0x10 with the index answers where the copy is kept; the
+// copy's vertices at its +8, 0x18 bytes each, the colour at +0xC) and the
+// matrix.
+inline void StartPartB(char* part, char* lighting, uint32_t flag)
+{
+    if (At<uint32_t>(part, 0x24) == At<uint32_t>(part, 0x28))
+        CallThis<void>(addr::SC4EffectPartB_MakeNormals, part);
+    char* instance = At<char*>(part, 4);
+    const uint32_t zero = 0;
+    const uint32_t marked = BOurs(kSdPartInstance + 0x18, Word(instance), Word(&zero), 4, [&] {
+        return CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0x18), instance, 0u);
+    });
+    At<uint8_t>(Ptr(marked), 4) |= 8;
+    char block[sizeof(SdFilled)];
+    SdPlainBlock(block, 0, nullptr);
+    char* const owner = At<char*>(part, 0);
+    BOurs(kSdPartOwner + 0x24, Word(owner), Word(block), kBBlock,
+          [&] { return CallThis<uint32_t>(At<uint32_t>(At<char*>(owner, 0), 0x24), owner, block); });
+    if (g_bReplay && g_sdFilledAt < g_sdFilled.size())
+        std::memcpy(block, g_sdFilled[g_sdFilledAt++].bytes, sizeof(SdFilled));
+    uint32_t matrix[9];
+    std::memcpy(matrix, block + 4, sizeof matrix);
+    if (static_cast<uint8_t>(flag))
+        for (uint32_t& value : matrix)
+            value = SdNegated(value);
+    const auto meshes = [&] {
+        return static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(part, 0x10) - At<uint32_t>(part, 0xC)) >> 2);
+    };
+    for (uint32_t i = 0; i < meshes(); ++i) {
+        if (At<uint32_t>(At<char**>(part, 0xC)[i], 0) !=
+            reinterpret_cast<uint32_t(__cdecl*)(uint32_t)>(addr::GDVertexFormat_Expand)(2))
+            continue;
+        instance = At<char*>(part, 4);
+        const uint32_t kept = BOurs(kSdPartInstance + 0x10, Word(instance), Word(&i), 4, [&] {
+            return CallThis<uint32_t>(At<uint32_t>(At<char*>(instance, 0), 0x10), instance, i);
+        });
+        char* const list = At<char*>(part, 0x24) + i * 0xC;
+        const uint32_t count =
+            static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(list, 4) - At<uint32_t>(list, 0)) / 12);
+        uint32_t noted[14] = {count, At<uint32_t>(list, 0), 12, Word(At<char*>(M<char*>(kept), 8) + 0xC), 0x18};
+        std::memcpy(noted + 5, matrix, sizeof matrix);
+        BOurs(kSdLighting + 0x6C, Word(lighting), Word(noted), sizeof noted, [&] {
+            return CallThis<uint32_t>(At<uint32_t>(At<char*>(lighting, 0), 0x6C), lighting, noted[0], noted[1], 12u,
+                                      noted[3], 0x18u, matrix);
+        });
+    }
+}
