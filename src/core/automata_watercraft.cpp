@@ -1,4 +1,4 @@
-// Our boat, parts wc1 and wc2a (build 641): cSC4Watercraft on the automata core
+// Our boat, parts wc1, wc2a and wc2b (build 641): cSC4Watercraft on the automata core
 // (src/core/automata_vehicle.cpp has the core's ported slots; the core's own
 // code stays the game's). wc1: the objects (the factory, the constructor,
 // the destructor body and the deleting destructor, QueryInterface and
@@ -7,15 +7,18 @@
 // the placement, and slot 93, the debug text). wc2a: the drive parameters'
 // reader, the legs' copy and assignment, beginning a leg, picking and
 // beginning the next leg of a ferry route, the sign of a float and the tow's
-// release. The layout is in
+// release. wc2b: slots 110 and 111 (entering and leaving a state), the
+// leg under way unlisted, the dock table's two listings, the checks (may
+// drive, outside the city, grounded), a path point erased and the next leg
+// reached. The layout is in
 // src/core/automata_watercraft.h and the survey in docs/automata.md, "Part
 // wc". Calls between functions of the part go to the game's addresses, so
 // each detour stands alone and OPENSC4_AUTOMATA_SKIP (function addresses,
 // hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.watercraft: the 14 detours in kObject (wc1) and the 8
-//   in kDriveList (wc2a) below.
+//   simulators.automata.watercraft: the 14 detours in kObject (wc1), the 8
+//   in kDriveList (wc2a) and the 10 in kStateList (wc2b) below.
 //
 // What it does. The boat is 0xDC8 bytes from SC4::operator_new and goes
 // back through SC4::operator_delete. Its constructor runs the core's with
@@ -46,12 +49,18 @@
 // only when the first point matches the first leg's (a NaN picks the first);
 // the tow's release reads the tow again after its slot 53.
 //
+// wc2b's oddities: slot 110 answers the core's AL (ours zero-extends);
+// slot 111's 0x4D reads +0x284 again after releasing its tow; the next leg
+// reached uses its occupant after letting go of it; the grounded check
+// leaves the cell outputs unset and the outside check its four cells (ours
+// zero); the dock table's listing holds the key for the lookup only.
+//
 // Floats: Init's normalisation is x87 at 53 bits: (x*x + y*y) + z*z, its
 // square root, 1 (0x00B0A18C) over it, each part times that (doubles here).
 //
 // Still the game's, at their addresses: the core's code (part vb), the
-// rest of the boat (part wc2: slots 72, 109, 110, 111, 115, 121, the +0x38
-// part's slot 3 and their helpers), the group's drive parameters 0x004FC8E0,
+// rest of the boat (part wc2: slots 72, 109, 115, 121, the +0x38 part's
+// slot 3 and their helpers), the group's drive parameters 0x004FC8E0,
 // the ten adjustor thunks, the string, vector, generator and effect code,
 // the message server and the city.
 
@@ -835,6 +844,306 @@ void __fastcall DropTow(char* self, void*)
 }
 
 // ====================================================================================
+// The states, the dock table and the checks (part wc2b)
+
+constexpr std::uint32_t kFlagDocked = 0x10000000u, kFlag8000000 = 0x8000000u;
+
+// The automaton's slot 52 (state, 0, -1.0, 0, 0, 0, 0).
+void PushState(char* self, std::uint32_t type)
+{
+    Virtual<void>(self, slot::kPushState, type, 0u, 0xBF800000u, 0u, 0u, 0u, 0u);
+}
+
+// The watercraft manager's dock table at the leg occupant `key` (held for
+// the while, see Unlist); when the node's boat at `slotAt` is empty, `boat`
+// held and stored there, true.
+bool List(char* manager, void* key, void* boat, std::size_t slotAt)
+{
+    if (key)
+        Virtual<std::uint32_t>(key, kAddRef);
+    char** const buckets = At<char**>(manager, manager::kBuckets);
+    const std::uint32_t count =
+        static_cast<std::uint32_t>(At<char**>(manager, manager::kBucketsEnd) - buckets);
+    char* node = buckets[reinterpret_cast<std::uintptr_t>(key) % count];
+    while (node && At<void*>(node, manager::kNodeKey) != key)
+        node = At<char*>(node, 0);
+    if (key)
+        Release(key);
+    if (!node || At<void*>(node, slotAt))
+        return false;
+    if (boat) {
+        Virtual<std::uint32_t>(boat, kAddRef);
+        At<void*>(node, slotAt) = boat;
+    }
+    return true;
+}
+
+// 0x0056CEC0, on the watercraft manager (leg occupant, boat), ret 8: into
+// the node's first boat (+8) when empty. AL.
+std::uint32_t __fastcall ListFirst(char* manager, void*, void* key, void* boat)
+{
+    static bool logged;
+    FirstCall("ListFirst", logged);
+    return List(manager, key, boat, manager::kNodeFirst) ? 1u : 0u;
+}
+
+// 0x0056CF50, the same for the node's second boat (+0xC).
+std::uint32_t __fastcall ListSecond(char* manager, void*, void* key, void* boat)
+{
+    static bool logged;
+    FirstCall("ListSecond", logged);
+    return List(manager, key, boat, manager::kNodeSecond) ? 1u : 0u;
+}
+
+// 0x0056D4D0, plain ret: with a leg under way whose byte +0x28 is set,
+// +0x2B0 0; with a watercraft manager the leg's occupant out of the dock
+// table's first boat (0x0056CFE0), the byte 0 and the flag 0x10000000
+// cleared.
+void __fastcall UnlistLeg(char* self, void*)
+{
+    static bool logged;
+    FirstCall("UnlistLeg", logged);
+    if (!At<void*>(self, field::kLeg) || !At<std::uint8_t>(self, field::kLeg + field::kLegByte28))
+        return;
+    At<std::uint8_t>(self, field::kByte2B0) = 0;
+    char* const manager = Virtual<char*>(Global<void*>(addr::SC4_City), slot::kCityWatercraft);
+    if (!manager)
+        return;
+    CallThis<void>(addr::cSC4WatercraftManager_UnlistFirst, manager, At<void*>(self, field::kLeg),
+                   static_cast<void*>(self));
+    At<std::uint8_t>(self, field::kLeg + field::kLegByte28) = 0;
+    Virtual<void>(self, slot::kSetFlag, kFlagDocked, 0u);
+}
+
+// 0x0056E340, slot 110 (state), ret 4: the core's EnterState first (its AL
+// the answer; ours zero-extends), then by the state's type; see the address
+// entry.
+std::uint32_t __fastcall EnterState(char* self, void*, char* record)
+{
+    static bool logged;
+    FirstCall("EnterState", logged);
+    const std::uint8_t answer =
+        static_cast<std::uint8_t>(CallThis<std::uint32_t>(addr::cSC4AutomatonCore_EnterState, self, record));
+    if (!record)
+        return answer;
+    const auto setFlags = [self](bool both) {
+        Virtual<void>(self, slot::kSetFlag, kFlagDocked, 1u);
+        if (both)
+            Virtual<void>(self, slot::kSetFlag, kFlag8000000, 1u);
+    };
+    switch (At<std::uint32_t>(record, state::kType)) {
+    case 0x10:
+        Virtual<void>(self, slot::kSlot77, 0u);
+        At<std::uint32_t>(record, state::kWord30) = 0;
+        At<std::uint32_t>(record, state::kWord234) = At<std::uint32_t>(self, field::kParam394);
+        if (char* const group = Virtual<char*>(self, slot::kTemplate)) {
+            if (char* const inherited = CallThis<char*>(addr::SC4AutomatonTemplate_FindInherited64, group))
+                At<std::uint32_t>(record, state::kWord34) = At<std::uint32_t>(inherited, 8);
+            else
+                At<std::uint32_t>(record, state::kWord34) = 0x3F800000u;
+        }
+        At<std::uint32_t>(record, state::kWord144) = 0xF;
+        At<std::uint32_t>(record, state::kWord178) = 0;
+        At<std::uint32_t>(record, state::kWord1AC) = 0x44FA0000u;
+        break;
+    case 0x46:
+    case 0x47:
+        setFlags(true);
+        Virtual<void>(self, slot::kSlot102, 0xBu, 0u);
+        At<std::uint32_t>(self, field::kWord2C0) = 0;
+        break;
+    case 0x48:
+    case 0x49:
+        setFlags(true);
+        Virtual<void>(self, slot::kRemove, At<std::uint32_t>(record, state::kType) == 0x48 ? 1u : 0u);
+        break;
+    case 0x4A:
+        setFlags(false);
+        At<std::uint8_t>(self, field::kByte288) = 1;
+        At<std::uint8_t>(self, field::kByte2B0) = 1;
+        CallThis<void>(addr::cSC4Watercraft_DropTow, self);
+        return answer;
+    case 0x4B:
+        setFlags(false);
+        At<std::uint8_t>(self, field::kByte289) = 1;
+        At<std::uint32_t>(self, field::kSpeed) = 0;
+        At<std::uint32_t>(self, field::kTurn) = 0;
+        CallThis<void>(addr::cSC4Watercraft_DropTow, self);
+        return answer;
+    case 0x4C:
+        At<std::uint32_t>(self, field::kSpeed) = 0;
+        At<std::uint32_t>(self, field::kTurn) = 0;
+        break;
+    case 0x4D:
+        At<std::uint8_t>(self, field::kByte2CB) = 1;
+        setFlags(false);
+        CallThis<void>(addr::cSC4Watercraft_UnlistLeg, self);
+        return answer;
+    default:
+        return answer;
+    }
+    CallThis<void>(addr::cSC4Watercraft_DropTow, self);
+    CallThis<void>(addr::cSC4Watercraft_UnlistLeg, self);
+    return answer;
+}
+
+// 0x00570140, slot 111 (state), ret 4: by the state's type (see the address
+// entry), then the core's LeaveState (its EAX).
+std::uint32_t __fastcall LeaveState(char* self, void*, char* record)
+{
+    static bool logged;
+    FirstCall("LeaveState", logged);
+    if (record) {
+        switch (At<std::uint32_t>(record, state::kType)) {
+        case 0x10:
+            Virtual<void>(self, slot::kSlot77, 1u);
+            CallThis<void>(addr::cSC4Watercraft_DropTow, self);
+            break;
+        case 0x4A:
+            At<std::uint8_t>(self, field::kByte288) = 0;
+            CallThis<void>(addr::cSC4Watercraft_NextLeg, self);
+            break;
+        case 0x4B:
+            Virtual<void>(self, slot::kSetFlag, kFlagDocked, 0u);
+            At<std::uint8_t>(self, field::kByte289) = 0;
+            break;
+        case 0x4D:
+            Virtual<void>(self, slot::kSetFlag, kFlagDocked, 0u);
+            if (char* const other = At<char*>(self, field::kRef284)) {
+                Drop(other, field::kTow);
+                Drop(self, field::kRef284);
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    return CallThis<std::uint32_t>(addr::cSC4AutomatonCore_LeaveState, self, record);
+}
+
+// 0x005681B0, plain ret: the occupant part's slot 11 cells (x0, z0, x1, z1);
+// true when the city's slot 99 denies a corner, asked in the order (x0, z0),
+// (x0, z1), (x1, z0), (x1, z1). AL.
+std::uint32_t __fastcall OutsideCity(char* self, void*)
+{
+    static bool logged;
+    FirstCall("OutsideCity", logged);
+    std::int32_t cells[4] = {};
+    Virtual<void>(self + 4, slot::kCells, static_cast<void*>(cells));
+    const std::int32_t xs[4] = {cells[0], cells[0], cells[2], cells[2]};
+    const std::int32_t zs[4] = {cells[1], cells[3], cells[1], cells[3]};
+    void* const city = Global<void*>(addr::SC4_City);
+    for (int i = 0; i < 4; ++i)
+        if (!Virtual<std::uint8_t>(city, slot::kInCity, xs[i], zs[i]))
+            return 1;
+    return 0;
+}
+
+// 0x005698E0, plain ret: false when slot 31 (1) answers; false with the
+// state 0x48 pushed when a corner is outside the city (0x005681B0); false
+// in the states 0x46 and 0x47 (slot 59, asked twice); else true. AL.
+std::uint32_t __fastcall MayDrive(char* self, void*)
+{
+    static bool logged;
+    FirstCall("MayDrive", logged);
+    if (Virtual<std::uint8_t>(self, slot::kSlot31, 1u))
+        return 0;
+    if (CallThis<std::uint8_t>(addr::cSC4Watercraft_OutsideCity, self)) {
+        PushState(self, 0x48);
+        return 0;
+    }
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x46)
+        return 0;
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x47)
+        return 0;
+    return 1;
+}
+
+// 0x00567DF0, plain ret: the point's cell (city slot 95; the game leaves its
+// outputs unset, ours zero); within the city (slot 99), true when the
+// terrain's slot 29 (ST0 as it comes) is below its slot 18 at the cell
+// (stored as a float). AL.
+std::uint32_t __fastcall Grounded(char* self, void*)
+{
+    static bool logged;
+    FirstCall("Grounded", logged);
+    std::int32_t cellX = 0, cellZ = 0;
+    void* const city = Global<void*>(addr::SC4_City);
+    Virtual<void>(city, slot::kCellOf, At<float>(self, field::kPoint), At<float>(self, field::kPoint + 8), &cellX,
+                  &cellZ);
+    if (!Virtual<std::uint8_t>(Global<void*>(addr::SC4_City), slot::kInCity, cellX, cellZ))
+        return 0;
+    void* const terrain = Global<void*>(addr::SC4_Terrain);
+    // Both read as doubles: ST0 whole (x87 at 53 bits).
+    const float height = static_cast<float>(Virtual<double>(terrain, slot::kHeightAt, cellX, cellZ));
+    const double water = Virtual<double>(terrain, slot::kWaterLevel);
+    return water < static_cast<double>(height) ? 1u : 0u;
+}
+
+// 0x0056BD50, this = a vector of 16-byte points (begin, end), ret 4: the
+// points after `at` moved down one (SC4Vector16::Copy; the game passes at's
+// own argument slot and 0 after, unread), the end stepped back. EAX at.
+char* __fastcall ErasePoint(char* vector, void*, char* at)
+{
+    static bool logged;
+    FirstCall("ErasePoint", logged);
+    char* const end = At<char*>(vector, 4);
+    if (at + 0x10 != end)
+        CallCdecl<char*>(addr::SC4Vector16_Copy, at + 0x10, end, at, static_cast<void*>(&at), 0u);
+    At<char*>(vector, 4) -= 0x10;
+    return at;
+}
+
+// 0x005704D0, plain ret: the next leg (0x0056F480) on the stack, its bytes
+// freed and its occupant let go of (then used); with an occupant nearer
+// (its slot 15; x87 at 53 bits: the root of (dz*dz + dy*dy) + dx*dx) than
+// +0x3D4 and a watercraft manager: in the state 0x4B listed as the first
+// boat (0x0056CEC0), then slot 53 and the state 0x4A; else listed first
+// (0x4A), or second (0x0056CF50, 0x4B), or the state 0x49.
+void __fastcall ReachLeg(char* self, void*)
+{
+    static bool logged;
+    FirstCall("ReachLeg", logged);
+    Leg next;
+    char* const leg = reinterpret_cast<char*>(&next);
+    CallThis<char*>(addr::cSC4Watercraft_PickNextLeg, self, leg);
+    void* const occupant = At<void*>(leg, field::kLegRef);
+    if (void* const bytes = At<void*>(leg, field::kLegBytes))
+        Free(bytes);
+    if (occupant)
+        Release(occupant);
+    if (!occupant)
+        return;
+    std::uint32_t point[3] = {Unset(), Unset(), Unset()};
+    Virtual<void>(occupant, slot::kGetPosition, static_cast<void*>(point));
+    const double dx = static_cast<double>(At<float>(self, field::kPosition)) - static_cast<double>(AsFloat(point[0]));
+    const double dy =
+        static_cast<double>(At<float>(self, field::kPosition + 4)) - static_cast<double>(AsFloat(point[1]));
+    const double dz =
+        static_cast<double>(At<float>(self, field::kPosition + 8)) - static_cast<double>(AsFloat(point[2]));
+    const double distance = std::sqrt((dz * dz + dy * dy) + dx * dx);
+    if (!(distance < static_cast<double>(At<float>(self, field::kParam3D4))))
+        return;
+    char* const manager = Virtual<char*>(Global<void*>(addr::SC4_City), slot::kCityWatercraft);
+    if (!manager)
+        return;
+    if (Virtual<std::uint32_t>(self, slot::kStateType) == 0x4B) {
+        if (!CallThis<std::uint8_t>(addr::cSC4WatercraftManager_ListFirst, manager, occupant, static_cast<void*>(self)))
+            return;
+        Virtual<void>(self, slot::kSlot53);
+        PushState(self, 0x4A);
+        return;
+    }
+    if (CallThis<std::uint8_t>(addr::cSC4WatercraftManager_ListFirst, manager, occupant, static_cast<void*>(self)))
+        PushState(self, 0x4A);
+    else if (CallThis<std::uint8_t>(addr::cSC4WatercraftManager_ListSecond, manager, occupant,
+                                    static_cast<void*>(self)))
+        PushState(self, 0x4B);
+    else
+        PushState(self, 0x49);
+}
+
+// ====================================================================================
 // Installation
 
 bool Skipped(std::uintptr_t address)
@@ -907,12 +1216,27 @@ const Detour kDriveList[] = {
     OPENSC4_DETOUR(addr::cSC4Watercraft_DropTow, DropTow),
 };
 
+// Part wc2b.
+const Detour kStateList[] = {
+    OPENSC4_DETOUR(addr::cSC4Watercraft_EnterState, EnterState),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_LeaveState, LeaveState),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_UnlistLeg, UnlistLeg),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_MayDrive, MayDrive),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_OutsideCity, OutsideCity),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_Grounded, Grounded),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_ErasePoint, ErasePoint),
+    OPENSC4_DETOUR(addr::cSC4WatercraftManager_ListFirst, ListFirst),
+    OPENSC4_DETOUR(addr::cSC4WatercraftManager_ListSecond, ListSecond),
+    OPENSC4_DETOUR(addr::cSC4Watercraft_ReachLeg, ReachLeg),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
-           InstallList(kDriveList, sizeof kDriveList / sizeof kDriveList[0], "drive");
+           InstallList(kDriveList, sizeof kDriveList / sizeof kDriveList[0], "drive") &&
+           InstallList(kStateList, sizeof kStateList / sizeof kStateList[0], "state");
 }
 
 const bool g_registered[] = {
@@ -922,8 +1246,9 @@ const bool g_registered[] = {
                         "and the deleting destructor, QueryInterface and GetGZCLSID; Write and Read; Init and "
                         "Shutdown with the watercraft manager's two dock-table helpers; slot 16 (the placement) and "
                         "slot 93 (the debug text) (14 detours, part wc1); the drive parameters' reader, the four leg "
-                        "helpers and the next leg, the sign and the tow's release (8, part wc2a; "
-                        "src/core/automata_watercraft.cpp)",
+                        "helpers and the next leg, the sign and the tow's release (8, part wc2a); slots 110 and 111, the "
+                        "leg unlisted, the dock table's two listings, three checks, a path point erased and the next "
+                        "leg reached (10, part wc2b; src/core/automata_watercraft.cpp)",
                         false, InstallObject}),
 };
 
