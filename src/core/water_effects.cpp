@@ -21425,12 +21425,13 @@ void SdRestartForced(char* self, uint32_t k, const char* first)
 // at the end).
 void SdStepForcedTwice(char* self, uint32_t k);
 void SdPartStartForcedTwice(uint32_t k);
+void SdNormalsForcedTwice(uint32_t k);
 
 // Forcing, before each running effect's draw (DwEffectDrawByMode) of the
 // second class (with its render context): the check three times, the
-// restart and the part's step and start twice, by a turn counter, with
-// the effects manager swapped for the made-up one and the generator put
-// back after.
+// restart and the part's step, start and normals twice, by a turn
+// counter, with the effects manager swapped for the made-up one and the
+// generator put back after.
 void SdForce(char* self, uint32_t context)
 {
     if (!g_sdForce || g_effectRecord || g_effectReplay || BBusy() || !At<uint8_t>(self, 9) ||
@@ -21458,6 +21459,7 @@ void SdForce(char* self, uint32_t context)
             SdRestartForced(self, k * 2 + i, first);
     SdStepForcedTwice(self, k);
     SdPartStartForcedTwice(k);
+    SdNormalsForcedTwice(k);
     manager = real;
     std::memcpy(Ptr(kSetupGenerator), generator, sizeof generator);
 }
@@ -21470,8 +21472,8 @@ bool SdHookForce()
     if (!DwHookEffectDraw())
         return false;
     if (!g_sdForce)
-        log::Write("water effects: the second class's check whether a particle is in view, restart and part's step "
-                   "and start forced before each effect's draw");
+        log::Write("water effects: the second class's check whether a particle is in view, restart and part's step, "
+                   "start and normals forced before each effect's draw");
     g_sdForce = true;
     return true;
 }
@@ -22000,6 +22002,234 @@ const bool g_registeredPartStartB = registry::Register({
     "\"Water effects, sky and clouds\")",
     true,
     InstallPartStartB,
+});
+
+// --- The part's normals ------------------------------------------------------------------------
+//
+// The second class's part's normals (0x00803370, effects_second.h
+// MakeNormalsB, part E18), which the part's step and start make when its
+// lists of three floats a vertex are empty. Its switch
+// (renderer.effects.make_normals_b) detours it for every caller.
+//
+// Compare mode, by the notes' engine: the model instance the part keeps
+// (+4) gets a noting table for its slot 0x10 (which answers its copy of a
+// mesh), the game's runs with the call passed on and ours is replayed.
+// Both runs make the lists for real (the game's vector helpers allocate),
+// so the part's words for them (+0x24 to +0x30) are left out of the bytes
+// compared; what each run made is written after it into a buffer that is
+// compared instead (the lists' count and room, then each list's count,
+// room and floats' bits). Ours starts from the part's words as they were,
+// and what it made is freed after it and the game's put back. A part whose
+// lists already have storage runs the game's only (none did in the test
+// cities). With OPENSC4_EFFECT_FORCE_SECOND=1 (compare mode only) it is
+// also compared twice before every running effect of the class's draw, on
+// a made-up part (SdNormalsForced), whose lists are freed after.
+StepMode g_normalsBMode = StepMode::Original;
+Call0Fn g_SdMakeNormals = nullptr;
+
+uint32_t SdNormalsRun(char* part);
+
+uint32_t __fastcall SdNormalsDetour(char* self, void*)
+{
+    return SdNormalsRun(self);
+}
+OPENSC4_THUNK(TSdNormals, SdNormalsDetour, 0)
+
+// What a part's lists hold, written into `to` as far as `words` allows:
+// the count of lists and their room, then each list's count, room and
+// floats' bits.
+void SdListsShot(char* part, uint32_t* to, std::size_t words)
+{
+    std::size_t at = 0;
+    const auto put = [&](uint32_t word) {
+        if (at < words)
+            to[at++] = word;
+    };
+    const uint32_t begin = At<uint32_t>(part, 0x24), end = At<uint32_t>(part, 0x28);
+    put((end - begin) / 0xC);
+    put((At<uint32_t>(part, 0x2C) - begin) / 0xC);
+    for (uint32_t list = begin; list < end && at < words; list += 0xC) {
+        const uint32_t first = M<uint32_t>(list), last = M<uint32_t>(list + 4);
+        put((last - first) / 0xC);
+        put((M<uint32_t>(list + 8) - first) / 0xC);
+        for (uint32_t word = first; word < last && at < words; word += 4)
+            put(M<uint32_t>(word));
+    }
+}
+
+// A part's lists let go: the inner ones freed (EraseOuter), then the
+// outer's storage.
+void SdListsFreed(char* part)
+{
+    const uint32_t begin = At<uint32_t>(part, 0x24);
+    CallThis<uint32_t>(addr::cSC4PowerPoleOccupant_EraseOuter, part + 0x24, begin, At<uint32_t>(part, 0x28));
+    if (begin)
+        reinterpret_cast<void(__cdecl*)(uint32_t)>(addr::SC4_Free)(begin);
+    std::memset(part + 0x24, 0, 0xC);
+}
+
+// The comparison of one making on `part`, whose lists have no storage;
+// `extra` are more bytes to compare.
+uint32_t SdNormalsCompared(const char* id, char* part, std::vector<BRegion> extra)
+{
+    std::size_t words = 2;
+    const uint32_t meshes = static_cast<uint32_t>(static_cast<int32_t>(At<uint32_t>(part, 0x10) - At<uint32_t>(part, 0xC)) >> 2);
+    for (uint32_t i = 0; i < meshes; ++i)
+        words += 2 + 3 * At<uint16_t>(At<char**>(part, 0xC)[i], 6);
+    std::vector<uint32_t> shot(words);
+    std::vector<BRegion> regions{{part, 0x24},
+                                 {part + 0x30, 0x14},
+                                 {Ptr(kParticleFreeB), 4},
+                                 {Ptr(kSetupGenerator), kSetupGeneratorSize},
+                                 {reinterpret_cast<char*>(shot.data()), words * 4}};
+    regions.insert(regions.end(), extra.begin(), extra.end());
+    uint32_t before[3], made[3];
+    std::memcpy(before, part + 0x24, sizeof before);
+    BSwapRole(At<char*>(part, 4), kSdPartInstanceRole, {{0x10, reinterpret_cast<uint32_t>(&SdPartKeptStub)}});
+    return SdCompared(
+        id, std::move(regions), false,
+        [&] {
+            const uint32_t result = g_SdMakeNormals(part, nullptr);
+            SdListsShot(part, shot.data(), words);
+            std::memcpy(made, part + 0x24, sizeof made);
+            return result;
+        },
+        [&] {
+            std::memcpy(part + 0x24, before, sizeof before);
+            MakeNormalsB(part);
+            SdListsShot(part, shot.data(), words);
+            SdListsFreed(part);
+            std::memcpy(part + 0x24, made, sizeof made);
+            return 0u;
+        });
+}
+
+uint32_t SdNormalsRun(char* part)
+{
+    if (g_normalsBMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SdMakeNormals(part, nullptr);
+    if (g_normalsBMode == StepMode::Ours) {
+        MakeNormalsB(part);
+        return 0;
+    }
+    if (BBusy() || At<uint32_t>(part, 0x24))
+        return g_SdMakeNormals(part, nullptr);
+    return SdNormalsCompared("effects.make_normals_b", part, {});
+}
+
+// The made-up part of the forced makings: four meshes of up to eight
+// vertices (a place each, 0xC, 0x14 or 0x18 bytes apart) and an instance
+// whose slot 0x10 notes the call and answers one of four copies (by the
+// index modulo 4): each with up to three primitives (a kind, a first and a
+// count; kinds 0 to 5, whose corners stay within the count, or 9, which
+// has no triangles) and, for three meshes in four turns, indices.
+constexpr uint32_t kSnVertices = 8, kSnIndices = 32;
+uint32_t g_snInstanceTable[0x14 / 4] = {}, g_snInstance[1] = {}, g_snMeshList[4] = {}, g_snCopies[4][3] = {},
+         g_snIndexList[4] = {}, g_snPrimitiveList[4][3] = {}, g_snPrimitives[4][3][3] = {}, g_snKept[4][3] = {};
+char g_snMeshes[4][0xC] = {};
+float g_snPlaces[4][kSnVertices * 6] = {};
+uint16_t g_snIndices[4][kSnIndices] = {};
+
+uint32_t __fastcall SdFakeNormalsKept(char* object, void*, uint32_t index)
+{
+    return SdFakeNoted(kSdPartInstance + 0x10, object, Word(&index), 4, Word(g_snKept[index % 4]));
+}
+
+void SdNormalsFakesMade()
+{
+    if (g_snInstance[0])
+        return;
+    g_snInstanceTable[0x10 / 4] = reinterpret_cast<uint32_t>(&SdFakeNormalsKept);
+    g_snInstance[0] = Word(g_snInstanceTable);
+    for (uint32_t m = 0; m < 4; ++m) {
+        g_snMeshList[m] = Word(g_snMeshes[m]);
+        At<uint32_t>(g_snMeshes[m], 8) = Word(g_snPlaces[m]);
+        g_snCopies[m][2] = Word(g_snPlaces[m]);
+        g_snIndexList[m] = Word(g_snIndices[m]);
+        g_snPrimitiveList[m][1] = Word(g_snPrimitives[m]);
+        g_snKept[m][0] = Word(g_snCopies[m]);
+        g_snKept[m][2] = Word(g_snPrimitiveList[m]);
+    }
+}
+
+// One forced making, by the turn k (each choice by the turn modulo a
+// number of its own): up to four meshes of none to eight vertices, their
+// places a turn's mix of whole, half and small numbers (some the same, so
+// some triangles have no size and some vertices none), each copy with
+// none to three primitives.
+void SdNormalsForced(uint32_t k)
+{
+    static const uint16_t kApart[3] = {0x14, 0x18, 0xC};
+    static const uint32_t kKinds[7] = {0, 1, 2, 3, 4, 5, 9};
+    static const float kScales[5] = {1.0f, 0.5f, 250.0f, 1.0e-6f, -3.0f};
+    const uint32_t meshes = k % 5;
+    for (uint32_t m = 0; m < 4; ++m) {
+        const uint32_t vertices = (k / 5 + m * 3) % (kSnVertices + 1);
+        const uint16_t apart = kApart[(k + m) % 3];
+        At<uint32_t>(g_snMeshes[m], 0) = 0x5EED0000u + k;
+        At<uint16_t>(g_snMeshes[m], 4) = apart;
+        At<uint16_t>(g_snMeshes[m], 6) = static_cast<uint16_t>(vertices);
+        At<uint32_t>(g_snCopies[m], 0) = k * 3 + m;
+        At<uint16_t>(g_snCopies[m], 4) = apart;
+        const float scale = kScales[(k / 3 + m) % 5];
+        for (uint32_t j = 0; j < kSnVertices; ++j) {
+            float* const place = reinterpret_cast<float*>(reinterpret_cast<char*>(g_snPlaces[m]) + j * apart);
+            const uint32_t same = (k + j) % 11 == 4 ? 0 : j;
+            place[0] = scale * (static_cast<float>(same % 3) * 1.5f - static_cast<float>(m));
+            place[1] = scale * (static_cast<float>((same * 7 + k) % 5) * 0.25f);
+            place[2] = scale * (static_cast<float>(same / 3) - 0.75f * static_cast<float>((k + m) % 4));
+        }
+        g_snKept[m][1] = (k + m) % 4 == 1 ? 0 : Word(g_snIndexList + m);
+        for (uint32_t t = 0; t < kSnIndices; ++t)
+            g_snIndices[m][t] = static_cast<uint16_t>(vertices ? (t * 5 + k + m) % vertices : 0);
+        const uint32_t primitives = (k / 7 + m) % 4;
+        for (uint32_t g = 0; g < 3; ++g) {
+            uint32_t* const primitive = g_snPrimitives[m][g];
+            primitive[0] = kKinds[(k + m * 5 + g * 3) % 7];
+            primitive[1] = (k + g) % 4;
+            primitive[2] = g_snKept[m][1] ? (k * 3 + g + m) % 9 : (k + g * 2 + m) % (vertices + 1);
+            if (!vertices)
+                primitive[2] = 0;
+        }
+        g_snPrimitiveList[m][2] = Word(g_snPrimitives[m] + primitives);
+    }
+    char part[0x44] = {};
+    At<uint32_t>(part, 4) = Word(g_snInstance);
+    At<uint32_t>(part, 0xC) = Word(g_snMeshList);
+    At<uint32_t>(part, 0x10) = Word(g_snMeshList + meshes);
+    SdNormalsCompared("effects.make_normals_b.forced", part, {});
+    SdListsFreed(part);
+}
+
+void SdNormalsForcedTwice(uint32_t k)
+{
+    if (g_normalsBMode != StepMode::Compare || !g_SdMakeNormals)
+        return;
+    SdNormalsFakesMade();
+    for (uint32_t i = 0; i < 2; ++i)
+        SdNormalsForced(k * 2 + i);
+}
+
+bool InstallNormalsB(registry::Mode mode)
+{
+    if (!SuInstall(mode, g_normalsBMode, addr::SC4EffectPartB_MakeNormals, &TSdNormals, &g_SdMakeNormals,
+                   "the second class's part's normals"))
+        return false;
+    return mode != registry::Mode::Compare || SdHookForce();
+}
+
+const bool g_registeredNormalsB = registry::Register({
+    "renderer.effects.make_normals_b",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4EffectPartB_MakeNormals,
+    "The second class's part's normals (0x00803370): for each mesh, each vertex's three floats the normals of the "
+    "triangles of the instance's copy that use it summed and divided by the sum of their lengths; compare mode notes "
+    "the game's calls and answers ours from the notes, compares what each made, OPENSC4_EFFECT_FORCE_SECOND=1 forces "
+    "it on a made-up part before each running effect's draw (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallNormalsB,
 });
 
 } // namespace
