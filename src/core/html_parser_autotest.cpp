@@ -736,7 +736,8 @@ bool AnyOurs()
                            "ui.html.document.images", "ui.html.document.imagemap", "ui.html.document.bullets",
                            "ui.html.document.vslots", "ui.html.window.life", "ui.html.window.show",
                            "ui.html.window.slots", "ui.html.window.settings", "ui.html.window.input",
-                           "ui.html.window.scroll", "ui.html.window.paint", "ui.html.window.address"})
+                           "ui.html.window.scroll", "ui.html.window.paint", "ui.html.window.address",
+                           "ui.html.directors", "ui.html.block"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -5918,6 +5919,125 @@ uint32_t InputItem(int which)
     return finish(window);
 }
 
+// ====================================================================================
+// h1c: the directors and the shared block's release
+
+// A director's list (+0x2C to +0x30) and its classes (buckets +0x3C to
+// +0x40, nodes {next, class, factory, type}): the list's length and entries,
+// the factory and type of the window's class and of one not registered.
+void HashDirector(Fnv& f, char* director)
+{
+    auto* const first = At<uint32_t*>(director, 0x2C);
+    auto* const last = At<uint32_t*>(director, 0x30);
+    f.Word(first && last >= first ? static_cast<uint32_t>(last - first) : 0xFFFFFFFFu);
+    for (uint32_t* at = first; at && at != last; ++at)
+        f.Word(*at);
+    auto* const buckets = At<char**>(director, 0x3C);
+    const auto count = static_cast<uint32_t>(At<char**>(director, 0x40) - buckets);
+    f.Word(count);
+    for (const uint32_t id : {0xAA12E5F5u, 0x12345678u}) {
+        uint32_t factory = 0, type = 0;
+        for (char* node = count ? buckets[id % count] : nullptr; node; node = At<char*>(node, 0))
+            if (At<uint32_t>(node, 4) == id) {
+                factory = At<uint32_t>(node, 8);
+                type = At<uint32_t>(node, 0xC);
+                break;
+            }
+        f.Word(factory);
+        f.Word(type);
+    }
+    f.Word(At<uint32_t>(director, 0x8));
+    f.Word(At<uint32_t>(director, 0xC));
+    f.Byte(At<uint32_t>(director, 0x24) != 0 ? 1 : 0); // the COM and what it gave (heap pointers)
+    f.Byte(At<uint32_t>(director, 0x28) != 0 ? 1 : 0);
+    f.Word(At<uint32_t>(director, 0x34));
+}
+
+// The release's cases: the count at +8, the word above it (+0xA), whether
+// the block has storage.
+struct BlockCase {
+    uint16_t count;
+    uint16_t above;
+    bool storage;
+};
+const BlockCase kBlockCases[] = {{3, 0x1234, true}, {2, 0, true},      {0xFFFF, 0xBEEF, true}, {0x100, 7, true},
+                                 {1, 0x1234, true}, {0, 0xBEEF, true}, {1, 0, false},          {0, 0, false}};
+constexpr int kDirectorItems = 6 + static_cast<int>(std::size(kBlockCases));
+
+uint32_t DirectorItem(int which)
+{
+    using ThisFn = char*(__thiscall*)(void*);
+    using IdFn = uint32_t(__thiscall*)(void*);
+    using GetFn = char*(__cdecl*)();
+    Fnv f;
+    if (which == 0 || which == 1) {
+        // A constructor on a director of the test's own (patterned around
+        // it), then the base's destructor. Its COM (+0x24) is none, so
+        // adding the second director leaves the static one alone.
+        alignas(8) char space[16 + 0x4C + 16];
+        std::memset(space, 0xA5, sizeof space);
+        char* const self = space + 16;
+        const std::uintptr_t construct = which == 0 ? addr::HTMLDirector_Construct : addr::HTMLSubDirector_Construct;
+        f.Byte(reinterpret_cast<ThisFn>(construct)(self) == self ? 1 : 0);
+        f.Word(At<uint32_t>(self, 0));
+        f.Word(At<uint32_t>(self, 4));
+        f.Bytes(space, space + 16);
+        f.Bytes(space + 16 + 0x4C, space + sizeof space);
+        HashDirector(f, self);
+        f.Word(Virtual<uint32_t>(self, 0x34));
+        reinterpret_cast<ThisFn>(addr::cRZCOMDllDirector_Destruct)(self);
+        return f.h;
+    }
+    if (which == 2 || which == 3) {
+        // The IDs by address (any `this`) and through the static directors'
+        // vtables.
+        const std::uintptr_t id = which == 2 ? addr::HTMLDirector_GetID : addr::HTMLSubDirector_GetID;
+        f.Word(reinterpret_cast<IdFn>(id)(nullptr));
+        f.Word(reinterpret_cast<IdFn>(id)(reinterpret_cast<void*>(static_cast<std::uintptr_t>(0x12345678u))));
+        char* const director = reinterpret_cast<char*>(which == 2 ? 0x00B623F0u : 0x00B62440u);
+        f.Word(Virtual<uint32_t>(director, 0x34));
+        return f.h;
+    }
+    if (which == 4 || which == 5) {
+        // The getters (the directors are made, so each is handed back), the
+        // guard words and the static HTML director's list and classes.
+        const std::uintptr_t get = which == 4 ? addr::HTMLDirector_Get : addr::HTMLSubDirector_Get;
+        char* const director = reinterpret_cast<GetFn>(get)();
+        f.Word(static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(director)));
+        f.Word(*reinterpret_cast<const uint32_t*>(which == 4 ? 0x00B6243Cu : 0x00B6248Cu));
+        f.Word(At<uint32_t>(director, 0));
+        f.Word(At<uint32_t>(director, 4));
+        if (which == 4)
+            HashDirector(f, director);
+        return f.h;
+    }
+    // The release on blocks of the test's own (operator new, as the game's
+    // blocks are): the count taken down, or the storage and block freed.
+    const BlockCase& c = kBlockCases[which - 6];
+    Blocks blocks;
+    char* const block = reinterpret_cast<char*>(static_cast<std::uintptr_t>(blocks.Add(0xC, true)));
+    void* storage = nullptr;
+    if (c.storage)
+        storage = reinterpret_cast<void*>(static_cast<std::uintptr_t>(blocks.Add(0x30, true)));
+    At<void*>(block, 0) = storage;
+    At<uint32_t>(block, 4) = 0x5A5A5A5Au;
+    At<uint16_t>(block, 8) = c.count;
+    At<uint16_t>(block, 0xA) = c.above;
+    const uint32_t left = reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::HTMLSharedBlock_Release)(block);
+    f.Word(left);
+    if (c.count > 1) {
+        f.Byte(At<void*>(block, 0) == storage ? 1 : 0);
+        f.Word(At<uint32_t>(block, 4));
+        f.Word(At<uint32_t>(block, 8));
+        if (storage)
+            GameDelete(storage);
+        GameDelete(block);
+        return f.h;
+    }
+    HashFreedDeep(f, blocks);
+    return f.h;
+}
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -5938,9 +6058,9 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[11] = {};
+    uint32_t sectionHash[12] = {};
     const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children",
-                                    "document", "slots", "images", "window", "input"};
+                                    "document", "slots", "images", "window", "input", "directors"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -6043,18 +6163,22 @@ void DriveNodesDay(const Day& day)
     // h1b's: the window's input, view and scroll bars, paint and addresses.
     for (int i = 0; i < kInputItems; ++i)
         item(10, i, [&] { return InputItem(i); });
+    // h1c's: the directors and the shared block's release.
+    for (int i = 0; i < kDirectorItems; ++i)
+        item(11, i, [&] { return DirectorItem(i); });
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
-               "pages %08X, children %08X, document %08X, slots %08X, images %08X, window %08X, input %08X), %u stand-in "
+               "pages %08X, children %08X, document %08X, slots %08X, images %08X, window %08X, input %08X, directors "
+               "%08X), %u stand-in "
                "calls, %u of %u "
                "blocks "
                "freed; %s; "
                "hash %08X",
                items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
-               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], sectionHash[10], g_standCalls,
+               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], sectionHash[10], sectionHash[11], g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)
