@@ -9451,7 +9451,7 @@ name = "SC4Win::ReleaseJump8FB72E"
 address = 0x008FB72E
 kind = "function"
 convention = "thiscall"
-expect = "E9 70 00 0A 00 8B 81 8C"
+expect = "E9 70 00 0A 00"
 source = "Name ours. A bare jump to the window base class's Release 0x0099B7A3; the map window's Release (0x0079DD50) jumps here with the window part."
 
 [[entry]]
