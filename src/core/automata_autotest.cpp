@@ -698,6 +698,17 @@
 //   slots 5 and 23 come from clock-seeded generators, fixed by
 //   determinism.fixed_seed. pi3flags 1 when it ran, 2 without an object.
 //   Log line: "pi3a pinfo3", one line per section before it.
+//   Part pi3b (the path information's transforms) adds `,<pinfo4>,<pi4flags>`
+//   (66 fields), at the game's addresses and through the vtable on objects
+//   and occupants of the test's: the box crossing over every flag and seven
+//   segments (one of no length); a record's length, points copied in
+//   reverse (counts -1 to 9), points inserted (full and not, begin, middle,
+//   end); the copies with the same ends removed; slot 25 over rotations,
+//   flips, slot 16 and two positions (an occupant whose slots 23, 24, 25,
+//   48, 56 and 65 answer and mix); slot 26 on clones over one-way kinds,
+//   allowed sides and kinds' sides (slots 41, 42, 69); slot 29 over eight
+//   boxes and three moves. pi4flags 1 when it ran, 2 without an object.
+//   Log line: "pi3b pinfo4", one line per section before it.
 // OPENSC4_TEST_AUTOMATA_SCRIPTS=1 (part s1, with OPENSC4_TEST_AUTOMATA=2 or
 //   more): on the same day the city's automata script system (city slot
 //   0xC0) is queried at the game's addresses (ours when the
@@ -33243,6 +33254,377 @@ void PathInfo3Drive(Hash& pinfo3, uint32_t& pi3flags)
                static_cast<unsigned>(keys.size()), pi3flags);
 }
 
+// ---- Part pi3b: the path information's transforms (src/core/automata_pathinfo.cpp).
+// Every call goes to the game's addresses or the object's vtable, on objects
+// and occupants of the test's.
+namespace pi4 {
+
+using namespace pi3;
+
+// An occupant of the test's for slots 25 and 26: slot 23 (mixed), its
+// rotation (24) and flip (25) as full words, its cell part (48) whose slot 8
+// gives the position, the altitude (56, a plane with a twist, as a double),
+// the point to the world (65, mixed and moved), the allowed sides (41), a
+// kind's sides (42) and the one-way kinds (69), the high bytes set.
+struct Occ4 {
+    void* const* vtable;
+    Hash* calls;
+    uint32_t rotation, flipped, oneWay, allowed;
+    uint32_t sides[13];
+    float position[3];
+    struct {
+        void* const* vtable;
+        Occ4* owner;
+    } part;
+};
+
+uint32_t __fastcall O4Slot23(Occ4* o, void*)
+{
+    o->calls->Mix(0x23u);
+    return 0x2323u;
+}
+
+uint32_t __fastcall O4Rotation(Occ4* o, void*)
+{
+    return o->rotation;
+}
+
+uint32_t __fastcall O4Flipped(Occ4* o, void*)
+{
+    return o->flipped;
+}
+
+void* __fastcall O4Part(Occ4* o, void*)
+{
+    return &o->part;
+}
+
+float* __fastcall P4Position(char* part, void*, float* out)
+{
+    std::memcpy(out, At<Occ4*>(part, 4)->position, 12);
+    return out;
+}
+
+double __fastcall O4Altitude(Occ4* o, void*, float x, float z)
+{
+    o->calls->Mix(Bits(x));
+    o->calls->Mix(Bits(z));
+    return 0.37 * x - 0.21 * z + 0.013 * x * z + 1.0 / 3.0;
+}
+
+void __fastcall O4ToWorld(Occ4* o, void*, float* p)
+{
+    o->calls->MixBytes(p, 12);
+    p[0] = p[0] * 0.5f + 1.25f;
+    p[2] = p[2] - 2.0f;
+}
+
+uint32_t __fastcall O4Allowed(Occ4* o, void*, uint32_t which)
+{
+    o->calls->Mix(which);
+    return 0xAB00u | o->allowed;
+}
+
+uint32_t __fastcall O4KindSides(Occ4* o, void*, uint32_t kind)
+{
+    o->calls->Mix(kind);
+    return 0xCD00u | (kind < 13 ? o->sides[kind] : 0u);
+}
+
+uint32_t __fastcall O4OneWay(Occ4* o, void*)
+{
+    return 0xEF00u | o->oneWay;
+}
+
+void* g_occ4Table[70];
+void* g_part4Table[9];
+
+void Bind(Occ4& o, Hash* calls)
+{
+    g_occ4Table[23] = reinterpret_cast<void*>(&O4Slot23);
+    g_occ4Table[24] = reinterpret_cast<void*>(&O4Rotation);
+    g_occ4Table[25] = reinterpret_cast<void*>(&O4Flipped);
+    g_occ4Table[41] = reinterpret_cast<void*>(&O4Allowed);
+    g_occ4Table[42] = reinterpret_cast<void*>(&O4KindSides);
+    g_occ4Table[48] = reinterpret_cast<void*>(&O4Part);
+    g_occ4Table[56] = reinterpret_cast<void*>(&O4Altitude);
+    g_occ4Table[65] = reinterpret_cast<void*>(&O4ToWorld);
+    g_occ4Table[69] = reinterpret_cast<void*>(&O4OneWay);
+    g_part4Table[8] = reinterpret_cast<void*>(&P4Position);
+    o.vtable = g_occ4Table;
+    o.calls = calls;
+    o.part.vtable = g_part4Table;
+    o.part.owner = &o;
+}
+
+// A record as the game lays it out: the points (begin, end, capacity), the
+// length, the byte.
+struct Rec {
+    char* begin;
+    char* end;
+    char* capacity;
+    float length;
+    uint8_t byte;
+    uint8_t pad[3];
+};
+
+void MixPoints(Hash& h, const Rec& r)
+{
+    MixRecord(h, reinterpret_cast<char*>(const_cast<Rec*>(&r)));
+}
+
+void Section4(const char* name, const Hash& h)
+{
+    log::Write("autotest: automata: vehicle: pi3b %s: pinfo4 %08X", name, h.h);
+}
+
+} // namespace pi4
+
+void PathInfo4Drive(Hash& pinfo4, uint32_t& pi4flags)
+{
+    using namespace pi4;
+    uint32_t made = 0;
+    char* const o = MakeInfo(kIidPathInfo, made);
+    if (!made || !o) {
+        pi4flags |= 2;
+        log::Write("autotest: automata: vehicle: pi3b: no path information");
+        return;
+    }
+    using Crossing = float*(__cdecl*)(float*, const float*, uint32_t, const float*, const float*, uint8_t*);
+    using Length = void(__cdecl*)(void*);
+    using Reverse = char*(__cdecl*)(const char*, const char*, char*);
+    using Free = void(__cdecl*)(void*);
+
+    // ---- The box crossing over every flag, segments into and out of the
+    // box from each side, along an edge and of no length (its ratios
+    // infinite or not a number).
+    {
+        const float box[4] = {0.0f, 0.0f, 4.0f, 4.0f};
+        const float segments[][2][3] = {{{-2, 0, 1}, {5, 1, 3}},   {{5, 0, -3}, {2, 2, 9}},  {{14, 1, 2}, {4, 0, 2.5f}},
+                                        {{1, 3, 7}, {3, -1, 0.5f}}, {{-1, 0, -1}, {6, 2, 6}}, {{1, 1, 1}, {1, 1, 1}},
+                                        {{0, 0, 2}, {4, 0, 2}},     {{-2.3f, 0.7f, 0.1f}, {5.9f, 1.3f, 1000.3f}}};
+        for (const auto& s : segments)
+            for (uint32_t flags = 0; flags < 17; ++flags) {
+                float out[3] = {-7.0f, -7.0f, -7.0f};
+                uint8_t side = 0xEE;
+                float* const answer = reinterpret_cast<Crossing>(addr::cSC4PathInfo_BoxCrossing)(
+                    out, box, flags == 16 ? 0x10Fu : flags, s[0], s[1], &side);
+                pinfo4.Mix(answer == out ? 1u : 0u);
+                pinfo4.MixBytes(out, sizeof out);
+                pinfo4.Mix(side);
+            }
+    }
+    Section4("crossing", pinfo4);
+
+    // ---- A record's length (one, two and five points, one repeated), the
+    // points copied in reverse (counts -1 to 9), a point inserted (full and
+    // not, at the begin, the middle and the end).
+    {
+        float points[9][3];
+        for (int i = 0; i < 9; ++i) {
+            points[i][0] = 1.5f * static_cast<float>(i) - 3.0f;
+            points[i][1] = static_cast<float>(i % 3) * 0.75f;
+            points[i][2] = static_cast<float>(i * i) * 0.25f;
+        }
+        // Fractions that are not binary, so the squares' sums round by
+        // their order.
+        points[7][0] = 0.1f;
+        points[7][1] = 0.7f;
+        points[7][2] = 1.3f;
+        points[8][0] = 3.3f;
+        points[8][1] = -2.9f;
+        points[8][2] = 0.37f;
+        std::memcpy(points[3], points[2], 12);
+        for (const int n : {1, 2, 5, 9}) {
+            Rec r{};
+            r.begin = reinterpret_cast<char*>(points);
+            r.end = r.begin + n * 12;
+            r.capacity = r.end;
+            r.length = -1.0f;
+            reinterpret_cast<Length>(addr::cSC4PathInfo_SetLength)(&r);
+            pinfo4.Mix(Bits(r.length));
+        }
+        for (int n = -1; n <= 9; ++n) {
+            float out[10][3];
+            std::memset(out, 0x5A, sizeof out);
+            const char* const begin = reinterpret_cast<const char*>(points) + (n < 0 ? 12 : 0);
+            const char* const end = begin + n * 12;
+            char* const answer =
+                reinterpret_cast<Reverse>(addr::cSC4PathInfo_ReverseCopyPoints)(end, begin, reinterpret_cast<char*>(out));
+            pinfo4.Mix(static_cast<uint32_t>(answer - reinterpret_cast<char*>(out)));
+            pinfo4.MixBytes(out, sizeof out);
+        }
+        Rec r{};
+        This<void>(addr::cSC4PathInfo_ReservePoints, &r, 3u);
+        std::memcpy(r.begin, points, 36);
+        r.end = r.begin + 36;
+        // (where: 0 the begin, 1 the second point, 2 the end), each insert
+        // after the last: full, then with room.
+        const int places[] = {1, 2, 0, 1, 2, 2, 0, 1, 1, 2};
+        int i = 0;
+        for (const int place : places) {
+            char* const where = place == 0 ? r.begin : place == 1 ? r.begin + 12 : r.end;
+            const float point[3] = {100.0f + static_cast<float>(i), -static_cast<float>(i), 0.5f * static_cast<float>(i)};
+            char* const answer = This<char*>(addr::cSC4PathInfo_InsertPoint, &r, where, point);
+            pinfo4.Mix(static_cast<uint32_t>((answer - r.begin) / 12));
+            MixPoints(pinfo4, r);
+            ++i;
+        }
+        if (r.begin)
+            reinterpret_cast<Free>(addr::SC4_Free)(r.begin);
+    }
+    Section4("points", pinfo4);
+
+    // ---- Copies with the same ends removed: numbers of one type and sides
+    // whose first and last points are near or not, another type, a stop.
+    {
+        uint32_t ok = 0;
+        char* const d = MakeInfo(kIidPathInfo, ok);
+        if (ok && d) {
+            AddPoints(d, 0x06000102u, {0, 0, 0, 5, 0, 0, 10, 0, 0}, 10.0f, 0);
+            AddPoints(d, 0x06010102u, {0.5f, 0.2f, 0.3f, 10.4f, 0, 0}, 9.9f, 1);
+            AddPoints(d, 0x06020102u, {0.9f, 0, 0.5f, 12.0f, 0, 0}, 11.0f, 2);
+            AddPoints(d, 0x06030102u, {0, 0, 0.99f, 9.5f, 0.5f, 0.5f}, 9.5f, 3);
+            AddPoints(d, 0x07000102u, {0, 0, 0, 10, 0, 0}, 10.0f, 0);
+            AddPoints(d, 0x06000201u, {0, 0, 0, 10, 0, 0}, 10.0f, 0);
+            AddPoints(d, 0x06040102u, {1.0f, 0, 0, 10.0f, 0, 0}, 9.0f, 4);
+            // A pair on their own whose first points are exactly 1 apart.
+            AddPoints(d, 0x06000203u, {0, 0, 0, 5, 0, 0}, 5.0f, 0);
+            AddPoints(d, 0x06010203u, {1, 0, 0, 5, 0, 0}, 4.0f, 0);
+            const float stop[3] = {0.1f, 0.0f, 0.0f};
+            This<uint32_t>(addr::cSC4PathInfo_AddStop, d, stop, 0x16050102u);
+            This<void>(addr::cSC4PathInfo_RemoveDuplicates, d);
+            MixObject(pinfo4, d);
+            MixTable(pinfo4, d);
+            Virtual<uint32_t>(d, 8);
+        }
+    }
+    Section4("duplicates", pinfo4);
+
+    // The object the slots take: paths of types 1 to 7 (two of two points,
+    // one empty), sides 0 to 3 and 0xFF, numbers 0 to 2, bytes with the bit
+    // 1 and the other way round; first stops (a number 0xFF), a second one;
+    // two near copies for slot 29's removal. Every record but the empty one
+    // has a point.
+    AddPoints(o, 0x01000102u, {0, 0, 0, 10, 1, 0, 20, 2, 5}, 22.5f, 1);
+    AddPoints(o, 0x01010201u, {20, 2, 5, 0, 0, 0}, 20.0f, 1);
+    AddPoints(o, 0x05000003u, {0, 0, -8, 0, 0, 8}, 16.0f, 0);
+    AddPoints(o, 0x0202FF00u, {1, 0, 1, 2, 0, 2, 3, 1, 4}, 3.0f, 2);
+    AddPoints(o, 0x03000300u, {4, 4, 4}, 0.0f, 0);
+    AddPoints(o, 0x07020203u, {-5, 0, -5, 5, 3, -5}, 10.0f, 3);
+    AddPoints(o, 0x01000003u, {-2, 0, 3, 2, 0, 3, 6, 0.5f, 7}, 9.0f, 0);
+    AddPoints(o, 0x010003FFu, {3, 0, 0, 3, 0, 11}, 11.0f, 1);
+    AddPoints(o, 0x01000400u, {8, 0, 1, 1, 0, 1}, 7.0f, 0);
+    AddPoints(o, 0x01020300u, {9, 1, 9, -9, 1, -9}, 25.5f, 0);
+    // Leaving the box {0, -6, 12, 6} at a point it kept (dropped for the
+    // crossing), coming back in and leaving again.
+    AddPoints(o, 0x03010001u, {5, 0, 0, 12, 0, 0, 12.0005f, 0, 0.0003f, 15, 0, 0, 6, 0, 0, 20, 0, 1}, 40.0f, 0);
+    AddPoints(o, 0x02010001u, {0.1f, 0.3f, 0.7f, 3.3f, -1.9f, 2.9f, 7.7f, 0.11f, -4.3f, 9.1f, 2.2f, -0.6f}, 13.0f, 0);
+    AddPoints(o, 0x06000102u, {0, 0, 0, 5, 0, 0, 10, 0, 0}, 10.0f, 0);
+    AddPoints(o, 0x06010102u, {0.5f, 0.2f, 0.3f, 10.4f, 0, 0}, 9.9f, 1);
+    This<char*>(addr::cSC4PathInfo_AddPath, o, 0x04010203u);
+    {
+        const float a[3] = {2.0f, 0.0f, 2.0f}, b[3] = {6.0f, 1.0f, -3.0f}, c[3] = {1.0f, 1.0f, 1.0f},
+                    e[3] = {7.0f, 1.0f, 7.0f}, f[3] = {3.0f, 2.0f, 3.0f};
+        This<uint32_t>(addr::cSC4PathInfo_AddStop, o, a, 0x11000102u);
+        This<uint32_t>(addr::cSC4PathInfo_AddStop, o, b, 0x1102FF01u);
+        This<uint32_t>(addr::cSC4PathInfo_AddStop, o, c, 0x13FF0003u);
+        This<uint32_t>(addr::cSC4PathInfo_AddStop, o, e, 0x2203FFFFu);
+        This<uint32_t>(addr::cSC4PathInfo_AddStop, o, f, 0x11010000u);
+    }
+    MixTable(pinfo4, o);
+
+    // ---- Slot 25 over rotations (the low byte read), flips, slot 16 and
+    // two positions; at its address and through the vtable.
+    {
+        uint32_t i = 0;
+        for (const uint32_t flag : {0u, 1u})
+            for (const uint32_t rotation : {0u, 1u, 2u, 3u, 0x105u, 0x7700u})
+                for (const uint32_t flipped : {0u, 1u, 0x200u}) {
+                    This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, flag);
+                    Occ4 occ{};
+                    Bind(occ, &pinfo4);
+                    occ.rotation = rotation;
+                    occ.flipped = flipped;
+                    const float position[2][3] = {{0, 0, 0}, {100.5f, 3.0f, -40.25f}};
+                    std::memcpy(occ.position, position[i % 2], 12);
+                    char* const turned = (i & 2) ? Virtual<char*>(o, 25 * 4, &occ)
+                                                 : This<char*>(addr::cSC4PathInfo_Transformed, o, &occ);
+                    ++i;
+                    pinfo4.Mix(turned ? 1u : 0u);
+                    if (!turned)
+                        continue;
+                    MixObject(pinfo4, turned);
+                    MixTable(pinfo4, turned);
+                    Virtual<uint32_t>(turned, 8);
+                }
+        This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, 0u);
+    }
+    Section4("turned", pinfo4);
+
+    // ---- Slot 26 on clones over one-way kinds, allowed sides and kinds'
+    // sides.
+    {
+        struct Ways {
+            uint32_t oneWay, allowed, sides0, sides3;
+        };
+        const Ways ways[] = {{0x00u, 0xFu, 0xFu, 0x0u}, {0xFFu, 0xFu, 0xFu, 0xFu}, {0x01u, 0xFu, 0x7u, 0x8u},
+                             {0x02u, 0x5u, 0xFu, 0x0u}, {0x50u, 0xAu, 0x3u, 0xCu}, {0x0Au, 0x0u, 0xFu, 0xFu},
+                             {0x20u, 0xFu, 0x6u, 0x0u}, {0x84u, 0xBu, 0xFu, 0x0u}, {0xFFu, 0x0u, 0x0u, 0x0u}};
+        uint32_t i = 0;
+        for (const Ways& w : ways) {
+            char* const clone = This<char*>(addr::cSC4PathInfo_Clone, o);
+            if (!clone)
+                continue;
+            Occ4 occ{};
+            Bind(occ, &pinfo4);
+            occ.oneWay = w.oneWay;
+            occ.allowed = w.allowed;
+            occ.sides[0] = w.sides0;
+            occ.sides[3] = w.sides3;
+            occ.sides[6] = 0x10u;
+            occ.sides[1] = 0xFu;
+            if (i++ & 1)
+                Virtual<void>(clone, 26 * 4, &occ);
+            else
+                This<void>(addr::cSC4PathInfo_ReverseType1Paths, clone, &occ);
+            MixObject(pinfo4, clone);
+            MixTable(pinfo4, clone);
+            Virtual<uint32_t>(clone, 8);
+        }
+    }
+    Section4("oneway", pinfo4);
+
+    // ---- Slot 29 over boxes (all inside, cutting, small, on the points'
+    // edges, empty) and moves; slot 16 copied.
+    {
+        const float boxes[][4] = {{-100, -100, 100, 100}, {0, -6, 12, 6}, {2, 2, 3, 3},      {5, -1, 15, 10},
+                                  {0, 0, 0, 0},           {1, 1, 4, 4},   {-4, -4, 9.9f, 4}, {-3, 0, 3, 8}};
+        const float moves[][3] = {{0, 0, 0}, {1.5f, -2.0f, 0.25f}, {-3.0f, 0.0f, 3.0f}};
+        uint32_t i = 0;
+        for (const auto& box : boxes)
+            for (const auto& m : moves) {
+                This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, i & 1);
+                char* const cut = (i & 2) ? Virtual<char*>(o, 29 * 4, m[0], m[1], m[2], box)
+                                          : This<char*>(addr::cSC4PathInfo_ClippedToBox, o, m[0], m[1], m[2], box);
+                ++i;
+                pinfo4.Mix(cut ? 1u : 0u);
+                if (!cut)
+                    continue;
+                MixObject(pinfo4, cut);
+                MixTable(pinfo4, cut);
+                Virtual<uint32_t>(cut, 8);
+            }
+        This<uint32_t>(addr::cSC4PathInfo_SetFlag, o, 0u);
+    }
+    Section4("clipped", pinfo4);
+
+    MixTable(pinfo4, o);
+    Virtual<uint32_t>(o, 8);
+    pi4flags |= 1;
+    log::Write("autotest: automata: vehicle: pi3b pinfo4 %08X flags %X", pinfo4.h, pi4flags);
+}
+
 } // namespace vb
 
 void VehicleDrive(cISC4City* city)
@@ -33607,6 +33989,11 @@ void VehicleDrive(cISC4City* city)
     uint32_t pi3flags = 0;
     PathInfo3Drive(pinfo3, pi3flags);
 
+    // ---- Part pi3b.
+    Hash pinfo4;
+    uint32_t pi4flags = 0;
+    PathInfo4Drive(pinfo4, pi4flags);
+
     // ---- The city's vehicles: the log only.
     {
         char* const manager = Virtual<char*>(city, av::kCityVehicleManager);
@@ -33659,18 +34046,18 @@ void VehicleDrive(cISC4City* city)
     }
     flags |= 2;
     std::memcpy(generator, saved.data(), kGeneratorSize);
-    char text[640];
+    char text[768];
     std::snprintf(text, sizeof text,
                   " V%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,"
                   "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,"
-                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X",
+                  "%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%X,%08X,%X,%08X,%X,%08X,%X,%08X,%X",
                   object.h, access.h, queries.h, nearest.h, flags, setters.h, save.h, texts.h, life.h, move.h, frame.h,
                   enter.h, states.h, ahead.h, steps.h, vmove.h, vframe.h, vlanes.h, vdrive.h, vqueue.h, vhit.h,
                   vframe8.h, cmodels.h, cmodels2.h, chighlight.h, robject.h, rsave.h, rlife.h, rflags, rframe.h, rtank.h,
                   rturret.h, tobject.h, tsave.h, tlife.h, tframe.h, tmove.h, trock.h, tplace.h, tdrive.h, tflags,
                   eobject.h, esave.h, elife.h, estates.h, eframes.h, efire.h, epatrol.h, eroute.h, eflags,
                   pobject.h, psave.h, pstates.h, pwalks.h, pcrews.h, pfire.h, pfire2.h, pflags, pinfo.h, piflags,
-                  pinfo2.h, pi2flags, pinfo3.h, pi3flags);
+                  pinfo2.h, pi2flags, pinfo3.h, pi3flags, pinfo4.h, pi4flags);
     g_vehicleText = text;
     log::Write("autotest: automata: vehicle: object %08X accessors %08X queries %08X nearest %08X flags %X setters "
                "%08X save %08X texts %08X life %08X move %08X frame %08X enter %08X states %08X ahead %08X steps "

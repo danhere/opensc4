@@ -1,4 +1,4 @@
-// Our path information, parts pi1, pi2 and pi3a (build 641): cSC4PathInfo, the
+// Our path information, parts pi1 to pi3b (build 641): cSC4PathInfo, the
 // resource of type 0x296678F7 (interface 0xA9667793) that holds a network
 // piece's paths (the SC4PATHS files), and cSC4PathInfoFactory, its resource
 // factory (class ID 0x496678FE). pi1: the factory (its class ID, Create,
@@ -15,14 +15,18 @@
 // ahead, a point projected on a path and on all paths, the farthest
 // middle, a path's middle, a random point on a path), 31 (paths copied as
 // another type), 37 (the key nearest the middle) and 39 (the crossing
-// path). The survey is
+// path). pi3b: the transforms, slots 25 (a copy turned and flipped by an
+// occupant, on its ground), 26 (type 1 paths one way only: erased, or
+// turned round) and 29 (a copy moved and cut to a box) with their helpers
+// (a segment's crossing of the box, a record's length, points copied in
+// reverse, a point inserted, copies with the same ends removed). The survey is
 // in docs/automata.md, "Part pi". Calls between functions of the part go to
 // the game's addresses, so each detour stands alone and OPENSC4_AUTOMATA_SKIP
 // (function addresses, hex, eight digits) bisects them.
 //
 // Group, off by default:
-//   simulators.automata.pathinfo: the 61 detours in kObject (pi1), kTables
-//   (pi2) and kSearches (pi3a) below.
+//   simulators.automata.pathinfo: the 69 detours in kObject (pi1), kTables
+//   (pi2), kSearches (pi3a) and kTransforms (pi3b) below.
 //
 // What it does. A path information is a 0x3C-byte block of the pool
 // 0x00B09FEC (4 KB pages of 0x44 blocks): +0 the interface (vtable
@@ -41,9 +45,8 @@
 // (+4 slot 12), AddRef and Release (0x00808600, 0x00808610, shared), the
 // table's clear, resize, begin and next bucket (shared), the points'
 // allocate-and-copy 0x0053D5A0 (also called from 0x0050C540), the vectors'
-// and strings' code, the base classes' constructors and destructors, and
-// the geometry and transforms of pi3b (slots 25, 26, 29 and their helpers
-// 0x0053D160, 0x0053D280, 0x0053D600, 0x0053F940, 0x005403F0).
+// and strings' code, the hash map's erase, the base classes' constructors
+// and destructors.
 //
 // Oddities kept (pi1): QueryInterface holds through the object's slot 1
 // whatever it answers; 0x456B8F1D on a null object answers null and 0;
@@ -87,6 +90,19 @@
 // shifted out) and walks the table as it grows (copies are copied in
 // turn). AL only in the game: slots 18, 21, 22, 23 and 39; ours
 // zero-extends.
+//
+// Oddities kept (pi3b): slot 25 turns paths and stops by FCOS and FSIN of
+// the rotation (x87), its matrix from cos(0) and sin(0) in the game's sums,
+// the stops' rows summed the other way round; a flip mirrors paths' sides
+// but not stops'; slot 25's bit 1 pass clears the flagged records' bit and
+// sets it on the paths the other way round. Slot 26 erases the stops it
+// takes too and puts the turned paths back under the first free number
+// (operator[] at 26 overwrites a taken key's points). Slot 29 keeps its
+// start and end sides from point to point and path to path (the game's
+// stack bytes at the start; ours 0), and a segment through the box needs
+// its leave strictly past its entry. 0x0053D280 walks an empty record past
+// its end; 0x005403F0 reads first and last points unchecked and starts again
+// after each erase.
 //
 #include "core/address_check.h"
 #include "core/fixed_seed.h"
@@ -2338,6 +2354,746 @@ std::uint32_t __fastcall CopyPathsAsType(char* self, void*, std::uint32_t number
 }
 
 // ====================================================================================
+// Part pi3b: the transforms (slots 25, 26 and 29) and their helpers
+
+namespace slot {
+// The occupant's: slot 23 (asked, not used), its rotation (24) and flip
+// (25), its altitude at x and z (56), the point to the world (65), the
+// allowed sides (41), a kind's sides (42), the one-way kinds (69); its cell
+// part's position (slot 8).
+constexpr std::size_t kOccSlot23 = 0x5C, kOccRotation = 0x60, kOccFlipped = 0x64, kOccAltitude = 0xE0,
+                      kOccToWorld = 0x104, kOccAllowed = 0xA4, kOccKindSides = 0xA8, kOccOneWay = 0x114,
+                      kPartPosition = 0x20;
+} // namespace slot
+
+// A quarter turn (pi / 2 as a float), the box's edge slack 0.1, the rise
+// slot 25 adds a middle for (0.2); the 13 kinds' bits (1 << kind), the
+// one-way bytes of each side (two tables of four).
+constexpr std::uintptr_t kQuarterTurn = 0x00A99D20, kEdgeSlack = 0x00A8C950, kRise = 0x00A94D54,
+                         kKindBits = 0x00A99CE0, kOneWayTo = 0x00A99F18, kOneWayFrom = 0x00A99F1C;
+
+// FCOS and FSIN of a double, as the game's x87 computes them.
+double X87Cos(double x)
+{
+    double result;
+    __asm {
+        fld x
+        fcos
+        fstp result
+    }
+    return result;
+}
+
+double X87Sin(double x)
+{
+    double result;
+    __asm {
+        fld x
+        fsin
+        fstp result
+    }
+    return result;
+}
+
+// Whether two floats are within the slack, as the game's "test ah, 1"
+// after FCOMP takes it: below, or unordered.
+bool Near(float a, float b, float slack)
+{
+    return !(std::fabs(static_cast<double>(a) - b) >= slack);
+}
+
+// The first node of a table, as the inlined scan finds it: the head of the
+// first bucket that has one.
+char* FirstNode(char* table)
+{
+    for (std::uint32_t bucket = 0; bucket < BucketCount(table); ++bucket)
+        if (char* const node = Bucket(table, bucket))
+            return node;
+    return nullptr;
+}
+
+// The side 0 to 3 a point is on (its x within 0.1 of the box's low x, its z
+// of the low z, x of the high x, z of the high z, in that order), else
+// 0xFF.
+std::uint8_t EdgeSide(const float* point, const float* box)
+{
+    const float slack = Global<float>(kEdgeSlack);
+    if (std::fabs(static_cast<double>(point[0]) - box[0]) <= slack)
+        return 0;
+    if (std::fabs(static_cast<double>(point[2]) - box[1]) <= slack)
+        return 1;
+    if (std::fabs(static_cast<double>(point[0]) - box[2]) <= slack)
+        return 2;
+    if (std::fabs(static_cast<double>(point[2]) - box[3]) <= slack)
+        return 3;
+    return 0xFF;
+}
+
+// 0x0053D160, cdecl (out, box, flags, from, to, side): for each flag of the
+// low byte (1 the box's low x, 2 low z, 4 high x, 8 high z) the ratio along
+// from-to where the segment meets that side ((box - from) / (to - from), x
+// or z); the greatest (from 0, at least the one before; flag 1 compared
+// with 0 only) as a float, and its side into *side. out = from + (to -
+// from) times it, each product rounded to a float (z's difference too).
+// EAX out.
+float* __cdecl BoxCrossing(float* out, const float* box, std::uint32_t flags, const float* from, const float* to,
+                           std::uint8_t* side)
+{
+    static bool logged;
+    FirstCall("BoxCrossing", logged);
+    const float zero = Global<float>(kZero);
+    float t = zero;
+    if (flags & 1) {
+        const double v = (static_cast<double>(box[0]) - from[0]) / (static_cast<double>(to[0]) - from[0]);
+        if (v >= zero) {
+            *side = 0;
+            t = static_cast<float>(v);
+        }
+    }
+    if (flags & 2) {
+        const double v = (static_cast<double>(box[1]) - from[2]) / (static_cast<double>(to[2]) - from[2]);
+        if (v >= t) {
+            *side = 1;
+            t = static_cast<float>(v);
+        }
+    }
+    if (flags & 4) {
+        const double v = (static_cast<double>(box[2]) - from[0]) / (static_cast<double>(to[0]) - from[0]);
+        if (v >= t) {
+            *side = 2;
+            t = static_cast<float>(v);
+        }
+    }
+    if (flags & 8) {
+        const double v = (static_cast<double>(box[3]) - from[2]) / (static_cast<double>(to[2]) - from[2]);
+        if (v >= t) {
+            *side = 3;
+            t = static_cast<float>(v);
+        }
+    }
+    const double dx = static_cast<double>(to[0]) - from[0];
+    const double dy = static_cast<double>(to[1]) - from[1];
+    const float dz = static_cast<float>(static_cast<double>(to[2]) - from[2]);
+    const float px = static_cast<float>(dx * t);
+    const float py = static_cast<float>(dy * t);
+    const float pz = static_cast<float>(static_cast<double>(dz) * t);
+    out[0] = static_cast<float>(static_cast<double>(px) + from[0]);
+    out[1] = static_cast<float>(static_cast<double>(py) + from[1]);
+    out[2] = static_cast<float>(static_cast<double>(pz) + from[2]);
+    return out;
+}
+
+// 0x0053D280, cdecl (record): the record's length (+0xC) set to the sum of
+// its segments' lengths (sqrt((dz² + dx²) + dy²), summed in 53 bits, rounded
+// once). An empty record walks on past its end (the loop ends only at the
+// end pointer).
+void __cdecl SetLength(char* record)
+{
+    static bool logged;
+    FirstCall("SetLength", logged);
+    const char* const end = At<char*>(record, 4);
+    const float* a = reinterpret_cast<const float*>(At<char*>(record, 0));
+    double sum = Global<float>(kZero);
+    for (const float* b = a + 3; reinterpret_cast<const char*>(b) != end; a = b, b += 3) {
+        const double dx = static_cast<double>(b[0]) - a[0];
+        const double dy = static_cast<double>(b[1]) - a[1];
+        const double dz = static_cast<double>(b[2]) - a[2];
+        sum = sum + std::sqrt((dz * dz + dx * dx) + dy * dy);
+    }
+    At<float>(record, kRecordLength) = static_cast<float>(sum);
+}
+
+// 0x0053D600, cdecl (end, begin, out), reverse_copy of 12-byte points: from
+// the last point back, each copied word by word to out; the count (end -
+// begin) / 12 signed, nothing for one not above 0. EAX out past the copies.
+char* __cdecl ReverseCopyPoints(const char* end, const char* begin, char* out)
+{
+    static bool logged;
+    FirstCall("ReverseCopyPoints", logged);
+    for (std::int32_t count = static_cast<std::int32_t>(end - begin) / 12; count > 0; --count) {
+        const auto* const point = reinterpret_cast<const std::uint32_t*>(end - 12);
+        At<std::uint32_t>(out, 0) = point[0];
+        At<std::uint32_t>(out, 4) = point[1];
+        At<std::uint32_t>(out, 8) = point[2];
+        end -= 12;
+        out += 12;
+    }
+    return out;
+}
+
+// 0x0053F940, on a points vector (where, point), ret 8: insert of one
+// point. Full: SC4Float3Vector::Insert (count 1, the last argument 0).
+// At the end: the point there (nothing written at a null end). Else the
+// last point copied one on, the end moved, the rest moved back
+// (0x004FA8B0) and the point (read before the move) written at where. EAX
+// the new begin plus the index where had at the start.
+char* __fastcall InsertPoint(char** vector, void*, char* where, const float* point)
+{
+    static bool logged;
+    FirstCall("InsertPoint", logged);
+    const std::int32_t index = static_cast<std::int32_t>(where - vector[0]) / 12;
+    char* const end = vector[1];
+    if (end == vector[2]) {
+        CallThis<void>(addr::SC4Float3Vector_Insert, vector, where, point, &point, 1u, 0u);
+        return vector[0] + index * 12;
+    }
+    if (where == end) {
+        if (end)
+            std::memcpy(end, point, 12);
+        vector[1] += 12;
+        return vector[0] + index * 12;
+    }
+    if (end) {
+        const auto* const before = reinterpret_cast<const std::uint32_t*>(end - 12);
+        At<std::uint32_t>(end, 0) = before[0];
+        At<std::uint32_t>(end, 4) = before[1];
+        At<std::uint32_t>(end, 8) = before[2];
+    }
+    char* const last = vector[1];
+    vector[1] = last + 12;
+    std::uint32_t value[3];
+    std::memcpy(value, point, 12);
+    CallCdecl<void>(addr::SC4Float3Vector_CopyBackward, where, last - 12, last, &point, 0u);
+    At<std::uint32_t>(where, 4) = value[1];
+    At<std::uint32_t>(where, 8) = value[2];
+    At<std::uint32_t>(where, 0) = value[0];
+    return vector[0] + index * 12;
+}
+
+// 0x005403F0, no arguments: for each node, another of the same type, from
+// and to but another number whose first points are less than 1 apart and
+// whose last points are too (sqrt((dz² + dy²) + dx²); points read
+// unchecked) has the node erased (0x005845D0), and the walk starts again
+// from the table's first node.
+void __fastcall RemoveDuplicates(char* self, void*)
+{
+    static bool logged;
+    FirstCall("RemoveDuplicates", logged);
+    char* const table = self + kTable;
+    const Iterator it = First(self);
+    const float one = Global<float>(kEndSlack);
+    const auto apart = [](const float* a, const float* b) {
+        const double dx = static_cast<double>(a[0]) - b[0];
+        const double dy = static_cast<double>(a[1]) - b[1];
+        const double dz = static_cast<double>(a[2]) - b[2];
+        return std::sqrt((dz * dz + dy * dy) + dx * dx);
+    };
+    char* node = it.node;
+    while (node) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        bool erased = false;
+        for (char* other = FirstNode(table); other; other = NextNode(table, other)) {
+            const std::uint32_t otherKey = At<std::uint32_t>(other, kNodeKey);
+            if (otherKey == key || ((otherKey ^ key) & 0xFF00FFFFu))
+                continue;
+            if (!(apart(At<float*>(node, kNodeRecord), At<float*>(other, kNodeRecord)) < one))
+                continue;
+            if (!(apart(At<float*>(node, kNodeRecord + 4) - 3, At<float*>(other, kNodeRecord + 4) - 3) < one))
+                continue;
+            const Iterator at{node, it.table};
+            CallThis<void>(addr::SC4PtrVectorHashMap_Erase, table, &at);
+            node = FirstNode(table);
+            erased = true;
+            break;
+        }
+        if (!erased)
+            node = NextNode(it.table, node);
+    }
+}
+
+// The mirror of a side across x for slot 25's flip: 0 and 2 swapped.
+std::uint8_t MirrorSide(std::uint8_t side)
+{
+    return side == 0 ? 2 : side == 2 ? 0 : side;
+}
+
+// 0x00540AC0, slot 25 (occupant), ret 4: a new path information (a pool
+// block, the constructor at the game's address) with every path and first
+// stop of this one turned by the occupant: its slot 23 asked; the flip
+// (slot 25) and the rotation (slot 24, times a quarter turn 0x00A99D20, x87
+// FCOS and FSIN); the matrix rows (x, y, z) of the game's sums from
+// cos(0) and sin(0), rounded to floats, the x row negated when flipped;
+// the move from the occupant's cell part (slot 48's slot 8); the app's
+// left-hand driving (slot 38 (0)'s slot 25, 1 when there is none). Per
+// key: the highest number asked (0x0053EB30); from and to turned by the
+// rotation (0xFF kept); paths (high nibble 0) when flipped get from and to
+// swapped and mirrored (0 and 2) and the number the highest less it,
+// types 1 and 5 swap from and to again unless driving on the left;
+// AddPath, the length 0 and the byte, the points reserved and each (in
+// reverse when swapped an odd number of times) through the occupant's slot
+// 65, turned and moved, y the altitude (slot 56) unless slot 16 says so,
+// pushed, the length summed (as floats). A path of two points without
+// slot 16 gets its middle at the altitude when that is more than 0.2 off
+// (0x0053F940), the length the two halves. A first stop (high nibble 1):
+// its first point turned (the rows summed the other way round) and added
+// (AddStop) under the turned sides, the number the highest less it when
+// flipped (0xFF kept), sides not mirrored. Flipped, the records with the
+// byte's bit 1 lose it and the paths the other way round between their
+// sides gain it. Slot 17 set from this one's slot 16, held; the answer.
+char* __fastcall Transformed(char* self, void*, char* occupant)
+{
+    static bool logged;
+    FirstCall("Transformed", logged);
+    char* const made = CallThis<char*>(addr::cSC4PathInfo_Construct, PoolTake());
+    Virtual<std::uint32_t>(occupant, slot::kOccSlot23);
+    const std::uint8_t flipped = Virtual<std::uint32_t>(occupant, slot::kOccFlipped) & 0xFFu;
+    std::uint8_t rotation = Virtual<std::uint32_t>(occupant, slot::kOccRotation) & 0xFFu;
+    const double angle = static_cast<double>(rotation) * static_cast<double>(Global<float>(kQuarterTurn));
+    const float c0 = static_cast<float>(X87Cos(Global<double>(kZeroDouble)));
+    const float s0 = static_cast<float>(X87Sin(Global<double>(kZeroDouble)));
+    const double cosA = X87Cos(angle);
+    const float sinA = static_cast<float>(X87Sin(angle));
+    const double a = static_cast<double>(sinA) * s0, b = static_cast<double>(sinA) * c0;
+    // Each row's x, y and z factors.
+    float rx[3], ry[3], rz[3];
+    rx[0] = static_cast<float>(static_cast<double>(c0) * cosA);
+    ry[0] = static_cast<float>(-(static_cast<double>(s0) * cosA));
+    rz[0] = sinA;
+    rx[1] = static_cast<float>(a * c0 + static_cast<double>(s0) * c0);
+    ry[1] = static_cast<float>(static_cast<double>(c0) * c0 - a * s0);
+    rz[1] = static_cast<float>(-(cosA * s0));
+    rx[2] = static_cast<float>(static_cast<double>(s0) * s0 - b * c0);
+    ry[2] = static_cast<float>(b * s0 + static_cast<double>(c0) * s0);
+    rz[2] = static_cast<float>(cosA * c0);
+    if (flipped) {
+        rx[0] = -rx[0];
+        rx[1] = -rx[1];
+        rx[2] = -rx[2];
+    }
+    float move[3];
+    {
+        void* const part = Virtual<void*>(occupant, slot::kCellPart);
+        float out[3];
+        Virtual<void*>(part, slot::kPartPosition, out);
+        std::memcpy(move, out, sizeof move);
+    }
+    std::uint8_t left = 1;
+    void* const app = CallCdecl<void*>(addr::SC4_CurrentApp);
+    if (void* const preferences = Virtual<void*>(app, slot::kAppPreferences, 0u))
+        left = (Virtual<std::uint32_t>(preferences, slot::kDrivesOnLeft) & 0xFFu) == 1 ? 1 : 0;
+
+    const auto altitude = [&](float* p) {
+        if (!Flag(self))
+            p[1] = static_cast<float>(Virtual<double>(occupant, slot::kOccAltitude, p[0], p[2]));
+    };
+    const Iterator it = First(self);
+    for (char* node = it.node; node; node = NextNode(it.table, node)) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        std::uint8_t number = (key >> 16) & 0xFFu, from = (key >> 8) & 0xFFu, to = key & 0xFFu;
+        const std::uint32_t type = (key >> 24) & 0xFu, high = key >> 28;
+        const std::uint8_t highest =
+            CallThis<std::uint32_t>(addr::cSC4PathInfo_HighestNumber, self, type, std::uint32_t{from}, key) & 0xFFu;
+        bool reversed = false;
+        if (rotation) {
+            from = from == 0xFF ? 0xFF : static_cast<std::uint8_t>((from + rotation) & 3u);
+            to = to == 0xFF ? 0xFF : static_cast<std::uint8_t>((to + rotation) & 3u);
+        }
+        if (high == 1) {
+            float p[3];
+            std::memcpy(p, At<char*>(node, kNodeRecord), sizeof p);
+            if (flipped && number != 0xFF)
+                number = static_cast<std::uint8_t>(highest - number);
+            const std::uint32_t stop = ((((((type | 0x10u) << 8) | number) << 8) | from) << 8) | to;
+            Virtual<void>(occupant, slot::kOccToWorld, p);
+            const double r0 = (static_cast<double>(p[2]) * rx[2] + static_cast<double>(p[1]) * rx[1]) +
+                              static_cast<double>(rx[0]) * p[0];
+            const double r1 = (static_cast<double>(p[2]) * ry[2] + static_cast<double>(p[1]) * ry[1]) +
+                              static_cast<double>(ry[0]) * p[0];
+            const float r2 = static_cast<float>((static_cast<double>(p[2]) * rz[2] + static_cast<double>(p[1]) * rz[1]) +
+                                                static_cast<double>(p[0]) * rz[0]);
+            p[0] = static_cast<float>(r0 + move[0]);
+            p[1] = static_cast<float>(r1 + move[1]);
+            p[2] = static_cast<float>(static_cast<double>(r2) + move[2]);
+            altitude(p);
+            CallThis<std::uint32_t>(addr::cSC4PathInfo_AddStop, made, p, stop);
+            continue;
+        }
+        if (high != 0)
+            continue;
+        if (flipped) {
+            const std::uint8_t side = to;
+            to = MirrorSide(from);
+            from = MirrorSide(side);
+            reversed = true;
+            number = static_cast<std::uint8_t>(highest - number);
+        }
+        if ((type == 1 || type == 5) && !left) {
+            const std::uint8_t side = from;
+            from = to;
+            to = side;
+            reversed = !reversed;
+        }
+        char* const record = CallThis<char*>(addr::cSC4PathInfo_AddPath, made, PackKey(type, from, to, number));
+        if (!record)
+            continue;
+        At<std::uint32_t>(record, kRecordLength) = 0;
+        At<std::uint8_t>(record, kRecordByte) = At<std::uint8_t>(node, 0x18);
+        float last[3];
+        last[0] = last[1] = last[2] = Global<float>(kStartFloat);
+        const std::int32_t count = static_cast<std::int32_t>(At<char*>(node, kNodeRecord + 4) -
+                                                             At<char*>(node, kNodeRecord)) / 12;
+        CallThis<void>(addr::cSC4PathInfo_ReservePoints, record, static_cast<std::uint32_t>(count));
+        const auto take = [&](const char* source, bool first, bool forward) {
+            float p[3];
+            std::memcpy(p, source, sizeof p);
+            Virtual<void>(occupant, slot::kOccToWorld, p);
+            const double r0 = (static_cast<double>(rx[0]) * p[0] + static_cast<double>(rx[2]) * p[2]) +
+                              static_cast<double>(rx[1]) * p[1];
+            const double r1 = (static_cast<double>(ry[0]) * p[0] + static_cast<double>(ry[2]) * p[2]) +
+                              static_cast<double>(ry[1]) * p[1];
+            const float r2 = static_cast<float>((static_cast<double>(rz[0]) * p[0] + static_cast<double>(rz[2]) * p[2]) +
+                                                static_cast<double>(rz[1]) * p[1]);
+            p[0] = static_cast<float>(r0 + move[0]);
+            p[1] = static_cast<float>(r1 + move[1]);
+            p[2] = static_cast<float>(static_cast<double>(r2) + move[2]);
+            altitude(p);
+            PushPoint(record, reinterpret_cast<const char*>(p), &rotation);
+            if (!first) {
+                const double dx = static_cast<double>(p[0]) - last[0];
+                const double dy = static_cast<double>(p[1]) - last[1];
+                const double dz = static_cast<double>(p[2]) - last[2];
+                const double step = forward ? std::sqrt((dx * dx + dz * dz) + dy * dy)
+                                            : std::sqrt((dz * dz + dy * dy) + dx * dx);
+                At<float>(record, kRecordLength) = static_cast<float>(step + At<float>(record, kRecordLength));
+            }
+            std::memcpy(last, p, sizeof last);
+        };
+        if (reversed) {
+            for (char* p = At<char*>(node, kNodeRecord + 4); p != At<char*>(node, kNodeRecord); p -= 12)
+                take(p - 12, p == At<char*>(node, kNodeRecord + 4), false);
+        } else {
+            for (char* p = At<char*>(node, kNodeRecord); p != At<char*>(node, kNodeRecord + 4); p += 12)
+                take(p, p == At<char*>(node, kNodeRecord), true);
+        }
+        if (Flag(self) || count != 2)
+            continue;
+        float first[3], end[3];
+        std::memcpy(first, At<char*>(record, 0), sizeof first);
+        std::memcpy(end, At<char*>(record, 4) - 12, sizeof end);
+        const float half = Global<float>(kHalf);
+        const float hx = static_cast<float>((static_cast<double>(end[0]) - first[0]) * half);
+        const double hy = (static_cast<double>(end[1]) - first[1]) * half;
+        const float dz = static_cast<float>(static_cast<double>(end[2]) - first[2]);
+        float middle[3];
+        middle[0] = static_cast<float>(static_cast<double>(hx) + first[0]);
+        middle[1] = static_cast<float>(hy + first[1]);
+        middle[2] = static_cast<float>(static_cast<double>(dz) * half + first[2]);
+        const double height = Virtual<double>(occupant, slot::kOccAltitude, middle[0], middle[2]);
+        const float ground = static_cast<float>(height);
+        if (!(std::fabs(height - middle[1]) > Global<float>(kRise)))
+            continue;
+        middle[1] = ground;
+        CallThis<char*>(addr::cSC4PathInfo_InsertPoint, record, At<char*>(record, 0) + 12, middle);
+        const double ax = static_cast<double>(middle[0]) - first[0], ay = static_cast<double>(ground) - first[1],
+                     az = static_cast<double>(middle[2]) - first[2];
+        const double bx = static_cast<double>(end[0]) - middle[0], by = static_cast<double>(end[1]) - ground,
+                     bz = static_cast<double>(end[2]) - middle[2];
+        const float second = static_cast<float>(std::sqrt((bx * bx + bz * bz) + by * by));
+        At<float>(record, kRecordLength) =
+            static_cast<float>(static_cast<double>(second) + std::sqrt((ax * ax + az * az) + ay * ay));
+    }
+
+    if (flipped) {
+        char* const table = made + kTable;
+        char* keys[3] = {};
+        const Iterator at = First(made);
+        for (char* node = at.node; node; node = NextNode(at.table, node)) {
+            const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+            if (!(At<std::uint8_t>(node, 0x18) & 1))
+                continue;
+            At<std::uint8_t>(node, 0x18) &= 0xFE;
+            PushWord(keys, &key, &rotation);
+        }
+        const auto count = static_cast<std::uint32_t>(static_cast<std::int32_t>(keys[1] - keys[0]) >> 2);
+        for (std::uint32_t i = 0; i < count; ++i) {
+            const std::uint32_t key = At<std::uint32_t>(keys[0], i * 4);
+            for (char* node = FirstNode(table); node; node = NextNode(table, node)) {
+                const std::uint32_t other = At<std::uint32_t>(node, kNodeKey);
+                if (!(other & 0xF0000000u) && ((other >> 8) & 0xFFu) == (key & 0xFFu) &&
+                    (other & 0xFFu) == ((key >> 8) & 0xFFu))
+                    At<std::uint8_t>(node, 0x18) |= 1;
+            }
+        }
+        if (keys[0])
+            CallCdecl<void>(addr::SC4_Free, keys[0]);
+    }
+    Virtual<void>(made, slot::kSetFlag, Virtual<std::uint32_t>(self, slot::kGetFlag));
+    Virtual<std::uint32_t>(made, slot::kAddRef);
+    return made;
+}
+
+// 0x00541670, slot 26 (occupant), ret 4: the occupant's one-way kinds (slot
+// 69), its allowed sides (slot 41 (10)) and the sides of the kinds whose
+// bit (0x00A99CE0) is in 0xC49 (slot 42 each, ORed). Each type 1 key
+// (stops too) whose from and to are each 4 up or a side of those kinds, and
+// one of which is one-way for the kinds (from by 0x00A99F1C, to by
+// 0x00A99F18), is erased (0x005845D0); a path of them (high nibble 0) not
+// one-way the other way round (to by 0x00A99F1C, from by 0x00A99F18) and
+// with each side below 4 allowed goes first, the other way round, into a
+// table of its own (insert_equal; the points in reverse, 0x0053D600, the
+// length and byte). Those are then put back under the first free number
+// from theirs (0x0053DDE0, operator[], the points assigned, the length and
+// byte).
+void __fastcall ReverseType1Paths(char* self, void*, char* occupant)
+{
+    static bool logged;
+    FirstCall("ReverseType1Paths", logged);
+    const Iterator it = First(self);
+    const std::uint8_t oneWay = Virtual<std::uint32_t>(occupant, slot::kOccOneWay) & 0xFFu;
+    std::uint32_t local[5] = {};
+    char* const reversed = reinterpret_cast<char*>(local);
+    CallThis<void>(addr::SC4Uint32HashSet_Construct, reversed, 100u);
+    const std::uint32_t allowed = Virtual<std::uint32_t>(occupant, slot::kOccAllowed, 0xAu) & 0xFFu;
+    std::uint32_t sides = 0;
+    for (std::uint32_t kind = 0; kind < 13; ++kind)
+        if (Global<std::uint32_t>(kKindBits + kind * 4) & 0xC49u)
+            sides |= Virtual<std::uint32_t>(occupant, slot::kOccKindSides, kind) & 0xFFu;
+    const auto oneWayFrom = [&](std::uint8_t side) { return side < 4 && (Global<std::uint8_t>(kOneWayFrom + side) & oneWay); };
+    const auto oneWayTo = [&](std::uint8_t side) { return side < 4 && (Global<std::uint8_t>(kOneWayTo + side) & oneWay); };
+    char* node = it.node;
+    while (node) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        const std::uint8_t number = (key >> 16) & 0xFFu, from = (key >> 8) & 0xFFu, to = key & 0xFFu;
+        char* const next = NextNode(it.table, node);
+        if (((key >> 24) & 0xFu) != 1 || (from < 4 && !(sides & (1u << from))) || (to < 4 && !(sides & (1u << to))) ||
+            (!oneWayFrom(from) && !oneWayTo(to))) {
+            node = next;
+            continue;
+        }
+        if (!(key >> 28) && !oneWayFrom(to) && !oneWayTo(from) && !(from < 4 && !(allowed & (1u << from))) &&
+            !(to < 4 && !(allowed & (1u << to)))) {
+            char* empty[3] = {};
+            Value value{};
+            value.key = 0x01000000u | (std::uint32_t{number} << 16) | (std::uint32_t{to} << 8) | from;
+            CallThis<void*>(addr::SC4Float3Vector_CopyConstruct, value.points, empty);
+            // The game's length and byte here are stack words it never set
+            // (ours 0); both are overwritten below.
+            CallThis<void>(addr::SC4Uint32HashSet_Resize, reversed, local[4] + 1);
+            Placed placed{};
+            CallThis<void>(addr::cSC4PathInfo_InsertEqual, reversed, &placed, &value);
+            char* const record = placed.node + kNodeRecord;
+            if (value.points[0])
+                CallCdecl<void>(addr::SC4_Free, value.points[0]);
+            At<std::uint8_t>(record, kRecordByte) = At<std::uint8_t>(node, 0x18);
+            At<std::uint32_t>(record, kRecordLength) = At<std::uint32_t>(node, kNodeLength);
+            const std::int32_t count = static_cast<std::int32_t>(At<char*>(node, kNodeRecord + 4) -
+                                                                 At<char*>(node, kNodeRecord)) / 12;
+            std::uint32_t fill[3];
+            fill[0] = fill[1] = fill[2] = Global<std::uint32_t>(kStartFloat);
+            CallThis<void>(addr::SC4Float3Vector_ResizeFill, record, static_cast<std::uint32_t>(count), fill);
+            CallCdecl<char*>(addr::cSC4PathInfo_ReverseCopyPoints, At<char*>(node, kNodeRecord + 4),
+                             At<char*>(node, kNodeRecord), At<char*>(record, 0));
+        }
+        const Iterator at{node, it.table};
+        CallThis<void>(addr::SC4PtrVectorHashMap_Erase, self + kTable, &at);
+        node = next;
+    }
+    for (char* n = FirstNode(reversed); n; n = NextNode(reversed, n)) {
+        const std::uint32_t key = At<std::uint32_t>(n, kNodeKey);
+        std::uint32_t wanted = CallThis<std::uint32_t>(addr::cSC4PathInfo_FreePathNumber, self, (key >> 24) & 0xFu,
+                                                       key >> 8, key, (key >> 16) & 0xFFu);
+        char* const record = CallThis<char*>(addr::cSC4PathInfo_FindOrInsert, self + kTable, &wanted);
+        CallThis<void*>(addr::SC4Float3Vector_Assign, record, n + kNodeRecord);
+        At<std::uint32_t>(record, kRecordLength) = At<std::uint32_t>(n, kNodeLength);
+        At<std::uint8_t>(record, kRecordByte) = At<std::uint8_t>(n, 0x18);
+    }
+    CallThis<void>(addr::SC4PtrVectorHashMap_Clear, reversed);
+    if (local[1])
+        CallCdecl<void>(addr::SC4_Free, reinterpret_cast<void*>(local[1]));
+}
+
+// 0x00541AE0, slot 29 (x, y, z, box), ret 0x10: a new path information
+// (held, slot 17 from this one's slot 16) with each path or stop's points
+// moved by x, y and z and cut to the box (low x, low z, high x, high z).
+// Per point its outside flags (1 x below the low x, 2 z below the low z, 4
+// x above the high x, 8 z above the high z). The first point inside gives
+// the start side (0 to 3 within 0.1 of the box's sides, else 0xFF); a point
+// coming inside adds the crossing (0x0053D160, its side the start); a point
+// inside is added unless it is within 0.001 of the last one in x, y and z.
+// A point going outside drops the last points within 0.001 of the
+// crossing (not the first), adds the crossing and makes a path (the first
+// free number from the key's, AddPath) with them, its side the end, the
+// byte and the length (0x0053D280); a segment through the box from one
+// outside side to another makes a path of its two crossings (the ratios
+// as floats, entering from 0 up, leaving from 1 down; only when the leave
+// is past the entry). Points ending inside make a path to the last one's
+// side. The sides are kept from point to point and path to path (the
+// game's stack bytes at the start; ours 0). Then the copies with the same
+// ends removed (0x005403F0).
+char* __fastcall ClippedToBox(char* self, void*, float x, float y, float z, const float* box)
+{
+    static bool logged;
+    FirstCall("ClippedToBox", logged);
+    char* const made = CallThis<char*>(addr::cSC4PathInfo_Construct, PoolTake());
+    Virtual<std::uint32_t>(made, slot::kAddRef);
+    Virtual<void>(made, slot::kSetFlag, Virtual<std::uint32_t>(self, slot::kGetFlag));
+    const float close = Global<float>(kCloseEnough);
+    std::uint8_t start = 0, end = 0;
+    std::uint32_t flags = 0;
+    const Iterator it = First(self);
+    for (char* node = it.node; node; node = NextNode(it.table, node)) {
+        const std::uint32_t key = At<std::uint32_t>(node, kNodeKey);
+        const std::uint32_t type = (key >> 24) & 0xFu;
+        std::uint8_t number = (key >> 16) & 0xFFu;
+        float last[3];
+        last[0] = last[1] = last[2] = Global<float>(kStartFloat);
+        char* points[3] = {};
+        char* const kept = reinterpret_cast<char*>(points);
+        if (At<char*>(node, kNodeRecord) == At<char*>(node, kNodeRecord + 4))
+            continue;
+        const auto make = [&]() -> char* {
+            const std::uint32_t wanted = CallThis<std::uint32_t>(addr::cSC4PathInfo_FreePathNumber, made, type,
+                                                                 std::uint32_t{start}, std::uint32_t{end},
+                                                                 std::uint32_t{number});
+            return CallThis<char*>(addr::cSC4PathInfo_AddPath, made, wanted);
+        };
+        // The kept points become the record's, the record's (none) theirs.
+        const auto handOver = [&](char* record) {
+            for (int i = 0; i < 3; ++i) {
+                char* const swap = At<char*>(record, i * 4);
+                At<char*>(record, i * 4) = points[i];
+                points[i] = swap;
+            }
+            At<std::uint8_t>(record, kRecordByte) = At<std::uint8_t>(node, 0x18);
+            CallCdecl<void>(addr::cSC4PathInfo_SetLength, record);
+        };
+        bool started = false;
+        std::uint32_t before = 0;
+        float q[3];
+        for (const char* p = At<char*>(node, kNodeRecord); p != At<char*>(node, kNodeRecord + 4); p += 12) {
+            const float* const source = reinterpret_cast<const float*>(p);
+            q[0] = static_cast<float>(static_cast<double>(x) + source[0]);
+            q[1] = static_cast<float>(static_cast<double>(y) + source[1]);
+            q[2] = static_cast<float>(static_cast<double>(z) + source[2]);
+            flags = 0;
+            if (q[0] < box[0])
+                flags = 1;
+            if (q[2] < box[1])
+                flags += 2;
+            if (q[0] > box[2])
+                flags += 4;
+            if (q[2] > box[3])
+                flags += 8;
+            if (flags == 0) {
+                if (!started) {
+                    start = EdgeSide(q, box);
+                } else if (before) {
+                    float crossing[3];
+                    const float* const c =
+                        CallCdecl<float*>(addr::cSC4PathInfo_BoxCrossing, crossing, box, before, last, q, &start);
+                    PushPoint(kept, reinterpret_cast<const char*>(c), &number);
+                }
+                const float* const tail = reinterpret_cast<const float*>(points[1]) - 3;
+                if (points[0] == points[1] || !Near(tail[0], q[0], close) || !Near(tail[1], q[1], close) ||
+                    !Near(tail[2], q[2], close))
+                    PushPoint(kept, reinterpret_cast<const char*>(q), &number);
+            } else if (started && before == 0) {
+                float crossing[3];
+                CallCdecl<float*>(addr::cSC4PathInfo_BoxCrossing, crossing, box, flags, q, last, &end);
+                if (points[0] != points[1]) {
+                    char* tail = points[1];
+                    while (tail - 12 != points[0]) {
+                        const float* const t = reinterpret_cast<const float*>(tail - 12);
+                        if (!Near(t[0], crossing[0], close) || !Near(t[1], crossing[1], close) ||
+                            !Near(t[2], crossing[2], close))
+                            break;
+                        tail -= 12;
+                    }
+                    points[1] = tail;
+                }
+                PushPoint(kept, reinterpret_cast<const char*>(crossing), &number);
+                if (char* const record = make())
+                    handOver(record);
+                // 0x00506280 copies the empty range at the end to the
+                // begin: the kept points emptied.
+                points[1] = points[0];
+            } else if (started && !(before & flags)) {
+                const std::uint32_t cross = flags ^ before;
+                const double dx = static_cast<double>(q[0]) - last[0];
+                const float dxf = static_cast<float>(dx);
+                const float dyf = static_cast<float>(static_cast<double>(q[1]) - last[1]);
+                const float dzf = static_cast<float>(static_cast<double>(q[2]) - last[2]);
+                float in = 0.0f, out = 1.0f;
+                if (cross & 1) {
+                    const double v = (static_cast<double>(box[0]) - last[0]) / dx;
+                    if (before & 1) {
+                        if (v >= Global<float>(kZero)) {
+                            in = static_cast<float>(v);
+                            start = 0;
+                        }
+                    } else if (v <= Global<float>(kEndSlack)) {
+                        out = static_cast<float>(v);
+                        end = 0;
+                    }
+                }
+                if (cross & 2) {
+                    const double v = (static_cast<double>(box[1]) - last[2]) / dzf;
+                    if (before & 2) {
+                        if (v >= in) {
+                            in = static_cast<float>(v);
+                            start = 1;
+                        }
+                    } else if (v <= out) {
+                        out = static_cast<float>(v);
+                        end = 1;
+                    }
+                }
+                if (cross & 4) {
+                    const double v = (static_cast<double>(box[2]) - last[0]) / dx;
+                    if (before & 4) {
+                        if (v >= in) {
+                            in = static_cast<float>(v);
+                            start = 2;
+                        }
+                    } else if (v <= out) {
+                        out = static_cast<float>(v);
+                        end = 2;
+                    }
+                }
+                if (cross & 8) {
+                    const double v = (static_cast<double>(box[3]) - last[2]) / dzf;
+                    if (before & 8) {
+                        if (v >= in) {
+                            in = static_cast<float>(v);
+                            start = 3;
+                        }
+                    } else if (v <= out) {
+                        out = static_cast<float>(v);
+                        end = 3;
+                    }
+                }
+                if (out > in) {
+                    if (char* const record = make()) {
+                        for (const float t : {in, out}) {
+                            float c[3];
+                            c[0] = static_cast<float>(static_cast<double>(dxf) * t + last[0]);
+                            c[1] = static_cast<float>(static_cast<double>(dyf) * t + last[1]);
+                            c[2] = static_cast<float>(
+                                static_cast<double>(static_cast<float>(static_cast<double>(dzf) * t)) + last[2]);
+                            PushPoint(record, reinterpret_cast<const char*>(c), &number);
+                        }
+                        At<std::uint8_t>(record, kRecordByte) = At<std::uint8_t>(node, 0x18);
+                        CallCdecl<void>(addr::cSC4PathInfo_SetLength, record);
+                    }
+                }
+            }
+            std::memcpy(last, q, sizeof last);
+            before = flags;
+            started = true;
+        }
+        if (flags == 0) {
+            end = EdgeSide(q, box);
+            if (char* const record = make())
+                handOver(record);
+        }
+        if (points[0])
+            CallCdecl<void>(addr::SC4_Free, points[0]);
+    }
+    CallThis<void>(addr::cSC4PathInfo_RemoveDuplicates, made);
+    return made;
+}
+
+// ====================================================================================
 // Install
 
 bool Skipped(std::uintptr_t address)
@@ -2453,13 +3209,26 @@ const Detour kSearches[] = {
     OPENSC4_DETOUR(addr::cSC4PathInfo_CrossingPath, CrossingPath),
 };
 
+// Part pi3b.
+const Detour kTransforms[] = {
+    OPENSC4_DETOUR(addr::cSC4PathInfo_Transformed, Transformed),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_ReverseType1Paths, ReverseType1Paths),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_ClippedToBox, ClippedToBox),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_BoxCrossing, BoxCrossing),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_SetLength, SetLength),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_ReverseCopyPoints, ReverseCopyPoints),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_InsertPoint, InsertPoint),
+    OPENSC4_DETOUR(addr::cSC4PathInfo_RemoveDuplicates, RemoveDuplicates),
+};
+
 #undef OPENSC4_DETOUR
 
 bool InstallObject(registry::Mode)
 {
     return InstallList(kObject, sizeof kObject / sizeof kObject[0], "object") &&
            InstallList(kTables, sizeof kTables / sizeof kTables[0], "tables") &&
-           InstallList(kSearches, sizeof kSearches / sizeof kSearches[0], "searches");
+           InstallList(kSearches, sizeof kSearches / sizeof kSearches[0], "searches") &&
+           InstallList(kTransforms, sizeof kTransforms / sizeof kTransforms[0], "transforms");
 }
 
 const bool g_registered[] = {
@@ -2473,7 +3242,8 @@ const bool g_registered[] = {
                         "pi1); the SC4PATHS reader (the factory's slot 10) with its line, number and point readers "
                         "and the type 2 mirror, the path table's insert_unique, insert_equal, insert, operator[] "
                         "and copy, slots 12, 14, 15, 27, 28, 32 to 35, 38 and 40 and the highest number (part "
-                        "pi2); the searches, slots 5 to 9, 18 to 23, 31, 37 and 39 (part pi3a) (61 detours; "
+                        "pi2); the searches, slots 5 to 9, 18 to 23, 31, 37 and 39 (part pi3a); the transforms, "
+                        "slots 25, 26 and 29 with their five helpers (part pi3b) (69 detours; "
                         "src/core/automata_pathinfo.cpp)",
                         false, InstallObject}),
 };

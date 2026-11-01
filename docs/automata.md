@@ -41,7 +41,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3 (9, done), ped4a (1, done), ped4b (part ped below counts 111) |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 |
 | Watercraft | 75 | 37,045 | 2 |
-| Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | pi1 (25, done), pi2 (22, done), pi3 (part pi below counts 73 of its own) |
+| Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | pi1 (25, done), pi2 (22, done), pi3a (14, done), pi3b (8, done) (part pi below counts 73 of its own; part pi finished) |
 
 That is about 48 parts of 20 to 45 functions. What the parts after a1 will meet:
 
@@ -4192,7 +4192,7 @@ The fields: +4 the resource part (its count +8, its key), +0x1C the path table (
 - **pi1 (25, done):** the objects, the small queries and the building. Below.
 - **pi2 (22, 6,829 bytes, done):** the SC4PATHS reader 0x00542900 (1,500 bytes) with its line, number and point readers (0x0053DEB0, 0x0053F8A0, 0x00540610) and the type 2 mirror 0x005423D0; the path table's template code (insert_unique 0x0053FF10, insert_equal 0x0053FFD0, 0x005400D0, operator[] 0x005402D0, the copy 0x00540160); slots 12, 14, 15, 27, 28, 32 to 35, 38, 40 and 0x0053EB30 (the highest number).
 - **pi3a (14, 7,045 bytes, done):** the searches: slots 5 to 9, 18 to 23, 31, 37 and 39. Floats throughout and draws (slot 5's ties, slots 8, 9 and 23). Below.
-- **pi3b (8, 7,726 bytes):** the transforms, slots 25 (0x00540AC0, 2,992 bytes), 26 (0x00541670, 1,110) and 29 (0x00541AE0, 2,286), and the helpers only they call: 0x0053D160, 0x0053D280 and 0x005403F0 (slot 29's), 0x0053D600 (slot 26's) and 0x0053F940 (slot 25's).
+- **pi3b (8, 7,726 bytes, done):** the transforms, slots 25 (0x00540AC0, 2,992 bytes), 26 (0x00541670, 1,110) and 29 (0x00541AE0, 2,286), and the helpers only they call: 0x0053D160, 0x0053D280 and 0x005403F0 (slot 29's), 0x0053D600 (slot 26's) and 0x0053F940 (slot 25's).
 
 No NAM site and none of SC4UIScale's addresses is in the range.
 
@@ -4397,3 +4397,56 @@ A trial with 41 planted changes changed the token for 39: slot 19's half width's
 Big City d0365 differed in the batch only in field 56 (pfire2, part ped4b) from its fourth day, with B giving two outcomes over three pairs; alone it was the same, the original giving two outcomes there (the save was 12 of 12 in the earlier p1 run). Every run's pi fields were the same on both sides: pinfo3 F90A8313, pi3flags 1 (pi1's and pi2's as before). Every B run installed the 61 and reached all 14 of pi3a. The game reaches slot 7 before the test on every save, slot 6 too on Making Money and Rush Hour d0090 on, and on Rush Hour t0000 slots 5, 6, 7, 9 and 19; the rest only the test reaches (reach.py, the pi3a names by default).
 
 An earlier run (p1, before the test's seed sites) had Rush Hour t0000 differ in pinfo3 on both sides alike (the original gave three values over three pairs): the game's own slot 5 calls before the test moved the clock seeds' count under slot 5's site. The test now counts its draws under sites of its own.
+
+### What is ours (pi3b)
+
+8 more functions in the same group, `simulators.automata.pathinfo` ([automata_pathinfo.cpp](../src/core/automata_pathinfo.cpp), list kTransforms), 69 in all; part pi is done.
+
+- **The transforms (3):** slots 25 0x00540AC0 (a copy turned and flipped by a network occupant, on its ground), 26 0x00541670 (type 1 paths one way only) and 29 0x00541AE0 (a copy moved and cut to a box).
+- **Their helpers (5):** the box crossing 0x0053D160 and a record's length 0x0053D280 (slot 29's), the points copied in reverse 0x0053D600 (slot 26's), a point inserted 0x0053F940 (slot 25's) and the copies with the same ends removed 0x005403F0 (slot 29's).
+
+The network occupant's GetPathInfo (slot 49, [netocc.md](netocc.md)) calls slot 25 on the resource's path information for every piece it draws, slot 29 when the piece has a path override and slot 26 on the result, so the game reaches slots 25 and 26 on its own.
+
+What they do:
+
+- **Slot 25** takes a new object (a pool block, the constructor at the game's address) and asks the occupant its slot 23 (not used), its flip (slot 25) and its rotation (slot 24, a byte). The rotation times a quarter turn (0x00A99D20) gives x87 FCOS and FSIN; the three rows (each a float) are the game's sums from cos(0) and sin(0), the x row negated when flipped; the move is the occupant's cell part's position (slot 48's slot 8); the app's left-hand driving (slot 38 (0)'s slot 25, 1 when there is none). For each key: the highest number (0x0053EB30); from and to turned by the rotation (0xFF kept). Paths (high nibble 0): flipped, from and to swapped and mirrored (0 and 2 swapped) and the number the highest less it; types 1 and 5 swap from and to again unless driving on the left; AddPath with the length 0 and the byte, the points reserved, each (in reverse when swapped an odd number of times) through the occupant's slot 65, turned, moved, y its altitude (slot 56) unless slot 16 says so, pushed and its distance from the last added to the length. A path of two points (without slot 16) whose altitude at the middle is more than 0.2 (0x00A94D54) off the middle gets that point (0x0053F940) and the two halves' length. First stops (high nibble 1): the first point turned the same way (the rows summed the other way round) and added (AddStop) under the turned sides, the number the highest less it when flipped (0xFF kept); second stops are left out. Flipped, the records whose byte has the bit 1 lose it and the paths between the same sides the other way round gain it. Slot 17 from this one's slot 16; held; the answer.
+- **Slot 26** reads the occupant's one-way kinds (slot 69), allowed sides (slot 41 (10)) and the sides of the kinds whose bits (0x00A99CE0) are in 0xC49 (slot 42 for 0, 3, 6, 10 and 11, ORed). Each type 1 key (stops too) whose from and to are each 4 up or a side of those kinds, and one of whose ends is one-way for the kinds (from by the bytes 0x00A99F1C, to by 0x00A99F18), is erased (0x005845D0). Before that, a path of them (high nibble 0) not one-way the other way round (to by 0x00A99F1C, from by 0x00A99F18) and whose sides below 4 are allowed goes the other way round into a table of its own (insert_equal; the points filled and copied in reverse, 0x0053D600; the length and byte). Those are then put back under the first free number from their own (0x0053DDE0, operator[], the points assigned, the length and byte).
+- **Slot 29** takes a new object (held, slot 17 from slot 16) and walks each record's points moved by x, y and z against the box (low x, low z, high x, high z): each point's flags (1 x below the low x, 2 z below the low z, 4 x above the high x, 8 z above the high z). The first point inside gives the start side (0 to 3 when within 0.1, 0x00A8C950, of the box's low x, low z, high x, high z in that order, else 0xFF). A point coming inside adds the crossing (0x0053D160 with the last point's flags, its side the start). A point inside is added unless it is within 0.001 (0x00A99E34) of the last added in x, y and z. A point going outside drops the last points within 0.001 of the crossing (never the first), adds the crossing (its side the end) and makes a path of them: the first free number from the key's (0x0053DDE0), AddPath, the points handed over, the byte, the length (0x0053D280). A segment from one outside side to another (no flag shared) makes a path of its two crossings: the ratios as floats, entering from 0 up (the flag 1 against 0, the others at least the last), leaving from 1 down, only when the leave is past the entry. Points ending inside make a path to the last one's side. Then 0x005403F0.
+- **The box crossing** takes for each flag of the low byte the ratio where the segment meets that side, the greatest from 0 (flag 1 against 0 only, the others at least the last) as a float and its side; the point is from plus the difference times it, each product rounded to a float. EAX the point. **A record's length** is the sum of its segments' lengths in 53 bits, rounded once. **The reverse copy** copies 12-byte points word by word from the end back, the count (end - begin) / 12 signed. **The point insert** uses SC4Float3Vector::Insert when full, writes at the end when it is there, else moves the last point on and the rest back (0x004FA8B0) and writes the point (read first); EAX the new begin plus the old index. **The removal** erases a node when another of the same type, from and to but another number has its first points and its last points each less than 1 apart, and starts again from the first node.
+
+Left the game's: the hash map's erase 0x005845D0 and clear, copy_backward 0x004FA8B0, the vectors' insert and resize, SC4EdgePool::Grow.
+
+Oddities kept:
+
+- **Slot 25's** rows come from FCOS and FSIN of 0 as well as of the angle, in the game's sums (the stops' summed the other way round from the paths'); the floats are the game's x87 sums at 53 bits, doubles in ours, z rounded to a float before the move. Its flip mirrors paths' sides but not stops', and the bit 1 pass only covers paths. Two-point paths get the middle only without slot 16; the middle's y difference is from the altitude unrounded.
+- **Slot 26** erases the type 1 stops it takes (high nibble 1 or 2) without turning them; operator[] at the number 26 overwrites the points of a key that is taken.
+- **Slot 29** keeps its start and end sides from point to point and from path to path, and at the start they are the game's stack bytes (ours 0; every path the test makes sets them first). A first point outside starts nothing; the pass through needs the leave strictly past the entry.
+- **0x0053D280** on an empty record walks on past its end (its loop ends only at the end pointer). **0x005403F0** reads first and last points unchecked and starts the walk again after each erase.
+- **AL only in the game:** none; the helpers answer EAX as the game's.
+
+Reimplemented like pi1 to pi3a: one writer, then an independent audit of all 8 against the disassembly. It found all 8 exact; its four notes are words the game leaves unset or passes unread (slot 29's side bytes' high bytes to the free number, slot 26's extra arguments to 0x0053D600, the local table's first word and the value's length and byte, all overwritten or never read).
+
+### Test (pi3b)
+
+The ` V` token gains `,<pinfo4>,<pi4flags>` (66 fields); pi4flags 1 when it ran, 2 without an object. The log line is "pi3b pinfo4", with one line per section before it. Everything is called at the game's addresses and through the vtable on objects and occupants of the test's:
+
+- **The box crossing** over the flags 0 to 15 and 0x10F, eight segments (into and out of a box from each side, along an edge, one whose z difference is not a float, one of no length whose ratios are infinite or not a number).
+- **A record's length** of one, two, five and nine points (one repeated, two of fractions that are not binary); **the reverse copy** for the counts -1 to 9; **the point insert** ten times (full and not; the begin, the second point, the end).
+- **The removal** on an object with numbers of one type and sides whose ends are near or not (a pair on their own exactly 1 apart), another type, the sides the other way round, a stop.
+- **Slot 25** over the rotations 0 to 3, 0x105 and 0x7700 (the low byte read), the flips 0, 1 and 0x200, slot 16 off and on and two positions, on an object of paths of types 1 to 7 (two of two points, one empty; sides 0 to 3 and 0xFF; bytes with the bit 1 and the other way round; one of fractions that are not binary; one leaving a box at a point it kept, coming back and leaving again) and stops (a number 0xFF, a second one), with an occupant of the test's whose slots 23, 24, 25, 48, 56 (a twisted plane, as a double) and 65 answer and mix.
+- **Slot 26** on clones over nine sets of one-way kinds, allowed sides and kinds' sides (slots 41, 42 and 69).
+- **Slot 29** over eight boxes (all inside, cutting, small, on the points' edges, empty) and three moves.
+
+A trial with 53 planted changes changed the token (or crashed) for 48: the box crossing's flag 1 compare, its other compares, side and rounding (dz and the products); a record's length rounded per step; the reverse copy's count and order; the point insert's full answer, the shift and the move back; the removal's mask, its own key, its first (exactly 1 apart) and last tests; slot 25's flip row, the sides' turn (a crash: the game's own pieces), the mirror, the number, the stops' number, the left-hand swap, the move, the altitude, the rise, the middle's y and length, the bit 1 pass both ways, the stops' rows, the flag and the matrix; slot 26's type, sides, one-way table, high nibble, allowed sides, key, length, reverse copy and number; slot 29's flag compare, edge side, near test, the drop of points near the crossing, the leave past the entry, the end side, the removal and the move. Unseen: the point insert's end branch (the middle branch gives the same at the end), slot 29's entry ratio > for >= (0 cannot come from a point outside), its emptying of the kept points (seen only when AddPath fails, all 27 numbers taken), and the order of the three squares in a record's length and in slot 25's forward steps (no point of the test rounds differently). 3 of them cannot show; 48 of 53.
+
+### Parity (pi3b)
+
+2026-10-31. B = the five automata groups as for ped1 and `simulators.automata.pathinfo` (pi1 to pi3b) against the original (env p4env-pi3b, snapshot pi3b-p2, built on main 9533cff):
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial t0000 | 7 | 8 of 8 days (the first pair) |
+| The 12-save batch | 7 | 12 of 12 saves (Big City d0365 after 3 pairs, both sides giving two outcomes in pfire2, part ped4b) |
+
+Every run's pi fields were the same on both sides: pinfo4 FE62B3FD, pi4flags 1 (pi1's to pi3a's as before). Every B run installed the 69 and reached all 8 of pi3b. The game reaches slots 25 and 26 before the test on every save (GetPathInfo as the view draws pieces), the point insert too on Big City and Rush Hour (two-point paths on uneven ground); the rest only the test reaches (reach.py, the pi3b names by default). An earlier run (p0, before the test gained its fractions and the box exit at a kept point) was the same: Making Money 5 of 5, the batch 12 of 12, Rush Hour t0000 after 3 pairs with the original giving two outcomes in chighlight (field 25) only.
