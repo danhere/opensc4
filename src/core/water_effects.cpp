@@ -14226,6 +14226,37 @@ uint32_t __fastcall LfStepFullByMode(char* self, void*, uint32_t particle, uint3
 }
 OPENSC4_THUNK(TLfStepFull, LfStepFullByMode, 8)
 
+// The move along a path writes only the particle. The game's answer is a
+// left-over register, so the two are compared on what they leave only.
+StepMode g_pathMode = StepMode::Original;
+Call2Fn g_SC4Effect_MoveAlongPath = nullptr;
+
+uint32_t LfPathCompared(const char* id, char* self, char* particle, uint32_t part)
+{
+    return SuCompared(
+        id, self, particle,
+        [&] {
+            MoveAlongPath(self, particle, LfFloat(part));
+            return 0u;
+        },
+        [&] {
+            g_SC4Effect_MoveAlongPath(self, nullptr, Word(particle), part);
+            return 0u;
+        });
+}
+
+uint32_t __fastcall LfPathByMode(char* self, void*, uint32_t particle, uint32_t part)
+{
+    if (g_pathMode == StepMode::Original || g_effectRecord || g_effectReplay)
+        return g_SC4Effect_MoveAlongPath(self, nullptr, particle, part);
+    if (g_pathMode == StepMode::Ours) {
+        MoveAlongPath(self, Ptr(particle), LfFloat(part));
+        return 0;
+    }
+    return LfPathCompared("effects.path_move", self, Ptr(particle), part);
+}
+OPENSC4_THUNK(TLfPath, LfPathByMode, 8)
+
 bool InstallLifeWander(registry::Mode mode)
 {
     return SuInstall(mode, g_wanderMode, addr::SC4Effect_StepFlag800000, &TLfWander, &g_SC4Effect_Wander,
@@ -14236,6 +14267,16 @@ bool InstallLifePull(registry::Mode mode)
 {
     return SuInstall(mode, g_pullMode, addr::SC4Effect_PathVelocity, &TLfPull, &g_SC4Effect_PathVelocity,
                      "the pull on an effect's particles");
+}
+
+// Forcing is hooked with the starts (LfHookForce, below).
+bool LfHookForce();
+
+bool InstallLifePath(registry::Mode mode)
+{
+    return SuInstall(mode, g_pathMode, addr::SC4Effect_MoveAlongPath, &TLfPath, &g_SC4Effect_MoveAlongPath,
+                     "a particle's move along a path") &&
+           (mode != registry::Mode::Compare || LfHookForce());
 }
 
 bool InstallLifeStepFull(registry::Mode mode)
@@ -14266,6 +14307,19 @@ const bool g_registeredLifePull = registry::Register({
     "effect (docs/renderer.md, \"Water effects, sky and clouds\")",
     true,
     InstallLifePull,
+});
+
+const bool g_registeredLifePath = registry::Register({
+    "renderer.effects.path_move",
+    "renderer/effects",
+    registry::Kind::Detour,
+    registry::Phase::PostAppInit,
+    addr::SC4Effect_MoveAlongPath,
+    "A particle's move along its description's path (0x005B6600), for descriptions with flag 0x10000000; compare "
+    "mode runs ours and the game's on the same particle, OPENSC4_EFFECT_FORCE_STEPS=1 forces it on every running "
+    "effect with made-up paths (docs/renderer.md, \"Water effects, sky and clouds\")",
+    true,
+    InstallLifePath,
 });
 
 const bool g_registeredLifeStepFull = registry::Register({
@@ -14463,6 +14517,82 @@ OPENSC4_THUNK(TLfBirth, LfBirthByMode, 4)
 
 bool g_forceSteps = false;
 
+// The move along a path is forced on the first running particle with a
+// made-up path of four keys, put in the description's place for it: in
+// turn the key found is the third (times below the age, at it, then above
+// it), the first (all above or at the age) or the last (all below it);
+// its end is none, after the age, the age itself, before it (the plain
+// move) or a NaN; the reach none, one, a small one, a large one or a NaN;
+// the height from the effect (flag 0x8000) or not; the part the effect's
+// step, zero or a large one; and the effect's transform its own, its own
+// with the scale times 1.37, or a made-up one (whose products are not
+// whole). The particle and the effect are put back after.
+void LfForcePath(char* self, char* description, uint32_t flags)
+{
+    char* particle = nullptr;
+    for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14) && !particle;
+         node = At<char*>(node, 0)) {
+        if (At<uint8_t>(At<char*>(node, 8), 0))
+            particle = At<char*>(node, 8);
+    }
+    if (!particle)
+        return;
+    static uint32_t turn = 0;
+    const uint32_t k = turn++;
+    const uint32_t nan = 0x7FC00000u;
+    float notANumber = 0.0f;
+    std::memcpy(&notANumber, &nan, 4);
+    const float age = At<float>(particle, 4);
+    const float step = At<float>(self, 0x108);
+    const float times[3][4] = {
+        {-1.0f, age - 2.0f * step, age, age + step},
+        {age, age + 1.0f, age + 2.0f, age + 3.0f},
+        {-4.0f, -3.0f, -2.0f, std::nextafter(age, -1.0e30f)},
+    };
+    const float ends[5] = {0.0f, age + 0.5f, age, age - 0.25f, notANumber};
+    const float reaches[5] = {0.0f, 1.0f, 0.001f, 1000.0f, notANumber};
+    const float parts[3] = {step, 0.0f, 2.5f};
+    const uint32_t which = k % 3;
+    float keys[4][8] = {};
+    for (uint32_t i = 0; i < 4; ++i) {
+        const float n = static_cast<float>(i) + 1.0f;
+        keys[i][0] = At<float>(particle, 0xC) + 10.0f * n;
+        keys[i][1] = At<float>(particle, 0x10) + n * 0.75f;
+        keys[i][2] = At<float>(particle, 0x14) - 5.0f * n;
+        keys[i][3] = n;
+        keys[i][4] = -2.0f * n;
+        keys[i][5] = 0.5f / n;
+        keys[i][6] = times[which][i];
+        keys[i][7] = ends[k / 3 % 5];
+    }
+    char saved[kParticleBytes];
+    std::memcpy(saved, particle, kParticleBytes);
+    const uint32_t begin = At<uint32_t>(description, 0x1B8), end = At<uint32_t>(description, 0x1BC);
+    const float reach = At<float>(description, 0x1C4);
+    At<float*>(description, 0x1B8) = keys[0];
+    At<float*>(description, 0x1BC) = keys[0] + 32;
+    At<float>(description, 0x1C4) = reaches[k / 15 % 5];
+    At<uint32_t>(description, 0) = k / 75 % 2 ? flags | 0x8000u : flags & ~0x8000u;
+    uint32_t part = 0;
+    std::memcpy(&part, &parts[k / 150 % 3], 4);
+    char transform[0x34];
+    std::memcpy(transform, self + 0x90, sizeof transform);
+    if (k / 450 % 3 == 1) {
+        At<float>(self, 0xC0) *= 1.37f;
+    } else if (k / 450 % 3 == 2) {
+        static const float made[9] = {0.7071068f, 0.1f, -0.7f, 0.3f, 0.9f, 0.2f, 0.7f, -0.4f, 0.6f};
+        std::memcpy(self + 0x90, made, sizeof made);
+        At<float>(self, 0xC0) = 1.37f;
+    }
+    LfPathCompared("effects.path_move.forced", self, particle, part);
+    std::memcpy(self + 0x90, transform, sizeof transform);
+    At<uint32_t>(description, 0x1B8) = begin;
+    At<uint32_t>(description, 0x1BC) = end;
+    At<float>(description, 0x1C4) = reach;
+    At<uint32_t>(description, 0) = flags;
+    std::memcpy(particle, saved, kParticleBytes);
+}
+
 void LfForceSteps(char* self)
 {
     if (!g_forceSteps || g_effectRecord || g_effectReplay || !At<uint8_t>(self, 9) || !At<char*>(self, 0x24))
@@ -14541,6 +14671,8 @@ void LfForceSteps(char* self)
             At<uint32_t>(description, 0x1D0) = end;
         }
     }
+    if (g_pathMode == StepMode::Compare)
+        LfForcePath(self, description, flags);
     if (g_agesMode == StepMode::Compare) {
         char* particle = nullptr;
         for (char* node = At<char*>(At<char*>(self, 0x14), 0); node != At<char*>(self, 0x14) && !particle;
@@ -14591,7 +14723,8 @@ bool LfHookForce()
     if (!DwHookEffectDraw())
         return false;
     if (!g_forceSteps)
-        log::Write("water effects: the start edge and the starts at set ages and at birth forced before each effect's draw");
+        log::Write("water effects: the start edge, the starts at set ages and at birth and the move along a path "
+                   "forced before each effect's draw");
     g_forceSteps = true;
     return true;
 }
