@@ -15689,3 +15689,95 @@ convention = "thiscall"
 signature = "bool (void* this, uint32_t key, const float* point, const float* direction, float threshold, float* out, uint32_t* keyOut, int32_t* index)"
 expect = "55 8B EC 83 E4 F8 81 EC"
 source = "Name ours. Slot 39, ret 0x1C: a probe 48 (16 0x00A8D45C, 3 0x00A85074) along the direction; over the paths of the key's type byte (not the key) whose direction's dot with the key's is at least the threshold, the segment crossing the probe (SC4::SegmentsIntersect2D) nearest the point (SC4::Distance2D): out (the point's y), its key and index (written as found). AL whether one did; AL 0 when the key is not there. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3a)."
+
+# The path information, part pi3b: the transforms (slots 25, 26, 29) and their helpers (src/core/automata_pathinfo.cpp, docs/automata.md "Part pi").
+
+[[entry]]
+name = "cSC4PathInfo::Transformed"
+address = 0x00540AC0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* occupant)"
+expect = "81 EC F4 00 00 00 A1 F0"
+source = "Name ours. Slot 25, ret 4: a new path information (a pool block, 0x005407D0) with the paths and first stops turned by the occupant: slot 23 asked; the flip (slot 25) and rotation (slot 24, times 0x00A99D20, x87 FCOS and FSIN) to float rows (x negated when flipped), the move from slot 48's slot 8; the app's left-hand driving (slot 38 (0)'s slot 25). Per key the highest number (0x0053EB30); from and to turned (0xFF kept); paths flipped get the sides swapped and mirrored and the number the highest less it, types 1 and 5 swapped again unless driving on the left; AddPath, the points through the occupant's slot 65, turned and moved, y its altitude (slot 56) unless slot 16, pushed (0x0050C3B0 when full), the length summed; two points without slot 16 get a middle at the altitude when more than 0.2 (0x00A94D54) off (0x0053F940). First stops: the first point turned (rows summed the other way round), AddStop (sides not mirrored). Flipped: bit 1 moved from flagged records to the paths the other way round. Slot 17 from slot 16, held. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "cSC4PathInfo::ReverseType1Paths"
+address = 0x00541670
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* occupant)"
+expect = "83 EC 74 53 55 56 8B E9"
+source = "Name ours. Slot 26, ret 4: with the occupant's one-way kinds (slot 69), allowed sides (slot 41 (10)) and the sides of the kinds 0, 3, 6, 10 and 11 (slot 42, ORed): each type 1 key (stops too) with each side 4 up or a side of those kinds and one end one-way (from by 0x00A99F1C, to by 0x00A99F18) erased (0x005845D0); paths of them not one-way the other way round and with allowed sides first turned round into a table of its own (insert_equal, 0x0053D600). Those put back under the first free number (0x0053DDE0, operator[], 0x0050C540, length and byte). Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "cSC4PathInfo::ClippedToBox"
+address = 0x00541AE0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, float x, float y, float z, const float* box)"
+expect = "A1 F0 9F B0 00 8B 40 08"
+source = "Name ours. Slot 29, ret 0x10: a new path information (held, slot 17 from slot 16) with each record's points moved by x, y, z and cut to the box (low x, low z, high x, high z): the start side from the first point inside (within 0.1, 0x00A8C950) or the crossing in (0x0053D160); points inside kept unless within 0.001 of the last; a crossing out (the last points within 0.001 of it dropped) or a segment through the box makes a path (0x0053DDE0, AddPath, 0x0053D280); points ending inside make one to the last point's side. The sides carry over from path to path. Then 0x005403F0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "cSC4PathInfo::BoxCrossing"
+address = 0x0053D160
+kind = "function"
+convention = "cdecl"
+signature = "float* (float* out, const float* box, uint32_t flags, const float* from, const float* to, uint8_t* side)"
+expect = "D9 05 54 10 A8 00 8B 54"
+source = "Name ours. For each flag of the low byte (1 low x, 2 low z, 4 high x, 8 high z) the ratio (box - from) / (to - from); the greatest from 0 (flag 1 against 0 only) as a float, its side 0 to 3 into *side; out = from + (to - from) times it, the products rounded to floats. EAX out. Called by 0x00541AE0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "cSC4PathInfo::SetLength"
+address = 0x0053D280
+kind = "function"
+convention = "cdecl"
+signature = "void (void* record)"
+expect = "D9 05 54 10 A8 00 56 8B"
+source = "Name ours. The record's length (+0xC) the sum of its segments' lengths (sqrt((dz^2 + dx^2) + dy^2), summed in 53 bits); an empty record walks on past its end. Called by 0x00541AE0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "cSC4PathInfo::ReverseCopyPoints"
+address = 0x0053D600
+kind = "function"
+convention = "cdecl"
+signature = "void* (const void* end, const void* begin, void* out)"
+expect = "8B 4C 24 04 56 8B 74 24"
+source = "Name ours. reverse_copy of 12-byte points word by word, the count (end - begin) / 12 signed; EAX out past the copies. Called by 0x00541670. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "cSC4PathInfo::InsertPoint"
+address = 0x0053F940
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* vector, void* where, const float* point)"
+expect = "83 EC 0C 53 56 8B F1 8B"
+source = "Name ours. On a points vector, ret 8: insert of one point: full, 0x0050C3B0 (count 1, last argument 0); at the end, written there; else the last point copied on, the rest moved back (0x004FA8B0), the point (read first) written. EAX begin plus the index where had. Called by 0x00540AC0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "cSC4PathInfo::RemoveDuplicates"
+address = 0x005403F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 14 53 55 57 8D 79"
+source = "Name ours. No arguments: a node with another of the same type, from and to but another number whose first points and last points are each less than 1 (0x00A99E20) apart is erased (0x005845D0) and the walk starts again. Points read unchecked. Called by 0x00541AE0. Ours in simulators.automata.pathinfo (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "SC4PtrVectorHashMap::Erase"
+address = 0x005845D0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* table, const void* iterator)"
+expect = "8B 44 24 04 53 8B D9 8B"
+source = "Name ours. erase of an iterator {node, table} of a hash map of uint32 to a vector: the node unlinked from its bucket, its vector (+8) and the node freed, the count down. Called by 0x00541670 and 0x005403F0 (src/core/automata_pathinfo.cpp, part pi3b)."
+
+[[entry]]
+name = "SC4Float3Vector::CopyBackward"
+address = 0x004FA8B0
+kind = "function"
+convention = "cdecl"
+signature = "void* (void* first, void* last, void* destEnd, void* tag, uint32_t)"
+expect = "8B 4C 24 08 56 57 8B 7C"
+source = "Name ours. copy_backward of 12-byte points [first, last) to end at destEnd, word by word. Called by 0x0053F940 (src/core/automata_pathinfo.cpp, part pi3b)."
