@@ -105,11 +105,11 @@
 #include "core/automata_roadveh.h"
 
 #include "core/address_check.h"
-#include "core/x87.h"
 #include "core/game.h"
 #include "core/hook.h"
 #include "core/log.h"
 #include "core/registry.h"
+#include "core/x87.h"
 
 #include <opensc4/addresses.h>
 
