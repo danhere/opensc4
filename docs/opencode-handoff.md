@@ -49,7 +49,11 @@ A one-off model override is `-m openrouter/<model>`.
 
 1. Piece name and branch to commit on.
 2. Pointer to the restart notes / doc section that defines the piece (don't paste them).
-3. Done means: builds clean, named parity tests pass, committed.
+3. Done means: builds clean, named parity tests pass, committed, and the part meets the rules in
+   [CONTRIBUTING.md](../CONTRIBUTING.md): "How replacement code is written" (the game's own helpers, calls
+   through `addr::` entries, the shape of the doc section, and no bare addresses in code) and "Pull
+   requests" (what a part's doc records, and results from the PR's own head); and its `source` fields follow
+   the [address README](../data/addresses/README.md).
 4. Out of scope: anything not in the piece; no pushes, no PRs, no edits to plans/restart notes.
 5. End with the report format below.
 

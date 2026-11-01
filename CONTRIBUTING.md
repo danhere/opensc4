@@ -22,6 +22,9 @@ Open an issue with what you did, what happened, and your game version (OpenSC4 n
 - Read the disassembly or decompiler output to **understand** a function, then write it in your own words: our names, our structure, our comments. Addresses, offsets, sizes and class or message IDs are facts and are fine to use.
 - Each replacement sits behind a switch in `opensc4.ini`, off by default until it has been checked against the original ([docs/parity.md](docs/parity.md)).
 - Put every game address in `data/addresses/` (see its [README](data/addresses/README.md)), never as a bare number in code.
+- Call the game's own helpers where the original calls them (`RZFile`, `RZDirectory`, `cRZIniFile`, its allocators), with the same arguments in the same order, not CRT, Win32 or STL substitutes. Replacing one needs a stated reason in the part's doc section.
+- Calls between replaced functions go through their `addr::` entries, never as direct C++ calls, so any mix of groups works and a parity difference can be bisected by group. Keep the ours and game's lists in the file header current.
+- A part's doc section follows [docs/html.md](docs/html.md), "Ours: the cache's entries (h7a)": a groups table with a link to the source, how it works, the kept quirks, "Still the game's" (what in the subsystem stays the game's, the functions ours calls included) and its test. Its mutation check and its rows in the results table go in the doc's "Testing" section (rows, not a prose line).
 
 ## Code from other projects
 
@@ -37,6 +40,14 @@ Allowed, and disclosed: say so in the commit or pull request (a `Co-Authored-By`
 
 - One piece of work per pull request, with what it replaces and how it was checked.
 - Build and run the tests (`cmake --build --preset debug`, `ctest --preset debug`); a change that touches game code also needs its parity run in the game.
+- A replacement part is complete only when its doc section records, from the pull request's own head:
+  - a mutation check;
+  - every replaced function reached ("all N reached");
+  - the test run with the part's groups off against all of the subsystem's groups on;
+  - a named 7-day parity run, `<part>-r1` ([docs/parity.md](docs/parity.md)).
+
+  An automata part also records an independent instruction-level audit of its functions against the disassembly, as [docs/automata.md](docs/automata.md) does.
+- Build, test and parity results come from the pull request's own head commit, stated as "build of <sha> on origin/main <sha>", and must not include another unmerged branch. Counts such as the `gen_addresses.py --check` total must match that head.
 - Commit with an email you're happy to publish, such as your GitHub `noreply` address.
 
 ## License
