@@ -40,7 +40,7 @@ The code runs from 0x004FA700 to 0x00575600. In that range are 1,898 functions (
 | Emergency vehicles | 101 | 19,149 | em1 (37, done), em2a (10, done), em2b (6, done), em3a (14, done), em3b (10, done), em4 (2, done) (part em below counts 122; part em finished) |
 | Pedestrians, one-shot, fire crew, riot police | 114 | 20,304 | ped1 (34, done), ped2a (13, done), ped2b (7, done), ped3 (9, done), ped4a (1, done), ped4b (12, done) (part ped below counts 111; part ped finished) |
 | Aircraft, helicopter, airplane | 188 | 79,376 | 5 (part ac, not started) |
-| Watercraft | 75 | 37,045 | wc1 (14, done), wc2 (53, not started) (part wc below counts 77, 37,707 bytes) |
+| Watercraft | 75 | 37,045 | wc1 (14, done), wc2 (53; wc2a (8), wc2b (10), wc2c (8), wc2d (3) and wc2e (8) of them done) (part wc below counts 77, 37,707 bytes) |
 | Path info (0x0053CF90 to 0x00542F00, cSC4PathInfoFactory) | 75 | 23,825 | pi1 (25, done), pi2 (22, done), pi3a (14, done), pi3b (8, done) (part pi below counts 73 of its own; part pi finished) |
 
 That is about 48 parts of 20 to 45 functions. What the parts after a1 will meet:
@@ -4473,7 +4473,7 @@ One class: cSC4Watercraft (class ID 0x096E75F5, factory 0x00514820, constructor 
 - **wc2b (10, 1,810 bytes, done):** the slots 110 0x0056E340 and 111 0x00570140 (entering and leaving a state), the leg unlisted 0x0056D4D0, the dock table's listings 0x0056CEC0 and 0x0056CF50, the checks 0x005698E0, 0x005681B0 and 0x00567DF0, a path point erased 0x0056BD50 and the next leg reached 0x005704D0. Below.
 - **wc2c (8, 1,305 bytes, done):** the slot 115 0x0056D310 (the drive step), the fanned direction 0x00566F60, the cell step 0x00567000, the stern and bow points 0x00567A50 and 0x00567AB0, the longest side 0x00567B10, a point moved 0x00568230 and leaving the dock 0x0056D530. Below.
 - **wc2d (3, 1,321 bytes, done):** back to the start 0x0056A310, the six wakes stopped 0x0056EFE0 and started 0x0056F1E0. Below.
-- **wc2 (53, 33,952 bytes; wc2a's 8, wc2b's 10, wc2c's 8 and wc2d's 3 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
+- **wc2 (53, 33,952 bytes; wc2a's 8, wc2b's 10, wc2c's 8, wc2d's 3 and wc2e's 8 of them done):** the drive parameters 0x00567310 (1,845; the template's WatercraftDriveParams with a default for each zero float, called by Init and by the +0x38 part's slot 3), the slots 72 0x00572CF0, 109 0x00573340, 110 0x0056E340, 111 0x00570140, 115 0x0056D310, 121 0x0056E5C0 (2,577) and the +0x38 part's 3 0x00569230, and their 45 helpers: 0x00566E00, 0x00566F60, 0x00567000, 0x00567080, 0x005671D0, 0x00567A50, 0x00567AB0, 0x00567B10, 0x00567DF0, 0x00567E80, 0x00567ED0, 0x00567FD0, 0x005681B0, 0x00568230, 0x005682F0, 0x00568570, 0x005687C0, 0x005690D0, 0x005694B0, 0x005698E0, 0x00569940, 0x00569E70, 0x0056A310, 0x0056A440 (2,883), 0x0056AF90 (3,506), 0x0056BD50, 0x0056BD80, 0x0056C090, 0x0056C430, 0x0056CEC0, 0x0056CF50, 0x0056D4D0, 0x0056D530, 0x0056D8B0 (CopyLeg), 0x0056D920 (AssignLeg), 0x0056EFE0, 0x0056F1E0, 0x0056F3F0 (BeginLeg), 0x0056F480, 0x0056F700, 0x00570270, 0x005704D0, 0x00570620, 0x00571880 (2,779), 0x00572770. Movement on frames; it needs a split of its own (four to six pieces, the four big ones alone).
 - **Stay the game's (10):** the adjustor thunks 0x0056DC70 to 0x0056DCF0 and 0x0056F7B0.
 
 Already ours from part aw5 (the watercraft manager calls them; not counted here): 0x00566DA0 (IsPathBoat), 0x0056F510 (SetPath), 0x0056F670 (SetFerryRoute), 0x0056C940 (ConstructLeg), 0x005684C0 (StepDirection), 0x0056D5F0 (CutPathAt). No NAM site and none of SC4UIScale's addresses is in the group.
@@ -4795,3 +4795,52 @@ Each one changed wwake. The same build without a change gave the unchanged token
 | The 12-save batch | 7 | 12 of 12 saves |
 
 Every run's wc fields were the same on both sides (wobject 227DF6CD, wsave 2EF62C3C, wlife 4B883601, wdrive 1E393524, wstate 2062D6EE, wstep 61164F9B, wwake 98CDED9D, wflags 3CF). Every B run installed the 43 detours and reached all of them. The game itself reaches none of them before the test day in these saves (reach.sh).
+
+### What is ours (wc2e)
+
+8 functions more in the same group (`simulators.automata.watercraft`, list kTurnList; 51 detours in all): the turn and direction helpers the movement and the state pushes sit on.
+
+- **The mappings (2):** the value to a turn 0x00567080 (TurnForValue) and the turn back to a value 0x005671D0 (ValueForTurn), each with its own lazy table of four floats and a guard dword (0x00B22A84 and 0x00B22A94).
+- **The heading (2):** the core heading's near check 0x00567ED0 (HeadingNear) and the boat heading's octant 0x00567FD0 (HeadingOctant).
+- **The turn record (1):** 0x005682F0 (TurnTransform), the rotation into a transform record's 3x3.
+- **The states (2):** the turned-away check 0x00568570 (CheckTurn), which pushes 0x46, 0x47 or 0x49, and the turn bytes 0x005687C0 (SetTurnBytes).
+- **The manager (1):** 0x005690D0 (CollidingAutomaton), whose `this` is any of the four automata managers (the list at +0x44 is the common base's; the survey put it in the boat's part, its callers are the boat's Settle 0x0056C090 and 0x00570620).
+
+What they do:
+
+- **TurnForValue** clamps the value the caller points at to the drive parameters' +0x3BC/+0x3C0, carries it over zero into a tangent or arctangent of itself times π (FPTAN when the boat's +0xDAC is 2, FLD1/FPATAN otherwise), scales it by +0x360 or +0x35C over the table's entries, and clamps it to +0x35C/+0x360. **ValueForTurn** is its inverse with the roles swapped and 2/π in the middle. The tables fill on first use, the guard dword written between the loads and the stores.
+- **HeadingNear** normalizes the core's heading (+0x58) in place (the parts stored as floats), takes the dot of it with the normalized (x, y, z), clamps the dot to -1 and 1 (a NaN kept), and answers whether the runtime's __CIacos of it, times 180/π, is below 2.0 (0x00B0A154).
+- **HeadingOctant** normalizes the boat's heading (+0x30C) with the length (hz² + hy²) + hx², works two __CIacos angles in degrees (of the x part and of the zero carry q less it — the game multiplies two leftovers by 0.0, so both angles reduce to the x part's angle and its negative), and sorts them against 22.5 and 68 degrees with the sign and size of the z part and the leftover s. The unordered answers sort as the game's.
+- **TurnTransform** leaves the record alone when the speed is not above zero; otherwise the turn is the speed over +0x360 times +0x390 times +0x2E0, clamped to ±+0x394 (a NaN kept) and halved, the axis the heading normalized with the length (hy² + hz²) + hx². The record is the quaternion (cos t, sin t x n): the diagonal 1 - 2 of two squares, the cross terms two products and twice the cosine times a part; the byte +1 |= 4 and the byte +0 += 1. The x part's products take the length's reciprocal from the register (the game's FMUL ST2) and the y and z parts from its float store (FMUL [ESP+0x20]).
+- **CheckTurn** puts the occupant part's slot 11 box's four corners through the water service's (0x00B43CF0) slot 13; any refusal, and the angle between the heading's negative and the terrain's (0x00B43CF4) slot 27 water point at the boat (both normalized, the parts as floats) above +0x3A8 (__CIacos, no float store first), pushes 0x46 with the template's group (+0x398) and slot 102 (0xB, 0) first when the state (slot 59) is 0x10, else 0x49 with -1.0; at or below (a NaN included) the same with 0x47, and that half alone when no corner was refused.
+- **SetTurnBytes** asks the city's (0x00B43CEC) slot 33 object's slot 6 (x, z, 0) at the four corners; when none answers and +0x2B0 is clear, the water service's slot 8 (x, z, 0, 0) at the four corners in the order (x0 z0), (x1 z1), (x1 z0), (x0 z1). The bytes (+0x2C8, +0x2C9) come per edge and per octant of the core heading's x and z by the game's four tables (0x00568B20 and on); every hit writes both bytes and answers 1, no hit answers 0. (The game also has a path that answers 1 with the bytes alone, an edge past the four tables, which its two loops cannot produce; ours omits it.)
+- **CollidingAutomaton** builds `automaton`'s rectangle at (x, y, z, scale) (0x0050A310), then for every other automaton of the manager's list whose point (+0x2F4) lies nearer than the longer of the two longest sides (0x00567B10; the first's kept as a float against the other's 80 bits, the tie to `automaton`), builds the other's rectangle at the origin and scale 1 and answers it when the two overlap (0x00506450).
+
+Oddities kept:
+
+- The mappings take a zero of either sign for their carries and keep a NaN through every clamp; the octant's sorts keep the unordered answers; the turn record leaves the record alone for a NaN speed.
+- The turned-away check, the turn bytes and the collision walk do not test the water service, the terrain, the city or the lot finder for null.
+
+Still the game's, at their addresses: the water service's slots 13 and 8, the terrain's slot 27 and the city's slot 33 object with its slot 6 (the lot finder); the automaton rectangle builder and the overlap test 0x0050A310 and 0x00506450 (part vb7's); the runtime's __CIacos 0x009F0090; the allocators, the string and container code the calls reach; and the four big wc2 functions that call these helpers, which stay the game's (part wc2's rest).
+- CollidingAutomaton compares the two boats' longest sides with the first kept as a float and the second at 80 bits; the distance is stored as a float before the compare with the reach.
+
+Written by hand against the disassembly, instruction by instruction (the x87 stack through each function, which values round to floats and where, the flag tests of every compare including the unordered answers, the argument order and counts of every call, the octant tables read back from 0x00568B20 and on). The independent audit, the test extension and the reach check are still to do.
+
+### Test and parity (wc2e)
+
+The five pure helpers are testable with fakes (a boat from the factory, its drive parameters and +0xDAC set, the lazy tables fresh per run); the turned-away check, the turn bytes and the collision walk are left to the audit and parity, as wc2c's 0x0056C430 and 0x0056C090 were. Not written yet.
+
+Two harness problems surfaced while verifying this part, neither from it, both root-caused on 2026-11-01:
+
+- **The game died in the tr2a test's first factory call** (an access violation at 0x004B03A5, SC4HashTable::Begin on a table whose begin is null and end is the entry's speed float 2.5): the tr2a and vb7 tests' template fakes were 0x70 bytes, but the game's ResetStateAttachments (0x0050D870) reads the template's attachments table at +0x70 (begin +0x74, end +0x78, guard +0x80) whenever the state 0x10 is left, and the reads landed in the neighbouring stack (the entry object's floats). Yesterday's build had zeros there (guard zero, the walk skipped); the rebuilt binaries' stack layout moved the entry object's floats into the read. Fixed in the test: the templates are 0x90 bytes, zeros are an empty table, as a real group without attachments has. tr2a and tr2b then complete with the calls hashes and runs of wc2d's batches (tframe calls 5539E777, 449 runs, 0 traps; tmove 804338E5, 832).
+- **The ro1 rsave token differs between A and B on any fresh build of main** (A 051CF1FF, B 4DE3D478; wc2d's batches yesterday had 4DE3D478 on both sides): the rsave hash mixes the tank's save bytes raw, and cSC4Vehicle::Write's output contains the vehicle's references as heap pointers, whose values differ between A (the heap after the determinism installs) and B (after the six automata groups' too). A rebuild shifts the heap, and with it the day the two sides stopped agreeing. The fix belongs to the ro1 test's hashing (canonicalize the heap pointers, as the save comparison's rule "CRCs and heap addresses are left out" already does) and changes the recorded ro1 tokens, so it is left to that part's owner. Until then the vehicle-test batches fail on this one field; the city records themselves compare identical.
+
+Parity for this part, reduced to the runs that avoid the ro1 token (the game itself reaches none of the part's functions in these saves, reach.sh, so this checks the installation and the non-interference): the same replacement lists as wc2d's (B the six automata groups and `simulators.automata.watercraft` against the original; the base list with `determinism.dispatch_info=ours`), muted, without `OPENSC4_TEST_AUTOMATA` and `OPENSC4_TEST_AUTOMATA_VEHICLE`. Env p4env-wc2e:
+
+| Run | Days | Result |
+| --- | ---: | --- |
+| Making Money Tutorial d0000 | 4 | 5 of 5 days |
+| Rush Hour Tutorial d0000 | 7 | 8 of 8 days |
+| The 12-save batch | 7 | 12 of 12 saves |
+
+Every B run installed the 51 detours, the turn list's 8 among them.

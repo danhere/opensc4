@@ -16247,3 +16247,146 @@ convention = "thiscall"
 signature = "void (void* this)"
 expect = "83 EC 18 53 56 57 8D 44"
 source = "Name ours. Plain ret: as 0x0056EFE0 with slot 44 (name, 0, 0) for each of the six wakes. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2d)."
+
+# Part wc2e: cSC4Watercraft, the turn and direction helpers
+# (src/core/automata_watercraft.cpp).
+
+[[entry]]
+name = "cSC4Watercraft::TurnForValue"
+address = 0x00567080
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this, float* value)"
+expect = "51 A1 90 2A B2 00 A8 01"
+source = "Name ours. Ret 4, ST0: the value clamped to +0x3BC/+0x3C0, carried over zero into a tangent or arctangent of itself times π (FPTAN when +0xDAC is 2, FLD1/FPATAN otherwise), scaled by +0x360 or +0x35C over the lazy table's tangent (0x00B22A88) or arctangent (0x00B22A84, guard 0x00B22A90), and clamped to +0x35C/+0x360. A NaN value goes through as itself. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2e)."
+
+[[entry]]
+name = "cSC4Watercraft::ValueForTurn"
+address = 0x005671D0
+kind = "function"
+convention = "thiscall"
+signature = "double (void* this, float* value)"
+expect = "51 A1 A0 2A B2 00 A8 01"
+source = "Name ours. Ret 4, ST0: the turn clamped to +0x35C/+0x360, carried over zero into an arctangent scaled by the lazy table's entries (0x00B22A94 the tangent of the negated half times π, 0x00B22A98 the tangent of the scale times π, 0x00B22A9C the negated half, guard 0x00B22AA0), times 2/π (0x00A9DA60), scaled by +0x3C0 over the turn scale's copy 0x00B0A150 or by +0x3BC over the table's negated half, and clamped to +0x3BC/+0x3C0. The inverse of 0x00567080. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2e)."
+
+[[entry]]
+name = "cSC4Watercraft::HeadingNear"
+address = 0x00567ED0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this, float x, float y, float z)"
+expect = "D9 44 24 0C 8B 41 58 D8"
+source = "Name ours. Ret 0xC, AL: the core's heading (+0x58) normalized in place (its length (hx² + hy²) + hz², the parts stored as floats), then the angle between it and (x, y, z) normalized (the dot clamped to -1 and 1, a NaN dot kept, __CIacos 0x009F0090, times 180/π 0x00A9DA5C) below 2.0 (0x00B0A154). Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2e)."
+
+[[entry]]
+name = "cSC4Watercraft::HeadingOctant"
+address = 0x00567FD0
+kind = "function"
+convention = "thiscall"
+signature = "int (void* this)"
+expect = "83 EC 1C D9 81 0C 03 00"
+source = "Name ours. Plain ret, EAX 0..7: the octant of the boat's heading (+0x30C, normalized with the length (hz² + hy²) + hx²). Two __CIacos angles in degrees (0x00A9DA5C) of the x part and of the zero-carry q (the y and z parts times 0.0) less it; the sorts against 22.5 (0x00A9DA88) and 68.0 (0x00A9DA84) with the zero test of the leftover s (the x part times 0.0 plus the y part times 0.0, plus the z part) pick the answer. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2e)."
+
+[[entry]]
+name = "cSC4Watercraft::TurnTransform"
+address = 0x005682F0
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this, void* record)"
+expect = "D9 81 DC 02 00 00 83 EC"
+source = "Name ours. Ret 4: the turn's rotation into the transform record's 3x3 (+4..+0x24), its byte +1 |= 4 and byte +0 += 1; alone when the speed (+0x2DC) is not above zero. The turn is the speed over +0x360 times +0x390 times +0x2E0, clamped to ±+0x394 (a NaN kept) and halved by 0.5 (0x00A84D2C); the axis the heading (+0x30C) normalized with the length (hy² + hz²) + hx². The record is the quaternion (cos t, sin t x n): the diagonal 1 - 2 of two squares, the cross terms two products and twice the cosine times a part; the x part's products take the reciprocal from the register, the y and z parts from its float store. Called by 0x0056AF90 and 0x00569E70. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2e)."
+
+[[entry]]
+name = "cSC4Watercraft::CheckTurn"
+address = 0x00568570
+kind = "function"
+convention = "thiscall"
+signature = "void (void* this)"
+expect = "83 EC 30 53 56 8B F1 8B"
+source = "Name ours. Plain ret: the occupant part's slot 11 box's four corners (x0 z0, x0 z1, x1 z0, x1 z1) through the water service's (0x00B43CF0) slot 13 (x, z); any refusal, and the angle between the heading's negative and the terrain's (0x00B43CF4) slot 27 water point at the boat (the point's x and z), both normalized (the lengths (d2² + d1²) + d0², the parts as floats), above +0x3A8 (__CIacos, no float store first), pushes the state 0x46 with the template's group (+0x398) and slot 102 (0xB, 0) first when the state (slot 59) is 0x10, else 0x49 with -1.0 (0x00A8FE78); at or below (a NaN included) the same with 0x47, and alone when no corner was refused. Called by 0x0056C090. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2e)."
+
+[[entry]]
+name = "cSC4Watercraft::SetTurnBytes"
+address = 0x005687C0
+kind = "function"
+convention = "thiscall"
+signature = "bool (void* this)"
+expect = "83 EC 30 53 55 56 8B F1"
+source = "Name ours. Plain ret, AL: the turn bytes (+0x2C8, +0x2C9) from the first corner of the slot 11 box that the city's (0x00B43CEC) slot 33 object's slot 6 (x, z, 0) takes; when none does and +0x2B0 is clear, the first corner the water service's slot 8 (x, z, 0, 0) refuses, in the order (x0 z0), (x1 z1), (x1 z0), (x0 z1). The bytes per edge and the octant of the core heading's x and z (+0x58, +0x60; |z| against |x|, then the signs, an unordered answer to the size test) by the game's four tables at 0x00568B20 and on; every hit writes both bytes and answers 1, no hit answers 0 (or 1 with the bytes alone past the table). Called by 0x0056C090. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2e)."
+
+[[entry]]
+name = "cSC4AutomataManager::CollidingAutomaton"
+address = 0x005690D0
+kind = "function"
+convention = "thiscall"
+signature = "void* (void* this, void* automaton, float x, float y, float z, float scale)"
+expect = "83 EC 4C 8B 44 24 60 8B"
+source = "Name ours. Ret 0x14: a manager method (the automata list at +0x44, which the survey put in the boat's part), though the boat's 0x0056C090 and 0x00570620 call it: the rectangle of `automaton` at (x, y, z, scale) (0x0050A310) against every other automaton (not null, not it) whose point (+0x2F4) lies nearer than the longer of the two longest sides (0x00567B10; the first's kept as a float, the other's at 80 bits, the tie to `automaton`), and whose own rectangle at the origin and scale 1 (0x0050A310) overlaps ours (0x00506450). That automaton, or null. Ours in simulators.automata.watercraft (src/core/automata_watercraft.cpp, part wc2e)."
+
+[[entry]]
+name = "SC4::FloatPi"
+address = 0x00A9DA50
+kind = "data"
+expect = "DB 0F C9 3F"
+source = "Name ours. The float π (the boat's turn mappings 0x00567080 and 0x005671D0 multiply by it)."
+
+[[entry]]
+name = "SC4::FloatDegreesPerRadian"
+address = 0x00A9DA5C
+kind = "data"
+expect = "E1 2E 65 42"
+source = "Name ours. The float 180/π (the automata's __CIacos angles multiply by it: the boat's 0x00567ED0 and 0x00567FD0, the tank's slot 121)."
+
+[[entry]]
+name = "SC4::FloatTwoOverPi"
+address = 0x00A9DA60
+kind = "data"
+expect = "83 F9 22 3F"
+source = "Name ours. The float 2/π (the boat's inverse turn mapping 0x005671D0 multiplies by it)."
+
+[[entry]]
+name = "SC4::FloatOctantWide"
+address = 0x00A9DA84
+kind = "data"
+expect = "00 00 87 42"
+source = "Name ours. The float 68.0 (the boat's octant sort 0x00567FD0's wide bound)."
+
+[[entry]]
+name = "SC4::FloatOctantNarrow"
+address = 0x00A9DA88
+kind = "data"
+expect = "00 00 B4 41"
+source = "Name ours. The float 22.5 (the boat's octant sort 0x00567FD0's narrow bound)."
+
+[[entry]]
+name = "cSC4Watercraft::TurnScale"
+address = 0x00B0A14C
+kind = "data"
+expect = "C3 F5 68 3F"
+source = "Name ours. The float 0.90929427 (the boat's turn mappings 0x00567080 and 0x005671D0 carry the value over zero into a tangent or arctangent of it)."
+
+[[entry]]
+name = "cSC4Watercraft::TurnScaleCopy"
+address = 0x00B0A150
+kind = "data"
+expect = "C3 F5 68 3F"
+source = "Name ours. The same float as 0x00B0A14C, the inverse mapping's 0x005671D0 divides by it."
+
+[[entry]]
+name = "SC4::FloatTwoDegrees"
+address = 0x00B0A154
+kind = "data"
+expect = "00 00 00 40"
+source = "Name ours. The float 2.0 (the boat's heading check 0x00567ED0's angle bound in degrees)."
+
+[[entry]]
+name = "cSC4Watercraft::TurnTable"
+address = 0x00B22A84
+kind = "data"
+source = "Name ours. 16 bytes: +0 an arctangent, +4 a tangent, +8 the negated half of the turn scale 0x00B0A14C, +0xC the guard dword of 0x00567080's lazy table (bits 1, 2 and 4 set as the three are filled)."
+
+[[entry]]
+name = "cSC4Watercraft::ValueTable"
+address = 0x00B22A94
+kind = "data"
+source = "Name ours. 16 bytes: +0 the tangent of the negated half times π, +4 the tangent of the scale times π, +8 the negated half of the turn scale, +0xC the guard dword of 0x005671D0's lazy table."

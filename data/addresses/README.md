@@ -23,7 +23,7 @@ Each simulator keeps its addresses in its own file (`power.toml`, `traffic.toml`
 | `convention` | `cdecl` \| `stdcall` \| `thiscall` \| `fastcall` \| `custom` (functions only) |
 | `signature` | C++ prototype, `this` first for thiscall |
 | `expect` | first bytes at the address, hex, to verify the build |
-| `source` | how the address was identified; link the evidence |
+| `source` | how the address was identified; link the evidence. A function's also records its stack cleanup: `ret N`, or "Plain ret" |
 
 Never record mid-function addresses as `"function"`: hooks go at entries only ([docs/architecture.md](../../docs/architecture.md), "Hooking layer").
 

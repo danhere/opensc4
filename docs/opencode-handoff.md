@@ -49,7 +49,19 @@ A one-off model override is `-m openrouter/<model>`.
 
 1. Piece name and branch to commit on.
 2. Pointer to the restart notes / doc section that defines the piece (don't paste them).
-3. Done means: builds clean, named parity tests pass, committed.
+3. Done means: builds clean, named parity tests pass, committed, and the part meets the rules in
+   [CONTRIBUTING.md](../CONTRIBUTING.md): "How replacement code is written" (the game's own helpers, calls
+   through `addr::` entries, the shape of the doc section, and no bare addresses in code) and "Pull
+   requests" (what a part's doc records, and results from the PR's own head); and its `source` fields follow
+   the [address README](../data/addresses/README.md).
+   Spell out the rules review keeps catching (PR #503, 2026-11-01):
+   - every address, data constants included, through `addr::`; no `constexpr` address copies, and search
+     `data/addresses/` before adding one;
+   - no new copies of helpers that already exist (`game_access.h`, or another part's file-local helper:
+     move it to a shared header instead);
+   - every commit ends with `Co-Authored-By: OpenCode (<model>) <noreply@opencode.ai>`;
+   - fixes outside the piece (tests, harness) on a separate branch, reported under NOTES;
+   - comments and docs describe only what the code does; re-read them against the final code.
 4. Out of scope: anything not in the piece; no pushes, no PRs, no edits to plans/restart notes.
 5. End with the report format below.
 
@@ -67,6 +79,8 @@ NOTES: <≤5 lines: surprises, guesses made, open questions>
 
 Claude then reviews `git diff main...<branch>` and the parity output itself before trusting the
 result, fixes or re-briefs if needed, and writes the restart notes and PR.
+The PR is a draft until the part is complete (CONTRIBUTING.md, "Pull requests"), and its body gives
+"build of <sha> on origin/main <sha>".
 
 Verified 2026-10-17: `opencode run` from this folder answered a read-only test correctly
 (v2.0.32, background service, default model). The background service reloads
