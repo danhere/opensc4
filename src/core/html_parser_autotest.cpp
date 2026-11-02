@@ -737,7 +737,8 @@ bool AnyOurs()
                            "ui.html.document.vslots", "ui.html.window.life", "ui.html.window.show",
                            "ui.html.window.slots", "ui.html.window.settings", "ui.html.window.input",
                            "ui.html.window.scroll", "ui.html.window.paint", "ui.html.window.address",
-                           "ui.html.directors", "ui.html.block", "ui.html.cache.map", "ui.html.cache.entries"})
+                           "ui.html.directors", "ui.html.block", "ui.html.cache.map", "ui.html.cache.entries",
+                           "ui.html.cache.life", "ui.html.cache.files"})
         if (registry::ModeOf(id) == registry::Mode::Ours)
             return true;
     return false;
@@ -6387,6 +6388,356 @@ uint32_t CacheItem(int which)
     return f.h;
 }
 
+// ====================================================================================
+// h7b: the file cache's file-facing half
+
+constexpr int kCacheFileItems = 11;
+int g_cacheFolder = 0;
+
+std::string H7bFolder(int which)
+{
+    char temp[MAX_PATH] = {};
+    GetTempPathA(MAX_PATH, temp);
+    char name[64];
+    std::snprintf(name, sizeof name, "opensc4-h7b-%d-%d\\", which, g_cacheFolder++);
+    std::string folder = std::string(temp) + name;
+    CreateDirectoryA(folder.c_str(), nullptr);
+    return folder;
+}
+
+void RemoveH7bFolder(const std::string& folder)
+{
+    WIN32_FIND_DATAA data;
+    HANDLE find = FindFirstFileA((folder + "*").c_str(), &data);
+    if (find != INVALID_HANDLE_VALUE) {
+        do {
+            if (!(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                DeleteFileA((folder + data.cFileName).c_str());
+        } while (FindNextFileA(find, &data));
+        FindClose(find);
+    }
+    RemoveDirectoryA(folder.c_str());
+}
+
+std::string H7bText(const void* text)
+{
+    const char* begin = At<char*>(const_cast<void*>(text), 4);
+    const char* end = At<char*>(const_cast<void*>(text), 8);
+    return begin && end && begin <= end ? std::string(begin, end) : std::string();
+}
+
+std::string H7bBaseName(const std::string& text)
+{
+    const std::size_t slash = text.find_last_of("\\/");
+    return slash == std::string::npos ? text : text.substr(slash + 1);
+}
+
+std::string H7bNormalName(const std::string& text)
+{
+    std::string out = text;
+    for (char& c : out)
+        if (c >= '0' && c <= '9')
+            c = '#';
+    return out;
+}
+
+void HashH7bText(Fnv& f, const std::string& text) { f.Bytes(text.data(), text.data() + text.size()); }
+
+void HashH7bFiles(Fnv& f, const std::string& folder)
+{
+    std::vector<std::string> names;
+    WIN32_FIND_DATAA data;
+    HANDLE find = FindFirstFileA((folder + "*.cache").c_str(), &data);
+    if (find != INVALID_HANDLE_VALUE) {
+        do {
+            if (!(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                names.push_back(data.cFileName);
+        } while (FindNextFileA(find, &data));
+        FindClose(find);
+    }
+    std::sort(names.begin(), names.end());
+    f.Word(static_cast<uint32_t>(names.size()));
+    for (const std::string& name : names) {
+        HashH7bText(f, H7bNormalName(name));
+        std::FILE* const file = std::fopen((folder + name).c_str(), "rb");
+        if (!file) {
+            f.Word(0xFFFFFFFFu);
+            continue;
+        }
+        std::fseek(file, 0, SEEK_END);
+        const long size = std::ftell(file);
+        std::fseek(file, 0, SEEK_SET);
+        f.Word(static_cast<uint32_t>(size));
+        for (long i = 0; i < size; ++i)
+            f.Byte(static_cast<uint8_t>(std::fgetc(file)));
+        std::fclose(file);
+    }
+}
+
+void HashH7bMap(Fnv& f, char* cache)
+{
+    char* const map = cache + 0x34;
+    char** const first = At<char**>(map, 4);
+    char** const last = At<char**>(map, 8);
+    const uint32_t buckets = static_cast<uint32_t>(last - first);
+    f.Word(buckets);
+    f.Word(At<uint32_t>(map, 0x10));
+    uint32_t seen = 0;
+    for (uint32_t b = 0; b < buckets; ++b) {
+        uint32_t chain = 0;
+        for (char* node = first[b]; node && chain < 1000; node = At<char*>(node, 0), ++chain) {
+            f.Word(b);
+            HashH7bText(f, H7bText(node + 4));
+            HashH7bText(f, H7bNormalName(H7bText(node + 0x18)));
+            char* const entry = node + 0x18;
+            const int32_t now = reinterpret_cast<int32_t(__cdecl*)(void*)>(addr::CRT_time32)(nullptr);
+            f.Word(At<uint32_t>(entry, 0x18));
+            for (std::size_t at = 0x1C; at <= 0x24; at += 4) {
+                const int32_t value = At<int32_t>(entry, at);
+                f.Word(at == 0x24 && value <= now && now - value < 120 ? 0xC10C4u
+                                                                      : static_cast<uint32_t>(value));
+            }
+            f.Word(At<int32_t>(entry, 0x28) <= now && now - At<int32_t>(entry, 0x28) < 120
+                       ? 0xC10C4u
+                       : static_cast<uint32_t>(At<int32_t>(entry, 0x28)));
+            const int32_t expiry = At<int32_t>(entry, 0x2C);
+            f.Word(expiry > now && expiry - now < 86400 ? static_cast<uint32_t>(expiry - now)
+                                                        : static_cast<uint32_t>(expiry));
+            char* const block = At<char*>(entry, 0x14);
+            f.Word(block ? 1 : 0);
+            if (block) {
+                const uint32_t size = At<uint32_t>(block, 4);
+                f.Word(size);
+                f.Bytes(At<char*>(block, 0), At<char*>(block, 0) + size);
+                f.Word(At<uint16_t>(block, 8));
+            }
+        }
+        seen += chain;
+    }
+    f.Word(seen);
+    f.Word(At<uint32_t>(cache, 0x54));
+    f.Word(At<uint32_t>(cache, 0x58));
+}
+
+char* MakeH7bCache(const std::string& folder, bool setIni = true)
+{
+    char* const cache = MakeCache();
+    GameText text{};
+    MakeText(&text, folder.c_str());
+    Virtual<uint8_t>(cache, 0x18, &text);
+    DestroyText(&text);
+    if (setIni) {
+        MakeText(&text, "FileCache.ini");
+        Virtual<uint8_t>(cache, 0x20, &text);
+        DestroyText(&text);
+    }
+    return cache;
+}
+
+void DestroyH7bCache(char* cache)
+{
+    reinterpret_cast<void(__thiscall*)(void*)>(addr::FileCache_Destruct)(cache);
+    GameDelete(cache);
+}
+
+uint32_t CacheFileItem(int which)
+{
+    const std::string folder = H7bFolder(which);
+    Fnv f;
+    char* const cache = MakeH7bCache(folder);
+    f.Byte(Virtual<uint8_t>(cache, 0x4)); // Init
+
+    auto makeKey = [&](const char* text) {
+        GameText key{};
+        MakeText(&key, text);
+        return key;
+    };
+
+    if (which == 0) {
+        // The life, the ini and the folder.
+        f.Byte(At<uint8_t>(cache, 4));
+        f.Word(At<uint32_t>(cache, 0x48));
+        f.Word(At<uint32_t>(cache, 0x4C));
+        f.Word(At<uint32_t>(cache, 0x50));
+        HashH7bText(f, H7bText(cache + 0x20));
+        f.Byte(Virtual<uint8_t>(cache, 0x8)); // Shutdown
+        f.Byte(At<uint8_t>(cache, 4));
+        HashH7bFiles(f, folder);
+    } else if (which == 1) {
+        // PutData, GetData and Remove.
+        GameText key = makeKey("http://www.simcity.com/page.gif");
+        const char data[] = "hello cache";
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, data, sizeof data, true, uint8_t{3}, int32_t{600}));
+        char* block = nullptr;
+        f.Byte(Virtual<uint8_t>(cache, 0x3C, &key, &block));
+        f.Word(block ? At<uint16_t>(block, 8) : 0);
+        f.Bytes(block ? At<char*>(block, 0) : nullptr, block ? At<char*>(block, 0) + At<uint32_t>(block, 4) : nullptr);
+        if (block)
+            reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::HTMLSharedBlock_Release)(block);
+        f.Byte(Virtual<uint8_t>(cache, 0x64, &key)); // Remove
+        f.Byte(Virtual<uint8_t>(cache, 0x3C, &key, &block));
+        DestroyText(&key);
+    } else if (which == 2) {
+        // MakeFile and the name it makes.
+        char entry[0x30] = {};
+        MakeText(reinterpret_cast<GameText*>(entry), "");
+        GameText key = makeKey("http://www.simcity.com/dir/picture.jpeg");
+        // SetFolder adds the missing trailing separator.
+        const std::string bareFolder = folder.substr(0, folder.size() - 1);
+        GameText bare{};
+        MakeText(&bare, bareFolder.c_str());
+        f.Byte(Virtual<uint8_t>(cache, 0x18, &bare));
+        DestroyText(&bare);
+        f.Byte(Virtual<uint8_t>(cache, 0x68, &key, entry));
+        HashH7bText(f, H7bNormalName(H7bText(entry)));
+        char other[0x30] = {};
+        MakeText(reinterpret_cast<GameText*>(other), "");
+        GameText folderText{};
+        MakeText(&folderText, folder.c_str());
+        f.Byte(Virtual<uint8_t>(cache, 0x6C, &key, other, &folderText));
+        HashH7bText(f, H7bNormalName(H7bBaseName(H7bText(other))));
+        DestroyText(&folderText);
+        DestroyText(reinterpret_cast<GameText*>(other));
+        DestroyText(reinterpret_cast<GameText*>(entry));
+        DestroyText(&key);
+        HashH7bFiles(f, folder);
+    } else if (which == 3) {
+        // PutFile and GetData from the file.
+        const std::string source = folder + "source.dat";
+        std::FILE* const file = std::fopen(source.c_str(), "wb");
+        if (file) {
+            std::fputs("a file in the cache", file);
+            std::fclose(file);
+        }
+        GameText key = makeKey("http://www.simcity.com/file.dat");
+        GameText path{};
+        MakeText(&path, source.c_str());
+        f.Byte(Virtual<uint8_t>(cache, 0x60, &key, &path, true, uint8_t{5}, int32_t{600}));
+        char* entry = nullptr;
+        Virtual<uint8_t>(cache, 0x44, &key, &entry);
+        f.Byte(entry ? 1 : 0);
+        f.Word(entry ? reinterpret_cast<uint32_t(__thiscall*)(void*, void*)>(addr::FileCache_ReadFile)(cache, entry)
+                     : 0);
+        char* block = nullptr;
+        f.Byte(Virtual<uint8_t>(cache, 0x3C, &key, &block));
+        f.Bytes(block ? At<char*>(block, 0) : nullptr, block ? At<char*>(block, 0) + At<uint32_t>(block, 4) : nullptr);
+        if (block)
+            reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::HTMLSharedBlock_Release)(block);
+        DestroyText(&path);
+        DestroyText(&key);
+        HashH7bFiles(f, folder);
+    } else if (which == 4) {
+        // GetPath writes a block out and names the file.
+        GameText key = makeKey("http://www.simcity.com/path.gif");
+        const char data[] = "path data";
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, data, sizeof data, true, uint8_t{1}, int32_t{600}));
+        GameText path{};
+        MakeText(&path, "");
+        f.Byte(Virtual<uint8_t>(cache, 0x40, &key, &path));
+        HashH7bText(f, H7bNormalName(H7bText(&path)));
+        DestroyText(&path);
+        DestroyText(&key);
+        HashH7bFiles(f, folder);
+    } else if (which == 5) {
+        // SaveIni writes the entry, LoadIni reads it into a second cache.
+        GameText key = makeKey("http://www.simcity.com/ini.gif");
+        const char data[] = "ini data";
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, data, sizeof data, true, uint8_t{2}, int32_t{600}));
+        GameText named{};
+        MakeText(&named, "");
+        Virtual<uint8_t>(cache, 0x40, &key, &named); // name the file
+        DestroyText(&named);
+        DestroyText(&key);
+        f.Byte(Virtual<uint8_t>(cache, 0x8)); // Shutdown writes FileCache.ini
+        std::FILE* const ini = std::fopen((folder + "FileCache.ini").c_str(), "rb");
+        if (ini) {
+            char line[512];
+            while (std::fgets(line, sizeof line, ini)) {
+                std::string text = line;
+                HashH7bText(f, H7bNormalName(text));
+            }
+            std::fclose(ini);
+        }
+        char* const second = MakeH7bCache(folder, false);
+        f.Byte(Virtual<uint8_t>(second, 0x4));
+        HashH7bMap(f, second);
+        DestroyH7bCache(second);
+    } else if (which == 6) {
+        // ScanFolder removes an orphan .cache file.
+        std::FILE* const orphan = std::fopen((folder + "orphan.cache").c_str(), "wb");
+        if (orphan)
+            std::fclose(orphan);
+        f.Byte(Virtual<uint8_t>(cache, 0x8));
+        f.Byte(Virtual<uint8_t>(cache, 0x4));
+        HashH7bFiles(f, folder);
+    } else if (which == 7) {
+        // A replaced data entry: the old block and file are dropped first.
+        GameText key = makeKey("http://www.simcity.com/replaced.gif");
+        const char first[] = "first";
+        const char second[] = "second";
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, first, sizeof first, true, uint8_t{1}, int32_t{600}));
+        GameText file{};
+        MakeText(&file, "");
+        f.Byte(Virtual<uint8_t>(cache, 0x40, &key, &file));
+        DestroyText(&file);
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, second, sizeof second, true, uint8_t{2}, int32_t{600}));
+        char* block = nullptr;
+        f.Byte(Virtual<uint8_t>(cache, 0x3C, &key, &block));
+        f.Bytes(block ? At<char*>(block, 0) : nullptr, block ? At<char*>(block, 0) + At<uint32_t>(block, 4) : nullptr);
+        if (block)
+            reinterpret_cast<uint32_t(__thiscall*)(void*)>(addr::HTMLSharedBlock_Release)(block);
+        DestroyText(&key);
+        HashH7bFiles(f, folder);
+    } else if (which == 8) {
+        // An expiry of 0 is already expired when it is read back.
+        GameText key = makeKey("http://www.simcity.com/expired.gif");
+        const char data[] = "expired";
+        f.Byte(Virtual<uint8_t>(cache, 0x5C, &key, data, sizeof data, true, uint8_t{1}, int32_t{0}));
+        char* block = nullptr;
+        f.Byte(Virtual<uint8_t>(cache, 0x3C, &key, &block));
+        f.Byte(block ? 1 : 0);
+        DestroyText(&key);
+    } else if (which == 9) {
+        // The deleting destructor with flag 0 runs the body but keeps memory.
+        char* const ended = MakeH7bCache(folder);
+        Virtual<uint8_t>(ended, 0x4);
+        f.Byte(reinterpret_cast<char*(__thiscall*)(void*, uint32_t)>(addr::FileCache_DeletingDestructor)(ended, 0) ==
+               ended);
+        GameDelete(ended);
+        HashH7bFiles(f, folder);
+    } else {
+        // Ini lines the cache rejects: missing file, oversized, expired.
+        char* const loading = MakeH7bCache(folder, false);
+        const std::string iniPath = folder + "FileCache.ini";
+        std::FILE* const ini = std::fopen(iniPath.c_str(), "wb");
+        if (ini) {
+            const int32_t now = reinterpret_cast<int32_t(__cdecl*)(void*)>(addr::CRT_time32)(nullptr);
+            std::fprintf(ini, "[Cache Entries]\r\n");
+            std::fprintf(ini, "CacheEntry00000 = http://x/missing.gif,missing.cache,10,1,600,%d,%d,%d\r\n", now, now,
+                         now + 600);
+            std::fprintf(ini, "CacheEntry00001 = http://x/oversized.gif,oversized.cache,9999999,1,600,%d,%d,%d\r\n",
+                         now, now, now + 600);
+            std::fprintf(ini, "CacheEntry00002 = http://x/expired.gif,expired.cache,10,1,600,%d,%d,%d\r\n", now, now,
+                         now - 1);
+            std::fclose(ini);
+        }
+        for (const char* name : {"oversized.cache", "expired.cache"}) {
+            std::FILE* const file = std::fopen((folder + name).c_str(), "wb");
+            if (file)
+                std::fclose(file);
+        }
+        f.Byte(Virtual<uint8_t>(loading, 0x4));
+        HashH7bMap(f, loading);
+        DestroyH7bCache(loading);
+        HashH7bFiles(f, folder);
+    }
+
+    HashH7bMap(f, cache);
+    DestroyH7bCache(cache);
+    RemoveH7bFolder(folder);
+    return f.h;
+}
+
 bool g_nodesOn = false;
 uint32_t g_nodesHash = 2166136261u;
 
@@ -6407,9 +6758,10 @@ void DriveNodesDay(const Day& day)
     Fnv total;
     int items = 0;
     int differ = 0;
-    uint32_t sectionHash[13] = {};
+    uint32_t sectionHash[14] = {};
     const char* const sections[] = {"constructors", "destructors", "colours", "characters", "pages", "children",
-                                    "document", "slots", "images", "window", "input", "directors", "cache"};
+                                    "document", "slots", "images", "window", "input", "directors", "cache",
+                                    "cache files"};
     // OPENSC4_TEST_HTML_NODES_TRACE=1: each item logged before it runs.
     const bool trace = EnvInt("OPENSC4_TEST_HTML_NODES_TRACE", 0) != 0;
     auto item = [&](int section, int index, auto run) {
@@ -6521,19 +6873,22 @@ void DriveNodesDay(const Day& day)
     CacheItem(3);
     for (int i = 0; i < kCacheItems; ++i)
         item(12, i, [&] { return CacheItem(i); });
+    for (int i = 0; i < kCacheFileItems; ++i)
+        item(13, i, [&] { return CacheFileItem(i); });
     Virtual<uint32_t>(face, 0x8);
 
     g_nodesHash = total.h;
     g_nodesOn = true;
     log::Write("autotest: html nodes: %d items (constructors %08X, destructors %08X, colours %08X, characters %08X, "
                "pages %08X, children %08X, document %08X, slots %08X, images %08X, window %08X, input %08X, directors "
-               "%08X, cache %08X), %u stand-in "
+               "%08X, cache %08X, cache files %08X), %u stand-in "
                "calls, %u of %u "
                "blocks "
                "freed; %s; "
                "hash %08X",
                items, sectionHash[0], sectionHash[1], sectionHash[2], sectionHash[3], sectionHash[4], sectionHash[5],
-               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], sectionHash[10], sectionHash[11], sectionHash[12], g_standCalls,
+               sectionHash[6], sectionHash[7], sectionHash[8], sectionHash[9], sectionHash[10], sectionHash[11], sectionHash[12],
+               sectionHash[13], g_standCalls,
                g_blocksFreed, g_blocksChecked,
                compare ? (differ ? "DIFFERENCES" : "game and ours the same") : "the game's only", g_nodesHash);
     if (compare)
