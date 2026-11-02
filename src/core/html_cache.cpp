@@ -1035,33 +1035,28 @@ bool SaveIni(char* self)
     TextFrom(section, "Cache Entries");
     char* it[2] = {};
     CallThis<void*>(addr::cGZDBSegmentPackedFile_KeyTableBegin, self + kMap, it);
+    Text keyText;
+    Text valueText;
+    TextEmpty(keyText);
+    TextEmpty(valueText);
     uint32_t index = 0;
     while (it[0]) {
         char* const node = it[0];
         char* const entry = node + 0x18;
         if (TextLength(entry) != 0) {
-            char key[32];
-            char value[1200];
-            const int keyLength = CallPlain<int>(addr::SC4_sprintf, key, "CacheEntry%05u", index);
-            const int valueLength = CallPlain<int>(
-                addr::SC4_sprintf, value, "%.*s,%.*s,%u,%u,%u,%d,%d,%d", static_cast<int>(TextLength(node + 4)),
-                At<char*>(node + 4, 4), static_cast<int>(TextLength(entry)), At<char*>(entry, 4),
-                At<uint32_t>(entry, kSize), At<uint32_t>(entry, kWords + 0),
-                At<uint32_t>(entry, kWords + 4), At<int32_t>(entry, kWords + 8),
-                At<int32_t>(entry, kUsed), At<int32_t>(entry, kExpiry));
-            if (keyLength > 0 && valueLength > 0) {
-                Text keyText;
-                Text valueText;
-                TextFrom(keyText, key);
-                TextFrom(valueText, value);
-                CallThis<void>(addr::cRZIniFile_SetString, &ini, &section, &keyText, &valueText);
-                TextDestroy(valueText);
-                TextDestroy(keyText);
-            }
+            reinterpret_cast<void*(__cdecl*)(void*, const char*, ...)>(addr::cRZBaseString_Sprintf)(
+                &keyText, "CacheEntry%05u", index);
+            reinterpret_cast<void*(__cdecl*)(void*, const char*, ...)>(addr::cRZBaseString_Sprintf)(
+                &valueText, "%s,%s,%u,%u,%u,%d,%d,%d", At<char*>(node + 4, 4), At<char*>(entry, 4),
+                At<uint32_t>(entry, kSize), At<uint32_t>(entry, kWords + 0), At<uint32_t>(entry, kWords + 4),
+                At<int32_t>(entry, kWords + 8), At<int32_t>(entry, kUsed), At<int32_t>(entry, kExpiry));
+            CallThis<void>(addr::cRZIniFile_SetString, &ini, &section, &keyText, &valueText);
             ++index;
         }
         CallThis<char**>(addr::HTMLCacheMap_Increment, it);
     }
+    TextDestroy(valueText);
+    TextDestroy(keyText);
     TextDestroy(section);
     CallThis<void>(addr::cRZIniFile_Destruct, &ini);
     TextDestroy(path);
