@@ -12913,8 +12913,11 @@ void StateDrive(Hash& states, Hash& ahead, Hash& steps, uint32_t& flags)
         {
             const auto vehicleEnter = reinterpret_cast<StateFn>(addr::cSC4Vehicle_EnterState);
             alignas(4) char entry[0x60] = {};
-            alignas(4) char tmpl[0x70] = {};
-            alignas(4) char parent[0x70] = {};
+            // 0x90, not 0x70: the game's ResetStateAttachments reads the
+            // template's attachments table at +0x70 (guard +0x80) on leaving
+            // the state 0x10; zeros here are an empty table.
+            alignas(4) char tmpl[0x90] = {};
+            alignas(4) char parent[0x90] = {};
             At<float>(entry, av::entryField::kSpeed) = 3.5f;
             Hash& h = g_vb7States;
             void** const tb = At<void**>(o, 0);
@@ -22360,8 +22363,14 @@ void TrainFrameDrive(Hash& tframe, uint32_t& tflags)
     TfLots lots{TfLotsVtable(), {}, 0};
     alignas(4) char controls[0x40] = {};
     alignas(4) char entry[0x60] = {};
-    alignas(4) char tmpl[0x70] = {};
-    alignas(4) char parent[0x70] = {};
+    // The templates 0x90 bytes, not 0x70: the game's ResetStateAttachments
+    // (0x0050D870) reads the template's attachments table at +0x70 (its
+    // begin +0x74, end +0x78, guard +0x80) whenever the state 0x10 is left,
+    // and a real group without attachments has the guard zero. At 0x70 the
+    // reads landed in the neighbouring stack (this entry's floats) and
+    // walked the table whenever those were not zero.
+    alignas(4) char tmpl[0x90] = {};
+    alignas(4) char parent[0x90] = {};
     alignas(4) char stateA[kStateSize] = {};
     At<float>(entry, 8) = 2.5f;
     At<float>(entry, 0x10) = 3.0f;
